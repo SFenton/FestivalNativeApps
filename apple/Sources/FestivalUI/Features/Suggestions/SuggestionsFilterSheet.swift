@@ -6,10 +6,10 @@ import FestivalDesign
 /// global toggle per `SuggestionCategoryType`, and a per-instrument override section.
 ///
 /// Every toggle applies immediately (operator, 2026-09-28: no Cancel/Apply), so the list
-/// behind the sheet updates as you go; the standard `festivalSheet()` look carries one
-/// trailing Done (`.confirmationAction`) and Reset sits at the end of the Form.
+/// behind the sheet updates as you go. Nothing is pending, so it dismisses with the shared
+/// ``FestivalModal``'s system Close (issue #23; it was a text Done) and Reset sits at the
+/// end of the Form.
 struct SuggestionsFilterSheet: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var draft: SuggestionFilterSettings
     @State private var selectedInstrument: Instrument?
     let visibleInstruments: [Instrument]
@@ -39,7 +39,7 @@ struct SuggestionsFilterSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        FestivalModal("Filter Suggestions", closeIdentifier: "fst.suggestions.filter.done") {
             Form {
                 if !visibleInstruments.isEmpty {
                     Section {
@@ -115,16 +115,6 @@ struct SuggestionsFilterSheet: View {
             }
             .scrollContentBackground(.hidden)
             .accessibilityIdentifier("fst.suggestions.filter.form")
-            .navigationTitle("Filter Suggestions")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("fst.suggestions.filter.done")
-                }
-            }
         }
         .festivalSheet(.large)
         .onChange(of: draft) { _, updated in onChange(updated) }

@@ -45,7 +45,9 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
         base.OnNavigatedTo(e);
         ViewModel = LeaderboardsPageState<BandRankingsViewModel>.GetOrCreate(e.Parameter,
             () => new BandRankingsViewModel(App.Session, (AppRoute.BandRankings)e.Parameter), out var created);
+        ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         shownPage = ViewModel.Page;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyText : null,
@@ -58,6 +60,7 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         ViewModel.PropertyChanged -= OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
         base.OnNavigatedFrom(e);
     }
 
@@ -71,6 +74,12 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
         shownPage = ViewModel.Page;
         Scroller.ChangeView(null, 0, null, true);
     }
+
+    /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
+    /// <param name="sender">Swap.</param>
+    /// <param name="e">Unused.</param>
+    private void OnContentRevealed(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
 
     #region Split layout
     /// <summary>

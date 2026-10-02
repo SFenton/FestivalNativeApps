@@ -18,6 +18,7 @@
 | Song Detail full page | iPhone 26.5 | Score rows at y≈792/849 under the Liquid Glass tab (tab starts y=791); edge/inset/footer attempts did not fix it and were reverted. Large-type Intensity labels also flagged |
 | Settings full page | iPhone | Partly offscreen heading / translucent compact title reported as contrast |
 | Grouped Songs (Shop sort) | iPhone | Intermittent nil-element Dynamic Type issue; saved Shop sort + failed Shop offline state has an unidentified contrast node |
+| Item Shop list, Songs list | iPhone | One nil-element "Text clipped" finding each (no identifier, label or frame), reproduced on the pre-#18 Shop rows too. The shared Song row's marquee title/artist findings (Songs since the marquee landed, Shop once it reused the row) were fixed by wrapping at accessibility sizes (issue #18) |
 | Karaoke path warning alert | iPhone | System alert title contrast and message Dynamic Type |
 | Sort sheet, Paths sheet, profile sheet, selected Songs | iPad 26.5 | Unnamed "Potentially inaccessible text" |
 | Solo launched at AccessibilityXXXL | iPad | Three nil-element "Text clipped" findings |

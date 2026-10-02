@@ -1,6 +1,9 @@
 import SwiftUI
 import FestivalCore
 import FestivalDesign
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Shell environment actions
 
@@ -35,14 +38,33 @@ struct OpenDrawerAction: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
+/// Environment action that pushes a route on the currently selected section's stack
+/// (the root-owned path), for chrome presented above it such as the notifications sheet.
+///
+/// Equatable for the same reason as ``OpenProfileAction``.
+struct PushRouteAction: Equatable {
+    let handler: @MainActor (AppRoute) -> Void
+
+    /// Push `route` on the current section's navigation stack.
+    @MainActor func callAsFunction(_ route: AppRoute) { handler(route) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
 extension EnvironmentValues {
     /// Opens the profile selection sheet owned by the root shell.
     @Entry var openProfile = OpenProfileAction(handler: {})
     /// Opens the hamburger drawer; nil where the platform shows a permanent sidebar.
     @Entry var openDrawer: OpenDrawerAction? = nil
+    /// Pushes on the current section's stack; nil outside the root shell (hosted tests).
+    @Entry var pushRoute: PushRouteAction? = nil
     /// The shared session, so pushed pages' shared chrome (the persistent avatar) can
     /// read the selected profile; nil outside the root shell.
     @Entry var festivalSession: FestivalSession? = nil
+    /// True inside the macOS shell, which owns one set of global toolbar items (Search,
+    /// bell, profile) for the whole window; pages then omit their own copies, since two
+    /// columns would otherwise both contribute them to the unified toolbar.
+    @Entry var shellOwnsGlobalToolbar = false
 }
 
 // MARK: - Rail overflow ranking
@@ -242,9 +264,12 @@ struct FestivalRootTrailingItems: ToolbarContent {
     let session: FestivalSession
     var showsNotifications: Bool = true
     @Environment(\.openProfile) private var openProfile
+    /// Notification rows open their destination on the current tab (issue #75).
+    @Environment(\.pushRoute) private var pushRoute
     /// Global search: a header button on every layout (operator, 2026-09-28).
     @Environment(\.openGlobalSearch) private var openGlobalSearch
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
 
     var body: some ToolbarContent {
         #if os(iOS)
@@ -260,10 +285,14 @@ struct FestivalRootTrailingItems: ToolbarContent {
         // Bell only with a selected profile (operator, 2026-09-28): notifications are per player.
         if showsNotifications && session.selectedPlayer != nil {
             if #available(iOS 27.0, *) {
-                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
-                    .railVisibilityPriority(.bell)
+                ToolbarItem(placement: .topBarTrailing) {
+                    NotificationsButton(session: session, pushRoute: pushRoute)
+                }
+                .railVisibilityPriority(.bell)
             } else {
-                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NotificationsButton(session: session, pushRoute: pushRoute)
+                }
             }
             if #available(iOS 26.0, *) {
                 if RootChromeTrailingGroups.separatesBellFromProfile(chrome: layout.sectionChrome) {
@@ -282,13 +311,15 @@ struct FestivalRootTrailingItems: ToolbarContent {
             }
         }
         #else
-        if let openGlobalSearch {
-            ToolbarItem(placement: .primaryAction) {
-                GlobalSearchButton { openGlobalSearch() }
+        if !shellOwnsGlobalToolbar {
+            if let openGlobalSearch {
+                ToolbarItem(placement: .primaryAction) {
+                    GlobalSearchButton { openGlobalSearch() }
+                }
             }
-        }
-        ToolbarItem(placement: .primaryAction) {
-            RootProfileButton(session: session) { openProfile() }
+            ToolbarItem(placement: .primaryAction) {
+                RootProfileButton(session: session) { openProfile() }
+            }
         }
         #endif
     }
@@ -373,37 +404,95 @@ struct DrawerButton: View {
     }
 }
 
-/// Notifications bell (web `HeaderActions` bell): unread badge, opens the native sheet.
+/// Bell badge copy for the unread-notification count (web `HeaderActions.tsx:68`).
+enum NotificationBadge {
+    /// Largest count shown verbatim; higher counts read "9+" like the web bell.
+    static let cap = 9
+
+    /// Badge text for the bell.
+    ///
+    /// - Parameter unreadCount: Rows in the sheet's "New" section.
+    /// - Returns: The count, "9+" above ``cap``, or nil (no badge) when nothing is unread.
+    static func text(unreadCount: Int) -> String? {
+        guard unreadCount > 0 else { return nil }
+        return unreadCount > cap ? "\(cap)+" : String(unreadCount)
+    }
+
+    /// VoiceOver label for the bell; it carries the exact count, not the capped badge.
+    ///
+    /// - Parameter unreadCount: Rows in the sheet's "New" section.
+    /// - Returns: "Notifications, N unread", or "Notifications" when nothing is unread.
+    static func accessibilityLabel(unreadCount: Int) -> String {
+        unreadCount > 0 ? "Notifications, \(unreadCount) unread" : "Notifications"
+    }
+}
+
+/// Notifications bell (web `HeaderActions` bell): unread-count badge, opens the native sheet.
+///
+/// iOS 26+ uses the system toolbar-item badge, so the bar lays it out without clipping
+/// (HIG Notifications: "Avoid custom images or components that mimic a badge"). Older
+/// iOS has no toolbar badge API, so it falls back to a small numeric capsule.
 ///
 /// Owned by the Notifications feature lane; see `Features/Notifications/NotificationsSheet.swift`.
 struct NotificationsButton: View {
     let session: FestivalSession
+    /// The root shell's push on the current tab; a tapped row's page opens there after
+    /// the sheet closes. Nil outside the shell.
+    var pushRoute: PushRouteAction?
+    /// Opens a sheet owned by the presenter instead of this button's own (the macOS
+    /// shell, whose View menu also opens it); nil presents locally.
+    var open: (() -> Void)?
     @State private var presented = false
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
+        let badge = NotificationBadge.text(unreadCount: center.unreadCount)
         Button {
-            presented = true
+            if let open { open() } else { presented = true }
         } label: {
             Label("Notifications", systemImage: "bell")
         }
         .tint(BrandTokens.textPrimary)
-        .accessibilityLabel(center.unreadCount > 0
-            ? "Notifications, \(center.unreadCount) unread" : "Notifications")
+        .modifier(NotificationBadgeModifier(text: badge))
+        .accessibilityLabel(NotificationBadge.accessibilityLabel(unreadCount: center.unreadCount))
+        // The system badge also publishes its count as the accessibility value, which stays
+        // stale after the badge clears; the label alone announces "N unread".
+        .accessibilityValue(Text(""))
         .accessibilityIdentifier("fst.shell.notifications")
-        .overlay(alignment: .topTrailing) {
-            if center.unreadCount > 0 {
-                Circle()
-                    .fill(BrandTokens.gold)
-                    .frame(width: 9, height: 9)
-                    .offset(x: 2, y: -1)
-                    .accessibilityHidden(true)
-            }
-        }
         .task(id: session.selectionRevision) { await center.refresh(session: session) }
         .sheet(isPresented: $presented) {
-            NotificationsSheet(session: session)
+            // Closure passed directly, like the profile sheet (environment trap).
+            NotificationsSheet(session: session) { route in pushRoute?(route) }
                 .festivalSheet(.large)
+        }
+    }
+}
+
+/// Puts the bell's unread count on the system toolbar-item badge (iOS 26+).
+///
+/// Before iOS 26 SwiftUI ignores `badge` outside lists and tab bars, so a small numeric
+/// capsule stands in. Both are hidden from VoiceOver: the bell's label carries the count.
+private struct NotificationBadgeModifier: ViewModifier {
+    /// Badge text, or nil for no badge.
+    let text: String?
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            content.badge(text.map { Text($0) })
+        } else {
+            content.overlay(alignment: .topTrailing) {
+                if let text {
+                    Text(text)
+                        .font(.caption2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 16, minHeight: 16)
+                        .background(Capsule().fill(.red))
+                        .fixedSize()
+                        .offset(x: 8, y: -6)
+                        .accessibilityHidden(true)
+                }
+            }
         }
     }
 }
@@ -418,6 +507,7 @@ struct RootProfileButton: View {
     let session: FestivalSession
     let action: () -> Void
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.displayScale) private var displayScale
 
     /// How the profile action is drawn for a player and section chrome.
     enum Presentation: Equatable {
@@ -449,7 +539,7 @@ struct RootProfileButton: View {
             case .choose:
                 Label("Choose Profile", systemImage: "person.crop.circle")
             case let .monogram(name):
-                ProfileAvatar(name: name, size: 30)
+                MonogramLabel(name: name, size: 30, scale: displayScale)
             case let .symbol(title):
                 Label(title, systemImage: "person.crop.circle.fill")
             }
@@ -500,3 +590,86 @@ struct ProfileAvatar: View {
             .accessibilityHidden(true)
     }
 }
+
+// MARK: - Monogram bar item
+
+/// The selected player's monogram as a bar-button label (issue #15).
+///
+/// A custom view inside a toolbar item is hosted as-is: the system did not enlarge its
+/// hit region, so the avatar only answered inside its 36 pt capsule while Search and the
+/// bell beside it took taps 20 pt off-centre. Drawn as an image, the item is a standard
+/// image bar button with the system hit region (HIG Toolbars: "Prefer standard buttons";
+/// HIG Buttons: "the hit region is at least 44x44 pt"). Falls back to the view when the
+/// image cannot be rendered and on platforms without UIKit.
+struct MonogramLabel: View {
+    let name: String
+    let size: CGFloat
+    let scale: CGFloat
+
+    var body: some View {
+        #if canImport(UIKit)
+        if let image = MonogramImageCache.shared.image(name: name, size: size, scale: scale) {
+            // Titled like the vertical-bar symbol item, for the overflow menu.
+            Label {
+                Text("Profile: \(name)")
+            } icon: {
+                Image(uiImage: image).renderingMode(.original)
+            }
+        } else {
+            ProfileAvatar(name: name, size: size)
+        }
+        #else
+        ProfileAvatar(name: name, size: size)
+        #endif
+    }
+}
+
+/// Everything that changes a rendered monogram's pixels.
+///
+/// The image depends only on the initial (``ProfileAvatar/initial(for:)``), so names
+/// sharing an initial share one image and the cache stays tiny.
+struct MonogramImageKey: Hashable {
+    let initial: String
+    let size: CGFloat
+    let scale: CGFloat
+
+    /// Create the key for a player.
+    ///
+    /// - Parameters:
+    ///   - name: Player display name.
+    ///   - size: Avatar diameter in points.
+    ///   - scale: Display scale; values below 1 (an unset environment) render at 1x.
+    init(name: String, size: CGFloat, scale: CGFloat) {
+        initial = ProfileAvatar.initial(for: name)
+        self.size = size
+        self.scale = max(scale, 1)
+    }
+}
+
+#if canImport(UIKit)
+/// Rendered monogram images, so a profile switch or toolbar rebuild never re-renders one.
+@MainActor
+final class MonogramImageCache {
+    /// The process-wide cache used by ``MonogramLabel``.
+    static let shared = MonogramImageCache()
+
+    private var images: [MonogramImageKey: UIImage] = [:]
+
+    /// The monogram image for `name`, rendering it on first use.
+    ///
+    /// - Parameters:
+    ///   - name: Player display name.
+    ///   - size: Avatar diameter in points.
+    ///   - scale: Display scale; the image is rendered at this scale.
+    /// - Returns: An original-colour image `size` points square, or nil if rendering fails.
+    func image(name: String, size: CGFloat, scale: CGFloat) -> UIImage? {
+        let key = MonogramImageKey(name: name, size: size, scale: scale)
+        if let cached = images[key] { return cached }
+        let renderer = ImageRenderer(content: ProfileAvatar(name: name, size: size))
+        renderer.scale = key.scale
+        guard let image = renderer.uiImage?.withRenderingMode(.alwaysOriginal) else { return nil }
+        images[key] = image
+        return image
+    }
+}
+#endif

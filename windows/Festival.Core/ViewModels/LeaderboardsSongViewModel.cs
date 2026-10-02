@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Festival.Core.Domain;
 
 namespace Festival.Core.ViewModels;
 
@@ -32,6 +33,15 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         Pager = new RankingsPagerViewModel("fst.song-leaderboard", GoToPageAsync);
         Status = new ServiceStatusViewModel($"song-leaderboard:{route.SongId}:{route.Instrument.ServiceId()}", "Leaderboard unavailable",
             LoadAsync, session.Time);
+        LoadSwap = new LoadSwap(session.Time);
+        LoadSwap.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(IsLoading));
+            OnPropertyChanged(nameof(ShowRows));
+            OnPropertyChanged(nameof(ShowEmpty));
+            OnPropertyChanged(nameof(ShowError));
+            OnPropertyChanged(nameof(ShowContent));
+        };
     }
 
     /// <summary>Song.</summary>
@@ -45,6 +55,12 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
 
     /// <summary>Full-page failure.</summary>
     public ServiceStatusViewModel Status { get; }
+
+    /// <summary>Rows/content load-swap gate.</summary>
+    public LoadSwap LoadSwap { get; }
+
+    /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
+    public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
     /// <summary>Instrument label.</summary>
     public string InstrumentLabel => Instrument.Label();
@@ -95,19 +111,19 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     public string IconFile => Instrument.IconFile(Song?.UsesKeyboardIcon == true);
 
     /// <summary>Whether the first load is in flight.</summary>
-    public bool IsLoading => State is LoadState.Idle or LoadState.Loading;
+    public bool IsLoading => LoadSwap.IsLoading;
 
     /// <summary>Whether rows are shown.</summary>
-    public bool ShowRows => State == LoadState.Loaded;
+    public bool ShowRows => State == LoadState.Loaded && LoadSwap.ContentVisible;
 
     /// <summary>Whether "No scores yet." is shown.</summary>
-    public bool ShowEmpty => State == LoadState.Empty;
+    public bool ShowEmpty => State == LoadState.Empty && LoadSwap.ContentVisible;
 
     /// <summary>Whether the full-page failure is shown.</summary>
-    public bool ShowError => State == LoadState.Failed;
+    public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
     /// <summary>Whether the header, spotlight and pager are shown.</summary>
-    public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
+    public bool ShowContent => State is (LoadState.Loaded or LoadState.Empty) && LoadSwap.ContentVisible;
 
     /// <summary>Whether the pinned row is shown.</summary>
     public bool ShowSpotlight => Spotlight is not null;
@@ -158,7 +174,8 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     {
         var request = ++version;
         var requestedPage = Page;
-        if (State != LoadState.Loaded) State = LoadState.Loading;
+        var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
+        if (State is LoadState.Idle) State = LoadState.Loading;
         IsRefreshing = true;
         try
         {
@@ -175,21 +192,29 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
                 await GoToPageAsync(corrected);
                 return;
             }
-            Status.Clear();
-            entries = [.. board.Entries];
-            TotalText = board.ShowLeaderboardEntryTotals == true
-                ? string.Create(CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} {Instrument.Label()} entries") : "";
-            Pager.Update(requestedPage, pages);
-            ApplySelection();
-            State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
-            IsRefreshing = false;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                Status.Clear();
+                entries = [.. board.Entries];
+                TotalText = board.ShowLeaderboardEntryTotals == true
+                    ? string.Create(CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} {Instrument.Label()} entries") : "";
+                Pager.Update(requestedPage, pages);
+                ApplySelection();
+                State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+                IsRefreshing = false;
+            }, AnimateLoadSwaps());
         }
         catch (FestivalApiException error)
         {
             if (request != version) return;
-            IsRefreshing = false;
-            Status.Report(error);
-            State = LoadState.Failed;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                IsRefreshing = false;
+                Status.Report(error);
+                State = LoadState.Failed;
+            }, AnimateLoadSwaps());
         }
     }
 
@@ -205,12 +230,10 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         var rows = entries.Select(e => new SongLeaderboardRowViewModel(e, RankingSpotlight.SameAccount(e.AccountId, selected?.AccountId))).ToList();
         var spotlight = SelectedEntry() is { } own ? new SongLeaderboardRowViewModel(own, true) : null;
         // Web computeRankWidth / score "ch" width over the page and the pinned row: every row, including the pinned
-        // selected-player row, uses the same rank and score column widths so the columns line up (operator batch 7.9).
-        var all = spotlight is null ? rows : [.. rows, spotlight];
-        var rankChars = all.Count == 0 ? 0 : all.Max(r => r.RankText.Length);
-        var scoreChars = all.Count == 0 ? 0 : all.Max(r => r.Score.Length);
-        Rows = [.. rows.Select(r => r with { RankChars = rankChars, ScoreChars = scoreChars })];
-        Spotlight = spotlight is null ? null : spotlight with { RankChars = rankChars, ScoreChars = scoreChars };
+        // selected-player row, gets the same columns at the same widths so they line up (operator batch 7.9, issue #37).
+        var section = LeaderboardColumns.Measure(spotlight is null ? rows : [.. rows, spotlight]);
+        Rows = [.. rows.Select(r => r with { Section = section })];
+        Spotlight = spotlight is null ? null : spotlight with { Section = section };
         OnPropertyChanged(nameof(CanJump));
         JumpCommand.NotifyCanExecuteChanged();
     }
@@ -282,11 +305,8 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>Accuracy in ten-thousandths of a percent, for the badge tint.</summary>
     public double AccuracyValue => Entry.Accuracy ?? 0;
 
-    /// <summary>Longest rank text on the page (including the pinned row), sizing the shared rank column.</summary>
-    public int RankChars { get; init; }
-
-    /// <summary>Longest score text on the page (including the pinned row), sizing the shared score column.</summary>
-    public int ScoreChars { get; init; }
+    /// <inheritdoc />
+    public LeaderboardSection? Section { get; init; }
 
     /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
     public int StarCount => Entry.Stars ?? 0;

@@ -126,6 +126,8 @@ internal fun SuggestionsScreenContent(
         title = "Suggestions",
         isRoot = isRoot,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
+        // Filter stays reachable while the cards scroll (issue #52).
+        pinActions = true,
         actions = {
             if (state.phase != SuggestionsPhase.NoPlayer) {
                 val active = state.filter.isActive

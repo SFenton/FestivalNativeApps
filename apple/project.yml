@@ -17,7 +17,9 @@ targets:
     info:
       path: Apps/iOS/Info.plist
       properties:
-        CFBundleDisplayName: Festival Score Tracker
+        # Home Screen label: the full name truncates under the icon on iPhone/iPad, so
+        # use the PWA's short name (web manifest short_name "FST"). macOS keeps the full name.
+        CFBundleDisplayName: FST
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         FSTGitSHA: $(FST_GIT_SHA)
@@ -39,6 +41,53 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGNING_ALLOWED: NO
+  FestivalTablet:
+    # The iPadOS app: its own App Store app (the iPhone app above stays iPhone-only and
+    # portrait-locked). Shares the iPhone app's entry point, assets and What's New file.
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Apps/iOS
+        excludes:
+          - Info.plist
+    dependencies:
+      - package: FestivalApple
+        product: FestivalUI
+    info:
+      path: Apps/iPadOS/Info.plist
+      properties:
+        # Home Screen label: the full name truncates under the icon on iPhone/iPad, so
+        # use the PWA's short name (web manifest short_name "FST"). macOS keeps the full name.
+        CFBundleDisplayName: FST
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FSTGitSHA: $(FST_GIT_SHA)
+        UILaunchScreen:
+          UIColorName: FestivalLaunchBackground
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Every orientation and no UIRequiresFullScreen: Split View, Slide Over and
+        # resizable (Stage Manager / windowed) windows must all work.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.ipad
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        FST_GIT_SHA: dev
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktop:
@@ -84,6 +133,25 @@ targets:
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: FestivalMobile
         CODE_SIGNING_ALLOWED: NO
+  FestivalTabletUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Apps/iPadOSUITests
+      # Shared launch helper and the `ios_sim.py drive` step driver.
+      - path: Apps/iOSUITests/FestivalApp.swift
+      - path: Apps/iOSUITests/DriverTests.swift
+      - path: Apps/iOSUITests/HomeScreenNameJourneyTests.swift
+    dependencies:
+      - target: FestivalTablet
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.ipaduitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: FestivalTablet
+        CODE_SIGNING_ALLOWED: NO
   FestivalDesktopUITests:
     type: bundle.ui-testing
     platform: macOS
@@ -109,6 +177,14 @@ schemes:
       gatherCoverageData: true
       targets:
         - name: FestivalMobileUITests
+  FestivalTablet:
+    build:
+      targets:
+        FestivalTablet: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: FestivalTabletUITests
   FestivalDesktop:
     build:
       targets:

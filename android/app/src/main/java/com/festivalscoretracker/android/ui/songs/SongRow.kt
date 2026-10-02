@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -155,11 +157,103 @@ internal object SongsTokens {
 
 // endregion
 
+// region Row card
+
+/**
+ * The shared song card used by every song list (Songs, Item Shop list): the glass
+ * surface, 48 dp art, marquee title and subtitle, an optional pulsing outline and
+ * slots for page-specific content. Pages must build song rows on this card rather
+ * than copying its layout, so the surface, spacing and marquee stay identical.
+ *
+ * Semantics: with a [description] the card is one TalkBack stop that speaks it (the
+ * art/text column is cleared); without one, the card merges its texts. [end] sits
+ * outside the cleared column, so a button there stays its own focus stop.
+ *
+ * @param title Song title (marquee when too long).
+ * @param subtitle Secondary line, e.g. `artist · year · duration` (marquee).
+ * @param artUrl Resolved artwork, or null.
+ * @param onClick Primary row action.
+ * @param modifier Applied to the card (test tags).
+ * @param description Whole-card spoken description, or null to merge the texts.
+ * @param selected Highlighted in two-pane layouts.
+ * @param outline Pulsing outline color, or null for none.
+ * @param pulse Shared outline alpha, read only while drawing.
+ * @param details Extra lines under the subtitle (chart label, Shop badge).
+ * @param trailing Content after the text column (metadata, Shop indicator).
+ * @param below Full-width content under the art row (chips, pills, score state).
+ * @param end Interactive content after the padded column (invalid-score icon, Shop link).
+ */
+@Composable
+fun SongRowCard(
+    title: String,
+    subtitle: String,
+    artUrl: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+    selected: Boolean = false,
+    outline: Color? = null,
+    pulse: () -> Float = { 0f },
+    details: @Composable ColumnScope.() -> Unit = {},
+    trailing: @Composable RowScope.() -> Unit = {},
+    below: @Composable ColumnScope.() -> Unit = {},
+    end: @Composable RowScope.() -> Unit = {},
+) {
+    GlassCard(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (outline != null) Modifier.pulseOutline(outline, pulse) else Modifier)
+            .then(modifier)
+            .then(
+                if (description != null || selected) {
+                    Modifier.semantics {
+                        // Only the highlighted row carries selection state; single-pane rows are not
+                        // selectable, so TalkBack should not prefix every row with "Not selected".
+                        if (selected) this.selected = true
+                        if (description != null) contentDescription = description
+                    }
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.background(if (selected) BrandTokens.accentPurple.copy(alpha = 0.35f) else Color.Transparent)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .then(if (description != null) Modifier.clearAndSetSemantics { } else Modifier),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AsyncImage(
+                        model = artUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        FestivalMarqueeText(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
+                        FestivalMarqueeText(subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
+                        details()
+                    }
+                    trailing()
+                }
+                below()
+            }
+            end()
+        }
+    }
+}
+
+// endregion
+
 // region Row
 
 /**
- * One glass Songs card: art, marquee title and `artist · year · duration`, the
- * pulsing Shop outline, then selected-player chips or metadata pills (or an
+ * One glass Songs card ([SongRowCard]): art, marquee title and `artist · year · duration`,
+ * the pulsing Shop outline, then selected-player chips or metadata pills (or an
  * explicit score state). The card is one tap target and one TalkBack stop that
  * speaks [SongRowModel.announcement]; an invalid-score icon is a second stop.
  *
@@ -182,68 +276,50 @@ fun SongRow(
     onClick: () -> Unit,
 ) {
     val song = row.song
-    val outline = row.pulse?.let(SongsTokens::pulse)
-    GlassCard(
+    SongRowCard(
+        title = song.title,
+        subtitle = song.subtitle,
+        artUrl = artUrl,
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (outline != null) Modifier.pulseOutline(outline, pulse) else Modifier)
-            .testTag("fst.songs.row.${song.songId}")
-            .semantics {
-                // Only the highlighted row carries selection state; single-pane rows are not
-                // selectable, so TalkBack should not prefix every row with "Not selected".
-                if (selected) this.selected = true
-                contentDescription = row.announcement
-            },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.background(if (selected) BrandTokens.accentPurple.copy(alpha = 0.35f) else Color.Transparent)) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .clearAndSetSemantics { },
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AsyncImage(
-                        model = artUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
-                    )
-                    Column(Modifier.weight(1f)) {
-                        FestivalMarqueeText(song.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
-                        FestivalMarqueeText(song.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-                        if (row.namesChart) {
-                            Text(
-                                "${row.chart!!.label} chart",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = BrandTokens.textSecondary,
-                                modifier = Modifier.testTag("fst.songs.metadata.chart.${song.songId}"),
-                            )
-                        }
-                    }
-                    val lastPlayed = row.lastPlayed
-                    val maxScore = row.maxScore
-                    when {
-                        lastPlayed != null -> LastPlayedEntry(lastPlayed, song)
-                        maxScore != null -> MaxScoreDual(maxScore, song.songId)
-                        else -> row.metadata.firstOrNull()?.let { MetadataPill(it, song.songId) }
-                    }
-                    val raw = row.chartRaw
-                    if (row.metadata.isEmpty() && maxScore == null && raw != null) DifficultyMeter(raw)
-                    row.pulse?.let { ShopBadge(it, song.songId, breathe) }
-                }
-                if (row.chips.isNotEmpty()) StatusChips(row.chips, song.songId, song.usesKeyboardIcon)
-                val rest = if (row.lastPlayed == null && row.maxScore == null) row.metadata.drop(1) else row.metadata
-                if (rest.isNotEmpty() || row.maxScore != null) {
-                    MetadataPills(rest, song.songId, row.maxScore)
-                }
-                row.scoreState?.let { ScoreState(it, song.songId) }
+        modifier = Modifier.testTag("fst.songs.row.${song.songId}"),
+        description = row.announcement,
+        selected = selected,
+        outline = row.pulse?.let(SongsTokens::pulse),
+        pulse = pulse,
+        details = {
+            if (row.namesChart) {
+                Text(
+                    "${row.chart!!.label} chart",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = BrandTokens.textSecondary,
+                    modifier = Modifier.testTag("fst.songs.metadata.chart.${song.songId}"),
+                )
             }
+        },
+        trailing = {
+            val lastPlayed = row.lastPlayed
+            val maxScore = row.maxScore
+            when {
+                lastPlayed != null -> LastPlayedEntry(lastPlayed, song)
+                maxScore != null -> MaxScoreDual(maxScore, song.songId)
+                else -> row.metadata.firstOrNull()?.let { MetadataPill(it, song.songId) }
+            }
+            val raw = row.chartRaw
+            if (row.metadata.isEmpty() && maxScore == null && raw != null) DifficultyMeter(raw)
+            row.pulse?.let { ShopBadge(it, song.songId, breathe) }
+        },
+        below = {
+            if (row.chips.isNotEmpty()) StatusChips(row.chips, song.songId, song.usesKeyboardIcon)
+            val rest = if (row.lastPlayed == null && row.maxScore == null) row.metadata.drop(1) else row.metadata
+            if (rest.isNotEmpty() || row.maxScore != null) {
+                MetadataPills(rest, song.songId, row.maxScore)
+            }
+            row.scoreState?.let { ScoreState(it, song.songId) }
+        },
+        end = {
             if (row.warning != null && onWarning != null) InvalidScoreIcon(row.warning.warning, song.songId, pulse, onWarning)
-        }
-    }
+        },
+    )
 }
 
 /**

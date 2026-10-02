@@ -4,10 +4,16 @@ import com.festivalscoretracker.android.testing.RivalsFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -31,7 +37,9 @@ import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.FestivalApi
+import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
+import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.compete.comboRankings
 import com.festivalscoretracker.android.data.compete.playerComboRanking
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
@@ -46,6 +54,7 @@ import com.festivalscoretracker.android.testing.MainDispatcherRule
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.io.IOException
 import java.time.Duration
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -230,8 +239,8 @@ class CompeteUiTest {
 
     private val transport = CompeteFixtures.transport()
 
-    private fun launch(debug: DebugLaunch) {
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+    private fun launch(debug: DebugLaunch, http: HttpTransport = transport) {
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = http, settingsStore = InMemoryPreferences())
         rule.setContent { FestivalApp(container, debug) }
     }
 
@@ -270,6 +279,56 @@ class CompeteUiTest {
         rule.waitUntil(10_000) {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             rule.onAllNodesWithTag("fst.compete.grid").fetchSemanticsNodes().isEmpty()
+        }
+    }
+
+    @Test
+    fun rowsKeepTheSongsCountInTheirDescription() {
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        waitForTag("fst.compete.leaderboard-card.Solo_Guitar")
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.spotlight.Solo_Guitar"))
+        // Narrow cards may hide the songs column (issue #38); TalkBack still hears the count.
+        val spoken = rule.onNodeWithTag("fst.compete.spotlight.Solo_Guitar").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
+        assertTrue(spoken, spoken.contains("160 / 250 songs"))
+    }
+
+    @Test
+    fun sectionsShowProgressIndicatorsUntilRowsOrErrorsArrive() {
+        val gate = CompletableDeferred<Unit>()
+        // Holds every Compete read until released; Bass's board then fails so its spinner gives way to the inline error.
+        val gated = object : HttpTransport {
+            override suspend fun send(request: HttpRequest): HttpResult {
+                val path = request.url.substringBefore('?')
+                if ("/api/rankings" in path || "/rivals/" in path) gate.await()
+                if (path.endsWith("/api/rankings/Solo_Bass")) throw IOException("offline")
+                return transport.send(request)
+            }
+        }
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true), gated)
+        waitForTag("fst.compete.leaderboard-card.Solo_Guitar.loading")
+        rule.onNodeWithTag("fst.compete.leaderboard-card.0f.loading").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Loading Lead leaderboard")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.rivals-card.Solo_Guitar"))
+        rule.onNodeWithTag("fst.compete.rivals-card.Solo_Guitar.loading").assertIsDisplayed()
+
+        gate.complete(Unit)
+        awaitInCard("fst.compete.rivals-card.Solo_Guitar", hasTestTag("fst.rivals.row.${RivalsFixtures.RIVALS[0]}"))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Guitar.loading").fetchSemanticsNodes().isEmpty())
+        awaitInCard("fst.compete.leaderboard-card.Solo_Guitar", hasTestTag("fst.compete.spotlight.Solo_Guitar"))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Guitar.loading").fetchSemanticsNodes().isEmpty())
+        awaitInCard("fst.compete.leaderboard-card.Solo_Bass", hasTestTag("fst.service-status.inline"))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
+    }
+
+    /** Scrolls the lazy Compete grid to [cardTag] until a descendant matching [child] is composed. */
+    private fun awaitInCard(cardTag: String, child: SemanticsMatcher) {
+        val matcher = child.and(hasAnyAncestor(hasTestTag(cardTag)))
+        rule.waitUntil(10_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+            rule.waitForIdle()
+            rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(cardTag))
+            rule.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
         }
     }
 

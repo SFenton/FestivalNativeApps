@@ -20,7 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -40,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
@@ -57,17 +55,19 @@ import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.common.FestivalScreen
-import com.festivalscoretracker.android.ui.common.LoadingView
+import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.rememberRevealed
-import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.common.isLargeText
 import androidx.compose.material3.PrimaryScrollableTabRow
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Hub
 
@@ -179,12 +179,33 @@ private fun HubBody(
     bottomPadding: androidx.compose.ui.unit.Dp,
     navigate: (AppRoute) -> Unit,
 ) {
-    val issue = content.fullPageIssue
-    // Stays composed through the full-page spinner, so a first load fades in while a
-    // return visit (already settled) shows at once.
-    val pageRevealed = rememberRevealed(content.settled && issue == null)
+    // First loads and tab switches run the shared load swap (issue #71): the old tab fades out,
+    // the spinner shows until the new tab settles, then its cards stagger in. A return visit
+    // (already settled) shows at once.
+    val swap = rememberLoadSwap(tab to content, content.settled || content.fullPageIssue != null, key = tab)
+    val (shownTab, shown) = swap.shown
+    val issue = shown.fullPageIssue
+    val pageRevealed = swap.revealed
+    if (swap.showsSpinner) {
+        LoadSwapSpinner(swap, "Loading rivals", Modifier.fillMaxSize(), "fst.rivals.loading")
+        return
+    }
+    Box(Modifier.fillMaxSize().then(swap.contentModifier)) { HubContent(viewModel, shownTab, shown, issue, pageRevealed, visibleCount, gridState, bottomPadding, navigate) }
+}
+
+@Composable
+private fun HubContent(
+    viewModel: RivalsHubViewModel,
+    tab: RivalsHubTab,
+    content: RivalsHubContent,
+    issue: ServiceIssue?,
+    pageRevealed: Boolean,
+    visibleCount: Int,
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    navigate: (AppRoute) -> Unit,
+) {
     when {
-        !content.settled && issue == null -> LoadingView("Loading rivals", Modifier.testTag("fst.rivals.loading"))
         issue != null -> ServiceStatusView(issue, "Rivals unavailable", content.countdown, viewModel::retryFailed)
         content.empty -> if (tab == RivalsHubTab.Song) {
             RivalsMessage(RivalText.NO_RIVALS, RivalText.noRivalsSubtitle(visibleCount), "fst.rivals.empty")
@@ -246,9 +267,14 @@ fun FindRivalSheet(
     onSelect: (SelectedPlayer) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = BrandTokens.cardBackground, modifier = Modifier.festivalSheetTop().testTag("fst.rivals.find.sheet")) {
+    FestivalModalSheet(
+        title = RivalText.FIND_RIVAL,
+        closeTag = "fst.rivals.find.close",
+        onDismissRequest = onDismiss,
+        skipPartiallyExpanded = false,
+        modifier = Modifier.testTag("fst.rivals.find.sheet"),
+    ) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
-            SectionHeader(RivalText.FIND_RIVAL)
             val query by searchViewModel.query.collectAsStateWithLifecycle()
             val state by searchViewModel.state.collectAsStateWithLifecycle()
             TextField(

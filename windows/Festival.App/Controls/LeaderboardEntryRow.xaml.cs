@@ -16,27 +16,6 @@ namespace Festival.App.Controls;
 /// </summary>
 public sealed partial class LeaderboardEntryRow : UserControl
 {
-    /// <summary>Rank column width per character, epx (web <c>Layout.rankCharWidth</c>).</summary>
-    private const double RankCharWidth = 8.5;
-
-    /// <summary>Narrowest rank column ("#1" to "#10" share it), epx.</summary>
-    private const double MinRankWidth = 28;
-
-    /// <summary>Score column width per character, epx (semibold body digits).</summary>
-    private const double ScoreCharWidth = 9;
-
-    /// <summary>Rating column width per character, epx (wider than a bold digit).</summary>
-    private const double RatingCharWidth = 9.5;
-
-    /// <summary>Row width from which the season shows (web <c>SEASON_BREAKPOINT</c>).</summary>
-    private const double SeasonWidth = 520;
-
-    /// <summary>Row width from which stars show (web <c>QUERY_SHOW_STARS</c>, less the page chrome).</summary>
-    private const double StarsWidth = 700;
-
-    /// <summary>Row width below which column gaps tighten (web <c>NARROW_BREAKPOINT</c>).</summary>
-    private const double CompactWidth = 420;
-
     private static Windows.UI.ViewManagement.AccessibilitySettings? accessibility;
 
     private double width = double.NaN;
@@ -85,7 +64,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
         }
     }
 
-    /// <summary>Follows the board's shared rank width when it changes on an observable row.</summary>
+    /// <summary>Follows the section's shared columns when they change on an observable row.</summary>
     /// <param name="old">Previous row.</param>
     private void OnRowChanged(object? old)
     {
@@ -94,12 +73,12 @@ public sealed partial class LeaderboardEntryRow : UserControl
         Update();
     }
 
-    /// <summary>Re-sizes the rank column when the board's shared width changes (the pinned row arrived).</summary>
+    /// <summary>Re-fits the columns when the section's shared content changes (the pinned row arrived).</summary>
     /// <param name="sender">Row.</param>
     /// <param name="e">Change.</param>
     private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(ILeaderboardEntryRow.RankChars)) UpdateWidths();
+        if (e.PropertyName == nameof(ILeaderboardEntryRow.Section)) UpdateColumns();
     }
 
     /// <summary>Projects the model into the columns.</summary>
@@ -121,7 +100,6 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 ValueText.Text = score.Score;
                 BayesianText.Visibility = Visibility.Collapsed;
                 PillText.Text = score.Accuracy;
-                Pill.Visibility = score.HasAccuracy ? Visibility.Visible : Visibility.Collapsed;
                 Pill.Background = ScoreBadge.Fill(score.IsFullCombo, score.AccuracyValue);
                 Pill.BorderBrush = ScoreBadge.Stroke(score.IsFullCombo);
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
@@ -135,19 +113,18 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 ValueText.Text = ranking.RatingText;
                 BayesianText.Text = ranking.BayesianText;
                 BayesianText.Visibility = ranking.BayesianText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-                Pill.Visibility = Visibility.Collapsed;
                 StarsView.Stars = 0;
                 break;
         }
         AutomationProperties.SetName(RowButton, row.Announcement);
         AutomationProperties.SetAutomationId(RowButton, row.AutomationId);
-        // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive.
-        RowButton.IsHitTestVisible = RowButton.IsTabStop = row.Route is not null;
+        // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
+        // UIA reads them as text rather than an invokable button.
+        RowButton.IsHitTestVisible = RowButton.IsTabStop = RowButton.IsActionable = row.Route is not null;
         Chevron.Visibility = row.Route is not null ? Visibility.Visible : Visibility.Collapsed;
         ApplyWeights(row);
         ApplySurface();
         UpdateColumns();
-        UpdateWidths();
     }
 
     /// <summary>
@@ -195,32 +172,28 @@ public sealed partial class LeaderboardEntryRow : UserControl
     /// <summary>Whether a Windows contrast theme is on.</summary>
     private static bool IsHighContrast => (accessibility ??= new Windows.UI.ViewManagement.AccessibilitySettings()).HighContrast;
 
-    /// <summary>Season below <see cref="SeasonWidth"/> and stars below <see cref="StarsWidth"/> collapse, like the web's queries.</summary>
+    /// <summary>
+    /// Applies the section's <see cref="LeaderboardColumnLayout"/> plan (issue #37): every row of a section shows the same
+    /// columns at the same widths, measured over all of its rows and its pinned row, so values line up vertically like the
+    /// web. A shown column keeps its width on a row without a value (blank badge or star slot) instead of collapsing.
+    /// </summary>
     private void UpdateColumns()
     {
-        var known = !double.IsNaN(width);
-        var score = Row as ILeaderboardScoreRow;
-        var showMeta = Row is ILeaderboardRankingRow
-            ? MetaText.Text.Length > 0
-            : score is { Season.Length: > 0 } && known && width >= SeasonWidth;
-        MetaText.Visibility = showMeta ? Visibility.Visible : Visibility.Collapsed;
-        StarsHost.Visibility = score is { StarCount: > 0 } && known && width >= StarsWidth ? Visibility.Visible : Visibility.Collapsed;
-        RowGrid.ColumnSpacing = known && width < CompactWidth ? 8 : 12;
-    }
-
-    /// <summary>Rank and score minimums shared by the board, so columns line up down the list and the pinned row.</summary>
-    private void UpdateWidths()
-    {
         if (Row is not ILeaderboardEntryRow row) return;
-        var rankChars = Math.Max(RankText.Text.Length, row.RankChars);
-        RankColumn.MinWidth = rankChars == 0 ? 0 : Math.Max(MinRankWidth, Math.Ceiling(rankChars * RankCharWidth));
-        // Ratings reserve a little more than their own semibold width, so a bold (selected) rating of the same length
-        // keeps the songs label in the same place (web colRating min width).
-        ValueColumn.MinWidth = Row is ILeaderboardScoreRow score
-            ? Math.Ceiling(score.ScoreChars * ScoreCharWidth)
-            : Math.Ceiling(ValueText.Text.Length * RatingCharWidth);
+        var section = row.Section ?? LeaderboardColumns.Measure(new[] { row });
+        var score = row as ILeaderboardScoreRow;
+        var plan = LeaderboardColumnLayout.Fit(section, width, TextScaleLayout.Factor, score?.PinsSeason == true);
+        RowGrid.ColumnSpacing = plan.Gap;
+        RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
+        MetaColumn.MinWidth = plan.MetaWidth;
+        MetaText.Visibility = plan.ShowMeta && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ValueColumn.MinWidth = plan.ValueWidth;
+        PillColumn.MinWidth = plan.AccuracyWidth;
+        if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
+        Pill.Visibility = plan.ShowAccuracy && score is { HasAccuracy: true } ? Visibility.Visible : Visibility.Collapsed;
+        StarsColumn.MinWidth = plan.StarsWidth;
+        StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
     }
-
     /// <summary>Re-evaluates the width-dependent columns.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">New size.</param>

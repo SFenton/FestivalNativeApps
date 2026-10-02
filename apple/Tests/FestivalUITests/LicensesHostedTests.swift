@@ -58,12 +58,19 @@ import Testing
     assertRendersContent(host, image: image, containing: expected, notContaining: ["no external"])
 }
 
-/// The license text sheet ends with a centred Close button.
+/// The license text sheet renders its selectable text and no bottom Close/Done: Close is
+/// the shared `FestivalModal`'s system toolbar button (issue #23), which the hosted AppKit
+/// view has no window toolbar to draw. `ModalCloseJourneyTests` proves that Close on iOS for
+/// every reachable modal (this one is unreachable while the license manifest is empty).
 @MainActor
-@Test func licenseDetailSheetRendersTextAndClose() async throws {
+@Test func licenseDetailSheetRendersTextWithoutBottomClose() async throws {
+    let text = Array(
+        repeating: "Permission is hereby granted, free of charge, to any person obtaining a copy.",
+        count: 12
+    ).joined(separator: "\n")
     let entry = SoftwareLicense(
         id: "example", name: "ExampleKit", versionOrRole: "SwiftPM · 1.2.3",
-        licenseType: "MIT", licenseText: "Permission is hereby granted, free of charge.", url: nil
+        licenseType: "MIT", licenseText: text, url: nil
     )
     let size = CGSize(width: 402, height: 600)
     let host = nativeHostedView(
@@ -74,7 +81,7 @@ import Testing
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let expected = ["Permission is hereby granted", "Close"]
+    let expected = ["Permission is hereby granted"]
     let image = try await nativeHostedSettle(host, untilText: expected)
     _ = try nativeHostedPNG(image, filename: "license-detail.png", environment: "FST_LICENSES_RENDER_OUT")
     assertRendersContent(host, image: image, containing: expected, notContaining: ["Done"])

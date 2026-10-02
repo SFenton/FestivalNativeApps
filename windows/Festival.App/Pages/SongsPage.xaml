@@ -10,10 +10,6 @@
     Background="Transparent">
     <Page.Resources>
         <CollectionViewSource x:Name="GroupedSongs" IsSourceGrouped="True" />
-        <Style x:Key="SongTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}" />
-        <Style x:Key="SongSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
-            <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
-        </Style>
         <!-- Web ToggleRow: label (or stars / intensity bars), optional description, trailing switch. -->
         <DataTemplate x:Key="FilterToggleTemplate" x:DataType="vm:FilterToggleRow">
             <Grid ColumnSpacing="12" MinHeight="40" Padding="0,4">
@@ -70,14 +66,15 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search songs or artists" QueryIcon="Find"
+            <!-- Centred: the action buttons beside it are 40 epx tall (FSTMinTargetSize), the box keeps Fluent's 32. -->
+            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search songs or artists" QueryIcon="Find" VerticalAlignment="Center"
                             Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             QuerySubmitted="OnSearchSubmitted"
                             AutomationProperties.Name="Search songs"
                             AutomationProperties.AutomationId="fst.songs.search" />
 
             <StackPanel x:Name="ActionButtons" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-            <DropDownButton x:Name="SortButton" AutomationProperties.Name="Sort Songs"
+            <DropDownButton x:Name="SortButton" AutomationProperties.Name="Sort Songs" MinHeight="{StaticResource FSTMinTargetSize}"
                             AutomationProperties.AutomationId="fst.songs.sort">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE8CB;" FontSize="14" />
@@ -150,7 +147,7 @@
                 </DropDownButton.Flyout>
             </DropDownButton>
 
-            <DropDownButton x:Name="FilterButton" AutomationProperties.Name="Filter Songs"
+            <DropDownButton x:Name="FilterButton" AutomationProperties.Name="Filter Songs" MinHeight="{StaticResource FSTMinTargetSize}"
                             Visibility="{x:Bind ViewModel.ShowFilterButton, Mode=OneWay}"
                             AutomationProperties.AutomationId="fst.songs.filter">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -309,6 +306,7 @@
             </DropDownButton>
 
             <Button x:Name="JumpButton" Click="OnJumpClick" Visibility="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
+                    MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
                     AutomationProperties.Name="Jump to Section" ToolTipService.ToolTip="Jump to section (Ctrl+Minus)"
                     AutomationProperties.AutomationId="fst.songs.section-index-button">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -339,11 +337,15 @@
             </Grid.RowDefinitions>
             <!-- Sticky section header (operator batches 3 + 5): the current section's label sits in its own row above the
                  list's viewport, so rows scroll away beneath the list's top edge and never show through it. The in-list
-                 headers scroll up into it; the first section's in-list header is omitted (this bar names it). -->
+                 headers scroll up into it; the first section's in-list header is omitted (this bar names it). Rows fade
+                 out over 28 epx at the list's top edge once scrolled (TopEdgeFade on ListFadeSource, issue #49). -->
             <!-- A level-2 heading for UIA too: it is the only header of the first section and names the current one. -->
             <TextBlock x:Name="StickyHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,8" Visibility="Collapsed"
                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.section-header" />
-            <SemanticZoom x:Name="Zoom" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}" Opacity="0"
+            <!-- The fade source: its composition visual is hidden while ListFadeHost paints the faded copy. Zoom's own XAML
+                 opacity (the reveal) stays independent of it. -->
+            <Grid x:Name="ListFadeSource" Grid.Row="1">
+            <SemanticZoom x:Name="Zoom" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}" Opacity="0"
                           CanChangeViews="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
                           IsZoomOutButtonEnabled="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}">
                 <SemanticZoom.ZoomedInView>
@@ -398,41 +400,8 @@
                         </ListView.GroupStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="vm:SongRowItem">
-                                <Grid x:Name="Card" MinHeight="64" Padding="10,8,14,8" ColumnSpacing="12" CornerRadius="8"
-                                      BorderThickness="1" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="44" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <!-- Spans the wrapped second row only while it has content (SongsPage.BuildTrailing): a Grid shares a spanning
-                                         child's height across Auto rows, so an empty second row got half the art's height
-                                         as dead space under anonymous rows (operator batch 6.3). -->
-                                    <Grid x:Name="ArtHost" Width="44" Height="44" VerticalAlignment="Center">
-                                        <Border CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}">
-                                            <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                                        </Border>
-                                        <!-- Item Shop bag on songs in the Shop, coloured like the row's pulse (operator batch 7.19);
-                                             the row's UIA name already carries the Shop state. -->
-                                        <Border x:Name="ShopBadge" Width="18" Height="18" CornerRadius="9" Margin="0,0,-5,-5"
-                                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Visibility="Collapsed"
-                                                BorderThickness="1.5" BorderBrush="#FF121826" AutomationProperties.AccessibilityView="Raw">
-                                            <FontIcon Glyph="&#xE719;" FontSize="10" Foreground="#FF121826" />
-                                        </Border>
-                                    </Grid>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                        <controls:MarqueeText x:Name="TitleText" Text="{x:Bind Title}" TextStyle="{StaticResource SongTitleStyle}" />
-                                        <controls:MarqueeText x:Name="SubtitleText" Text="{x:Bind Subtitle}" TextStyle="{StaticResource SongSubtitleStyle}" />
-                                    </StackPanel>
-                                    <StackPanel x:Name="Trailing" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" />
-                                    <controls:FlowPanel x:Name="Secondary" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,6,0,0" Visibility="Collapsed" />
-                                    <!-- Pulsing Item Shop ring over the card edge (green in Shop, gold New, red Leaving). -->
-                                    <controls:ShopPulseRing x:Name="ShopRing" Grid.RowSpan="2" Grid.ColumnSpan="3" Margin="-11,-9,-15,-9" />
-                                </Grid>
+                                <!-- The shared song row (also the Item Shop list row); SongsPage fills its slots per phase. -->
+                                <controls:SongRowCard Title="{x:Bind Title}" Subtitle="{x:Bind Subtitle}" />
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
@@ -459,6 +428,9 @@
                     </GridView>
                 </SemanticZoom.ZoomedOutView>
             </SemanticZoom>
+            </Grid>
+            <!-- Paints ListFadeSource with its top edge faded while the fade is on (TopEdgeFade); never hit-testable. -->
+            <Border x:Name="ListFadeHost" Grid.Row="1" IsHitTestVisible="False" />
 
             <ProgressRing Grid.RowSpan="2" x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                           AutomationProperties.Name="Loading songs" />

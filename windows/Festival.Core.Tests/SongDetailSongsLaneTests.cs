@@ -24,8 +24,9 @@ public class SongDetailSongsLaneTests
         var (_, _, vm) = await Open("s3");
         Assert.NotEmpty(vm.Leaderboards);
         Assert.Equal("intensity", vm.QuickLinkSections[0].Id);
-        Assert.Equal(vm.Leaderboards.Select(c => "instrument-" + c.Instrument.ServiceId()), vm.QuickLinkSections.Skip(1).Select(s => s.Id));
+        Assert.Equal(vm.Leaderboards.Select(c => "instrument-" + c.Instrument.ServiceId()), vm.QuickLinkSections.Skip(1).Take(vm.Leaderboards.Count).Select(s => s.Id));
         Assert.Equal(vm.Leaderboards[0].Instrument, vm.QuickLinkSections[1].Instrument);
+        Assert.Equal(vm.BandPreviews.Select(b => b.QuickLinkId), vm.QuickLinkSections.Skip(1 + vm.Leaderboards.Count).Select(s => s.Id));
     }
 
     [Fact]
@@ -37,8 +38,8 @@ public class SongDetailSongsLaneTests
         Assert.Equal(ShopHighlight.LeavingTomorrow, vm.ShopHighlight);
         Assert.Equal("Open in Item Shop, Leaving Tomorrow", vm.ShopButtonName);
         Assert.False(vm.HasShopIssue);
-        Assert.Equal(["Duos", "Trios", "Quads"], vm.BandLinks.Select(l => l.Label));
-        Assert.Equal(new AppRoute.SongBandLeaderboard("s3", "Band_Duets"), vm.BandLinks[0].Route);
+        Assert.Equal(["Duos", "Trios", "Quads"], vm.BandPreviews.Select(b => b.Title));
+        Assert.Equal(new AppRoute.SongBandLeaderboard("s3", "Band_Duets"), vm.BandPreviews[0].FullRoute);
         session.UpdateSettings(s => s with { DisableShopHighlighting = true });
         await vm.LoadShopAsync();
         Assert.False(vm.ShopPulses);
@@ -130,8 +131,9 @@ public class SongDetailSongsLaneTests
         // One leaderboard row design (operator batch 7.7): the card shares one rank and score width with row eleven.
         Assert.True(mine.IsSelected);
         Assert.Equal("#30", mine.RankText);
-        Assert.All(lead.Rows, r => Assert.Equal(3, r.RankChars));
-        Assert.All(lead.Rows, r => Assert.Equal(lead.Rows.Max(x => x.Score.Length), r.ScoreChars));
+        Assert.All(lead.Rows, r => Assert.Equal(3, r.Section!.RankChars));
+        Assert.All(lead.Rows, r => Assert.Equal(lead.Rows.Max(x => x.Score.Length), r.Section!.ValueChars));
+        Assert.All(lead.Rows, r => Assert.Same(lead.Rows[0].Section, r.Section));
         Assert.Equal("fst.song-detail.preview-row.Solo_Guitar.a1", lead.Rows[0].AutomationId);
         Assert.Equal(0, mine.StarCount);
         Assert.False(lead.ShowPlaceholder);

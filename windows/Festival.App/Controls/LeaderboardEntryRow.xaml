@@ -6,9 +6,12 @@
     <!--
         The one leaderboard row (operator batch 7.7; web entryRow + LeaderboardEntry / RankingEntry): its own frosted
         48 epx row with a 12 epx radius, 4 epx apart in a list (no card around the rows). Columns, left to right:
-        rank (width shared by the board, web computeRankWidth) · name · season or songs label · score or rating (+ Bayesian)
-        · accuracy badge · stars · in-card chevron. One UIA stop per row (Android one-stop learning): the Button's name reads
-        everything, and its parts are Raw so Narrator scan mode doesn't read them a second time. The selected player's row is purpleHighlight with a purple border and
+        rank · name · season or songs label · score or rating (+ Bayesian) · accuracy badge · stars · in-card chevron.
+        Which columns show and their widths come from one per-section plan (Festival.Core LeaderboardColumnLayout, issue
+        #37), measured over every row of the section and its pinned row, so columns line up vertically like the web; a
+        row without a value keeps the column's space. One UIA stop per row (Android one-stop learning): the Button's name reads
+        everything, and its parts are Raw so Narrator scan mode doesn't read them a second time. A row without a destination
+        (empty account ID) is not hit-testable or tabbable and its peer is Text with no Invoke (issue #63). The selected player's row is purpleHighlight with a purple border and
         bold rank and name. The surface is a Border behind a transparent Button, so hover/press add a white tint on top
         of the frosted fill instead of replacing it.
     -->
@@ -18,30 +21,30 @@
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
         <Border x:Name="Surface" CornerRadius="12" BorderThickness="1" IsHitTestVisible="False"
                 Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" />
-        <Button x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+        <controls:LeaderboardRowButton x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                 VerticalAlignment="Stretch" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="0"
                 Background="Transparent" SizeChanged="OnSizeChanged">
-            <Button.Resources>
+            <controls:LeaderboardRowButton.Resources>
                 <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
                 <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
                 <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
                 <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
-            </Button.Resources>
+            </controls:LeaderboardRowButton.Resources>
             <Grid x:Name="RowGrid" ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="RankColumn" Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition x:Name="MetaColumn" Width="Auto" />
                     <ColumnDefinition x:Name="ValueColumn" Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition x:Name="PillColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="StarsColumn" Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="RankText" AutomationProperties.AccessibilityView="Raw" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
                 <!-- Names truncate, never marquee (web colName; operator batch 7.14). -->
                 <TextBlock x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows). -->
-                <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" VerticalAlignment="Center" TextWrapping="NoWrap" />
+                <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
+                <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
                 <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
                     <TextBlock x:Name="BayesianText" AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
@@ -60,6 +63,6 @@
                 <FontIcon x:Name="Chevron" Grid.Column="6" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                           AutomationProperties.AccessibilityView="Raw" />
             </Grid>
-        </Button>
+        </controls:LeaderboardRowButton>
     </Grid>
 </UserControl>

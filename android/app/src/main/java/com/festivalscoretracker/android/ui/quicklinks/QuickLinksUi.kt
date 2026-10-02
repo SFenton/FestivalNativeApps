@@ -36,11 +36,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -56,8 +54,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -73,7 +69,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
+import kotlin.math.roundToInt
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Controller
 
@@ -81,13 +78,13 @@ import com.festivalscoretracker.android.ui.common.festivalSheetTop
  * One laid-out lazy item.
  *
  * @property index Item index.
- * @property top Top edge relative to the viewport (the list's `offset`).
+ * @property top Top edge relative to the visible viewport top (the list's `offset` plus its leading content padding).
  * @property bottom Bottom edge.
  */
 internal data class QuickLinkItem(val index: Int, val top: Int, val bottom: Int)
 
 /**
- * A lazy layout's visible items.
+ * A lazy layout's visible items, in viewport coordinates (0 = the visible top edge, just below the top bar).
  *
  * @property items Visible items.
  * @property viewportHeight Viewport height without the trailing content padding.
@@ -100,26 +97,29 @@ internal interface QuickLinkScroller {
     fun layout(): QuickLinkLayout
 
     /**
-     * Bring an item to the top.
+     * Bring an item's top to the landing line.
      *
      * @param index Item index.
      * @param animate Animate the scroll.
+     * @param landingPx Landing line below the visible viewport top, in pixels.
      */
-    suspend fun scrollTo(index: Int, animate: Boolean)
+    suspend fun scrollTo(index: Int, animate: Boolean, landingPx: Int)
 }
 
 /** [QuickLinkScroller] over a `LazyColumn`. */
 private class ListScroller(private val state: LazyListState) : QuickLinkScroller {
     override fun layout(): QuickLinkLayout {
         val info = state.layoutInfo
+        val start = info.viewportStartOffset
         return QuickLinkLayout(
-            info.visibleItemsInfo.map { QuickLinkItem(it.index, it.offset, it.offset + it.size) },
-            (info.viewportEndOffset - info.afterContentPadding).toFloat(),
+            info.visibleItemsInfo.map { QuickLinkItem(it.index, it.offset - start, it.offset + it.size - start) },
+            (info.viewportEndOffset - start - info.afterContentPadding).toFloat(),
         )
     }
 
-    override suspend fun scrollTo(index: Int, animate: Boolean) {
-        if (animate) state.animateScrollToItem(index) else state.scrollToItem(index)
+    override suspend fun scrollTo(index: Int, animate: Boolean, landingPx: Int) {
+        val offset = QuickLinks.lazyLandingScrollOffset(landingPx, state.layoutInfo.beforeContentPadding)
+        if (animate) state.animateScrollToItem(index, offset) else state.scrollToItem(index, offset)
     }
 }
 
@@ -127,14 +127,16 @@ private class ListScroller(private val state: LazyListState) : QuickLinkScroller
 private class StaggeredScroller(private val state: LazyStaggeredGridState) : QuickLinkScroller {
     override fun layout(): QuickLinkLayout {
         val info = state.layoutInfo
+        val start = info.viewportStartOffset
         return QuickLinkLayout(
-            info.visibleItemsInfo.map { QuickLinkItem(it.index, it.offset.y, it.offset.y + it.size.height) },
-            (info.viewportEndOffset - info.afterContentPadding).toFloat(),
+            info.visibleItemsInfo.map { QuickLinkItem(it.index, it.offset.y - start, it.offset.y + it.size.height - start) },
+            (info.viewportEndOffset - start - info.afterContentPadding).toFloat(),
         )
     }
 
-    override suspend fun scrollTo(index: Int, animate: Boolean) {
-        if (animate) state.animateScrollToItem(index) else state.scrollToItem(index)
+    override suspend fun scrollTo(index: Int, animate: Boolean, landingPx: Int) {
+        val offset = QuickLinks.lazyLandingScrollOffset(landingPx, state.layoutInfo.beforeContentPadding)
+        if (animate) state.animateScrollToItem(index, offset) else state.scrollToItem(index, offset)
     }
 }
 
@@ -145,15 +147,22 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
  * scrolling does not recompose the page.
  *
  * @property title Title Case title (web `settings.quickLinks` etc.).
+ * @param landingPx Where a jump lands a section's top below the visible top, in pixels.
+ * @param activationPx Activation line below the visible top, in pixels (the landing line, or just below a flush pinned header).
+ * @param bandPx Reachable band, in pixels.
+ * @param completePx Landing tolerance, in pixels.
  */
 @Stable
 class QuickLinksController internal constructor(
     private val scroller: QuickLinkScroller,
     val title: String,
     private val scope: CoroutineScope,
-    private val activationPx: Float,
+    private val landingPx: Float,
+    activationPx: Float,
+    bandPx: Float,
+    completePx: Float,
 ) {
-    private val tracker = QuickLinkTracker(activationOffset = activationPx, band = activationPx * 6, completeThreshold = activationPx / 2)
+    private val tracker = QuickLinkTracker(activationOffset = activationPx, band = bandPx, completeThreshold = completePx)
 
     /** Sections in order. */
     var sections: List<QuickLinkSection> by mutableStateOf(emptyList())
@@ -185,7 +194,7 @@ class QuickLinksController internal constructor(
         tracker.beginJump(id)
         activeId = tracker.activeId
         scope.launch {
-            scroller.scrollTo(index, animate)
+            scroller.scrollTo(index, animate, landingPx.roundToInt())
             val layout = scroller.layout()
             tracker.settle(sections, frames(layout), layout.viewportHeight)
             activeId = tracker.activeId
@@ -219,12 +228,19 @@ class QuickLinksController internal constructor(
  * @param listState The page's list state.
  * @param title Quick Links title.
  * @param sections Sections in order (duplicates are dropped).
+ * @param pinnedHeaders Section headers are sticky (Songs): jumps land them flush so they pin, with a 16 dp activation line.
  * @param indexOf Section ID → list item index.
  * @return Controller.
  */
 @Composable
-fun rememberQuickLinks(listState: LazyListState, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController =
-    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, indexOf)
+fun rememberQuickLinks(
+    listState: LazyListState,
+    title: String,
+    sections: List<QuickLinkSection>,
+    pinnedHeaders: Boolean = false,
+    indexOf: (String) -> Int?,
+): QuickLinksController =
+    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, indexOf)
 
 /**
  * Remember a Quick Links controller for a page laid out as a staggered grid.
@@ -237,13 +253,38 @@ fun rememberQuickLinks(listState: LazyListState, title: String, sections: List<Q
  */
 @Composable
 fun rememberQuickLinks(gridState: LazyStaggeredGridState, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController =
-    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, indexOf)
+    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, indexOf = indexOf)
 
+/**
+ * Remember a controller over any [QuickLinkScroller].
+ *
+ * Jumps land a section 32 dp below the visible top of the page (the web's default offset, #51) and the
+ * activation line matches, so the landed section is the highlighted one. Lists with sticky headers land
+ * them flush instead ([pinnedHeaders]).
+ */
 @Composable
-internal fun rememberQuickLinks(scroller: QuickLinkScroller, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController {
+internal fun rememberQuickLinks(
+    scroller: QuickLinkScroller,
+    title: String,
+    sections: List<QuickLinkSection>,
+    pinnedHeaders: Boolean = false,
+    indexOf: (String) -> Int?,
+): QuickLinksController {
     val scope = rememberCoroutineScope()
-    val activationPx = with(LocalDensity.current) { 16.dp.toPx() }
-    val controller = remember(scroller, title) { QuickLinksController(scroller, title, scope, activationPx) }
+    val density = LocalDensity.current
+    val landingDp = if (pinnedHeaders) 0 else QuickLinks.LANDING_OFFSET_DP
+    val activationDp = if (pinnedHeaders) QuickLinks.PINNED_HEADER_ACTIVATION_OFFSET_DP else QuickLinks.LANDING_OFFSET_DP
+    val controller = remember(scroller, title, pinnedHeaders, density) {
+        with(density) {
+            QuickLinksController(
+                scroller, title, scope,
+                landingPx = landingDp.dp.toPx(),
+                activationPx = activationDp.dp.toPx(),
+                bandPx = QuickLinks.REACHABLE_BAND_DP.dp.toPx(),
+                completePx = QuickLinks.COMPLETE_THRESHOLD_DP.dp.toPx(),
+            )
+        }
+    }
     controller.sections = QuickLinks.ordered(sections)
     controller.indexOf = indexOf
     // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.
@@ -337,20 +378,13 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
         }
     }
     if (open && QuickLinks.usesSheet(windowWidthDp)) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = controller.sections.size <= 8)
-        ModalBottomSheet(
+        FestivalModalSheet(
+            title = controller.title,
+            closeTag = "fst.quick-links.close",
             onDismissRequest = { open = false },
-            sheetState = sheetState,
-            containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.quick-links.sheet").semantics { paneTitle = controller.title },
+            skipPartiallyExpanded = controller.sections.size <= 8,
+            modifier = Modifier.testTag("fst.quick-links.sheet"),
         ) {
-            Text(
-                controller.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp).semantics { heading() },
-            )
             SectionList(controller, Modifier.fillMaxWidth().testTag("fst.quick-links.list"), PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp)) { id ->
                 open = false
                 controller.jump(id)

@@ -37,11 +37,15 @@ public struct FirstRunViewing: Equatable, Sendable {
 
 // MARK: - Controls
 
-/// Which buttons a carousel page shows (operator batch 6 item 6.7, batch 7 item 1): a primary
-/// Next/Done that comes first; Back only when there is a page to go back to; Skip only
-/// while pages remain after this one. A one-page guide shows only Done — no disabled Back
-/// and no Skip.
+/// Which buttons a carousel page shows (operator batch 6 item 6.7, batch 7 item 1; laid out
+/// to Apple's onboarding pattern in issue #25): a primary Next/Done; Back only when there
+/// is a page to go back to; Skip only while pages remain after this one. A one-page guide
+/// shows only Done — no disabled Back and no Skip.
 public struct FirstRunControls: Equatable, Sendable {
+    /// Minimum layout height, in points, of the Skip row: HIG Buttons' 44 pt hit region plus
+    /// room for a partial-height sheet drawn slightly scaled down.
+    public static let minimumHeight: Double = 48
+
     /// Primary action title: "Next", or "Done" on the last (or only) page.
     public let primaryTitle: String
     /// Whether the primary action closes the carousel.
@@ -50,6 +54,9 @@ public struct FirstRunControls: Equatable, Sendable {
     public let showsBack: Bool
     /// Whether a Skip button is shown.
     public let showsSkip: Bool
+    /// Whether the Skip row keeps its space, even on the last page where Skip is hidden, so
+    /// the primary button stays in the same place on every page of a multi-page guide.
+    public let reservesSkipRow: Bool
 
     /// Controls for one page.
     ///
@@ -63,7 +70,8 @@ public struct FirstRunControls: Equatable, Sendable {
             primaryTitle: last ? "Done" : "Next",
             primaryFinishes: last,
             showsBack: index > 0 && count > 1,
-            showsSkip: !last
+            showsSkip: !last,
+            reservesSkipRow: count > 1
         )
     }
 }

@@ -30,10 +30,10 @@ public static class AppVersionInfo
 
     #endregion
 
-    #region Settings
+    #region Build commit
 
-    /// <summary>Assembly metadata key holding the build's git commit (windows/Directory.Build.targets).</summary>
-    public const string GitShaKey = "FSTGitSHA";
+    /// <summary><c>AssemblyMetadata</c> key holding the build commit (stamped by <c>Festival.App.csproj</c>).</summary>
+    public const string GitShaMetadataKey = "FstGitSha";
 
     /// <summary>Number of SHA characters shown (git's conventional short SHA).</summary>
     public const int ShortShaLength = 7;
@@ -41,32 +41,32 @@ public static class AppVersionInfo
     /// <summary>Separator between the version and the short commit.</summary>
     public const string CommitSeparator = " · ";
 
-    /// <summary>Returns the Settings → App Version text for <paramref name="assembly"/>: <c>2610.01.02 · 42edc57</c>.</summary>
+    /// <summary>Settings → App Version text for <paramref name="assembly"/>: the version plus its short build commit.</summary>
     /// <param name="assembly">The app assembly.</param>
-    /// <returns>The <see cref="Display(Assembly)"/> version plus the stamped short commit, when known.</returns>
-    public static string SettingsText(Assembly assembly) => SettingsText(
+    /// <returns><see cref="Display(Assembly)"/>, plus <c>" · &lt;sha7&gt;"</c> when a commit is stamped.</returns>
+    public static string SettingsText(Assembly assembly) => WithCommit(
         Display(assembly),
-        assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == GitShaKey)?.Value);
+        assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == GitShaMetadataKey)?.Value);
 
-    /// <summary>Appends the short commit to the display version (iPhone parity, issue #3), so every build is identifiable.</summary>
-    /// <param name="display">The user-facing version from <see cref="Display(string?, Version?)"/>.</param>
+    /// <summary>Appends the short build commit to a version (iOS <c>AppBuildInfo.versionText</c> parity).</summary>
+    /// <param name="version">The user-facing version; returned unchanged when empty.</param>
     /// <param name="gitSha">The stamped commit, if any.</param>
-    /// <returns><c>"&lt;version&gt; · &lt;sha7&gt;"</c>, or the version alone when the commit is unknown.</returns>
-    public static string SettingsText(string display, string? gitSha)
-    {
-        var sha = ShortCommit(gitSha);
-        if (sha is null) return display;
-        return display.Length > 0 ? display + CommitSeparator + sha : sha;
-    }
+    /// <returns><c>"&lt;version&gt; · &lt;sha7&gt;"</c>, or <paramref name="version"/> when there is no commit.</returns>
+    public static string WithCommit(string version, string? gitSha) =>
+        version.Length > 0 && ShortCommit(gitSha) is { } sha ? version + CommitSeparator + sha : version;
 
-    /// <summary>Returns the first seven characters of a stamped commit SHA.</summary>
+    /// <summary>The first seven characters of a stamped commit SHA.</summary>
     /// <param name="raw">The stamped value, if any.</param>
-    /// <returns>The lower-case short SHA, or null when absent, shorter than seven characters or not hexadecimal.</returns>
+    /// <returns>The lower-case short SHA, or <see langword="null"/> when the value is absent, empty, <c>dev</c>
+    /// or not hexadecimal (e.g. an unexpanded MSBuild property).</returns>
     public static string? ShortCommit(string? raw)
     {
         var value = (raw ?? "").Trim();
-        if (value.Length < ShortShaLength || !value.All(Uri.IsHexDigit)) return null;
-        return value[..ShortShaLength].ToLowerInvariant();
+        if (value.Length == 0 || value.Equals("dev", StringComparison.OrdinalIgnoreCase) || !value.All(char.IsAsciiHexDigit))
+        {
+            return null;
+        }
+        return value[..Math.Min(ShortShaLength, value.Length)].ToLowerInvariant();
     }
 
     #endregion

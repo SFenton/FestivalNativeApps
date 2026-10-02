@@ -68,6 +68,8 @@ public sealed partial class SongDetailViewModel : ObservableObject
             // Per-entity reset: another player's history (the cards follow through the score source below).
             lastAccount = session.SelectedPlayer?.AccountId;
             if (State == LoadState.Loaded) _ = History.LoadAsync(Song, VisibleCharted());
+            // The band read carries the player as accountId (their best band per size), so it re-reads too.
+            if (BandPreviews.Count > 0) _ = LoadBandsAsync();
         }
         if (!SongScoreSource.AffectsRows(e.PropertyName) && e.PropertyName != nameof(FestivalSession.Catalog)) return;
         var scores = SongScoreSource.For(session);
@@ -96,7 +98,6 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>Resolved song.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BandLinks))]
     private Song? song;
 
     /// <summary>Intensity rows for every charted instrument (including Settings-hidden ones).</summary>
@@ -108,18 +109,26 @@ public sealed partial class SongDetailViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(QuickLinkSections))]
     private List<LeaderboardPreviewViewModel> leaderboards = [];
 
+    /// <summary>Band previews (Duos, Trios, Quads) after the instrument cards, filled by one <c>/bands/all</c> read.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(QuickLinkSections))]
+    private List<SongBandPreviewViewModel> bandPreviews = [];
+
+    private int bandGeneration;
+
     /// <summary>
     /// Quick Links (web <c>SongDetailPage.tsx:535-587</c>, offered on mobile only): <c>intensity</c>, <c>score-history</c> while
-    /// that section shows, then one <c>instrument-&lt;key&gt;</c> per leaderboard card. Band sections have no Windows section yet.
+    /// that section shows, one <c>instrument-&lt;key&gt;</c> per leaderboard card, then one <c>band-&lt;type&gt;</c> per band size.
     /// </summary>
     public List<QuickLinkSection> QuickLinkSections
     {
         get
         {
-            if (Leaderboards.Count == 0) return [];
+            if (Leaderboards.Count == 0 && BandPreviews.Count == 0) return [];
             List<QuickLinkSection> sections = [new("intensity", "Intensity", "\uE9D9")];
             if (History.IsVisible) sections.Add(new(HistoryQuickLinkId, "Score History", "\uE81C"));
             sections.AddRange(Leaderboards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument)));
+            sections.AddRange(BandPreviews.Select(b => new QuickLinkSection(b.QuickLinkId, b.Title, "\uE716")));
             return sections;
         }
     }
@@ -157,11 +166,6 @@ public sealed partial class SongDetailViewModel : ObservableObject
     /// <summary>Whether the Shop-status error shows.</summary>
     public bool HasShopIssue => ShopIssueText is not null;
 
-    /// <summary>Band leaderboard links (Duos, Trios, Quads) for this song.</summary>
-    public List<BandLeaderboardLink> BandLinks => Song is { } song
-        ? [.. BandTypeInfo.All.Select(b => new BandLeaderboardLink(b.Label(), new AppRoute.SongBandLeaderboard(song.SongId, b.ServiceId())))]
-        : [];
-
     /// <summary>Whether the Paths action shows.</summary>
     public bool HasPaths => PathInstruments.Count > 0;
 
@@ -195,6 +199,10 @@ public sealed partial class SongDetailViewModel : ObservableObject
                 .Where(found.Supports)
                 .Select(i => new IntensityRow(i, found.Difficulty!.ChartedValue(i)!.Value, found.UsesKeyboardIcon))
                 .ToList();
+            // Band previews never hold the page spinner (iOS): their read starts now and fills each section when it lands.
+            var bands = BandTypeInfo.All.Select(b => new SongBandPreviewViewModel(found.SongId, b, LoadBandsAsync, session.Time)).ToList();
+            BandPreviews = bands;
+            _ = LoadBandsAsync();
             await SongScoreSource.LoadAsync(session);
             var scores = SongScoreSource.For(session);
             var charted = VisibleCharted();
@@ -248,6 +256,31 @@ public sealed partial class SongDetailViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Fills every band preview from one keyless <c>GET /api/leaderboard/{songId}/bands/all?top=10[&amp;accountId=]</c>
+    /// (the only band read on this page; the selected player travels only as the query), or fails each section with Retry.
+    /// A newer read (Retry, another player) supersedes an older one still in flight.
+    /// </summary>
+    /// <returns>Load task.</returns>
+    public async Task LoadBandsAsync()
+    {
+        var sections = BandPreviews;
+        if (sections.Count == 0) return;
+        var generation = ++bandGeneration;
+        foreach (var section in sections) section.BeginLoading();
+        try
+        {
+            var previews = await session.Api.GetSongBandLeaderboardsAsync(SongId, PreviewTop, session.SelectedPlayer?.AccountId);
+            if (generation != bandGeneration) return;
+            foreach (var section in sections) section.Apply(previews.For(section.BandType), previews.ShowLeaderboardEntryTotals == true);
+        }
+        catch (FestivalApiException error)
+        {
+            if (generation != bandGeneration) return;
+            foreach (var section in sections) section.Fail(error);
+        }
+    }
+
     /// <summary>Resolves this song's offer from the session feed (loading it once), recording failures.</summary>
     /// <returns>Load task.</returns>
     public async Task LoadShopAsync()
@@ -282,11 +315,6 @@ public static class SongDetailLayout
     public static int IntensityColumns(double width, int count) =>
         count > 3 && double.IsFinite(width) && width + 16 >= count * IntensityCell ? count : 3;
 }
-
-/// <summary>A link to one band size's leaderboard for the song.</summary>
-/// <param name="Label">"Duos".</param>
-/// <param name="Route">Band leaderboard route.</param>
-public sealed record BandLeaderboardLink(string Label, AppRoute Route);
 
 /// <summary>One Intensity row: icon, meter and spoken level.</summary>
 /// <param name="Instrument">Chart.</param>
@@ -425,11 +453,10 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
                 Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1),
             });
         }
-        // One rank and score width for the card, including row eleven (web computeRankWidth / scoreWidth).
-        var rankChars = LeaderboardColumns.Widest(rows.Select(r => r.RankText));
-        var scoreChars = LeaderboardColumns.Widest(rows.Select(r => r.Score));
+        // One set of columns for the card, including row eleven (web computeRankWidth / scoreWidth; issue #37).
+        var section = LeaderboardColumns.Measure(rows);
         var instrumentId = Instrument.ServiceId();
-        Rows = [.. rows.Select(r => r with { InstrumentId = instrumentId, RankChars = rankChars, ScoreChars = scoreChars })];
+        Rows = [.. rows.Select(r => r with { InstrumentId = instrumentId, Section = section })];
         HasPlayerRow = rows.Any(r => r.IsSelectedPlayer);
     }
 
@@ -530,10 +557,7 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     public string InstrumentId { get; init; } = "";
 
     /// <inheritdoc />
-    public int RankChars { get; init; }
-
-    /// <inheritdoc />
-    public int ScoreChars { get; init; }
+    public LeaderboardSection? Section { get; init; }
 
     /// <summary>Season text (<c>S15</c>), or empty (web <c>SeasonPill</c>; shown on wide cards).</summary>
     public string Season => Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"S{s}") : "";

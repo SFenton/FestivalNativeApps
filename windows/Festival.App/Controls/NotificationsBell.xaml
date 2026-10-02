@@ -5,29 +5,38 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels">
     <UserControl.Resources>
-        <!-- Web NotificationRow (operator batch 6.34/7.20): leading media rail (song art, else the instrument), title,
-             sentence, flag + time, then the unread dot beside the chevron on the trailing edge. -->
+        <!-- Web NotificationRow (operator batch 6.34/7.20, issue #76): 64 epx leading media rail (54 epx song art; 44 epx art
+             above a two-column grid of 18 epx instrument icons when the row touches several charts; else a 36 epx instrument
+             icon), bold title, white sentence with the web's bold values, colour-coded flag pill + time, then the unread dot
+             beside the chevron on the trailing edge. Media is decorative (Raw); the row's name carries the text. -->
         <DataTemplate x:Key="RowTemplate" x:DataType="vm:NotificationRowViewModel">
             <Grid ColumnSpacing="12" Padding="0,8" AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}"
                   AutomationProperties.AutomationId="{x:Bind AutomationId}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="64" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Grid Width="44" Height="44" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw">
-                    <controls:SongArt Art="{x:Bind Art}" Width="44" Height="44" Visibility="{x:Bind HasArt}" />
+                <Grid Width="64" MinHeight="64" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                    <StackPanel Spacing="4" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{x:Bind HasArt}">
+                        <controls:SongArt Art="{x:Bind Art}" Width="{x:Bind ArtSize}" Height="{x:Bind ArtSize}" HorizontalAlignment="Center" />
+                        <Grid HorizontalAlignment="Center" Visibility="{x:Bind HasGrid}"
+                              controls:NotificationRowVisuals.IconFiles="{x:Bind GridIconFiles}" />
+                    </StackPanel>
                     <controls:InstrumentIcon File="{x:Bind MediaIconFile}" Width="36" Height="36" HorizontalAlignment="Center"
-                                             VerticalAlignment="Center" Visibility="{x:Bind HasMediaIcon}" />
+                                             VerticalAlignment="Center" Visibility="{x:Bind HasMediaIcon}"
+                                             AutomationProperties.AccessibilityView="Raw" />
                 </Grid>
-                <StackPanel Grid.Column="1" Spacing="2">
+                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                     <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{x:Bind Message}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                    <TextBlock controls:NotificationRowVisuals.Parts="{x:Bind MessageParts}" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="6,1" Visibility="{x:Bind HasFlag}">
-                            <TextBlock Text="{x:Bind Flag}" Style="{StaticResource CaptionTextBlockStyle}" />
+                        <Border Background="{x:Bind controls:NotificationRowVisuals.FlagBrush(FlagArgb)}" BorderBrush="#2EFFFFFF" BorderThickness="2"
+                                CornerRadius="4" Padding="6,1" Visibility="{x:Bind HasFlag}">
+                            <TextBlock Text="{x:Bind Flag}" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Foreground="White" />
                         </Border>
-                        <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTDeemphasisTextBrush}" />
+                        <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center"
+                                   Foreground="{ThemeResource FSTDeemphasisTextBrush}" />
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -41,6 +50,7 @@
     </UserControl.Resources>
 
     <Button x:Name="BellButton" Padding="4" Margin="0,0,4,0" Background="Transparent" BorderThickness="0"
+            MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
             AutomationProperties.Name="{x:Bind Model.BellName, Mode=OneWay}"
             AutomationProperties.AutomationId="fst.shell.notifications"
             ToolTipService.ToolTip="Notifications">

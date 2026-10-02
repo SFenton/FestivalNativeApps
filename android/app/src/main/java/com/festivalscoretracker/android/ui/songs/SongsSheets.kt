@@ -23,8 +23,6 @@ import com.festivalscoretracker.android.core.songs.SongIntensityBucket
 import com.festivalscoretracker.android.core.songs.SongPercentileBucket
 import com.festivalscoretracker.android.core.songs.SongSeasonBucket
 import com.festivalscoretracker.android.core.songs.SongStarsBucket
-import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.StarRating
@@ -52,17 +50,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,7 +65,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
@@ -81,12 +75,14 @@ import com.festivalscoretracker.android.ui.settings.ReorderList
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
+
 
 // region Live sheet frame
 
 /**
  * Bottom sheet whose changes apply immediately (operator rule: no Cancel/Apply and
- * no discard confirmation). Reset restores defaults (also live); Done closes.
+ * no discard confirmation). Reset restores defaults (also live); the shared header Close (tag `$tag.done`) dismisses.
  *
  * @param title Title Case header.
  * @param tag Test tag root.
@@ -103,24 +99,24 @@ private fun LiveSheet(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    ModalBottomSheet(
+    // The shared header's Close replaces the former Done (changes are already applied); it
+    // keeps the `.done` test tag, like Apple's `FestivalSheetCloseItem`.
+    FestivalModalSheet(
+        title = title,
+        closeTag = "$tag.done",
+        titleTag = "$tag.title",
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().testTag(tag),
+        modifier = Modifier.testTag(tag),
     ) {
-        Column(Modifier.semantics { testTagsAsResourceId = true }.padding(horizontal = 24.dp).padding(bottom = 16.dp)) {
-            SectionHeader(title, Modifier.testTag("$tag.title"))
+        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 16.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).testTag("$tag.form")) { content() }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
                 // Destructive action in red (operator 7.10).
                 TextButton(
                     onClick = onReset,
                     colors = ButtonDefaults.textButtonColors(contentColor = RESET_RED),
                     modifier = Modifier.testTag("$tag.reset"),
                 ) { Text("Reset", fontWeight = FontWeight.SemiBold) }
-                Spacer(Modifier.weight(1f))
-                Button(onClick = onDismiss, colors = festivalFilledButtonColors(), modifier = Modifier.testTag("$tag.done")) { Text("Done") }
             }
         }
     }

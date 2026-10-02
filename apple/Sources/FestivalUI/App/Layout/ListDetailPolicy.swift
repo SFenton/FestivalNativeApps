@@ -74,18 +74,53 @@ enum ListDetailPolicy {
 
     /// Whether a window shows list/detail pages as two columns.
     ///
-    /// Only an iPhone Duo inner display qualifies for now (unfolded or partially
-    /// folded, either orientation; the shelved dual-source arrangement would replace it
-    /// in portrait, ``DualSourcePolicy/isEnabled``). A large iPhone in landscape is
-    /// regular width but keeps its iPhone layout (`pose == .standard`); iPad
-    /// (`.standard`, sidebar shell) joins in the iPadOS phase, which must first decide
-    /// how this nests in its sections sidebar.
+    /// Two windows qualify:
+    /// - An iPhone Duo inner display (unfolded or partially folded, either orientation;
+    ///   the shelved dual-source arrangement would replace it in portrait,
+    ///   ``DualSourcePolicy/isEnabled``), measured by the window width.
+    /// - The iPad sections sidebar shell (`sectionChrome == .sidebar`), measured by the
+    ///   width actually left for the section beside the sidebar (`containerWidth`), so
+    ///   showing or hiding the sidebar and resizing a Stage Manager window reflow live
+    ///   (HIG Split views, iPadOS: "design for narrow, compact, and intermediate fluid
+    ///   widths"). macOS keeps one stack until its own phase (``sidebarShellSplits``).
     ///
-    /// - Parameter layout: Published window layout.
+    /// A large iPhone in landscape is regular width but keeps its iPhone layout
+    /// (`pose == .standard`, tab shell).
+    ///
+    /// - Parameters:
+    ///   - layout: Published window layout.
+    ///   - containerWidth: Width of the section's own container, when measured.
+    ///   - sidebarShellSplits: Whether the sidebar shell splits (iPad: true).
     /// - Returns: True when list/detail sections should split.
-    static func usesSplit(_ layout: DeviceLayout) -> Bool {
-        layout.contentArrangement == .listDetail && layout.pose != .standard
-            && layout.size.width >= minimumSplitWidth
+    static func usesSplit(
+        _ layout: DeviceLayout, containerWidth: CGFloat? = nil,
+        sidebarShellSplits: Bool = ListDetailPolicy.sidebarShellSplits
+    ) -> Bool {
+        guard layout.contentArrangement == .listDetail else { return false }
+        if layout.sectionChrome == .sidebar {
+            return sidebarShellSplits && (containerWidth ?? layout.size.width) >= minimumSplitWidth
+        }
+        return layout.pose != .standard && layout.size.width >= minimumSplitWidth
+    }
+
+    /// Whether the sidebar shell splits list/detail pages: iPad yes; macOS not yet
+    /// (Lane MAC decides its own columns).
+    static var sidebarShellSplits: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
+        #endif
+    }
+
+    /// Width of the list column beside a detail column in the iPad sidebar shell: 40 %
+    /// of the section's width, kept between 320 and 420 pt so rows stay readable and
+    /// the detail keeps the larger share (Mail-like proportions).
+    ///
+    /// - Parameter containerWidth: Width of the section's container.
+    /// - Returns: The list column width.
+    static func listColumnWidth(containerWidth: CGFloat) -> CGFloat {
+        min(420, max(320, (containerWidth * 0.4).rounded()))
     }
 
     /// Narrowest window that fits two comfortable columns (operator, 2026-09-28: "two
@@ -155,12 +190,14 @@ enum ListDetailPolicy {
     ///   - section: Section owning the path.
     ///   - path: The section's navigation path.
     ///   - layout: Published window layout.
+    ///   - containerWidth: Width of the section's container, when measured.
     ///   - emptyListCollapsed: True once the list page produced no row to select.
     /// - Returns: The arrangement to render.
     static func arrangement(
-        section: FestivalSection, path: [AppRoute], layout: DeviceLayout, emptyListCollapsed: Bool = false
+        section: FestivalSection, path: [AppRoute], layout: DeviceLayout, containerWidth: CGFloat? = nil,
+        emptyListCollapsed: Bool = false
     ) -> Arrangement {
-        guard usesSplit(layout), let split = split(section: section, path: path) else { return .stack }
+        guard usesSplit(layout, containerWidth: containerWidth), let split = split(section: section, path: path) else { return .stack }
         if split.selection == nil, emptyListCollapsed { return .stack }
         return .split(split)
     }
@@ -172,10 +209,37 @@ enum ListDetailPolicy {
     ///   - section: Section owning the path.
     ///   - path: The section's navigation path.
     ///   - layout: Published window layout.
+    ///   - containerWidth: Width of the section's container, when measured.
     /// - Returns: True while the next row tap should open the detail column.
-    static func awaitsSelection(section: FestivalSection, path: [AppRoute], layout: DeviceLayout) -> Bool {
-        guard usesSplit(layout), let split = split(section: section, path: path) else { return false }
+    static func awaitsSelection(
+        section: FestivalSection, path: [AppRoute], layout: DeviceLayout, containerWidth: CGFloat? = nil
+    ) -> Bool {
+        guard usesSplit(layout, containerWidth: containerWidth), let split = split(section: section, path: path) else { return false }
         return split.selection == nil
+    }
+
+    // MARK: Back (⌘[)
+
+    /// The section path after the hardware-keyboard Back command (⌘[).
+    ///
+    /// In one stack it pops the top page. In a split it pops the column that has a
+    /// Back button: the detail column's pushed page first, else the list column's
+    /// pushed list page (with its detail); a split showing only its root list and the
+    /// detail root has nothing to go back to.
+    ///
+    /// - Parameters:
+    ///   - section: Section owning the path.
+    ///   - path: The section's navigation path.
+    ///   - isSplit: Whether the section is currently shown as two columns.
+    /// - Returns: The new path, or nil when there is nothing to go back to.
+    static func pathAfterBack(section: FestivalSection, path: [AppRoute], isSplit: Bool) -> [AppRoute]? {
+        guard !path.isEmpty else { return nil }
+        guard isSplit, let split = split(section: section, path: path) else {
+            return Array(path.dropLast())
+        }
+        if split.detail.count > 1 { return Array(path.dropLast()) }
+        if !split.list.isEmpty { return Array(split.list.dropLast()) }
+        return nil
     }
 
     // MARK: Column writes

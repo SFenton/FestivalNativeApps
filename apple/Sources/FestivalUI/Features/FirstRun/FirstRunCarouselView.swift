@@ -7,13 +7,16 @@ import FestivalDesign
 /// The native first-run carousel: a paged, dark Liquid Glass sheet ported from the web's
 /// `FirstRunCarousel` (`components/firstRun/FirstRunCarousel.tsx`).
 ///
-/// Operator batch 6 (item 6.7) / batch 7: the primary **Next/Done** comes first (a
-/// full-width glass-prominent button, the HIG onboarding pattern) with glass **Back** (once
-/// there is a page to go back to) and **Skip** (while pages remain) beneath it; a one-page
-/// guide shows only Done; no arrows; white page dots; a native toolbar **Close** top-right
-/// (the same `.confirmationAction` button as the Profile search sheet, issue #4). Close,
-/// swiping down and tapping outside the sheet all dismiss, and only the pages actually
-/// shown are recorded in `viewing` (see ``FirstRunViewing``).
+/// Controls follow Apple's onboarding layout (issue #25, which reworked operator batches 6–7):
+/// **Back** at the leading edge of the navigation bar from the second page on, the page
+/// title, and the system toolbar **Close** at the trailing edge from the shared
+/// ``FestivalModal`` (issue #23). The title names the page the guide explains (issue #24,
+/// ``FirstRunPageKey/guideTitle``), and VoiceOver reads it first when the sheet opens. At the
+/// bottom there is one large glass-prominent **Next/Done** with a quiet full-width **Skip**
+/// beneath it while pages remain. A one-page guide shows only Done. There are no arrows, and
+/// the page dots are white. Every control's hit region is at least 44×44 pt. Close, swiping
+/// down and tapping outside the sheet all dismiss, and only the pages actually shown are
+/// recorded in `viewing` (see ``FirstRunViewing``).
 ///
 /// Used both for a page's own onboarding (`.firstRun(page:session:)`) and for a Settings
 /// replay — both supply a different `slides` array and `onFinish` closure.
@@ -33,12 +36,16 @@ struct FirstRunCarouselView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        NavigationStack {
+        // The shared modal: an inline page title (issue #24) and the system Close top-right
+        // (issue #23), not a text button.
+        FestivalModal(page.guideTitle, closeIdentifier: "fst.first-run.close", onClose: onFinish) {
             VStack(spacing: 0) {
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
                         FirstRunSlideView(page: page, slide: slide)
-                            // Every page is mounted; only the visible one rotates its demo.
+                            // Every page is mounted; only the visible one pulses (#28) and
+                            // rotates its demo.
+                            .environment(\.firstRunSlideActive, position == index)
                             .environment(\.firstRunDemoActive, position == index && scenePhase == .active)
                             .accessibilityFocused($focusedSlide, equals: position)
                             .tag(position)
@@ -51,18 +58,10 @@ struct FirstRunCarouselView: View {
                 }
                 controls
             }
+            .toolbar { backItem }
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             #endif
-            .toolbar {
-                // Same native control as the Profile search sheet (issue #4): a trailing
-                // `.confirmationAction` "Close", the blue glass button on iOS 26.
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Close", action: onFinish)
-                        .accessibilityIdentifier("fst.first-run.close")
-                }
-            }
         }
         .modifier(FirstRunSheetStyle())
         .onChange(of: index) { _, newValue in
@@ -70,16 +69,50 @@ struct FirstRunCarouselView: View {
             focusedSlide = newValue
         }
         .onAppear {
+            // VoiceOver focus is left to the system on open so the navigation title is
+            // announced first (HIG VoiceOver); it follows the slide only on a page change.
             viewing.view(index, of: slides)
-            focusedSlide = index
         }
     }
 
     private var pageAnimation: Animation? { reduceMotion ? nil : .easeInOut }
 
+    private var state: FirstRunControls { FirstRunControls.forPage(index, of: slides.count) }
+
+    private func goBack() {
+        withAnimation(pageAnimation) { index = max(0, index - 1) }
+    }
+
+    /// Back in the guide's navigation bar, before the page title (issue #25; HIG Toolbars:
+    /// "Leading: back/previous-document and sidebar controls, then the view title"). Absent
+    /// on the first page rather than shown disabled.
+    @ToolbarContentBuilder
+    private var backItem: some ToolbarContent {
+        if state.showsBack {
+            ToolbarItem(placement: Self.backPlacement) {
+                Button(action: goBack) {
+                    Label("Back", systemImage: "chevron.backward")
+                }
+                .accessibilityIdentifier("fst.first-run.back")
+            }
+        }
+    }
+
+    private static var backPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarLeading
+        #else
+        .navigation
+        #endif
+    }
+
+    /// The bottom actions, Apple's onboarding layout (issue #25): one large prominent
+    /// Next/Done (the large control size is about 50 pt tall), then a quiet full-width Skip
+    /// beneath it while pages remain, at least 48 pt tall. Both hit regions stay at least
+    /// 44 pt even though iOS 26 draws the partial-height sheet slightly scaled down.
     private var controls: some View {
-        let state = FirstRunControls.forPage(index, of: slides.count)
-        return VStack(spacing: 10) {
+        let state = state
+        return VStack(spacing: 4) {
             Button {
                 if state.primaryFinishes {
                     onFinish()
@@ -90,57 +123,45 @@ struct FirstRunCarouselView: View {
                 Text(state.primaryTitle)
                     .font(.headline)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
             }
-            .modifier(FirstRunGlassButton(prominent: true))
+            .controlSize(.large)
+            .modifier(FirstRunPrimaryButton())
             .accessibilityIdentifier(state.primaryFinishes ? "fst.first-run.done" : "fst.first-run.next")
-            if slides.count > 1 {
-                // Back and Skip sit beneath the primary action; the row keeps its height so
-                // Next never jumps, and an absent button is not drawn or exposed.
-                HStack {
-                    if state.showsBack {
-                        Button("Back") {
-                            withAnimation(pageAnimation) { index = max(0, index - 1) }
-                        }
-                        .modifier(FirstRunGlassButton(prominent: false))
-                        .accessibilityIdentifier("fst.first-run.back")
-                    }
-                    Spacer(minLength: 0)
+            if state.reservesSkipRow {
+                // The row keeps its height on the last page so Done never jumps; an absent
+                // Skip is neither drawn nor exposed.
+                ZStack {
                     if state.showsSkip {
-                        Button("Skip", action: onFinish)
-                            .modifier(FirstRunGlassButton(prominent: false))
-                            .accessibilityIdentifier("fst.first-run.skip")
+                        Button(action: onFinish) {
+                            Text("Skip")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(FestivalText.primary)
+                                .frame(maxWidth: .infinity, minHeight: FirstRunControls.minimumHeight)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("fst.first-run.skip")
                     }
                 }
-                .frame(minHeight: 44)
+                .frame(minHeight: FirstRunControls.minimumHeight)
             }
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
-        .padding(.bottom, 24)
+        .padding(.bottom, 16)
     }
 }
 
-// MARK: - Glass buttons
+// MARK: - Primary button
 
-/// Native Liquid Glass buttons on iOS 26 (`.glassProminent` in the brand blue for the
-/// primary action, `.glass` for Back/Skip); bordered equivalents before it.
-private struct FirstRunGlassButton: ViewModifier {
-    let prominent: Bool
-
+/// The native Liquid Glass prominent button on iOS 26 in the brand blue; bordered
+/// prominent before it.
+private struct FirstRunPrimaryButton: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, macOS 26.0, *) {
-            if prominent {
-                content.buttonStyle(.glassProminent).tint(BrandTokens.accentBlue)
-            } else {
-                content.buttonStyle(.glass).foregroundStyle(FestivalText.primary)
-                    .font(.body.weight(.semibold))
-            }
-        } else if prominent {
-            content.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)
+            content.buttonStyle(.glassProminent).tint(BrandTokens.accentBlue)
         } else {
-            content.buttonStyle(.bordered).foregroundStyle(FestivalText.primary)
-                .font(.body.weight(.semibold))
+            content.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)
         }
     }
 }
@@ -202,6 +223,7 @@ private struct FirstRunSheetStyle: ViewModifier {
             .modifier(background)
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
+            .pausesFestivalBackdrop()
     }
 
     private var background: FirstRunSheetBackground {

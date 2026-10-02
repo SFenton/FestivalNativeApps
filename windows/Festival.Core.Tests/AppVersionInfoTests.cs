@@ -1,4 +1,7 @@
+using System.Reflection;
 using Festival.Core.Domain;
+
+[assembly: AssemblyMetadata(AppVersionInfo.GitShaMetadataKey, "ABCDEF0123456789")]
 
 namespace Festival.Core.Tests;
 
@@ -19,26 +22,42 @@ public class AppVersionInfoTests
     public void DisplayReadsAnAssembly() =>
         Assert.False(string.IsNullOrWhiteSpace(AppVersionInfo.Display(typeof(AppVersionInfo).Assembly)));
 
+    [Fact]
+    public void StampedCommitAppendsItsFirstSevenCharacters() =>
+        Assert.Equal("2610.01.01 · 42edc57", AppVersionInfo.WithCommit("2610.01.01", "42edc57a1b2c3d4e5f60718293a4b5c6d7e8f901"));
+
     [Theory]
-    [InlineData("2610.01.02", "42EDC57a1b2c3d4e5f60718293a4b5c6d7e8f901", "2610.01.02 · 42edc57")]
-    [InlineData("2610.01.02", " abcdef0 ", "2610.01.02 · abcdef0")]
-    [InlineData("0.1.0", null, "0.1.0")]
-    [InlineData("0.1.0", "", "0.1.0")]
-    [InlineData("0.1.0", "dev", "0.1.0")]
-    [InlineData("0.1.0", "abc12", "0.1.0")]
-    [InlineData("0.1.0", "$(FstGitSha)", "0.1.0")]
-    [InlineData("", "abcdef0123", "abcdef0")]
-    public void SettingsTextAppendsTheShortCommit(string display, string? sha, string expected) =>
-        Assert.Equal(expected, AppVersionInfo.SettingsText(display, sha));
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("dev")]
+    [InlineData("DEV")]
+    [InlineData("$(SourceRevisionId)")]
+    [InlineData("main")]
+    public void MissingDevEmptyOrNonHexCommitsKeepTheVersionText(string? sha) =>
+        Assert.Equal("0.1.0", AppVersionInfo.WithCommit("0.1.0", sha));
 
     [Fact]
-    public void BuildStampsTheCheckedOutCommit()
+    public void AnUnknownVersionStaysEmptySoSettingsShowsUnknown() =>
+        Assert.Equal("", AppVersionInfo.WithCommit("", "42edc57"));
+
+    [Theory]
+    [InlineData("ABC12", "abc12")]
+    [InlineData(" 42EDC57FF\n", "42edc57")]
+    public void ShortAndUpperCaseShasAreNormalised(string raw, string expected) =>
+        Assert.Equal(expected, AppVersionInfo.ShortCommit(raw));
+
+    [Fact]
+    public void SettingsTextKeepsTheDisplayVersionPrefix()
     {
-        // windows/Directory.Build.targets stamps FSTGitSHA into every assembly built from a git checkout.
-        var text = AppVersionInfo.SettingsText(typeof(AppVersionInfo).Assembly);
-        var sha = typeof(AppVersionInfo).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
-            .Cast<System.Reflection.AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == AppVersionInfo.GitShaKey)?.Value;
-        Assert.NotNull(sha);
-        Assert.Equal($"{AppVersionInfo.Display(typeof(AppVersionInfo).Assembly)} · {sha![..7].ToLowerInvariant()}", text);
+        var assembly = typeof(AppVersionInfo).Assembly;
+        Assert.StartsWith(AppVersionInfo.Display(assembly), AppVersionInfo.SettingsText(assembly), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SettingsTextReadsTheStampedAssemblyMetadata()
+    {
+        var assembly = typeof(AppVersionInfoTests).Assembly;
+        Assert.Equal(AppVersionInfo.Display(assembly) + " · abcdef0", AppVersionInfo.SettingsText(assembly));
     }
 }

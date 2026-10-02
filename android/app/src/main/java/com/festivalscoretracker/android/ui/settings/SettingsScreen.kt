@@ -25,7 +25,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -37,7 +36,6 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -74,12 +72,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.BuildConfig
-import com.festivalscoretracker.android.core.appinfo.AppBuildInfo
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.LicensesRoute
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import com.festivalscoretracker.android.core.settings.AppBuildInfo
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.settings.PathDisplayMode
@@ -91,11 +89,11 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.whatsnew.WhatsNewSettingsRow
+import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 
 // region Sections
 
@@ -197,23 +195,20 @@ fun SettingsScreen(
         }
     }
     if (confirmReset) {
-        AlertDialog(
-            onDismissRequest = { confirmReset = false },
-            title = { Text("Reset Settings") },
-            text = { Text("Are you sure you want to restore all settings to their default values?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmReset = false
-                        viewModel.resetAppSettings()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.testTag("fst.settings.reset.confirm"),
-                ) { Text("Reset") }
+        FestivalAlertDialog(
+            title = "Reset Settings",
+            text = "Are you sure you want to restore all settings to their default values?",
+            tag = "fst.settings.reset.dialog",
+            confirmLabel = "Reset",
+            confirmTag = "fst.settings.reset.confirm",
+            onConfirm = {
+                confirmReset = false
+                viewModel.resetAppSettings()
             },
-            dismissButton = { TextButton(onClick = { confirmReset = false }, modifier = Modifier.testTag("fst.settings.reset.cancel")) { Text("Cancel") } },
-            containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.popupTestTags().testTag("fst.settings.reset.dialog"),
+            dismissLabel = "Cancel",
+            dismissTag = "fst.settings.reset.cancel",
+            onDismissRequest = { confirmReset = false },
+            destructive = true,
         )
     }
 }
