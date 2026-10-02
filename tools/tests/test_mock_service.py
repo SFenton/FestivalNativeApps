@@ -106,6 +106,25 @@ class MockServiceTests(unittest.TestCase):
                 self.assertGreaterEqual(value, 500_000)
                 self.assertLessEqual(value, 1_000_000)
 
+    def test_song_band_previews_read_every_size_and_append_the_selected_band(self):
+        """`/bands/all` is not swallowed by the per-size route and echoes `accountId`."""
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10") as response:
+            body = json.load(response)
+        self.assertEqual(body["songId"], "fixture-pulse")
+        self.assertEqual([band["bandType"] for band in body["bands"]],
+                         ["Band_Duets", "Band_Trios", "Band_Quad"])
+        self.assertEqual(body["bands"][0]["count"], 2)
+        self.assertIsNone(body["bands"][0]["selectedPlayerEntry"])
+        self.assertEqual(body["bands"][1]["entries"], [])
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10"
+                     "&accountId=fixture-player-1") as response:
+            selected = json.load(response)["bands"][0]["selectedPlayerEntry"]
+        self.assertEqual(selected["rank"], 14)
+        self.assertEqual(selected["members"][0]["accountId"], "fixture-player-1")
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=51")
+        self.assertEqual(error.exception.code, 400)
+
     def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):
         """`--large-rankings` pads rows for pagers; the default roster stays three accounts."""
         with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=25") as response:

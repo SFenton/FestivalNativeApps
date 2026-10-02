@@ -554,6 +554,105 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "song-detail-empty-bass-header")
     }
 
+    /// Band leaderboard previews (issue #34): Duos, Trios and Quads follow the solo
+    /// cards; each band row is one drill-down button to Band Detail, the selected
+    /// player's band outside the top rows is appended, an empty size explains itself
+    /// and View full opens that size's song band leaderboard.
+    ///
+    /// Needs a fixture service started from this revision (the shared `:8765`
+    /// listener may predate the `/bands/all` route):
+    ///
+    ///     python3 tools/mock_service.py --port 18934
+    ///
+    /// - Throws: A missing section, row, appended band or destination.
+    @MainActor
+    func testSongBandPreviewsLinkToBandsAndFullBandLeaderboard() throws {
+        continueAfterFailure = false
+        let origin = "http://127.0.0.1:18934"
+        let probe = expectation(description: "band fixture probe")
+        var reachable = false
+        URLSession.shared.dataTask(with: URL(string: "\(origin)/api/leaderboard/fixture-pulse/bands/all")!) { _, response, _ in
+            reachable = (response as? HTTPURLResponse)?.statusCode == 200
+            probe.fulfill()
+        }.resume()
+        wait(for: [probe], timeout: 5)
+        try XCTSkipUnless(reachable, "Start `mock_service.py --port 18934` from this revision")
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_API_BASE_URL": origin,
+        ])
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        func any(_ identifier: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        }
+        XCTAssertTrue(any("fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let first = app.buttons["fst.song-detail.band-row.Band_Duets.0"]
+        for _ in 0..<12 where !(first.exists && first.isHittable) { app.swipeUp() }
+        XCTAssertTrue(first.isHittable, "No Duos band preview row")
+        XCTAssertEqual(
+            first.label,
+            "Rank 1, Band 1 Member A + Band 1 Member B, score 94,500, 5 stars, full combo, accuracy 96.5%"
+        )
+        let selected = app.buttons["fst.song-detail.band-selected.Band_Duets"]
+        XCTAssertTrue(selected.exists, "The selected player's rank-14 band was not appended")
+        XCTAssertTrue(selected.label.hasPrefix("Your band, Rank 14, "), selected.label)
+        let viewFull = app.buttons["fst.song-detail.band-leaderboard.Band_Duets"]
+        for _ in 0..<4 where !viewFull.isHittable { app.swipeUp() }
+        XCTAssertEqual(viewFull.label, "View full Duos leaderboard")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            // Text scrolled under a bar's scroll-edge fade is intentionally dimmed. The
+            // auditor also flags wrapped text on translucent glass cards that renders
+            // well above 4.5:1, so measure the composited pixels instead for those.
+            let barBottom = app.navigationBars.firstMatch.frame.maxY
+            let tabTop = app.tabBars.firstMatch.exists
+                ? app.tabBars.firstMatch.frame.minY : app.windows.firstMatch.frame.maxY
+            try app.performAccessibilityAudit(for: .all) { issue in
+                // The shared toolbar (profile avatar) and text under its scroll-edge
+                // fade are outside this feature and covered by their own journeys.
+                if let frame = issue.element?.frame, frame.minY < barBottom { return true }
+                if issue.auditType == .contrast, let element = issue.element {
+                    let frame = element.frame
+                    if frame.maxY > tabTop { return true }
+                    try SongsUITestSupport.assertHeaderContrast(element, in: app)
+                    return true
+                }
+                XCTFail(
+                    "Band preview audit: \(issue.compactDescription); "
+                        + "element=\(issue.element?.identifier ?? "unidentified"), "
+                        + "label=\(issue.element?.label ?? "unidentified"), "
+                        + "frame=\(String(describing: issue.element?.frame))"
+                )
+                return false
+            }
+        }
+        SongsUITestSupport.record(app, name: "song-detail-band-previews")
+
+        viewFull.tap()
+        XCTAssertTrue(
+            any("fst.song-band-leaderboard.band-type-menu").waitForExistence(timeout: 15),
+            "View full did not open the song band leaderboard"
+        )
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        for _ in 0..<4 where !first.isHittable { app.swipeDown() }
+        first.tap()
+        XCTAssertTrue(
+            app.buttons["BackButton"].waitForExistence(timeout: 10) && !first.isHittable,
+            "A band preview row did not open Band Detail"
+        )
+        app.buttons["BackButton"].tap()
+
+        let quads = any("fst.song-detail.band-empty.Band_Quad")
+        for _ in 0..<8 where !(quads.exists && quads.isHittable) { app.swipeUp() }
+        XCTAssertTrue(quads.exists, "Quads has no rows and must show its empty state")
+        XCTAssertFalse(app.buttons["fst.song-detail.band-leaderboard.Band_Quad"].exists)
+    }
+
     /// Score history lives on the song page (operator batch 6.39): with a selected
     /// player the Score History section appears after Intensity with the shared
     /// instrument selector, the chart and the best scores; there is no per-card history
