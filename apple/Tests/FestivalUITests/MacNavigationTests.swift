@@ -224,6 +224,7 @@ private let player = AppRoute.player(accountId: "p1", displayName: "P")
     #expect(MacDebugCommand("settings") == .settings)
     #expect(MacDebugCommand("settings:paths") == .settingsPane(.paths))
     #expect(MacDebugCommand("settings:nowhere") == nil)
+    #expect(MacDebugCommand("menus") == .menus)
     #expect(MacDebugCommand("explode") == nil)
 }
 #endif

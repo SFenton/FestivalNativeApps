@@ -50,8 +50,9 @@ final class SongsChromeJourneyTests: XCTestCase {
     }
 
     /// The A–Z rail is centred between the navigation bar and the tab bar, stays put when
-    /// the large title collapses, and scrubbing collapses the title like a manual scroll:
-    /// the Filter Songs field rises with the bar and stays usable (pinned, issue #13).
+    /// the large title collapses, and scrubbing collapses the title like a manual scroll.
+    /// With the tab-bar accessory (iOS 26.1+, issue #42) Songs search stays at the bottom;
+    /// before it, the Filter Songs field rises with the bar and stays usable (#13).
     ///
     /// Needs a catalogue with at least two initial letters; the loopback fixture's two
     /// songs both start with "F", so this skips there (evidence: lane screenshots).
@@ -71,36 +72,47 @@ final class SongsChromeJourneyTests: XCTestCase {
         let before = rail.frame
         let centre = (bar.maxY + tabs.minY) / 2
         XCTAssertLessThan(abs(before.midY - centre), (tabs.minY - bar.maxY) * 0.2)
-        let filter = app.searchFields["Filter Songs"]
-        XCTAssertTrue(filter.isHittable)
-        let fieldTop = filter.frame.minY
+        let search = SongsUITestSupport.songsSearchEntry(in: app)
+        XCTAssertTrue(search.isHittable)
+        let inAccessory = search.identifier == "fst.songs.search.open"
+        let fieldTop = search.frame.minY
         rail.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
         XCTAssertLessThan(abs(rail.frame.midY - before.midY), 4, "Rail moved when the title collapsed")
-        XCTAssertLessThan(filter.frame.minY, fieldTop - 30, "Scrubbing did not collapse the large title")
-        XCTAssertTrue(filter.isHittable, "The Filter Songs field hid instead of staying pinned")
+        if inAccessory {
+            XCTAssertLessThan(
+                app.navigationBars.firstMatch.frame.maxY, bar.maxY - 30,
+                "Scrubbing did not collapse the large title"
+            )
+            XCTAssertGreaterThan(search.frame.minY, bar.maxY + 100, "Songs search left the bottom")
+        } else {
+            XCTAssertLessThan(search.frame.minY, fieldTop - 30, "Scrubbing did not collapse the large title")
+        }
+        XCTAssertTrue(search.isHittable, "Songs search hid instead of staying usable")
     }
 
-    /// Issue #13: scrolling moves the Songs tools from the floating dock into the
-    /// navigation bar row for every viewer, keeps the Filter Songs field pinned under it,
-    /// and scrolling back to the top restores both with the field where it started.
+    /// Issue #42 (iPhone iOS 26.1+): Songs search, Filter and Sort sit in the tab-bar
+    /// accessory above the tab bar; scrolling down minimizes the tab bar and moves them
+    /// inline beside it, still separate hittable controls; scrolling back to the top
+    /// restores the expanded layout. Before iOS 26.1 (issue #13) the floating tools move
+    /// into the navigation bar row instead and the Filter Songs field stays pinned.
     ///
     /// Needs a catalogue that scrolls (`TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`, as for
     /// ``testScrollingBackToTopNearTheTopStaysResponsive``); skips on the two-song fixture.
     @MainActor
     func testToolsAnchorInTheBarWhileScrolled() throws {
         continueAfterFailure = false
-        try assertToolsAnchorInTheBar(profile: false, tools: ["fst.songs.sort", "fst.songs.filter"])
-        try assertToolsAnchorInTheBar(profile: true, tools: ["fst.songs.sort", "fst.songs.filter"])
+        try assertToolsWhileScrolled(profile: false, tools: ["fst.songs.sort", "fst.songs.filter"])
+        try assertToolsWhileScrolled(profile: true, tools: ["fst.songs.sort", "fst.songs.filter"])
     }
 
-    /// Scroll down and back up, checking where `tools` sit and that each stays hittable
-    /// (and therefore reachable by VoiceOver) in both states.
+    /// Launch the scrolling catalogue and check the Songs tools for the runtime's
+    /// presentation (accessory or floating dock).
     ///
     /// - Parameters:
     ///   - profile: Launch with the fixture player selected.
-    ///   - tools: Page tool identifiers expected in the dock at the top and the bar when scrolled.
+    ///   - tools: Page tool identifiers besides search.
     @MainActor
-    private func assertToolsAnchorInTheBar(profile: Bool, tools: [String]) throws {
+    private func assertToolsWhileScrolled(profile: Bool, tools: [String]) throws {
         let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
             ?? "http://127.0.0.1:8765"
         var env = [
@@ -118,6 +130,62 @@ final class SongsChromeJourneyTests: XCTestCase {
         guard rail.waitForExistence(timeout: 3) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
+        if app.buttons["fst.songs.search.open"].waitForExistence(timeout: 3) {
+            assertToolsRideTheAccessory(app, profile: profile, tools: tools)
+        } else {
+            assertToolsAnchorInTheBar(app, profile: profile, tools: tools)
+        }
+    }
+
+    /// Issue #42: the tools stay together at the bottom, drop inline beside the minimized
+    /// tab bar when scrolled down and rise back when scrolled to the top.
+    @MainActor
+    private func assertToolsRideTheAccessory(
+        _ app: XCUIApplication, profile: Bool, tools: [String]
+    ) {
+        let ids = ["fst.songs.search.open"] + tools
+        let who = profile ? "profile" : "anonymous"
+        func frames() -> [CGRect]? {
+            var result: [CGRect] = []
+            for id in ids {
+                let matches = app.buttons.matching(identifier: id)
+                guard matches.count == 1, matches.element.isHittable else { return nil }
+                result.append(matches.element.frame)
+            }
+            return result
+        }
+        let barBottom = app.navigationBars.firstMatch.frame.maxY
+        let tabsTop = app.tabBars.firstMatch.frame.minY
+        let expanded = frames()
+        XCTAssertNotNil(expanded, "\(who): tools missing from the accessory")
+        for frame in expanded ?? [] {
+            XCTAssertGreaterThan(frame.minY, barBottom + 100, "\(who): a tool is in the header")
+            XCTAssertLessThanOrEqual(frame.maxY, tabsTop + 1, "\(who): accessory overlaps the tab bar")
+            XCTAssertGreaterThanOrEqual(frame.height, 44, "\(who): tool hit target under 44 pt")
+        }
+        let top = expanded?.first?.minY ?? 0
+        func wait(_ condition: @escaping ([CGRect]) -> Bool, _ message: String) {
+            let settled = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in frames().map(condition) ?? false }, object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 10), .completed, message)
+        }
+        app.swipeUp()
+        wait({ $0.allSatisfy { $0.minY > top + 20 } }, "\(who): accessory did not move inline")
+        XCTAssertTrue(app.buttons["fst.global-search.open"].isHittable)
+        SongsUITestSupport.record(app, name: "songs-tools-inline-\(who)")
+
+        for _ in 0..<4 { app.swipeDown() }
+        wait({ abs(($0.first?.minY ?? 0) - top) < 2 }, "\(who): accessory did not expand again")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    /// Issue #13 (before iOS 26.1): scroll down and back up, checking where `tools` sit
+    /// and that each stays hittable (and therefore reachable by VoiceOver) in both states.
+    @MainActor
+    private func assertToolsAnchorInTheBar(
+        _ app: XCUIApplication, profile: Bool, tools: [String]
+    ) {
         let field = app.searchFields["Filter Songs"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         let fieldTop = field.frame.minY
@@ -234,8 +302,9 @@ final class SongsChromeJourneyTests: XCTestCase {
         for _ in 0..<4 { app.swipeDown() }
 
         XCTAssertEqual(app.state, .runningForeground)
-        XCTAssertTrue(app.searchFields["Filter Songs"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.searchFields["Filter Songs"].isHittable, "Large title header did not return")
+        let search = SongsUITestSupport.songsSearchEntry(in: app)
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertTrue(search.isHittable, "Songs search did not return")
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].isHittable, "First row not shown")
         XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Floating Sort did not return")
     }
@@ -393,7 +462,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         // The last jump lands on the first section title; flick the rest of the way up.
         app.swipeDown()
         app.swipeDown()
-        XCTAssertTrue(app.searchFields["Filter Songs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(SongsUITestSupport.songsSearchEntry(in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Floating Sort did not return")
     }
 }

@@ -525,20 +525,41 @@ enum SongsUITestSupport {
         return app.tabBars.buttons[name]
     }
 
-    /// The Songs list's inline filter field (`.searchable`, prompt "Filter Songs").
+    /// The Songs list's search field, opened and ready to type into.
     ///
-    /// Matched by its prompt so it is never confused with global search's field
-    /// (the iOS 26 search tab), see `.agents/controls/global-search/ios.md`.
+    /// iPhone iOS 26.1+: the field-shaped "Search Songs" button in the tab-bar accessory
+    /// opens a focused field above the keyboard (`fst.songs.search.field`, issue #42).
+    /// Elsewhere it is the `.searchable` field matched by its prompt "Filter Songs", so it
+    /// is never confused with global search's field
+    /// (`.agents/controls/global-search/ios.md`).
     ///
     /// - Parameter app: Foreground app on the Songs root.
-    /// - Returns: The Songs filter search field.
+    /// - Returns: The Songs search field.
     @MainActor
     static func songsSearchField(in app: XCUIApplication) -> XCUIElement {
+        let open = app.buttons["fst.songs.search.open"]
+        if open.waitForExistence(timeout: 3) {
+            open.tap()
+            let field = app.textFields["fst.songs.search.field"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            return field
+        }
         let field = app.searchFields.matching(
             NSPredicate(format: "placeholderValue == %@", "Filter Songs")
         ).firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         return field
+    }
+
+    /// The Songs search entry point without opening it: the accessory's "Search Songs"
+    /// button on iPhone iOS 26.1+ (issue #42), otherwise the "Filter Songs" field.
+    ///
+    /// - Parameter app: Foreground app on the Songs root.
+    /// - Returns: The visible search control.
+    @MainActor
+    static func songsSearchEntry(in app: XCUIApplication) -> XCUIElement {
+        let open = app.buttons["fst.songs.search.open"]
+        return open.waitForExistence(timeout: 3) ? open : app.searchFields["Filter Songs"]
     }
 
     /// Scroll a large-type error until Retry is both tappable and above native navigation.

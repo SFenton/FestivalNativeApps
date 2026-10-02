@@ -54,6 +54,26 @@ public final class QuickLinksController {
         sections.first { $0.id == activeID }
     }
 
+    /// Whether the page's Quick Links sheet is open. The iOS 26.1+ tab-bar accessory
+    /// cannot present a `Menu` (it highlights and never opens), so there the button opens
+    /// this sheet from the page instead (issue #42).
+    public var sheetPresented = false
+
+    /// Open the Quick Links sheet when the page has sections to offer.
+    public func presentSheet() {
+        guard isAvailable else { return }
+        sheetPresented = true
+    }
+
+    /// Close the sheet and jump to the chosen section (re-choosing the active section
+    /// jumps back to its start, like the menu).
+    ///
+    /// - Parameter id: Chosen section id; an unknown id only closes the sheet.
+    public func choose(_ id: String) {
+        sheetPresented = false
+        jump(to: id)
+    }
+
     // MARK: Jumping
 
     /// Request an animated jump to a section. The `.quickLinks` modifier performs the

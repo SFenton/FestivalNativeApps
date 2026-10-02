@@ -90,6 +90,9 @@ struct SongRowView: View {
     @AppStorage("fst.settings.songRowVisualOrder")
     private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.allCases)
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.songRowsAllowSingleLine) private var allowsSingleLine
+    /// The card's width, measured only where one-line rows are allowed.
+    @State private var rowWidth: CGFloat = 0
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
     ///
@@ -418,6 +421,14 @@ struct SongRowView: View {
         }
     }
 
+    /// Chips sit beside the title (``SongRowLayoutPolicy``) when allowed and they fit.
+    private var singleLine: Bool {
+        guard allowsSingleLine, usesInstrumentChips, !dynamicTypeSize.isAccessibilitySize else { return false }
+        let count = visibleInstruments.count
+        // `rowWidth` is measured inside the 12 pt padding; the policy counts it.
+        return SongRowLayoutPolicy.fitsSingleLine(width: rowWidth + 24, chipCount: count)
+    }
+
     var body: some View {
         Group {
             if let shopOffer {
@@ -450,6 +461,15 @@ struct SongRowView: View {
                     }
                     profileContent
                 }
+            } else if singleLine {
+                // Web desktop row: chips on one line beside the title.
+                HStack(spacing: 12) {
+                    artworkTile
+                    songInfo.frame(minWidth: SongRowLayoutPolicy.infoMinimumWidth, maxWidth: .infinity, alignment: .leading)
+                    profileContent.fixedSize()
+                    trailingContent
+                        .frame(minWidth: SongRowLayoutPolicy.shopSlotWidth, alignment: .trailing)
+                }
             } else {
                 HStack(spacing: 12) {
                     artworkTile
@@ -462,6 +482,7 @@ struct SongRowView: View {
                 }
             }
         }
+        .onGeometryChange(for: CGFloat.self) { allowsSingleLine ? $0.size.width : 0 } action: { rowWidth = $0 }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .festivalGlass(.card, cornerRadius: 12)

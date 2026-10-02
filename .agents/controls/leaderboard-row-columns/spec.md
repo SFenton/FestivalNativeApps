@@ -22,6 +22,7 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/components/topScoresLayout.ts` (
 - Pinned and spotlight rows share their section's columns on **every** size (operator batch 7.3), not only desktop.
 - Accuracy pills stay on score rows at every width (operator batch 7.8) — the 420/520 accuracy gate is not ported.
 - The rating column uses the section's widest label instead of reserving `1,000,000,000`, so phone names keep room.
+- **Songs played/total (#38):** rankings sections share one songs width (the widest label), like rank and rating. The web always shows songs; on a portrait phone that crowds usernames, so Compete's previews decide once per section whether the songs column fits beside the section's longest name (in its drawn weight, incl. the bold selected row) without truncation, and otherwise hide it on every row. VoiceOver still reads the songs as the row's value. Other rankings sections (overview cards, Full/Band Rankings) always show songs, like the web.
 - Widths follow the platform's text scale; at accessibility text sizes rows may stack instead of keeping columns.
 - Difficulty and the stars column are decided but not yet drawn on any native score row (open gap).
 
@@ -35,3 +36,5 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/components/topScoresLayout.ts` (
 | `#9`, `#10`, pinned `#1,234` | one rank width; names start on the same x |
 | Mixed 5–7 digit scores | one score width; scores end on the same x |
 | Empty section / invalid ranks | default reference rank width (48) |
+| Compete card, longest name truncates with songs | songs hidden on every row of that card; spoken as the row's value |
+| Compete card, all names fit with songs | songs shown, one shared songs width |

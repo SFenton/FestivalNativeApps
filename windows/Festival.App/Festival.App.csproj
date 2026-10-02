@@ -66,11 +66,22 @@
     <AppxManifest Remove="Package.appxmanifest" />
     <None Remove="Package.appxmanifest" />
   </ItemGroup>
-  <!-- Build commit for Settings → App Version (AppVersionInfo.SettingsText): the SDK's SourceLink commit, or
-       -p:FstGitSha=<sha>. Kept out of InformationalVersion, which the Store build stamps without a commit. -->
+  <!-- Build commit for Settings → App Version (AppVersionInfo.SettingsText): -p:FstGitSha=<sha>, else the SDK's
+       SourceLink commit, else `git rev-parse HEAD` (the SDK reader reports "Repository has no commit" in a worktree
+       whose branch ref is only in the shared packed-refs; issue #21). A build without git stamps nothing.
+       Kept out of InformationalVersion, which the Store build stamps without a commit. -->
   <Target Name="FstStampGitSha" BeforeTargets="GetAssemblyAttributes" DependsOnTargets="InitializeSourceControlInformation">
     <PropertyGroup>
       <FstGitSha Condition="'$(FstGitSha)' == ''">$(SourceRevisionId)</FstGitSha>
+    </PropertyGroup>
+    <Exec Condition="'$(FstGitSha)' == ''" Command="git rev-parse HEAD" WorkingDirectory="$(MSBuildProjectDirectory)"
+          ConsoleToMSBuild="true" IgnoreExitCode="true" EchoOff="true" StandardOutputImportance="low"
+          StandardErrorImportance="low" IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_FstGitRevParse" />
+    </Exec>
+    <PropertyGroup Condition="'$(FstGitSha)' == ''">
+      <_FstGitRevParse>$(_FstGitRevParse.Trim())</_FstGitRevParse>
+      <FstGitSha Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(_FstGitRevParse)', '^[0-9a-fA-F]{40}$'))">$(_FstGitRevParse)</FstGitSha>
     </PropertyGroup>
     <ItemGroup Condition="'$(FstGitSha)' != ''">
       <AssemblyMetadata Include="FstGitSha" Value="$(FstGitSha)" />

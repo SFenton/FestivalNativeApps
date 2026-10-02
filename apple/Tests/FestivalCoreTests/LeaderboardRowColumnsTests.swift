@@ -110,14 +110,16 @@ import Testing
 }
 
 /// A decoded rankings row whose rank is `rank` and total score is `totalScore`.
-private func rankingRow(rank: Int, totalScore: Int) throws -> AccountRankingEntry {
+private func rankingRow(
+    rank: Int, totalScore: Int, songsPlayed: Int = 10, totalCharted: Int = 20, fullCombos: Int = 5
+) throws -> AccountRankingEntry {
     let data = Data("""
-    {"accountId":"a\(rank)","displayName":"Fixture","songsPlayed":10,
-     "totalChartedSongs":20,"coverage":0.5,"rawSkillRating":0.01,
+    {"accountId":"a\(rank)","displayName":"Fixture","songsPlayed":\(songsPlayed),
+     "totalChartedSongs":\(totalCharted),"coverage":0.5,"rawSkillRating":0.01,
      "adjustedSkillRating":0.01,"adjustedSkillRank":\(rank),"weightedRating":0.02,
      "weightedRank":\(rank),"fcRate":0.4,"fcRateRank":\(rank),"totalScore":\(totalScore),
      "totalScoreRank":\(rank),"maxScorePercent":0.9,"maxScorePercentRank":\(rank),
-     "avgAccuracy":0.95,"fullComboCount":5,"avgStars":4.0,"bestRank":1,"avgRank":2.0}
+     "avgAccuracy":0.95,"fullComboCount":\(fullCombos),"avgStars":4.0,"bestRank":1,"avgRank":2.0}
     """.utf8)
     return try JSONDecoder().decode(AccountRankingEntry.self, from: data)
 }
@@ -132,4 +134,52 @@ private func rankingRow(rank: Int, totalScore: Int) throws -> AccountRankingEntr
     #expect(!columns.showsSeason && !columns.showsAccuracy)
     let empty = LeaderboardRowColumns.rankings([], metric: .adjusted)
     #expect(empty.rankLabel == nil && empty.ratingLabel == nil)
+}
+
+// MARK: - Songs column (#38)
+
+@Test func rankingsSectionsShareTheWidestSongsLabel() throws {
+    let rows = try [
+        rankingRow(rank: 1, totalScore: 900, songsPlayed: 728, totalCharted: 729, fullCombos: 3),
+        rankingRow(rank: 2, totalScore: 800, songsPlayed: 9, totalCharted: 729, fullCombos: 12),
+    ]
+    #expect(LeaderboardRowColumns.rankings(rows, metric: .totalscore).songsLabel == "728 / 729")
+    // FC rate shows full combos instead of songs played.
+    #expect(LeaderboardRowColumns.rankings(rows, metric: .fcrate).songsLabel == "12 / 729")
+    #expect(LeaderboardRowColumns.rankings([], metric: .totalscore).songsLabel == nil)
+    #expect(LeaderboardRowColumns.rankings(rows, metric: .totalscore).showsSongs)
+}
+
+@Test func songsFitOnlyWhenTheWidestRowFits() {
+    #expect(LeaderboardRowColumns.songsFit(availableWidth: 370, requiredWidth: 369.5))
+    #expect(LeaderboardRowColumns.songsFit(availableWidth: 370, requiredWidth: 370))
+    // A fraction of a point too wide would already truncate a name.
+    #expect(!LeaderboardRowColumns.songsFit(availableWidth: 370, requiredWidth: 370.25))
+    #expect(!LeaderboardRowColumns.songsFit(availableWidth: 320, requiredWidth: 402))
+}
+
+@Test func songsFitKeepsSongsUntilBothWidthsAreMeasured() {
+    for (available, required) in [(0.0, 400.0), (370, 0), (-1, 400), (.infinity, 400), (370, .nan)] {
+        #expect(LeaderboardRowColumns.songsFit(availableWidth: available, requiredWidth: required))
+    }
+}
+
+@Test func fittingSongsDecidesForTheWholeSection() throws {
+    let rows = try (1...5).map { try rankingRow(rank: $0, totalScore: 90_000_000 - $0) }
+    let columns = LeaderboardRowColumns.rankings(rows, metric: .totalscore)
+    let narrow = columns.fittingSongs(availableWidth: 370, requiredWidth: 402)
+    #expect(!narrow.showsSongs)
+    // Everything else about the section is unchanged.
+    var restored = narrow
+    restored.showsSongs = true
+    #expect(restored == columns)
+    #expect(columns.fittingSongs(availableWidth: 700, requiredWidth: 402).showsSongs)
+    // Re-fitting a hidden section at a wider width (rotation) shows songs again.
+    #expect(narrow.fittingSongs(availableWidth: 700, requiredWidth: 402).showsSongs)
+}
+
+@Test func fittingSongsKeepsAnEmptySongsColumnShown() {
+    let columns = LeaderboardRowColumns.fit(.rankings, width: 0, ranks: [1], ratings: ["1"])
+    #expect(columns.songsLabel == nil)
+    #expect(columns.fittingSongs(availableWidth: 100, requiredWidth: 400).showsSongs)
 }

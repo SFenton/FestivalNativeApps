@@ -353,7 +353,7 @@ struct ShopScreen: View {
                 NavigationLink(value: AppRoute.songDetail(detail)) {
                     summary.contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .festivalRowButtonStyle()
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier("fst.shop.song.\(offer.songId)")
@@ -442,7 +442,7 @@ struct ShopScreen: View {
                         .stroke(borderColor(for: offer), lineWidth: 2)
                 }
             }
-            .buttonStyle(.plain)
+            .festivalRowButtonStyle()
             .accessibilityLabel("\(offer.title), \(offer.artist), Open Official Item Shop")
             .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
             .contextMenu {

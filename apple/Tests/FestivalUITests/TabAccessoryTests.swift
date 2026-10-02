@@ -70,6 +70,46 @@ struct TabAccessoryRegistryTests {
         #expect(registry.pageScopes == [detail])
     }
 
+    /// The accessory shows only the front page's tools, in dock order, and nothing once
+    /// every page has gone (issue #42).
+    @Test func frontItemsFollowTheFrontPage() {
+        let registry = TabAccessoryRegistry()
+        let songs = UUID()
+        let detail = UUID()
+        let search = UUID()
+        let sort = UUID()
+        let filter = UUID()
+        let links = UUID()
+        #expect(registry.frontItems.isEmpty)
+        registry.upsert(id: sort, order: DockOrder.sort, scope: songs, content: AnyView(EmptyView()))
+        registry.upsert(id: filter, order: DockOrder.filter, scope: songs, content: AnyView(EmptyView()))
+        registry.upsert(
+            id: search, order: DockOrder.search, scope: songs, kind: .field,
+            content: AnyView(EmptyView())
+        )
+        registry.upsert(id: links, order: DockOrder.quickLinks, scope: detail, content: AnyView(EmptyView()))
+        #expect(registry.frontItems.isEmpty, "No page on screen yet")
+        registry.pageAppeared(songs)
+        #expect(registry.frontItems.map(\.id) == [search, filter, sort])
+        #expect(registry.frontItems.first?.kind == .field)
+        registry.pageAppeared(detail)
+        #expect(registry.frontItems.map(\.id) == [links])
+        registry.pageDisappeared(detail)
+        #expect(registry.frontItems.map(\.id) == [search, filter, sort])
+        registry.pageDisappeared(songs)
+        #expect(registry.frontItems.isEmpty)
+    }
+
+    /// Re-registering can change a control's kind.
+    @Test func upsertReplacesKind() {
+        let registry = TabAccessoryRegistry()
+        let id = UUID()
+        registry.upsert(id: id, content: AnyView(EmptyView()))
+        #expect(registry.entries.first?.kind == .tool)
+        registry.upsert(id: id, kind: .field, content: AnyView(EmptyView()))
+        #expect(registry.entries.first?.kind == .field)
+    }
+
     @Test func removingUnknownIdIsHarmless() {
         let registry = TabAccessoryRegistry()
         let songs = UUID()
@@ -77,6 +117,48 @@ struct TabAccessoryRegistryTests {
         registry.remove(id: UUID())
         #expect(registry.active?.id == songs)
     }
+}
+
+// MARK: - Presentation and accessory layout (issue #42)
+
+/// Only the horizontal iPhone tab bar hosts page tools; the accessory needs iOS 26.1.
+@Test(arguments: [
+    (false, false, nil),
+    (false, true, nil),
+    (true, false, PageToolsPresentation.floating),
+    (true, true, .accessory),
+] as [(Bool, Bool, PageToolsPresentation?)])
+func pageToolsPresentationResolves(
+    horizontal: Bool, supported: Bool, expected: PageToolsPresentation?
+) {
+    #expect(PageToolsPresentation.resolve(
+        horizontalTabBar: horizontal, accessorySupported: supported
+    ) == expected)
+}
+
+/// Songs: the field spans and a hairline separates it from Filter, Sort and Quick Links.
+@Test func accessoryArrangementWithAField() {
+    let layout = PageToolsAccessoryArrangement(kinds: [.field, .tool, .tool, .tool])
+    #expect(layout.spans(0))
+    #expect(!layout.spans(1) && !layout.spans(2) && !layout.spans(3))
+    #expect(!layout.showsDivider(before: 0))
+    #expect(layout.showsDivider(before: 1))
+    #expect(!layout.showsDivider(before: 2) && !layout.showsDivider(before: 3))
+}
+
+/// A page's only tool (Quick Links on Song Detail) fills the capsule with its title.
+@Test func accessoryArrangementWithALoneTool() {
+    let layout = PageToolsAccessoryArrangement(kinds: [.tool])
+    #expect(layout.spans(0))
+    #expect(!layout.showsDivider(before: 0))
+}
+
+/// Several tools without a field stay icon buttons with no divider.
+@Test func accessoryArrangementWithToolsOnly() {
+    let layout = PageToolsAccessoryArrangement(kinds: [.tool, .tool])
+    #expect(!layout.spans(0) && !layout.spans(1))
+    #expect(!layout.showsDivider(before: 1))
+    #expect(!layout.spans(5) && !layout.showsDivider(before: 5), "Out of range is harmless")
 }
 
 // MARK: - Profile identity action

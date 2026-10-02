@@ -174,6 +174,9 @@ struct SongDetailScreen: View {
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar { detailToolbar }
+        #if os(macOS)
+        .macSongCommands(macSongCommands)
+        #endif
         .sheet(isPresented: $pathsPresented) {
             if let first = pathInstruments.first {
                 SongPathsSheet(
@@ -203,6 +206,18 @@ struct SongDetailScreen: View {
             }
         }
     }
+
+    #if os(macOS)
+    /// The toolbar's Paths and Item Shop tools for the Mac Song menu.
+    private var macSongCommands: MacSongCommands {
+        let presented: Binding<Bool> = $pathsPresented
+        var commands = MacSongCommands(songId: song.songId, paths: nil, shopURL: shopOffer?.shopUrl)
+        if !pathInstruments.isEmpty {
+            commands.paths = { presented.wrappedValue = true }
+        }
+        return commands
+    }
+    #endif
 
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {

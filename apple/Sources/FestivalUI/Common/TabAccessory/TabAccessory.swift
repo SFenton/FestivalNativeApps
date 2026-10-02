@@ -4,11 +4,13 @@ import FestivalDesign
 
 // MARK: - Registry
 
-/// The page controls currently floating above the iPhone tab bar (the web app's
+/// The page tools shown above the iPhone tab bar (the web app's Songs search dock and
 /// Sort / Quick Links FABs over the bottom nav).
 ///
 /// Controls register while their page is visible (`onAppear` … `onDisappear`), so a
-/// push or tab switch swaps them; they float as separate glass buttons in
+/// push or tab switch swaps them. On iOS 26.1+ the front page's tools fill the system
+/// tab-bar bottom accessory, which moves inline beside the minimized tab bar while
+/// scrolling (issue #42); earlier iOS floats them as separate glass buttons in
 /// ``Entry/order``. Global Search and the profile avatar are header buttons instead
 /// (operator, 2026-09-28).
 ///
@@ -26,6 +28,8 @@ final class TabAccessoryRegistry {
         var accessibilityID: String?
         /// The page (`FloatingPageControls` instance) that owns this control.
         var scope: UUID?
+        /// How the accessory lays the control out.
+        var kind: DockItemKind = .tool
     }
 
     private(set) var entries: [Entry] = []
@@ -49,19 +53,21 @@ final class TabAccessoryRegistry {
     ///   - order: Dock position after Search.
     ///   - content: Control content; it renders in the root's environment, so it must
     ///     not rely on page-only environment values.
+    ///   - kind: How the tab-bar accessory lays the control out.
     func upsert(
         id: UUID, order: Int = DockOrder.pageAction, accessibilityID: String? = nil,
-        scope: UUID? = nil, content: AnyView
+        scope: UUID? = nil, kind: DockItemKind = .tool, content: AnyView
     ) {
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].content = content
             entries[index].order = order
             entries[index].accessibilityID = accessibilityID
             entries[index].scope = scope
+            entries[index].kind = kind
         } else {
             entries.append(Entry(
                 id: id, order: order, content: content, accessibilityID: accessibilityID,
-                scope: scope
+                scope: scope, kind: kind
             ))
         }
     }
@@ -72,6 +78,15 @@ final class TabAccessoryRegistry {
     /// - Returns: Only that page's controls, so a push never shows two pages' buttons.
     func items(in scope: UUID) -> [Entry] {
         items.filter { $0.scope == scope }
+    }
+
+    /// The front page's controls, in dock order: what the tab-bar accessory shows.
+    ///
+    /// Empty when no page is on screen, so the accessory is withdrawn rather than
+    /// showing an outgoing page's tools.
+    var frontItems: [Entry] {
+        guard let front = pageScopes.last else { return [] }
+        return items(in: front)
     }
 
     /// A page started appearing (a push, a pop revealing it, or a tab switch).
@@ -114,6 +129,8 @@ final class TabAccessoryRegistry {
 
 /// Floating-control positions, leading to trailing (the trailing edge is nearest the thumb).
 enum DockOrder {
+    /// A page's search field (Songs), leading in the tab-bar accessory.
+    static let search = 0
     /// Songs Filter.
     static let filter = 10
     /// Songs Sort.
@@ -124,14 +141,47 @@ enum DockOrder {
     static let pageAction = 40
 }
 
+/// How a registered control sits in the tab-bar accessory.
+enum DockItemKind: Equatable, Sendable {
+    /// An icon button with a 44 pt hit target (Filter, Sort, Quick Links).
+    case tool
+    /// A field-shaped button that takes the remaining width (Songs search).
+    case field
+}
+
+/// Where a page's tools (search, Filter, Sort, Quick Links) live on this layout.
+enum PageToolsPresentation: Equatable, Sendable {
+    /// iOS 26.1+ iPhone: the system tab-bar bottom accessory, inline beside the
+    /// minimized tab bar while scrolling (issue #42).
+    case accessory
+    /// iOS 17–26.0 iPhone: separate floating glass buttons above the tab bar, handed to
+    /// the navigation bar while scrolling (issue #13).
+    case floating
+
+    /// Choose the presentation for a layout.
+    ///
+    /// - Parameters:
+    ///   - horizontalTabBar: The section chrome is the bottom tab bar (iPhone, not the
+    ///     iPhone Duo vertical bar, iPad sidebar or Mac).
+    ///   - accessorySupported: The OS has `tabViewBottomAccessory(isEnabled:)` (26.1+).
+    /// - Returns: Nil where the tools stay toolbar items.
+    static func resolve(horizontalTabBar: Bool, accessorySupported: Bool) -> Self? {
+        guard horizontalTabBar else { return nil }
+        return accessorySupported ? .accessory : .floating
+    }
+}
+
 extension EnvironmentValues {
-    /// Set only where page controls float above the tab bar: iPhone with a horizontal
+    /// Set only where page controls sit above the tab bar: iPhone with a horizontal
     /// tab bar. Nil (the iPhone Duo vertical bar, iPad, Mac) means pages keep their
     /// controls as toolbar items.
     @Entry var tabAccessoryRegistry: TabAccessoryRegistry? = nil
 
-    /// True when page controls (Filter/Sort, Quick Links) float above the tab bar instead
-    /// of sitting in the toolbar.
+    /// How the page tools above the tab bar are presented; nil with no registry.
+    @Entry var pageToolsPresentation: PageToolsPresentation? = nil
+
+    /// True when page controls (Filter/Sort, Quick Links) sit above the tab bar instead
+    /// of in the toolbar.
     var isTabAccessoryAvailable: Bool { tabAccessoryRegistry != nil }
 
     /// Height the floating page tools take above the tab bar (0 when none), for trailing
@@ -145,10 +195,13 @@ extension EnvironmentValues {
 // MARK: - Host (root)
 
 extension View {
-    /// Publish the floating-controls registry for this iPhone `TabView`.
+    /// Publish the page-tools registry for this iPhone `TabView`.
     ///
-    /// Each tab's `FestivalTabStack` draws the registered controls (`FloatingPageControls`).
-    /// With the iPhone Duo vertical bar it publishes nothing, so pages keep toolbar items.
+    /// iOS 26.1+: the front page's tools fill the system tab-bar bottom accessory and the
+    /// tab bar minimizes on scroll down, moving the accessory inline beside it (Music's
+    /// MiniPlayer behavior, issue #42). Earlier iOS: each tab's `FestivalTabStack` floats
+    /// them (`FloatingPageControls`). With the iPhone Duo vertical bar it publishes
+    /// nothing, so pages keep toolbar items.
     ///
     /// - Returns: The tab view with the registry attached.
     func festivalTabAccessoryHost() -> some View {
@@ -163,10 +216,134 @@ struct TabAccessoryHost: ViewModifier {
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.environment(\.tabAccessoryRegistry, layout.sectionChrome == .tabBar ? registry : nil)
+        let horizontal = layout.sectionChrome == .tabBar
+        if #available(iOS 26.1, *) {
+            let items = registry.frontItems
+            content
+                .tabViewBottomAccessory(isEnabled: horizontal && !items.isEmpty) {
+                    PageToolsAccessoryBar(items: items)
+                }
+                // HIG Tab bars (iOS): "scrolling down can minimize the bar and move the
+                // accessory inline; tapping a tab or scrolling to the top exits."
+                .tabBarMinimizeBehavior(horizontal ? .onScrollDown : .automatic)
+                .environment(\.tabAccessoryRegistry, horizontal ? registry : nil)
+                .environment(\.pageToolsPresentation, PageToolsPresentation.resolve(
+                    horizontalTabBar: horizontal, accessorySupported: true
+                ))
+        } else {
+            content
+                .environment(\.tabAccessoryRegistry, horizontal ? registry : nil)
+                .environment(\.pageToolsPresentation, PageToolsPresentation.resolve(
+                    horizontalTabBar: horizontal, accessorySupported: false
+                ))
+        }
         #else
         content
         #endif
+    }
+}
+
+// MARK: - Tab-bar accessory
+
+/// The front page's tools inside the system tab-bar bottom accessory (iOS 26.1+): one
+/// shared capsule, so every control stays a separate button with its own VoiceOver
+/// label and a 44 pt hit target, and the field-shaped search takes the remaining width.
+///
+/// The accessory's height is fixed by the system, so text stops growing at
+/// ``maxTypeSize``; long-pressing a control shows the Large Content Viewer instead.
+struct PageToolsAccessoryBar: View {
+    let items: [TabAccessoryRegistry.Entry]
+
+    /// The largest Dynamic Type size the fixed-height accessory lays out.
+    static let maxTypeSize = DynamicTypeSize.xxxLarge
+
+    var body: some View {
+        let arrangement = PageToolsAccessoryArrangement(kinds: items.map(\.kind))
+        HStack(spacing: 2) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                if arrangement.showsDivider(before: index) {
+                    Divider()
+                        .frame(height: 22)
+                        .padding(.horizontal, 4)
+                        .accessibilityHidden(true)
+                }
+                cell(item, spans: arrangement.spans(index))
+            }
+        }
+        .padding(.horizontal, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .font(.body)
+        .tint(BrandTokens.textPrimary)
+        .dynamicTypeSize(...Self.maxTypeSize)
+    }
+
+    @ViewBuilder
+    private func cell(_ item: TabAccessoryRegistry.Entry, spans: Bool) -> some View {
+        switch (item.kind, spans) {
+        case (.field, _):
+            // A field sets its own identifiers: one applied here would replace its
+            // inner buttons' (open, clear).
+            item.content
+                .frame(maxWidth: .infinity, minHeight: 44)
+        case (.tool, let spans):
+            item.content
+                .labelStyle(AccessoryToolLabelStyle(spans: spans))
+                .frame(maxWidth: spans ? .infinity : nil)
+                .accessibilityIdentifier(item.accessibilityID ?? "")
+                .accessibilityShowsLargeContentViewer()
+        }
+    }
+}
+
+/// Lays out a tool's label inside the accessory with its hit area *inside* the label:
+/// a frame applied outside a `Button` or `Menu` enlarges its layout but not what
+/// responds to a tap.
+struct AccessoryToolLabelStyle: LabelStyle {
+    /// The tool fills the capsule with its icon and title (a page's only tool).
+    let spans: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        // The system styles keep the title as the accessibility label when it is hidden.
+        Group {
+            if spans {
+                Label(configuration)
+                    .labelStyle(.titleAndIcon)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            } else {
+                Label(configuration)
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// How ``PageToolsAccessoryBar`` lays out its controls (pure, unit-tested).
+struct PageToolsAccessoryArrangement: Equatable {
+    let kinds: [DockItemKind]
+
+    /// Whether the control at `index` takes the remaining width: a field always does; a
+    /// page's only tool (e.g. Quick Links on Song Detail) fills the capsule with its
+    /// title so the bar never reads as an empty pill around one icon.
+    ///
+    /// - Parameter index: Control position in dock order.
+    /// - Returns: True for a field, or for a lone tool.
+    func spans(_ index: Int) -> Bool {
+        guard kinds.indices.contains(index) else { return false }
+        return kinds[index] == .field || kinds.count == 1
+    }
+
+    /// Whether a hairline separates the field from the tools after it, so the shared
+    /// capsule reads as a search field plus separate buttons (HIG: distinct controls for
+    /// distinct actions) rather than one search bar with attachments.
+    ///
+    /// - Parameter index: Control position in dock order.
+    /// - Returns: True for the first tool after a field.
+    func showsDivider(before index: Int) -> Bool {
+        guard index > 0, kinds.indices.contains(index) else { return false }
+        return kinds[index - 1] == .field && kinds[index] == .tool
     }
 }
 
@@ -180,6 +357,7 @@ struct TabAccessoryHost: ViewModifier {
 /// the pages and let the tab's `fst.nav.*` identifier replace the buttons' own.)
 struct FloatingPageControls: ViewModifier {
     @Environment(\.tabAccessoryRegistry) private var registry
+    @Environment(\.pageToolsPresentation) private var presentation
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     /// This page's scope: only controls registered from inside it are shown here.
@@ -193,7 +371,9 @@ struct FloatingPageControls: ViewModifier {
     static let height: CGFloat = buttonSize + 8
 
     func body(content: Content) -> some View {
-        let items = registry?.items(in: scope) ?? []
+        // In the tab-bar accessory (iOS 26.1+) the system draws the tools and insets the
+        // page; this only tracks which page is in front and tags its registrations.
+        let items = presentation == .floating ? (registry?.items(in: scope) ?? []) : []
         // Only the front page draws its buttons (see `TabAccessoryRegistry.isFront`);
         // the inset stays so an outgoing page's layout does not jump mid-transition.
         let front = registry?.isFront(scope) ?? false
@@ -272,15 +452,18 @@ extension View {
     /// - Parameters:
     ///   - token: Changes whenever the control's captured values change.
     ///   - order: Dock position after Search (``DockOrder``).
+    ///   - accessibilityID: Identifier the host re-applies to the control.
+    ///   - kind: How the tab-bar accessory lays the control out.
     ///   - isEnabled: False withdraws the control without leaving the page.
     ///   - accessory: Control content (rendered in the root's environment).
     /// - Returns: The view, registering its control while visible.
     func festivalTabAccessory<Token: Hashable, Accessory: View>(
         token: Token, order: Int = DockOrder.pageAction, accessibilityID: String? = nil,
+        kind: DockItemKind = .tool,
         isEnabled: Bool = true, @ViewBuilder accessory: @escaping () -> Accessory
     ) -> some View {
         modifier(TabAccessoryRegistration(
-            token: token, order: order, accessibilityID: accessibilityID,
+            token: token, order: order, accessibilityID: accessibilityID, kind: kind,
             isEnabled: isEnabled, accessory: accessory
         ))
     }
@@ -291,6 +474,7 @@ struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier 
     let token: Token
     let order: Int
     let accessibilityID: String?
+    let kind: DockItemKind
     let isEnabled: Bool
     let accessory: () -> Accessory
     @Environment(\.tabAccessoryRegistry) private var registry
@@ -319,7 +503,7 @@ struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier 
         if visible && isEnabled {
             registry.upsert(
                 id: id, order: order, accessibilityID: accessibilityID, scope: scope,
-                content: AnyView(accessory())
+                kind: kind, content: AnyView(accessory())
             )
         } else {
             registry.remove(id: id)

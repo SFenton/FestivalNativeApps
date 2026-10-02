@@ -134,7 +134,7 @@ struct RivalsViewAllButton: View {
         NavigationLink(value: route) {
             PurpleActionLabel(title: "View All Rivals")
         }
-        .buttonStyle(.plain)
+        .festivalRowButtonStyle()
         .accessibilityIdentifier(identifier)
     }
 }

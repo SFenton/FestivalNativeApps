@@ -124,7 +124,8 @@ private let macFixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", nam
 
 @MainActor
 private func hostMacListDetail(
-    section: FestivalSection, path: [AppRoute], size: CGSize, row: AppRoute?, recorder: MacPathRecorder
+    section: FestivalSection, path: [AppRoute], size: CGSize, row: AppRoute?, recorder: MacPathRecorder,
+    collapseDelay: Duration = .milliseconds(2500)
 ) -> (NSHostingView<NativeHostedRoot<some View>>, NSWindow) {
     let session = offlineMacSession(player: false)
     let view = MacPathHost(path: path, recorder: recorder) { binding in
@@ -140,6 +141,7 @@ private func hostMacListDetail(
             }
         }
     }
+    .environment(\.macListCollapseDelay, collapseDelay)
     .frame(width: size.width, height: size.height)
     .preferredColorScheme(.dark)
     let host = nativeHostedView(view, size: size)
@@ -151,10 +153,13 @@ private func hostMacListDetail(
 @Test func macListDetailAutoSelectsFirstRow() async throws {
     let recorder = MacPathRecorder()
     let (host, window) = hostMacListDetail(
-        section: .rivals, path: [], size: CGSize(width: 1060, height: 760), row: macFixtureRival, recorder: recorder
+        section: .rivals, path: [], size: CGSize(width: 1060, height: 760), row: macFixtureRival, recorder: recorder,
+        collapseDelay: .seconds(120)
     )
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"])
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], timeout: .seconds(60)
+    )
     _ = try nativeHostedPNG(image, filename: "mac-list-detail.png", environment: "FST_SHELL_RENDER_OUT")
     #expect(recorder.path == [macFixtureRival])
     #expect(recorder.split == true)

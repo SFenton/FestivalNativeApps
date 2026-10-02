@@ -408,12 +408,28 @@ struct ListDetailLink<Label: View>: View {
         self.label = label()
     }
 
+    /// The row content, with the Mac's hover tint and keyboard focus ring on its card.
+    @ViewBuilder private var decoratedLabel: some View {
+        #if os(macOS)
+        label.modifier(MacRowInteractionEffect(cornerRadius: 12))
+        #else
+        label
+        #endif
+    }
+
     var body: some View {
         Group {
             if let select {
-                Button { select(value) } label: { label }
+                Button { select(value) } label: { decoratedLabel }
+                    #if os(macOS)
+                    // Return opens a keyboard-focused row, as Space does.
+                    .onKeyPress(.return) {
+                        select(value)
+                        return .handled
+                    }
+                    #endif
             } else {
-                NavigationLink(value: value) { label }
+                NavigationLink(value: value) { decoratedLabel }
             }
         }
         .listDetailSelectable(value)

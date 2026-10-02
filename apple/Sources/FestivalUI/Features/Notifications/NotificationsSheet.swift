@@ -104,7 +104,7 @@ struct NotificationsSheet: View {
                     session: session
                 )
             }
-            .buttonStyle(.plain)
+            .festivalRowButtonStyle()
             .festivalFadeIn(isLoaded: true, index: FadeStagger.index(offset + index, settled: fadeSettled))
             .listRowBackground(Color.clear)
             .accessibilityIdentifier("fst.notifications.row.\(notification.id)")
