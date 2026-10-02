@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.core.shop.ShopHighlight
+import com.festivalscoretracker.android.core.shop.ShopOfferFilter
 import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.core.songs.SongScoreDetail
 import com.festivalscoretracker.android.core.songs.SongScoreSource
@@ -90,6 +91,83 @@ class SongDetailAndShopTest {
         assertTrue(vm.uiState.value.detailsUnavailable)
         assertEquals(2, vm.uiState.value.offers.size)
         assertNull(vm.uiState.value.offers[0].detailSongId)
+    }
+
+    @Test
+    fun shopFilterSelectsDisjointGroupsAndResetRestoresEveryOffer() = runTest(main.dispatcher) {
+        val shop = MutableStateFlow<LoadState<ShopPayload>>(LoadState.Loading)
+        val settings = MutableStateFlow<AppSettings?>(AppSettings())
+        val vm = ShopViewModel(shop, { payload }, settings, ServiceRetryBackoff())
+        shop.value = LoadState.Loaded(
+            SongsFixtures.shop(
+                SongsFixtures.offer("a", isNew = true),
+                SongsFixtures.offer("b"),
+                SongsFixtures.offer("c", leaving = true),
+                SongsFixtures.offer("d"),
+            ),
+        )
+        advanceUntilIdle()
+        fun ids() = vm.uiState.value.offers.map { it.offer.songId }
+        assertEquals(listOf("a", "b", "c", "d"), ids())
+        assertFalse(vm.uiState.value.filter.isActive)
+
+        vm.setFilter(ShopOfferFilter(new = true))
+        advanceUntilIdle()
+        assertEquals(listOf("a"), ids())
+        assertTrue(vm.uiState.value.filter.isActive)
+        vm.setFilter(ShopOfferFilter(available = true))
+        advanceUntilIdle()
+        assertEquals(listOf("b", "d"), ids())
+        vm.setFilter(ShopOfferFilter(leavingTomorrow = true))
+        advanceUntilIdle()
+        assertEquals(listOf("c"), ids())
+        vm.setFilter(ShopOfferFilter(new = true, leavingTomorrow = true))
+        advanceUntilIdle()
+        assertEquals(listOf("a", "c"), ids())
+        assertEquals(4, vm.uiState.value.totalOffers)
+
+        // Filters use the wire flags, so they keep working while Shop highlighting is off.
+        settings.value = AppSettings(disableShopHighlighting = true)
+        advanceUntilIdle()
+        assertEquals(listOf("a", "c"), ids())
+
+        vm.resetFilter()
+        advanceUntilIdle()
+        assertEquals(listOf("a", "b", "c", "d"), ids())
+        assertFalse(vm.uiState.value.filter.isActive)
+    }
+
+    @Test
+    fun shopFilterThatHidesEveryOfferIsNotTheEmptyShop() = runTest(main.dispatcher) {
+        val shop = MutableStateFlow<LoadState<ShopPayload>>(LoadState.Loaded(SongsFixtures.shop(SongsFixtures.offer("b"))))
+        val vm = ShopViewModel(shop, { payload }, MutableStateFlow<AppSettings?>(AppSettings()), ServiceRetryBackoff())
+        advanceUntilIdle()
+        vm.setFilter(ShopOfferFilter(new = true))
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.offers.isEmpty())
+        assertTrue(vm.uiState.value.filteredEmpty)
+
+        shop.value = LoadState.Loaded(SongsFixtures.shop())
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.filteredEmpty)
+        assertEquals(0, vm.uiState.value.totalOffers)
+        // The filter survives a feed change (the sheet reopens with it).
+        assertEquals(ShopOfferFilter(new = true), vm.uiState.value.filter)
+    }
+
+    @Test
+    fun shopOfferFilterMatchesAnySelectedGroup() {
+        val fresh = SongsFixtures.offer("n", isNew = true)
+        val plain = SongsFixtures.offer("p")
+        val leaving = SongsFixtures.offer("l", leaving = true)
+        val both = SongsFixtures.offer("b", isNew = true, leaving = true)
+        val all = listOf(fresh, plain, leaving, both)
+        assertEquals(all, ShopOfferFilter().apply(all))
+        assertEquals(listOf(fresh, both), ShopOfferFilter(new = true).apply(all))
+        assertEquals(listOf(plain), ShopOfferFilter(available = true).apply(all))
+        assertEquals(listOf(leaving, both), ShopOfferFilter(leavingTomorrow = true).apply(all))
+        assertEquals(all, ShopOfferFilter(new = true, available = true, leavingTomorrow = true).apply(all))
+        assertFalse(ShopOfferFilter(available = true).matches(both))
     }
 
     // endregion

@@ -324,7 +324,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
         var end = Pager.PageEnd;
         Bars = [.. Enumerable.Range(start, Math.Max(0, end - start)).Select(i => new ScoreHistoryBar(i, Points[i], i == Pager.SelectedIndex))];
         SelectedRow = Pager.SelectedIndex >= 0 && Pager.SelectedIndex < Points.Count
-            ? new ScoreHistoryListRow(Points[Pager.SelectedIndex], false)
+            ? new ScoreHistoryListRow(Points[Pager.SelectedIndex], false) { IsDetail = true }
             : null;
         ChartSummary = Bars.Count == 0 ? "" :
             string.Create(CultureInfo.CurrentCulture,
@@ -373,6 +373,15 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
 
     /// <inheritdoc />
     public LeaderboardSection? Section { get; init; }
+
+    /// <summary>
+    /// The tapped bar's detail row, which always shows the season (web <c>renderDetailCard</c>); list rows show it only
+    /// from a 520 epx row (web <c>QUERY_SHOW_SEASON</c>; issue #62).
+    /// </summary>
+    public bool IsDetail { get; init; }
+
+    /// <inheritdoc />
+    public bool PinsSeason => IsDetail;
 
     /// <summary>History rows show no stars.</summary>
     public int StarCount => 0;

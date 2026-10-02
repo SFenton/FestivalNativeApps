@@ -24,13 +24,13 @@ suspend fun SongsPreferences.applyPreset(settings: SettingsRepository, preset: S
     val app = settings.settings.first()
     val current = SongsFilterState(
         filter = saved.filter,
-        shopFilter = saved.shopFilter,
+        general = saved.general,
         playerFilter = saved.playerFilter ?: SongPlayerScoreFilter(),
         sort = app.songSort,
         ascending = app.songSortAscending,
     )
     val next = preset.apply(current)
-    setFilters(next.filter.scopedTo(app.visibleInstruments), next.shopFilter, next.playerFilter.scopedTo(app.visibleInstruments))
+    setFilters(next.filter.scopedTo(app.visibleInstruments), next.general, next.playerFilter.scopedTo(app.visibleInstruments))
     if (next.sort != current.sort || next.ascending != current.ascending) settings.setSongSort(next.sort, next.ascending)
 }
 

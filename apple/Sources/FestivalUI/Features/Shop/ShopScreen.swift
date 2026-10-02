@@ -30,13 +30,21 @@ struct ShopScreen: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
+    @AppStorage("fst.shop.filterNew") private var filterNew = false
+    @AppStorage("fst.shop.filterAvailable") private var filterAvailable = false
+    @AppStorage("fst.shop.filterLeavingTomorrow") private var filterLeavingTomorrow = false
+    @State private var filterPresented = false
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @Environment(\.colorSchemeContrast) private var systemContrast
     @State private var state = LoadState.loading
     @State private var retryRevision = 0
     @State private var loadedKey: RequestKey?
     /// First staggered reveal finished; recycled rows then appear without fading.
     @State private var staggerSettled = false
+    /// Artwork grid width (Mac ↑/↓ step one grid row).
+    @State private var gridWidth: CGFloat = 0
 
     private enum LoadState {
         case loading
@@ -74,6 +82,22 @@ struct ShopScreen: View {
             ? .list : preferredMode
     }
 
+    /// The saved New / Available / Leaving Tomorrow filter (issue #19).
+    private var appliedFilter: ShopOfferFilter {
+        ShopOfferFilter(
+            new: filterNew, available: filterAvailable, leavingTomorrow: filterLeavingTomorrow
+        )
+    }
+
+    /// Save a filter from the sheet or a Reset action.
+    ///
+    /// - Parameter filter: The filter to apply.
+    private func applyFilter(_ filter: ShopOfferFilter) {
+        filterNew = filter.new
+        filterAvailable = filter.available
+        filterLeavingTomorrow = filter.leavingTomorrow
+    }
+
     private var offerActionsLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
@@ -95,7 +119,9 @@ struct ShopScreen: View {
                 shopContent(snapshot)
                     // The settle timer starts at the gate's reveal, not at the load.
                     .task {
-                        await FadeStagger.settle(afterRevealing: snapshot.payload.sortedSongs.count) {
+                        await FadeStagger.settle(
+                            afterRevealing: appliedFilter.filtered(snapshot.payload.sortedSongs).count
+                        ) {
                             staggerSettled = true
                         }
                     }
@@ -110,6 +136,7 @@ struct ShopScreen: View {
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Item Shop")
         .toolbar {
+            ToolbarItem(placement: .primaryAction) { filterButton }
             if sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -125,6 +152,14 @@ struct ShopScreen: View {
                 }
             }
         }
+        .sheet(isPresented: $filterPresented) {
+            ShopFilterSheet(applied: appliedFilter, onApply: applyFilter)
+                .macSheetFrame(width: 420, height: 360)
+        }
+        #if os(macOS)
+        // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command".
+        .macPageCommands(MacPageCommands(filter: { filterPresented = true }))
+        #endif
         .task(id: requestKey) {
             guard isVisible else { return }
             // Returning from Song Detail re-runs `.task`; keep the loaded list instead
@@ -152,7 +187,7 @@ struct ShopScreen: View {
             // Warm the first screen's covers while the catalogue loads, so rows
             // reveal with art (bounded; slow covers keep their own placeholder).
             let primePaths = viewMode == .list
-                ? ShopArtworkPrimePolicy.paths(for: feed.sortedSongs) : []
+                ? ShopArtworkPrimePolicy.paths(for: appliedFilter.filtered(feed.sortedSongs)) : []
             async let primed: Void = primeArtwork(primePaths)
             var songsById: [String: Song] = [:]
             var detailsError: String?
@@ -220,9 +255,11 @@ struct ShopScreen: View {
     /// Preserve an explicit empty/error/provenance state in either adaptive layout.
     ///
     /// - Parameter snapshot: Public shop feed with optional valid catalog links.
-    /// - Returns: Readable list, adaptive grid or genuine empty message.
+    /// - Returns: Readable list, adaptive grid, genuine empty message, or a no-match card
+    ///   when the Shop filter hides every offer.
     @ViewBuilder
     private func shopContent(_ snapshot: ShopSnapshot) -> some View {
+        let offers = appliedFilter.filtered(snapshot.payload.sortedSongs)
         if snapshot.payload.sortedSongs.isEmpty {
             VStack(spacing: 12) {
                 Image(systemName: "bag")
@@ -244,6 +281,8 @@ struct ShopScreen: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityIdentifier("fst.shop.empty")
+        } else if offers.isEmpty {
+            filteredEmpty(snapshot)
         } else if viewMode == .list {
             // A plain ScrollView, not a List: each row holds two sibling actions (Detail
             // and the official bag), and a List would add its own disclosure chevron
@@ -251,11 +290,13 @@ struct ShopScreen: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     shopDisclosures(snapshot)
-                    ForEach(Array(snapshot.payload.sortedSongs.enumerated()), id: \.element.id) { index, offer in
+                    ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                         offerCard(offer, snapshot: snapshot, grid: false)
                             .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                            .macKeyboardRow(offer.id)
                     }
                 }
+                .macKeyboardRows(Self.keyRows(offers, catalogue: snapshot.songsById, grid: false))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .festivalFadeInScope()
@@ -268,15 +309,111 @@ struct ShopScreen: View {
                         columns: [GridItem(.adaptive(minimum: 210), spacing: 12)],
                         spacing: 12
                     ) {
-                        ForEach(Array(snapshot.payload.sortedSongs.enumerated()), id: \.element.id) { index, offer in
+                        ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                             offerCard(offer, snapshot: snapshot, grid: true)
                                 .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                .macKeyboardRow(offer.id, ring: true)
                         }
                     }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
+                    .macKeyboardRows(
+                        columns: MacKeyboardPolicy.adaptiveColumns(width: gridWidth, minimum: 210, spacing: 12),
+                        Self.keyRows(offers, catalogue: snapshot.songsById, grid: true)
+                    )
                 }
                 .padding(16)
                 .festivalFadeInScope()
             }
+        }
+    }
+
+    /// Mac arrow-key rows: Return does what a click does, so a list row opens Song
+    /// Detail (or the official Item Shop without a catalogue song) and a grid card opens
+    /// the official Item Shop.
+    ///
+    /// - Parameters:
+    ///   - offers: Offers in display order.
+    ///   - catalogue: Current catalogue songs by ID.
+    ///   - grid: Whether the artwork grid is showing.
+    /// - Returns: One row per offer.
+    static func keyRows(_ offers: [ShopSong], catalogue: [String: Song], grid: Bool) -> [MacKeyRow] {
+        offers.map { offer in
+            if !grid, let song = catalogue[offer.songId] {
+                return MacKeyRow(id: offer.id, action: .route(.songDetail(song)))
+            }
+            return MacKeyRow(id: offer.id, action: .url(offer.shopUrl))
+        }
+    }
+
+    // MARK: - Filter
+
+    /// The toolbar Filter button: Songs' icon, gold while a filter is on.
+    private var filterButton: some View {
+        Button {
+            filterPresented = true
+        } label: {
+            Label("Filter", systemImage: "line.3.horizontal.decrease")
+        }
+        .accessibilityLabel("Filter Item Shop")
+        #if os(macOS)
+        .help("Filter Item Shop")
+        #endif
+        .accessibilityValue(Self.filterAccessibilityValue(appliedFilter))
+        .accessibilityIdentifier("fst.shop.filter")
+        .tint(appliedFilter.isActive ? BrandTokens.gold : BrandTokens.accentBlue)
+    }
+
+    /// What the Filter button announces after its label.
+    ///
+    /// - Parameter filter: The applied Shop filter.
+    /// - Returns: "No filters", or the selected groups in display order.
+    static func filterAccessibilityValue(_ filter: ShopOfferFilter) -> String {
+        filter.isActive
+            ? filter.selected.map(\.label).joined(separator: ", ")
+            : "No filters"
+    }
+
+    /// A loaded Shop whose offers the filter hides: distinct from a genuinely empty
+    /// Shop, with Reset in place.
+    ///
+    /// - Parameter snapshot: The loaded Shop, for its disclosures.
+    /// - Returns: A readable card with Reset Filters.
+    private func filteredEmpty(_ snapshot: ShopSnapshot) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                shopDisclosures(snapshot)
+                VStack(spacing: 12) {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.largeTitle)
+                        .accessibilityHidden(true)
+                    Text("No offers match these filters")
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Try different filters, or reset them to see the whole Item Shop.")
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Reset Filters", role: .destructive) {
+                        applyFilter(ShopOfferFilter())
+                    }
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(FestivalSheetActionColor.destructive)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("fst.shop.filter-empty.reset")
+                }
+                .foregroundStyle(FestivalText.primary)
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .background(
+                    BrandTokens.cardBackground,
+                    in: RoundedRectangle(cornerRadius: 12)
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("fst.shop.filter-empty")
+            }
+            .padding(16)
         }
     }
 
@@ -319,8 +456,10 @@ struct ShopScreen: View {
         }
     }
 
-    /// Compact two-line phone row matching the installed PWA: art, title, artist ·
-    /// year, then the official bag and the Detail chevron (gap #17).
+    /// The shared Songs ``SongRowView`` (surface, art, marquee title/artist line and
+    /// Item Shop pulse border), decorated for the Shop: New / Leaving Tomorrow badge,
+    /// then the official bag and the Detail chevron (web `ShopPage` list renders the
+    /// Songs `SongRow`; PWA gap #17 order).
     ///
     /// The Detail link spans the whole row; the bag is a sibling `Link` drawn over
     /// the slot the row reserves for it, so the two actions never nest. At
@@ -329,19 +468,32 @@ struct ShopScreen: View {
     /// - Parameters:
     ///   - offer: Public item with separate official outbound URL.
     ///   - snapshot: Catalogue lookup for safe native Detail navigation.
-    /// - Returns: Compact native row with two independent actions.
+    /// - Returns: Shared Song row with two independent actions.
     private func listOffer(_ offer: ShopSong, snapshot: ShopSnapshot) -> some View {
-        let song = snapshot.songsById[offer.songId]
         let large = dynamicTypeSize.isAccessibilitySize
+        let row = ShopRowPolicy.row(
+            for: offer, catalogue: snapshot.songsById,
+            hidden: hideShop, highlightingDisabled: disableHighlights,
+            reservesBag: !large
+        )
+        let summary = SongRowView(
+            song: row.song, instrument: nil, session: session,
+            highContrast: moreContrast || systemContrast == .increased,
+            shopOffer: row.decoration
+        )
         return VStack(alignment: .leading, spacing: 4) {
-            if let song {
-                NavigationLink(value: AppRoute.songDetail(song)) {
-                    listSummary(offer, navigable: true, reservesBag: !large)
+            if let detail = row.detailSong {
+                // One combined button element (like the Songs `songLink`), so the
+                // marquee lines are read and audited as the row, not as clipped text.
+                NavigationLink(value: AppRoute.songDetail(detail)) {
+                    summary.contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .festivalRowButtonStyle()
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier("fst.shop.song.\(offer.songId)")
             } else {
-                listSummary(offer, navigable: false, reservesBag: !large)
+                summary
             }
             if large {
                 Link(destination: offer.shopUrl) {
@@ -350,6 +502,10 @@ struct ShopScreen: View {
                         .foregroundStyle(FestivalText.primary)
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .padding(.horizontal, 12)
+                        .background(
+                            BrandTokens.cardBackground,
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
                 }
                 .accessibilityLabel("\(offer.title), Open Official Item Shop")
                 .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
@@ -358,15 +514,13 @@ struct ShopScreen: View {
         .overlay(alignment: .trailing) {
             if !large {
                 bagLink(offer)
-                    .padding(.trailing, ShopRowMetrics.bagTrailingInset(navigable: song != nil))
+                    .padding(
+                        .trailing,
+                        ShopRowMetrics.bagTrailingInset(navigable: row.detailSong != nil)
+                    )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(borderColor(for: offer), lineWidth: 2)
-        }
     }
 
     /// The official Item Shop action as a plain bag glyph with a 44pt target.
@@ -383,57 +537,6 @@ struct ShopScreen: View {
         }
         .accessibilityLabel("\(offer.title), Open Official Item Shop")
         .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
-    }
-
-    /// Art, two single-line texts, badge, bag slot and chevron.
-    ///
-    /// - Parameters:
-    ///   - offer: Item available in the current public Shop feed.
-    ///   - navigable: Whether a catalogue match makes this row open Song Detail.
-    ///   - reservesBag: Leave room for the overlaid bag link (compact text sizes).
-    /// - Returns: Concise source-like row label and original fixture/live art.
-    private func listSummary(
-        _ offer: ShopSong, navigable: Bool, reservesBag: Bool
-    ) -> some View {
-        let large = dynamicTypeSize.isAccessibilitySize
-        return HStack(spacing: ShopRowMetrics.spacing) {
-            ArtworkTile(raw: offer.albumArt, session: session, size: ShopRowMetrics.art)
-                .accessibilityHidden(true)
-                .padding(.trailing, 4)
-            VStack(alignment: .leading, spacing: 2) {
-                // One line each when they fit; long names wrap rather than
-                // truncate (truncation fails the accessibility audit's clipping check).
-                Text(offer.title)
-                    .font(.headline)
-                    .foregroundStyle(FestivalText.primary)
-                    .minimumScaleFactor(large ? 1 : 0.9)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(offer.year.map { "\(offer.artist) · \($0)" } ?? offer.artist)
-                    .font(.subheadline)
-                    .foregroundStyle(FestivalText.primary)
-                    .minimumScaleFactor(large ? 1 : 0.9)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            offerBadge(offer, compact: true)
-            if reservesBag {
-                Color.clear
-                    .frame(width: ShopRowMetrics.bagReserve, height: ShopRowMetrics.bagSlot)
-                    .accessibilityHidden(true)
-            }
-            if navigable {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .frame(width: ShopRowMetrics.chevronWidth)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.leading, 10)
-        .padding(.trailing, ShopRowMetrics.rowInset)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 
     /// The web `ShopCard`: a square of full-bleed art with a bottom scrim holding the
@@ -466,7 +569,7 @@ struct ShopScreen: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.width)
                 .overlay(alignment: .topTrailing) {
-                    offerBadge(offer, compact: false).padding(12)
+                    offerBadge(offer).padding(12)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay {
@@ -474,7 +577,7 @@ struct ShopScreen: View {
                         .stroke(borderColor(for: offer), lineWidth: 2)
                 }
             }
-            .buttonStyle(.plain)
+            .festivalRowButtonStyle()
             .accessibilityLabel("\(offer.title), \(offer.artist), Open Official Item Shop")
             .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
             .contextMenu {
@@ -509,14 +612,13 @@ struct ShopScreen: View {
         }
     }
 
-    /// Keep badged meaning in VoiceOver even when compact rows show only an icon.
+    /// The grid card's labelled New / Leaving Tomorrow pill (list rows use the shared
+    /// Song row's badge).
     ///
-    /// - Parameters:
-    ///   - offer: Upstream New or Leaving Tomorrow state.
-    ///   - compact: Hide text only on narrow rows, preserving spoken labels.
+    /// - Parameter offer: Upstream New or Leaving Tomorrow state.
     /// - Returns: Optional visible and accessible Shop badge.
     @ViewBuilder
-    private func offerBadge(_ offer: ShopSong, compact: Bool) -> some View {
+    private func offerBadge(_ offer: ShopSong) -> some View {
         if let highlight = ShopPresentationPolicy.highlight(
             for: offer, hidden: hideShop, highlightingDisabled: disableHighlights
         ) {
@@ -524,7 +626,7 @@ struct ShopScreen: View {
             let title = highlight.label
             HStack(spacing: 4) {
                 Image(systemName: leaving ? "clock" : "sparkles")
-                if !compact { Text(title) }
+                Text(title)
             }
             .font(.caption.bold())
             .foregroundStyle(leaving ? FestivalText.primary : BrandTokens.gold)
@@ -545,9 +647,10 @@ struct ShopScreen: View {
 
 // MARK: - Row metrics and first-screen artwork
 
-/// Fixed geometry shared by the compact row and its overlaid bag link.
+/// Fixed geometry shared by the Song row's Item Shop decoration and the Shop's
+/// overlaid bag link.
 enum ShopRowMetrics {
-    /// Album art edge in points (the PWA's list rows use ~44pt art).
+    /// Album art edge in points: the shared Song row's art (the PWA's rows use ~44pt).
     static let art: CGFloat = 44
     /// Minimum hit target of the official bag action.
     static let bagSlot: CGFloat = 44
@@ -558,7 +661,7 @@ enum ShopRowMetrics {
     static let chevronWidth: CGFloat = 12
     /// Horizontal spacing between row elements.
     static let spacing: CGFloat = 8
-    /// Trailing inset inside the row card.
+    /// Trailing inset inside the row card (the Song row's horizontal padding).
     static let rowInset: CGFloat = 12
 
     /// Trailing padding that centres the 44pt bag target on its reserved slot.

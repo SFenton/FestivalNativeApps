@@ -410,7 +410,7 @@ object SongShopSections {
  * @property songs Validated catalogue rows.
  * @property search Applied (debounced) search text.
  * @property filter Public chart/difficulty filter.
- * @property shopFilter Saved Shop filter.
+ * @property general Saved General filters (Year, Duration, Item Shop availability, Double Bass).
  * @property playerFilter Saved selected-player filter.
  * @property sort Saved sort mode.
  * @property ascending Saved direction.
@@ -428,7 +428,7 @@ data class SongListInputs(
     val songs: List<Song>,
     val search: String = "",
     val filter: SongFilter = SongFilter(),
-    val shopFilter: SongShopFilter = SongShopFilter(),
+    val general: SongGeneralFilter = SongGeneralFilter(),
     val playerFilter: SongPlayerScoreFilter = SongPlayerScoreFilter(),
     val sort: SongSortMode = SongSortMode.Title,
     val ascending: Boolean = true,
@@ -482,10 +482,17 @@ object SongListPipeline {
      */
     fun run(input: SongListInputs, sorter: SongCatalogSort = SongCatalogSort()): SongListResult {
         val filter = input.filter.scopedTo(input.visible)
-        var rows = input.songs.filter { SongSearch.matches(it, input.search) && filter.matches(it) }
+        val general = input.general
+        var rows = input.songs.filter { SongSearch.matches(it, input.search) && filter.matches(it) && general.matches(it) }
 
-        val shopPaused = if (input.shopFilter.isActive) shopPauseReason(input, "filters") else null
-        if (input.shopFilter.isActive && shopPaused == null) rows = input.shopFilter.filter(rows, input.offers.orEmpty())
+        // Both availability choices off show nothing without needing Shop data (web `useFilteredSongs`).
+        val noShopChoice = !general.shopAvailable && !general.shopUnavailable && !input.hideShop
+        val shopPaused = if (general.shopActive && !noShopChoice) shopPauseReason(input, "filters") else null
+        if (noShopChoice) {
+            rows = emptyList()
+        } else if (general.shopActive && shopPaused == null) {
+            rows = general.filterShop(rows, input.offers.orEmpty())
+        }
 
         val scorePaused = scorePauseReason(input)
         val scoped = input.playerFilter.scopedTo(input.visible).effective(input.filterInvalidScores)
@@ -505,7 +512,7 @@ object SongListPipeline {
         val sorted = sorter.sorted(rows, effective, input.ascending, input.offers?.keys.orEmpty(), sortScores, chart)
         val context = SongBucketContext(effective, chart, input.offers.orEmpty(), sortScores, input.nowEpochMillis)
         val (ordered, headers) = if (effective.usesSectionIndex) sorted to emptyList() else SongQuickLinkBuckets.group(sorted, context)
-        val applied = filter.isActive || (input.shopFilter.isActive && shopPaused == null) || (scoped.appliesTo(filter.instrument) && scorePaused == null)
+        val applied = filter.isActive || general.catalogActive || (general.shopActive && shopPaused == null) || (scoped.appliesTo(filter.instrument) && scorePaused == null)
         // Without a player, player-dependent choices simply don't apply (web shows no notice).
         val sortNotice = sortPaused.takeUnless { !input.hasPlayer && input.sort.needsScores }
         val scoreNotice = scorePaused.takeIf { input.hasPlayer }

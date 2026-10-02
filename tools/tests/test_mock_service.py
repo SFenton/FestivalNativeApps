@@ -46,6 +46,7 @@ class MockServiceTests(unittest.TestCase):
             "metadataEdge": False,
             "largeRankings": False,
             "largeCatalogue": False,
+            "serviceInfoDiscovery": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -91,6 +92,24 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(info["workerStatus"]["status"], "online")
         with urlopen(self.base + "/api/version") as response:
             self.assertEqual(json.load(response), {"version": "fixture"})
+
+    def test_service_info_discovery_fixture_reports_attempt_progress(self):
+        """The opt-in discovery body carries the web's schema-1 attempt counts."""
+        server = FixtureServer(("127.0.0.1", 0), FixtureHandler, service_info_discovery=True)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with urlopen(f"http://127.0.0.1:{server.server_port}/api/service-info") as response:
+                current = json.load(response)["currentUpdate"]
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+        self.assertEqual(current["status"], "updating")
+        self.assertEqual(current["phaseId"], "post.registered_player_band_discovery")
+        self.assertEqual(current["attemptProgress"], {
+            "schemaVersion": 1, "attemptedThisPass": 1310, "retryableUnavailableThisPass": 70,
+        })
 
     def test_ranking_and_band_accuracy_use_the_live_ten_thousandths_scale(self):
         """Accuracy fields match production (`1000000` = 100%), never a 0–1 fraction or per-mille."""

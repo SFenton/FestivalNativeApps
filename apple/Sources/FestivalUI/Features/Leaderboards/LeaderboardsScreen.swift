@@ -112,7 +112,7 @@ struct LeaderboardsScreen: View {
     /// use 2-column grids"). Compact windows (iPhone, Duo folded) keep the single
     /// column unchanged.
     private var regularWidthColumns: [GridItem] {
-        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
+        [GridItem(.flexible(), spacing: 20, alignment: .top), GridItem(.flexible(), spacing: 20, alignment: .top)]
     }
 
     @ViewBuilder
@@ -136,6 +136,8 @@ struct LeaderboardsScreen: View {
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("Leaderboards")
+        // Mac: View › Rank By mirrors the toolbar menu.
+        .macRankByCommands(rankByBinding)
         .toolbar {
             ToolbarItem(placement: Self.pageActionPlacement) {
                 RankByMenu(selection: rankByBinding)
@@ -176,9 +178,41 @@ struct LeaderboardsScreen: View {
             }
             .padding(16)
             .festivalFadeInScope()
+            .macKeyboardRows(keyboardRows)
         }
         .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
-        .refreshable { await loadAll() }
+        .festivalRefreshable { await loadAll() }
+    }
+
+    /// Mac arrow-key rows: each loaded card's linked rows, then its View All row, in
+    /// card order (the cards are lazily built, so each row names its card).
+    private var keyboardRows: [MacKeyRow] {
+        var rows: [MacKeyRow] = []
+        for instrument in visibleInstruments {
+            guard case let .loaded(payload) = instrumentStates[instrument], !payload.rankings.entries.isEmpty
+            else { continue }
+            let card = Self.quickLink(for: instrument).id
+            rows += AccountRankingRow.keyRows(
+                payload.rankings.entries, prefix: "\(instrument.rawValue)|", container: card
+            )
+            rows.append(MacKeyRow(
+                id: "\(instrument.rawValue)|view-all",
+                action: .route(.fullRankings(instrument: instrument, rankBy: rankByRaw)), container: card
+            ))
+        }
+        for bandType in BandType.allCases {
+            guard case let .loaded(payload) = bandStates[bandType], !payload.rankings.entries.isEmpty
+            else { continue }
+            let card = Self.quickLink(for: bandType).id
+            rows += BandRankingRow.keyRows(
+                payload.rankings.entries, bandType: bandType, prefix: "\(bandType.rawValue)|", container: card
+            )
+            rows.append(MacKeyRow(
+                id: "\(bandType.rawValue)|view-all",
+                action: .route(.bandRankings(bandType: bandType.rawValue)), container: card
+            ))
+        }
+        return rows
     }
 
     // MARK: Instrument cards
@@ -210,6 +244,7 @@ struct LeaderboardsScreen: View {
                                 entry: entry, metric: rankBy,
                                 isSelected: isSelectedAccount(entry.accountId), glassSurface: true
                             )
+                            .macKeyboardRow("\(instrument.rawValue)|\(entry.id)")
                         }
                     }
                     .festivalFadeInOnAppear()
@@ -223,6 +258,7 @@ struct LeaderboardsScreen: View {
                         ),
                         id: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                     )
+                    .macKeyboardRow("\(instrument.rawValue)|view-all")
                 }
             }
         }
@@ -371,6 +407,7 @@ struct LeaderboardsScreen: View {
                     VStack(spacing: 6) {
                         ForEach(payload.rankings.entries) { entry in
                             BandRankingRow(entry: entry, metric: metric, bandType: bandType, glassSurface: true)
+                                .macKeyboardRow("\(bandType.rawValue)|\(entry.teamKey)")
                         }
                     }
                     .leaderboardSectionColumns(.bandRankings(payload.rankings.entries, metric: metric))
@@ -382,6 +419,7 @@ struct LeaderboardsScreen: View {
                         ),
                         id: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
                     )
+                    .macKeyboardRow("\(bandType.rawValue)|view-all")
                 }
             }
         }
@@ -415,7 +453,7 @@ struct LeaderboardsScreen: View {
         NavigationLink(value: route) {
             PurpleActionLabel(title: title)
         }
-        .buttonStyle(.plain)
+        .festivalRowButtonStyle()
         .accessibilityIdentifier(id)
     }
 

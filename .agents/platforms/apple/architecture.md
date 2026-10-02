@@ -36,6 +36,15 @@ A screen showing one account, band or rival must reset its state when that entit
 - **Selected-player reads** (`FestivalSession+Rivals`) resolve `session.selectedPlayer` at call time. Their views must therefore key on the selected account, not just on instrument/scope.
 - **Never cache the entity in session-level singletons.** `FestivalSession` holds only the *selected* identity and its score index, never a "last viewed" profile.
 
+### Reappearance keeps loaded content
+
+SwiftUI restarts `.task(id:)` each time a view reappears in a `NavigationStack` (Back from a pushed page, a tab switch), even with an unchanged id. A load that starts with `state = .loading` therefore swaps loaded rows for a shorter spinner and re-fades them, shifting the page under the pop transition (#39: Compete › View Full Leaderboard › Back).
+
+- Guard such loads with a remembered key: `ReappearanceLoadGate` (FestivalCore). Skip while `needsLoad(for:)` is false and call `markLoaded(_:)` only after a successful read, so a failure or cancellation retries on the next appearance.
+- The key holds everything the read depends on. Compete/Rivals sections use `CompeteSectionLoadKey`: instrument, selected account and `session.publicationRevision`.
+- Earlier inline variants: Leaderboards `loadedKey`, `PlayerProfileContent`/`InstrumentStatsCard`/`PlayerProfileCharts` `loadedKey`, Suggestions `handled*Revision`.
+- Hosted macOS `NavigationStack`s keep the root appeared across a push. To test the cycle, take the host out of its window and back (`competeKeepsLoadedLeaderboardsWhenItReappears`).
+
 ### List rows hold one action
 
 Never put several default-style `Button`s or `NavigationLink`s in **one** `List`/`Form` row (e.g. a `LazyVStack` of results inside a single `Section` row). On iOS such a row makes the whole row the hit target and fires **every** control in it on one tap. This caused the 2026-09-28 wrong-account bug: tapping any profile search result pushed one `/player/:id` per result, leaving the *last* result's profile on top. Emit one row per action (`PlayerSearchResultRows` is a bare `ForEach`), or give intentionally side-by-side controls `.buttonStyle(.borderless)`/`.plain` (as `ProfileSelectionSheet.selectedProfileRow` does). macOS hosted tests cannot reproduce the iOS tap behavior, so `ProfileSearchResultRowsTests` pins the row structure via `_VariadicView`, and `ProfileJourneyTests` covers the tap on-device.

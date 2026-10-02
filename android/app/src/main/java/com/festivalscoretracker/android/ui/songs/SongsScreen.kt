@@ -53,14 +53,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -80,7 +92,11 @@ import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.shell.FloatingToolbarMinimizer
+import com.festivalscoretracker.android.core.songs.EdgeFade
+import com.festivalscoretracker.android.core.songs.EdgeFadeItem
 import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
+import com.festivalscoretracker.android.core.songs.SongHeaderEdgeFade
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongRowModel
@@ -92,6 +108,8 @@ import com.festivalscoretracker.android.presentation.SongsUiState
 import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
@@ -99,6 +117,7 @@ import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksController
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
 import com.festivalscoretracker.android.ui.shell.RegisterPageFind
@@ -152,13 +171,38 @@ fun SongsScreen(
     val leading = state.notices.size
     val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
     // Headers are their own (sticky) items, so a header's list index counts the headers before it.
-    val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections) { id ->
+    // They pin under the top bar, so jumps land them flush rather than 32 dp down (#51).
+    val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections, pinnedHeaders = true) { id ->
         state.headers.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { ordinal -> leading + state.headers[ordinal].firstIndex + ordinal }
     }
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
+    // Phones (floating toolbar): search joins Sort/Filter/Quick Links in the bottom toolbar and
+    // minimizes to an icon while the list scrolls down (issue #84); wider windows keep the field
+    // pinned above the list and their actions in the top app bar.
+    val searchInToolbar = LocalShellActions.current.floatingToolbar != null
+    var searchOpenRequested by remember { mutableStateOf(false) }
+    val searchOpen = searchInToolbar && searchOpenRequested
+    LaunchedEffect(searchInToolbar) { if (!searchInToolbar) searchOpenRequested = false }
+    val screenReader = rememberScreenReaderOn()
+    val allowMinimize by rememberUpdatedState(searchInToolbar && !screenReader && !searchOpen)
+    val minimizer = remember(density) { FloatingToolbarMinimizer(with(density) { FloatingToolbarMinimizer.THRESHOLD_DP.dp.toPx() }) }
+    var searchMinimized by remember { mutableStateOf(false) }
+    val minimizeOnScroll = remember(minimizer) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                searchMinimized = minimizer.onScroll(consumed.y, allowMinimize)
+                return Offset.Zero
+            }
+        }
+    }
+    // Back at the top (including programmatic jumps), TalkBack on or search open: expanded.
+    LaunchedEffect(listState, minimizer, allowMinimize) {
+        if (!allowMinimize) searchMinimized = minimizer.expand()
+        snapshotFlow { listState.canScrollBackward }.collect { if (!it) searchMinimized = minimizer.expand() }
+    }
     BoxWithConstraints(modifier.fillMaxSize().then(split.modifier)) {
         val hinge = split.value?.takeIf { quickLinks.available }
         FestivalScreen(
@@ -167,23 +211,21 @@ fun SongsScreen(
             scrolled = scrolled,
             // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
             pinActions = true,
+            actionsAboveKeyboard = searchOpen,
             actions = {
-                QuickLinksAction(quickLinks, windowWidthDp)
-                IconButton(onClick = { showSort = true }, modifier = Modifier.testTag("fst.songs.sort.open")) {
-                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
-                }
-                if (state.hasPlayer) {
-                    IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.songs.filter.open")) {
-                        Icon(
-                            Icons.Filled.FilterList,
-                            contentDescription = "Filter songs",
-                            tint = if (state.prefs.anyFilterActive) BrandTokens.gold else BrandTokens.textPrimary,
-                        )
+                // Read the state object here, not the captured Boolean: the toolbar re-runs this
+                // lambda only for state reads inside it.
+                if (searchInToolbar && searchOpenRequested) {
+                    SongsToolbarSearchField(search, viewModel::onSearchChange, onClose = { searchOpenRequested = false })
+                } else {
+                    if (searchInToolbar) {
+                        SongsToolbarSearchButton(search, searchMinimized, onOpen = { searchOpenRequested = true }, onClear = { viewModel.onSearchChange("") })
                     }
+                    SongsPageTools(state, quickLinks, windowWidthDp, onSort = { showSort = true }, onFilter = { showFilter = true })
                 }
             },
         ) { padding ->
-            Row(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxSize().nestedScroll(minimizeOnScroll)) {
                 val listModifier = if (hinge != null) Modifier.width(with(density) { hinge.first.toDp() }) else Modifier.weight(1f)
                 Box(listModifier.fillMaxHeight()) {
                     when (val catalog = state.catalog) {
@@ -198,7 +240,11 @@ fun SongsScreen(
                                 InvalidFilterView(onClearFilters, padding)
                             } else {
                                 FirstPaintGate(state, artworkUrl) {
-                                    SongList(state, listState, search, viewModel::onSearchChange, artworkUrl, onSongClick, selectedSongId, padding) { warning = it }
+                                    SongList(
+                                        state, listState, search, viewModel::onSearchChange, artworkUrl, onSongClick, selectedSongId, padding,
+                                        searchInToolbar = searchInToolbar,
+                                        onOpenToolbarSearch = { searchOpenRequested = true },
+                                    ) { warning = it }
                                 }
                             }
                         }
@@ -215,17 +261,44 @@ fun SongsScreen(
     if (showFilter) {
         val prefs = state.prefs
         FilterSheet(
-            initial = SongFilterDraft.from(prefs.filter, prefs.shopFilter, prefs.playerFilter, visibleInstruments),
+            initial = SongFilterDraft.from(prefs.filter, prefs.general, prefs.playerFilter, visibleInstruments),
             hasPlayer = state.hasPlayer,
             hideShop = state.hideShop,
             filterInvalidScores = state.filterInvalidScores,
             availableSeasons = state.availableSeasons,
+            decades = state.availableDecades,
+            durations = state.durationBuckets,
             onApply = onApplyFilter,
             onDismiss = { showFilter = false },
         )
     }
     warning?.let { shown ->
         InvalidScoreAlert(shown, onDismiss = { warning = null }, onOpenSettings = { warning = null; onOpenSettings() })
+    }
+}
+
+/**
+ * Quick Links, Sort and Filter (selected player only): the page's own tools, in the floating
+ * toolbar on phones and the top app bar elsewhere.
+ *
+ * @param state Songs state (gold tints for a changed sort / active filters).
+ * @param quickLinks Sort-bucket Quick Links.
+ * @param windowWidthDp Window width (sheet vs menu).
+ * @param onSort Open the Sort sheet.
+ * @param onFilter Open the Filter sheet.
+ */
+@Composable
+private fun SongsPageTools(state: SongsUiState, quickLinks: QuickLinksController, windowWidthDp: Int, onSort: () -> Unit, onFilter: () -> Unit) {
+    QuickLinksAction(quickLinks, windowWidthDp)
+    IconButton(onClick = onSort, modifier = Modifier.testTag("fst.songs.sort.open")) {
+        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
+    }
+    IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open")) {
+        Icon(
+            Icons.Filled.FilterList,
+            contentDescription = "Filter songs",
+            tint = if (state.filterActive) BrandTokens.gold else BrandTokens.textPrimary,
+        )
     }
 }
 
@@ -315,6 +388,8 @@ private fun SongList(
     onSongClick: (Song) -> Unit,
     selectedSongId: String?,
     padding: PaddingValues,
+    searchInToolbar: Boolean,
+    onOpenToolbarSearch: () -> Unit,
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -329,20 +404,44 @@ private fun SongList(
         if (lastShape != null && lastShape != shape) listState.scrollToItem(0)
         lastShape = shape
     }
-    // Ctrl+F focuses the Songs filter (pinned above the list, so it is always on screen).
+    // Ctrl+F focuses the Songs filter: pinned above the list on wider windows, opened in the
+    // floating toolbar on phones (both always on screen).
     val findFocus = remember { FocusRequester() }
     RegisterPageFind {
-        scope.launch {
-            withFrameNanos { }
-            runCatching { findFocus.requestFocus() }
+        if (searchInToolbar) {
+            onOpenToolbarSearch()
+        } else {
+            scope.launch {
+                withFrameNanos { }
+                runCatching { findFocus.requestFocus() }
+            }
         }
     }
     val endPadding = if (showIndex) 28.dp else 16.dp
-    // The search field is pinned above the scrolling list (issue #52): it never scrolls away, so
-    // nothing moves or animates between the top and scrolled states.
+    val density = LocalDensity.current
+    val accessibility = LocalFestivalAccessibility.current
+    val fadeDepth = with(density) { SongHeaderEdgeFade.DEPTH_DP.dp.toPx() }
+    val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
+        ?.takeIf { SongHeaderEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency) }
+    val edgeFade by remember(listState, firstHeaderKey, fadeDepth, density) {
+        val spacing = with(density) { LIST_SPACING.roundToPx() }
+        derivedStateOf {
+            if (firstHeaderKey == null) return@derivedStateOf null
+            val info = listState.layoutInfo
+            SongHeaderEdgeFade.edge(
+                info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
+                info.viewportStartOffset, firstHeaderKey, spacing, fadeDepth,
+            )
+        }
+    }
+    // On wider windows the search field is pinned above the scrolling list (issue #52): it never
+    // scrolls away, so nothing moves or animates between the top and scrolled states. Phones show
+    // it in the floating toolbar instead (issue #84).
     Column(Modifier.fillMaxSize()) {
-        Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
-            SearchField(search, onSearchChange, findFocus)
+        if (!searchInToolbar) {
+            Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
+                SearchField(search, onSearchChange, findFocus)
+            }
         }
         Box(Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
@@ -352,8 +451,8 @@ private fun SongList(
                     end = endPadding,
                     bottom = padding.calculateBottomPadding() + 16.dp,
                 ),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.fillMaxSize().testTag("fst.songs.list"),
+                verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
+                modifier = Modifier.fillMaxSize().pinnedHeaderEdgeFade({ edgeFade }, fadeDepth).testTag("fst.songs.list"),
             ) {
                 state.notices.forEachIndexed { index, notice ->
                     item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
@@ -369,12 +468,13 @@ private fun SongList(
                 if (state.headers.isEmpty()) {
                     items(state.rows, key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                 } else {
-                    // Bucket headers stick under the pinned search field on an opaque strip, so rows never show through.
+                    // Bucket headers stick under the pinned search field on an opaque strip; rows passing beneath
+                    // it fade out just below it (pinnedHeaderEdgeFade, issue #49).
                     val first = state.headers.first().firstIndex
                     if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     state.headers.forEachIndexed { ordinal, header ->
                         val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
-                        stickyHeader(key = "header:${header.id}", contentType = "header") { BucketHeader(header) }
+                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header) }
                         items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     }
                 }
@@ -489,6 +589,41 @@ private fun BucketHeader(header: SongListHeader) {
 
 /** Opaque strip behind a stuck bucket header (the frosted surface without translucency). */
 private val STICKY_HEADER_BACKGROUND = Color(0xFF121826)
+
+/** Gap between Songs list items. */
+private val LIST_SPACING = 4.dp
+
+private const val HEADER_KEY_PREFIX = "header:"
+
+private fun headerKey(header: SongListHeader): String = HEADER_KEY_PREFIX + header.id
+
+private fun isHeaderKey(key: Any): Boolean = key is String && key.startsWith(HEADER_KEY_PREFIX)
+
+/**
+ * Fades rows out over a short eased band just below the pinned section header
+ * ([SongHeaderEdgeFade]) by masking the list with a vertical gradient (`BlendMode.DstIn`).
+ * Drawing only: hit testing, semantics and TalkBack order are unchanged. The header strip itself
+ * sits above the band, so its text stays fully opaque. Without an edge it draws nothing and skips
+ * the offscreen layer.
+ *
+ * @param edge Reads the current fade (draw phase only, so scrolling never recomposes).
+ * @param depth Band depth in px.
+ */
+private fun Modifier.pinnedHeaderEdgeFade(edge: () -> EdgeFade?, depth: Float): Modifier = this
+    .graphicsLayer { compositingStrategy = if (edge() != null) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
+    .drawWithContent {
+        drawContent()
+        val fade = edge() ?: return@drawWithContent
+        val stops = SongHeaderEdgeFade.STOPS
+            .map { (t, alpha) -> t to Color.Black.copy(alpha = SongHeaderEdgeFade.maskAlpha(alpha, fade.strength)) }
+            .toTypedArray()
+        drawRect(
+            Brush.verticalGradient(*stops, startY = fade.top, endY = fade.top + depth),
+            topLeft = Offset(0f, fade.top),
+            size = Size(size.width, depth),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 @Composable
 private fun Notice(text: String, index: Int) {

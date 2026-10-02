@@ -78,6 +78,7 @@ struct ShopStatusBreathe: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
 
     /// Whether the breathe should run in the current environment.
     ///
@@ -109,7 +110,7 @@ struct ShopStatusBreathe: ViewModifier {
     func body(content: Content) -> some View {
         let running = Self.animates(
             reduceMotion: systemReduceMotion || appReduceMotion,
-            sceneActive: scenePhase == .active,
+            sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             still: DebugAnimationOverride.stillBackground
         )
         content.background {
@@ -161,6 +162,7 @@ struct ShopRowPulseBorder: View {
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
 
     /// Web keyframe peak.
     static let peak: Double = 0.7
@@ -182,7 +184,7 @@ struct ShopRowPulseBorder: View {
     var body: some View {
         let running = ShopStatusBreathe.animates(
             reduceMotion: systemReduceMotion || appReduceMotion,
-            sceneActive: scenePhase == .active,
+            sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             still: DebugAnimationOverride.stillBackground
         )
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in

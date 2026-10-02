@@ -99,6 +99,67 @@ public class SettingsServiceInfoTests
         Assert.Null(v1.PhasePercent);
     }
 
+    private static ServiceAttemptProgressWire Attempts(double attempted, double unavailable, double schema = 1) => new(schema, attempted, unavailable);
+
+    private static ServiceCurrentUpdate Discovery(ServiceAttemptProgressWire? attempts, double? completed = 10, double? total = 50,
+        double attempt = 1, string at = "2026-09-28T15:00:00Z") =>
+        new("updating", ScrapeId: 42, OperationId: "op", PhaseId: ServiceInfoText.RegisteredBandDiscoveryPhaseId, PhaseAttempt: attempt,
+            PhaseOrdinal: 9, UnitsKind: "accounts", UnitsCompleted: completed, UnitsTotal: total, LastProgressAt: at, AttemptProgress: attempts);
+
+    [Fact]
+    public void NormalizeAttemptProgress_ValidatesLikeTheWeb()
+    {
+        Assert.Equal(new ServiceAttemptProgress(12, 1), ServiceProgressReducer.NormalizeAttemptProgress(Attempts(12, 1)));
+        Assert.Equal(new ServiceAttemptProgress(0, 0), ServiceProgressReducer.NormalizeAttemptProgress(Attempts(0, 0)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(null));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(12, 1, schema: 2)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(new ServiceAttemptProgressWire(null, 12, 1)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(new ServiceAttemptProgressWire(1, null, 1)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(new ServiceAttemptProgressWire(1, 12, null)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(double.NaN, 1)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(12, double.PositiveInfinity)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(12.5, 1)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(12, 0.5)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(-1, 0)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(5, -1)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(1, 2)));
+        Assert.Null(ServiceProgressReducer.NormalizeAttemptProgress(Attempts(1e15, 0)));
+        Assert.Equal(new ServiceAttemptProgress(999_999_999_999_999, 0), ServiceProgressReducer.NormalizeAttemptProgress(Attempts(999_999_999_999_999, 0)));
+    }
+
+    [Fact]
+    public void Reduce_AttemptProgressNeverMovesBackwardsWithinAPhaseAttempt()
+    {
+        var (first, memory) = ServiceProgressReducer.Reduce(null, Info(Discovery(Attempts(12, 3))));
+        Assert.Equal(new ServiceAttemptProgress(12, 3), first.AttemptProgress);
+        Assert.Equal((10.0, 50.0), (first.UnitsCompleted!.Value, first.UnitsTotal!.Value));
+
+        // A lower count in the same attempt keeps each count's high-water mark.
+        var (second, memory2) = ServiceProgressReducer.Reduce(memory, Info(Discovery(Attempts(15, 1), at: "2026-09-28T15:00:05Z")));
+        Assert.Equal(new ServiceAttemptProgress(15, 3), second.AttemptProgress);
+
+        // Invalid counts hide the line rather than keeping or inventing numbers.
+        var (invalid, _) = ServiceProgressReducer.Reduce(memory2, Info(Discovery(Attempts(1, 2), at: "2026-09-28T15:00:06Z")));
+        Assert.Null(invalid.AttemptProgress);
+
+        // A retried attempt starts again from the new counts.
+        var (retry, _) = ServiceProgressReducer.Reduce(memory2, Info(Discovery(Attempts(2, 0), attempt: 2, at: "2026-09-28T15:00:07Z")));
+        Assert.Equal(new ServiceAttemptProgress(2, 0), retry.AttemptProgress);
+
+        // Another phase does not inherit counts.
+        var (other, _) = ServiceProgressReducer.Reduce(memory2, Info(Updating(at: "2026-09-28T15:00:08Z") with { AttemptProgress = Attempts(1, 0) }));
+        Assert.Equal(new ServiceAttemptProgress(1, 0), other.AttemptProgress);
+    }
+
+    [Fact]
+    public void Wire_DecodesAttemptProgress()
+    {
+        var info = System.Text.Json.JsonSerializer.Deserialize(
+            """{"currentUpdate":{"status":"updating","attemptProgress":{"schemaVersion":1,"attemptedThisPass":12,"retryableUnavailableThisPass":1}}}""",
+            ServiceInfoJsonContext.Default.ServiceInfo)!;
+        Assert.Equal(new ServiceAttemptProgressWire(1, 12, 1), info.CurrentUpdate!.AttemptProgress);
+    }
+
     [Fact]
     public void Format_PrintsLikeJavaScript()
     {
@@ -163,6 +224,32 @@ public class SettingsServiceInfoTests
     }
 
     [Fact]
+    public void DiscoveryAttemptText_MatchesTheWeb()
+    {
+        var display = ServiceProgressDisplay.Empty with
+        {
+            PhaseId = ServiceInfoText.RegisteredBandDiscoveryPhaseId,
+            AttemptProgress = new ServiceAttemptProgress(12_345, 1),
+            UnitsCompleted = 1_240,
+            UnitsTotal = 5_000,
+        };
+        Assert.Equal("12,345 attempted this pass · 1 temporarily unavailable · 1,240 of 5,000 completed", ServiceInfoText.DiscoveryAttemptText(display));
+        Assert.Equal("12,345 attempted this pass · 1 temporarily unavailable · 1,240 completed",
+            ServiceInfoText.DiscoveryAttemptText(display with { UnitsTotal = null }));
+        Assert.Equal("12,345 attempted this pass · 1 temporarily unavailable · 0 completed",
+            ServiceInfoText.DiscoveryAttemptText(display with { UnitsCompleted = null, UnitsTotal = null }));
+        Assert.Null(ServiceInfoText.DiscoveryAttemptText(display with { AttemptProgress = null }));
+        Assert.Null(ServiceInfoText.DiscoveryAttemptText(display with { PhaseId = "post.compute_rankings" }));
+    }
+
+    [Theory]
+    [InlineData(1.0, false)]
+    [InlineData(1.49, false)]
+    [InlineData(1.5, true)]
+    [InlineData(2.25, true)]
+    public void StateRowStacksAtLargeText(double scale, bool stacked) => Assert.Equal(stacked, ServiceInfoText.StacksStateRow(scale));
+
+    [Fact]
     public void PublicationTimeAndFreeze()
     {
         Assert.Equal("Sep 28, 2026, 3:04 PM UTC", ServiceInfoText.LastPublished(Info(Updating()), TimeZoneInfo.Utc));
@@ -213,11 +300,13 @@ public class SettingsServiceInfoTests
     {
         var vm = new SettingsServiceInfoViewModel(new FakeService().Client(), new FakeTimeProvider(), () => TimeZoneInfo.Utc);
         Assert.Equal(("Loading", ServiceProcessState.Loading, true), (vm.StateDescription, vm.ProcessState, vm.ShowsSpinner));
+        Assert.Null(vm.LastPublished);
+        Assert.False(vm.HasLastPublished);
         vm.Apply(new ServiceInfoSnapshot(Info(Updating(sub: Sub(250, 1000, 25))), "publish"));
         Assert.Equal("Computing Rankings", vm.StateDescription);
         Assert.Equal(("Updating", true), (vm.ProcessStateText, vm.ShowsSpinner));
         Assert.Equal("Computing Rankings · Calculating Instrument Rankings", vm.PhaseTitle);
-        Assert.True(vm.HasPhase && vm.HasBar && !vm.IsIndeterminate && vm.HasUnits && vm.HasFreezeNotice);
+        Assert.True(vm.HasPhase && vm.HasBar && !vm.IsIndeterminate && !vm.HasAttempt && vm.HasLastPublished);
         Assert.Equal((25.0, "25.0%", "250 of 1,000 leaderboards completed"), (vm.BarPercent, vm.ProgressText, vm.UnitsText));
         Assert.Equal("Computing Rankings · Calculating Instrument Rankings. 25.0%. 250 of 1,000 leaderboards completed", vm.PhaseAccessibleName);
         Assert.Equal("Sep 28, 2026, 3:04 PM UTC", vm.LastPublished);
@@ -230,8 +319,23 @@ public class SettingsServiceInfoTests
         Assert.Equal(("Waiting for the Next Update", ServiceProcessState.Idle, false, false), (vm.StateDescription, vm.ProcessState, vm.HasPhase, vm.HasBar));
 
         vm.ApplyFailure();
-        Assert.Equal(("Failed to load", ServiceProcessState.Stopped, "Unavailable", false), (vm.StateDescription, vm.ProcessState, vm.LastPublished, vm.HasFreezeNotice));
+        Assert.Equal(("Failed to load data", ServiceProcessState.Stopped, null, false), (vm.StateDescription, vm.ProcessState, vm.LastPublished, vm.HasLastPublished));
         Assert.Equal("", vm.PhaseAccessibleName);
+    }
+
+    [Fact]
+    public void Apply_DiscoveryPrintsTheAttemptLineAndSpeaksIt()
+    {
+        var vm = new SettingsServiceInfoViewModel(new FakeService().Client(), new FakeTimeProvider(), () => TimeZoneInfo.Utc);
+        var sub = new ServiceSubphaseProgress(1, "discover_bands", 1, 1, "exact", "accounts", 1240, 5000, true, 24.8);
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(12, 1), completed: 1240, total: 5000) with { SubphaseId = "discover_bands", SubphaseProgress = sub }), null));
+        const string attempt = "12 attempted this pass · 1 temporarily unavailable · 1,240 of 5,000 completed";
+        Assert.Equal(attempt, vm.AttemptText);
+        Assert.True(vm.HasAttempt);
+        Assert.EndsWith(". 24.8%. 1,240 of 5,000 accounts completed. " + attempt, vm.PhaseAccessibleName, StringComparison.Ordinal);
+
+        vm.Apply(new ServiceInfoSnapshot(Info(new ServiceCurrentUpdate("idle")), null));
+        Assert.False(vm.HasAttempt);
     }
 
     [Fact]
@@ -267,7 +371,7 @@ public class SettingsServiceInfoTests
         var (service, time, _) = Fake(r => r.RequestUri!.AbsolutePath == "/api/service-info" ? Wire.Response(HttpStatusCode.InternalServerError) : null);
         var vm = new SettingsServiceInfoViewModel(service.Client(), time);
         await vm.PollOnceAsync(CancellationToken.None);
-        Assert.Equal("Failed to load", vm.StateDescription);
+        Assert.Equal("Failed to load data", vm.StateDescription);
 
         var hang = new FakeService();
         hang.Handler.Responder = async (request, token) =>

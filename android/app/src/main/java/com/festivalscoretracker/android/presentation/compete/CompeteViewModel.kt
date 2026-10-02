@@ -24,11 +24,17 @@ import com.festivalscoretracker.android.presentation.rivals.map
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 // region Reads
 
@@ -113,11 +119,17 @@ data class CompeteContent(val sections: List<CompeteSection>, val fullPageIssue:
  * Total Score preview with the player's own row, and the scope's 3-above/3-below
  * rivals. Every read uses the shared retry semantics independently.
  *
+ * The model lives on the back stack (keyed by account and visible charts), so returning
+ * from View Full Leaderboard or a rival shows the loaded cards in place without a reload;
+ * a newer observed publication refreshes every read in place (iOS `ReappearanceLoadGate`,
+ * issue #82), and a different account or chart set creates a new model.
+ *
  * @param accountId Selected player, or null (leaderboards only).
  * @param visible Settings-visible charts.
  * @param reads Rankings reads.
  * @param rivals Rivals reads.
  * @param backoff Shared retry backoff.
+ * @param publications Observed publication stream (`FestivalApi.publicationChanges`).
  */
 class CompeteViewModel(
     private val accountId: String?,
@@ -125,6 +137,7 @@ class CompeteViewModel(
     private val reads: CompeteReads,
     private val rivals: RivalsRepository,
     backoff: ServiceRetryBackoff,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     /** Scopes in web order. */
     val scopes: List<CompeteScope> = CompeteScopes.resolve(visible)
@@ -148,6 +161,16 @@ class CompeteViewModel(
     init {
         boardLoaders.forEach { it.ensureStarted() }
         rivalLoaders.forEach { it?.ensureStarted() }
+        viewModelScope.launch {
+            // The publication current at creation is what the first loads read; only a newer one refreshes.
+            publications.filterNotNull().distinctUntilChanged().drop(1).collect { refreshAll() }
+        }
+    }
+
+    /** Reload every read for a newer publication, keeping loaded cards visible (failed ones retry). */
+    private fun refreshAll() {
+        boardLoaders.forEach { it.refresh() }
+        rivalLoaders.forEach { it?.refresh() }
     }
 
     /** Retry every failed read. */

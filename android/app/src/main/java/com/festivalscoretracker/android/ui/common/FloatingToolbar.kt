@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.common
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -35,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 
 // region Slot
 
@@ -51,7 +53,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  */
 @Stable
 class FloatingToolbarHost {
-    private class Entry(val content: State<@Composable RowScope.() -> Unit>, val pinned: Boolean)
+    private class Entry(val content: State<@Composable RowScope.() -> Unit>, val pinned: Boolean, val aboveKeyboard: State<Boolean>)
 
     private val entries = mutableStateListOf<Entry>()
 
@@ -61,17 +63,29 @@ class FloatingToolbarHost {
     /** Whether the current owner keeps the toolbar on screen while its content scrolls. */
     val pinned: Boolean get() = entries.lastOrNull()?.pinned == true
 
+    /** Whether the current owner holds a focused text field, so the toolbar rides above the keyboard. */
+    val aboveKeyboard: Boolean get() = entries.lastOrNull()?.aboveKeyboard?.value == true
+
     /**
      * Register toolbar content.
      *
      * @param content Latest content (read on every recomposition).
      * @param pinned Keep the toolbar visible while content scrolls (no hide on scroll).
+     * @param aboveKeyboard Latest "content holds a focused text field" flag (Songs search, issue #84).
      * @return Unregister callback.
      */
-    fun register(content: State<@Composable RowScope.() -> Unit>, pinned: Boolean = false): () -> Unit {
-        val entry = Entry(content, pinned)
+    fun register(
+        content: State<@Composable RowScope.() -> Unit>,
+        pinned: Boolean = false,
+        aboveKeyboard: State<Boolean> = NOT_ABOVE_KEYBOARD,
+    ): () -> Unit {
+        val entry = Entry(content, pinned, aboveKeyboard)
         entries += entry
         return { entries.remove(entry) }
+    }
+
+    private companion object {
+        val NOT_ABOVE_KEYBOARD: State<Boolean> = mutableStateOf(false)
     }
 }
 
@@ -81,14 +95,17 @@ class FloatingToolbarHost {
  *
  * @param pinned Keep the toolbar on screen while the page scrolls (M3 "always visible" floating
  *   toolbar) instead of the default hide on scroll.
+ * @param aboveKeyboard The content holds a focused text field: the shell lifts the toolbar above
+ *   the on-screen keyboard while this is true.
  * @param content Toolbar items, typically `IconButton`s; global search is not added automatically here.
  */
 @Composable
-fun FloatingToolbarContent(pinned: Boolean = false, content: @Composable RowScope.() -> Unit) {
+fun FloatingToolbarContent(pinned: Boolean = false, aboveKeyboard: Boolean = false, content: @Composable RowScope.() -> Unit) {
     val host = LocalShellActions.current.floatingToolbar ?: return
     val latest = rememberUpdatedState(content)
+    val keyboard = rememberUpdatedState(aboveKeyboard)
     DisposableEffect(host, pinned) {
-        val unregister = host.register(latest, pinned)
+        val unregister = host.register(latest, pinned, keyboard)
         onDispose { unregister() }
     }
 }
@@ -163,6 +180,9 @@ fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier, sc
     // A page whose actions are all conditional (or none) registers empty content: measure it but
     // place nothing, so no empty pill draws or blocks touches.
     var hasContent by remember { mutableStateOf(true) }
+    // Content that changes width (Songs search minimizing to an icon, issue #84) resizes smoothly;
+    // reduced motion snaps.
+    val resize = if (LocalFestivalAccessibility.current.reduceMotion) Modifier else Modifier.animateContentSize()
     Surface(
         shape = CircleShape,
         color = BrandTokens.cardBackground.copy(alpha = 0.97f),
@@ -184,7 +204,7 @@ fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier, sc
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                modifier = resize.padding(horizontal = 8.dp, vertical = 8.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

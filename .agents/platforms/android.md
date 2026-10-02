@@ -1,6 +1,6 @@
 # Android architecture and devices
 
-> **What:** Kotlin/Compose architecture, the emulator device matrix and `tools/android/device.py`. **Read when:** working on the Android app or running it on an emulator (built on `sfenton-primary` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
+> **What:** Kotlin/Compose architecture, the emulator device matrix and `tools/android/device.py`. **Read when:** working on the Android app or running it on an emulator (built on `sfenton-music` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
 
 - Kotlin + Jetpack Compose, single activity, domain/data/UI boundaries, lifecycle-aware state.
 - Observe fold/display features with Jetpack WindowManager, never product names or pixel checks.
@@ -8,13 +8,14 @@
 - Fixture mock server only; no production POSTs ([service safety](service-safety.md)).
 - Record API level, window size and pose with each device result (`device.py shot` writes a `.json` sidecar with all three plus the reported display features).
 
-## Android SDK on `sfenton-primary`
+## Android SDK on `sfenton-music`
 
-SDK root `C:/Users/sfent/AppData/Local/Android/Sdk`; JDK 17 (Temurin 17.0.17). Packages are installed side by side; never uninstall or downgrade one another lane may be using.
+SDK root `C:/Users/sfent/AppData/Local/Android/Sdk`; JDK 17 (Temurin 17.0.20). Packages are installed side by side; never uninstall or downgrade one another lane may be using.
 
 | Package | Version |
 |---|---|
 | Emulator | 37.1.11 |
+| Acceleration | Windows Hypervisor Platform, which needs CPU virtualization (AMD SVM) enabled in the UEFI. Until it is, `device.py boot` fails with "x86_64 emulation currently requires hardware acceleration" (`-accel-check`); builds and JVM unit tests are unaffected |
 | Platform-tools (adb) | 37.0.1 |
 | cmdline-tools | 23.0 (side by side with `latest` = 20.0). `sdkmanager` 23 prints a deprecation notice (replacement: `android sdk`) and exits 9 even on success, and its `.bat` splits `;`, so pass packages with `--package_file=` |
 | Platforms | android-36, android-37.0, **android-37.2** (latest stable) |
@@ -95,7 +96,7 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 - Emulator logs: `~/.fst-locks/emulator-<AVD>.log`.
 # Android architecture and devices
 
-> **What:** Kotlin/Compose architecture, build/run tooling and device rules for Android. **Read when:** working on the Android app (built on `sfenton-primary` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
+> **What:** Kotlin/Compose architecture, build/run tooling and device rules for Android. **Read when:** working on the Android app (built on `sfenton-music` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
 
 ## Layers (`android/app/src/main/java/com/festivalscoretracker/android/`)
 
@@ -123,7 +124,7 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 
 ## Debug launch extras (debug builds only)
 
-String intent extras, same names as Apple: `FST_DEBUG_TAB`, `FST_DEBUG_ROUTE` (`song:<id-or-title>`, with `FST_DEBUG_INSTRUMENT=<wireId>` for its `?instrument=` focus, `songLeaderboard:<id>:<wireId>[:page]`, `player:`, `leaderboards`, `fullRankings:`, `bandRankings:`, `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `band:`, `licenses`), `FST_DEBUG_PROFILE=<accountId>:<name>` (in memory only), `FST_DEBUG_ANONYMOUS=1`, `FST_DEBUG_DRAWER=1`, `FST_DEBUG_SHEET=profile|notifications`, `FST_DEBUG_FIRST_RUN=off|on|force` (default off in debug), `FST_DEBUG_WHATS_NEW=off|on|fresh|force` (default off in debug; [What's New](../controls/whats-new/android.md)), `FST_DEBUG_FORCE_FREEZE=1`, `FST_DEBUG_STILL_BACKGROUND=1`, `FST_DEBUG_SEARCH=<text>` (opens global search with that text) + `FST_DEBUG_SEARCH_SCOPE=songs|players|bands`, `FST_ORIGIN`. Parsed by `DebugLaunch` (unit-tested).
+String intent extras, same names as Apple: `FST_DEBUG_TAB`, `FST_DEBUG_ROUTE` (`song:<id-or-title>`, with `FST_DEBUG_INSTRUMENT=<wireId>` for its `?instrument=` focus, `songLeaderboard:<id>:<wireId>[:page]`, `player:`, `leaderboards`, `fullRankings:`, `bandRankings:`, `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `band:`, `licenses`), `FST_DEBUG_PROFILE=<accountId>:<name>` (in memory only), `FST_DEBUG_ANONYMOUS=1`, `FST_DEBUG_DRAWER=1`, `FST_DEBUG_SHEET=profile|notifications`, `FST_DEBUG_FIRST_RUN=off|on|force` (default off in debug), `FST_DEBUG_WHATS_NEW=off|on|fresh|force` (default off in debug; [What's New](../controls/whats-new/android.md)), `FST_DEBUG_DISTRIBUTION=store|play|tester|testflight` (What's New channel override; default from the installer), `FST_DEBUG_FORCE_FREEZE=1`, `FST_DEBUG_STILL_BACKGROUND=1`, `FST_DEBUG_SEARCH=<text>` (opens global search with that text) + `FST_DEBUG_SEARCH_SCOPE=songs|players|bands`, `FST_ORIGIN`. Parsed by `DebugLaunch` (unit-tested).
 
 ## Tooling
 
@@ -162,10 +163,12 @@ Measured 2026-09-29 (FST-and-a11y2) with `tools/android/frame_stats.py --animati
 - No per-frame recomposition: the idle scenarios render every frame (artwork Ken Burns, Shop pulse/breathe, marquee) at 0.5–0.6 ms of UI work, all in the draw phase (`graphicsLayer`, `drawBehind`, `basicMarquee`).
 - The remaining cost is composing rows that scroll in (Songs rows on a phone, p90 ≈ 8 ms on the emulator; a device CPU is faster). Changes made: instrument/star PNGs decoded once (`ui/design/BundledBitmaps.kt`; `painterResource` decoded them per call site) and the nine Songs status chips drawn by one node (`ChipGrid`) instead of a `BoxWithConstraints` subcomposition plus ~18 nodes. Both were within the emulator's run-to-run noise (±25% on the over-budget share), so neither is claimed as a measured win.
 - Leaderboards/Song Detail p99 spikes (18–24 ms) are cards composing as they enter (rank history, instrument cards).
+- Issue #83 (2026-10-02): the idle backdrop rows above are every-vsync work (942 frames in 15 s ≈ 63 fps), also while a sheet or the first-run dialog covers it. The backdrop now samples at 30 fps through `SteppedFrameClock` and holds its frame while any Festival modal is open ([artwork background](../controls/artwork-background/android.md)); expect ~450 frames per idle 15 s visible and ~0 under a modal. Not re-measured: this host has no emulator (see Devices). First-run demos already animate only the settled page, and Suggestions covers come from Coil's memory cache.
 - Open: a Perfetto trace with `androidx.compose.runtime:runtime-tracing` on a real device to split Songs row composition by composable; a Macrobenchmark module (not added: needs a separate test module and a device lab that holds the emulator for longer than the 300 s lock).
 
 ## Devices
 
 - One emulator per host, only through `device.py` (FST AVDs, API 37). Never start `Pixel_5_API_36`/`Pixel_9_Pro_Fold` by hand while lanes share the host; headless `-gpu auto` in session 0 wedged adb shell — the shared tool uses `swiftshader_indirect`.
+- On 2026-10-02 `device.py boot` failed on `sfenton-music` with "x86_64 emulation currently requires hardware acceleration" (Android Emulator hypervisor driver not installed; log in `~/.fst-locks/emulator-<AVD>.log`). That host cannot run emulators; verify on another host or through unit tests and the generated `BuildConfig`.
 - Observe folds with Jetpack WindowManager (`currentWindowAdaptiveInfo().windowPosture.hingeList`), never product names or pixels. Record API level, window size and posture with each result (`device.py` writes a JSON sidecar).
 - Host: Android SDK `C:/Users/sfent/AppData/Local/Android/Sdk`, JDK 17 (Temurin), Gradle 8.14.3 wrapper, AGP 8.11, Kotlin 2.2.10, compile/target SDK 36, min 26.

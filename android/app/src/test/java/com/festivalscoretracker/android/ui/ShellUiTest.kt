@@ -81,7 +81,8 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.settings").assertIsDisplayed()
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
-        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.open").fetchSemanticsNodes().size)
+        // General filters need no profile (web), so Filter is always offered.
+        rule.onNodeWithTag("fst.songs.filter.open").assertIsDisplayed()
         rule.onNodeWithContentDescription("Choose profile").assertIsDisplayed()
     }
 
@@ -103,6 +104,9 @@ class ShellUiTest {
         launch()
         waitForTag("fst.songs.row.s-alpha")
         rule.onNodeWithTag("fst.songs.section-index").assertIsDisplayed()
+        // Phone: search lives in the bottom floating toolbar and opens a focused field (issue #84).
+        rule.onNodeWithTag("fst.songs.search.open").performClick()
+        waitForTag("fst.songs.search")
         rule.onNodeWithTag("fst.songs.search").performTextInput("beta")
         rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.songs.row.s-alpha").fetchSemanticsNodes().isEmpty() }
         rule.onNodeWithTag("fst.songs.row.s-beta").assertIsDisplayed()
@@ -113,6 +117,8 @@ class ShellUiTest {
         waitForTag("fst.songs.empty")
         rule.onNodeWithContentDescription("Clear search").performClick()
         settle(600)
+        rule.onNodeWithTag("fst.songs.search.close").performClick()
+        settle()
         rule.onNodeWithTag("fst.songs.sort.open").performClick()
         settle()
         rule.onNodeWithText("Sort Songs").assertIsDisplayed()

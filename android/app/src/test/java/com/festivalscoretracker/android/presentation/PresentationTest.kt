@@ -282,6 +282,33 @@ class PresentationTest {
     }
 
     @Test
+    fun backgroundHoldsItsFrameUnderAModalButKeepsDataSaver() {
+        assertEquals(BackgroundMode.Still, BackgroundPolicy.mode(false, false, false, visible = true, covered = true))
+        assertEquals(BackgroundMode.None, BackgroundPolicy.mode(false, false, dataSaver = true, visible = true, covered = true))
+        assertEquals(BackgroundMode.Still, BackgroundPolicy.mode(true, false, false, visible = true, covered = true))
+        assertEquals(33_333_333L, BackgroundPolicy.FRAME_INTERVAL_NANOS)
+        assertEquals(6_000, BackgroundPolicy.remainingZoomMs(0f))
+        assertEquals(1_500, BackgroundPolicy.remainingZoomMs(0.75f))
+        assertEquals(1, BackgroundPolicy.remainingZoomMs(1f))
+        assertEquals(6_000, BackgroundPolicy.remainingZoomMs(-1f))
+    }
+
+    @Test
+    fun modalCoverageCountsOpenModalsAndNeverGoesNegative() {
+        val coverage = ModalCoverage()
+        assertEquals(0, coverage.openCount.value)
+        coverage.open()
+        coverage.open()
+        assertEquals(2, coverage.openCount.value)
+        coverage.close()
+        assertEquals(1, coverage.openCount.value)
+        coverage.close()
+        coverage.close()
+        assertEquals(0, coverage.openCount.value)
+        assertSame(ModalCoverage.shared, ModalCoverage.shared)
+    }
+
+    @Test
     fun backgroundControllerLoadsOncePerPublicationAndStacksFocus() = runTest(main.dispatcher) {
         var publication = 7
         var fail = false

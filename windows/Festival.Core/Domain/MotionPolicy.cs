@@ -75,6 +75,26 @@ public static class ShopPulse
     /// <summary>One breathe cycle.</summary>
     public static readonly TimeSpan Cycle = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// Breathe updates per second: the compositor holds each sampled level, so it redraws on each step instead of at
+    /// display refresh (120–240 Hz), like <c>ShopPulseClock</c> and the backdrop drift.
+    /// </summary>
+    public const int StepsPerSecond = 30;
+
+    /// <summary>Held keyframes for one breathe: the ease-in-out level (0 → 1 → 0) sampled <see cref="StepsPerSecond"/> times a second.</summary>
+    /// <returns>Progress (0…1) and level (0…1) pairs, first and last at progress 0 and 1.</returns>
+    public static IReadOnlyList<(float Progress, float Level)> BreatheSteps()
+    {
+        var steps = (int)(Cycle.TotalSeconds * StepsPerSecond);
+        var frames = new (float, float)[steps + 1];
+        for (var i = 0; i <= steps; i++)
+        {
+            var t = (float)i / steps;
+            frames[i] = (t, SongRowShopPulse.Level(t));
+        }
+        return frames;
+    }
+
     /// <summary>Resting colour, web <c>rgb(18 24 38 / 96%)</c> (ARGB).</summary>
     public const uint BaseArgb = 0xF5121826;
 

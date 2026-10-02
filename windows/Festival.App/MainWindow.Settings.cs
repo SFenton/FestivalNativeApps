@@ -50,12 +50,23 @@ public sealed partial class MainWindow
         {
             // Every modal closes on a click outside it, like Esc (operator batch 6.14; web modals).
             Controls.DialogChrome.LightDismiss(dialog);
+            Instance?.SetModalOpen(true);
             return await dialog.ShowAsync();
         }
         finally
         {
+            Instance?.SetModalOpen(false);
             DialogGate.Release();
         }
+    }
+
+    /// <summary>Holds the backdrop's frame while a dialog covers the page (iOS #28 parity: no unseen motion).</summary>
+    /// <param name="open">Whether a dialog is showing.</param>
+    private void SetModalOpen(bool open)
+    {
+        if (modalOpen == open) return;
+        modalOpen = open;
+        UpdateBackdropPolicy();
     }
     #endregion
 

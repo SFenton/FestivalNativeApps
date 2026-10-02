@@ -28,6 +28,8 @@ enum class LeaderboardRowKind {
  * @property valueWidth Widest score or rating text.
  * @property hasAccuracy Whether any score row has an accuracy badge.
  * @property hasStars Whether any score row has stars to draw.
+ * @property nameWidth Widest name in a rankings section whose songs label yields to names
+ *   (Compete, issue #38); 0 keeps the songs label at any width.
  */
 data class LeaderboardSection(
     val kind: LeaderboardRowKind,
@@ -36,6 +38,7 @@ data class LeaderboardSection(
     val valueWidth: Float,
     val hasAccuracy: Boolean = false,
     val hasStars: Boolean = false,
+    val nameWidth: Float = 0f,
 ) {
     /** Whether any row has a season (score sections) or songs label (rankings sections). */
     val hasMeta: Boolean get() = metaWidth > 0f
@@ -117,9 +120,10 @@ data class LeaderboardColumnPlan(
  * The one per-section column fitter for Android leaderboard rows (issue #37). Ports the
  * web's rules: the season column from a 520 dp row (`MEDIUM_BREAKPOINT`), stars from 700 dp
  * (`MOBILE_BREAKPOINT` 768 less the page chrome), tighter gaps below 420 dp, the accuracy
- * column always reserved in a section that has accuracy, and the rankings songs label never
- * dropped. When the fixed columns would squeeze the name below its minimum, stars go first,
- * then the season.
+ * column always reserved in a section that has accuracy, and the rankings songs label kept
+ * unless the section asks it to yield to names ([LeaderboardSection.nameWidth], Compete on
+ * portrait phones, issue #38). When the fixed columns would squeeze the name below its
+ * minimum, stars go first, then the season.
  */
 object LeaderboardColumnLayout {
     /** Row chrome: the 4 dp highlight inset plus 8 dp padding on each side. */
@@ -161,6 +165,12 @@ object LeaderboardColumnLayout {
     /** The service's gold-star value. */
     const val GOLD_STARS = 6
 
+    /** Rankings row chrome: 8 dp padding on each side (`RankingRowLayout`). */
+    const val RANKING_ROW_CHROME = 16f
+
+    /** Rankings row column spacing (`RankingRowLayout`; it never tightens). */
+    const val RANKING_GAP = 12f
+
     /**
      * Season label (`S15`).
      *
@@ -171,6 +181,11 @@ object LeaderboardColumnLayout {
 
     /**
      * Fits a section's columns into a row width.
+     *
+     * A rankings section with a [LeaderboardSection.nameWidth] shows its songs label only when
+     * every name fits in full beside it (rank · name · songs · rating · chevron at the rankings
+     * row's own padding and spacing); otherwise, or before the first layout, the whole section
+     * hides it so names are not truncated and the remaining columns stay aligned (issue #38).
      *
      * @param section Section content (every row plus the pinned row).
      * @param rowWidth Row width in dp, including its chrome; NaN or 0 before the first layout (no optional columns).
@@ -187,6 +202,10 @@ object LeaderboardColumnLayout {
         val accuracy = if (score && section.hasAccuracy) ACCURACY_WIDTH * scale else 0f
         var showMeta = section.hasMeta && (!score || (known && rowWidth >= SEASON_BREAKPOINT))
         var showStars = score && section.hasStars && known && rowWidth >= STARS_BREAKPOINT
+        if (!score && showMeta && section.nameWidth > 0f) {
+            val columns = listOf(rank, section.nameWidth, section.metaWidth, section.valueWidth, CHEVRON_WIDTH).filter { it > 0f }
+            showMeta = known && RANKING_ROW_CHROME + columns.sum() + RANKING_GAP * (columns.size - 1) <= rowWidth
+        }
 
         fun required(): Float {
             val columns = listOf(rank, MIN_NAME_WIDTH * scale, if (showMeta) section.metaWidth else 0f, section.valueWidth, accuracy,

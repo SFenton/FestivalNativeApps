@@ -11,7 +11,7 @@ public class PlayerStatLinksTests
         {
             VisibleInstruments = [Instrument.Lead, Instrument.Drums],
             SongFilter = new SongFilter(Instrument.Bass, [2, 5]),
-            ShopFilter = new SongShopFilter(InShop: true),
+            ShopFilter = new SongShopFilter(available: true, unavailable: false),
             SongSort = SongSortMode.Year,
             SongSortAscending = false,
             PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.MissingFCs, Instrument.Bass, true),
@@ -30,7 +30,7 @@ public class PlayerStatLinksTests
     {
         var settings = new AppSettings
         {
-            ShopFilter = new SongShopFilter(InShop: true),
+            ShopFilter = new SongShopFilter(available: true, unavailable: false),
             SongFilter = new SongFilter(Instrument.Lead, [3, 4]),
             PlayerScoreFilter = SongPlayerScoreFilter.None
                 .With(SongScoreFilterKind.MissingScores, Instrument.Lead, true)
@@ -39,7 +39,8 @@ public class PlayerStatLinksTests
         };
         var applied = new SongsStatPreset(Instrument.Lead, SongScoreFilterKind.HasScores).ApplyTo(settings);
         Assert.Equal(new SongFilter(Instrument.Lead), applied.SongFilter);
-        Assert.True(applied.ShopFilter.InShop);
+        Assert.True(applied.ShopFilter.Available);
+        Assert.False(applied.ShopFilter.Unavailable);
         Assert.Equal([Instrument.Lead], applied.PlayerScoreFilter.HasScores);
         Assert.Empty(applied.PlayerScoreFilter.MissingScores);
         Assert.Equal([Instrument.Bass], applied.PlayerScoreFilter.HasFCs);

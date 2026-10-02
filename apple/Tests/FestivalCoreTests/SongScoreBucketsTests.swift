@@ -193,13 +193,14 @@ private func leadScores(_ index: [String: [Instrument: PlayerScore]]) -> [String
 @Test func starAndPercentilePresetsMatchTheWebUpdaters() {
     let visible: Set<Instrument> = [.lead, .bass]
     let busy = SongsSavedState(
-        instrument: .bass, sortMode: .shop, sortAscending: false, filterInShop: true,
+        instrument: .bass, sortMode: .shop, sortAscending: false,
+        generalFilter: SongGeneralFilter(shop: .availableOnly),
         playerFilter: SongPlayerScoreFilter(hasScores: [.lead, .bass]).showingOnlyPercentile(50)
     )
     let stars = SongsFilterPreset.stars(.lead, starKey: 6).applied(to: busy, visibleInstruments: visible)
     #expect(stars.instrument == .lead && stars.sortMode == .stars && stars.sortAscending)
     #expect(stars.playerFilter == SongPlayerScoreFilter(hasScores: [.bass]).showingOnlyStars(6))
-    #expect(stars.filterInShop)
+    #expect(stars.generalFilter.shop == .availableOnly)
 
     let percentile = SongsFilterPreset.percentile(.lead, scoredOnly: false).applied(to: busy, visibleInstruments: visible)
     #expect(percentile.sortMode == .percentile && percentile.playerFilter == SongPlayerScoreFilter(hasScores: [.bass]))

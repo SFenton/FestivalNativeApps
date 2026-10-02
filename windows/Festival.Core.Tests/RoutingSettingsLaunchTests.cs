@@ -280,6 +280,15 @@ public class LaunchAndBackgroundTests
     public void Policy_Resolves(bool animations, bool visible, bool occluded, bool reduce, bool disable, bool save, ArtworkMode mode) =>
         Assert.Equal(mode, ArtworkPlaybackPolicy.Resolve(new ArtworkPolicyInputs(animations, visible, occluded, reduce, disable, save)));
 
+    [Theory]
+    [InlineData(true, false, false, false, ArtworkMode.Paused)]
+    [InlineData(false, false, false, false, ArtworkMode.Static)]
+    [InlineData(true, true, false, false, ArtworkMode.Static)]
+    [InlineData(true, false, true, false, ArtworkMode.Hidden)]
+    [InlineData(true, false, false, true, ArtworkMode.Paused)]
+    public void Policy_ModalHoldsTheFrameButKeepsStillAndHiddenModes(bool animations, bool reduce, bool save, bool occluded, ArtworkMode mode) =>
+        Assert.Equal(mode, ArtworkPlaybackPolicy.Resolve(new ArtworkPolicyInputs(animations, true, occluded, reduce, false, save, ModalOpen: true)));
+
     [Fact]
     public void Carousel_ShufflesBoundsAndCycles()
     {

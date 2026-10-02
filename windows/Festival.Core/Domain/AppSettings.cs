@@ -35,11 +35,12 @@ public sealed record SelectedPlayer(
 public sealed record AppSettings
 {
     /// <summary>
-    /// Current schema version. v2 (2026-09-29): the Songs filter uses the web's bucket model (intensity buckets on
+    /// Current schema version. v3 (2026-10-02): Songs General filters (year, duration, Shop availability and Double Bass)
+    /// persist separately from selected-instrument/player filters. v2 (2026-09-29): the Songs filter uses the web's bucket model (intensity buckets on
     /// <see cref="SongFilter"/>; season/percentile/stars buckets on <see cref="PlayerScoreFilter"/>); v1's difficulty
     /// range and single percentile/star choice (<see cref="LegacyScoreBandFilter"/>) are migrated by <see cref="Sanitized"/>.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>Schema version.</summary>
     [JsonPropertyName("version")] public int Version { get; set; } = CurrentVersion;
@@ -138,6 +139,9 @@ public sealed record AppSettings
     [JsonPropertyName("lessTransparency")] public bool LessTransparency { get; set; }
 
     #region Songs-owned state (kept by Reset)
+    /// <summary>Applied Songs General filter (year, duration and Double Bass).</summary>
+    [JsonPropertyName("songGeneralFilter")] public SongGeneralFilter GeneralFilter { get; set; } = SongGeneralFilter.None;
+
     /// <summary>Applied Songs Item Shop filter.</summary>
     [JsonPropertyName("songShopFilter")] public SongShopFilter ShopFilter { get; set; } = SongShopFilter.None;
 
@@ -236,6 +240,7 @@ public sealed record AppSettings
         // Corrupt bucket data is kept (not silently dropped) so Songs blocks until an explicit Reset.
         var filter = (SongFilter ?? SongFilter.None).Migrated() is var migrated && (migrated.Instrument is null || Enum.IsDefined(migrated.Instrument.Value))
             ? migrated.ScopedTo(visible) : SongFilter.None;
+        var general = SongGeneralFilter.Repaired(GeneralFilter);
         var player = SongPlayerScoreFilter.Repaired(PlayerScoreFilter);
         if (LegacyScoreBandFilter is { IsValid: true, IsActive: true } band && band.Instrument == filter.Instrument && player.IsValid)
         {
@@ -256,7 +261,8 @@ public sealed record AppSettings
             ExperimentalRanks = false,
             TapTelemetry = TapTelemetry && TapDiagnostics,
             LeaderboardRankBy = RankingMetrics.Contains(LeaderboardRankBy) ? LeaderboardRankBy : "totalscore",
-            ShopFilter = ShopFilter ?? SongShopFilter.None,
+            GeneralFilter = general.IsValid ? general.Normalized() : general,
+            ShopFilter = (ShopFilter ?? SongShopFilter.None).Normalized(),
             PlayerScoreFilter = player,
             LegacyScoreBandFilter = null,
             ShopViewMode = Enum.IsDefined(ShopViewMode) ? ShopViewMode : ShopViewMode.Grid,
@@ -284,7 +290,8 @@ public sealed record AppSettings
         MetadataStars == other.MetadataStars && MetadataLastPlayed == other.MetadataLastPlayed &&
         MoreContrast == other.MoreContrast && LessTransparency == other.LessTransparency &&
         LeaderboardRankBy == other.LeaderboardRankBy &&
-        ShopFilter == other.ShopFilter && Equals(PlayerScoreFilter, other.PlayerScoreFilter) && ShopViewMode == other.ShopViewMode &&
+        GeneralFilter == other.GeneralFilter && ShopFilter == other.ShopFilter &&
+        Equals(PlayerScoreFilter, other.PlayerScoreFilter) && ShopViewMode == other.ShopViewMode &&
         LegacyScoreBandFilter == other.LegacyScoreBandFilter;
 
     /// <summary>Hash consistent with <see cref="Equals(AppSettings?)"/>.</summary>

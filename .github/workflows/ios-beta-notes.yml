@@ -1,0 +1,62 @@
+name: ios-beta-notes
+run-name: ios-beta-notes ${{ inputs.builds }}
+# Re-sets TestFlight "What to Test" for already uploaded builds (e.g. after the testflight-notes job of
+# ios-release-build failed). Each build's version tag comes from its fst-ios-build_<build> marker artifact; the
+# notes are regenerated with versioning.py testflight-notes from the current master tools.
+on:
+  workflow_dispatch:
+    inputs:
+      builds:
+        description: Comma-separated build numbers
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+jobs:
+  notes:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment: store-release
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Set What to Test
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          BUILDS: ${{ inputs.builds }}
+        run: |
+          set -euo pipefail
+          sec="$RUNNER_TEMP/fst-asc"
+          mkdir -p "$sec" && chmod 700 "$sec"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$sec/AuthKey.p8" && chmod 600 "$sec/AuthKey.p8"
+          export ASC_KEY_PATH="$sec/AuthKey.p8"
+          released=$(python3 tools/release/fst_release.py ios released-versions --json \
+            | python3 -c 'import json,sys; print(",".join(json.load(sys.stdin)["released"]))')
+          echo "### TestFlight notes" >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          for build in $(printf '%s' "$BUILDS" | tr ',' ' '); do
+            case "$build" in ''|*[!0-9]*) echo "::error::bad build '$build'"; status=1; continue ;; esac
+            dir="$RUNNER_TEMP/marker-$build"
+            if ! gh run download -R "$GITHUB_REPOSITORY" -n "fst-ios-build_$build" -D "$dir" >/dev/null 2>&1; then
+              echo "- $build: no marker artifact" >> "$GITHUB_STEP_SUMMARY"; status=1; continue
+            fi
+            tag=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version_tag"])' "$dir/build.json")
+            python3 tools/release/versioning.py testflight-notes --tag "$tag" --build "$build" --released "$released" \
+              --out "$RUNNER_TEMP/notes-$build.txt" >/dev/null
+            if result=$(python3 tools/release/fst_release.py ios beta-notes --build "$build" \
+                --notes-file "$RUNNER_TEMP/notes-$build.txt"); then
+              echo "- $build ($tag): \`$result\`" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- $build ($tag): failed \`$result\`" >> "$GITHUB_STEP_SUMMARY"; status=1
+            fi
+          done
+          rm -rf "$sec"
+          exit "$status"

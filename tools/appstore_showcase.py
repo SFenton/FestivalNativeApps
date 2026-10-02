@@ -1810,7 +1810,7 @@ def windows_settings(visible: tuple[str, ...] | None) -> dict:
 
 def windows_shot_commands(port: int, out_dir: Path, settings_dir: Path, wait: float,
                           size: tuple[int, int] = WIN_SIZE) -> list[list[str]]:
-    """Build the Windows capture argv list (run on ``sfenton-primary`` from a worktree).
+    """Build the Windows capture argv list (run on ``sfenton-music`` from a worktree).
 
     Plain pages use ``screenshot.ps1 -Launch``. Driven pages launch with
     ``launch.ps1``, run ``uiwin.py drive`` and capture with ``screenshot.ps1``.
@@ -1905,7 +1905,7 @@ def main(argv: list[str] | None = None) -> int:
     shoot_cmd.add_argument("--out-dir", required=True)
     shoot_cmd.add_argument("--device", default="promax", help="ios_sim.py alias; promax is the 6.9-inch size")
     shoot_cmd.add_argument("--wait", type=float, default=12.0)
-    shoot_win = sub.add_parser("shoot-windows", help="capture the Store pages via tools/windows (sfenton-primary)")
+    shoot_win = sub.add_parser("shoot-windows", help="capture the Store pages via tools/windows (sfenton-music)")
     shoot_win.add_argument("--out-dir", required=True)
     shoot_win.add_argument("--wait", type=float, default=12.0)
     for command in (serve, check, shoot_cmd, shoot_win):

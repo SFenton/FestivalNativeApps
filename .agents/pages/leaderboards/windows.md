@@ -31,6 +31,10 @@ Fixture screenshots: `windows/reports/screenshots/leaderboards-{wide,medium,comp
 
 `fst.leaderboards` (scroller), `fst.leaderboards.card.<instrument>` (card heading), `.view-all`, `.spotlight`, `.spotlight.loading`, `.spotlight.unranked`, `fst.leaderboards.band-card.<bandType>`, `.view-all`, `fst.leaderboards.bands-link`, `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId>` (or `…row.rank-<n>` without an ID), `fst.band-rankings.row.<teamKey>`.
 
+## Back navigation
+
+Back from a cached page keeps its scroll position: `Services/CachedPageScroll` pauses focus-follow scrolling while the page leaves (#82; see [Compete Windows notes](../compete/windows.md)).
+
 ## Open
 
 - No rank-history chart, band-combo filter or quick links (same as iPhone).

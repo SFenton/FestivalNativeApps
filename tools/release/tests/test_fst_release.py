@@ -389,6 +389,21 @@ class SubmitTests(TempHome):
         patch = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("PATCH", "/v1/appStoreVersions/V2")][0]
         self.assertEqual(patch["data"]["attributes"]["versionString"], "1.0.1")
 
+    def test_resubmits_the_open_submission_after_a_rejection(self):
+        queries = []
+        routes = self.routes(self.released, open_subs=[{"id": "OPEN"}])
+        inner = routes[("GET", "/v1/apps/APP1/reviewSubmissions")]
+        routes[("GET", "/v1/apps/APP1/reviewSubmissions")] = lambda q, b: (queries.append(q.get("filter[state]")), inner(q, b))[1]
+        fake, _c, result = self.run_submit(routes)
+        self.assertIn("READY_FOR_REVIEW,UNRESOLVED_ISSUES", queries)
+        self.assertEqual(result["submission_id"], "OPEN")
+
+    def test_whats_new_text_is_made_acceptable_to_asc(self):
+        fake, _c, _r = self.run_submit(self.routes(self.released, locs=[{"id": "L1"}]),
+                                       notes="• Replaced the ✕ with Close ✅ → done 🎸")
+        body = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("PATCH", "/v1/appStoreVersionLocalizations/L1")][0]
+        self.assertEqual(body["data"]["attributes"]["whatsNew"], "• Replaced the × with Close check -> done")
+
     def test_reuses_open_review_submission(self):
         fake, _c, result = self.run_submit(self.routes(self.released, open_subs=[{"id": "OPEN"}]))
         self.assertNotIn(("POST", "/v1/reviewSubmissions"), fake.writes())
@@ -505,6 +520,15 @@ class BetaNotesTests(TempHome):
         body = [b for m, p, _q, b, _h in fake.calls if m == "POST"][0]["data"]
         self.assertEqual(body["attributes"], {"locale": "en-US", "whatsNew": "What changed"})
         self.assertEqual(body["relationships"]["build"]["data"]["id"], "B9")
+
+    def test_beta_notes_are_made_acceptable_to_asc(self):
+        fake = FakeAsc(self.routes([build_doc("B9", "57", "2610.01.01")], []))
+        fr.beta_notes(fr.AscClient(self.creds(), transport=fake), "ios", "com.example", "57",
+                      "New since 2610.02.30:\n• The small ✕ is now a Close button.")
+        body = [b for m, p, _q, b, _h in fake.calls if m == "POST"][0]
+        self.assertEqual(body["data"]["attributes"]["whatsNew"],
+                         "New since 2610.02.30:\n• The small × is now a Close button.")
+        self.assertEqual(fr.asc_text("café “quotes” — fine"), "café “quotes” — fine")
 
     def test_patches_existing_localization(self):
         locs = [{"id": "BL0", "attributes": {"locale": "fr-FR"}}, {"id": "BL1", "attributes": {"locale": "en-US"}}]

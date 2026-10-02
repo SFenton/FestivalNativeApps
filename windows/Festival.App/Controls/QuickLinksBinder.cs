@@ -37,9 +37,6 @@ public static class QuickLinkAnchor
 /// </summary>
 public sealed class QuickLinksBinder
 {
-    /// <summary>Gap kept above a jump target (below the page header).</summary>
-    private const double LandingMargin = 8;
-
     private readonly ScrollViewer scroller;
     private readonly QuickLinksViewModel model;
     private readonly Dictionary<string, FrameworkElement> anchors = [];
@@ -119,7 +116,7 @@ public sealed class QuickLinksBinder
         model.ReportLayout(frames, scroller.ViewportHeight, isFinal);
     }
 
-    /// <summary>Scrolls a section to the top of the viewport.</summary>
+    /// <summary>Scrolls a section's top to <see cref="QuickLinks.LandingOffset"/> below the viewport top.</summary>
     /// <param name="id">Section.</param>
     private void Jump(string id)
     {
@@ -135,7 +132,7 @@ public sealed class QuickLinksBinder
             realized.StartBringIntoView(new BringIntoViewOptions
             {
                 VerticalAlignmentRatio = 0,
-                VerticalOffset = -LandingMargin,
+                VerticalOffset = -QuickLinks.LandingOffset,
                 // Operator batch 7.15: Quick Links teleport rather than animate the scroll.
                 AnimationDesired = false,
             });
@@ -160,7 +157,7 @@ public sealed class QuickLinksBinder
     private bool Aim(FrameworkElement element)
     {
         var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
-        var target = QuickLinks.JumpOffset(scroller.VerticalOffset, top, scroller.ScrollableHeight, LandingMargin);
+        var target = QuickLinks.JumpOffset(scroller.VerticalOffset, top, scroller.ScrollableHeight, QuickLinks.LandingOffset);
         if (QuickLinks.IsLanded(scroller.VerticalOffset, target)) return false;
         return scroller.ChangeView(null, target, null, disableAnimation: true);
     }

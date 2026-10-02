@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Relay git history and Claude Code lanes between this Mac and the Windows host.
 
-The Windows host (``sfenton-primary``) builds and runs the Android and Windows
+The Windows host (``sfenton-music``) builds and runs the Android and Windows
 apps and pushes to GitHub directly (see ``.agents/workflow/windows-relay.md``).
 This tool creates lane worktrees there, runs headless Claude Code lanes, and
 keeps ``collect``/``integrate`` as a bundle-based fallback if GitHub auth breaks.
@@ -32,7 +32,7 @@ from pathlib import Path
 
 # region Configuration
 
-HOST = "sfenton-primary"
+HOST = "sfenton-music"
 WIN_ROOT = "C:/Users/sfent/workspace"
 WIN_REPO = f"{WIN_ROOT}/FestivalNativeApps"
 WIN_LANES = f"{WIN_ROOT}/FestivalNativeApps-lanes"

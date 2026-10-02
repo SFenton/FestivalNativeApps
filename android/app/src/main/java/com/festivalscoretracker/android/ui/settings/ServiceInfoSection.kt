@@ -44,6 +44,7 @@ import com.festivalscoretracker.android.core.serviceinfo.ServiceInfoText
 import com.festivalscoretracker.android.core.serviceinfo.ServiceProcessState
 import com.festivalscoretracker.android.presentation.settings.ServiceInfoPoller
 import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -53,8 +54,9 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 /**
  * Settings "Service Info" card (web `SettingsServiceProgressCard`, Apple
  * `SettingsServiceInfoSection`): live leaderboard update state with the process state and a
- * spinner, the current phase with its progress bar, a public-read freeze notice, and the last
- * successful publication. Loading and failure show only the state row, like the web.
+ * spinner, the current phase with its progress bar and registered-band discovery line, and the
+ * last successful publication — the web card's rows only (no freeze row). Loading and failure
+ * show only the state row, like the web.
  *
  * Polls the keyless operational `/api/service-info` every 5 s only while this section is
  * composed **and** the app is at least STARTED (`repeatOnLifecycle`), so leaving Settings or
@@ -88,10 +90,6 @@ internal fun ServiceInfoSection(poller: ServiceInfoPoller) {
                 PhaseRow(title, rows)
             }
         }
-        rows.freezeNotice?.let { notice ->
-            HorizontalDivider(color = BrandTokens.glassBorder)
-            InfoRow(ServiceInfoText.FREEZE_TITLE, notice, "fst.settings.service-info.freeze")
-        }
         rows.lastPublished?.let { published ->
             HorizontalDivider(color = BrandTokens.glassBorder)
             InfoRow(ServiceInfoText.LAST_PUBLISHED_TITLE, published, "fst.settings.service-info.last-published")
@@ -103,44 +101,67 @@ internal fun ServiceInfoSection(poller: ServiceInfoPoller) {
 
 // region Rows
 
+/**
+ * "Leaderboard Service State" with its description and the trailing process state, like the
+ * other Settings value rows. At large font scales ([isLargeText]) the process state stacks under
+ * the label so the title is never squeezed into a narrow column beside "Updating" and the spinner.
+ */
 @Composable
 private fun StateRow(rows: ServiceInfoRows) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("fst.settings.service-info.state")
-            .semantics(mergeDescendants = true) {},
-    ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(ServiceInfoText.SERVICE_STATE_TITLE, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
-            Text(rows.stateDescription, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
+    val modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 56.dp)
+        .padding(horizontal = 16.dp, vertical = 8.dp)
+        .testTag("fst.settings.service-info.state")
+        .semantics(mergeDescendants = true) {}
+    if (isLargeText()) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            StateLabel(rows)
+            ProcessState(rows)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                rows.processState.label,
-                color = BrandTokens.textPrimary,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.testTag("fst.settings.service-info.process"),
-            )
-            if (rows.processState == ServiceProcessState.Loading || rows.processState == ServiceProcessState.Updating) {
-                FestivalLoading(null, Modifier.clearAndSetSemantics { }, size = 20.dp)
-            }
+    } else {
+        Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.weight(1f)) { StateLabel(rows) }
+            ProcessState(rows)
         }
     }
 }
 
 @Composable
+private fun StateLabel(rows: ServiceInfoRows) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(ServiceInfoText.SERVICE_STATE_TITLE, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
+        Text(rows.stateDescription, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun ProcessState(rows: ServiceInfoRows) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            rows.processState.label,
+            color = BrandTokens.textPrimary,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.testTag("fst.settings.service-info.process"),
+        )
+        if (rows.processState == ServiceProcessState.Loading || rows.processState == ServiceProcessState.Updating) {
+            FestivalLoading(null, Modifier.clearAndSetSemantics { }, size = 20.dp)
+        }
+    }
+}
+
+/**
+ * The web's phase row: title, the bar 4 dp below and the registered-band discovery line under
+ * it. Percent and units are spoken with the bar, not printed (the web card shows neither).
+ */
+@Composable
 private fun PhaseRow(title: String, rows: ServiceInfoRows) {
-    val spoken = listOfNotNull(rows.progressText, rows.unitsText).joinToString(". ")
+    val spoken = listOfNotNull(rows.progressText, rows.unitsText, rows.attemptText).joinToString(". ")
     Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag("fst.settings.service-info.phase")
             .clearAndSetSemantics {
                 contentDescription = title
@@ -151,8 +172,14 @@ private fun PhaseRow(title: String, rows: ServiceInfoRows) {
         Text(title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
         if (rows.showBar) {
             ProgressBar(rows.barPercent)
-            rows.progressText?.let { Caption(it) }
-            rows.unitsText?.let { Caption(it) }
+            rows.attemptText?.let { attempt ->
+                Text(
+                    attempt,
+                    color = BrandTokens.textSecondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.testTag("fst.settings.service-info.attempt"),
+                )
+            }
         }
     }
 }
@@ -189,10 +216,6 @@ private fun ProgressBar(percent: Double?) {
     }
 }
 
-@Composable
-private fun Caption(text: String) {
-    Text(text, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-}
 
 @Composable
 private fun InfoRow(title: String, detail: String, tag: String) {

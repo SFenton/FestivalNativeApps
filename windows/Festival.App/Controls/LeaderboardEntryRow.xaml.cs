@@ -181,8 +181,8 @@ public sealed partial class LeaderboardEntryRow : UserControl
     {
         if (Row is not ILeaderboardEntryRow row) return;
         var section = row.Section ?? LeaderboardColumns.Measure(new[] { row });
-        var plan = LeaderboardColumnLayout.Fit(section, width, TextScaleLayout.Factor);
         var score = row as ILeaderboardScoreRow;
+        var plan = LeaderboardColumnLayout.Fit(section, width, TextScaleLayout.Factor, score?.PinsSeason == true);
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.MetaWidth;

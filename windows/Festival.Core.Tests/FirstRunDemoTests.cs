@@ -15,10 +15,16 @@ public class FirstRunDemoTests
     }
 
     [Fact]
-    public void Timing_MatchesThePwa()
+    public void Timing_MatchesTheWebSwapConstants()
     {
-        Assert.Equal(TimeSpan.FromSeconds(6), FirstRunDemos.Cycle);
+        Assert.Equal(TimeSpan.FromSeconds(5), FirstRunDemos.Cycle);
+        Assert.Equal(TimeSpan.FromSeconds(5), FirstRunDemoTiming.Interval);
         Assert.Equal(TimeSpan.FromMilliseconds(400), FirstRunDemos.Fade);
+        Assert.Equal(TimeSpan.FromMilliseconds(400), FirstRunDemoTiming.FadeOut);
+        Assert.Equal(TimeSpan.FromMilliseconds(400), FirstRunDemoTiming.FadeIn);
+        Assert.Equal(TimeSpan.FromMilliseconds(2500), FirstRunDemoTiming.BarSelect);
+        Assert.Equal(TimeSpan.FromMilliseconds(300), FirstRunDemoTiming.BarSelectFade);
+        Assert.Equal(TimeSpan.FromMilliseconds(125), FirstRunDemoTiming.Stagger);
     }
 
     [Fact]
@@ -63,22 +69,130 @@ public class FirstRunDemoTests
     }
 
     [Theory]
-    [InlineData(0, 3, 5, 0, 3)]
-    [InlineData(1, 3, 5, 1, 4)]
-    [InlineData(2, 3, 5, 2, 0)]
-    [InlineData(3, 3, 5, 0, 1)]
-    [InlineData(0, 0, 5, 0, 0)]
-    [InlineData(4, 3, 0, 0, 0)]
-    public void Swap_RotatesRowsAndWalksThePool(int step, int rows, int pool, int row, int index) =>
-        Assert.Equal((row, index), FirstRunDemos.Swap(step, rows, pool));
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    [InlineData(3, 1)]
+    [InlineData(4, 2)]
+    [InlineData(6, 2)]
+    [InlineData(7, 3)]
+    [InlineData(20, 3)]
+    public void SwapCount_MatchesWebTable(int rows, int expected) =>
+        Assert.Equal(expected, FirstRunDemoRotation.SwapCount(rows));
 
     [Fact]
-    public void SampleData_IsBounded()
+    public void SwapIndices_AreDistinctInRangeNonRepeatingAndDeterministic()
     {
-        Assert.Equal(5, FirstRunDemos.Players.Count);
-        Assert.All(FirstRunDemos.Bars, b => Assert.InRange(b, 0, 1));
-        Assert.NotEmpty(FirstRunDemos.MetadataPills);
-        Assert.NotEmpty(FirstRunDemos.FilterChips);
-        Assert.Equal(6, FirstRunDemos.Tiles.Count);
+        var first = FirstRunDemoRotation.SwapIndices(3, 6);
+        var repeat = FirstRunDemoRotation.SwapIndices(3, 6);
+        Assert.Equal(repeat, first);
+        Assert.Equal(2, first.Count);
+        Assert.Equal(first.Count, first.Distinct().Count());
+        Assert.All(first, i => Assert.InRange(i, 0, 5));
+
+        var next = FirstRunDemoRotation.SwapIndices(4, 6, first.ToHashSet());
+        Assert.Equal(2, next.Count);
+        Assert.NotEqual(first, next);
+        Assert.Equal(next.Count, next.Distinct().Count());
+        Assert.All(next, i => Assert.InRange(i, 0, 5));
+    }
+
+    [Fact]
+    public void RowRotation_WalksPoolWithoutDuplicateVisibleIds()
+    {
+        var pool = Enumerable.Range(0, 6).Select(i => new FirstRunDemoSong($"s{i}", new FirstRunDemoRow($"Song {i}", "Epic Games"), null)).ToList();
+        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(pool, 3);
+        Assert.Equal(["s0", "s1", "s2"], rotation.Rows.Select(r => r.Id));
+        var first = rotation.NextSwap();
+        rotation.Replace(first);
+        Assert.Equal(3, rotation.Rows.Select(r => r.Id).Distinct().Count());
+        Assert.Contains("s3", rotation.Rows.Select(r => r.Id));
+        var seen = rotation.Rows.Select(r => r.Id).ToHashSet();
+        for (var i = 0; i < 6; i++)
+        {
+            var indices = rotation.NextSwap();
+            rotation.Replace(indices);
+            Assert.Equal(rotation.Rows.Count, rotation.Rows.Select(r => r.Id).Distinct().Count());
+            foreach (var id in rotation.Rows.Select(r => r.Id)) seen.Add(id);
+        }
+        Assert.Subset(seen, pool.Select(p => p.Id).ToHashSet());
+        Assert.Contains("s5", seen);
+    }
+
+    [Fact]
+    public void RowRotation_DoesNotRotateWhenPoolCannotReplaceVisibleRows()
+    {
+        var pool = Enumerable.Range(0, 3).Select(i => new FirstRunDemoSong($"s{i}", new FirstRunDemoRow($"Song {i}", "Epic Games"), null)).ToList();
+        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(pool, 3);
+        Assert.False(rotation.CanRotate);
+        Assert.Empty(rotation.NextSwap());
+    }
+
+    [Fact]
+    public void RowRotation_HoldsPlaceholdersStill()
+    {
+        Assert.False(new FirstRunRowRotation<FirstRunDemoSong>(FirstRunDemos.SongPool(null), FirstRunDemos.RowCount).CanRotate);
+        var shortPool = FirstRunDemos.SongPool([new Song { SongId = "b", Title = "B", Artist = "Other", AlbumArt = "b.jpg" }]);
+        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(shortPool, FirstRunDemos.RowCount);
+        Assert.False(rotation.CanRotate);
+        Assert.Empty(rotation.NextSwap());
+    }
+
+    [Fact]
+    public void WindowRotation_WrapsByVisibleCount()
+    {
+        var rotation = new FirstRunWindowRotation<int>([1, 2, 3, 4, 5, 6], 3);
+        Assert.Equal([1, 2, 3], rotation.Rows);
+        rotation.Advance();
+        Assert.Equal([4, 5, 6], rotation.Rows);
+        rotation.Advance();
+        Assert.Equal([1, 2, 3], rotation.Rows);
+        var wrapped = new FirstRunWindowRotation<int>([1, 2, 3, 4, 5], 3);
+        wrapped.Advance();
+        Assert.Equal([4, 5, 1], wrapped.Rows);
+    }
+
+    [Fact]
+    public void ScorePattern_UsesWebInt32Utf16Hash()
+    {
+        Assert.Equal(65, FirstRunDemoScorePattern.Hash("A"));
+        Assert.Equal(67, FirstRunDemoScorePattern.Hash("C"));
+        Assert.Equal([FirstRunDemoScorePattern.State.Scored, FirstRunDemoScorePattern.State.NoScore, FirstRunDemoScorePattern.State.NoScore, FirstRunDemoScorePattern.State.Scored],
+            FirstRunDemoScorePattern.States("A", 4));
+        Assert.Equal([FirstRunDemoScorePattern.State.FullCombo, FirstRunDemoScorePattern.State.NoScore, FirstRunDemoScorePattern.State.NoScore, FirstRunDemoScorePattern.State.Scored],
+            FirstRunDemoScorePattern.States("C", 4));
+    }
+
+    [Fact]
+    public void RotationMap_ContainsExactlyTheWebRotatingSlides()
+    {
+        var expected = new[]
+        {
+            "songs-song-list", "songs-icons", "songs-metadata", "statistics-top-songs", "songinfo-bar-select",
+            "suggestions-category-card", "leaderboards-experimental-metrics", "compete-hub", "compete-rivals",
+            "rivals-overview", "rivals-instruments", "rivals-detail",
+        }.Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(expected, FirstRunDemos.RotatingSlideIds);
+        Assert.All(expected, id => Assert.True(FirstRunDemos.Rotates(id), id));
+        Assert.False(FirstRunDemos.Rotates("songs-sort"));
+        Assert.False(FirstRunDemos.Rotates("songs-filter"));
+        Assert.False(FirstRunDemos.Rotates("shop-overview"));
+        Assert.False(FirstRunDemos.Rotates("shop-highlighting"));
+    }
+
+    [Fact]
+    public void WebDataPools_AreAvailable()
+    {
+        Assert.Equal(10, FirstRunDemos.Rankings.Count);
+        Assert.Equal("GoldStreak", FirstRunDemos.Rankings[0].DisplayName);
+        Assert.Equal("You", FirstRunDemos.PlayerRanking.DisplayName);
+        Assert.Equal(10, FirstRunDemos.MetaData.Count);
+        Assert.Equal(6, FirstRunDemos.MetadataLayouts.Count);
+        Assert.Equal([1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9], FirstRunDemos.TopSongPercentiles);
+        Assert.Equal(4, FirstRunDemos.SuggestionTemplates.Count);
+        Assert.Equal(4, FirstRunDemos.ExperimentalMetrics.Count);
+        Assert.Equal(6, FirstRunDemos.RivalsAbove.Count);
+        Assert.Equal(6, FirstRunDemos.RivalsBelow.Count);
+        Assert.Equal(3, FirstRunDemos.InstrumentRivals.Count);
+        Assert.Equal(6, FirstRunDemos.RivalDetailCategories.Count);
     }
 }

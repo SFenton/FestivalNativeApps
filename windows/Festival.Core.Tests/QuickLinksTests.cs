@@ -81,6 +81,34 @@ public class QuickLinksTests
     }
 
     [Fact]
+    public void LandingTargetPutsSectionsOnTheLandingLine()
+    {
+        Assert.Equal(32d, QuickLinks.LandingOffset);
+        Assert.Equal(QuickLinks.LandingOffset, QuickLinks.DefaultActivationOffset);
+        Assert.Equal(468d, QuickLinks.LandingTarget(500, 2000));
+        Assert.Equal(0d, QuickLinks.LandingTarget(20, 2000));
+        Assert.Equal(300d, QuickLinks.LandingTarget(500, 300));
+        Assert.Equal(0d, QuickLinks.LandingTarget(500, -1));
+        Assert.Equal(492d, QuickLinks.LandingTarget(500, 2000, 8));
+        // The binder's re-aiming jump (#46) lands on the same 32 epx line by default.
+        Assert.Equal(1268d, QuickLinks.JumpOffset(300, 1000, 5000));
+    }
+
+    [Fact]
+    public void JumpLandedOnTheLineIsActiveAndReleasesOnDrift()
+    {
+        var line = QuickLinks.LandingOffset;
+        var landed = Frames(("b", line - 300, 300), ("c", line, 300), ("d", line + 300, 300));
+        Assert.Equal("c", QuickLinks.NaturalActive(Sections, landed));
+        var tracker = new QuickLinkTracker();
+        tracker.BeginJump("c");
+        tracker.Settle(Sections, landed, 800);
+        Assert.Equal((QuickLinkPhase.Owned, "c", false), (tracker.Phase, tracker.ActiveId, tracker.LockWhileVisible));
+        tracker.Update(Sections, Frames(("c", line - 200, 300), ("d", line + 100, 300)), 800);
+        Assert.Equal(QuickLinkPhase.Idle, tracker.Phase);
+    }
+
+    [Fact]
     public void NaturalActiveDefaultsToFirstAndSkipsUnbuilt()
     {
         Assert.Null(QuickLinks.NaturalActive([], Frames()));

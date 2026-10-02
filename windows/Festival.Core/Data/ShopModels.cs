@@ -127,6 +127,28 @@ public static class ShopPresentationPolicy
         highlight == ShopHighlight.New ? "New" : "Leaving Tomorrow";
 }
 
+/// <summary>
+/// Item Shop page filter (issue #19): three switches that each select one disjoint group of offers. <b>Available</b> is
+/// the offers that are neither New nor Leaving Tomorrow. An offer shows when it matches any switch that is on; with every
+/// switch off, all offers show. Uses the wire flags, so it still works while Shop highlighting is off.
+/// </summary>
+/// <param name="New">Show New offers.</param>
+/// <param name="Available">Show offers that are neither New nor Leaving Tomorrow.</param>
+/// <param name="LeavingTomorrow">Show offers leaving tomorrow.</param>
+public sealed record ShopOfferFilter(bool New = false, bool Available = false, bool LeavingTomorrow = false)
+{
+    /// <summary>Whether any switch is on (gold Filter button).</summary>
+    public bool IsActive => New || Available || LeavingTomorrow;
+
+    /// <summary>Whether an offer passes the filter.</summary>
+    /// <param name="offer">Validated offer.</param>
+    /// <returns><see langword="true"/> when no switch is on or the offer is in a selected group.</returns>
+    public bool Matches(ShopSong offer) => !IsActive ||
+        (New && offer.IsNew) ||
+        (LeavingTomorrow && offer.LeavingTomorrow) ||
+        (Available && !offer.IsNew && !offer.LeavingTomorrow);
+}
+
 /// <summary>Catalogue rows and their related data (Shop, player scores) must share one observed publication.</summary>
 public static class SongRelatedPublicationPolicy
 {

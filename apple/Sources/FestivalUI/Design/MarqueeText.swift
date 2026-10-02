@@ -12,18 +12,18 @@ import SwiftUI
 /// seamlessly and repeats while visible.
 ///
 /// **Layout.** Sized like a plain one-line `Text` (never greedy), so swapping a
-/// `Text` for a `MarqueeText` keeps the row layout. The width comes from a hidden,
-/// truncating copy of the text, never from the scrolling track: the track is drawn
-/// in an overlay, so its full width can never widen the row or feed back into the
-/// overflow check. (The
-/// previous version measured the container around the track itself, so starting
+/// `Text` for a `MarqueeText` keeps the row layout. The width comes from a
+/// truncating copy of the text (the visible text while static, transparent while
+/// scrolling), never from the scrolling track: the track is drawn in an overlay,
+/// so its full width can never widen the row or feed back into the overflow
+/// check. (The previous version measured the container around the track itself, so starting
 /// to scroll made the container "fit" again and the view fell back to the static,
 /// truncated form: it never visibly scrolled.)
 ///
 /// **Cost.** The scroll is a `phaseAnimator` over an `offset`, so SwiftUI only
 /// interpolates one animatable value per frame; no `TimelineView` re-runs a body
 /// per frame, and nothing animates while the text fits, is off screen, the scene
-/// is inactive, or Reduce Motion (system or in-app) is on. Those fall back to
+/// is inactive or its window hidden, or Reduce Motion (system or in-app) is on. Those fall back to
 /// tail truncation, like the web's `prefers-reduced-motion` ellipsis.
 ///
 /// Also static under `DebugAnimationOverride.stillBackground`
@@ -47,6 +47,7 @@ public struct MarqueeText: View {
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
     @Environment(\.marqueeSyncDistance) private var syncDistance
 
     /// Create a marquee text view.
@@ -73,23 +74,28 @@ public struct MarqueeText: View {
 
     private var scrolls: Bool {
         overflows && !reduceMotion && !appReduceMotion && isOnScreen
-            && scenePhase == .active && !DebugAnimationOverride.stillBackground
+            && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible) && !DebugAnimationOverride.stillBackground
     }
 
     public var body: some View {
-        // Sizing base: one line, truncating, sized exactly like a plain `Text`
-        // (its natural width, or the offered width when that is narrower). Hidden;
-        // the visible form is drawn in the overlay so it never changes this size.
+        // Sizing base: one line, tail-truncating, sized exactly like a plain `Text`
+        // (its natural width, or the offered width when that is narrower). While
+        // static it is also the visible text, so a static row lays out one text
+        // fewer; while scrolling it turns transparent (keeping its size) and the
+        // track is drawn in the overlay, so the track never changes this size.
         Text(text)
             .marqueeFont(font)
             .lineLimit(1)
-            .hidden()
+            .truncationMode(.tail)
+            .opacity(scrolls ? 0 : 1)
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
             } action: { width in
                 availableWidth = width
             }
-            .overlay(alignment: .leading) { visibleText }
+            .overlay(alignment: .leading) {
+                if scrolls { scrollingTrack }
+            }
             .clipped()
             .background(alignment: .leading) {
                 // Natural (untruncated) width; `.background` never enlarges the view.
@@ -110,30 +116,23 @@ public struct MarqueeText: View {
             .accessibilityLabel(text)
     }
 
-    /// Static truncated text, or the scrolling two-copy track.
-    @ViewBuilder private var visibleText: some View {
-        if scrolls {
-            let distance = MarqueeTiming.distance(
-                textWidth: textWidth, gap: gap, syncDistance: syncDistance
-            )
-            HStack(spacing: distance - textWidth) {
-                Text(text).marqueeFont(font)
-                Text(text).marqueeFont(font)
-            }
-            .fixedSize()
-            .phaseAnimator(MarqueePhase.allCases) { track, phase in
-                track.offset(x: phase == .scrolled ? -distance : 0)
-            } animation: { phase in
-                MarqueeTiming.animation(to: phase, cycleDuration: cycleDuration)
-            }
-            // A new distance or cycle restarts the loop cleanly from the start.
-            .id(MarqueeLoopKey(distance: distance, cycleDuration: cycleDuration))
-        } else {
-            Text(text)
-                .marqueeFont(font)
-                .lineLimit(1)
-                .truncationMode(.tail)
+    /// The scrolling two-copy track, shown only while ``scrolls`` is true.
+    private var scrollingTrack: some View {
+        let distance = MarqueeTiming.distance(
+            textWidth: textWidth, gap: gap, syncDistance: syncDistance
+        )
+        return HStack(spacing: distance - textWidth) {
+            Text(text).marqueeFont(font)
+            Text(text).marqueeFont(font)
         }
+        .fixedSize()
+        .phaseAnimator(MarqueePhase.allCases) { track, phase in
+            track.offset(x: phase == .scrolled ? -distance : 0)
+        } animation: { phase in
+            MarqueeTiming.animation(to: phase, cycleDuration: cycleDuration)
+        }
+        // A new distance or cycle restarts the loop cleanly from the start.
+        .id(MarqueeLoopKey(distance: distance, cycleDuration: cycleDuration))
     }
 }
 

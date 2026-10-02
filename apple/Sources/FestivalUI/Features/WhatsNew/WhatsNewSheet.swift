@@ -18,8 +18,9 @@ import FestivalDesign
 struct WhatsNewSheet: View {
     /// App version shown after the title, like the web's `What's New · 0.1.133`.
     let version: String
-    /// Entries to render (already filtered by `Changelog.displayEntries`).
-    let entries: [ChangelogEntry]
+    /// Entries to render (already filtered by `Changelog.displayEntries`); nil while the install
+    /// channel is still being detected, which shows a spinner rather than the wrong notes.
+    let entries: [ChangelogEntry]?
     /// Called once when the user closes the sheet via Dismiss or Close.
     let onDismiss: () -> Void
 
@@ -28,16 +29,23 @@ struct WhatsNewSheet: View {
             Self.title(version: version), closeIdentifier: "fst.whats-new.close", onClose: onDismiss
         ) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                        ForEach(entry.sections) { section in
-                            WhatsNewSectionView(section: section)
+                if let entries {
+                    VStack(alignment: .leading, spacing: 28) {
+                        ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+                            WhatsNewEntryView(entry: entry)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                } else {
+                    ProgressView()
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 48)
+                        .accessibilityLabel("Getting notes for this install")
+                        .accessibilityIdentifier("fst.whats-new.pending")
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
             }
             .modifier(PullDownToDismiss(action: onDismiss))
             .safeAreaInset(edge: .bottom, spacing: 0) { dismissBar }
@@ -132,18 +140,65 @@ struct PullDownToDismiss: ViewModifier {
     }
 }
 
+// MARK: - Channel-aware sheet
+
+/// ``WhatsNewSheet`` for this install: tester notes on TestFlight/development installs, release
+/// notes on App Store installs, and a spinner while ``AppDistributionResolver`` is still pending
+/// (never the App Store notes by default). Used by the launch presentation, Settings' replay
+/// and the Mac command; a late StoreKit answer re-renders the list.
+struct WhatsNewChannelSheet: View {
+    /// App version shown after the title.
+    let version: String
+    /// Called once when the user closes the sheet.
+    let onDismiss: () -> Void
+
+    private var resolver: AppDistributionResolver { .shared }
+
+    var body: some View {
+        WhatsNewSheet(
+            version: version,
+            entries: resolver.channel.map { Changelog.displayEntries(distribution: $0) },
+            onDismiss: onDismiss
+        )
+        .task { _ = await resolver.current() }
+    }
+}
+
+// MARK: - Entry
+
+/// One version's (or the tester list's) heading followed by its category sections.
+private struct WhatsNewEntryView: View {
+    let entry: ChangelogEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if let heading = entry.displayHeading {
+                Text(heading)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(FestivalText.primary)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            ForEach(entry.sections) { section in
+                WhatsNewSectionView(section: section)
+            }
+        }
+    }
+}
+
 // MARK: - Section
 
-/// One Title Case heading with its bullet list.
+/// One Title Case category heading (none for an unheaded list) with its bullet list.
 private struct WhatsNewSectionView: View {
     let section: ChangelogSection
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(section.displayTitle)
-                .font(.headline)
-                .foregroundStyle(FestivalText.primary)
-                .accessibilityAddTraits(.isHeader)
+            if !section.title.isEmpty {
+                Text(section.displayTitle)
+                    .font(.headline)
+                    .foregroundStyle(FestivalText.primary)
+                    .accessibilityAddTraits(.isHeader)
+            }
             ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("•")

@@ -226,7 +226,7 @@ struct SuggestionsScreen: View {
                 settledBatchGeneration = generation
             }
         }
-        .refreshable { viewModel.startNewMix(); await viewModel.ensureLoaded(session: session) }
+        .festivalRefreshable { viewModel.startNewMix(); await viewModel.ensureLoaded(session: session) }
         .accessibilityIdentifier("fst.suggestions.list")
     }
 

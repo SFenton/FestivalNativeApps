@@ -96,11 +96,13 @@ private val RatingBlue = Color(0xFF4C7DFF)
  * `rankWidth` / reserved score width; operator batch 7, 7.9).
  *
  * @property rank Rank column.
- * @property songs "X / Y" column.
+ * @property songs "X / Y" column (0 when hidden).
  * @property rating Rating column.
+ * @property showSongs Whether one-line rows draw the songs column; it yields to names on
+ *   narrow Compete cards (issue #38) and stays in the row's spoken description.
  */
 @Immutable
-data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp)
+data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp, val showSongs: Boolean = true)
 
 /** Column widths for the rows below, or null for intrinsic widths. */
 val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
@@ -112,24 +114,39 @@ val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
  * @param ranks Rank labels.
  * @param songs Songs labels.
  * @param ratings Rating labels.
+ * @param names Row names; when non-empty the songs column shows only if every name fits
+ *   beside it in [rowWidth] (issue #38). Empty keeps the songs column at any width.
+ * @param rowWidth Row width in dp (NaN before the first layout); used only with [names].
  * @return Column widths.
  */
 @Composable
-fun rememberRankingColumns(ranks: List<String>, songs: List<String>, ratings: List<String>): RankingColumns {
+fun rememberRankingColumns(
+    ranks: List<String>,
+    songs: List<String>,
+    ratings: List<String>,
+    names: List<String> = emptyList(),
+    rowWidth: Float = Float.NaN,
+): RankingColumns {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val typography = MaterialTheme.typography
-    return remember(ranks, songs, ratings, density, typography) {
+    val section = remember(ranks, songs, ratings, names, density, typography) {
         fun widest(texts: List<String>, style: TextStyle): Float = with(density) {
             val px = texts.maxOfOrNull { measurer.measure(it, style.copy(fontWeight = FontWeight.Bold), maxLines = 1).size.width } ?: return@with 0f
             (px.toDp() + TEXT_SLACK).value
         }
-        // The shared section fitter (issue #37): rankings keep every column at any width, so no row width is needed.
-        val plan = LeaderboardColumnLayout.fit(
-            LeaderboardSection(LeaderboardRowKind.Ranking, widest(ranks, typography.bodyMedium), widest(songs, typography.bodyMedium), widest(ratings, typography.bodyLarge)),
-            rowWidth = Float.NaN,
+        LeaderboardSection(
+            LeaderboardRowKind.Ranking,
+            rankWidth = widest(ranks, typography.bodyMedium),
+            metaWidth = widest(songs, typography.bodyMedium),
+            valueWidth = widest(ratings, typography.bodyLarge),
+            nameWidth = widest(names, typography.bodyLarge),
         )
-        RankingColumns(rank = plan.rankWidth.dp, songs = plan.metaWidth.dp, rating = plan.valueWidth.dp)
+    }
+    // The shared section fitter (issues #37, #38): without names, rankings keep every column at any width.
+    return remember(section, rowWidth) {
+        val plan = LeaderboardColumnLayout.fit(section, rowWidth)
+        RankingColumns(rank = plan.rankWidth.dp, songs = plan.metaWidth.dp, rating = plan.valueWidth.dp, showSongs = plan.showMeta)
     }
 }
 
@@ -138,13 +155,17 @@ fun rememberRankingColumns(ranks: List<String>, songs: List<String>, ratings: Li
  *
  * @param entries Rows sharing the columns (page rows plus the selected player's pinned row).
  * @param metric Rank By metric.
+ * @param fitNamesTo Row width in dp (NaN before the first layout) to hide the songs column
+ *   in when it would truncate a name (Compete, issue #38); null keeps it at any width.
  * @return Column widths.
  */
 @Composable
-fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMetric): RankingColumns = rememberRankingColumns(
+fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMetric, fitNamesTo: Float? = null): RankingColumns = rememberRankingColumns(
     entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
     entries.map { it.songsLabel(metric) },
     entries.map { RankingFormatting.rating(it.ratingValue(metric), metric) },
+    names = if (fitNamesTo != null) entries.map { it.name } else emptyList(),
+    rowWidth = fitNamesTo ?: Float.NaN,
 )
 
 /**
@@ -225,15 +246,18 @@ private fun RankingRowLayout(
             modifier = columns?.let { Modifier.width(it.rank) } ?: Modifier.widthIn(min = 44.dp),
         )
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(
-            songs,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = weight,
-            color = BrandTokens.textSecondary,
-            maxLines = 1,
-            textAlign = TextAlign.End,
-            modifier = columns?.let { Modifier.width(it.songs) } ?: Modifier,
-        )
+        // Hidden for the whole section when it would truncate a name (issue #38); still spoken in `description`.
+        if (columns?.showSongs != false) {
+            Text(
+                songs,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = weight,
+                color = BrandTokens.textSecondary,
+                maxLines = 1,
+                textAlign = TextAlign.End,
+                modifier = columns?.let { Modifier.width(it.songs) } ?: Modifier,
+            )
+        }
         Column(horizontalAlignment = Alignment.End, modifier = columns?.let { Modifier.widthIn(min = it.rating) } ?: Modifier) {
             Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue, maxLines = 1)
             if (bayesian != null) {
