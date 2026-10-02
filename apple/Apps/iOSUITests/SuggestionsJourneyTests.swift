@@ -169,6 +169,55 @@ final class SuggestionsJourneyTests: XCTestCase {
         app.buttons["fst.suggestions.filter.done"].tap()
     }
 
+    /// Issue #13: Filter and global search are navigation-bar items, so they stay in the
+    /// bar row, hittable (and so reachable by VoiceOver), at the top and while scrolled;
+    /// the large title collapses under them and returns at the top.
+    ///
+    /// Scrolling needs a populated mix: pass a richer catalogue as
+    /// `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL` (`mock_service.py --large-catalogue`);
+    /// the two-song default checks only the top state.
+    ///
+    /// - Throws: A control that leaves the bar or stops being hittable.
+    @MainActor
+    func testSuggestionsFilterAndSearchStayInTheBarWhileScrolled() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        if let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"] {
+            app.launchEnvironment["FST_API_BASE_URL"] = base
+        }
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launch()
+        let settled = awaitSuggestionsSettled(in: app)
+        let bar = app.navigationBars.firstMatch
+        let controls = ["fst.suggestions.filter-button", "fst.global-search.open"].map { app.buttons[$0] }
+        func assertInBar(_ state: String) {
+            for control in controls {
+                XCTAssertTrue(control.waitForExistence(timeout: 10), "\(control) missing \(state)")
+                XCTAssertTrue(control.isHittable, "\(control) not hittable \(state)")
+                XCTAssertLessThanOrEqual(control.frame.maxY, bar.frame.maxY + 1, "\(control) left the bar \(state)")
+            }
+        }
+        assertInBar("at the top")
+        let expanded = bar.frame.height
+        guard settled.identifier == "fst.suggestions.list" else {
+            throw XCTSkip("Fixture mix produced no categories; nothing to scroll")
+        }
+        settled.swipeUp()
+        settled.swipeUp()
+        let collapsed = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in bar.frame.height < expanded - 20 }, object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [collapsed], timeout: 5), .completed, "Large title did not collapse")
+        assertInBar("while scrolled")
+        record(app, name: "suggestions-tools-in-bar-scrolled")
+        for _ in 0..<4 { settled.swipeDown() }
+        let restored = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in abs(bar.frame.height - expanded) < 2 }, object: nil
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed, "Large title did not return")
+        assertInBar("back at the top")
+    }
+
     /// Prove incremental loading when the fixture mix exceeds one page, otherwise skip
     /// rather than fail a fixture limitation that a richer catalogue would remove.
     ///
