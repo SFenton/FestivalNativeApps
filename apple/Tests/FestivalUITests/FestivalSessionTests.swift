@@ -181,6 +181,7 @@ func sessionTracksHeaderlessPublicationWithoutInventingProvenance(advances: Bool
     )
     _ = try await session.catalog()
     #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
+    #expect(session.cachedArtwork(raw: "/__fixture__/art/pulse.png", maxPixels: 56) == nil)
     let first = try await session.preparedArtwork(
         raw: "/__fixture__/art/pulse.png", maxPixels: 56
     )
@@ -190,9 +191,16 @@ func sessionTracksHeaderlessPublicationWithoutInventingProvenance(advances: Bool
     #expect(first.image.width == 56)
     #expect(!first.fromMemory && cached.fromMemory)
     #expect(await transport.requestCount() == 1)
+    // A rebuilt row reads the decoded cover synchronously, only at the decoded size.
+    let hit = session.cachedArtwork(raw: "/__fixture__/art/pulse.png", maxPixels: 56)
+    #expect(hit?.width == 56)
+    #expect(session.cachedArtwork(raw: "/__fixture__/art/pulse.png", maxPixels: 132) == nil)
+    #expect(session.cachedArtwork(raw: "/__fixture__/art/pulse.png", maxPixels: 0) == nil)
+    #expect(await transport.requestCount() == 1)
 
     _ = try await session.refreshPublication()
     #expect(session.artworkPaths.isEmpty)
+    #expect(session.cachedArtwork(raw: "/__fixture__/art/pulse.png", maxPixels: 56) == nil)
     let current = try await session.preparedArtwork(
         raw: "/__fixture__/art/pulse.png", maxPixels: 56
     )
