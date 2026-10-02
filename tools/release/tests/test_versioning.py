@@ -339,6 +339,19 @@ class GitFlowTests(unittest.TestCase):
                                            "Release-Note-Tester: none"),
                          ({"*": ["A note."]}, {"android": ["T."]}))
 
+    def test_pending_notes_cli(self):
+        self._history()
+        self.repo.commit("x\n\nRelease-Note-Tester: Fixed the new Rivals refresh.", "apple/Sources/FestivalUI/R2.swift")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = v.main(["--repo", str(self.repo.root), "pending-notes", "--platform", "ios",
+                           "--released", "2610.01.03"])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(buf.getvalue()), {
+            "platform": "ios", "release": "2610.01.03", "notes": ["Rivals refresh correctly."],
+            "tester": ["Fixed the new Rivals refresh."]})
+        self.assertIsNone(v.pending_notes(self.repo.git, "ios")["release"])
+
     def test_category_bullets(self):
         notes = ["Spinners fade in.", "Songs: Rows fade in.", "Settings: CHOpt inline.", "Songs: Index rail.",
                  "General: Faster launch."]

@@ -37,6 +37,7 @@ Commands (JSON on stdout, standard library only, Python 3.9+)::
     versioning.py whats-new --tag ios/v2610.03.01 --released 2610.01.01,2610.02.01 --out WhatsNew.json
                             [--store-notes-out notes.txt]
     versioning.py check-notes --base <sha> --head <sha> [--body-file pr.md]
+    versioning.py pending-notes --platform ios [--released 2610.01.01] [--head HEAD]
     versioning.py testflight-notes --tag ios/v2610.03.01 --build 57 [--rebuild-reason r]
                                    [--released 2610.01.01] --out notes.txt
 
@@ -808,6 +809,24 @@ def testflight_notes(git: Git, platform: str, version: str, build: str,
     return text[:TESTFLIGHT_LIMIT]
 
 
+def pending_notes(git: Git, platform: str, head: str = "HEAD", released: Iterable[str] = ()) -> Dict[str, object]:
+    """Notes users will get that the latest release lacks: what a change may ``Release-Note-Replaces``.
+
+    The release is the newest of ``released`` and ``<platform>/released/<v>`` tags that has a version tag
+    (``None``: everything so far). Returns ``{platform, release, notes, tester}``; ``tester`` adds the
+    ``Release-Note-Tester`` notes of the range.
+    """
+    tags = dict(git.version_tags(platform))
+    shipped = sorted({v for v in list(released) + git.released_from_tags(platform) if is_version(v) and v in tags},
+                     key=parse_version)
+    base = tags[shipped[-1]] if shipped else None
+    notes = user_notes(git, platform, base, head)
+    everything = user_notes(git, platform, base, head, tester=True)
+    keys = {_note_key(n) for n in notes}
+    return {"platform": platform, "release": shipped[-1] if shipped else None, "notes": notes,
+            "tester": [n for n in everything if _note_key(n) not in keys]}
+
+
 def notes_check(git: Git, base: str, head: str, body: str = "") -> Dict[str, object]:
     """PR gate: a change touching any platform's app paths must carry a ``Release-Note`` trailer.
 
@@ -960,6 +979,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--base", required=True)
     p.add_argument("--head", required=True)
     p.add_argument("--body-file")
+    p = sub.add_parser("pending-notes", help="notes since the latest release, for Release-Note-Replaces")
+    p.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
+    p.add_argument("--head", default="HEAD")
+    p.add_argument("--released", default="", help="comma-separated released versions (plus release tags)")
     p = sub.add_parser("testflight-notes")
     p.add_argument("--tag", required=True)
     p.add_argument("--build", required=True)
@@ -1014,6 +1037,9 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
                       % ", ".join(doc["platforms"]), file=sys.stderr)
                 return 1
             return 0
+        elif args.command == "pending-notes":
+            doc = pending_notes(git, args.platform, args.head,
+                                [v.strip() for v in args.released.split(",") if v.strip()])
         else:
             platform, version = parse_tag(args.tag)
             released = [v.strip() for v in args.released.split(",") if v.strip()]
