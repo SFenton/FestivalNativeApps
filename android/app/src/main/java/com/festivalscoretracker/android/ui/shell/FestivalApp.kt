@@ -545,8 +545,17 @@ private fun FestivalShell(
             // Edge swipes belong to system back; the drawer opens from the menu button only.
             gesturesEnabled = drawerState.isOpen,
             // The drawerState overload adds M3's predictive back handling: system back closes
-            // the open drawer instead of leaving the app.
-            drawerContent = { ChromeColors { ModalDrawerSheet(drawerState = drawerState, drawerContainerColor = BrandTokens.cardBackground) { drawer(false) } } },
+            // the open drawer instead of leaving the app. Its corners follow the display corners
+            // (issue #55); without reported corners the shape is Material's default.
+            drawerContent = {
+                ChromeColors {
+                    ModalDrawerSheet(
+                        drawerState = drawerState,
+                        drawerShape = rememberConcentricDrawerShape(),
+                        drawerContainerColor = BrandTokens.cardBackground,
+                    ) { drawer(false) }
+                }
+            },
         ) { content() }
     }
     GlobalSearchHost(
