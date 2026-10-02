@@ -167,5 +167,6 @@ Measured 2026-09-29 (FST-and-a11y2) with `tools/android/frame_stats.py --animati
 ## Devices
 
 - One emulator per host, only through `device.py` (FST AVDs, API 37). Never start `Pixel_5_API_36`/`Pixel_9_Pro_Fold` by hand while lanes share the host; headless `-gpu auto` in session 0 wedged adb shell — the shared tool uses `swiftshader_indirect`.
+- On 2026-10-02 `device.py boot` failed on `sfenton-music` with "x86_64 emulation currently requires hardware acceleration" (Android Emulator hypervisor driver not installed; log in `~/.fst-locks/emulator-<AVD>.log`). That host cannot run emulators; verify on another host or through unit tests and the generated `BuildConfig`.
 - Observe folds with Jetpack WindowManager (`currentWindowAdaptiveInfo().windowPosture.hingeList`), never product names or pixels. Record API level, window size and posture with each result (`device.py` writes a JSON sidecar).
 - Host: Android SDK `C:/Users/sfent/AppData/Local/Android/Sdk`, JDK 17 (Temurin), Gradle 8.14.3 wrapper, AGP 8.11, Kotlin 2.2.10, compile/target SDK 36, min 26.
