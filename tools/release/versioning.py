@@ -63,6 +63,12 @@ SCHEMA = 1
 HISTORY_LIMIT = 10
 #: TestFlight wording when every app change since the comparison point opted out with ``Release-Note: none``.
 NO_USER_FACING = "No user-facing changes."
+#: Note categories, in display order (the web changelog's page sections). A note written "Songs: Rows load
+#: faster." belongs to Songs; notes without a known category sort last, after "General".
+CATEGORIES = ("Songs", "Song Details", "Suggestions", "Statistics", "Compete", "Leaderboards", "Rivals", "Bands",
+              "Item Shop", "Profile", "Notifications", "Settings", "First Run", "Navigation", "Accessibility",
+              "Performance", "General")
+CATEGORY_RE = re.compile(r"^\s*([A-Za-z][A-Za-z &'-]{1,24}):\s+\S")
 TITLE_PREFIX_RE = re.compile(r"^\s*\[[^\]]{1,20}\]\s*")
 TITLE_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
 TESTFLIGHT_LIMIT = 4000
@@ -422,10 +428,28 @@ def clean_title(text: str) -> str:
     return text[:1].upper() + text[1:]
 
 
+def note_category(note: str) -> Optional[str]:
+    """The known category a note starts with ("Songs: …" → ``Songs``), else ``None``."""
+    hit = CATEGORY_RE.match(note)
+    if not hit:
+        return None
+    name = hit.group(1).strip().lower()
+    return next((c for c in CATEGORIES if c.lower() == name), None)
+
+
+def by_category(notes: Iterable[str]) -> List[str]:
+    """Notes grouped by category in ``CATEGORIES`` order (stable within a category); uncategorized last."""
+    order = {c: i for i, c in enumerate(CATEGORIES)}
+    indexed = list(enumerate(notes))
+    return [n for _i, n in sorted(indexed, key=lambda item: (order.get(note_category(item[1]) or "", len(order)),
+                                                             item[0]))]
+
+
 def user_notes(git: Git, platform: str, base: Optional[str], head: str) -> List[str]:
     """User-facing notes in ``(base, head]``, oldest first, de-duplicated case-insensitively.
 
-    One check-in (a merged pull request) is one entry: its ``Release-Note`` trailers, or, when it has none, its
+    Notes are grouped by category (:func:`by_category`), oldest first within a category. One check-in (a merged
+    pull request) is one entry: its ``Release-Note`` trailers, or, when it has none, its
     cleaned PR title (:func:`clean_title`); ``Release-Note: none`` contributes nothing. Commits pushed straight
     to master without a trailer contribute nothing, so individual code commits never become bullets. The
     ``check-notes`` PR check keeps untrailered pull requests rare.
@@ -440,7 +464,7 @@ def user_notes(git: Git, platform: str, base: Optional[str], head: str) -> List[
             if note and note.lower() not in seen:
                 seen.add(note.lower())
                 out.append(note)
-    return out
+    return by_category(out)
 
 
 def bullets(items: Iterable[str], limit: int) -> str:
