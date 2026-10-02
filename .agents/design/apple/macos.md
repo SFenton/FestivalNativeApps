@@ -43,6 +43,23 @@ Basis: the-menu-bar › "Disable, don't hide, unavailable items", "Provide app-s
 | Profile, Search, Notifications and What's New are window sheets (Close in the sheet's bottom bar) | sheets › "Display only one sheet at a time" (menu items disable while one is open) |
 | Toolbar buttons and sidebar rows carry `.help` tooltips naming their shortcut | pointing-devices › macOS pointer conventions (system hover/selection states on standard controls) |
 
+## Page status (2026-10-02, live SFentonX at 1280×820 and 800×600)
+
+| Page | Mac layout | State |
+|---|---|---|
+| Songs + Song Detail (history, Intensity, instrument cards) | Two columns, first song auto-selected; Sort popover, Filter sheet; row context menu | Done |
+| Song leaderboards, Player History, Paths | Pushed in the detail column (Song Detail links, row context menu) | Shared pages; not separately captured |
+| Leaderboards / Compete | Two card columns (Compete: Leaderboards beside Rivals) from 720 pt | Done |
+| Full / Band Rankings + pager | Full Rankings: two columns, top-ranked player auto-selected; Band Rankings one column with the floating pager | Done |
+| Statistics / Player Profile / Player Bands | Two instrument columns, top-aligned | Done |
+| Rivals, All Rivals, Rival Detail, Rivalry | Two columns from the Rivals list | Done (live service was frozen during capture) |
+| Suggestions, Item Shop | One centred column ≤ 1400 pt; Shop 4-column art grid ≤ 2170 pt | Done |
+| Notifications, Search, Profile, What's New, first-run | Window sheets with Mac default sizes | Done |
+| Settings, Licenses | Settings window; Licenses inside it and from Help | Done (one long page, not panes) |
+| Bands (`/bands`) | Shared page, reached from search and band rows | Not separately captured |
+
+Evidence: hosted `MacShellHostedTests` (sidebar states, footer Deselect, minimum size, list/detail auto-select/narrow/collapse) and `MacPagesHostedTests` (column width class, Leaderboards two columns, Full Rankings auto-selects rank 1); unit `MacNavigationTests`; live window shots in `~/FestivalShowcase/native-mac/` (never committed).
+
 ## Implementation gotchas
 
 - Inside the window's `NavigationSplitView`, a page pushed in a **nested** `NavigationStack` (the split's columns) is presented over both columns (list column) or not at all (detail column). Each split column therefore draws its top route as its root and turns pushes into path writes (`MacListDetailStack.pushes(after:)`); only the one-column arrangement uses real pushes. An `HSplitView` also lost its divider position when a pushed list page split after first layout (detail at zero width), so the columns are an `HStack`; a draggable divider is open.
