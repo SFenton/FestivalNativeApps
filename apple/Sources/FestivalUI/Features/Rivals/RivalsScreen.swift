@@ -213,8 +213,18 @@ struct RivalCommonSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("common|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 0, previewRows(result).map { row in
+                MacKeyRow(
+                    id: "common|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .song(instruments: instruments.map(\.rawValue))
+                    ))
+                )
+            })
             .quickLinkSection(id: "common", title: "Common Rivals", symbol: "person.2.fill")
             .festivalFadeIn(isLoaded: true)
         }
@@ -313,8 +323,18 @@ struct RivalComboSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("combo|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 1, previewRows(response).map { row in
+                MacKeyRow(
+                    id: "combo|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .combo(token: scope.token, instruments: scope.instruments.map(\.rawValue))
+                    ))
+                )
+            })
             .quickLinkSection(id: "combo", title: "\(scope.label) Rivals", symbol: "music.note")
             .festivalFadeIn(isLoaded: true)
         }
@@ -426,8 +446,18 @@ struct RivalInstrumentSongSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("song.\(instrument.rawValue)|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 10 + (Instrument.allCases.firstIndex(of: instrument) ?? 0), previewRows(response).map { row in
+                MacKeyRow(
+                    id: "song.\(instrument.rawValue)|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .song(instruments: [instrument.rawValue])
+                    ))
+                )
+            })
             .festivalFadeIn(isLoaded: true)
         }
     }
@@ -530,8 +560,18 @@ struct RivalInstrumentLeaderboardSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("leaderboard.\(instrument.rawValue)|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 10 + (Instrument.allCases.firstIndex(of: instrument) ?? 0), previewRows(response).map { row in
+                MacKeyRow(
+                    id: "leaderboard.\(instrument.rawValue)|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .leaderboard(instrument: instrument.rawValue, rankBy: rankBy)
+                    ))
+                )
+            })
             .quickLinkSection(QuickLinkSection(
                 id: instrument.rawValue, title: "\(instrument.label) Rivals", icon: .instrument(instrument)
             ))

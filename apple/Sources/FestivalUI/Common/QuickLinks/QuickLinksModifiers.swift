@@ -144,6 +144,11 @@ struct QuickLinksContainerModifier: ViewModifier {
         .sheet(isPresented: sheetPresented) {
             QuickLinksSheet(controller: controller)
         }
+        #if os(macOS)
+        // Go › Quick Links / Next Section / Previous Section (HIG Toolbars › macOS:
+        // "Every toolbar item must also be a menu-bar command").
+        .modifier(MacQuickLinksPublisher(controller: controller))
+        #endif
     }
 
     @Environment(\.pageToolsPresentation) private var presentation

@@ -471,6 +471,9 @@ extension View {
 private struct ListDetailSelectableRow: ViewModifier {
     let route: AppRoute
     @Environment(\.listDetailSelection) private var selection
+    #if os(macOS)
+    @Environment(\.macKeyboardNavigator) private var keyboard
+    #endif
 
     func body(content: Content) -> some View {
         let selected = selection == route
@@ -478,6 +481,13 @@ private struct ListDetailSelectableRow: ViewModifier {
             // An overlay, not a background: Song rows are opaque glass cards. The
             // translucent fill keeps the row's own Shop highlight stroke readable.
             .overlay {
+                #if os(macOS)
+                // Accent while the list column has keyboard focus, gray otherwise
+                // (HIG Focus and selection, `NSTableView`).
+                if selected {
+                    MacSelectionHighlight(cornerRadius: 12, focused: keyboard?.hasFocus ?? true)
+                }
+                #else
                 if selected {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(BrandTokens.accentBlue.opacity(0.22))
@@ -487,6 +497,7 @@ private struct ListDetailSelectableRow: ViewModifier {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
+                #endif
             }
             .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -502,6 +513,9 @@ struct ListDetailLink<Label: View>: View {
     let label: Label
     @Environment(\.listDetailSelect) private var select
     @Environment(\.listDetailAutoSelect) private var autoSelect
+    #if os(macOS)
+    @Environment(\.macKeyboardNavigator) private var keyboard
+    #endif
 
     /// Create a link.
     ///
@@ -525,7 +539,14 @@ struct ListDetailLink<Label: View>: View {
     var body: some View {
         Group {
             if let select {
-                Button { select(value) } label: { decoratedLabel }
+                Button {
+                    select(value)
+                    #if os(macOS)
+                    // A clicked row gives its list column keyboard focus, so ↑/↓ continue
+                    // from it (`MacKeyboardNavigation`).
+                    keyboard?.requestFocus()
+                    #endif
+                } label: { decoratedLabel }
                     #if os(macOS)
                     // Return opens a keyboard-focused row, as Space does.
                     .onKeyPress(.return) {

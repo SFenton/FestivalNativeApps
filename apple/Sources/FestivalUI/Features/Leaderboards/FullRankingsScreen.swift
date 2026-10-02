@@ -112,8 +112,10 @@ struct FullRankingsScreen: View {
                                 entry: entry, metric: rankBy,
                                 isSelected: isSelectedAccount(entry.accountId), glassSurface: true
                             )
+                            .macKeyboardRow(entry.id)
                         }
                     }
+                    .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     // Each loaded page fades in once (web load-in), not per row on scroll.
@@ -140,6 +142,8 @@ struct FullRankingsScreen: View {
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("\(instrument.label) Rankings")
+        // Mac: View › Rank By mirrors the toolbar menu.
+        .macRankByCommands($rankBy)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 4) {

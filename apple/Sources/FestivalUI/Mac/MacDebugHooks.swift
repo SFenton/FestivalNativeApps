@@ -52,6 +52,98 @@ public enum MacDebugHooks {
         }
     }
 
+    /// Characters and virtual key code of a named key (`key:` Debug command).
+    ///
+    /// - Parameter name: `up`, `down`, `left`, `right`, `home`, `end`, `return`,
+    ///   `escape` or a single character.
+    /// - Returns: The key's characters and key code, or nil when unknown.
+    static func keyEvent(named name: String) -> (characters: String, keyCode: UInt16)? {
+        func function(_ scalar: Int) -> String { String(UnicodeScalar(UInt16(scalar)).map(Character.init) ?? " ") }
+        switch name {
+        case "up": return (function(NSUpArrowFunctionKey), 126)
+        case "down": return (function(NSDownArrowFunctionKey), 125)
+        case "left": return (function(NSLeftArrowFunctionKey), 123)
+        case "right": return (function(NSRightArrowFunctionKey), 124)
+        case "home": return (function(NSHomeFunctionKey), 115)
+        case "end": return (function(NSEndFunctionKey), 119)
+        case "return": return ("\r", 36)
+        case "escape": return ("\u{1b}", 53)
+        default:
+            let letters: [Character: UInt16] = ["j": 38, "c": 8, "k": 40, "r": 15]
+            guard name.count == 1, let code = letters[Character(name)] else { return nil }
+            return (name, code)
+        }
+    }
+
+    /// Modifier flags from `cmd+opt+shift+ctrl` text.
+    ///
+    /// - Parameter raw: `+`-separated modifier names.
+    /// - Returns: The flags (unknown names are ignored).
+    static func modifierFlags(_ raw: String) -> NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        for name in raw.split(separator: "+") {
+            switch name {
+            case "cmd": flags.insert(.command)
+            case "opt": flags.insert(.option)
+            case "shift": flags.insert(.shift)
+            case "ctrl": flags.insert(.control)
+            default: break
+            }
+        }
+        return flags
+    }
+
+    /// Deliver a key press to the main window: a menu key equivalent first (as AppKit
+    /// does), else `keyDown`/`keyUp` through `NSWindow.sendEvent`.
+    ///
+    /// - Parameters:
+    ///   - name: Key name (``keyEvent(named:)``).
+    ///   - modifiers: `+`-separated modifier names.
+    @MainActor static func sendKey(_ name: String, modifiers: String) {
+        guard let window = mainWindow, let key = keyEvent(named: name) else { return }
+        var flags = modifierFlags(modifiers)
+        if key.keyCode >= 115 && key.keyCode <= 126 { flags.insert([.function, .numericPad]) }
+        func event(_ type: NSEvent.EventType) -> NSEvent? {
+            NSEvent.keyEvent(
+                with: type, location: .zero, modifierFlags: flags,
+                timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber,
+                context: nil, characters: key.characters, charactersIgnoringModifiers: key.characters,
+                isARepeat: false, keyCode: key.keyCode
+            )
+        }
+        guard let down = event(.keyDown), let up = event(.keyUp) else { return }
+        if !flags.isDisjoint(with: [.command, .control]), NSApp.mainMenu?.performKeyEquivalent(with: down) == true {
+            return
+        }
+        window.sendEvent(down)
+        window.sendEvent(up)
+    }
+
+    /// The opaque window `minimize` put over the main window.
+    @MainActor private static var cover: NSWindow?
+
+    /// Fully cover the main window with an opaque window of the app's own, or remove it
+    /// (Debug `minimize` / `restore`), which changes the main window's occlusion state
+    /// as minimizing does. AppKit ignores `miniaturize(_:)` from an inactive app (these
+    /// tools never activate it), an ordered-out last window quits a SwiftUI `Window`
+    /// app, and AppKit keeps a moved window partly on screen.
+    ///
+    /// - Parameter minimized: True to cover the window.
+    @MainActor static func setMainWindowMinimized(_ minimized: Bool) {
+        cover?.orderOut(nil)
+        cover = nil
+        guard minimized, let window = mainWindow else { return }
+        let panel = NSWindow(
+            contentRect: window.frame.insetBy(dx: -20, dy: -20), styleMask: .borderless,
+            backing: .buffered, defer: false
+        )
+        panel.isReleasedWhenClosed = false
+        panel.isOpaque = true
+        panel.backgroundColor = .black
+        panel.order(.above, relativeTo: window.windowNumber)
+        cover = panel
+    }
+
     /// Notification posted by `tools/mac_window.swift resize`.
     static let resizeName = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.resize")
 
@@ -154,6 +246,13 @@ enum MacDebugCommand: Equatable {
     /// `menus`: write the menu bar (titles, shortcuts, enabled state) to
     /// ``MacDebugHooks/menuDumpPath`` for evidence without Accessibility permission.
     case menus
+    /// `key:<name>[:cmd|opt|…]`: deliver a key press to the main window through
+    /// `NSWindow.sendEvent` (the real responder chain; no event tap or permission),
+    /// e.g. `key:down`, `key:return`, `key:j:cmd`, `key:down:opt+cmd`.
+    case key(String, modifiers: String)
+    /// `minimize` / `restore`: cover the main window with an opaque window and uncover
+    /// it (occlusion tests; a real minimize needs an active app).
+    case minimize, restore
 
     /// Parse command text.
     ///
@@ -181,6 +280,12 @@ enum MacDebugCommand: Equatable {
         case ("dismiss", 1): self = .dismiss
         case ("settings", 1): self = .settings
         case ("menus", 1): self = .menus
+        case ("minimize", 1): self = .minimize
+        case ("restore", 1): self = .restore
+        case ("key", 2):
+            let fields = parts[1].split(separator: ":", maxSplits: 1).map(String.init)
+            guard MacDebugHooks.keyEvent(named: fields[0]) != nil else { return nil }
+            self = .key(fields[0], modifiers: fields.count > 1 ? fields[1] : "")
         case ("song", 2):
             guard ["leaderboard", "history", "paths"].contains(parts[1]) else { return nil }
             self = .song(parts[1])

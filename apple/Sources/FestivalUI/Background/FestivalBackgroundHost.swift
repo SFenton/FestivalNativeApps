@@ -35,6 +35,7 @@ struct FestivalBackgroundHost: View {
     @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
 
     private static let log = Logger(
         subsystem: "com.sfenton.festivalscoretracker", category: "artwork-background"
@@ -110,7 +111,7 @@ struct FestivalBackgroundHost: View {
     /// - Returns: Loading and animation decisions.
     private func policy(visible: Bool, artCount: Int) -> ArtworkPlaybackPolicy {
         ArtworkPlaybackPolicy(
-            activeScene: scenePhase == .active,
+            activeScene: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             visiblePage: visible && ArtworkNetworkStatus.canFetch(
                 known: ArtworkNetworkStatus.shared.pathKnown,
                 satisfied: ArtworkNetworkStatus.shared.pathSatisfied

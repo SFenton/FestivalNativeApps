@@ -94,6 +94,10 @@ public struct MacCommands: Commands {
     let model: MacAppModel
     @FocusedValue(\.macPageCommands) private var pageCommands
     @FocusedValue(\.macSongCommands) private var songCommands
+    @FocusedValue(\.macRankBy) private var rankBy
+    @FocusedValue(\.macQuickLinksPage) private var pageQuickLinks
+    @FocusedValue(\.macQuickLinksList) private var listQuickLinks
+    @FocusedValue(\.macListCommands) private var listCommands
 
     /// Create the commands.
     ///
@@ -144,6 +148,12 @@ public struct MacCommands: Commands {
                 .disabled(pageCommands?.sort == nil || sheetOpen)
             Button("Filter…") { pageCommands?.filter?() }
                 .disabled(pageCommands?.filter == nil || sheetOpen)
+            rankByMenu
+            Divider()
+            // The standard "Scroll to selection" shortcut (HIG Keyboards: Command-J).
+            Button("Scroll to Selection") { listCommands?.scrollToSelection() }
+                .keyboardShortcut("j", modifiers: .command)
+                .disabled(listCommands == nil || sheetOpen)
             Divider()
         }
         CommandMenu("Go") {
@@ -158,6 +168,8 @@ public struct MacCommands: Commands {
             Button("Search…") { navigation.searchPresented = true }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(sheetOpen)
+            Divider()
+            quickLinksCommands
         }
         CommandMenu("Song") {
             Button("Paths…") { songCommands?.paths?() }
@@ -191,6 +203,53 @@ public struct MacCommands: Commands {
             Button("Licenses") { navigation.push(.licenses) }
                 .disabled(sheetOpen)
         }
+    }
+
+    /// View › Rank By: the front rankings page's metrics with a checkmark on the one in
+    /// effect (HIG Menus: "Consider a checkmark to show an attribute is in effect");
+    /// the account metrics stay listed but disabled elsewhere, so the submenu keeps
+    /// its items (HIG Menus: "Make sure a submenu remains available even when its
+    /// items are unavailable").
+    @ViewBuilder private var rankByMenu: some View {
+        let options = rankBy?.options ?? MacRankByCommands.accountOptions
+        Menu("Rank By") {
+            ForEach(options) { option in
+                Toggle(option.label, isOn: Binding(
+                    get: { rankBy?.selected == option.id },
+                    set: { isOn in if isOn { rankBy?.select(option.id) } }
+                ))
+                .disabled(rankBy == nil)
+            }
+        }
+    }
+
+    /// Go › Quick Links (the front page's sections, the active one checked) and Next /
+    /// Previous Section (⌥⌘↓ / ⌥⌘↑; Command-J is the standard Scroll to Selection).
+    /// The detail column's page wins over the list column's.
+    @ViewBuilder private var quickLinksCommands: some View {
+        let controller = (pageQuickLinks ?? listQuickLinks)?.controller
+        let sections = controller?.isAvailable == true ? controller?.sections ?? [] : []
+        let ids = sections.map(\.id)
+        let next = MacQuickLinksCommand.neighbor(of: controller?.activeID, in: ids, offset: 1)
+        let previous = MacQuickLinksCommand.neighbor(of: controller?.activeID, in: ids, offset: -1)
+        Menu("Quick Links") {
+            if sections.isEmpty {
+                Button("No Sections") {}.disabled(true)
+            } else {
+                ForEach(sections) { section in
+                    Toggle(section.title, isOn: Binding(
+                        get: { controller?.activeID == section.id },
+                        set: { _ in controller?.jump(to: section.id) }
+                    ))
+                }
+            }
+        }
+        Button("Next Section") { if let next { controller?.jump(to: next) } }
+            .keyboardShortcut(.downArrow, modifiers: [.option, .command])
+            .disabled(next == nil || sheetOpen)
+        Button("Previous Section") { if let previous { controller?.jump(to: previous) } }
+            .keyboardShortcut(.upArrow, modifiers: [.option, .command])
+            .disabled(previous == nil || sheetOpen)
     }
 
     /// A Go-menu item: every destination is listed (disabled when hidden), with ⌘n for

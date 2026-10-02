@@ -23,7 +23,7 @@ import SwiftUI
 /// **Cost.** The scroll is a `phaseAnimator` over an `offset`, so SwiftUI only
 /// interpolates one animatable value per frame; no `TimelineView` re-runs a body
 /// per frame, and nothing animates while the text fits, is off screen, the scene
-/// is inactive, or Reduce Motion (system or in-app) is on. Those fall back to
+/// is inactive or its window hidden, or Reduce Motion (system or in-app) is on. Those fall back to
 /// tail truncation, like the web's `prefers-reduced-motion` ellipsis.
 ///
 /// Also static under `DebugAnimationOverride.stillBackground`
@@ -47,6 +47,7 @@ public struct MarqueeText: View {
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
     @Environment(\.marqueeSyncDistance) private var syncDistance
 
     /// Create a marquee text view.
@@ -73,7 +74,7 @@ public struct MarqueeText: View {
 
     private var scrolls: Bool {
         overflows && !reduceMotion && !appReduceMotion && isOnScreen
-            && scenePhase == .active && !DebugAnimationOverride.stillBackground
+            && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible) && !DebugAnimationOverride.stillBackground
     }
 
     public var body: some View {

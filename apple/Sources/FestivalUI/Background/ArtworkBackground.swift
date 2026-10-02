@@ -597,6 +597,7 @@ struct ArtworkBackground: View {
     @Environment(\.colorSchemeContrast) private var systemContrast
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
 
     /// Install one background with an optional original-image visual fixture.
     ///
@@ -632,7 +633,7 @@ struct ArtworkBackground: View {
             satisfied: ArtworkNetworkStatus.shared.pathSatisfied
         )
         return ArtworkPlaybackPolicy(
-            activeScene: scenePhase == .active,
+            activeScene: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             visiblePage: visible && usablePath,
             reduceMotion: reduceMotion || systemReduceMotion,
             disableAnimation: disableAnimation || DebugAnimationOverride.stillBackground,

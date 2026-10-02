@@ -43,6 +43,8 @@ struct ShopScreen: View {
     @State private var loadedKey: RequestKey?
     /// First staggered reveal finished; recycled rows then appear without fading.
     @State private var staggerSettled = false
+    /// Artwork grid width (Mac ↑/↓ step one grid row).
+    @State private var gridWidth: CGFloat = 0
 
     private enum LoadState {
         case loading
@@ -291,8 +293,10 @@ struct ShopScreen: View {
                     ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                         offerCard(offer, snapshot: snapshot, grid: false)
                             .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                            .macKeyboardRow(offer.id)
                     }
                 }
+                .macKeyboardRows(Self.keyRows(offers, catalogue: snapshot.songsById, grid: false))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .festivalFadeInScope()
@@ -308,12 +312,36 @@ struct ShopScreen: View {
                         ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                             offerCard(offer, snapshot: snapshot, grid: true)
                                 .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                                .macKeyboardRow(offer.id, ring: true)
                         }
                     }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
+                    .macKeyboardRows(
+                        columns: MacKeyboardPolicy.adaptiveColumns(width: gridWidth, minimum: 210, spacing: 12),
+                        Self.keyRows(offers, catalogue: snapshot.songsById, grid: true)
+                    )
                 }
                 .padding(16)
                 .festivalFadeInScope()
             }
+        }
+    }
+
+    /// Mac arrow-key rows: Return does what a click does, so a list row opens Song
+    /// Detail (or the official Item Shop without a catalogue song) and a grid card opens
+    /// the official Item Shop.
+    ///
+    /// - Parameters:
+    ///   - offers: Offers in display order.
+    ///   - catalogue: Current catalogue songs by ID.
+    ///   - grid: Whether the artwork grid is showing.
+    /// - Returns: One row per offer.
+    static func keyRows(_ offers: [ShopSong], catalogue: [String: Song], grid: Bool) -> [MacKeyRow] {
+        offers.map { offer in
+            if !grid, let song = catalogue[offer.songId] {
+                return MacKeyRow(id: offer.id, action: .route(.songDetail(song)))
+            }
+            return MacKeyRow(id: offer.id, action: .url(offer.shopUrl))
         }
     }
 

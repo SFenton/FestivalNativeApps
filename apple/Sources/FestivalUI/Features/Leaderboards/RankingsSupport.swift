@@ -52,6 +52,29 @@ struct AccountRankingRow: View {
         entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
     }
 
+    /// The profile a row opens.
+    ///
+    /// - Parameter entry: A rankings row with an account.
+    /// - Returns: The player route.
+    static func route(_ entry: AccountRankingEntry) -> AppRoute {
+        .player(accountId: entry.accountId, displayName: entry.displayName)
+    }
+
+    /// Mac arrow-key rows for a board's linked rows (anonymous rows open nothing).
+    ///
+    /// - Parameters:
+    ///   - entries: Rows in display order.
+    ///   - prefix: Keeps ids unique when one page shows several boards.
+    ///   - container: The lazily built card holding them, if any.
+    /// - Returns: Rows with ids `prefix + entry.id`.
+    static func keyRows(
+        _ entries: [AccountRankingEntry], prefix: String = "", container: String? = nil
+    ) -> [MacKeyRow] {
+        entries.filter(\.hasAccount).map {
+            MacKeyRow(id: prefix + $0.id, action: .route(route($0)), container: container)
+        }
+    }
+
     var body: some View {
         Group {
             if entry.hasAccount {
@@ -457,13 +480,36 @@ struct BandRankingRow: View {
     /// Draw the row as its own glass card; see ``AccountRankingRow/glassSurface``.
     var glassSurface: Bool = false
 
+    /// The band a row opens.
+    ///
+    /// - Parameters:
+    ///   - entry: A band rankings row.
+    ///   - bandType: The board's band size.
+    /// - Returns: The band route.
+    static func route(_ entry: BandRankingEntry, bandType: BandType) -> AppRoute {
+        .band(bandId: entry.bandId, name: nil, bandType: bandType.rawValue, teamKey: entry.teamKey)
+    }
+
+    /// Mac arrow-key rows for a band board.
+    ///
+    /// - Parameters:
+    ///   - entries: Rows in display order.
+    ///   - bandType: The board's band size.
+    ///   - prefix: Keeps ids unique when one page shows several boards.
+    ///   - container: The lazily built card holding them, if any.
+    /// - Returns: Rows with ids `prefix + teamKey`.
+    static func keyRows(
+        _ entries: [BandRankingEntry], bandType: BandType, prefix: String = "", container: String? = nil
+    ) -> [MacKeyRow] {
+        entries.map {
+            MacKeyRow(id: prefix + $0.teamKey, action: .route(route($0, bandType: bandType)), container: container)
+        }
+    }
+
     var body: some View {
         let songs = entry.songsLabel(for: metric)
         NavigationLink(
-            value: AppRoute.band(
-                bandId: entry.bandId, name: nil,
-                bandType: bandType.rawValue, teamKey: entry.teamKey
-            )
+            value: Self.route(entry, bandType: bandType)
         ) {
             RankingRowLayout(
                 rank: entry.rank(for: metric),

@@ -67,6 +67,8 @@ struct BandDetailScreen: View {
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle(name ?? "Band")
+        // Mac: View › Rank By mirrors the toolbar menu.
+        .macRankByCommands($rankBy)
         .toolbar {
             if isResolvable, case .loaded = detailState {
                 ToolbarItem(placement: .primaryAction) {

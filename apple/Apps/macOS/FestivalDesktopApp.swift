@@ -9,6 +9,8 @@ struct FestivalDesktopApp: App {
 
     init() {
         MacDebugHooks.install()
+        // Debug `FST_DEBUG_STALL_LOG=<path>`: main-thread stall report (scroll stress).
+        MainThreadStallMonitor.startIfRequested()
     }
 
     var body: some Scene {

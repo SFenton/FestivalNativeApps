@@ -20,7 +20,9 @@ overrides plus captures of **only the app's own window**:
   app's PID). It **never** captures the full screen: without a window ID it fails.
 - ``command`` runs a Debug shell command in the running app (``select:3``,
   ``select:leaderboards``, ``route:player:<id>``, ``back``, ``refresh``, ``search``,
-  ``profile``, ``notifications``, ``whatsnew``, ``sort``, ``filter``, ``settings``), so one launch can
+  ``profile``, ``notifications``, ``whatsnew``, ``sort``, ``filter``, ``settings``,
+  ``key:down``/``key:return``/``key:j:cmd`` delivered through ``NSWindow.sendEvent``,
+  ``minimize``/``restore``), so one launch can
   visit many pages and sheets without Accessibility permission.
 - ``quit``    posts the Debug quit notification so AppKit terminates normally;
   falls back to SIGTERM.
@@ -61,9 +63,9 @@ HELPER_SOURCE = REPO_ROOT / "tools" / "mac_window.swift"
 PROFILES = {"sfentonx": "195e93ef108143b2975ee46662d4d0e1:SFentonX"}
 
 #: Debug shell commands without an argument (`MacDebugCommand`).
-SIMPLE_COMMANDS = {"menus", "settings", "back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss"}
+SIMPLE_COMMANDS = {"menus", "settings", "back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss", "minimize", "restore"}
 #: Debug shell commands that take ``verb:argument``.
-ARGUMENT_COMMANDS = {"select", "route", "settings", "song"}
+ARGUMENT_COMMANDS = {"select", "route", "settings", "song", "key"}
 
 #: Smallest content size a capture accepts as the main window (filters menus/tooltips).
 MIN_WINDOW_SIDE = 200

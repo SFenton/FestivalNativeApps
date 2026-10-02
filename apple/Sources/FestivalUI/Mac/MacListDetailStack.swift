@@ -19,6 +19,10 @@ struct MacStack<Root: View>: View {
     let providesGlobalToolbar: Bool
     /// Widest root content (``MacLayoutPolicy/pageMaxWidth(for:isShopRoot:)``).
     let rootMaxWidth: CGFloat
+    /// The split's selection and select action when this is a list column: arrow keys
+    /// then move the detail column's selection (``MacKeyboardNavigation``).
+    let listSelection: AppRoute?
+    let listSelect: ListDetailSelectAction?
     let root: Root
 
     /// Create a column stack.
@@ -30,11 +34,15 @@ struct MacStack<Root: View>: View {
     ///   - fullPath: The destination's whole path.
     ///   - isVisible: Whether the destination is on screen.
     ///   - providesGlobalToolbar: Whether its pages carry the global toolbar group.
+    ///   - rootMaxWidth: Widest root content.
+    ///   - listSelection: The split's selection (list column only).
+    ///   - listSelect: The split's select action (list column only).
     ///   - root: Column root.
     init(
         session: FestivalSession, visibleInstruments: Set<Instrument>,
         stackPath: Binding<[AppRoute]>, fullPath: Binding<[AppRoute]>, isVisible: Bool,
         providesGlobalToolbar: Bool = true, rootMaxWidth: CGFloat = MacLayoutPolicy.pageMaxWidth(for: nil),
+        listSelection: AppRoute? = nil, listSelect: ListDetailSelectAction? = nil,
         @ViewBuilder root: () -> Root
     ) {
         self.session = session
@@ -44,12 +52,19 @@ struct MacStack<Root: View>: View {
         self.isVisible = isVisible
         self.providesGlobalToolbar = providesGlobalToolbar
         self.rootMaxWidth = rootMaxWidth
+        self.listSelection = listSelection
+        self.listSelect = listSelect
         self.root = root()
     }
 
     var body: some View {
         NavigationStack(path: $stackPath) {
             root
+                .modifier(MacKeyboardNavigation(
+                    selection: listSelection, select: listSelect, push: push, isTop: stackPath.isEmpty
+                ))
+                .environment(\.macPageIsTop, stackPath.isEmpty)
+                .environment(\.macColumnIsList, listSelect != nil)
                 .modifier(MacPageWidth(maxWidth: rootMaxWidth))
                 .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                 .navigationDestination(for: AppRoute.self) { route in
@@ -57,6 +72,10 @@ struct MacStack<Root: View>: View {
                         route: route, session: session, visibleInstruments: visibleInstruments,
                         path: $fullPath, isVisible: isVisible
                     )
+                    .modifier(MacKeyboardNavigation(
+                        selection: nil, select: nil, push: push, isTop: stackPath.last == route
+                    ))
+                    .environment(\.macPageIsTop, stackPath.last == route)
                     .modifier(MacPageWidth(maxWidth: MacLayoutPolicy.pageMaxWidth(for: route)))
                     .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                 }
@@ -64,6 +83,12 @@ struct MacStack<Root: View>: View {
         // Each column publishes its own layout, so its pages pick one or two card
         // columns and readable widths from the column's width, not the window's.
         .publishesDeviceLayout(usesSidebarShell: true)
+    }
+
+    /// Return on a keyboard-highlighted row: push in this column (in a split's columns
+    /// the stack path is always empty and the push becomes a path write).
+    private func push(_ route: AppRoute) {
+        stackPath.append(route)
     }
 }
 
@@ -183,7 +208,8 @@ struct MacListDetailStack<Root: View>: View {
             MacStack(
                 session: session, visibleInstruments: visibleInstruments,
                 stackPath: pushes(after: path.count - split.detail.count), fullPath: $path,
-                isVisible: isVisible, providesGlobalToolbar: false
+                isVisible: isVisible, providesGlobalToolbar: false,
+                listSelection: split.selection, listSelect: selectAction
             ) {
                 Group {
                     if let page = split.list.last {

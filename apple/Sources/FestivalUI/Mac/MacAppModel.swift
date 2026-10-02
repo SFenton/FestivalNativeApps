@@ -18,6 +18,9 @@ public final class MacAppModel {
     let refreshRegistry = RefreshCommandRegistry()
     /// Whether the main window is full screen (View › Enter/Exit Full Screen title).
     var isFullScreen = false
+    /// Whether any part of the main window can be seen; continuous decoration pauses
+    /// while it cannot (`AnimationActivity`).
+    var isWindowVisible = true
 
     /// View › Refresh (⌘R): the frontmost page's own refresh when it has one, else
     /// rebuild the detail column so its pages read again.

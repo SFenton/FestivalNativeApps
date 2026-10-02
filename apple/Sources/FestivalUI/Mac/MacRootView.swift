@@ -68,6 +68,9 @@ public struct MacRootView: View {
         .tint(highContrast ? BrandTokens.textPrimary : BrandTokens.accentBlue)
         .preferredColorScheme(.dark)
         .environment(\.festivalSession, session)
+        // Continuous decoration pauses while the window cannot be seen (minimized,
+        // covered, another Space), as the Windows app does.
+        .environment(\.festivalWindowVisible, model.isWindowVisible)
         .environment(\.shellOwnsGlobalToolbar, true)
         .environment(\.macAppModel, model)
         .environment(\.songRowsAllowSingleLine, true)
@@ -107,7 +110,10 @@ public struct MacRootView: View {
         .background {
             MacWindowConfigurator(
                 selectionText: { model.navigation.selectionCopyText },
-                onFullScreenChange: { model.isFullScreen = $0 }
+                onFullScreenChange: { model.isFullScreen = $0 },
+                onVisibilityChange: { visible in
+                    if model.isWindowVisible != visible { model.isWindowVisible = visible }
+                }
             )
         }
         #if DEBUG
@@ -188,6 +194,9 @@ public struct MacRootView: View {
         case let .settingsPane(pane):
             UserDefaults.standard.set(pane.rawValue, forKey: SettingsPane.storageKey)
             openSettings()
+        case let .key(name, modifiers): MacDebugHooks.sendKey(name, modifiers: modifiers)
+        case .minimize: MacDebugHooks.setMainWindowMinimized(true)
+        case .restore: MacDebugHooks.setMainWindowMinimized(false)
         case .dismiss:
             navigation.searchPresented = false
             navigation.profilePresented = false
@@ -448,11 +457,14 @@ struct MacWindowConfigurator: NSViewRepresentable {
     var selectionText: @MainActor () -> String? = { nil }
     /// Reports entering and leaving full screen (View › Enter/Exit Full Screen title).
     var onFullScreenChange: @MainActor (Bool) -> Void = { _ in }
+    /// Reports whether any part of the window can be seen (`NSWindow.occlusionState`).
+    var onVisibilityChange: @MainActor (Bool) -> Void = { _ in }
 
     func makeNSView(context: Context) -> NSView {
         let probe = WindowProbe()
         probe.copyResponder.selectionText = selectionText
         probe.onFullScreenChange = onFullScreenChange
+        probe.onVisibilityChange = onVisibilityChange
         return probe
     }
 
@@ -460,12 +472,31 @@ struct MacWindowConfigurator: NSViewRepresentable {
         guard let probe = nsView as? WindowProbe else { return }
         probe.copyResponder.selectionText = selectionText
         probe.onFullScreenChange = onFullScreenChange
+        probe.onVisibilityChange = onVisibilityChange
     }
 
     private final class WindowProbe: NSView {
         let copyResponder = MacSelectionCopyResponder()
         var onFullScreenChange: @MainActor (Bool) -> Void = { _ in }
+        var onVisibilityChange: @MainActor (Bool) -> Void = { _ in }
         private var observers: [NSObjectProtocol] = []
+        private var pendingHide: DispatchWorkItem?
+
+        /// Report visibility: at once when the window shows, after 0.5 s when it hides
+        /// (covering it flapped the state several times within a few milliseconds).
+        func occlusionChanged(visible: Bool) {
+            pendingHide?.cancel()
+            pendingHide = nil
+            guard !visible else {
+                onVisibilityChange(true)
+                return
+            }
+            let work = DispatchWorkItem { [weak self] in
+                MainActor.assumeIsolated { self?.onVisibilityChange(false) }
+            }
+            pendingHide = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+        }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -480,6 +511,22 @@ struct MacWindowConfigurator: NSViewRepresentable {
                 ) { [weak self] _ in
                     MainActor.assumeIsolated { self?.onFullScreenChange(isFullScreen) }
                 })
+            }
+            // Minimized, fully covered, on another Space or behind a locked screen:
+            // the artwork carousel and Shop pulses pause (`AnimationActivity`).
+            observers.append(NotificationCenter.default.addObserver(
+                forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main
+            ) { [weak self, weak window] _ in
+                MainActor.assumeIsolated {
+                    guard let window else { return }
+                    self?.occlusionChanged(visible: window.occlusionState.contains(.visible))
+                }
+            })
+            DispatchQueue.main.async { [weak self, weak window] in
+                MainActor.assumeIsolated {
+                    guard let window else { return }
+                    self?.onVisibilityChange(window.occlusionState.contains(.visible))
+                }
             }
             // After the window in its responder chain: a focused text field's own
             // Copy still wins.

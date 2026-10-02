@@ -1084,6 +1084,10 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
+                // Mac: ↑/↓ walk every song in list order, built or not.
+                .macKeyboardRows((groups?.flatMap(\.songs) ?? visible).map {
+                    MacKeyRow(id: $0.id, action: .route(.songDetail($0)))
+                })
                 // Before the section bar overlay: applied after it, this identifier
                 // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
                 .accessibilityIdentifier("fst.songs.list")
@@ -1438,6 +1442,7 @@ struct SongsScreen: View {
         .listRowBackground(Color.clear)
         .listRowInsets(songRowInsets)
         .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+        .macKeyboardRow(song.id)
     }
 
     /// Rows primed before the very first reveal, and how long priming may block it.
