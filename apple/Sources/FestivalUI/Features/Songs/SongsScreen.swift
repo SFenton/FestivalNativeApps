@@ -53,9 +53,11 @@ struct SongsScreen: View {
     @Environment(\.pageToolsPresentation) private var toolsPresentation
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
-    @AppStorage("fst.songs.filterInShop") private var filterInShop = false
-    @AppStorage("fst.songs.filterLeavingTomorrow")
-    private var filterLeavingTomorrow = false
+    @AppStorage(SongGeneralFilter.storageKey) private var generalFilterData = Data()
+    /// Older Item Shop toggles, read only to migrate into ``SongGeneralFilter``.
+    @AppStorage(SongGeneralFilter.legacyInShopKey) private var legacyFilterInShop = false
+    @AppStorage(SongGeneralFilter.legacyLeavingTomorrowKey)
+    private var legacyFilterLeavingTomorrow = false
     @AppStorage(SongPlayerScoreFilter.storageKey)
     private var playerScoreFilterData = Data()
     @AppStorage("fst.settings.hideShop") private var hideShop = false
@@ -120,8 +122,50 @@ struct SongsScreen: View {
         )
     }
 
+    private var generalFilterResult: Result<SongGeneralFilter, Error> {
+        Result {
+            try SongGeneralFilter.decodeSaved(
+                generalFilterData, legacyInShop: legacyFilterInShop,
+                legacyLeavingTomorrow: legacyFilterLeavingTomorrow
+            )
+        }
+    }
+
+    private var appliedGeneralFilter: SongGeneralFilter? {
+        if case let .success(filter) = generalFilterResult { return filter }
+        return nil
+    }
+
+    /// The first corrupt saved filter, which blocks the list until an explicit Reset.
+    private var savedFilterError: Error? {
+        if case let .failure(error) = generalFilterResult { return error }
+        return playerScoreFilterError
+    }
+
     private var appliedShopFilter: SongShopFilter {
-        SongShopFilter(inShop: filterInShop, leavingTomorrow: filterLeavingTomorrow)
+        appliedGeneralFilter?.shop ?? SongShopFilter()
+    }
+
+    /// Loaded catalogue rows (the General filter's Year and Duration options).
+    private var catalogueSongs: [Song] {
+        if case let .loaded(payload) = state { return payload.catalog.songs }
+        return []
+    }
+
+    /// Whether any saved General choice hides songs (Item Shop only while Shop is shown).
+    private var generalFilterActive: Bool {
+        appliedGeneralFilter?.isActive(shopVisible: !hideShop) == true
+    }
+
+    /// Store General choices and retire the migrated legacy Item Shop toggles.
+    ///
+    /// - Parameter filter: Validated General choices.
+    /// - Throws: Encoder failure, leaving saved choices unchanged.
+    private func saveGeneralFilter(_ filter: SongGeneralFilter) throws {
+        let data = try filter.encoded()
+        generalFilterData = data
+        legacyFilterInShop = false
+        legacyFilterLeavingTomorrow = false
     }
 
     private var playerScoreFilterResult: Result<SongPlayerScoreFilter, Error> {
@@ -179,10 +223,8 @@ struct SongsScreen: View {
             return "Item Shop filters paused while Shop is hidden. Showing all songs; "
                 + "your choices are saved."
         }
-        if session.selectedPlayer == nil {
-            return "Item Shop filters paused until a selected player is available. "
-                + "Showing all songs; your choices are saved."
-        }
+        // Both categories off hides every song without classifying (web parity).
+        guard appliedShopFilter.needsShopFeed else { return nil }
         if shopPublicationMismatch {
             return "Item Shop filters paused while songs and Shop publications differ. "
                 + "Showing songs without Shop filters; your choices are saved."
@@ -238,11 +280,10 @@ struct SongsScreen: View {
         EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
     }
 
+    /// General filters need no player, so Filter is offered whenever saved filters
+    /// decode (web: the Filter button is always shown on Songs).
     private var canPresentFilter: Bool {
-        playerScoreFilterError == nil
-            && ((session.selectedPlayer != nil && session.playerLoadState == .available)
-                || appliedShopFilter.isActive
-                || appliedPlayerScoreFilter?.isActive == true)
+        savedFilterError == nil
     }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
@@ -317,12 +358,14 @@ struct SongsScreen: View {
                     Task { await reload() }
                 }
             case let .loaded(payload):
-                if let error = playerScoreFilterError {
+                if let error = savedFilterError {
                     invalidPlayerFilterView(error.localizedDescription)
                 } else {
+                let general = appliedGeneralFilter ?? SongGeneralFilter()
                 let matching = payload.catalog.songs.filter { song in
                     SongSearch.matches(song, query: settledSearch)
                         && (instrument.map(song.supports) ?? true)
+                        && general.matchesMetadata(song)
                 }
                 let effectiveMode = effectiveSortMode
                 let membership = shopOffersForCurrentSongs.map { offers in
@@ -358,6 +401,7 @@ struct SongsScreen: View {
                 case let .success(visible):
                 if visible.isEmpty {
                     let filtersApplied = instrument != nil || effectiveShopFilter.isActive
+                        || general.restrictsMetadata
                         || effectivePlayerScoreFilter.isActive
                     VStack(spacing: 8) {
                         if hasDisclosure(for: payload) {
@@ -385,6 +429,7 @@ struct SongsScreen: View {
                                         ? "No songs match your filters."
                                         : "No songs are available yet.")
                                     : (effectiveShopFilter.isActive
+                                        || general.restrictsMetadata
                                         || effectivePlayerScoreFilter.isActive
                                         ? "Try a different search or filter."
                                         : "Try a different search.")
@@ -435,12 +480,12 @@ struct SongsScreen: View {
         .macPageCommands(macCommands)
         #endif
         .sheet(isPresented: $filterPresented) {
-            if let appliedPlayerScoreFilter {
+            if let appliedPlayerScoreFilter, let appliedGeneralFilter {
                 SongsFilterSheet(
-                    applied: appliedShopFilter, showShop: !hideShop,
+                    appliedGeneral: appliedGeneralFilter, showShop: !hideShop,
                     shopAvailable: shopOffersForCurrentSongs != nil,
-                    profileAvailable: session.selectedPlayer != nil
-                        && session.playerLoadState == .available,
+                    availableDecades: SongGeneralFilter.decades(in: catalogueSongs),
+                    availableDurations: SongGeneralFilter.durationBuckets(in: catalogueSongs),
                     appliedPlayerFilter: appliedPlayerScoreFilter,
                     appliedInstrument: instrument,
                     visibleInstruments: visibleInstruments,
@@ -448,10 +493,10 @@ struct SongsScreen: View {
                     scoreAvailable: scoreFilterAvailable,
                     invalidScoreFilteringEnabled: filterInvalidScores,
                     availableSeasons: SongSeasonBucket.keys(in: session.selectedPlayerScores)
-                ) { shop, player, instrumentChoice in
-                    playerScoreFilterData = try player.encoded()
-                    filterInShop = shop.inShop
-                    filterLeavingTomorrow = shop.leavingTomorrow
+                ) { general, player, instrumentChoice in
+                    let playerData = try player.encoded()
+                    try saveGeneralFilter(general)
+                    playerScoreFilterData = playerData
                     instrument = instrumentChoice
                 }
                 .macSheetFrame()
@@ -616,9 +661,12 @@ struct SongsScreen: View {
     }
 
     private var filterAccessibilityValue: String {
+        let general = appliedGeneralFilter ?? SongGeneralFilter()
         let labels = [
-            filterInShop ? "In Shop" : nil,
-            filterLeavingTomorrow ? "Leaving Tomorrow" : nil,
+            general.restrictsYear ? "Year filter" : nil,
+            general.restrictsDuration ? "Duration filter" : nil,
+            !hideShop && general.shop.isActive ? "Item Shop filter" : nil,
+            general.restrictsDoubleBass ? "Double Bass filter" : nil,
         ].compactMap { $0 }
         let scoreCount = appliedPlayerScoreFilter.map { filter in
             SongScoreFilterKind.allCases.reduce(0) { count, kind in
@@ -638,7 +686,7 @@ struct SongsScreen: View {
             .joined(separator: ", ")
         let status = selected.isEmpty ? "No filters" : selected
         if shopFilterPausedMessage != nil {
-            return status + (effectivePlayerScoreFilter.isActive
+            return status + (effectivePlayerScoreFilter.isActive || general.restrictsMetadata
                 ? ", Item Shop filters paused" : ", paused; showing all songs")
         }
         return status + (playerScoreFilterPausedMessage == nil
@@ -657,7 +705,7 @@ struct SongsScreen: View {
         #endif
         .accessibilityValue(filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
-        .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true
+        .tint(generalFilterActive || appliedPlayerScoreFilter?.isActive == true
             ? BrandTokens.gold : BrandTokens.accentBlue)
     }
 
@@ -668,7 +716,7 @@ struct SongsScreen: View {
 
     /// Everything the dock's Filter button shows; a change re-registers it.
     private var filterDockToken: [String] {
-        [filterAccessibilityValue, String(appliedShopFilter.isActive),
+        [filterAccessibilityValue, String(generalFilterActive),
          String(appliedPlayerScoreFilter?.isActive == true)]
     }
 
@@ -893,7 +941,7 @@ struct SongsScreen: View {
     /// Block corrupt saved filters with an explicit reset, never show unfiltered success.
     ///
     /// - Parameter message: Validated local-preference decode failure.
-    /// - Returns: Accessible error and user-controlled reset of only score filters.
+    /// - Returns: Accessible error and user-controlled reset of only the corrupt filters.
     private func invalidPlayerFilterView(_ message: String) -> some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -905,9 +953,12 @@ struct SongsScreen: View {
                     .font(.body)
                     .foregroundStyle(FestivalText.primary)
                 Button {
-                    playerScoreFilterData = Data()
+                    if case .failure = generalFilterResult {
+                        try? saveGeneralFilter(SongGeneralFilter())
+                    }
+                    if playerScoreFilterError != nil { playerScoreFilterData = Data() }
                 } label: {
-                    Text("Reset saved score filters")
+                    Text("Reset saved filters")
                         .font(.body)
                         .foregroundStyle(FestivalText.primary)
                         .frame(minHeight: 44)
@@ -1168,8 +1219,8 @@ struct SongsScreen: View {
     private struct ReloadKey: Equatable {
         let sortMode: SongSortMode
         let sortAscending: Bool
-        let filterInShop: Bool
-        let filterLeavingTomorrow: Bool
+        let generalFilter: Data
+        let legacyShopFilter: [Bool]
         let playerScoreFilter: Data
         let instrument: Instrument?
         let search: String
@@ -1177,8 +1228,9 @@ struct SongsScreen: View {
 
     private var reloadKey: ReloadKey {
         ReloadKey(
-            sortMode: sortMode, sortAscending: sortAscending, filterInShop: filterInShop,
-            filterLeavingTomorrow: filterLeavingTomorrow, playerScoreFilter: playerScoreFilterData,
+            sortMode: sortMode, sortAscending: sortAscending, generalFilter: generalFilterData,
+            legacyShopFilter: [legacyFilterInShop, legacyFilterLeavingTomorrow],
+            playerScoreFilter: playerScoreFilterData,
             instrument: instrument, search: settledSearch
         )
     }

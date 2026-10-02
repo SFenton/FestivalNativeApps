@@ -52,8 +52,8 @@ import FestivalDesign
     ] {
         let host = nativeHostedView(
             SongsFilterSheet(
-                applied: SongShopFilter(), showShop: true, shopAvailable: true,
-                profileAvailable: true, appliedPlayerFilter: saved,
+                showShop: true, shopAvailable: true,
+                appliedPlayerFilter: saved,
                 appliedInstrument: instrument, visibleInstruments: visible,
                 selectedPlayer: true, scoreAvailable: true,
                 onApply: { _, _, _ in }

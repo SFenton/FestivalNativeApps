@@ -4,9 +4,9 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingPaging
 import com.festivalscoretracker.android.core.songs.SongFilter
+import com.festivalscoretracker.android.core.songs.SongGeneralFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
-import com.festivalscoretracker.android.core.songs.SongShopFilter
 import com.festivalscoretracker.android.core.songs.SongSortMode
 
 // region Songs presets
@@ -15,14 +15,14 @@ import com.festivalscoretracker.android.core.songs.SongSortMode
  * The saved Songs state a preset rewrites (web `SongSettings` subset Android can express).
  *
  * @property filter Public chart/difficulty filter.
- * @property shopFilter Public Shop filter.
+ * @property general Public General filters (Year, Duration, Item Shop, Double Bass).
  * @property playerFilter Selected-player score/FC checks.
  * @property sort Sort mode.
  * @property ascending Sort direction.
  */
 data class SongsFilterState(
     val filter: SongFilter = SongFilter(),
-    val shopFilter: SongShopFilter = SongShopFilter(),
+    val general: SongGeneralFilter = SongGeneralFilter(),
     val playerFilter: SongPlayerScoreFilter = SongPlayerScoreFilter(),
     val sort: SongSortMode = SongSortMode.Title,
     val ascending: Boolean = true,

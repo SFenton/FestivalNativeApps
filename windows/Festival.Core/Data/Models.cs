@@ -97,6 +97,8 @@ public sealed record Song
     [JsonPropertyName("year")] public int? Year { get; init; }
     /// <summary>Length in seconds.</summary>
     [JsonPropertyName("durationSeconds")] public int? DurationSeconds { get; init; }
+    /// <summary>Whether the Pro Drums chart has Double Bass support; absent wire fields stay unknown.</summary>
+    [JsonPropertyName("doubleBassSupported")] public bool? DoubleBassSupported { get; init; }
     /// <summary>CDN-relative or absolute art reference.</summary>
     [JsonPropertyName("albumArt")] public string? AlbumArt { get; init; }
     /// <summary>Per-chart difficulty.</summary>

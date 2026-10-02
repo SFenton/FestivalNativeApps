@@ -7,7 +7,8 @@ import com.festivalscoretracker.android.core.settings.SettingsOrder
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
-import com.festivalscoretracker.android.core.songs.SongShopFilter
+import com.festivalscoretracker.android.core.songs.SongCatalogBuckets
+import com.festivalscoretracker.android.core.songs.SongGeneralFilter
 import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -32,8 +33,8 @@ enum class ShopViewMode {
 /**
  * Saved Songs filter state.
  *
- * @property filter Public chart and Song Intensity filter.
- * @property shopFilter Public Shop filter.
+ * @property filter Public chart and Song Intensity filter (Selected Instrument Filters; player only).
+ * @property general Public General filters (Year, Duration, Item Shop, Double Bass).
  * @property playerFilter Selected-player filter, or null when the saved value is corrupt
  *   (the list is blocked until an explicit Reset).
  * @property shopViewMode Item Shop layout.
@@ -41,13 +42,22 @@ enum class ShopViewMode {
  */
 data class SongsPreferencesState(
     val filter: SongFilter = SongFilter(),
-    val shopFilter: SongShopFilter = SongShopFilter(),
+    val general: SongGeneralFilter = SongGeneralFilter(),
     val playerFilter: SongPlayerScoreFilter? = SongPlayerScoreFilter(),
     val shopViewMode: ShopViewMode = ShopViewMode.Grid,
     val metadataOrder: List<MetadataField> = MetadataField.entries,
 ) {
-    /** Whether any saved filter is set (gold filter icon). */
-    val anyFilterActive: Boolean get() = filter.isActive || shopFilter.isActive || playerFilter?.appliesTo(filter.instrument) == true
+    /**
+     * Whether any saved filter applies (gold filter icon, web `isFilterActive`): General
+     * filters always (Item Shop only while shown); the instrument and player filters only
+     * with a selected player.
+     *
+     * @param hasPlayer A player is selected.
+     * @param hideShop Item Shop hidden in Settings.
+     * @return True when the icon should show an active filter.
+     */
+    fun filterActive(hasPlayer: Boolean, hideShop: Boolean): Boolean =
+        general.isActive(shopVisible = !hideShop) || (hasPlayer && (filter.isActive || playerFilter?.appliesTo(filter.instrument) == true))
 }
 
 // endregion
@@ -71,7 +81,7 @@ class SongsPreferences(private val settings: SettingsRepository) {
         val public = decodePublic(filters)
         SongsPreferencesState(
             filter = public.first,
-            shopFilter = public.second,
+            general = public.second,
             playerFilter = SongPlayerScoreFilter.decodeSaved(player),
             shopViewMode = if (view == ShopViewMode.List.name) ShopViewMode.List else ShopViewMode.Grid,
             metadataOrder = SettingsOrder.decode(order, MetadataField.entries, MetadataField::fromToken),
@@ -82,11 +92,11 @@ class SongsPreferences(private val settings: SettingsRepository) {
      * Apply a filter draft.
      *
      * @param filter Public filter.
-     * @param shopFilter Shop filter.
+     * @param general General filters.
      * @param playerFilter Player filter (already scoped to visible charts).
      */
-    suspend fun setFilters(filter: SongFilter, shopFilter: SongShopFilter, playerFilter: SongPlayerScoreFilter) {
-        settings.writeBlob(SettingsRegistry.SONG_FILTERS, encodePublic(filter, shopFilter))
+    suspend fun setFilters(filter: SongFilter, general: SongGeneralFilter, playerFilter: SongPlayerScoreFilter) {
+        settings.writeBlob(SettingsRegistry.SONG_FILTERS, encodePublic(filter, general))
         settings.writeBlob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, playerFilter.encoded().ifEmpty { null })
     }
 
@@ -96,9 +106,15 @@ class SongsPreferences(private val settings: SettingsRepository) {
         settings.writeBlob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, null)
     }
 
-    /** Clear only the selected-player predicates (confirmed deselection keeps public Shop choices). */
+    /**
+     * Clear the player-scoped filters on confirmed deselection: score predicates and the
+     * Selected Instrument Filters (instrument and Song Intensity, which the web resets and
+     * hides without a profile). The public General filters stay.
+     */
     suspend fun clearPlayerFilter() {
         settings.writeBlob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, null)
+        val general = decodePublic(settings.blob(SettingsRegistry.SONG_FILTERS).first()).second
+        settings.writeBlob(SettingsRegistry.SONG_FILTERS, encodePublic(SongFilter(), general))
     }
 
     /** Reset a saved sort that reads the selected player's scores to Title ascending. */
@@ -125,12 +141,22 @@ class SongsPreferences(private val settings: SettingsRepository) {
         settings.writeBlob(SettingsRegistry.SHOP_VIEW_MODE, mode.name)
     }
 
+    /**
+     * Public filter blob. [inShop]/[leavingTomorrow] are the retired Shop toggles, decoded
+     * only to migrate them to "Available in Item Shop" (web `migrateShopAvailability`).
+     */
     @Serializable
     private data class StoredPublic(
         val instrument: String? = null,
         val excludedIntensities: List<Int> = emptyList(),
         val inShop: Boolean = false,
         val leavingTomorrow: Boolean = false,
+        val excludedDecades: List<Int> = emptyList(),
+        val excludedDurations: List<Int> = emptyList(),
+        val shopAvailable: Boolean? = null,
+        val shopUnavailable: Boolean? = null,
+        val doubleBassSupported: Boolean = true,
+        val doubleBassUnsupported: Boolean = true,
     )
 
     companion object {
@@ -140,27 +166,48 @@ class SongsPreferences(private val settings: SettingsRepository) {
          * Encode the public filters, or null for defaults.
          *
          * @param filter Public filter.
-         * @param shopFilter Shop filter.
+         * @param general General filters.
          * @return JSON or null.
          */
-        internal fun encodePublic(filter: SongFilter, shopFilter: SongShopFilter): String? {
-            if (!filter.isActive && filter.excludedIntensities.isEmpty() && !shopFilter.isActive) return null
-            val stored = StoredPublic(filter.instrument?.wireId, filter.excludedIntensities.sorted(), shopFilter.inShop, shopFilter.leavingTomorrow)
+        internal fun encodePublic(filter: SongFilter, general: SongGeneralFilter): String? {
+            if (!filter.isActive && filter.excludedIntensities.isEmpty() && general == SongGeneralFilter()) return null
+            val stored = StoredPublic(
+                instrument = filter.instrument?.wireId,
+                excludedIntensities = filter.excludedIntensities.sorted(),
+                excludedDecades = general.excludedDecades.sorted(),
+                excludedDurations = general.excludedDurations.sorted(),
+                shopAvailable = general.shopAvailable,
+                shopUnavailable = general.shopUnavailable,
+                doubleBassSupported = general.doubleBassSupported,
+                doubleBassUnsupported = general.doubleBassUnsupported,
+            )
             return JSON.encodeToString(StoredPublic.serializer(), stored)
         }
 
         /**
-         * Decode public filters; anything invalid falls back to defaults (they gate nothing unsafe).
+         * Decode public filters; anything invalid falls back to defaults (they gate nothing
+         * unsafe). A malformed Song Intensity, Year or Duration list drops only that section.
          *
          * @param raw Stored JSON.
-         * @return Filter and Shop filter.
+         * @return Filter and General filters.
          */
-        internal fun decodePublic(raw: String?): Pair<SongFilter, SongShopFilter> {
+        internal fun decodePublic(raw: String?): Pair<SongFilter, SongGeneralFilter> {
             val stored = raw?.let { runCatching { JSON.decodeFromString(StoredPublic.serializer(), it) }.getOrNull() }
-                ?: return SongFilter() to SongShopFilter()
+                ?: return SongFilter() to SongGeneralFilter()
             val filter = SongFilter(stored.instrument?.let(Instrument::fromWireId), stored.excludedIntensities.toSet())
             val valid = filter.isValid && filter.excludedIntensities.size == stored.excludedIntensities.size
-            return (if (valid) filter else SongFilter(filter.instrument)) to SongShopFilter(stored.inShop, stored.leavingTomorrow)
+            fun keys(values: List<Int>, check: (Int) -> Boolean): Set<Int> =
+                values.toSet().takeIf { it.size == values.size && it.all(check) } ?: emptySet()
+            val legacyAvailable = stored.inShop || stored.leavingTomorrow
+            val general = SongGeneralFilter(
+                excludedDecades = keys(stored.excludedDecades, SongCatalogBuckets::isDecade),
+                excludedDurations = keys(stored.excludedDurations, SongCatalogBuckets::isDuration),
+                shopAvailable = stored.shopAvailable ?: true,
+                shopUnavailable = stored.shopUnavailable ?: !legacyAvailable,
+                doubleBassSupported = stored.doubleBassSupported,
+                doubleBassUnsupported = stored.doubleBassUnsupported,
+            )
+            return (if (valid) filter else SongFilter(filter.instrument)) to general
         }
     }
 }
@@ -170,9 +217,9 @@ class SongsPreferences(private val settings: SettingsRepository) {
 // region Deselection
 
 /**
- * Clear selected-player predicates when a selected player is deselected (a
- * player-to-player switch keeps them; public Shop choices always stay). A saved
- * score sort falls back to Title ascending, like the filters it depends on.
+ * Clear selected-player predicates and Selected Instrument Filters when a selected player
+ * is deselected (a player-to-player switch keeps them; public General choices always stay).
+ * A saved score sort falls back to Title ascending, like the filters it depends on.
  *
  * @receiver Songs preferences.
  * @param scope Process-lifetime scope.

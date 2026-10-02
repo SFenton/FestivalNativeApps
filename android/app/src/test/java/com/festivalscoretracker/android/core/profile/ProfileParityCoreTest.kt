@@ -7,7 +7,7 @@ import com.festivalscoretracker.android.core.rivals.ColumnSpec
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
-import com.festivalscoretracker.android.core.songs.SongShopFilter
+import com.festivalscoretracker.android.core.songs.SongGeneralFilter
 import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.core.songs.SongPercentileBucket
 import com.festivalscoretracker.android.core.songs.SongStarsBucket
@@ -78,7 +78,7 @@ class ProfileParityCoreTest {
     fun overallPresetsResetEverythingAndCheckEveryVisibleChart() {
         val current = SongsFilterState(
             filter = SongFilter(Instrument.Bass, setOf(2, 5)),
-            shopFilter = SongShopFilter(inShop = true),
+            general = SongGeneralFilter(shopUnavailable = false),
             playerFilter = SongPlayerScoreFilter(missingFCs = setOf(Instrument.Drums)),
             sort = SongSortMode.Shop,
             ascending = false,
@@ -96,7 +96,7 @@ class ProfileParityCoreTest {
     fun instrumentPresetsClearOnlyThatChartKeepShopAndSortByScore() {
         val current = SongsFilterState(
             filter = SongFilter(Instrument.Bass, setOf(2, 5)),
-            shopFilter = SongShopFilter(inShop = true, leavingTomorrow = true),
+            general = SongGeneralFilter(excludedDecades = setOf(1990), doubleBassSupported = false),
             playerFilter = SongPlayerScoreFilter(
                 missingScores = setOf(Instrument.Lead),
                 missingFCs = setOf(Instrument.Lead, Instrument.Drums),
@@ -107,7 +107,7 @@ class ProfileParityCoreTest {
         )
         val next = SongsPreset.ForInstrument(SongScoreFilterKind.HasScores, Instrument.Lead).apply(current)
         assertEquals(SongFilter(Instrument.Lead), next.filter)
-        assertEquals(current.shopFilter, next.shopFilter)
+        assertEquals(current.general, next.general)
         assertEquals(SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead), missingFCs = setOf(Instrument.Drums)), next.playerFilter)
         // Web instSongsPlayedUpdater sorts by score, ascending.
         assertEquals(SongSortMode.Score, next.sort)

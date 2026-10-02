@@ -103,22 +103,21 @@ public sealed partial class SongsViewModel : ObservableObject
     public bool IsSortChanged => session.Settings.SongSort != SongSortMode.Title || !session.Settings.SongSortAscending;
 
     /// <summary>Whether any saved filter is set (gold tint).</summary>
-    /// <remarks>Season / Percentile / Stars / Intensity buckets count only with an instrument selected (web <c>isFilterActive</c>).</remarks>
+    /// <remarks>General filters always count; selected-instrument and player filters count only with a player selected.</remarks>
     public bool IsFilterActive =>
-        session.Settings.SongFilter.IsActive || session.Settings.ShopFilter.IsActive ||
-        (session.Settings.PlayerScoreFilter.IsValid && session.Settings.PlayerScoreFilter.AppliesTo(session.Settings.SongFilter.Instrument));
+        session.Settings.GeneralFilter.IsActive || (!session.Settings.HideShop && session.Settings.ShopFilter.IsActive) ||
+        (session.HasPlayer && (session.Settings.SongFilter.IsActive ||
+            (session.Settings.PlayerScoreFilter.IsValid && session.Settings.PlayerScoreFilter.AppliesTo(session.Settings.SongFilter.Instrument))));
 
-    /// <summary>
-    /// Whether the Filter button shows: the web offers no Songs filter without a selected profile, but a filter saved
-    /// earlier still applies, so the button stays while one is active to let it be cleared.
-    /// </summary>
-    public bool ShowFilterButton => session.HasPlayer || IsFilterActive;
+    /// <summary>Whether the Filter button shows. General filters are available with or without a selected profile.</summary>
+    public bool ShowFilterButton => true;
 
     /// <summary>Applied sort label, e.g. "Title ↑".</summary>
     public string SortSummary => session.Settings.SongSort.Label() + (session.Settings.SongSortAscending ? " ↑" : " ↓");
 
     /// <summary>Whether a saved filter is corrupt (the list waits for an explicit Reset).</summary>
-    private bool InvalidSavedFilter => !session.Settings.PlayerScoreFilter.IsValid || !session.Settings.SongFilter.IsValid;
+    private bool InvalidSavedFilter =>
+        !session.Settings.GeneralFilter.IsValid || !session.Settings.PlayerScoreFilter.IsValid || !session.Settings.SongFilter.IsValid;
 
     /// <summary>Loads the catalogue (plus Shop and player scores, best-effort) and rebuilds the list.</summary>
     /// <param name="force">Re-read from the service.</param>
@@ -170,7 +169,8 @@ public sealed partial class SongsViewModel : ObservableObject
     [RelayCommand]
     private void ClearFilter() => session.UpdateSettings(s => s with
     {
-        SongFilter = SongFilter.None, ShopFilter = SongShopFilter.None, PlayerScoreFilter = SongPlayerScoreFilter.None,
+        GeneralFilter = SongGeneralFilter.None, SongFilter = SongFilter.None, ShopFilter = SongShopFilter.None,
+        PlayerScoreFilter = SongPlayerScoreFilter.None,
     });
 
     /// <summary>Debounces search input.</summary>
@@ -260,6 +260,7 @@ public sealed partial class SongsViewModel : ObservableObject
         {
             Songs = catalog.Songs,
             Search = appliedSearch,
+            GeneralFilter = settings.GeneralFilter,
             Filter = settings.SongFilter,
             ShopFilter = settings.ShopFilter,
             PlayerFilter = settings.PlayerScoreFilter,
@@ -315,7 +316,7 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
         var offer = offers?.GetValueOrDefault(song.SongId);
         var highlight = ShopPresentationPolicy.Highlight(offer, settings.HideShop, settings.DisableShopHighlighting);
         var inShop = offer is not null && !settings.HideShop && !settings.DisableShopHighlighting;
-        var filterChart = settings.SongFilter.Instrument;
+        var filterChart = scores.HasPlayer ? settings.SongFilter.Instrument : null;
         var filterRaw = filterChart is { } f ? song.Difficulty?.ChartedValue(f) : null;
         if (!scores.HasPlayer)
             return new SongRowItem(song) { Highlight = highlight, InShop = inShop, Chart = filterRaw is null ? null : filterChart, ChartRaw = filterRaw };

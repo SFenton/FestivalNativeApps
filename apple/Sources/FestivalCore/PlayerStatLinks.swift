@@ -14,10 +14,8 @@ public struct SongsSavedState: Equatable, Sendable {
     public var sortMode: SongSortMode
     /// `fst.songs.sortAscending`.
     public var sortAscending: Bool
-    /// `fst.songs.filterInShop`.
-    public var filterInShop: Bool
-    /// `fst.songs.filterLeavingTomorrow`.
-    public var filterLeavingTomorrow: Bool
+    /// `SongGeneralFilter.storageKey` (Year, Duration, Item Shop and Double Bass).
+    public var generalFilter: SongGeneralFilter
     /// `SongPlayerScoreFilter.storageKey` (chart checks plus stars/percentile buckets).
     public var playerFilter: SongPlayerScoreFilter
 
@@ -27,19 +25,17 @@ public struct SongsSavedState: Equatable, Sendable {
     ///   - instrument: Instrument filter.
     ///   - sortMode: Sort.
     ///   - sortAscending: Sort direction.
-    ///   - filterInShop: Public Item Shop filter.
-    ///   - filterLeavingTomorrow: Public "leaving tomorrow" filter.
+    ///   - generalFilter: Public General filters (Year, Duration, Item Shop, Double Bass).
     ///   - playerFilter: Selected-player score and full-combo checks.
     public init(
         instrument: Instrument? = nil, sortMode: SongSortMode = .title, sortAscending: Bool = true,
-        filterInShop: Bool = false, filterLeavingTomorrow: Bool = false,
+        generalFilter: SongGeneralFilter = SongGeneralFilter(),
         playerFilter: SongPlayerScoreFilter = SongPlayerScoreFilter()
     ) {
         self.instrument = instrument
         self.sortMode = sortMode
         self.sortAscending = sortAscending
-        self.filterInShop = filterInShop
-        self.filterLeavingTomorrow = filterLeavingTomorrow
+        self.generalFilter = generalFilter
         self.playerFilter = playerFilter
     }
 }
@@ -57,7 +53,7 @@ public enum SongsFilterPreset: Hashable, Sendable {
     case overall(SongScoreFilterKind, visible: Set<Instrument>)
     /// An instrument's "Songs Played" or "FCs": that chart becomes the Songs
     /// instrument, its own four checks and the stars/percentile buckets are cleared and
-    /// one check is set; other charts' checks and the Shop filters are kept (web
+    /// one check is set; other charts' checks and the General filters are kept (web
     /// `cleanFilters`), sorted by Score ascending (web `instSongsPlayedUpdater` /
     /// `instFCsUpdater`).
     case instrument(SongScoreFilterKind, Instrument)
@@ -117,7 +113,7 @@ public enum SongsFilterPreset: Hashable, Sendable {
 
     /// The web's `cleanFilters(s, inst)` plus a tile's own choice: clear the chart's
     /// four checks and the stars/percentile buckets, keep other charts' checks (hidden
-    /// ones included, like the filter sheet) and the Shop filters, then add `choice`.
+    /// ones included, like the filter sheet) and the General filters, then add `choice`.
     ///
     /// A chart hidden since the tile was drawn gets no new, invisible choice: Songs
     /// shows every instrument, sorted by Title.

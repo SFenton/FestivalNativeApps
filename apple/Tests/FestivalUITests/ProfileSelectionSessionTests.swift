@@ -192,14 +192,16 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     #expect(restored.selectedPlayerScoreObservation == 7)
     storage.set(try SongPlayerScoreFilter(hasScores: [.lead]).encoded(),
                 forKey: SongPlayerScoreFilter.storageKey)
-    storage.set(true, forKey: "fst.songs.filterInShop")
+    let general = try SongGeneralFilter(excludedDecades: [1970], doubleBassSupported: false).encoded()
+    storage.set(general, forKey: SongGeneralFilter.storageKey)
     restored.deselectPlayer()
     #expect(restored.selectedPlayer == nil)
     #expect(restored.selectedPlayerScores.isEmpty)
     #expect(restored.selectedPlayerScoreObservation == nil)
     #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
     #expect(storage.data(forKey: SongPlayerScoreFilter.storageKey) == nil)
-    #expect(storage.bool(forKey: "fst.songs.filterInShop"))
+    // General filters use only public metadata and survive deselection.
+    #expect(storage.data(forKey: SongGeneralFilter.storageKey) == general)
 }
 
 @MainActor

@@ -12,6 +12,8 @@ public sealed record SongListInputs
     public string? Search { get; init; }
     /// <summary>Public chart/difficulty filter.</summary>
     public SongFilter Filter { get; init; } = SongFilter.None;
+    /// <summary>General filters that apply without a selected profile.</summary>
+    public SongGeneralFilter GeneralFilter { get; init; } = SongGeneralFilter.None;
     /// <summary>Saved Shop filter.</summary>
     public SongShopFilter ShopFilter { get; init; } = SongShopFilter.None;
     /// <summary>Saved selected-player filter.</summary>
@@ -72,16 +74,18 @@ public static class SongListPipeline
     /// <returns>Rows, sections and notices.</returns>
     public static SongListResult Run(SongListInputs input)
     {
-        IReadOnlyList<Song> rows = [.. input.Songs.Where(s => SongSearch.Matches(s, input.Search) && input.Filter.Matches(s))];
+        var publicFilter = input.HasPlayer ? input.Filter : SongFilter.None;
+        IReadOnlyList<Song> rows = [.. input.Songs.Where(s => SongSearch.Matches(s, input.Search) && input.GeneralFilter.Matches(s) && publicFilter.Matches(s))];
 
-        var shopPaused = input.ShopFilter.IsActive ? ShopPauseReason(input, "filters") : null;
-        if (input.ShopFilter.IsActive && shopPaused is null) rows = input.ShopFilter.Filter(rows, input.Offers);
+        var shopFilterApplies = input.ShopFilter.IsActive && !input.HideShop;
+        var shopPaused = shopFilterApplies ? ShopPauseReason(input, "filters") : null;
+        if (shopFilterApplies && shopPaused is null) rows = input.ShopFilter.Filter(rows, input.Offers);
 
         // Web checkSeason/checkPct/checkStars apply only with an instrument selected; paused like the score checks.
-        var chart = input.Filter.ScopedTo(input.Visible).Instrument;
+        var chart = publicFilter.ScopedTo(input.Visible).Instrument;
         var scorePaused = ScorePauseReason(input, chart);
         var scoped = input.PlayerFilter.Effective(input.FilterInvalidScores).ScopedTo(input.Visible);
-        var playerApplies = scoped.AppliesTo(chart);
+        var playerApplies = input.HasPlayer && scoped.AppliesTo(chart);
         if (scorePaused is null && playerApplies)
             rows = scoped.Filter(rows, input.Scores!, input.Visible, chart, input.Details);
 
@@ -118,7 +122,8 @@ public static class SongListPipeline
             _ when metric is not null => [new SongSection("", sorted)],
             _ => SongCatalogQuery.Sections(sorted, effective),
         };
-        var applied = input.Filter.IsActive || (input.ShopFilter.IsActive && shopPaused is null) || (playerApplies && scorePaused is null);
+        var applied = input.GeneralFilter.IsActive || (publicFilter.IsActive && input.HasPlayer) ||
+                      (shopFilterApplies && shopPaused is null) || (playerApplies && scorePaused is null);
         return new SongListResult(sections, sorted.Count, effective, sortPaused, shopPaused, scorePaused, applied);
     }
 
@@ -347,11 +352,11 @@ public static class SongListPipeline
     /// <returns>Readable notice, or <see langword="null"/> when they apply (or none are set).</returns>
     private static string? ScorePauseReason(SongListInputs input, Instrument? chart)
     {
+        if (!input.HasPlayer) return null;
         var filter = input.PlayerFilter.Effective(input.FilterInvalidScores);
         if (!filter.AppliesTo(chart)) return null;
         if (!filter.ScopedTo(input.Visible).AppliesTo(chart))
             return "Player score filters paused while their instruments are hidden in Settings. Your choices are saved.";
-        if (!input.HasPlayer) return "Player score filters paused until a player is selected.";
         if (input.Scores is null || (chart is not null && filter.HasBucketChecks && input.Details is null))
             return "Player score filters paused until the player's scores and songs are from the same update. Showing songs without score filters.";
         return null;

@@ -35,6 +35,7 @@ extension Song {
         pathArtifactGenerationId = nil
         sig = nil
         maxScores = nil
+        doubleBassSupported = nil
     }
 }
 

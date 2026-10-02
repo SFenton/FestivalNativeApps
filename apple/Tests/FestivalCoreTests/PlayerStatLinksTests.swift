@@ -4,16 +4,20 @@ import Testing
 
 // MARK: - Songs presets
 
-/// Saved Songs state with checks on two charts, Shop filters on and a non-default sort.
+/// Saved Songs state with checks on two charts, General filters on and a non-default sort.
 private func busySavedState() -> SongsSavedState {
     SongsSavedState(
         instrument: .drums, sortMode: .shop, sortAscending: false,
-        filterInShop: true, filterLeavingTomorrow: true,
+        generalFilter: busyGeneralFilter,
         playerFilter: SongPlayerScoreFilter(
             missingScores: [.lead], hasScores: [.bass], missingFCs: [.lead], hasFCs: [.drums]
         )
     )
 }
+
+private let busyGeneralFilter = SongGeneralFilter(
+    excludedDecades: [1970], shop: .availableOnly, doubleBassUnsupported: false
+)
 
 @Test func overallPresetResetsEverythingAndChecksEveryVisibleChart() {
     let visible: Set<Instrument> = [.lead, .bass, .drums]
@@ -27,7 +31,7 @@ private func busySavedState() -> SongsSavedState {
         .applied(to: busySavedState(), visibleInstruments: visible)
     #expect(combos.playerFilter == SongPlayerScoreFilter(hasFCs: visible))
     #expect(combos.instrument == nil && combos.sortMode == .title && combos.sortAscending)
-    #expect(!combos.filterInShop && !combos.filterLeavingTomorrow)
+    #expect(combos.generalFilter == SongGeneralFilter())
 }
 
 @Test func overallPresetNeverChecksAChartHiddenSinceTheTileWasBuilt() {
@@ -41,10 +45,10 @@ private func busySavedState() -> SongsSavedState {
     let saved = SongsFilterPreset.instrument(.hasFCs, .lead)
         .applied(to: busySavedState(), visibleInstruments: visible)
     // Web `cleanFilters` + `instFCsUpdater`: Lead's four checks cleared then hasFCs set;
-    // Bass/Drums checks and both Shop filters kept; Lead becomes the Songs instrument.
+    // Bass/Drums checks and the General filters kept; Lead becomes the Songs instrument.
     #expect(saved.playerFilter == SongPlayerScoreFilter(hasScores: [.bass], hasFCs: [.lead, .drums]))
     #expect(saved.instrument == .lead)
-    #expect(saved.filterInShop && saved.filterLeavingTomorrow)
+    #expect(saved.generalFilter == busyGeneralFilter)
     // Web `instFCsUpdater`: Score ascending.
     #expect(saved.sortMode == .score && saved.sortAscending)
 }

@@ -108,28 +108,29 @@ data class SongSortDraft(
 // region Filter draft
 
 /**
- * Filter sheet draft over the public instrument/intensity filter, Shop toggles and the
+ * Filter sheet draft over the General filters (Year, Duration, Item Shop, Double Bass), the
+ * public instrument/intensity filter and the
  * selected player's score/FC checks and Season/Percentile/Stars buckets. Hidden-chart checks stay in the draft but are
  * disclosed, and are removed on Apply (source sanitization).
  *
  * @property filter Public filter.
- * @property shopFilter Shop filter.
+ * @property general General filters (Year, Duration, Item Shop, Double Bass).
  * @property playerFilter Player filter.
  * @property visible Settings-visible charts.
  * @property applied Saved values to compare against.
  */
 data class SongFilterDraft(
     val filter: SongFilter = SongFilter(),
-    val shopFilter: SongShopFilter = SongShopFilter(),
+    val general: SongGeneralFilter = SongGeneralFilter(),
     val playerFilter: SongPlayerScoreFilter = SongPlayerScoreFilter(),
     val visible: Set<Instrument> = Instrument.entries.toSet(),
-    val applied: Triple<SongFilter, SongShopFilter, SongPlayerScoreFilter> = Triple(filter, shopFilter, playerFilter),
+    val applied: Triple<SongFilter, SongGeneralFilter, SongPlayerScoreFilter> = Triple(filter, general, playerFilter),
 ) {
-    /** Whether every hidden intensity bucket is a known key. */
-    val isValid: Boolean get() = filter.isValid
+    /** Whether every hidden intensity, decade and duration bucket is a known key. */
+    val isValid: Boolean get() = filter.isValid && general.isValid
 
     /** Whether Apply would change anything. */
-    val changed: Boolean get() = Triple(filter, shopFilter, playerFilter.scopedTo(visible)) != applied
+    val changed: Boolean get() = Triple(filter, general, playerFilter.scopedTo(visible)) != applied
 
     /** Whether Apply is enabled. */
     val canApply: Boolean get() = isValid && changed
@@ -138,11 +139,11 @@ data class SongFilterDraft(
     val hasHiddenChecks: Boolean get() = playerFilter.scopedTo(visible) != playerFilter
 
     /** The values Apply persists (hidden-chart checks removed). */
-    val result: Triple<SongFilter, SongShopFilter, SongPlayerScoreFilter>
-        get() = Triple(filter.scopedTo(visible), shopFilter, playerFilter.scopedTo(visible))
+    val result: Triple<SongFilter, SongGeneralFilter, SongPlayerScoreFilter>
+        get() = Triple(filter.scopedTo(visible), general, playerFilter.scopedTo(visible))
 
     /** Clear the draft (Apply still required). */
-    fun reset(): SongFilterDraft = copy(filter = SongFilter(), shopFilter = SongShopFilter(), playerFilter = SongPlayerScoreFilter())
+    fun reset(): SongFilterDraft = copy(filter = SongFilter(), general = SongGeneralFilter(), playerFilter = SongPlayerScoreFilter())
 
     /**
      * Choose one chart or all.
@@ -189,6 +190,30 @@ data class SongFilterDraft(
         if (kind == SongBucketKind.Intensity) copy(filter = filter.copy(excludedIntensities = keys)) else copy(playerFilter = playerFilter.withExcluded(kind, keys))
 
     /**
+     * Show or hide one Year or Duration bucket (every bucket starts shown).
+     *
+     * @param kind Year or Duration.
+     * @param key Decade or minute bucket.
+     * @param shown New value.
+     * @return Updated draft.
+     */
+    fun withGeneralBucket(kind: SongGeneralBucketKind, key: Int, shown: Boolean): SongFilterDraft {
+        val hidden = general.excluded(kind)
+        return copy(general = general.withExcluded(kind, if (shown) hidden - key else hidden + key))
+    }
+
+    /**
+     * Year/Duration Select All (nothing hidden, web `{}`) or Clear All (every listed key hidden).
+     *
+     * @param kind Year or Duration.
+     * @param keys Every key the section lists.
+     * @param shown True for Select All.
+     * @return Updated draft.
+     */
+    fun withAllGeneralBuckets(kind: SongGeneralBucketKind, keys: List<Int>, shown: Boolean): SongFilterDraft =
+        copy(general = general.withExcluded(kind, if (shown) emptySet() else general.excluded(kind) + keys))
+
+    /**
      * Toggle one per-chart check.
      *
      * @param kind Check.
@@ -222,14 +247,14 @@ data class SongFilterDraft(
          * Start a draft from saved values (a corrupt saved player filter starts empty).
          *
          * @param filter Saved public filter.
-         * @param shopFilter Saved Shop filter.
+         * @param general Saved General filters.
          * @param playerFilter Saved player filter, or null when corrupt.
          * @param visible Settings-visible charts.
          * @return Draft.
          */
-        fun from(filter: SongFilter, shopFilter: SongShopFilter, playerFilter: SongPlayerScoreFilter?, visible: Set<Instrument>): SongFilterDraft {
+        fun from(filter: SongFilter, general: SongGeneralFilter, playerFilter: SongPlayerScoreFilter?, visible: Set<Instrument>): SongFilterDraft {
             val player = playerFilter ?: SongPlayerScoreFilter()
-            return SongFilterDraft(filter, shopFilter, player, visible, Triple(filter, shopFilter, player.scopedTo(visible)))
+            return SongFilterDraft(filter, general, player, visible, Triple(filter, general, player.scopedTo(visible)))
         }
     }
 }
