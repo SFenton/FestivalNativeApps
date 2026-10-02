@@ -176,8 +176,17 @@ struct CompeteInstrumentLeaderboardSection: View {
                         )
                     }
                 }
-                // One rank and score width for the card (issue #37).
-                .leaderboardSectionColumns(.rankings(payload.rankings.entries, metric: .totalscore))
+                // One rank, songs and score width for the card (issue #37); on a
+                // narrow card (portrait iPhone) every row drops songs played/total
+                // when it would truncate a name (issue #38).
+                .leaderboardSectionColumns(
+                    .rankings(payload.rankings.entries, metric: .totalscore),
+                    hidingCrowdedSongsFor: payload.rankings.entries.map {
+                        RankingRowName(
+                            name: AccountRankingRow.displayName($0), emphasized: isSelected($0.accountId)
+                        )
+                    }
+                )
                 .festivalFadeIn(isLoaded: true)
                 NavigationLink(
                     value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
