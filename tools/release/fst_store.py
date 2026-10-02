@@ -342,9 +342,11 @@ def blocked_status(reason: str) -> Dict[str, Any]:
 
 def collect_status(client: StoreClient, run: Runner, repo: str,
                    ledger: Dict[str, Any]) -> Dict[str, Any]:
-    """Build ``{in_review, state, version, latest_build, released_sha, blocked}``.
+    """Build ``{in_review, state, version, publish_mode, latest_build, released_sha, blocked}``.
 
-    ``state`` is the pending submission's status, else ``Published`` for the live one.
+    ``state`` is the pending submission's status, else ``Published`` for the live one. ``publish_mode`` is that
+    submission's ``targetPublishMode`` (``Manual`` keeps a certified build from going live by itself; a
+    hand-made first submission should use it too).
     ``latest_build.build`` is the MSIX version (the Store's build identity).
     """
     app = application(client)
@@ -373,6 +375,7 @@ def collect_status(client: StoreClient, run: Runner, repo: str,
 
     return {"in_review": bool(pending) and state in IN_REVIEW_STATUSES, "state": state,
             "version": package_version(current) if current else None,
+            "publish_mode": current.get("targetPublishMode") if current else None,
             "latest_build": latest, "released_sha": released_sha, "blocked": None}
 
 
