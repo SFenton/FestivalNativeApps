@@ -386,12 +386,15 @@ private fun FestivalShell(
     val floatingToolbar = remember { FloatingToolbarHost() }
     val usesFloatingToolbar = !AdaptiveLayoutPolicy.isRegularWidth(widthDp)
     // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
-    // when it scrolls back; never hidden under TalkBack; shown again on every navigation.
+    // when it scrolls back; never hidden under TalkBack or on pages that pin it (Songs and
+    // Suggestions keep Sort/Filter/Quick Links reachable while scrolled, issue #52); shown
+    // again on every navigation.
     val toolbarScroll = remember { FloatingToolbarScrollState() }
     val touchExploration = rememberScreenReaderOn()
+    val toolbarPinned = floatingToolbar.pinned
     toolbarScroll.hiddenOffsetPx = with(density) { (FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp.toPx() }
-    toolbarScroll.enabled = !touchExploration
-    LaunchedEffect(stack.lastOrNull()?.id, touchExploration) { toolbarScroll.reset() }
+    toolbarScroll.enabled = !touchExploration && !toolbarPinned
+    LaunchedEffect(stack.lastOrNull()?.id, touchExploration, toolbarPinned) { toolbarScroll.reset() }
     val bottomPadding = PaddingValues(
         end = safeEnd,
         bottom = when {

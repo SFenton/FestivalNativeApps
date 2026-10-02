@@ -29,6 +29,7 @@ States: no player, loading, syncing (202), failed (catalogue or profile; Retry),
 - The filter is a separate file rather than an `AppSettings` field so it does not widen the shared settings model; Settings' future "Reset" should also delete it (open issue).
 - The filter follows Settings' visible instruments (batch 6.37): hidden charts are not offered, an open filter rebuilds at once when Settings change, and toggles left off on a hidden chart don't count toward the gold accent, the filtered-empty message or Reset (`SuggestionFilterSettings.IsActiveFor`); they return when the chart is shown again.
 - A filter that disables every type skips generation entirely (nothing could show) instead of spinning the generator.
+- Filter and global search stay put while the cards scroll (issue #52 check, 2026-10-01): the header Grid (title + `fst.suggestions.filter-button`) sits above the `CardList` and only the list scrolls; UIA rects were identical before/after scrolling at compact, Filter opened while scrolled and Esc returned focus. No change needed.
 - Art: one retry on a failed fetch, and a stale `Unloaded` (WinUI re-parenting) no longer cancels a row's in-flight art load.
 
 ## Fixture mode
