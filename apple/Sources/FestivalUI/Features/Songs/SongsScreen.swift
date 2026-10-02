@@ -904,6 +904,7 @@ struct SongsScreen: View {
             durationSections: durationSections, yearSections: yearSections,
             scoreSections: scoreSections
         )
+        let headerKeys = (groups ?? []).map { Self.headerKey($0.id) }
         return ScrollViewReader { scrollProxy in
             ZStack(alignment: .trailing) {
                 List {
@@ -953,6 +954,9 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
+                // Before the section bar overlay: applied after it, this identifier
+                // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
+                .accessibilityIdentifier("fst.songs.list")
                 .modifier(SectionBarRowMask(
                     chrome: scrollChrome, enabled: groups != nil && Self.usesSectionBar
                 ))
@@ -965,14 +969,16 @@ struct SongsScreen: View {
                             chrome: scrollChrome,
                             sections: groups.map {
                                 SongsSectionBar.Entry(
-                                    key: Self.headerKey($0), label: $0.label,
+                                    key: Self.headerKey($0.id), label: $0.label,
                                     spokenLabel: $0.spokenLabel ?? $0.label
                                 )
                             }
                         )
                     }
                 }
-                .modifier(ScrolledAwayTracker { scrolled in
+                .modifier(ScrolledAwayTracker(
+                    topInsetChanged: scrollChrome.setListTopInset
+                ) { scrolled in
                     scrollChrome.setScrolled(scrolled)
                     let moved = scrolled && actionsInDock && session.selectedPlayer != nil
                     guard moved != scrollChrome.toolsInBar else { return }
@@ -981,7 +987,6 @@ struct SongsScreen: View {
                         quickLinks.prefersToolbar = moved
                     }
                 })
-                .accessibilityIdentifier("fst.songs.list")
                 .scrollContentBackground(.hidden)
                 // Reserve room for the trailing section-index scrubber so its glass
                 // capsule never overlaps a row's own trailing content (difficulty
@@ -996,12 +1001,12 @@ struct SongsScreen: View {
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
                     sections: showsIndex ? [] : (groups ?? []).compactMap(\.quickLink)
                 )
+                .modifier(QuickLinksJumpHeaderSync(
+                    quickLinks: quickLinks, chrome: scrollChrome, keys: headerKeys
+                ))
                 if showsIndex {
                     SongSectionIndexScrubber(sections: indexSections) { id in
-                        // Instant, like Contacts and the Quick Links jumps.
-                        var instant = Transaction()
-                        instant.disablesAnimations = true
-                        withTransaction(instant) { scrollProxy.scrollTo(id, anchor: .top) }
+                        jumpToSection(AnyHashable(id), keys: headerKeys, proxy: scrollProxy)
                     }
                     // Centered between a *fixed* top (status bar + collapsed inline bar)
                     // and the bottom safe area (tab bar + floating tools), so it neither
@@ -1041,6 +1046,31 @@ struct SongsScreen: View {
                 MainThreadStallMonitor.count(SongsScrollStress.endCounter)
                 #endif
             }
+        }
+    }
+
+    /// Jump instantly to a section's title from the A–Z rail (like Contacts and the Quick
+    /// Links jumps) and name it in the section bar at once.
+    ///
+    /// A far target's rows have never been laid out, so the first scroll places it from
+    /// estimated row heights; once they exist a second scroll lands it exactly (as Quick
+    /// Links does), unless a newer jump has replaced it while scrubbing.
+    ///
+    /// - Parameters:
+    ///   - id: The section's scroll target.
+    ///   - keys: Section title keys in list order.
+    ///   - proxy: Reader proxy for the Songs List.
+    private func jumpToSection(_ id: AnyHashable, keys: [String], proxy: ScrollViewProxy) {
+        let chrome = scrollChrome
+        chrome.jump(to: Self.headerKey(id), in: keys)
+        let generation = chrome.jumpGeneration
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { proxy.scrollTo(id, anchor: .top) }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            guard chrome.jumpGeneration == generation else { return }
+            withTransaction(instant) { proxy.scrollTo(id, anchor: .top) }
         }
     }
 
@@ -1123,13 +1153,14 @@ struct SongsScreen: View {
         return false
     }
 
-    /// Stable key for a group's in-list title.
-    private static func headerKey(_ group: SongListGroup) -> String { "\(group.id)" }
+    /// Stable key for a group's in-list title, from the group's scroll target.
+    static func headerKey(_ id: AnyHashable) -> String { "\(id)" }
 
     /// A section's in-list title (iOS 26): a plain row, no backing, carrying the jump
     /// target and Quick Links tracking.
     @ViewBuilder private func inlineGroupHeader(_ group: SongListGroup) -> some View {
-        let key = Self.headerKey(group)
+        let key = Self.headerKey(group.id)
+        let topInset = scrollChrome.listTopInset
         let label = Text(group.label)
             .font(.subheadline.bold())
             .foregroundStyle(FestivalText.primary)
@@ -1141,7 +1172,10 @@ struct SongsScreen: View {
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(group.accessibilityID)
             .onGeometryChange(for: Bool.self) { proxy in
-                proxy.frame(in: .scrollView).minY <= 0.5
+                SongsScrollChrome.headerPassed(
+                    minY: proxy.frame(in: .scrollView).minY,
+                    topInset: topInset.value
+                )
             } action: { passed in
                 scrollChrome.setHeader(key, passed: passed)
             }
@@ -1357,6 +1391,8 @@ private extension SongShopSectionKind {
 /// before, so older systems keep the floating tools). ``ScrollAwayGate`` keeps the
 /// chrome this report moves from feeding back into it (issue #5).
 private struct ScrolledAwayTracker: ViewModifier {
+    /// Receives the List's top content inset on every scroll geometry change.
+    let topInsetChanged: (CGFloat) -> Void
     let changed: (Bool) -> Void
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
@@ -1377,6 +1413,7 @@ private struct ScrolledAwayTracker: ViewModifier {
                     width: geometry.containerSize.width
                 )
             } action: { _, sample in
+                topInsetChanged(sample.topInset)
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
@@ -1387,6 +1424,25 @@ private struct ScrolledAwayTracker: ViewModifier {
             }
         } else {
             content
+        }
+    }
+}
+
+/// Names a Quick Links jump's target in the section bar at once (issue #9), like an A–Z
+/// rail jump: the in-list titles cannot report an instant jump themselves.
+///
+/// Observes the jump serial itself, so a jump re-renders only this modifier, never the
+/// List (issue #8).
+private struct QuickLinksJumpHeaderSync: ViewModifier {
+    let quickLinks: QuickLinksController
+    let chrome: SongsScrollChrome
+    /// Section title keys in list order.
+    let keys: [String]
+
+    func body(content: Content) -> some View {
+        content.onChange(of: quickLinks.jumpSerial) {
+            guard let target = quickLinks.jumpTarget else { return }
+            chrome.jump(to: target, in: keys)
         }
     }
 }

@@ -162,6 +162,87 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Floating Sort did not return")
     }
 
+    /// Issue #9: a far A–Z rail jump (# → P) showed Q's songs, or P's songs under a "Q"
+    /// or "B" section bar, and re-tapping the same letter after scrolling did nothing.
+    /// Every tap must land the letter's title just under the navigation bar and the bar
+    /// must name it at once: far down, back up, a re-tap after a manual scroll, and the
+    /// last letter, which cannot reach the top, leaving the section above it named.
+    ///
+    /// Needs the large fixture like the tests above (skips otherwise). With a profile,
+    /// as reported: the page tools move into the navigation bar during the first jump.
+    @MainActor
+    func testRailFarJumpLandsOnTheLetterAndNamesIt() throws {
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ])
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        guard rail.waitForExistence(timeout: 3),
+              rail.staticTexts.matching(NSPredicate(format: "label == 'P'")).firstMatch.exists
+        else {
+            throw XCTSkip("Catalogue lacks the A–Z sections; use mock_service.py --large-catalogue.")
+        }
+        let letters = Array("#ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(String.init)
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        func title(_ letter: String) -> XCUIElement {
+            app.staticTexts["fst.songs.section.\(letters.firstIndex(of: letter)!)"]
+        }
+        func top() -> CGFloat { app.navigationBars.firstMatch.frame.maxY }
+        func tap(_ letter: String) {
+            rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch.tap()
+        }
+        func waitUntil(_ what: String, _ condition: @escaping () -> Bool) {
+            let settled = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in condition() }, object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed, what)
+        }
+        func assertLanded(on letter: String) {
+            let target = title(letter)
+            waitUntil("\(letter) title not at the top: \(target.frame), bar ends \(top())") {
+                target.exists && abs(target.frame.minY - top()) <= 3
+            }
+            waitUntil("Section bar reads \(sectionBar.label), not \(letter)") {
+                sectionBar.exists && sectionBar.label == target.label
+            }
+            XCTAssertEqual(rail.value as? String, letter, "Rail selection")
+        }
+
+        tap("#")
+        tap("P")
+        assertLanded(on: "P")
+        tap("V")
+        assertLanded(on: "V")
+        tap("A")
+        assertLanded(on: "A")
+        // Scroll away from A by hand, then pick A again.
+        app.swipeUp()
+        waitUntil("Manual scroll did not leave A") {
+            !title("A").exists || abs(title("A").frame.minY - top()) > 3
+        }
+        tap("A")
+        assertLanded(on: "A")
+        tap("P")
+        assertLanded(on: "P")
+        // Z's few songs cannot lift its title to the top: the bar names Y, still at the top.
+        tap("Z")
+        let z = title("Z")
+        waitUntil("Did not reach the end for Z") { z.exists && z.isHittable }
+        if abs(z.frame.minY - top()) <= 3 {
+            waitUntil("Section bar reads \(sectionBar.label), not Z") { sectionBar.label == "Z" }
+        } else {
+            waitUntil("Section bar reads \(sectionBar.label), not Y") { sectionBar.label == "Y" }
+        }
+    }
+
     /// Issue #8: scrolling near the top changed scroll-driven state on the Songs screen
     /// (scrolled away, passed section titles, section bar edge, tools in the bar), and
     /// every change re-ran the whole screen: re-sort, re-diff every List row, re-render
