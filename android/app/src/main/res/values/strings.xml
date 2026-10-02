@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Festival Score Tracker</string>
+    <!-- Launcher icon label (MainActivity): short so home screens do not truncate it. -->
+    <string name="launcher_name" translatable="false">FST</string>
 </resources>
