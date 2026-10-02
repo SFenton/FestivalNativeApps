@@ -55,6 +55,11 @@ struct AccountRankingRow: View {
                     rowContent
                 }
                 .buttonStyle(.plain)
+                #if os(macOS)
+                .contextMenu {
+                    MacPlayerRowMenu(accountId: entry.accountId, displayName: entry.displayName)
+                }
+                #endif
             } else {
                 // Anonymous production rows have no profile to open.
                 rowContent

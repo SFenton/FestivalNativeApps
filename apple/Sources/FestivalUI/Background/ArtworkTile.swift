@@ -58,6 +58,9 @@ struct ArtworkTile: View {
     @State private var image: PlatformImage?
     @State private var failure: String?
     @State private var fromMemory = false
+    /// Path whose decoded art `image` currently shows, so a rebuilt row that drew a
+    /// cached cover in its first frame skips the redundant async reload.
+    @State private var loadedRaw: String?
 
     /// Render only requested art, or inject a thumbnail for hosted visual tests.
     ///
@@ -73,12 +76,50 @@ struct ArtworkTile: View {
         self.raw = raw
         self.session = session
         self.size = size
-        #if os(iOS)
-        _image = State(initialValue: previewImage.map(UIImage.init(cgImage:)))
-        #else
-        _image = State(initialValue: previewImage.map {
-            NSImage(cgImage: $0, size: NSSize(width: size, height: size))
+        // Lazy lists rebuild rows as they scroll back in: draw art this session has
+        // already decoded in the first frame, with no spinner or second layout pass.
+        let cached = previewImage == nil
+            ? Self.cachedImage(raw: raw, session: session, size: size) : nil
+        _image = State(initialValue: (previewImage ?? cached).map {
+            Self.platformImage(from: $0, size: size)
         })
+        _fromMemory = State(initialValue: cached != nil)
+        _loadedRaw = State(initialValue: cached != nil ? raw : nil)
+    }
+
+    /// Longest decoded edge for a tile: three pixels per point covers every display scale.
+    ///
+    /// - Parameter size: Logical tile edge in points.
+    /// - Returns: Bounded pixel edge passed to the decoded-art cache.
+    static func decodedEdge(for size: CGFloat) -> Int {
+        Int(size * 3)
+    }
+
+    /// Decoded art for `raw` that the session already holds, read without suspending.
+    ///
+    /// - Parameters:
+    ///   - raw: Optional service-provided artwork path.
+    ///   - session: Shared ephemeral image cache.
+    ///   - size: Logical tile edge in points.
+    /// - Returns: The cached image, or nil when it still needs loading.
+    private static func cachedImage(
+        raw: String?, session: FestivalSession, size: CGFloat
+    ) -> CGImage? {
+        guard let raw, !raw.isEmpty else { return nil }
+        return session.cachedArtwork(raw: raw, maxPixels: decodedEdge(for: size))
+    }
+
+    /// Wrap a decoded image for UIKit or AppKit presentation.
+    ///
+    /// - Parameters:
+    ///   - image: Immutable decoded image.
+    ///   - size: Logical tile edge in points (AppKit's image size).
+    /// - Returns: Platform image for this process.
+    private static func platformImage(from image: CGImage, size: CGFloat) -> PlatformImage {
+        #if os(iOS)
+        UIImage(cgImage: image)
+        #else
+        NSImage(cgImage: image, size: NSSize(width: size, height: size))
         #endif
     }
 
@@ -103,10 +144,12 @@ struct ArtworkTile: View {
         .background(BrandTokens.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .task(id: raw) { await load() }
-        .onChange(of: raw) { _, _ in
-            image = nil
+        .onChange(of: raw) { _, next in
+            let cached = Self.cachedImage(raw: next, session: session, size: size)
+            image = cached.map { Self.platformImage(from: $0, size: size) }
             failure = nil
-            fromMemory = false
+            fromMemory = cached != nil
+            loadedRaw = cached != nil ? next : nil
         }
     }
 
@@ -136,20 +179,15 @@ struct ArtworkTile: View {
     /// Fetch only visible art; failures keep an explicitly labeled placeholder.
     func load() async {
         guard let raw, !raw.isEmpty else { return }
+        if loadedRaw == raw, image != nil { return }
         do {
             let result = try await session.preparedArtwork(
-                raw: raw, maxPixels: Int(size * 3)
+                raw: raw, maxPixels: Self.decodedEdge(for: size)
             )
             try Task.checkCancellation()
-            #if os(iOS)
-            let decoded = UIImage(cgImage: result.image)
-            #else
-            let decoded = NSImage(
-                cgImage: result.image, size: NSSize(width: size, height: size)
-            )
-            #endif
-            image = decoded
+            image = Self.platformImage(from: result.image, size: size)
             fromMemory = result.fromMemory
+            loadedRaw = raw
             failure = nil
         } catch is CancellationError {
             return
@@ -158,6 +196,7 @@ struct ArtworkTile: View {
         } catch {
             guard !Task.isCancelled else { return }
             image = nil
+            loadedRaw = nil
             failure = error.localizedDescription
         }
     }

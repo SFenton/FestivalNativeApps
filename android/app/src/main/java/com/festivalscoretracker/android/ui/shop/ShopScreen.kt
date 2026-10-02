@@ -16,7 +16,6 @@ import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ShoppingCart
-import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -28,6 +27,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import com.festivalscoretracker.android.core.shop.ShopPulse
 import com.festivalscoretracker.android.ui.songs.SongsTokens
+import com.festivalscoretracker.android.ui.songs.SongRowCard
 import com.festivalscoretracker.android.ui.songs.pulseOutline
 import com.festivalscoretracker.android.ui.songs.rememberShopBreathe
 import com.festivalscoretracker.android.ui.songs.rememberShopPulse
@@ -343,18 +343,27 @@ fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier 
 }
 
 /**
- * Shop card outline pulse (web `ShopCard`: red Leaving Tomorrow, gold New; every
+ * Shop card outline pulse color (web `ShopCard`: red Leaving Tomorrow, gold New; every
  * card is in the Shop, so there is no green).
+ *
+ * @param highlight Accent.
+ * @return Outline color, or null without a highlight.
+ */
+private fun shopOutline(highlight: ShopHighlight?): Color? = when (highlight) {
+    ShopHighlight.LeavingTomorrow -> SongsTokens.pulse(ShopPulse.LeavingTomorrow)
+    ShopHighlight.New -> SongsTokens.pulse(ShopPulse.New)
+    null -> null
+}
+
+/**
+ * Shop card outline pulse modifier ([shopOutline]).
  *
  * @param highlight Accent.
  * @param pulse Shared alpha.
  * @return Modifier.
  */
-private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): Modifier = when (highlight) {
-    ShopHighlight.LeavingTomorrow -> pulseOutline(SongsTokens.pulse(ShopPulse.LeavingTomorrow), pulse)
-    ShopHighlight.New -> pulseOutline(SongsTokens.pulse(ShopPulse.New), pulse)
-    null -> this
-}
+private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): Modifier =
+    shopOutline(highlight)?.let { pulseOutline(it, pulse) } ?: this
 
 /**
  * Web `ShopCard`: square artwork filling the card, title and artist on a bottom scrim,
@@ -404,46 +413,38 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
     }
 }
 
+/**
+ * Item Shop list row: the shared Songs [SongRowCard] (glass surface, art, marquee title
+ * and subtitle, red/gold outline pulse) with the New / Leaving Tomorrow badge under
+ * the subtitle and the official Shop link (cart + chevron) as its own button. The row
+ * opens Song Details when matched, else the official link; TalkBack reads its texts.
+ */
 @Composable
 private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
     val offer = item.offer
-    GlassCard(
+    SongRowCard(
+        title = offer.title,
+        subtitle = offer.subtitle,
+        artUrl = artUrl,
         onClick = if (item.detailSongId != null) onDetail else onOfficial,
-        modifier = Modifier
-            .fillMaxWidth()
-            .shopPulse(item.highlight, pulse)
-            // TalkBack reads the title, subtitle and badge texts themselves (a description repeated them).
-            .testTag("fst.shop.song.${offer.songId}"),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-        ) {
-            AsyncImage(
-                model = artUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                FestivalMarqueeText(offer.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
-                FestivalMarqueeText(offer.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-                item.highlight?.let { ShopBadgeLabel(it, offer.songId) }
-            }
+        modifier = Modifier.testTag("fst.shop.song.${offer.songId}"),
+        outline = shopOutline(item.highlight),
+        pulse = pulse,
+        details = { item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.padding(top = 4.dp)) } },
+        end = {
             if (item.officialUrl != null) {
                 IconButton(
                     onClick = onOfficial,
                     modifier = Modifier.heightIn(min = 48.dp).testTag("fst.shop.external.${offer.songId}"),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.ShoppingCart, contentDescription = "Open ${offer.title} in the Fortnite Item Shop", modifier = Modifier.size(20.dp))
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.ShoppingCart, contentDescription = "Open ${offer.title} in the Fortnite Item Shop", tint = BrandTokens.textPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.size(18.dp))
                     }
                 }
             }
-        }
-    }
+        },
+    )
 }
 
 // endregion

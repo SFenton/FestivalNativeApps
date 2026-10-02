@@ -55,6 +55,48 @@ object QuickLinks {
     const val SHEET_MAXIMUM_WINDOW_WIDTH_DP = 600
 
     /**
+     * Where a jump lands a section's top, in dp below the visible top of the page (the web's default
+     * `offset`, #51). The activation line uses the same value, so the landed section is the active one.
+     */
+    const val LANDING_OFFSET_DP = 32
+
+    /**
+     * Activation line (dp) for lists whose section headers are sticky (Songs): there the target header
+     * lands flush so it pins under the top bar, and the line sits just below it, like the web's 16 px
+     * virtualizer offset.
+     */
+    const val PINNED_HEADER_ACTIVATION_OFFSET_DP = 16
+
+    /** Reachable band (dp) either side of the landing line (web ±96 px). */
+    const val REACHABLE_BAND_DP = 96
+
+    /** Landing tolerance (dp) before a settled jump drifts (web 8 px). */
+    const val COMPLETE_THRESHOLD_DP = 8
+
+    /**
+     * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyStaggeredGridState.scrollToItem` that
+     * lands an item's top [landingPx] below the visible viewport top. Lazy offsets are measured from the
+     * end of the leading content padding, which content still scrolls through, so the padding is
+     * subtracted rather than added on top. Negative values are valid (the list composes earlier items),
+     * and the list clamps at the start of its content.
+     *
+     * @param landingPx Landing line below the viewport top, in pixels.
+     * @param beforeContentPadding The list's leading content padding, in pixels.
+     * @return Scroll offset for `scrollToItem`.
+     */
+    fun lazyLandingScrollOffset(landingPx: Int, beforeContentPadding: Int): Int = beforeContentPadding - landingPx
+
+    /**
+     * Scroll position that lands a section of a plain scrolling column [landingPx] below the viewport top.
+     *
+     * @param sectionTop Section top in content pixels (its offset when the column is unscrolled).
+     * @param landingPx Landing line, in pixels.
+     * @param maxScroll Largest scroll position.
+     * @return Scroll position, clamped to `[0, maxScroll]`.
+     */
+    fun scrollLandingTarget(sectionTop: Int, landingPx: Int, maxScroll: Int): Int = (sectionTop - landingPx).coerceIn(0, maxOf(0, maxScroll))
+
+    /**
      * Whether a page shows Quick Links at all.
      *
      * @param sectionCount Sections.
@@ -164,9 +206,9 @@ enum class QuickLinkPhase {
  * @property completeThreshold Landing tolerance in pixels.
  */
 class QuickLinkTracker(
-    private val activationOffset: Float = 16f,
-    private val band: Float = 96f,
-    private val completeThreshold: Float = 8f,
+    private val activationOffset: Float = QuickLinks.LANDING_OFFSET_DP.toFloat(),
+    private val band: Float = QuickLinks.REACHABLE_BAND_DP.toFloat(),
+    private val completeThreshold: Float = QuickLinks.COMPLETE_THRESHOLD_DP.toFloat(),
 ) {
     /** Current phase. */
     var phase: QuickLinkPhase = QuickLinkPhase.Idle

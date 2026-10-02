@@ -45,6 +45,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -700,6 +701,29 @@ def compute_next_version(versions: List[Dict[str, Any]], project: str) -> Tuple[
     return bump_patch(".".join(str(p) for p in max(known))), "bump_patch"
 
 
+#: Symbols App Store Connect rejects in What's New / TestFlight text ("contains invalid characters"), with
+#: readable substitutes. Anything else outside ``ASC_SAFE_RANGES`` that is not a letter, digit, mark or
+#: separator is dropped.
+ASC_REPLACEMENTS = {"\u2715": "\u00d7", "\u2716": "\u00d7", "\u2717": "\u00d7", "\u2718": "\u00d7",
+                    "\u274c": "\u00d7", "\u2713": "check", "\u2714": "check", "\u2705": "check",
+                    "\u2190": "<-", "\u2192": "->", "\u2191": "up", "\u2193": "down", "\u21c4": "<->",
+                    "\u2194": "<->", "\u2b06": "up", "\u2b07": "down"}
+ASC_SAFE_RANGES = ((0x0000, 0x024F), (0x2000, 0x206F), (0x20A0, 0x20CF), (0x2100, 0x214F))
+
+
+def asc_text(text: str) -> str:
+    """Make release-note text acceptable to App Store Connect (keeps bullets, smart punctuation and letters)."""
+    out = []
+    for ch in unicodedata.normalize("NFC", text or ""):
+        if ch in ASC_REPLACEMENTS:
+            out.append(ASC_REPLACEMENTS[ch])
+            continue
+        code = ord(ch)
+        if any(lo <= code <= hi for lo, hi in ASC_SAFE_RANGES) or unicodedata.category(ch)[0] in "LMNZ":
+            out.append(ch)
+    return re.sub(r"[ \t]{2,}", " ", "".join(out))
+
+
 def _write_whats_new(client: AscClient, version_id: str, notes: str, has_released: bool) -> str:
     """Set en-US What's New; returns ``set`` or ``skipped_first_version``."""
     if not has_released:
@@ -775,7 +799,7 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
             return {"submitted": False, "refused": "stale_whats_new", "version": marketing,
                     "build": str(build_number), "baseline": baseline, "current_baseline": current}
 
-    notes = (notes or "").strip()
+    notes = asc_text(notes or "").strip()
     if not notes:
         return {"submitted": False, "refused": "no_user_facing_changes", "version": marketing,
                 "build": str(build_number)}
@@ -802,8 +826,10 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
         "type": "appStoreVersions", "id": version_id, "attributes": attributes,
         "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
 
+    # After App Review rejects a version its submission stays open (UNRESOLVED_ISSUES) and still owns the
+    # version; resubmitting means submitting that same submission again.
     reusable = client.get("/v1/apps/%s/reviewSubmissions" % app_id, {
-        "filter[platform]": asc_platform, "filter[state]": "READY_FOR_REVIEW", "limit": "1"})
+        "filter[platform]": asc_platform, "filter[state]": "READY_FOR_REVIEW,UNRESOLVED_ISSUES", "limit": "1"})
     open_subs = reusable.get("data") or []
     if open_subs:
         submission_id = str(open_subs[0]["id"])
@@ -844,7 +870,7 @@ def beta_notes(client: AscClient, group: str, bundle_id: str, build_number: str,
     Raises:
         ValueError: Empty notes, or the build did not appear within ``wait``.
     """
-    text = (notes or "").strip()[:BETA_NOTES_LIMIT].rstrip()
+    text = asc_text(notes or "").strip()[:BETA_NOTES_LIMIT].rstrip()
     if not text:
         raise ValueError("empty TestFlight notes")
     asc_platform = PLATFORMS[group][0]

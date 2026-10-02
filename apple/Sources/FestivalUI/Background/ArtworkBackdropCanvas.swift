@@ -114,10 +114,10 @@ struct CoverLayer: Identifiable, Equatable {
 
 /// Renders a backdrop state; every copy (one per on-screen page) draws the same pixels.
 ///
-/// Carousel slots and song covers animate with implicit animations whose start
-/// points are derived from the shared timestamps (see `CarouselLayerView` and
-/// `CoverLayerView`), so no body is re-evaluated per frame and a page that
-/// appears mid-transition joins it in step.
+/// Carousel slots and song covers animate from start points derived from the
+/// shared timestamps (see `CarouselSlotLayer` on iOS, `CarouselLayerView`
+/// elsewhere, and `CoverLayerView`), so no body is re-evaluated per frame and a
+/// page that appears mid-transition joins it in step.
 struct ArtworkBackdropCanvas: View {
     let carousel: ArtworkBackdropState
     let overlay: SongOverlay?
@@ -137,12 +137,8 @@ struct ArtworkBackdropCanvas: View {
                 if showsArt {
                     ForEach(carousel.layers) { layer in
                         if let image = layer.image {
-                            CarouselLayerView(
-                                image: image, layer: layer,
-                                isActive: layer.id == carousel.active,
-                                size: size, lightness: 1 - dimming, animate: animate
-                            )
-                            .zIndex(layer.id == carousel.active ? 1 : 0)
+                            slot(image: image, layer: layer, size: size)
+                                .zIndex(layer.id == carousel.active ? 1 : 0)
                         }
                     }
                     ForEach(CoverLayer.layers(overlay: overlay, exiting: exiting)) { layer in
@@ -158,6 +154,32 @@ struct ArtworkBackdropCanvas: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// One carousel slot: Core Animation on iOS (no per-frame app work, 30 fps cap),
+    /// SwiftUI implicit animations elsewhere.
+    ///
+    /// - Parameters:
+    ///   - image: Decoded cover.
+    ///   - layer: Slot timing.
+    ///   - size: Canvas size.
+    /// - Returns: The slot view.
+    @ViewBuilder
+    private func slot(
+        image: CGImage, layer: ArtworkBackdropState.Layer, size: CGSize
+    ) -> some View {
+        #if os(iOS)
+        CarouselSlotLayer(
+            image: image, layer: layer, isActive: layer.id == carousel.active,
+            lightness: 1 - dimming, animate: animate
+        )
+        .frame(width: size.width, height: size.height)
+        #else
+        CarouselLayerView(
+            image: image, layer: layer, isActive: layer.id == carousel.active,
+            size: size, lightness: 1 - dimming, animate: animate
+        )
+        #endif
     }
 
     /// Opaque gray used to multiply (dim) opaque artwork without a translucent layer.

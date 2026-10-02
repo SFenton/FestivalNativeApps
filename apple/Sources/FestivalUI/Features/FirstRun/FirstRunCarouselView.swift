@@ -43,7 +43,9 @@ struct FirstRunCarouselView: View {
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
                         FirstRunSlideView(page: page, slide: slide)
-                            // Every page is mounted; only the visible one rotates its demo.
+                            // Every page is mounted; only the visible one pulses (#28) and
+                            // rotates its demo.
+                            .environment(\.firstRunSlideActive, position == index)
                             .environment(\.firstRunDemoActive, position == index && scenePhase == .active)
                             .accessibilityFocused($focusedSlide, equals: position)
                             .tag(position)
@@ -221,6 +223,7 @@ private struct FirstRunSheetStyle: ViewModifier {
             .modifier(background)
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
+            .pausesFestivalBackdrop()
     }
 
     private var background: FirstRunSheetBackground {

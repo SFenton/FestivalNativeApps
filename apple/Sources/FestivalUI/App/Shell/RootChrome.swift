@@ -61,6 +61,10 @@ extension EnvironmentValues {
     /// The shared session, so pushed pages' shared chrome (the persistent avatar) can
     /// read the selected profile; nil outside the root shell.
     @Entry var festivalSession: FestivalSession? = nil
+    /// True inside the macOS shell, which owns one set of global toolbar items (Search,
+    /// bell, profile) for the whole window; pages then omit their own copies, since two
+    /// columns would otherwise both contribute them to the unified toolbar.
+    @Entry var shellOwnsGlobalToolbar = false
 }
 
 // MARK: - Rail overflow ranking
@@ -265,6 +269,7 @@ struct FestivalRootTrailingItems: ToolbarContent {
     /// Global search: a header button on every layout (operator, 2026-09-28).
     @Environment(\.openGlobalSearch) private var openGlobalSearch
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
 
     var body: some ToolbarContent {
         #if os(iOS)
@@ -306,13 +311,15 @@ struct FestivalRootTrailingItems: ToolbarContent {
             }
         }
         #else
-        if let openGlobalSearch {
-            ToolbarItem(placement: .primaryAction) {
-                GlobalSearchButton { openGlobalSearch() }
+        if !shellOwnsGlobalToolbar {
+            if let openGlobalSearch {
+                ToolbarItem(placement: .primaryAction) {
+                    GlobalSearchButton { openGlobalSearch() }
+                }
             }
-        }
-        ToolbarItem(placement: .primaryAction) {
-            RootProfileButton(session: session) { openProfile() }
+            ToolbarItem(placement: .primaryAction) {
+                RootProfileButton(session: session) { openProfile() }
+            }
         }
         #endif
     }
@@ -432,13 +439,16 @@ struct NotificationsButton: View {
     /// The root shell's push on the current tab; a tapped row's page opens there after
     /// the sheet closes. Nil outside the shell.
     var pushRoute: PushRouteAction?
+    /// Opens a sheet owned by the presenter instead of this button's own (the macOS
+    /// shell, whose View menu also opens it); nil presents locally.
+    var open: (() -> Void)?
     @State private var presented = false
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
         let badge = NotificationBadge.text(unreadCount: center.unreadCount)
         Button {
-            presented = true
+            if let open { open() } else { presented = true }
         } label: {
             Label("Notifications", systemImage: "bell")
         }

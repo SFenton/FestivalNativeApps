@@ -66,6 +66,16 @@
     <AppxManifest Remove="Package.appxmanifest" />
     <None Remove="Package.appxmanifest" />
   </ItemGroup>
+  <!-- Build commit for Settings → App Version (AppVersionInfo.SettingsText): the SDK's SourceLink commit, or
+       -p:FstGitSha=<sha>. Kept out of InformationalVersion, which the Store build stamps without a commit. -->
+  <Target Name="FstStampGitSha" BeforeTargets="GetAssemblyAttributes" DependsOnTargets="InitializeSourceControlInformation">
+    <PropertyGroup>
+      <FstGitSha Condition="'$(FstGitSha)' == ''">$(SourceRevisionId)</FstGitSha>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(FstGitSha)' != ''">
+      <AssemblyMetadata Include="FstGitSha" Value="$(FstGitSha)" />
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <!-- Brand colours generated from contracts/fluent-tokens.json (read-only; owned by contracts/). -->
     <Page Include="..\..\contracts\generated\windows\BrandTokens.xaml" Link="Themes\BrandTokens.xaml" />

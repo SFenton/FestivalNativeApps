@@ -63,9 +63,10 @@ internal class ScrollQuickLinkSections(private val scrollState: ScrollState) : Q
         return QuickLinkLayout(items, viewportHeight.toFloat())
     }
 
-    override suspend fun scrollTo(index: Int, animate: Boolean) {
+    override suspend fun scrollTo(index: Int, animate: Boolean, landingPx: Int) {
         val top = ids.getOrNull(index)?.let(frames::get)?.first ?: return
-        if (animate) scrollState.animateScrollTo(top) else scrollState.scrollTo(top)
+        val target = QuickLinks.scrollLandingTarget(top, landingPx, scrollState.maxValue)
+        if (animate) scrollState.animateScrollTo(target) else scrollState.scrollTo(target)
     }
 }
 

@@ -100,8 +100,9 @@
                 </ItemsRepeater>
             </ScrollViewer>
 
-            <!-- List: compact rows (compact windows and the List preference). -->
-            <ListView x:Name="OfferList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}"
+            <!-- List: the shared Songs row (SongRowCard) for the List preference on wider windows; ShopPage adds the
+                 New / Leaving Tomorrow badge and the official Item Shop cart button to its trailing slot. -->
+            <ListView x:Name="OfferList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="68" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}"
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnListClick" Padding="0,0,12,24"
                       ContainerContentChanging="OnListContainerChanging"
                       AutomationProperties.Name="Item Shop" AutomationProperties.AutomationId="fst.shop.list">
@@ -115,31 +116,7 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:ShopOfferItem">
-                        <Grid x:Name="Row" MinHeight="72" Padding="10,8" ColumnSpacing="12" CornerRadius="8" BorderThickness="1"
-                              Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Border Width="56" Height="56" CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}">
-                                <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"
-                                           TextWrapping="Wrap" MaxLines="2" />
-                                <controls:MarqueeText Text="{x:Bind Subtitle}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
-                                <Border x:Name="BadgePill" HorizontalAlignment="Left" Padding="8,2" CornerRadius="10" Margin="0,2,0,0"
-                                        Visibility="{x:Bind HasBadge}">
-                                    <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold" />
-                                </Border>
-                            </StackPanel>
-                            <Button Grid.Column="2" Width="44" Height="44" Padding="0" CornerRadius="22" Click="OnExternalClick" Tag="{x:Bind}"
-                                    AutomationProperties.Name="{x:Bind ExternalName}" AutomationProperties.AutomationId="{x:Bind ExternalAutomationId}"
-                                    ToolTipService.ToolTip="Open official Item Shop">
-                                <FontIcon Glyph="&#xE719;" FontSize="16" />
-                            </Button>
-                        </Grid>
+                        <controls:SongRowCard Title="{x:Bind Title}" Subtitle="{x:Bind Subtitle}" />
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>

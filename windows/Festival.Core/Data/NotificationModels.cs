@@ -20,6 +20,8 @@ public sealed record NotificationPayload
 {
     /// <summary>Coalesced sub-events.</summary>
     [JsonPropertyName("coalescedEvents")] public IReadOnlyList<NotificationEventPayload>? CoalescedEvents { get; init; }
+    /// <summary>Every chart a coalesced row touches (service instrument keys).</summary>
+    [JsonPropertyName("coalescedInstruments")] public IReadOnlyList<string>? CoalescedInstruments { get; init; }
     /// <summary>Shop song title (<c>service_new_shop_song</c>, which has no account).</summary>
     [JsonPropertyName("songTitle")] public string? SongTitle { get; init; }
     /// <summary>Shop song artist.</summary>
@@ -191,7 +193,105 @@ public static class NotificationRouting
 }
 #endregion
 
+#region Media
+/// <summary>Leading media kinds of a player-feed row (web <c>NotificationMedia</c>; combo media needs band feeds).</summary>
+public enum NotificationMediaKind
+{
+    /// <summary>Album art only.</summary>
+    Song,
+    /// <summary>Album art above a two-column grid of the affected charts.</summary>
+    SongInstrumentGrid,
+    /// <summary>One instrument icon (no resolved art).</summary>
+    SoloInstrument,
+}
+
+/// <summary>Media rules (web <c>useProfileNotificationsFeed.notificationMedia</c> and the shop-song mapping).</summary>
+public static class NotificationMediaRules
+{
+    /// <summary>
+    /// Charts a row touches: <c>coalescedInstruments</c>, the coalesced events' charts and the row's own, deduplicated in
+    /// canonical chart order (web <c>notificationSurfaceInstruments</c>).
+    /// </summary>
+    /// <param name="item">Notification.</param>
+    /// <returns>Instruments.</returns>
+    public static IReadOnlyList<Instrument> SurfaceInstruments(ImprovementNotification item)
+    {
+        var keys = (item.Payload?.CoalescedInstruments ?? []).Concat(NotificationRouting.Events(item).Select(e => e.Instrument)).Append(item.Instrument);
+        var present = new HashSet<Instrument>();
+        foreach (var key in keys)
+        {
+            if (InstrumentInfo.TryParse(key, out var instrument)) present.Add(instrument);
+        }
+        return InstrumentInfo.All.Where(present.Contains).ToList();
+    }
+}
+#endregion
+
 #region Text
+/// <summary>Flag kinds (web <c>NotificationFlagKind</c>); labels and colours follow <c>notifications.flags.*</c> / <c>FLAG_COLORS</c>.</summary>
+public enum NotificationFlagKind
+{
+    /// <summary>"Improvement" (unknown kinds).</summary>
+    Improvement,
+    /// <summary>"First Play".</summary>
+    FirstPlay,
+    /// <summary>"New High Score".</summary>
+    NewHighScore,
+    /// <summary>"Full Combo".</summary>
+    FullCombo,
+    /// <summary>"Rank Up".</summary>
+    RankUp,
+    /// <summary>"Gold Stars".</summary>
+    GoldStars,
+    /// <summary>"Stars Up".</summary>
+    StarsUp,
+    /// <summary>"Difficulty Up".</summary>
+    DifficultyUp,
+    /// <summary>"Progress" (aggregate improvements).</summary>
+    Progress,
+}
+
+/// <summary>Flag labels and pill colours.</summary>
+public static class NotificationFlagKinds
+{
+    /// <summary>Title Case label (web <c>notifications.flags.*</c>).</summary>
+    /// <param name="kind">Flag kind.</param>
+    /// <returns>Label.</returns>
+    public static string Label(this NotificationFlagKind kind) => kind switch
+    {
+        NotificationFlagKind.FirstPlay => "First Play",
+        NotificationFlagKind.NewHighScore => "New High Score",
+        NotificationFlagKind.FullCombo => "Full Combo",
+        NotificationFlagKind.RankUp => "Rank Up",
+        NotificationFlagKind.GoldStars => "Gold Stars",
+        NotificationFlagKind.StarsUp => "Stars Up",
+        NotificationFlagKind.DifficultyUp => "Difficulty Up",
+        NotificationFlagKind.Progress => "Progress",
+        _ => "Improvement",
+    };
+
+    /// <summary>Opaque pill background as <c>0xAARRGGBB</c> (web <c>FLAG_COLORS</c>; white text passes 4.5:1 on each).</summary>
+    /// <param name="kind">Flag kind.</param>
+    /// <returns>ARGB colour.</returns>
+    public static uint Argb(this NotificationFlagKind kind) => kind switch
+    {
+        NotificationFlagKind.FirstPlay => 0xFF6D28D9,
+        NotificationFlagKind.NewHighScore => 0xFF0F766E,
+        NotificationFlagKind.FullCombo => 0xFF7C2D12,
+        NotificationFlagKind.RankUp => 0xFF1D4ED8,
+        NotificationFlagKind.GoldStars => 0xFF92400E,
+        NotificationFlagKind.StarsUp => 0xFFBE123C,
+        NotificationFlagKind.DifficultyUp => 0xFF047857,
+        NotificationFlagKind.Progress => 0xFF4338CA,
+        _ => 0xFF4B5563,
+    };
+}
+
+/// <summary>One run of message text; emphasized runs are bold (web <c>NotificationMessagePart</c>).</summary>
+/// <param name="Text">Text.</param>
+/// <param name="Emphasis">Bold.</param>
+public sealed record NotificationMessagePart(string Text, bool Emphasis = false);
+
 /// <summary>A row ready for display.</summary>
 /// <param name="Id">Notification GUID.</param>
 /// <param name="Title">Title, e.g. "Song · Lead".</param>
@@ -199,11 +299,28 @@ public static class NotificationRouting
 /// <param name="Flag">Title Case flag label (web <c>notifications.flags.*</c>), or <see langword="null"/> for shop songs.</param>
 /// <param name="DetectedAt">Detection time.</param>
 /// <param name="Destination">Navigation target, if any.</param>
-/// <param name="AlbumArt">Leading media: the song's art (web <c>NotificationMediaRail</c> "song"), if any.</param>
-/// <param name="MediaInstrument">Leading media when there is no art: the instrument (web "soloInstrument").</param>
+/// <param name="AlbumArt">Leading media: the song's art (web "song" / "songInstrumentGrid"), if any.</param>
+/// <param name="MediaInstrument">Leading media when there is no art: the instrument (web "soloInstrument"; Lead when the row names none).</param>
 public sealed record NotificationPresentation(
     string Id, string Title, string Message, string? Flag, DateTimeOffset DetectedAt, NotificationDestination? Destination,
-    string? AlbumArt = null, Instrument? MediaInstrument = null);
+    string? AlbumArt = null, Instrument? MediaInstrument = null)
+{
+    /// <summary>Charts drawn under the art when the row touches several (empty otherwise).</summary>
+    public IReadOnlyList<Instrument> GridInstruments { get; init; } = [];
+
+    /// <summary><see cref="Message"/> split into plain and bold runs.</summary>
+    public IReadOnlyList<NotificationMessagePart>? MessageParts { get; init; }
+
+    /// <summary>Kind behind <see cref="Flag"/> (drives the pill colour), or <see langword="null"/> for shop songs.</summary>
+    public NotificationFlagKind? FlagKind { get; init; }
+
+    /// <summary>Leading media kind.</summary>
+    public NotificationMediaKind MediaKind => AlbumArt is null ? NotificationMediaKind.SoloInstrument
+        : GridInstruments.Count > 1 ? NotificationMediaKind.SongInstrumentGrid : NotificationMediaKind.Song;
+
+    /// <summary>Message runs, or the whole message as one plain run.</summary>
+    public IReadOnlyList<NotificationMessagePart> Parts => MessageParts ?? [new(Message)];
+}
 
 /// <summary>
 /// The player-scoped single-event subset of the web <c>notificationText.ts</c> / <c>en.json</c> copy engine. Band copy,
@@ -244,21 +361,28 @@ public static class NotificationText
         "player_gold_stars_achieved", "player_fc_achieved", "player_difficulty_bumped",
     ];
 
+    /// <summary>Fallback wording never emphasized (web <c>FALLBACK_EMPHASIS_TERMS</c>).</summary>
+    private static readonly HashSet<string> FallbackTerms =
+        new(["this song", "a new score", "your new rank", "more", "a higher difficulty", "this instrument"], StringComparer.Ordinal);
+
     /// <summary>Formats a row.</summary>
     /// <param name="item">Notification.</param>
     /// <param name="songTitle">Catalogue title for the song, when resolved.</param>
-    /// <param name="albumArt">Catalogue album art for the song, when resolved (the row's leading media).</param>
+    /// <param name="albumArt">Catalogue album art for the song, when resolved (the row's leading media); shop songs fall back to the payload's art.</param>
     /// <returns>Presentation.</returns>
     public static NotificationPresentation Format(ImprovementNotification item, string? songTitle, string? albumArt = null)
     {
         var destination = NotificationRouting.Destination(item);
-        var art = string.IsNullOrWhiteSpace(albumArt) ? null : albumArt;
+        var art = Trimmed(albumArt);
         if (item.EventKind == "service_new_shop_song")
         {
             var shopTitle = Trimmed(item.Payload?.SongTitle) ?? Trimmed(songTitle) ?? "New Song";
             var artist = Trimmed(item.Payload?.Artist) ?? "Unknown Artist";
-            return new(item.NotificationGuid, $"New Song · {shopTitle} - {artist}", $"{shopTitle} by {artist} has been added to the Item Shop.",
-                null, item.DetectedAt, destination, art);
+            var shopArt = art ?? Trimmed(item.Payload?.AlbumArt);
+            NotificationMessagePart[] parts = [new(shopTitle, true), new(" by "), new(artist, true), new(" has been added to the Item Shop.")];
+            return new(item.NotificationGuid, $"New Song · {shopTitle} - {artist}", string.Concat(parts.Select(p => p.Text)),
+                null, item.DetectedAt, destination, shopArt, shopArt is null ? Instrument.Lead : null)
+            { MessageParts = parts };
         }
 
         var instrumentLabel = item.ParsedInstrument?.Label();
@@ -267,9 +391,69 @@ public static class NotificationText
             ? Fill(template, item, song, instrumentLabel ?? "this instrument") + "."
             : "New improvement detected.";
         if (item.EventKind == "player_first_score") message = message[..^1] + $" and started at {Rank(item.NewRank)}.";
-        // Web media rail: the song's art for song events, else the instrument (rank events).
-        return new(item.NotificationGuid, Title(item, songTitle, instrumentLabel), message, Flag(item.EventKind), item.DetectedAt, destination,
-            art, art is null ? item.ParsedInstrument : null);
+        var kind = FlagKind(item.EventKind);
+        var instruments = NotificationMediaRules.SurfaceInstruments(item);
+        // Web media rail: art (over an instrument grid for multi-chart rows), else the row's instrument (Lead when none).
+        return new(item.NotificationGuid, Title(item, songTitle, instrumentLabel), message, kind.Label(), item.DetectedAt, destination,
+            art, art is null ? item.ParsedInstrument ?? Instrument.Lead : null)
+        {
+            GridInstruments = art is not null && instruments.Count > 1 ? instruments : [],
+            MessageParts = Emphasize(message, EmphasisTerms(item, song, instrumentLabel)),
+            FlagKind = kind,
+        };
+    }
+
+    /// <summary>Words bolded in a player message (web <c>emphasisTermsForEvent</c>): values, the song and the achievement wording.</summary>
+    /// <param name="item">Notification.</param>
+    /// <param name="song">Song value.</param>
+    /// <param name="instrument">Instrument label, if known.</param>
+    /// <returns>Candidate terms.</returns>
+    private static List<string> EmphasisTerms(ImprovementNotification item, string song, string? instrument)
+    {
+        List<string> terms = [Number(item.NewNumeric, "a new score"), Rank(item.OldRank), Rank(item.NewRank)];
+        if (instrument is not null) terms.Add(instrument);
+        if (PlayerSongKinds.Contains(item.EventKind)) terms.Add(song);
+        switch (item.EventKind)
+        {
+            case "player_gold_stars_achieved": terms.Add("gold stars"); break;
+            case "player_fc_achieved": terms.Add("Full Combo"); break;
+            case "player_stars_improved": terms.Add($"{Number(item.OldNumeric, "more")} to {Number(item.NewNumeric, "more")} stars"); break;
+            case "player_difficulty_bumped": terms.Add(Number(item.OldNumeric, "a higher difficulty")); break;
+        }
+        return terms;
+    }
+
+    /// <summary>Splits text into plain and bold runs, longest term first (web <c>emphasizeText</c>).</summary>
+    /// <param name="text">Message.</param>
+    /// <param name="terms">Candidate terms; blanks and fallback wording are ignored.</param>
+    /// <returns>Runs, adjacent runs of the same weight merged.</returns>
+    public static IReadOnlyList<NotificationMessagePart> Emphasize(string text, IEnumerable<string> terms)
+    {
+        var candidates = terms.Select(t => t.Trim()).Where(t => t.Length > 0 && !FallbackTerms.Contains(t) && text.Contains(t, StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal).OrderByDescending(t => t.Length).ToList();
+        if (candidates.Count == 0) return [new(text)];
+        var parts = new List<NotificationMessagePart>();
+        void Append(string chunk, bool emphasis)
+        {
+            if (parts.Count > 0 && parts[^1].Emphasis == emphasis) parts[^1] = parts[^1] with { Text = parts[^1].Text + chunk };
+            else parts.Add(new(chunk, emphasis));
+        }
+        var index = 0;
+        while (index < text.Length)
+        {
+            var term = candidates.FirstOrDefault(t => string.CompareOrdinal(text, index, t, 0, t.Length) == 0);
+            if (term is not null)
+            {
+                Append(term, true);
+                index += term.Length;
+            }
+            else
+            {
+                Append(text[index].ToString(), false);
+                index++;
+            }
+        }
+        return parts;
     }
 
     /// <summary>Row title (web <c>formatNotificationTitle</c>, single event).</summary>
@@ -294,17 +478,22 @@ public static class NotificationText
     /// <summary>Flag label (web <c>flagKind</c> + <c>notifications.flags.*</c>).</summary>
     /// <param name="eventKind">Event kind.</param>
     /// <returns>Label.</returns>
-    internal static string Flag(string eventKind) => eventKind switch
+    internal static string Flag(string eventKind) => FlagKind(eventKind).Label();
+
+    /// <summary>Flag kind (web <c>flagKind</c>).</summary>
+    /// <param name="eventKind">Event kind.</param>
+    /// <returns>Kind.</returns>
+    public static NotificationFlagKind FlagKind(string eventKind) => eventKind switch
     {
-        "player_first_score" => "First Play",
-        "player_score_pb" => "New High Score",
-        "player_fc_achieved" => "Full Combo",
-        _ when eventKind.Contains("rank_improved", StringComparison.Ordinal) => "Rank Up",
-        "player_gold_stars_achieved" => "Gold Stars",
-        "player_stars_improved" => "Stars Up",
-        "player_difficulty_bumped" => "Difficulty Up",
-        "player_total_score_improved" or "player_fc_count_improved" => "Progress",
-        _ => "Improvement",
+        "player_first_score" => NotificationFlagKind.FirstPlay,
+        "player_score_pb" => NotificationFlagKind.NewHighScore,
+        "player_fc_achieved" => NotificationFlagKind.FullCombo,
+        _ when eventKind.Contains("rank_improved", StringComparison.Ordinal) => NotificationFlagKind.RankUp,
+        "player_gold_stars_achieved" => NotificationFlagKind.GoldStars,
+        "player_stars_improved" => NotificationFlagKind.StarsUp,
+        "player_difficulty_bumped" => NotificationFlagKind.DifficultyUp,
+        "player_total_score_improved" or "player_fc_count_improved" => NotificationFlagKind.Progress,
+        _ => NotificationFlagKind.Improvement,
     };
 
     /// <summary>Substitutes template values with the web's fallbacks.</summary>
