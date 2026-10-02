@@ -338,6 +338,8 @@ public class SongScoreHistoryViewModelTests
         Assert.True(row.HasAccuracy);
         Assert.Equal(950000, row.AccuracyValue);
         Assert.Contains("score 200", row.Announcement);
+        Assert.True(row.PinsSeason); // issue #62: the detail row always shows the season
+        Assert.All(vm.Rows, r => Assert.False(r.PinsSeason));
         vm.ToggleBar(5);
         Assert.False(vm.HasSelectedPoint);
 

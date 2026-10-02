@@ -24,6 +24,23 @@ public class LeaderboardColumnLayoutTests
     }
 
     [Fact]
+    public void PinnedSeason_ShowsAtAnyWidthAndIsNeverDroppedForSpace()
+    {
+        // Issue #62: the Score History detail row always shows the season (web renderDetailCard).
+        foreach (var width in new[] { double.NaN, 0, 280, 360, 519 })
+        {
+            var plan = LeaderboardColumnLayout.Fit(Scores, width, pinSeason: true);
+            Assert.True(plan.ShowMeta);
+            Assert.Equal(26, plan.MetaWidth);
+        }
+        Assert.True(LeaderboardColumnLayout.Fit(Scores, 360, textScale: 2.25, pinSeason: true).ShowMeta);
+        var noSeason = Scores with { MetaChars = 0 };
+        Assert.False(LeaderboardColumnLayout.Fit(noSeason, 360, pinSeason: true).ShowMeta);
+        var rankings = new LeaderboardSection(LeaderboardRowKind.Ranking, 4, 7, 6, false, false);
+        Assert.Equal(LeaderboardColumnLayout.Fit(rankings, 360), LeaderboardColumnLayout.Fit(rankings, 360, pinSeason: true));
+    }
+
+    [Fact]
     public void MediumScoreRow_ShowsSeasonFrom520()
     {
         Assert.False(LeaderboardColumnLayout.Fit(Scores, 519).ShowMeta);

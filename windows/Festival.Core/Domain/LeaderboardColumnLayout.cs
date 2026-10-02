@@ -118,8 +118,12 @@ public static class LeaderboardColumnLayout
     /// <param name="section">Section content (every row plus the pinned row).</param>
     /// <param name="rowWidth">Row width in epx, including padding; NaN or 0 before the first layout (no optional columns).</param>
     /// <param name="textScale">Windows text size factor (1–2.25); text widths grow with it.</param>
+    /// <param name="pinSeason">
+    /// Show a score section's season at any width and never drop it for space: the Score History tapped-bar detail row
+    /// (web <c>renderDetailCard</c> passes <c>showSeason</c> whenever the point has one; issue #32/#62).
+    /// </param>
     /// <returns>Columns and widths for every row of the section.</returns>
-    public static LeaderboardColumnPlan Fit(LeaderboardSection section, double rowWidth, double textScale = 1)
+    public static LeaderboardColumnPlan Fit(LeaderboardSection section, double rowWidth, double textScale = 1, bool pinSeason = false)
     {
         var known = double.IsFinite(rowWidth) && rowWidth > 0;
         var scale = double.IsFinite(textScale) ? Math.Max(1, textScale) : 1;
@@ -129,14 +133,15 @@ public static class LeaderboardColumnLayout
         var value = Math.Ceiling(section.ValueChars * (score ? ScoreCharWidth : RatingCharWidth)) * scale;
         var meta = Math.Ceiling(section.MetaChars * (score ? SeasonCharWidth : SongsCharWidth)) * scale;
         var accuracy = score && section.HasAccuracy ? AccuracyWidth * scale : 0;
-        var showMeta = section.HasMeta && (!score || (known && rowWidth >= SeasonBreakpoint));
+        var pinned = score && pinSeason;
+        var showMeta = section.HasMeta && (!score || pinned || (known && rowWidth >= SeasonBreakpoint));
         var showStars = score && section.HasStars && known && rowWidth >= StarsBreakpoint;
 
         double Required() => RowPadding + rank + (showMeta ? meta : 0) + value + accuracy + (showStars ? StarsWidth : 0) +
                              ChevronWidth * scale + GapCount * gap + MinNameWidth * scale;
 
         if (showStars && Required() > rowWidth) showStars = false;
-        if (score && showMeta && Required() > rowWidth) showMeta = false;
+        if (score && showMeta && !pinned && Required() > rowWidth) showMeta = false;
         return new LeaderboardColumnPlan(
             gap, rank, showMeta, showMeta ? meta : 0, value,
             accuracy > 0, accuracy, showStars, showStars ? StarsWidth : 0);

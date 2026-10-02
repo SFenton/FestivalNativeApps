@@ -58,6 +58,10 @@ public class LeaderboardUnifyTests
         Assert.Equal(0, LeaderboardColumns.Measure([best]).RankChars);
         Assert.Equal("fst.song-detail.history.row.20260330120509", best.AutomationId);
         Assert.False(((ILeaderboardEntryRow)new ScoreHistoryListRow(point, false)).IsSelected);
+        // Issue #62: only the tapped bar's detail row pins the season; list and top-score rows follow the 520 epx rule.
+        Assert.False(best.PinsSeason);
+        Assert.True(((ILeaderboardScoreRow)new ScoreHistoryListRow(point, false) { IsDetail = true }).PinsSeason);
+        Assert.False(((ILeaderboardScoreRow)new LeaderboardRow(new LeaderboardEntry { AccountId = "x", Season = 9 })).PinsSeason);
     }
 
     [Fact]
