@@ -121,10 +121,12 @@ struct FirstRunCatalogueSongs<Content: View>: View {
 }
 
 /// A read-only preview of real app UI: no hit testing and hidden from VoiceOver (the slide's
-/// combined title/description is its accessible content).
+/// combined title/description is its accessible content). An embedded sheet shows only its
+/// content, so it never adds its title and Close to the guide's own bar (issue #25).
 private struct FirstRunInertPreview: ViewModifier {
     func body(content: Content) -> some View {
         content
+            .environment(\.festivalModalPreview, true)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }

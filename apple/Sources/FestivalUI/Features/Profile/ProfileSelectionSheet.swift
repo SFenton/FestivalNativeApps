@@ -94,7 +94,7 @@ struct ProfileSelectionSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        FestivalModal("Profiles", closeIdentifier: "fst.profile.close") {
             VStack(spacing: 0) {
                 VStack(spacing: 12) {
                     #if os(macOS)
@@ -108,23 +108,13 @@ struct ProfileSelectionSheet: View {
                 scopeResultsContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .navigationTitle("Profiles")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
             .searchable(
                 text: $query, placement: .navigationBarDrawer(displayMode: .always),
                 prompt: Text(scope.searchPrompt)
             )
             .modifier(KeepSheetChromeWhileSearching())
             #endif
-            .toolbar {
-                // Dismiss-only modal: trailing, matching the app's modal-standard
-                // placement (operator, 2026-09-28) — not leading like a paired Cancel.
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Close") { dismiss() }
-                        .accessibilityIdentifier("fst.profile.close")
-                }
-            }
         }
         .onChange(of: query) { _, _ in searchPhase = .enterQuery }
         .onChange(of: scope) { _, _ in searchPhase = .enterQuery }

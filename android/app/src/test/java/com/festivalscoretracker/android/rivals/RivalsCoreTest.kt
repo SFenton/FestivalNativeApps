@@ -255,7 +255,6 @@ class RivalsCoreTest {
         assertEquals(RivalText.NO_RIVALS_SINGLE, RivalText.noRivalsSubtitle(1))
         assertEquals(RivalText.NO_RIVALS_PLURAL, RivalText.noRivalsSubtitle(3))
         assertNull(RivalText.noRivalsSubtitle(0))
-        assertEquals("1,234 shared songs", RivalText.sharedSongs(1234))
         assertEquals(RivalRankMetric.MaxScore, RivalRankMetric.fromWireId("maxscore"))
         assertNull(RivalRankMetric.fromWireId("x"))
     }

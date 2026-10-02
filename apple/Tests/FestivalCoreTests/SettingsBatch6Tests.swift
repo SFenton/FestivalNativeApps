@@ -156,12 +156,21 @@ struct FirstRunViewingTests {
     @Test("A one-page guide shows only Done; Back after the first page; Skip until the last")
     func controls() {
         #expect(FirstRunControls.forPage(0, of: 1) == FirstRunControls(
-            primaryTitle: "Done", primaryFinishes: true, showsBack: false, showsSkip: false))
+            primaryTitle: "Done", primaryFinishes: true, showsBack: false, showsSkip: false,
+            reservesSkipRow: false))
         #expect(FirstRunControls.forPage(0, of: 3) == FirstRunControls(
-            primaryTitle: "Next", primaryFinishes: false, showsBack: false, showsSkip: true))
+            primaryTitle: "Next", primaryFinishes: false, showsBack: false, showsSkip: true,
+            reservesSkipRow: true))
         #expect(FirstRunControls.forPage(1, of: 3) == FirstRunControls(
-            primaryTitle: "Next", primaryFinishes: false, showsBack: true, showsSkip: true))
+            primaryTitle: "Next", primaryFinishes: false, showsBack: true, showsSkip: true,
+            reservesSkipRow: true))
         #expect(FirstRunControls.forPage(2, of: 3) == FirstRunControls(
-            primaryTitle: "Done", primaryFinishes: true, showsBack: true, showsSkip: false))
+            primaryTitle: "Done", primaryFinishes: true, showsBack: true, showsSkip: false,
+            reservesSkipRow: true))
+    }
+
+    @Test("The Skip row is laid out at least 44 pt tall (issue #25)")
+    func controlsMeetMinimumHitRegion() {
+        #expect(FirstRunControls.minimumHeight >= 44)
     }
 }

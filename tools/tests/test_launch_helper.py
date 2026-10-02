@@ -6,6 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 UI_TEST_DIR = ROOT / "apple/Apps/iOSUITests"
+#: The iPadOS UI-test target shares FestivalApp.swift; its journeys follow the same rule.
+IPAD_UI_TEST_DIR = ROOT / "apple/Apps/iPadOSUITests"
 HELPER_FILE = UI_TEST_DIR / "FestivalApp.swift"
 
 # A real construction is always an assignment (`let app = XCUIApplication()`);
@@ -35,7 +37,7 @@ class LaunchHelperTests(unittest.TestCase):
         self.assertTrue(UI_TEST_DIR.is_dir(), f"missing {UI_TEST_DIR}")
         offenders: dict[str, list[int]] = {}
         checked = 0
-        for path in sorted(UI_TEST_DIR.glob("*.swift")):
+        for path in sorted([*UI_TEST_DIR.glob("*.swift"), *IPAD_UI_TEST_DIR.glob("*.swift")]):
             if path == HELPER_FILE:
                 continue
             checked += 1

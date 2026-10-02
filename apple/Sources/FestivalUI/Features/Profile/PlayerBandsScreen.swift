@@ -58,11 +58,12 @@ struct PlayerBandsScreen: View {
             .pickerStyle(.segmented)
             .padding(12)
             .accessibilityIdentifier("fst.player-bands.group-picker")
-            Group {
+            // Group and page changes fade the bands out, show the spinner and fade the new
+            // list in (web usePageTransition, issue #71).
+            FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading bands") {
                 switch state {
                 case .loading:
-                    FestivalLoadingView(accessibilityLabel: "Loading bands")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    EmptyView()
                 case let .failed(issue):
                     ServiceStatusView(issue, title: "Bands unavailable") {
                         Task { await load() }

@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,8 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -55,7 +52,6 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @param padding Screen padding from [com.festivalscoretracker.android.ui.common.FestivalScreen].
  * @param listState Row list state (the caller scrolls it on page changes).
  * @param idPrefix Test-tag prefix.
- * @param loadingOverlay Whether a newer page is loading over the shown rows.
  * @param controls Page information shown above the rows (population, errors).
  * @param footer Anchored "your rank" content (may emit nothing).
  * @param pager Pager.
@@ -66,14 +62,13 @@ fun RankingsBoardScaffold(
     padding: PaddingValues,
     listState: LazyListState,
     idPrefix: String,
-    loadingOverlay: Boolean,
     controls: @Composable ColumnScope.() -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
     pager: @Composable () -> Unit,
     rows: LazyListScope.() -> Unit,
 ) {
     val (hinge, measure) = rememberHingeSplit()
-    RankingsBoardLayout(hinge, measure, padding, listState, idPrefix, loadingOverlay, controls, footer, pager, rows)
+    RankingsBoardLayout(hinge, measure, padding, listState, idPrefix, controls, footer, pager, rows)
 }
 
 /**
@@ -84,7 +79,6 @@ fun RankingsBoardScaffold(
  * @param padding Screen padding.
  * @param listState Row list state.
  * @param idPrefix Test-tag prefix.
- * @param loadingOverlay Whether a newer page is loading over the shown rows.
  * @param controls Page information shown above the rows.
  * @param footer Anchored "your rank" content.
  * @param pager Pager.
@@ -97,7 +91,6 @@ internal fun RankingsBoardLayout(
     padding: PaddingValues,
     listState: LazyListState,
     idPrefix: String,
-    loadingOverlay: Boolean,
     controls: @Composable ColumnScope.() -> Unit,
     footer: @Composable ColumnScope.() -> Unit,
     pager: @Composable () -> Unit,
@@ -108,7 +101,7 @@ internal fun RankingsBoardLayout(
         if (hinge != null) {
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.width(hinge.start).fillMaxHeight()) {
-                    BoardList(listState, idPrefix, loadingOverlay, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 24.dp), rows)
+                    BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 24.dp), rows)
                 }
                 Spacer(Modifier.width(hinge.end - hinge.start))
                 Column(
@@ -127,7 +120,7 @@ internal fun RankingsBoardLayout(
             var anchoredHeight by remember { mutableIntStateOf(0) }
             val anchoredDp = with(density) { anchoredHeight.toDp() }
             Box(Modifier.fillMaxSize()) {
-                BoardList(listState, idPrefix, loadingOverlay, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + 16.dp)) {
+                BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + 16.dp)) {
                     item(key = "controls") { Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = controls) }
                     rows()
                 }
@@ -191,22 +184,14 @@ fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnSc
 private const val MAX_FOOTER_WIDTH_DP = 720
 
 @Composable
-private fun BoardList(listState: LazyListState, idPrefix: String, loadingOverlay: Boolean, contentPadding: PaddingValues, rows: LazyListScope.() -> Unit) {
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            contentPadding = contentPadding,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize().testTag("$idPrefix.list"),
-            content = rows,
-        )
-        if (loadingOverlay) {
-            LinearProgressIndicator(
-                color = BrandTokens.accentBlue,
-                modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).semantics { contentDescription = "Loading page" },
-            )
-        }
-    }
+private fun BoardList(listState: LazyListState, idPrefix: String, contentPadding: PaddingValues, rows: LazyListScope.() -> Unit) {
+    LazyColumn(
+        state = listState,
+        contentPadding = contentPadding,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize().testTag("$idPrefix.list"),
+        content = rows,
+    )
 }
 
 // endregion

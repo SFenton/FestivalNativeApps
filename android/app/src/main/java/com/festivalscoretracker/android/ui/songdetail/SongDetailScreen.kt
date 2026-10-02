@@ -52,7 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -61,10 +60,14 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
+import com.festivalscoretracker.android.core.rankings.RankingFormatting
+import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
+import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
+import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -619,30 +622,33 @@ private fun InstrumentCard(
                         if (entries.isEmpty() && mine == null) {
                             EmptyChart(instrument)
                         } else {
-                            val rankWidth = rememberRankWidth(entries.map { it.rank } + listOfNotNull(mine?.rank))
-                            entries.forEachIndexed { index, entry ->
-                                if (index > 0) RowSeparator()
-                                PreviewRow(
-                                    entry = entry,
-                                    isSelected = RankingSpotlight.isSelected(extras.selectedAccountId, entry.accountId),
-                                    route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, extras.selectedAccountId),
-                                    instrument = instrument,
-                                    rankWidth = rankWidth,
-                                    onOpen = navigate,
-                                )
-                            }
-                            // The selected player outside the top ten follows (web spotlight footer); it opens their page.
-                            mine?.let { row ->
-                                RowSeparator()
-                                Box(Modifier.testTag("fst.song-detail.your-rank.${instrument.wireId}")) {
+                            // One set of columns for the card, including the appended player row (issue #37).
+                            val columns = rememberScoreColumns(entries + listOfNotNull(mine))
+                            LeaderboardSectionMember(columns, "card") {
+                                entries.forEachIndexed { index, entry ->
+                                    if (index > 0) RowSeparator()
                                     PreviewRow(
-                                        entry = row,
-                                        isSelected = true,
-                                        route = SongLeaderboardRoute(song.songId, instrument.wireId, LeaderboardPaging.pageForRank(row.rank)),
+                                        entry = entry,
+                                        isSelected = RankingSpotlight.isSelected(extras.selectedAccountId, entry.accountId),
+                                        route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, extras.selectedAccountId),
                                         instrument = instrument,
-                                        rankWidth = rankWidth,
+                                        columns = columns.plan,
                                         onOpen = navigate,
                                     )
+                                }
+                                // The selected player outside the top ten follows (web spotlight footer); it opens their page.
+                                mine?.let { row ->
+                                    RowSeparator()
+                                    Box(Modifier.testTag("fst.song-detail.your-rank.${instrument.wireId}")) {
+                                        PreviewRow(
+                                            entry = row,
+                                            isSelected = true,
+                                            route = SongLeaderboardRoute(song.songId, instrument.wireId, LeaderboardPaging.pageForRank(row.rank)),
+                                            instrument = instrument,
+                                            columns = columns.plan,
+                                            onOpen = navigate,
+                                        )
+                                    }
                                 }
                             }
                             if (entries.isNotEmpty()) {
@@ -711,15 +717,15 @@ private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
 }
 
 @Composable
-private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppRoute?, instrument: Instrument, rankWidth: Dp, onOpen: (AppRoute) -> Unit) {
+private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppRoute?, instrument: Instrument, columns: LeaderboardColumnPlan, onOpen: (AppRoute) -> Unit) {
     var modifier = Modifier.fillMaxWidth().selectedRowHighlight(isSelected)
     modifier = if (route != null) {
-        modifier.clickable(role = Role.Button, onClickLabel = "Open profile") { onOpen(route) }
+        modifier.clickable(role = Role.Button, onClickLabel = RankingNavigation.actionLabel(route)) { onOpen(route) }
     } else {
         modifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-detail.preview-row.${instrument.wireId}.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
-        ScoreRow(entry, isSelected = isSelected, rankWidth = rankWidth, navigable = route != null)
+        ScoreRow(entry, isSelected = isSelected, navigable = route != null, columns = columns)
     }
 }
 
@@ -742,53 +748,40 @@ internal fun Modifier.selectedRowHighlight(selected: Boolean): Modifier {
 }
 
 /**
- * Rank column width for a card: the widest "#rank" plus breathing room (web
- * `computeRankWidth`), so short ranks don't push names right.
- *
- * @param ranks Ranks shown in the card.
- * @return Width.
- */
-@Composable
-internal fun rememberRankWidth(ranks: List<Int>): Dp {
-    val measurer = rememberTextMeasurer()
-    val style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-    val density = LocalDensity.current
-    val widest = ranks.maxOrNull() ?: 1
-    return remember(widest, style, density) {
-        with(density) { measurer.measure("#${NumberFormat.getIntegerInstance().format(widest)}", style).size.width.toDp() + 12.dp }
-    }
-}
-
-/**
  * One leaderboard row, the unified design shared with the rankings boards (7.7): rank,
- * name, score, the web accuracy pill (gold italic outline for an FC, 7.11) and an
- * in-card chevron on navigable rows (7.3; other rows keep the slot so columns align).
+ * name, season, score, the web accuracy pill (gold italic outline for an FC, 7.11), stars
+ * and an in-card chevron on navigable rows (7.3). Which of these show and their widths come
+ * from the section's shared [LeaderboardColumnPlan] (issue #37), so every row of a card,
+ * including the pinned player row, lines up; a row without a value keeps its column's slot.
  * The selected player's texts are bold (web `LeaderboardEntry` `isPlayer`, 6.42).
  * Anonymous rows (no account) read "Unknown User". The caller's row wrapper merges it into
  * one TalkBack stop (clickable, or `mergeDescendants` when it can't open a profile), so the
  * row itself doesn't merge: a merge here made a second, unlabelled stop for the click.
  *
  * @param entry Wire row.
- * @param showStars Show the star images after the score (wide rows, web `QUERY_SHOW_STARS`).
  * @param isSelected The selected player's row (bold).
- * @param rankWidth Rank column width (defaults to a four-digit rank).
  * @param navigable Draw the chevron.
+ * @param columns The section's shared plan; defaults to one fitted to this row alone (no width: no season or stars).
  */
 @Composable
-fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Boolean = false, rankWidth: Dp = DEFAULT_RANK_WIDTH, navigable: Boolean = false) {
+fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Boolean = false, columns: LeaderboardColumnPlan? = null) {
+    val plan = columns ?: rememberScoreColumns(listOf(entry)).plan
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
     if (isLargeText()) {
-        StackedScoreRow(entry, showStars, weight, isSelected, rankWidth, navigable)
+        StackedScoreRow(entry, plan, weight, isSelected, navigable)
         return
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(plan.gap.dp),
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .padding(horizontal = 8.dp),
     ) {
-        Text("#${NumberFormat.getIntegerInstance().format(entry.rank)}", style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.width(rankWidth))
+        if (plan.rankWidth > 0f) {
+            Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, modifier = Modifier.width(plan.rankWidth.dp))
+        }
         Text(
             entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
             color = BrandTokens.textPrimary,
@@ -797,36 +790,66 @@ fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Bo
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        Text(
-            ScoreFormatting.score(entry.score),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(horizontal = 10.dp),
-        )
-        if (entry.accuracy != null) AccuracyPill(entry.accuracy, entry.isFullCombo == true) else Spacer(Modifier.width(56.dp))
-        if (showStars) {
-            Box(Modifier.padding(start = 10.dp).width(STAR_COLUMN_DP.dp), contentAlignment = Alignment.CenterEnd) {
+        if (plan.showMeta) SeasonCell(entry.season, plan.metaWidth)
+        Box(Modifier.widthIn(min = plan.valueWidth.dp).testTag("fst.score"), contentAlignment = Alignment.CenterEnd) {
+            Text(
+                ScoreFormatting.score(entry.score),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                color = BrandTokens.textPrimary,
+                maxLines = 1,
+            )
+        }
+        if (plan.showAccuracy) {
+            Box(Modifier.widthIn(min = plan.accuracyWidth.dp), contentAlignment = Alignment.Center) {
+                entry.accuracy?.let { AccuracyPill(it, entry.isFullCombo == true) }
+            }
+        }
+        if (plan.showStars) {
+            Box(Modifier.width(plan.starsWidth.dp), contentAlignment = Alignment.CenterEnd) {
                 StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
             }
         }
-        if (navigable) RowChevron(Modifier.padding(start = 4.dp)) else Spacer(Modifier.width(24.dp))
+        if (navigable) RowChevron() else Spacer(Modifier.width(LeaderboardColumnLayout.CHEVRON_WIDTH.dp))
+    }
+}
+
+/**
+ * The season column (web `SeasonPill` column): `S15` right-aligned in the section's shared
+ * width, or an empty slot for a row without a season.
+ *
+ * @param season Season, or null.
+ * @param width Shared column width in dp.
+ */
+@Composable
+private fun SeasonCell(season: Int?, width: Float) {
+    Box(Modifier.width(width.dp), contentAlignment = Alignment.CenterEnd) {
+        season?.let {
+            Text(
+                LeaderboardColumnLayout.seasonLabel(it),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = BrandTokens.textSecondary,
+                maxLines = 1,
+                modifier = Modifier.semantics { contentDescription = "Season $it" },
+            )
+        }
     }
 }
 
 /**
  * [ScoreRow] at large font scales: rank and the (wrapping) name on the first line, the
- * score, accuracy pill and stars on the next, indented under the name, so no column is
- * squeezed to an ellipsis.
+ * season, score, accuracy pill and stars on the next, indented under the name, so no
+ * column is squeezed to an ellipsis.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StackedScoreRow(entry: LeaderboardEntry, showStars: Boolean, weight: FontWeight, isSelected: Boolean, rankWidth: Dp, navigable: Boolean) {
+private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan, weight: FontWeight, isSelected: Boolean, navigable: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        Text("#${NumberFormat.getIntegerInstance().format(entry.rank)}", style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.widthIn(min = rankWidth).padding(end = 8.dp))
+        Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.widthIn(min = plan.rankWidth.dp).padding(end = 8.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
@@ -841,17 +864,13 @@ private fun StackedScoreRow(entry: LeaderboardEntry, showStars: Boolean, weight:
                     color = BrandTokens.textPrimary,
                 )
                 if (entry.accuracy != null) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
-                if (showStars) StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
+                if (plan.showMeta) entry.season?.let {
+                    Text(LeaderboardColumnLayout.seasonLabel(it), style = MaterialTheme.typography.labelLarge, color = BrandTokens.textSecondary, modifier = Modifier.semantics { contentDescription = "Season $it" })
+                }
+                if (plan.showStars) StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
             }
         }
         if (navigable) RowChevron(Modifier.padding(start = 4.dp)) else Spacer(Modifier.width(24.dp))
     }
 }
-
-/** Rank column when the caller doesn't measure (fits "#9,999"). */
-private val DEFAULT_RANK_WIDTH = 52.dp
-
-/** Width reserved for the stars column so scores stay aligned (web `StarSize.rowWidth`). */
-private const val STAR_COLUMN_DP = 116
-
 // endregion

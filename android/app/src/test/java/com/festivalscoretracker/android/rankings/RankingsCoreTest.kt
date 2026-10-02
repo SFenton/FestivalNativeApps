@@ -9,6 +9,7 @@ import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
+import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.BandRankingEntry
@@ -231,6 +232,13 @@ class RankingsCoreTest {
         val row = band(4)
         assertEquals(BandRoute(row.bandId, null, "Band_Quad", row.teamKey), RankingNavigation.bandRoute(row, BandType.Quad))
         assertNull(RankingNavigation.bandRoute(BandRankingEntry(), BandType.Quad))
+    }
+
+    @Test
+    fun rowActionLabelsNameTheDestination() {
+        assertEquals("Open profile", RankingNavigation.actionLabel(PlayerRoute(RankingsFixtures.accountId(1), "Them")))
+        assertEquals("Open your statistics", RankingNavigation.actionLabel(StatisticsRoute))
+        assertEquals("Open your page of the full leaderboard", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3)))
     }
 
     @Test

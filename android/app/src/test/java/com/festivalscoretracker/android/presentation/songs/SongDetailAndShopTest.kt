@@ -33,7 +33,12 @@ import java.util.Locale
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -156,6 +161,138 @@ class SongDetailAndShopTest {
         val vm = SongPathsViewModel(listOf(Instrument.Lead), PathDisplayMode.Text, { _, _ -> image() }, { _, _ -> throw FestivalApiException.InvalidResponse() })
         advanceUntilIdle()
         assertTrue((vm.state.value.load as PathLoad.Failed).issue is ServiceIssue.Other)
+    }
+
+    @Test
+    fun pathsSwapFadesOutHoldsSpinnerThenFadesIn() = runTest(main.dispatcher) {
+        val vm = SongPathsViewModel(listOf(Instrument.Lead), PathDisplayMode.Image, { _, _ -> image() }, { _, _ -> text() })
+        advanceUntilIdle()
+        val lead = Instrument.Lead.label
+        assertEquals(PathSwapPhase.Content, vm.state.value.phase)
+        assertEquals("$lead Expert path image loaded", vm.state.value.status)
+
+        val start = currentTime
+        vm.selectDifficulty(PathDifficulty.Hard)
+        runCurrent()
+        // The old chart stays mounted while it fades out; the controls already show Hard.
+        assertEquals(PathSwapPhase.ContentOut, vm.state.value.phase)
+        assertTrue(vm.state.value.load is PathLoad.Image)
+        assertEquals(PathDifficulty.Expert, vm.state.value.shown.difficulty)
+        assertEquals(PathDifficulty.Hard, vm.state.value.difficulty)
+        assertEquals("Loading $lead Hard path", vm.state.value.status)
+        advanceTimeBy(PathSwapTiming.FADE_MILLIS - 1); runCurrent()
+        assertEquals(PathSwapPhase.ContentOut, vm.state.value.phase)
+        advanceTimeBy(1); runCurrent()
+        assertEquals(PathSwapPhase.Spinner, vm.state.value.phase)
+        assertEquals(PathLoad.Loading, vm.state.value.load)
+        assertTrue(vm.state.value.spinnerVisible)
+        // The read already finished; the spinner still holds for the web minimum.
+        advanceTimeBy(PathSwapTiming.MIN_IMAGE_SPINNER_MILLIS - 1); runCurrent()
+        assertEquals(PathSwapPhase.Spinner, vm.state.value.phase)
+        advanceTimeBy(1); runCurrent()
+        assertEquals(PathSwapPhase.SpinnerOut, vm.state.value.phase)
+        assertEquals(PathLoad.Loading, vm.state.value.load)
+        advanceTimeBy(PathSwapTiming.FADE_MILLIS); runCurrent()
+        assertEquals(PathSwapPhase.Content, vm.state.value.phase)
+        assertTrue(vm.state.value.load is PathLoad.Image)
+        assertEquals(PathDifficulty.Hard, vm.state.value.shown.difficulty)
+        assertEquals("$lead Hard path image loaded", vm.state.value.status)
+        assertEquals(PathSwapTiming.FADE_MILLIS * 2 + PathSwapTiming.MIN_IMAGE_SPINNER_MILLIS, currentTime - start)
+
+        // Image → Text holds the spinner for the text minimum.
+        val textStart = currentTime
+        vm.selectDisplay(PathDisplayMode.Text)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.load is PathLoad.Text)
+        assertEquals("$lead Hard path loaded, 3 activations", vm.state.value.status)
+        assertEquals(PathSwapTiming.FADE_MILLIS * 2 + PathSwapTiming.MIN_TEXT_SPINNER_MILLIS, currentTime - textStart)
+    }
+
+    @Test
+    fun pathsRapidSwitchesNeverShowStaleContent() = runTest(main.dispatcher) {
+        val slow = CompletableDeferred<Unit>()
+        val vm = SongPathsViewModel(
+            listOf(Instrument.Lead, Instrument.Bass),
+            PathDisplayMode.Image,
+            { chart, _ -> if (chart == Instrument.Bass) slow.await(); image() },
+            { _, _ -> text() },
+        )
+        advanceUntilIdle()
+        val seen = mutableListOf<SongPathsState>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect { seen += it } }
+
+        vm.selectDifficulty(PathDifficulty.Hard)
+        advanceTimeBy(150); runCurrent()
+        vm.selectInstrument(Instrument.Bass)
+        advanceTimeBy(PathSwapTiming.FADE_MILLIS + 50); runCurrent()
+        assertEquals(PathSwapPhase.Spinner, vm.state.value.phase)
+        // A switch while the spinner is up keeps the spinner (no extra fade-out).
+        vm.selectDisplay(PathDisplayMode.Text)
+        runCurrent()
+        assertEquals(PathSwapPhase.Spinner, vm.state.value.phase)
+        slow.complete(Unit)
+        advanceUntilIdle()
+
+        val final = vm.state.value
+        assertEquals(PathSwapPhase.Content, final.phase)
+        assertTrue(final.load is PathLoad.Text)
+        assertEquals(PathSelection(Instrument.Bass, PathDifficulty.Hard, PathDisplayMode.Text), final.shown)
+        // Only the opening chart and the latest selection were ever presented.
+        val presented = seen.filter { it.load !is PathLoad.Loading }.map { it.shown }.distinct()
+        assertEquals(listOf(PathSelection(Instrument.Lead, PathDifficulty.Expert, PathDisplayMode.Image), final.shown), presented)
+    }
+
+    @Test
+    fun pathsReduceMotionSwapsInstantly() = runTest(main.dispatcher) {
+        val vm = SongPathsViewModel(
+            listOf(Instrument.Lead),
+            PathDisplayMode.Image,
+            { _, difficulty -> if (difficulty == PathDifficulty.Easy) throw FestivalApiException.HttpStatus(404) else image() },
+            { _, _ -> text() },
+        )
+        vm.reduceMotion = true
+        advanceUntilIdle()
+        val start = currentTime
+        vm.selectDifficulty(PathDifficulty.Hard)
+        runCurrent()
+        assertEquals(PathSwapPhase.Content, vm.state.value.phase)
+        assertEquals(PathDifficulty.Hard, vm.state.value.shown.difficulty)
+        assertEquals(start, currentTime)
+        vm.selectDifficulty(PathDifficulty.Easy)
+        runCurrent()
+        assertEquals(PathLoad.NotGenerated, vm.state.value.load)
+        assertEquals(start, currentTime)
+    }
+
+    @Test
+    fun pathsPrepareImageDuringSpinnerAndDescribeEveryOutcome() = runTest(main.dispatcher) {
+        var decoded = 0
+        val vm = SongPathsViewModel(
+            listOf(Instrument.Lead),
+            PathDisplayMode.Image,
+            { _, difficulty ->
+                if (difficulty == PathDifficulty.Easy) throw FestivalApiException.HttpStatus(404)
+                if (difficulty == PathDifficulty.Medium) throw FestivalApiException.HttpStatus(500)
+                image()
+            },
+            { _, _ -> text() },
+            decodeImage = { decoded++; null },
+        )
+        advanceUntilIdle()
+        val load = vm.state.value.load as PathLoad.Image
+        assertTrue(load.prepared)
+        assertNull(load.decoded)
+        assertEquals(1, decoded)
+
+        vm.selectDifficulty(PathDifficulty.Easy)
+        advanceUntilIdle()
+        val easy = PathSelection(Instrument.Lead, PathDifficulty.Easy, PathDisplayMode.Image)
+        assertEquals(SongPathsState.notGeneratedText(easy), vm.state.value.status)
+        assertEquals("No Easy path has been generated for ${Instrument.Lead.label} yet.", vm.state.value.status)
+        vm.selectDifficulty(PathDifficulty.Medium)
+        advanceUntilIdle()
+        assertEquals("Path unavailable", vm.state.value.status)
+        assertEquals(1, decoded)
     }
 
     // endregion

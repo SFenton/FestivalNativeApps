@@ -21,8 +21,12 @@ public interface ILeaderboardEntryRow
     /// <summary>Whether this is the selected player's own row (accent fill, bold).</summary>
     bool IsSelected { get; }
 
-    /// <summary>Rank characters every row of the board reserves (web <c>computeRankWidth</c>); 0 = own width.</summary>
-    int RankChars { get; }
+    /// <summary>
+    /// Content of the whole section this row sits in (every row plus the pinned row; web <c>computeRankWidth</c> and the
+    /// score <c>ch</c> width), from which <see cref="LeaderboardColumnLayout.Fit"/> decides the same columns and widths for
+    /// every row (issue #37). <see langword="null"/> = the row's own content only.
+    /// </summary>
+    LeaderboardSection? Section { get; }
 
     /// <summary>Destination (profile, Statistics, Band Detail, a full board page), or <see langword="null"/> for none.</summary>
     AppRoute? Route { get; }
@@ -43,8 +47,6 @@ public interface ILeaderboardScoreRow : ILeaderboardEntryRow
     /// <summary>Grouped score.</summary>
     string Score { get; }
 
-    /// <summary>Score characters every row of the board reserves (web <c>scoreWidth</c> in <c>ch</c>); 0 = own width.</summary>
-    int ScoreChars { get; }
 
     /// <summary>Accuracy text (<c>98.2%</c>), or empty.</summary>
     string Accuracy { get; }
@@ -75,13 +77,35 @@ public interface ILeaderboardRankingRow : ILeaderboardEntryRow
     string BayesianText { get; }
 }
 
-/// <summary>Shared column widths for a board (web <c>computeRankWidth</c> and the score <c>ch</c> width).</summary>
+/// <summary>Measures a section's shared content (web <c>computeRankWidth</c>, the score <c>ch</c> width; issue #37).</summary>
 public static class LeaderboardColumns
 {
-    /// <summary>Longest rank text among the rows and an optional pinned row (0 when there are none).</summary>
-    /// <param name="ranks">Rank texts.</param>
+    /// <summary>Longest text among the rows and an optional pinned row (0 when there are none).</summary>
+    /// <param name="texts">Texts.</param>
     /// <returns>Characters.</returns>
-    public static int Widest(IEnumerable<string> ranks) => ranks.Select(r => r.Length).DefaultIfEmpty(0).Max();
+    public static int Widest(IEnumerable<string> texts) => texts.Select(r => r.Length).DefaultIfEmpty(0).Max();
+
+    /// <summary>
+    /// Measures every row of a section, including its pinned selected-player row, so all of them get one
+    /// <see cref="LeaderboardColumnLayout.Fit"/> plan. Score rows measure seasons, scores, accuracy and stars; rankings
+    /// rows their songs labels and ratings.
+    /// </summary>
+    /// <param name="rows">Section rows (score or rankings rows; the first decides the kind).</param>
+    /// <returns>Section content.</returns>
+    public static LeaderboardSection Measure(IEnumerable<ILeaderboardEntryRow> rows)
+    {
+        var all = rows.ToList();
+        var rank = Widest(all.Select(r => r.RankText));
+        if (all.FirstOrDefault() is ILeaderboardRankingRow)
+        {
+            var rankings = all.OfType<ILeaderboardRankingRow>().ToList();
+            return new LeaderboardSection(LeaderboardRowKind.Ranking, rank, Widest(rankings.Select(r => r.SongsText)),
+                Widest(rankings.Select(r => r.RatingText)), false, false);
+        }
+        var scores = all.OfType<ILeaderboardScoreRow>().ToList();
+        return new LeaderboardSection(LeaderboardRowKind.Score, rank, Widest(scores.Select(r => r.Season)),
+            Widest(scores.Select(r => r.Score)), scores.Any(r => r.HasAccuracy), scores.Any(r => StarRating.From(r.StarCount) is not null));
+    }
 }
 #endregion
 
