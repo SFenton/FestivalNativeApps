@@ -39,4 +39,4 @@ Stage: 5 (journey 1), 3 (journey 2)  Next: operator answers J1–J3; grant Acces
 - Detail columns: Change — 2-column dashboard grids key off the window size class, so a ~350 pt split detail would get two columns [HIG Layout].
 - Pending J1 Instrument switcher: titled `Label` with the instrument image in the rail, or a pill in the content. Recommended: split Rank By into its own item; instrument as a titled `Label` if the rail accepts the image, else a content pill.
 - Pending J2 Narrow rows: drop the songs-played column when the row can't fit it (`ViewThatFits`), or wrap to two lines. Recommended: `ViewThatFits`.
-- Pending J3 Grids by column width (`onGeometryChange`) instead of the window size class. Recommended: yes.
+- Pending J3 Give Duo split columns their own width class, reusing the iPad shell's `DeviceLayout.column(width:)`, instead of the window size class. Recommended: yes.
