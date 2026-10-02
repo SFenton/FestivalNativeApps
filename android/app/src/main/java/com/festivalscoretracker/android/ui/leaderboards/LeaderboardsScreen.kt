@@ -59,7 +59,9 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberFadeInWindow
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -126,8 +128,13 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
                 val lead = layout.instruments.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
                 val contentReady = lead == null || lead.value !is LoadState.Loading
                 val pageRevealed = rememberRevealed(contentReady)
+                // Cards still loading (or reloading for a new Rank By) after the list has
+                // scrolled show in place; only what is visible at load fades in.
+                val fadeWindow = rememberFadeInWindow(listState)
                 Box(Modifier.fillMaxSize().festivalFadeIn(pageRevealed)) {
-                    OverviewList(viewModel, layout, metric, selected, listState, padding, shell.navigate)
+                    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow) {
+                        OverviewList(viewModel, layout, metric, selected, listState, padding, shell.navigate)
+                    }
                 }
                 if (!contentReady) {
                     Box(Modifier.fillMaxSize().testTag("fst.leaderboards.loading"), contentAlignment = Alignment.Center) {
