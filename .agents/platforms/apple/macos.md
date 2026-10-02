@@ -15,8 +15,8 @@
 | `build [--configuration Debug]` | xcodegen + `xcodebuild -scheme FestivalDesktop` into `apple/DerivedData/mac` under `~/.fst-build.lock` |
 | `launch [--tab T] [--route R] [--profile sfentonx\|id:name] [--anonymous] [--size WxH] [--env K=V]` | Quits the previous instance (`~/.fst-mac-app.pid`, one per host), starts the app with `-ApplePersistenceIgnoreState YES` and Debug deep links (`FST_DEBUG_TAB`, `FST_DEBUG_ROUTE`, in-memory `FST_DEBUG_PROFILE`, `FST_DEBUG_WINDOW_SIZE`), waits for its window |
 | `resize --size WxH` | Sets the running window's content size |
-| `command <c>` | Debug shell driver: `select:<n\|destination>`, `route:<FST_DEBUG_ROUTE syntax>`, `back`, `refresh`, `search`, `profile`, `notifications`, `whatsnew`, `sort`, `filter`, `dismiss` |
-| `shot --out PATH [--out …] [--wait S]` | `screencapture -x -o -l <CGWindowID>` of the app's largest layer-0 window only |
+| `command <c>` | Debug shell driver: `select:<n\|destination>`, `route:<FST_DEBUG_ROUTE syntax>`, `back`, `refresh`, `search`, `profile`, `notifications`, `whatsnew`, `sort`, `filter`, `settings`, `dismiss` |
+| `shot --out PATH [--out …] [--wait S] [--window TITLE]` | `screencapture -x -o -l <CGWindowID>` of the app's largest layer-0 window only (or the one whose title contains `TITLE`, e.g. `Settings`) |
 | `quit` | Debug quit notification → `NSApp.terminate` (SIGTERM fallback) |
 
 - **Never capture the full screen** (the operator's private desktop): `shot` refuses without the app's window ID, which `tools/mac_window.swift` finds through `CGWindowListCopyWindowInfo` filtered to the app's PID. Captures need the terminal's Screen Recording permission (granted on this Mac as of 2026-10-02).

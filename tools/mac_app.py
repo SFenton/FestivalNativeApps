@@ -20,7 +20,7 @@ overrides plus captures of **only the app's own window**:
   app's PID). It **never** captures the full screen: without a window ID it fails.
 - ``command`` runs a Debug shell command in the running app (``select:3``,
   ``select:leaderboards``, ``route:player:<id>``, ``back``, ``refresh``, ``search``,
-  ``profile``, ``notifications``, ``whatsnew``, ``sort``, ``filter``), so one launch can
+  ``profile``, ``notifications``, ``whatsnew``, ``sort``, ``filter``, ``settings``), so one launch can
   visit many pages and sheets without Accessibility permission.
 - ``quit``    posts the Debug quit notification so AppKit terminates normally;
   falls back to SIGTERM.
@@ -61,7 +61,7 @@ HELPER_SOURCE = REPO_ROOT / "tools" / "mac_window.swift"
 PROFILES = {"sfentonx": "195e93ef108143b2975ee46662d4d0e1:SFentonX"}
 
 #: Debug shell commands without an argument (`MacDebugCommand`).
-SIMPLE_COMMANDS = {"back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss"}
+SIMPLE_COMMANDS = {"settings", "back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss"}
 #: Debug shell commands that take ``verb:argument``.
 ARGUMENT_COMMANDS = {"select", "route"}
 
@@ -230,11 +230,12 @@ def parse_window_lines(text: str) -> list[dict]:
     return windows
 
 
-def pick_main_window(windows: list[dict]) -> dict | None:
-    """Choose the app's main window: normal layer, large enough, largest area.
+def pick_main_window(windows: list[dict], name: str | None = None) -> dict | None:
+    """Choose an app window: normal layer, large enough, largest area.
 
     Args:
         windows: Helper window dictionaries for one process.
+        name: Only windows whose title contains this text (e.g. ``Settings``).
 
     Returns:
         The chosen window or None (menus, tooltips and sheets' shadows excluded).
@@ -242,6 +243,7 @@ def pick_main_window(windows: list[dict]) -> dict | None:
     candidates = [
         w for w in windows
         if w.get("layer", 0) == 0 and w.get("w", 0) >= MIN_WINDOW_SIDE and w.get("h", 0) >= MIN_WINDOW_SIDE
+        and (name is None or name.lower() in str(w.get("name", "")).lower())
     ]
     if not candidates:
         return None
@@ -322,17 +324,18 @@ def running_pid() -> int | None:
     return pid
 
 
-def main_window(pid: int) -> dict | None:
-    """Look up the app's main window.
+def main_window(pid: int, name: str | None = None) -> dict | None:
+    """Look up the app's main window (or the window titled ``name``).
 
     Args:
         pid: App process.
+        name: Optional title filter.
 
     Returns:
         The window dictionary or None.
     """
     result = subprocess.run([str(ensure_helper()), "list", str(pid)], capture_output=True, text=True, check=False)
-    return pick_main_window(parse_window_lines(result.stdout))
+    return pick_main_window(parse_window_lines(result.stdout), name)
 
 
 def wait_for_window(pid: int, timeout: float) -> dict | None:
@@ -462,7 +465,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
         return 1
     for index, raw in enumerate(args.out):
         time.sleep(args.wait if index == 0 else args.interval)
-        window = main_window(pid)
+        window = main_window(pid, args.window)
         if window is None:
             print("no app window found; refusing to capture anything else", file=sys.stderr)
             return 1
@@ -504,6 +507,7 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--out", action="append", required=True)
     shot.add_argument("--wait", type=float, default=3.0, help="Seconds before the first capture")
     shot.add_argument("--interval", type=float, default=1.0, help="Seconds between captures")
+    shot.add_argument("--window", help="Capture the app window whose title contains this (e.g. Settings)")
     shot.set_defaults(func=cmd_shot)
 
     command = sub.add_parser("command", help="Run a Debug shell command in the running app")

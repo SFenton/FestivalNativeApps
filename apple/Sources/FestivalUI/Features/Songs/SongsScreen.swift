@@ -1344,6 +1344,11 @@ struct SongsScreen: View {
                 .opacity(0)
         }
         .contentShape(Rectangle())
+        #if os(macOS)
+        .contextMenu {
+            MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
+        }
+        #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
         .festivalFadeIn(isLoaded: true, index: fadeIndex ?? Int.max)

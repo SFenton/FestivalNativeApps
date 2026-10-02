@@ -113,7 +113,7 @@ enum MacDebugCommand: Equatable {
     case select(MacDestination?, number: Int?)
     /// `route:<FST_DEBUG_ROUTE syntax>`: push (or select) a route.
     case route(String)
-    case back, refresh, search, profile, notifications, whatsNew, sort, filter, dismiss
+    case back, refresh, search, profile, notifications, whatsNew, sort, filter, dismiss, settings
 
     /// Parse command text.
     ///
@@ -139,6 +139,7 @@ enum MacDebugCommand: Equatable {
         case ("sort", 1): self = .sort
         case ("filter", 1): self = .filter
         case ("dismiss", 1): self = .dismiss
+        case ("settings", 1): self = .settings
         default: return nil
         }
     }

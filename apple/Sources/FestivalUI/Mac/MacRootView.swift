@@ -34,6 +34,7 @@ public struct MacRootView: View {
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.colorSchemeContrast) private var systemContrast
     @FocusedValue(\.macPageCommands) private var pageCommands
+    @Environment(\.openSettings) private var openSettings
 
     /// Create the window content.
     ///
@@ -162,6 +163,7 @@ public struct MacRootView: View {
         case .whatsNew: navigation.whatsNewPresented = true
         case .sort: pageCommands?.sort?()
         case .filter: pageCommands?.filter?()
+        case .settings: openSettings()
         case .dismiss:
             navigation.searchPresented = false
             navigation.profilePresented = false

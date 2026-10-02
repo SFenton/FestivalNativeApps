@@ -114,6 +114,14 @@ class WindowChoiceTests(unittest.TestCase):
         ]
         self.assertEqual(pick_main_window(windows)["id"], 2)
 
+    def test_name_filter_picks_titled_window(self):
+        windows = [
+            {"id": 1, "layer": 0, "w": 1280, "h": 820, "name": "Songs"},
+            {"id": 2, "layer": 0, "w": 640, "h": 760, "name": "Festival Score Tracker Settings"},
+        ]
+        self.assertEqual(pick_main_window(windows, "settings")["id"], 2)
+        self.assertIsNone(pick_main_window(windows, "Nope"))
+
     def test_no_candidate_means_no_capture(self):
         self.assertIsNone(pick_main_window([]))
         self.assertIsNone(pick_main_window([{"id": 3, "layer": 25, "w": 900, "h": 900}]))
