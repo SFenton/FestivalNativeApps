@@ -51,7 +51,7 @@ import urllib.request
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 # region Constants
 
@@ -883,7 +883,33 @@ CI_CERT_MARKER = "created via api"
 DEV_CERT_TYPES = "DEVELOPMENT,IOS_DEVELOPMENT,MAC_APP_DEVELOPMENT"
 
 
-def prune_ci_certs(client: AscClient) -> Dict[str, Any]:
+def normalize_serial(serial: str) -> str:
+    """Certificate serial as upper-case hex without separators or leading zeros (``serial=0A1B`` → ``A1B``)."""
+    text = serial.split("=", 1)[-1].replace(":", "").strip().upper()
+    return text.lstrip("0") or "0"
+
+
+def create_certificate(client: AscClient, cert_type: str, csr_pem: str) -> Dict[str, Any]:
+    """Create a signing certificate from a CSR (public input; the private key never leaves its owner).
+
+    Returns:
+        ``{id, name, serial, expires, certificate_type, der_base64}``; ``der_base64`` is the public
+        certificate, safe to publish as an artifact.
+    """
+    body = "".join(line for line in csr_pem.strip().splitlines() if "-----" not in line)
+    if not body:
+        raise ValueError("empty CSR")
+    payload = client.request("POST", "/v1/certificates", body={"data": {
+        "type": "certificates", "attributes": {"certificateType": cert_type, "csrContent": body}}})
+    data = payload.get("data") or {}
+    attrs = data.get("attributes") or {}
+    return {"id": data.get("id"), "name": attrs.get("name") or attrs.get("displayName"),
+            "serial": normalize_serial(str(attrs.get("serialNumber") or "")),
+            "expires": attrs.get("expirationDate"), "certificate_type": attrs.get("certificateType"),
+            "der_base64": attrs.get("certificateContent")}
+
+
+def prune_ci_certs(client: AscClient, keep_serials: Sequence[str] = ()) -> Dict[str, Any]:
     """Revoke development certificates created through the API (hosted-runner archives).
 
     Automatic signing on each fresh hosted runner asks App Store Connect for a new development certificate,
@@ -895,8 +921,9 @@ def prune_ci_certs(client: AscClient) -> Dict[str, Any]:
         ``{development_certificates, names, revoked, dry_run}``; ``names`` lists distinct certificate names
         (no ids or key material) for the job summary.
     """
+    keep = {normalize_serial(s) for s in keep_serials if s}
     payload = client.get("/v1/certificates", {"filter[certificateType]": DEV_CERT_TYPES, "limit": "200",
-                                               "fields[certificates]": "name,displayName,certificateType"})
+                                               "fields[certificates]": "name,displayName,certificateType,serialNumber"})
     names = set()
     revoked = []
     items = payload.get("data") or [] if isinstance(payload, dict) else []
@@ -904,11 +931,13 @@ def prune_ci_certs(client: AscClient) -> Dict[str, Any]:
         attrs = item.get("attributes") or {}
         label = " / ".join(str(attrs[k]) for k in ("name", "displayName") if attrs.get(k))
         names.add(label)
+        if normalize_serial(str(attrs.get("serialNumber") or "")) in keep:
+            continue
         if attrs.get("certificateType") in DEV_CERT_TYPES.split(",") and CI_CERT_MARKER in label.lower():
             client.request("DELETE", "/v1/certificates/%s" % item["id"])
             revoked.append(item["id"])
     return {"development_certificates": len(items), "names": sorted(names), "revoked": revoked,
-            "dry_run": client.dry_run}
+            "kept": sorted(keep), "dry_run": client.dry_run}
 
 
 def emit(document: Dict[str, Any]) -> None:
@@ -945,6 +974,12 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--bundle-id")
         p = sub.add_parser("prune-ci-certs")
         p.add_argument("--dry-run", action="store_true")
+        p.add_argument("--keep-serial", action="append", default=[],
+                       help="never revoke this certificate (the persistent CI identity); repeatable")
+        p = sub.add_parser("create-certificate")
+        p.add_argument("--type", default="DEVELOPMENT", choices=["DEVELOPMENT", "DISTRIBUTION"])
+        p.add_argument("--csr-file", required=True)
+        p.add_argument("--out", required=True, help="write the DER certificate here")
         p = sub.add_parser("record-build")
         p.add_argument("--build", required=True)
         p.add_argument("--version", required=True)
@@ -1013,7 +1048,13 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
                 print(version)
             return EXIT_OK
         if args.command == "prune-ci-certs":
-            emit(prune_ci_certs(client))
+            emit(prune_ci_certs(client, args.keep_serial))
+            return EXIT_OK
+        if args.command == "create-certificate":
+            result = create_certificate(client, args.type, Path(args.csr_file).read_text(encoding="utf-8"))
+            der = result.pop("der_base64") or ""
+            Path(args.out).write_bytes(base64.b64decode(der))
+            emit(result)
             return EXIT_OK
         if args.command == "released-versions":
             app_id = resolve_app(client, bundle_id)
