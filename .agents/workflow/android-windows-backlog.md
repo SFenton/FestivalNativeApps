@@ -1,6 +1,6 @@
 # Non-Apple backlog (shared items)
 
-> **What:** queued Android and Windows work, kept while the Windows host (`sfenton-primary`) is reserved for the operator. **Read when:** the operator frees the Windows host, planning Android/Windows lanes, or mirroring an Apple fix to the other platforms.
+> **What:** queued Android and Windows work, kept while the Windows host (`sfenton-music`) is reserved for the operator. **Read when:** the operator frees the Windows host, planning Android/Windows lanes, or mirroring an Apple fix to the other platforms.
 
 Status: the Windows host is **available again** (operator, 2026-09-28, batch 6); lanes take their items from these tables and tick them off in their reports; the orchestrator mirrors every operator bug cross-platform ([PROGRESS.md](../../PROGRESS.md) log has the per-batch triage). Rules that apply to every item: live-data media with SFentonX for the operator ([testing strategy](../testing/strategy.md)), fixture-only committed screenshots, [service safety](../platforms/service-safety.md), no `git reset --soft origin/master` ([windows-relay](windows-relay.md)).
 
