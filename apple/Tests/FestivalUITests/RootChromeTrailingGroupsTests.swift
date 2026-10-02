@@ -18,13 +18,23 @@ struct RootChromeTrailingGroupsTests {
         }
     }
 
-    @Test("The Duo vertical bar keeps the bell and profile together")
+    @Test("The Duo vertical bar adds no fixed spacing: one group (HIG iPhone Duo)")
     func verticalBarKeepsOneGroup() {
         for edge in [HorizontalEdge.leading, .trailing] {
             let chrome = DeviceLayout.SectionChrome.verticalBar(edge)
             #expect(!RootChromeTrailingGroups.separatesBellFromProfile(chrome: chrome))
+            #expect(!RootChromeTrailingGroups.separatesSearch(chrome: chrome))
             #expect(RootChromeTrailingGroups.resolve(showsSearch: true, showsBell: true, chrome: chrome)
-                == [[.search], [.bell, .profile]])
+                == [[.search, .bell, .profile]])
+            #expect(RootChromeTrailingGroups.resolve(showsSearch: true, showsBell: false, chrome: chrome)
+                == [[.search, .profile]])
+        }
+    }
+
+    @Test("Horizontal bars keep Search in its own group")
+    func horizontalBarsSeparateSearch() {
+        for chrome in [DeviceLayout.SectionChrome.tabBar, .sidebar] {
+            #expect(RootChromeTrailingGroups.separatesSearch(chrome: chrome))
         }
     }
 

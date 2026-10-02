@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SwiftUI
 import Testing
 @testable import FestivalCore
 @testable import FestivalUI
@@ -292,4 +293,31 @@ private func playerScore(rank: Int?, score: Int = 500) throws -> PlayerScore {
     #expect(!ShopStatusBreathe.animates(reduceMotion: true, sceneActive: true, still: false))
     #expect(!ShopStatusBreathe.animates(reduceMotion: false, sceneActive: false, still: false))
     #expect(!ShopStatusBreathe.animates(reduceMotion: false, sceneActive: true, still: true))
+}
+
+// MARK: - Shop action in the iPhone Duo vertical bar
+
+/// The breathing Shop fill is a custom view, which the Duo vertical bar dropped from
+/// both the rail and its overflow; the rail gets a titled symbol instead.
+@Suite("Song Detail Shop action style")
+struct SongDetailShopActionStyleTests {
+    @Test("Horizontal bars keep the breathing status fill")
+    func horizontalBarsBreathe() {
+        for chrome in [DeviceLayout.SectionChrome.tabBar, .sidebar] {
+            #expect(SongDetailShopActionStyle.resolve(tone: .new, chrome: chrome) == .breathing(.new))
+            #expect(SongDetailShopActionStyle.resolve(tone: nil, chrome: chrome)
+                == .titled(spokenLabel: "Item Shop"))
+        }
+    }
+
+    @Test("The vertical bar always uses a titled symbol and keeps the spoken status")
+    func verticalBarIsTitled() {
+        for edge in [HorizontalEdge.leading, .trailing] {
+            let chrome = DeviceLayout.SectionChrome.verticalBar(edge)
+            #expect(SongDetailShopActionStyle.resolve(tone: .leaving, chrome: chrome)
+                == .titled(spokenLabel: "Item Shop, Leaving the Item Shop tomorrow"))
+            #expect(SongDetailShopActionStyle.resolve(tone: nil, chrome: chrome)
+                == .titled(spokenLabel: "Item Shop"))
+        }
+    }
 }

@@ -128,6 +128,18 @@ enum RootChromeTrailingGroups {
         !chrome.isVerticalBar
     }
 
+    /// Whether Search (and the page actions before it) get a glass group of their own.
+    ///
+    /// HIG Designing for iPhone Duo: "Group related items with
+    /// `ToolbarItemGroup`/`UIBarButtonItemGroup`; system spacing adapts, so don't add fixed
+    /// spacing." The vertical bar therefore gets no `ToolbarSpacer(.fixed)` at all.
+    ///
+    /// - Parameter chrome: Current section chrome.
+    /// - Returns: False only in the system vertical bar.
+    static func separatesSearch(chrome: DeviceLayout.SectionChrome) -> Bool {
+        !chrome.isVerticalBar
+    }
+
     /// The glass groups the shared trailing items form, leading to trailing.
     ///
     /// - Parameters:
@@ -138,6 +150,9 @@ enum RootChromeTrailingGroups {
     static func resolve(
         showsSearch: Bool, showsBell: Bool, chrome: DeviceLayout.SectionChrome
     ) -> [[RootChromeTrailingItem]] {
+        guard separatesSearch(chrome: chrome) else {
+            return [(showsSearch ? [.search] : []) + (showsBell ? [.bell] : []) + [.profile]]
+        }
         var groups: [[RootChromeTrailingItem]] = showsSearch ? [[.search]] : []
         if !showsBell {
             groups.append([.profile])
@@ -280,7 +295,9 @@ struct FestivalRootTrailingItems: ToolbarContent {
             }
         }
         if #available(iOS 26.0, *) {
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            if RootChromeTrailingGroups.separatesSearch(chrome: layout.sectionChrome) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
         }
         // Bell only with a selected profile (operator, 2026-09-28): notifications are per player.
         if showsNotifications && session.selectedPlayer != nil {
