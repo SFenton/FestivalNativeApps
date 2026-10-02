@@ -71,6 +71,7 @@ VERSION_RE = re.compile(r"^(\d{4})\.(\d{2})\.(\d{2})$")
 TRAILER_RE = re.compile(r"^\s*Release[- ]Notes?(?:-([A-Za-z]+))?\s*:\s*(.*?)\s*$", re.IGNORECASE)
 NONE_NOTES = frozenset({"", "none", "n/a", "na", "-", "skip", "no", "internal"})
 MERGE_SUBJECT_RE = re.compile(r"^Merge (pull request|branch|remote-tracking branch) ")
+PULL_REQUEST_RE = re.compile(r"^Merge pull request #\d+ ")
 
 #: Per platform: app paths (fnmatch, ``*`` crosses ``/``), excluded paths (``WhatsNew.json`` is the
 #: build-generated changelog; its checked-in copy is a placeholder), build workflow, the repository
@@ -373,11 +374,14 @@ def subject(message: str) -> str:
 class Change:
     """One first-parent commit with what it means for a platform."""
 
-    def __init__(self, sha: str, subject_line: str, app: bool, notes: List[str], opted_out: bool = False) -> None:
+    def __init__(self, sha: str, subject_line: str, app: bool, notes: List[str], opted_out: bool = False,
+                 pull_request: bool = False) -> None:
         self.sha = sha
         self.subject = subject_line
         self.app = app
         self.notes = notes
+        #: A merged pull request (one check-in); ``subject`` is then the PR title.
+        self.pull_request = pull_request
         #: The commit's applicable trailer was explicitly ``none`` (nothing user-facing).
         self.opted_out = opted_out
 
@@ -404,28 +408,33 @@ def changes(git: Git, platform: str, base: Optional[str], head: str) -> List[Cha
         else:
             notes, opted_out = [], False
         if app or notes:
-            out.append(Change(sha, subject(message), app, notes, opted_out))
+            out.append(Change(sha, subject(message), app, notes, opted_out,
+                              bool(PULL_REQUEST_RE.match(message.lstrip()))))
     return out
 
 
 def clean_title(text: str) -> str:
     """A commit/PR title as a note: no ``[Bug]``-style prefix or ``(#12)`` suffix, first letter capitalized."""
     text = TITLE_SUFFIX_RE.sub("", TITLE_PREFIX_RE.sub("", " ".join(text.split())))
+    first = text.split(" ", 1)[0]
+    if any(c.isupper() for c in first[1:]):
+        return text  # iOS, macOS, CHOpt: keep the brand's casing
     return text[:1].upper() + text[1:]
 
 
 def user_notes(git: Git, platform: str, base: Optional[str], head: str) -> List[str]:
     """User-facing notes in ``(base, head]``, oldest first, de-duplicated case-insensitively.
 
-    Notes come from ``Release-Note`` trailers. An app change with no trailer at all contributes its cleaned
-    title (:func:`clean_title`) so nothing ships as a generic line; ``Release-Note: none`` contributes
-    nothing. The ``check-notes`` PR check keeps untrailered app changes rare.
+    One check-in (a merged pull request) is one entry: its ``Release-Note`` trailers, or, when it has none, its
+    cleaned PR title (:func:`clean_title`); ``Release-Note: none`` contributes nothing. Commits pushed straight
+    to master without a trailer contribute nothing, so individual code commits never become bullets. The
+    ``check-notes`` PR check keeps untrailered pull requests rare.
     """
     seen = set()
     out = []
     for change in reversed(changes(git, platform, base, head)):
         notes = change.notes
-        if not notes and change.app and not change.opted_out and change.subject:
+        if not notes and change.app and change.pull_request and not change.opted_out and change.subject:
             notes = [clean_title(change.subject)]
         for note in notes:
             if note and note.lower() not in seen:
