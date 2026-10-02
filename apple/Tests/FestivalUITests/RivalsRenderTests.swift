@@ -148,7 +148,11 @@ private let routableRivalId = "f1c749eb07c32578cfa3e59ec38c03a8"
     _ = try nativeHostedPNG(
         image, filename: "rivals-song-tab-common-combo.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["Common Rivals", "Combo Rivals", "Fixture Rival Golf"])
+    assertRendersContent(
+        host, image: image,
+        containing: ["Common Rivals", "Combo Rivals", "Fixture Rival Golf", "ahead", "behind"],
+        notContaining: ["shared"]
+    )
 }
 
 /// Switch to the Leaderboard tab via the real `NSSegmentedControl` (mirrors
@@ -177,7 +181,11 @@ private let routableRivalId = "f1c749eb07c32578cfa3e59ec38c03a8"
         host, untilText: ["Fixture Rival Bravo", "View All Rivals"], excluding: ["Loading"]
     )
     _ = try nativeHostedPNG(image, filename: "rivals-leaderboard-tab.png", environment: "FST_RIVALS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Fixture Rival Bravo", "View All Rivals"])
+    assertRendersContent(
+        host, image: image,
+        containing: ["Fixture Rival Bravo", "View All Rivals", "ahead", "behind"],
+        notContaining: ["shared"]
+    )
 }
 
 /// A 503 (matching the live service's scrape-window freeze) shows each section's
@@ -283,7 +291,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(host, untilText: ["Lead Rivals", "Fixture Rival Golf"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-loaded.png", environment: "FST_RIVALS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Lead Rivals", "Fixture Rival Golf"])
+    assertRendersContent(
+        host, image: image,
+        containing: ["Lead Rivals", "Fixture Rival Golf", "ahead", "behind"],
+        notContaining: ["shared"]
+    )
 }
 
 @MainActor
