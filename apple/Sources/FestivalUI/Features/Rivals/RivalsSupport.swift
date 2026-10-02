@@ -69,10 +69,11 @@ struct RivalsChooseProfileState: View {
 /// card (per `.agents/design/apple/liquid-glass.md`: Rivals groups get one glass
 /// card per group, with flat rows inside — never per-row glass).
 ///
-/// Field placement mirrors the web's `RivalRow.tsx` exactly, including its
-/// slightly surprising pairing: the "ahead" pill shows `behindCount` and the
-/// "behind" pill shows `aheadCount` (both counts are from the rival's own
-/// perspective in the wire payload).
+/// Field placement mirrors the web's `RivalRow.tsx`, including its slightly
+/// surprising pairing: the "ahead" pill shows `behindCount` and the "behind"
+/// pill shows `aheadCount` (both counts are from the rival's own perspective in
+/// the wire payload). Unlike the web, it omits the trailing "N shared" count,
+/// which is always ahead + behind (issue #40).
 struct RivalRowContent<Rival: RivalRowDisplayable>: View {
     let rival: Rival
     let direction: RivalDirection
@@ -96,14 +97,6 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                 }
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(rival.sharedSongCount)")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
-                Text("shared")
-                    .font(.caption2)
-                    .foregroundStyle(FestivalText.primary)
-            }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(FestivalText.deemphasized)
@@ -111,8 +104,7 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(name), \(rival.sharedSongCount) shared songs, "
-            + "\(rival.behindCount) songs ahead, \(rival.aheadCount) songs behind"
+            "\(name), \(rival.behindCount) songs ahead, \(rival.aheadCount) songs behind"
         )
         .accessibilityAddTraits(.isButton)
     }
