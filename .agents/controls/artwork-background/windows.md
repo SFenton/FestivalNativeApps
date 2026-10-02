@@ -7,7 +7,7 @@
 - One `ArtworkBackground` (a `Grid` hosting a child `ContainerVisual`) sits behind the section frames inside the `NavigationView` content area, so tab switches and pushes never restart it.
 - Visual tree: two carousel `SpriteVisual` slots, one song-cover sprite, one black dim sprite (0.7). Slots **and the dim sprite** are oversized by a 24 px bleed so ≤18 px pans never show an edge and DPI rounding of the host size can never leave an undimmed row or column.
 - Every 5 s a `DispatcherQueueTimer` loads the next cover (bounded byte cache → `LoadedImageSurface` decoded at ≤1024 px) and crossfades it in above the old slot. The old surface is disposed after the fade.
-- Motion is `KeyFrameAnimation`s on the composition thread: opacity crossfade (1 s, 60 steps/s) and zoom/pan drift (6 s, one of the web's ten `MOTION_PRESETS`, translation scaled like CSS `scale() translate()`, **30 steps/s**). The step easing lets the compositor skip frames where nothing changed, so the cost doesn't scale with the display refresh rate. `--drift-fps N` overrides (0 = continuous).
+- Motion is `KeyFrameAnimation`s on the composition thread: opacity crossfade (1 s, stepped like the drift: 30 steps/s since issue #83) and zoom/pan drift (6 s, one of the web's ten `MOTION_PRESETS`, translation scaled like CSS `scale() translate()`, **30 steps/s**). The step easing lets the compositor skip frames where nothing changed, so the cost doesn't scale with the display refresh rate. `--drift-fps N` overrides (0 = continuous).
 - Song Detail: `ShowSong` fades the static cover in (0.5 s, opacity only) and freezes the carousel (animations stopped at their current frame); returning starts the next crossfade and drift at once. Motion is stopped rather than `AnimationController.Pause`d, so an unseen window holds no running composition animation.
 
 ## Policy (`ArtworkPlaybackPolicy`)
@@ -17,6 +17,7 @@
 | In-app Save Data / `--no-art` | Hidden: no art, no dim, surfaces released |
 | Window minimized or hidden, or shown but unseen (fully covered, cloaked on another virtual desktop, session locked, display off) | Paused: timer stopped, motion frozen at the current frame; resuming starts the next crossfade |
 | Windows "Animation effects" off, in-app Reduce Motion or Disable Animated Artwork | Static single cover |
+| A `ContentDialog` is open (first-run, What's New, confirmations; `MainWindow.ShowDialogAsync` sets `ModalOpen`) | Paused, like an unseen window: the dialog's smoke layer covers the backdrop. Hidden and Static still win. Closing the dialog resumes with an immediate crossfade (issue #83) |
 | Otherwise | Animated (keeps running when focus moves to a game) |
 
 Occlusion (`Services/OcclusionTracker.cs`, rules in Core `WindowOcclusion`) follows Chromium's native window occlusion tracker: out-of-context `SetWinEventHook`s (foreground, move/size end, minimize, show/hide, top-level location change, cloak/uncloak; own process skipped) plus the window's own activation, move, resize and Z-order changes schedule **one debounced (150 ms) Z-order walk** on the UI thread, so nothing runs while the desktop is idle. The walk collects windows above the app (`GW_HWNDPREV`) that are visible, not minimized, not cloaked, not click-through (`WS_EX_TRANSPARENT`, e.g. FPS overlays), not region-shaped and not translucent layered, and subtracts their DWM frames from the app's on-screen frame; only a fully covered frame counts (unknown shapes keep animating). A window subclass also pauses on `WTS_SESSION_LOCK` and console-display-off (`GUID_CONSOLE_DISPLAY_STATE`). Transitions are logged as repeatable `occlusion-<covered|cloaked|locked|display-off|visible>=<ms>` perf-log lines.
@@ -45,6 +46,20 @@ Occlusion pause (2026-09-28, NativeAOT Release, Songs, same window; `perf.ps1 -S
 
 The backdrop itself goes idle when covered (`backdrop-paused` logged, no swaps, GPU 0.00). The later bursts are **not** the backdrop: hiding its root visual while paused didn't change them, the occlusion hooks fired only 16 times in 45 s, and disabling `MarqueeText` didn't remove them. One burst began exactly when a `PrintWindow` capture ran. Open issue: identify them with an ETW/WPR trace (needs elevation), then decide whether XAML-side work should also stop while covered.
 
+## Issue #83: dialogs and first run
+
+2026-10-02, Release, same 1280×820 window at 150% on the 240 Hz display, `perf.ps1 -Seconds 30 -Warmup 20`, display on (no `occlusion-*` lines). Release launches show What's New unless `--whats-new off`.
+
+| State | Before: app CPU (one core) / GPU 3D | After |
+|---|---|---|
+| Settings under the first-run dialog (`--first-run force`) | 10.1% / 3.2% | 2.2% / 0% |
+| Songs under the first-run dialog | 11.7% / 3.2% | 3.4% / 0.36% |
+| Settings under What's New | 9.8% / 3.4% | 1.7% / 0% |
+| Settings, no dialog (`--whats-new off`) | 9.6% / 2.7% | 6.4–7.3% / 2.7% |
+| Settings, Reduce Motion | 2.2% / 0% | unchanged |
+
+Causes: the backdrop kept animating under dialogs, and the first-run demos ran Shop pulse rings and breathing fills on every slide, including off-screen ones, with the breathe as a cubic-bezier keyframe sampled at display refresh. The remaining visible-page cost is the 30-step drift and crossfade by design. UIA check: `invoke:id=CloseButton` on the first-run dialog logs `backdrop-animated` and `backdrop-swap-animated` right after the earlier `backdrop-paused`.
+
 ## Tests
 
-`ArtworkCarousel` (shuffle, ≤100, cycling, failure budget, preset bounds) and `ArtworkPlaybackPolicy` (every input) and `WindowOcclusion` (coverage union, holes, fragment cap, which windows count) are unit-tested in Core. The composition code itself is covered only by screenshots and perf runs.
+`ArtworkCarousel` (shuffle, ≤100, cycling, failure budget, preset bounds) and `ArtworkPlaybackPolicy` (every input, including `ModalOpen`) and `WindowOcclusion` (coverage union, holes, fragment cap, which windows count) are unit-tested in Core. The composition code itself is covered only by screenshots and perf runs.

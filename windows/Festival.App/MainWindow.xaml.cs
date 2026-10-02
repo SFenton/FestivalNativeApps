@@ -30,6 +30,7 @@ public sealed partial class MainWindow : Window
     private AppSection current = AppSection.Songs;
     private bool windowVisible = true;
     private bool minimized;
+    private bool modalOpen;
     private OcclusionTracker? occlusion;
     private bool expandedPaneCollapsed;
     #endregion
@@ -467,7 +468,8 @@ public sealed partial class MainWindow : Window
             ReduceMotion: settings.ReduceMotion || options.ReduceMotion,
             DisableAnimatedArtwork: settings.DisableAnimatedArtwork,
             SaveData: settings.SaveData || options.NoArt,
-            HighContrast: accessibilitySettings.HighContrast));
+            HighContrast: accessibilitySettings.HighContrast,
+            ModalOpen: modalOpen));
         Backdrop.ApplyMode(mode);
         Motion.Update(hidden: !windowVisible || minimized || occlusion?.IsHidden == true);
     }
