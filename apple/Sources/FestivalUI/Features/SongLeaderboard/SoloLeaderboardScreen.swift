@@ -23,6 +23,8 @@ struct SoloLeaderboardScreen: View {
     /// The in-list song header has scrolled under the bar: show art, title and
     /// instrument in the navigation bar instead (operator batch 7.2, like Song Detail).
     @State private var headerHidden = false
+    /// The chart's measured width, for the section's fitted columns (issue #37).
+    @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum LoadState {
@@ -102,7 +104,10 @@ struct SoloLeaderboardScreen: View {
                                 path.append(playerRoute(for: entry))
                             } label: {
                                 HStack(spacing: 8) {
-                                    SongLeaderboardEntryRow(entry: entry, isPlayer: isSelectedRow)
+                                    SongLeaderboardEntryRow(
+                                        entry: entry, isPlayer: isSelectedRow,
+                                        currentSeason: session.catalogCurrentSeason
+                                    )
                                     Image(systemName: "chevron.right")
                                         .font(.footnote.weight(.semibold))
                                         .foregroundStyle(FestivalText.deemphasized)
@@ -149,6 +154,13 @@ struct SoloLeaderboardScreen: View {
                         // audit; the footer keeps an opaque band.
                         .background(BrandTokens.appBackground)
                     }
+                }
+                // One set of columns for the page's rows and the pinned footer (web
+                // `LeaderboardPage` `rankWidth`/`scoreWidth`, operator batch 7.3), with
+                // season from 520 pt and stars from 768 pt of chart width.
+                .leaderboardSectionColumns(sectionColumns(payload))
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+                    chartWidth = width
                 }
             }
         }
@@ -236,15 +248,8 @@ struct SoloLeaderboardScreen: View {
     /// - Parameter payload: Current page's loaded leaderboard.
     @ViewBuilder
     private func selectedPlayerFooter(_ payload: LeaderboardPayload) -> some View {
-        if let selected = session.selectedPlayer,
-           let score = session.selectedPlayerScores[song.songId]?[instrument],
-           let rank = score.rank {
-            let entry = LeaderboardEntry(
-                accountId: selected.accountId, displayName: selected.displayName,
-                score: score.score, rank: rank, localRank: nil,
-                accuracy: score.accuracy, isFullCombo: score.isFullCombo,
-                stars: score.stars, season: score.season, difficulty: score.difficulty
-            )
+        if let selected = session.selectedPlayer, let entry = selectedPlayerEntry() {
+            let rank = entry.rank
             let isVisible = payload.leaderboard.entries.contains {
                 $0.accountId.caseInsensitiveCompare(selected.accountId) == .orderedSame
             }
@@ -274,10 +279,38 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
+    /// The selected player's own score on this chart as a row, from the already-loaded
+    /// score index; nil without a selected player or a ranked score here.
+    private func selectedPlayerEntry() -> LeaderboardEntry? {
+        guard let selected = session.selectedPlayer,
+              let score = session.selectedPlayerScores[song.songId]?[instrument],
+              let rank = score.rank else { return nil }
+        return LeaderboardEntry(
+            accountId: selected.accountId, displayName: selected.displayName,
+            score: score.score, rank: rank, localRank: nil,
+            accuracy: score.accuracy, isFullCombo: score.isFullCombo,
+            stars: score.stars, season: score.season, difficulty: score.difficulty
+        )
+    }
+
+    /// The page's fitted columns, measured over its rows and the pinned footer row.
+    ///
+    /// - Parameter payload: Current page's loaded leaderboard.
+    /// - Returns: Shared rank/score widths and the visible columns for `chartWidth`.
+    private func sectionColumns(_ payload: LeaderboardPayload) -> LeaderboardRowColumns {
+        let rows = payload.leaderboard.entries + [selectedPlayerEntry()].compactMap { $0 }
+        return LeaderboardRowColumns.fit(
+            .songLeaderboard, width: Double(chartWidth),
+            ranks: rows.map(\.rank), scores: rows.map(\.score)
+        )
+    }
+
     /// The player's footer row, drawn exactly like a list row.
     private func footerRow(_ entry: LeaderboardEntry) -> some View {
         HStack(spacing: 8) {
-            SongLeaderboardEntryRow(entry: entry, isPlayer: true)
+            SongLeaderboardEntryRow(
+                entry: entry, isPlayer: true, currentSeason: session.catalogCurrentSeason
+            )
             Image(systemName: "chevron.right")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(FestivalText.deemphasized)

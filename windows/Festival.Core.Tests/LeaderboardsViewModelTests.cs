@@ -220,10 +220,10 @@ public sealed class LeaderboardsOverviewTests
         Assert.True(lead.Row.IsSelected);
         Assert.False(lead.CanJump);
         // The pinned "#120" widens every rank column of the card so names line up (operator batch 7.9).
-        Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.RankChars));
-        Assert.Equal(4, lead.Row.RankChars);
+        Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.Section!.RankChars));
+        Assert.Same(vm.InstrumentCards[0].Rows[0].Section, lead.Row.Section);
         var bass = vm.InstrumentCards[1].Spotlight;
-        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(3, r.RankChars));
+        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(3, r.Section!.RankChars));
         Assert.True(bass.ShowUnranked);
         Assert.Equal("Not yet ranked on Bass.", bass.UnrankedText);
         Assert.Equal(2, reader.Calls.Count);

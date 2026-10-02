@@ -230,6 +230,7 @@ struct LeaderboardsScreen: View {
         // `AccountRankingRow`'s `fst.rankings.row.<accountId>` never reaches the
         // accessibility tree. `.contain` keeps each child its own element while
         // still letting the card itself carry an identifier.
+        .leaderboardSectionColumns(instrumentColumns(instrument))
         .festivalFadeIn(isLoaded: true, index: fadeIndex)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
@@ -272,6 +273,42 @@ struct LeaderboardsScreen: View {
         return selected.caseInsensitiveCompare(accountId) == .orderedSame
     }
 
+    /// Where the selected player's own row goes on one instrument card.
+    ///
+    /// - Parameters:
+    ///   - instrument: Card's instrument.
+    ///   - entries: This card's currently loaded top-ten rows.
+    /// - Returns: The spotlight placement, or nil without a selected player.
+    private func spotlightPlacement(
+        instrument: Instrument, entries: [AccountRankingEntry]
+    ) -> RankingSpotlightPlacement? {
+        guard let accountId = session.selectedPlayer?.accountId else { return nil }
+        let source: RankingSpotlightSource = {
+            switch spotlightStates[instrument] {
+            case .none, .loading: return .notLoaded
+            case let .loaded(payload): return payload.ranking.map { .available($0.entry) } ?? .unranked
+            case .failed: return .notLoaded
+            }
+        }()
+        return RankingSpotlight.placement(
+            selectedAccountId: accountId, visibleEntries: entries, source: source
+        )
+    }
+
+    /// One rank and rating width for an instrument card's top ten and its spotlight
+    /// footer row (web `RankingCard`'s card-wide `computeRankWidth`, issue #37).
+    ///
+    /// - Parameter instrument: Card's instrument.
+    /// - Returns: The card's fitted columns, or nil until its rows load.
+    private func instrumentColumns(_ instrument: Instrument) -> LeaderboardRowColumns? {
+        guard case let .loaded(payload) = instrumentStates[instrument] else { return nil }
+        var rows = payload.rankings.entries
+        if case let .footer(entry) = spotlightPlacement(instrument: instrument, entries: rows) {
+            rows.append(entry)
+        }
+        return .rankings(rows, metric: rankBy)
+    }
+
     /// Show the selected player's own row below one instrument's top ten when they
     /// are not already visible among `entries`, mirroring the web client's
     /// `RankingCard` spotlight footer (`RankingCard.tsx:97-102`).
@@ -281,17 +318,8 @@ struct LeaderboardsScreen: View {
     ///   - entries: This card's currently loaded top-ten rows.
     @ViewBuilder
     private func spotlightSection(instrument: Instrument, entries: [AccountRankingEntry]) -> some View {
-        if let accountId = session.selectedPlayer?.accountId {
-            let source: RankingSpotlightSource = {
-                switch spotlightStates[instrument] {
-                case .none, .loading: return .notLoaded
-                case let .loaded(payload): return payload.ranking.map { .available($0.entry) } ?? .unranked
-                case .failed: return .notLoaded
-                }
-            }()
-            switch RankingSpotlight.placement(
-                selectedAccountId: accountId, visibleEntries: entries, source: source
-            ) {
+        if let placement = spotlightPlacement(instrument: instrument, entries: entries) {
+            switch placement {
             case .none, .inline:
                 EmptyView()
             case .pending:
@@ -343,6 +371,7 @@ struct LeaderboardsScreen: View {
                             BandRankingRow(entry: entry, metric: metric, bandType: bandType, glassSurface: true)
                         }
                     }
+                    .leaderboardSectionColumns(.bandRankings(payload.rankings.entries, metric: metric))
                     .festivalFadeInOnAppear()
                     viewAllLink(
                         AppRoute.bandRankings(bandType: bandType.rawValue),

@@ -212,7 +212,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
         // The pinned row arrives after the top ten: widen every rank column to fit it (operator batch 7.9).
         Spotlight.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareRankWidth(Rows, Spotlight.Row);
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
         };
     }
 
@@ -311,7 +311,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
         Rows = entries.Select(e => new RankingRowViewModel(e, Metric, RankingSpotlight.SameAccount(e.AccountId, selected))).ToList();
         State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         Spotlight.Apply(selected, entries, Metric, 1, LeaderboardPaging.CardSize);
-        RankingRowViewModel.ShareRankWidth(Rows, Spotlight.Row);
+        RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
         await Spotlight.EnsureLoadedAsync(selected, !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, selected)), cancellationToken);
     }
 }
@@ -418,7 +418,7 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
             var board = await session.Api.GetBandRankingsAsync(BandType, Metric, 1, LeaderboardPaging.CardSize, cancellationToken);
             Status.Clear();
             var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, BandType, Metric)).ToList();
-            BandRankingRowViewModel.ShareRankWidth(rows);
+            BandRankingRowViewModel.ShareColumns(rows);
             Rows = rows;
             ViewAllText = RankingViewAll.Label(board.TotalTeams);
             State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;

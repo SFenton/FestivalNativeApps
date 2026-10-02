@@ -118,6 +118,7 @@ struct FullRankingsScreen: View {
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
+                .leaderboardSectionColumns(pageColumns(payload.rankings.entries))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -125,6 +126,7 @@ struct FullRankingsScreen: View {
             VStack(spacing: 8) {
                 if case let .loaded(payload) = state {
                     spotlightFooter(entries: payload.rankings.entries)
+                        .leaderboardSectionColumns(pageColumns(payload.rankings.entries))
                 }
                 RankingsFloatingBar(
                     pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },
@@ -181,6 +183,37 @@ struct FullRankingsScreen: View {
         return selected.caseInsensitiveCompare(accountId) == .orderedSame
     }
 
+    /// Where the selected player's own row goes for the current page.
+    ///
+    /// - Parameter entries: Current page's loaded rows.
+    /// - Returns: The spotlight placement, or nil without a selected player.
+    private func spotlightPlacement(entries: [AccountRankingEntry]) -> RankingSpotlightPlacement? {
+        guard let accountId = session.selectedPlayer?.accountId else { return nil }
+        let source: RankingSpotlightSource = {
+            switch spotlightState {
+            case .loading: return .notLoaded
+            case let .loaded(payload): return payload.ranking.map { .available($0.entry) } ?? .unranked
+            case .failed: return .notLoaded
+            }
+        }()
+        return RankingSpotlight.placement(
+            selectedAccountId: accountId, visibleEntries: entries, source: source
+        )
+    }
+
+    /// One rank and rating width for the page's rows and the pinned footer row (web
+    /// `FullRankingsPage`'s shared `computeRankWidth`, operator batch 7.3, issue #37).
+    ///
+    /// - Parameter entries: Current page's loaded rows.
+    /// - Returns: The page's fitted columns.
+    private func pageColumns(_ entries: [AccountRankingEntry]) -> LeaderboardRowColumns {
+        var rows = entries
+        if case let .footer(entry) = spotlightPlacement(entries: entries) {
+            rows.append(entry)
+        }
+        return .rankings(rows, metric: rankBy)
+    }
+
     /// Show the selected player's own row below the current page when they are not
     /// visible on it, with a jump control that moves straight to their page — a
     /// native addition beyond the web client, whose equivalent footer
@@ -190,17 +223,8 @@ struct FullRankingsScreen: View {
     /// - Parameter entries: Current page's loaded rows.
     @ViewBuilder
     private func spotlightFooter(entries: [AccountRankingEntry]) -> some View {
-        if let accountId = session.selectedPlayer?.accountId {
-            let source: RankingSpotlightSource = {
-                switch spotlightState {
-                case .loading: return .notLoaded
-                case let .loaded(payload): return payload.ranking.map { .available($0.entry) } ?? .unranked
-                case .failed: return .notLoaded
-                }
-            }()
-            switch RankingSpotlight.placement(
-                selectedAccountId: accountId, visibleEntries: entries, source: source
-            ) {
+        if let placement = spotlightPlacement(entries: entries) {
+            switch placement {
             case .none, .inline:
                 EmptyView()
             case .pending:

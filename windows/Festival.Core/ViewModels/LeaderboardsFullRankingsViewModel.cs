@@ -199,7 +199,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         var selected = session.SelectedPlayer?.AccountId;
         Rows = entries.Select(e => new RankingRowViewModel(e, Metric, RankingSpotlight.SameAccount(e.AccountId, selected))).ToList();
         Spotlight.Apply(selected, entries, Metric, Page, LeaderboardPaging.PageSize);
-        RankingRowViewModel.ShareRankWidth(Rows, Spotlight.Row);
+        RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
     }
 
     /// <summary>Creates the spotlight for the current instrument with a jump back into this board.</summary>
@@ -210,7 +210,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         // The pinned row arrives after the page: widen every rank column to fit it (operator batch 7.9).
         created.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareRankWidth(Rows, created.Row);
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareColumns(Rows, created.Row);
         };
         return created;
     }
@@ -365,7 +365,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
             TotalText = $"{board.TotalTeams:N0} ranked bands";
             Pager.Update(requestedPage, board.PageCount);
             var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, requestedType, requestedMetric)).ToList();
-            BandRankingRowViewModel.ShareRankWidth(rows);
+            BandRankingRowViewModel.ShareColumns(rows);
             Rows = rows;
             State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
             IsRefreshing = false;
