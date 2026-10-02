@@ -8,7 +8,7 @@ public enum FeedbackMultipartBody {
     /// Bytes copied per read while streaming an attachment.
     static let chunkSize = 1 << 20
 
-    /// A random boundary that cannot appear in the JSON part.
+    /// A random boundary that cannot appear in the text fields.
     ///
     /// - Returns: `FSTFeedback-<uuid>`.
     public static func makeBoundary() -> String {
@@ -23,10 +23,10 @@ public enum FeedbackMultipartBody {
         "multipart/form-data; boundary=\(boundary)"
     }
 
-    /// Write the `submission` JSON part followed by one `media` part per attachment.
+    /// Write one text part per form field followed by one `media` part per attachment.
     ///
     /// - Parameters:
-    ///   - submission: Encoded ``FeedbackSubmission``.
+    ///   - fields: ``FeedbackSubmission/formFields``.
     ///   - attachments: Files to append, in order.
     ///   - boundary: Part separator.
     ///   - destination: File to create or replace.
@@ -34,7 +34,8 @@ public enum FeedbackMultipartBody {
     /// - Throws: File creation or read errors.
     @discardableResult
     public static func write(
-        submission: Data, attachments: [FeedbackAttachment], boundary: String, to destination: URL
+        fields: [FeedbackFormField], attachments: [FeedbackAttachment], boundary: String,
+        to destination: URL
     ) throws -> Int64 {
         FileManager.default.createFile(atPath: destination.path, contents: nil)
         let output = try FileHandle(forWritingTo: destination)
@@ -46,11 +47,12 @@ public enum FeedbackMultipartBody {
         }
         func emit(_ text: String) throws { try emit(Data(text.utf8)) }
 
-        try emit("--\(boundary)\r\n")
-        try emit("Content-Disposition: form-data; name=\"submission\"\r\n")
-        try emit("Content-Type: application/json; charset=utf-8\r\n\r\n")
-        try emit(submission)
-        try emit("\r\n")
+        for field in fields {
+            try emit("--\(boundary)\r\n")
+            try emit("Content-Disposition: form-data; name=\"\(field.name)\"\r\n\r\n")
+            try emit(field.value)
+            try emit("\r\n")
+        }
         for attachment in attachments {
             try emit("--\(boundary)\r\n")
             try emit(
@@ -131,14 +133,64 @@ private final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate, Se
     }
 }
 
+// MARK: - Endpoints
+
+/// The feedback reads. Both are pure (`FSTService/Api/FeatureEndpoints.cs`,
+/// `FeedbackEndpoints.cs`): `/api/features` returns configuration flags and
+/// `/api/feedback/{id}` looks up an in-memory job status.
+enum FeedbackServiceEndpoint: ServiceEndpoint {
+    case features
+    case status(String)
+
+    /// Build the endpoint URL.
+    ///
+    /// - Parameter baseURL: Validated service origin.
+    /// - Returns: `/api/features` or `/api/feedback/{id}`.
+    /// - Throws: ``FeedbackError/forbiddenRequest`` for an ID that is not 32 lowercase hex.
+    func url(relativeTo baseURL: URL) throws -> URL {
+        let api = baseURL.appendingPathComponent("api")
+        switch self {
+        case .features:
+            return api.appendingPathComponent("features")
+        case let .status(id):
+            guard FeedbackAcceptance.isJobID(id) else { throw FeedbackError.forbiddenRequest }
+            return api.appendingPathComponent("feedback").appendingPathComponent(id)
+        }
+    }
+}
+
+/// `GET /api/features` flags natives read.
+private struct ServiceFeaturesBody: Decodable {
+    let feedback: Bool?
+}
+
 // MARK: - Submit
 
 extension FestivalAPI {
     /// The only non-GET path the native apps may send, and only on a person's Submit.
     static let feedbackPath = "/api/feedback"
 
-    /// Upload idle timeout: the service may transcode before answering.
+    /// Upload idle timeout for slow mobile uploads.
     static let feedbackTimeout: TimeInterval = 120
+
+    /// Whether the service accepts in-app feedback (`GET /api/features` → `feedback`).
+    ///
+    /// - Returns: True only when the flag is present and true.
+    /// - Throws: Transport or mapped status errors; callers hide the rows on failure.
+    public func feedbackEnabled() async throws -> Bool {
+        try await fetchJSON(FeedbackServiceEndpoint.features, as: ServiceFeaturesBody.self)
+            .value.feedback == true
+    }
+
+    /// Read a queued report's progress (`GET /api/feedback/{id}`).
+    ///
+    /// - Parameter id: Job ID from ``FeedbackAcceptance``.
+    /// - Returns: The job status.
+    /// - Throws: ``FeedbackError/forbiddenRequest`` for a malformed ID; transport, mapped
+    ///   status (404 for an unknown or expired job) or `invalidResponse` errors.
+    public func feedbackStatus(id: String) async throws -> FeedbackJobStatus {
+        try await fetchJSON(FeedbackServiceEndpoint.status(id), as: FeedbackJobStatus.self).value
+    }
 
     /// Send a bug report or feature request with its media (`POST /api/feedback`).
     ///
@@ -148,27 +200,22 @@ extension FestivalAPI {
     /// - Parameters:
     ///   - submission: Form contents.
     ///   - attachments: App-owned media copies.
-    ///   - idempotencyKey: Stable per form, so a retried submit cannot file twice.
     ///   - progress: Fraction of the upload sent.
-    /// - Returns: The service's receipt (201 created or 202 queued).
+    /// - Returns: The 202 acceptance; follow it with ``feedbackStatus(id:)``.
     /// - Throws: ``FeedbackError`` for HTTP and network failures, `CancellationError`.
     public func submitFeedback(
         _ submission: FeedbackSubmission, attachments: [FeedbackAttachment],
-        idempotencyKey: UUID, progress: @escaping @Sendable (Double) -> Void = { _ in }
-    ) async throws -> FeedbackReceipt {
+        progress: @escaping @Sendable (Double) -> Void = { _ in }
+    ) async throws -> FeedbackAcceptance {
         let boundary = FeedbackMultipartBody.makeBoundary()
         let bodyURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("fst-feedback-\(UUID().uuidString).multipart")
         defer { try? FileManager.default.removeItem(at: bodyURL) }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let json = try encoder.encode(submission)
         try FeedbackMultipartBody.write(
-            submission: json, attachments: attachments, boundary: boundary, to: bodyURL
+            fields: submission.formFields, attachments: attachments, boundary: boundary,
+            to: bodyURL
         )
-        let request = Self.makeFeedbackRequest(
-            baseURL: baseURL, boundary: boundary, idempotencyKey: idempotencyKey
-        )
+        let request = Self.makeFeedbackRequest(baseURL: baseURL, boundary: boundary)
         try Self.validateFeedbackRequest(request)
         try Task.checkCancellation()
         let response: HTTPResult
@@ -189,10 +236,13 @@ extension FestivalAPI {
             throw FeedbackError.network
         }
         try Task.checkCancellation()
-        guard (200...202).contains(response.status) else {
-            throw FeedbackError.forStatus(response.status)
+        guard (200...299).contains(response.status) else {
+            throw FeedbackError.forResponse(
+                status: response.status, data: response.data,
+                retryAfter: response.header("Retry-After")
+            )
         }
-        return FeedbackReceipt.decode(response.data)
+        return FeedbackAcceptance.decode(response.data)
     }
 
     /// Build the feedback POST.
@@ -200,11 +250,8 @@ extension FestivalAPI {
     /// - Parameters:
     ///   - baseURL: Validated service origin.
     ///   - boundary: Multipart boundary.
-    ///   - idempotencyKey: Duplicate-submit guard.
-    /// - Returns: A POST to `/api/feedback` with only content, accept and idempotency headers.
-    static func makeFeedbackRequest(
-        baseURL: URL, boundary: String, idempotencyKey: UUID
-    ) -> URLRequest {
+    /// - Returns: A POST to `/api/feedback` with only content-type and accept headers.
+    static func makeFeedbackRequest(baseURL: URL, boundary: String) -> URLRequest {
         var request = URLRequest(
             url: baseURL.appendingPathComponent("api").appendingPathComponent("feedback"),
             cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: feedbackTimeout
@@ -215,7 +262,6 @@ extension FestivalAPI {
             forHTTPHeaderField: "Content-Type"
         )
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(idempotencyKey.uuidString, forHTTPHeaderField: "Idempotency-Key")
         return request
     }
 

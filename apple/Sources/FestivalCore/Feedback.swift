@@ -56,19 +56,26 @@ public enum FeedbackPlatform: String, Sendable, Codable, CaseIterable {
 
 // MARK: - Limits
 
-/// Client-side bounds for one submission. The service enforces its own and transcodes
-/// oversized media to fit GitHub; these keep uploads from mobile networks reasonable.
+/// Client-side bounds matching the service's `POST /api/feedback` validation
+/// (`FeedbackSubmissionValidator`, `FeedbackOptions`). Text lengths are counted in UTF-16
+/// code units, as the service's .NET `string.Length` does.
 public enum FeedbackLimits {
-    /// GitHub's issue-title limit, prefix included.
-    public static let titleCharacters = 256
+    /// Title, prefix included.
+    public static let titleCharacters = 200
     /// Per text box (Description, Steps to Reproduce, Expected Behavior).
-    public static let bodyCharacters = 8_000
+    public static let bodyCharacters = 10_000
+    /// `appVersion` form field.
+    public static let appVersionCharacters = 64
+    /// `clientInfo` form field.
+    public static let clientInfoCharacters = 256
     /// Attachments per submission.
-    public static let attachments = 5
-    /// Bytes per attached file (100 MB, decimal as the system formats file sizes).
-    public static let attachmentBytes: Int64 = 100_000_000
-    /// Bytes across all attached files (250 MB).
-    public static let totalAttachmentBytes: Int64 = 250_000_000
+    public static let attachments = 4
+    /// Bytes across all attached files (90 MB, decimal as the system formats file sizes).
+    /// The service refuses a whole request over 90 MiB (94,371,840 bytes); this leaves room
+    /// for the text fields and multipart framing.
+    public static let totalAttachmentBytes: Int64 = 90_000_000
+    /// Bytes per attached file: one file may use the whole allowance.
+    public static let attachmentBytes: Int64 = totalAttachmentBytes
 }
 
 // MARK: - Draft
@@ -137,28 +144,28 @@ public struct FeedbackDraft: Sendable, Equatable {
     /// The first problem that blocks Submit, or nil when the draft can be sent.
     public var validationIssue: FeedbackValidationIssue? {
         if titleBody.isEmpty { return .missingTitle }
-        if title.count > FeedbackLimits.titleCharacters { return .titleTooLong }
+        if title.utf16.count > FeedbackLimits.titleCharacters { return .titleTooLong }
         if description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .missingDescription
         }
         let boxes = kind.includesReproduction
             ? [description, reproSteps, expectedBehavior] : [description]
-        if boxes.contains(where: { $0.count > FeedbackLimits.bodyCharacters }) {
+        if boxes.contains(where: { $0.utf16.count > FeedbackLimits.bodyCharacters }) {
             return .textTooLong
         }
         return nil
     }
 
-    /// The JSON part of the upload, with whitespace trimmed and bug-only boxes omitted for
-    /// feature requests and when empty.
+    /// The text fields of the upload, with whitespace trimmed and the bug-only boxes
+    /// omitted for feature requests and when empty.
     ///
     /// - Parameters:
     ///   - platform: Label for the created issue.
     ///   - appVersion: App version/build text (``AppBuildInfo/versionText(_:)``).
-    ///   - osVersion: Operating system name and version.
-    /// - Returns: The wire `submission` value.
+    ///   - clientInfo: Operating system and device, for example `iOS 26.0; iPhone`.
+    /// - Returns: The submission's form fields.
     public func submission(
-        platform: FeedbackPlatform, appVersion: String, osVersion: String
+        platform: FeedbackPlatform, appVersion: String, clientInfo: String
     ) -> FeedbackSubmission {
         func trimmed(_ text: String) -> String {
             text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -172,9 +179,10 @@ public struct FeedbackDraft: Sendable, Equatable {
             kind: kind, platform: platform,
             title: kind.titlePrefix + titleBody,
             description: trimmed(description),
-            reproSteps: optional(reproSteps),
-            expectedBehavior: optional(expectedBehavior),
-            appVersion: appVersion, osVersion: osVersion
+            repro: optional(reproSteps),
+            expected: optional(expectedBehavior),
+            appVersion: FeedbackSubmission.singleLine(appVersion, limit: FeedbackLimits.appVersionCharacters),
+            clientInfo: FeedbackSubmission.singleLine(clientInfo, limit: FeedbackLimits.clientInfoCharacters)
         )
     }
 }
@@ -192,74 +200,184 @@ public enum FeedbackValidationIssue: Sendable, Equatable {
         case .missingTitle: "Add a title after the prefix."
         case .titleTooLong: "Shorten the title to \(FeedbackLimits.titleCharacters) characters."
         case .missingDescription: "Add a description."
-        case .textTooLong: "Shorten each box to \(FeedbackLimits.bodyCharacters) characters."
+        case .textTooLong: "Shorten each box to \(FeedbackLimits.bodyCharacters.formatted()) characters."
         }
     }
 }
 
 // MARK: - Wire models
 
-/// The `submission` JSON part of `POST /api/feedback`.
-public struct FeedbackSubmission: Codable, Sendable, Equatable {
+/// One text part of the `multipart/form-data` upload.
+public struct FeedbackFormField: Sendable, Equatable {
+    public let name: String
+    public let value: String
+}
+
+/// The text fields of `POST /api/feedback` (`docs/components/in-app-feedback.md` in the
+/// service repository): flat form fields, no JSON part.
+public struct FeedbackSubmission: Sendable, Equatable {
     public let kind: FeedbackKind
     public let platform: FeedbackPlatform
     public let title: String
     public let description: String
-    public let reproSteps: String?
-    public let expectedBehavior: String?
-    public let appVersion: String
-    public let osVersion: String
+    /// Bug reports only.
+    public let repro: String?
+    /// Bug reports only.
+    public let expected: String?
+    public let appVersion: String?
+    public let clientInfo: String?
+
+    /// Fields in upload order; absent optional values are not sent.
+    public var formFields: [FeedbackFormField] {
+        var fields = [
+            FeedbackFormField(name: "kind", value: kind.rawValue),
+            FeedbackFormField(name: "platform", value: platform.rawValue),
+            FeedbackFormField(name: "title", value: title),
+            FeedbackFormField(name: "description", value: description),
+        ]
+        let optional: [(String, String?)] = [
+            ("repro", repro), ("expected", expected),
+            ("appVersion", appVersion), ("clientInfo", clientInfo),
+        ]
+        for case let (name, value?) in optional {
+            fields.append(FeedbackFormField(name: name, value: value))
+        }
+        return fields
+    }
+
+    /// Collapse whitespace to single spaces and cut to the service's field limit.
+    ///
+    /// - Parameters:
+    ///   - text: Raw metadata.
+    ///   - limit: Maximum UTF-16 length.
+    /// - Returns: The single-line value, or nil when nothing remains.
+    static func singleLine(_ text: String, limit: Int) -> String? {
+        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline })
+        var value = words.joined(separator: " ")
+        while value.utf16.count > limit { value.removeLast() }
+        return value.isEmpty ? nil : value
+    }
 }
 
-/// What the service returned for an accepted submission.
-public struct FeedbackReceipt: Sendable, Equatable {
-    /// Created issue number (201), when known.
-    public let issueNumber: Int?
-    /// Created issue page, only when it is an `https://github.com/…` URL.
-    public let issueURL: URL?
+/// The service's 202 answer: the report is queued and will be filed in the background.
+public struct FeedbackAcceptance: Sendable, Equatable {
+    /// Job ID for `GET /api/feedback/{id}`; nil when the body had no valid ID, so the
+    /// outcome can't be followed (the report was still received).
+    public let id: String?
 
-    /// Decode a 201/202 body; an empty or unreadable body is still an accepted receipt.
+    /// Decode a 202 body, keeping the ID only when it is 32 lowercase hex characters.
     ///
     /// - Parameter data: Response body.
-    /// - Returns: Receipt with any trustworthy issue number and link.
-    public static func decode(_ data: Data) -> FeedbackReceipt {
-        struct Wire: Decodable {
-            let issueNumber: Int?
-            let issueUrl: String?
+    /// - Returns: The acceptance, with or without a followable ID.
+    public static func decode(_ data: Data) -> FeedbackAcceptance {
+        struct Wire: Decodable { let id: String? }
+        let id = (try? JSONDecoder().decode(Wire.self, from: data))?.id
+        return FeedbackAcceptance(id: id.flatMap { isJobID($0) ? $0 : nil })
+    }
+
+    /// Whether a string is a service job ID (32 lowercase hex characters).
+    ///
+    /// - Parameter value: Candidate ID.
+    /// - Returns: True for a well-formed ID.
+    public static func isJobID(_ value: String) -> Bool {
+        value.utf8.count == 32 && value.utf8.allSatisfy {
+            (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0)
+                || (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0)
         }
-        let wire = try? JSONDecoder().decode(Wire.self, from: data)
-        let url = wire?.issueUrl.flatMap(URL.init(string:)).flatMap { url -> URL? in
-            guard url.scheme == "https", url.host?.lowercased() == "github.com" else { return nil }
-            return url
-        }
-        return FeedbackReceipt(issueNumber: wire?.issueNumber.flatMap { $0 > 0 ? $0 : nil }, issueURL: url)
+    }
+}
+
+/// `GET /api/feedback/{id}`: where a queued report is.
+public struct FeedbackJobStatus: Sendable, Equatable, Decodable {
+    /// Job state.
+    public enum State: String, Sendable, Decodable {
+        case queued
+        case processing
+        case submitted
+        case failed
+    }
+
+    /// One attachment's processing result.
+    public struct Attachment: Sendable, Equatable, Decodable {
+        /// `attached`, `transcoded` or `skipped` (others are treated as attached).
+        public let outcome: String
+    }
+
+    public let status: State
+    /// The GitHub issue number once `submitted`. No URL is returned: the tracker may be
+    /// private, so the app shows only the number.
+    public let issueNumber: Int?
+    public let attachments: [Attachment]
+
+    /// Whether polling can stop.
+    public var isFinished: Bool { status == .submitted || status == .failed }
+
+    /// Attachments the service could not fit into the issue.
+    public var skippedAttachments: Int { attachments.filter { $0.outcome == "skipped" }.count }
+
+    public init(status: State, issueNumber: Int?, attachments: [Attachment] = []) {
+        self.status = status
+        self.issueNumber = issueNumber
+        self.attachments = attachments
+    }
+
+    private enum CodingKeys: String, CodingKey { case status, issueNumber, attachments }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        status = try container.decode(State.self, forKey: .status)
+        let number = try container.decodeIfPresent(Int.self, forKey: .issueNumber)
+        issueNumber = number.flatMap { $0 > 0 ? $0 : nil }
+        attachments = try container.decodeIfPresent([Attachment].self, forKey: .attachments) ?? []
     }
 }
 
 /// A failed submission, phrased for the person (never the server's own text).
 public enum FeedbackError: LocalizedError, Equatable, Sendable {
-    case invalidSubmission
+    case invalidForm
+    case titleRequired
+    case descriptionRequired
+    case fieldTooLong
+    case tooManyAttachments
     case tooLarge
     case unsupportedMedia
-    case rateLimited
+    /// 429; seconds from `Retry-After` when the service sent it.
+    case rateLimited(retryAfter: Int?)
+    /// 404 `feedback_disabled`.
     case notAvailable
+    /// 503 `feedback_busy`.
+    case busy
     case unavailable
     case httpStatus(Int)
     case network
     case forbiddenRequest
+    /// The background job reported `failed`; the form stays open to try again.
+    case filingFailed
 
     public var errorDescription: String? {
         switch self {
-        case .invalidSubmission:
+        case .invalidForm:
             "The service couldn't accept this report. Check the fields and try again."
+        case .titleRequired:
+            "Add a title after the prefix, then try again."
+        case .descriptionRequired:
+            "Add a description, then try again."
+        case .fieldTooLong:
+            "One of the boxes is too long. Shorten it and try again."
+        case .tooManyAttachments:
+            "You can attach up to \(FeedbackLimits.attachments) photos or videos. Remove one and try again."
         case .tooLarge:
             "The attachments are too large to send. Remove one and try again."
         case .unsupportedMedia:
             "One of the attachments isn't a supported photo or video. Remove it and try again."
+        case let .rateLimited(seconds?) where seconds > 0:
+            "Too many reports were sent from this network. Try again in \(Self.waitText(seconds))."
         case .rateLimited:
-            "Too many reports were sent recently. Wait a few minutes and try again."
+            "Too many reports were sent from this network. Wait a few minutes and try again."
         case .notAvailable:
-            "Sending reports from the app isn't available yet. Try again after the next update."
+            "Sending reports from the app isn't available right now."
+        case .busy:
+            "The service is busy with other reports. Try again in a minute."
         case .unavailable:
             "The service is unavailable right now. Try again in a few minutes."
         case let .httpStatus(code):
@@ -268,23 +386,54 @@ public enum FeedbackError: LocalizedError, Equatable, Sendable {
             "The report couldn't be sent. Check your connection and try again."
         case .forbiddenRequest:
             "The report couldn't be sent. Try again."
+        case .filingFailed:
+            "The service couldn't file this report. Try again."
         }
     }
 
-    /// Map a non-success HTTP status.
+    /// Map a non-202 answer using the body's `code`, then the status.
     ///
-    /// - Parameter status: Response status outside 200…202.
+    /// - Parameters:
+    ///   - status: HTTP status.
+    ///   - data: Body, `{"error", "code"}` when the service produced it.
+    ///   - retryAfter: `Retry-After` header value.
     /// - Returns: The matching error.
-    public static func forStatus(_ status: Int) -> FeedbackError {
-        switch status {
-        case 400, 422: .invalidSubmission
-        case 413: .tooLarge
-        case 415: .unsupportedMedia
-        case 429: .rateLimited
-        case 404, 405, 501: .notAvailable
-        case 502, 503, 504: .unavailable
-        default: .httpStatus(status)
+    public static func forResponse(status: Int, data: Data, retryAfter: String?) -> FeedbackError {
+        struct Wire: Decodable { let code: String? }
+        let code = (try? JSONDecoder().decode(Wire.self, from: data))?.code
+        switch code {
+        case "title_required": return .titleRequired
+        case "description_required": return .descriptionRequired
+        case "field_too_long": return .fieldTooLong
+        case "too_many_attachments": return .tooManyAttachments
+        case "unsupported_media": return .unsupportedMedia
+        case "payload_too_large": return .tooLarge
+        case "feedback_disabled": return .notAvailable
+        case "feedback_busy": return .busy
+        case "invalid_form", "invalid_kind", "invalid_platform": return .invalidForm
+        default: break
         }
+        switch status {
+        case 400, 422: return .invalidForm
+        case 413: return .tooLarge
+        case 415: return .unsupportedMedia
+        case 429:
+            let seconds = retryAfter.flatMap {
+                Int($0.trimmingCharacters(in: .whitespaces))
+            }
+            return .rateLimited(retryAfter: seconds)
+        case 404, 405, 501: return .notAvailable
+        case 503: return .busy
+        case 502, 504: return .unavailable
+        default: return .httpStatus(status)
+        }
+    }
+
+    /// "45 seconds" or "3 minutes" (rounded up).
+    static func waitText(_ seconds: Int) -> String {
+        if seconds < 60 { return seconds == 1 ? "1 second" : "\(seconds) seconds" }
+        let minutes = (seconds + 59) / 60
+        return minutes == 1 ? "1 minute" : "\(minutes) minutes"
     }
 }
 
@@ -344,9 +493,6 @@ public enum FeedbackAttachmentRejection: LocalizedError, Equatable, Sendable {
     case locationNotRemoved(String)
 
     public var errorDescription: String? {
-        let perFile = ByteCountFormatter.string(
-            fromByteCount: FeedbackLimits.attachmentBytes, countStyle: .file
-        )
         let total = ByteCountFormatter.string(
             fromByteCount: FeedbackLimits.totalAttachmentBytes, countStyle: .file
         )
@@ -354,9 +500,9 @@ public enum FeedbackAttachmentRejection: LocalizedError, Equatable, Sendable {
         case .tooMany:
             return "You can attach up to \(FeedbackLimits.attachments) photos or videos."
         case let .fileTooLarge(name):
-            return "\(name) is larger than \(perFile)."
+            return "\(name) is larger than \(total)."
         case .totalTooLarge:
-            return "Attachments can total up to \(total)."
+            return "Attachments can total up to \(total). Remove one to add another."
         case let .unsupportedType(name):
             return "\(name) isn't a photo or video."
         case .unreadable:
