@@ -75,7 +75,7 @@ struct FeedbackFormSheet: View {
         }
         .alert(successTitle, isPresented: finishedBinding, presenting: outcome) { _ in
             Button("Done", role: .cancel, action: close)
-                .accessibilityIdentifier("fst.feedback.done")
+                .accessibilityIdentifier("fst.settings.feedback.done")
         } message: { outcome in
             Text(successMessage(outcome))
         }
@@ -94,7 +94,7 @@ struct FeedbackFormSheet: View {
                 TextField("Title", text: $model.title)
                     .accessibilityLabel("Title")
                     .accessibilityHint(titleDetail)
-                    .accessibilityIdentifier("fst.feedback.title")
+                    .accessibilityIdentifier("fst.settings.feedback.field.title")
                     #if os(iOS)
                     .textInputAutocapitalization(.sentences)
                     #endif
@@ -103,17 +103,17 @@ struct FeedbackFormSheet: View {
             }
             textBox(
                 "Description", detail: descriptionDetail,
-                text: $model.descriptionText, identifier: "fst.feedback.description"
+                text: $model.descriptionText, identifier: "fst.settings.feedback.field.description"
             )
             if kind.includesReproduction {
                 textBox(
                     "Steps to Reproduce",
                     detail: "List the steps that make it happen, one per line.",
-                    text: $model.reproSteps, identifier: "fst.feedback.repro"
+                    text: $model.reproSteps, identifier: "fst.settings.feedback.field.repro"
                 )
                 textBox(
                     "Expected Behavior", detail: "What did you expect to happen instead?",
-                    text: $model.expectedBehavior, identifier: "fst.feedback.expected"
+                    text: $model.expectedBehavior, identifier: "fst.settings.feedback.field.expected"
                 )
             }
             mediaSection
@@ -124,7 +124,7 @@ struct FeedbackFormSheet: View {
                     Text(issue.message)
                         .font(.footnote)
                         .foregroundStyle(FestivalText.primary)
-                        .accessibilityIdentifier("fst.feedback.validation")
+                        .accessibilityIdentifier("fst.settings.feedback.validation")
                 }
             }
         }
@@ -156,9 +156,9 @@ struct FeedbackFormSheet: View {
             }
             Menu {
                 Button("Photo Library", systemImage: "photo.on.rectangle") { showingPhotos = true }
-                    .accessibilityIdentifier("fst.feedback.attach.photos")
+                    .accessibilityIdentifier("fst.settings.feedback.attach.media")
                 Button("Choose File…", systemImage: "folder") { showingFiles = true }
-                    .accessibilityIdentifier("fst.feedback.attach.files")
+                    .accessibilityIdentifier("fst.settings.feedback.attach.files")
             } label: {
                 // The whole row is the hit target, not only the label's glyphs.
                 Label("Attach Media", systemImage: "paperclip")
@@ -168,16 +168,16 @@ struct FeedbackFormSheet: View {
             .disabled(
                 model.attachments.count >= FeedbackLimits.attachments || model.isBusy
             )
-            .accessibilityIdentifier("fst.feedback.attach")
+            .accessibilityIdentifier("fst.settings.feedback.attach")
             if model.importing > 0 {
                 ProgressView("Adding media…")
-                    .accessibilityIdentifier("fst.feedback.attach.progress")
+                    .accessibilityIdentifier("fst.settings.feedback.attach.progress")
             }
             if let message = model.attachmentMessage {
                 Text(message)
                     .font(.footnote)
                     .foregroundStyle(FestivalSheetActionColor.destructive)
-                    .accessibilityIdentifier("fst.feedback.attach.error")
+                    .accessibilityIdentifier("fst.settings.feedback.attachments.notice")
             }
         } header: {
             FeedbackFieldHeader(
@@ -198,7 +198,7 @@ struct FeedbackFormSheet: View {
                 ProgressView {
                     Text("Filing your \(kind == .bug ? "report" : "request")…")
                 }
-                .accessibilityIdentifier("fst.feedback.progress")
+                .accessibilityIdentifier("fst.settings.feedback.progress")
                 Text("It's been received. You can close this; it will still be filed.")
                     .font(.footnote)
                     .foregroundStyle(FestivalText.primary)
@@ -206,10 +206,10 @@ struct FeedbackFormSheet: View {
                 ProgressView(value: progress) {
                     Text(model.attachments.isEmpty ? "Sending…" : "Uploading media…")
                 }
-                .accessibilityIdentifier("fst.feedback.progress")
+                .accessibilityIdentifier("fst.settings.feedback.progress")
                 Button("Stop Sending", role: .destructive) { model.cancelSubmit() }
                     .frame(minHeight: 44)
-                    .accessibilityIdentifier("fst.feedback.stop")
+                    .accessibilityIdentifier("fst.settings.feedback.stop")
             }
         }
     }
@@ -218,15 +218,15 @@ struct FeedbackFormSheet: View {
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             Button(model.isFiling ? "Close" : "Cancel", action: requestClose)
-                .accessibilityIdentifier("fst.feedback.cancel")
+                .accessibilityIdentifier("fst.settings.feedback.close")
                 // Anchored to Cancel so iOS 26's popover-style dialog points at it.
                 .confirmationDialog(
                     discardTitle, isPresented: $confirmingDiscard, titleVisibility: .visible
                 ) {
                     Button("Discard Changes", role: .destructive, action: close)
-                        .accessibilityIdentifier("fst.feedback.discard")
+                        .accessibilityIdentifier("fst.settings.feedback.discard.confirm")
                     Button("Keep Editing", role: .cancel) {}
-                        .accessibilityIdentifier("fst.feedback.keep-editing")
+                        .accessibilityIdentifier("fst.settings.feedback.discard.cancel")
                 } message: {
                     Text("Your text and attached media will be lost.")
                 }
@@ -236,7 +236,7 @@ struct FeedbackFormSheet: View {
                 model.submit(session: session, platform: platform)
             }
             .disabled(!model.canSubmit)
-            .accessibilityIdentifier("fst.feedback.submit")
+            .accessibilityIdentifier("fst.settings.feedback.submit")
         }
     }
 

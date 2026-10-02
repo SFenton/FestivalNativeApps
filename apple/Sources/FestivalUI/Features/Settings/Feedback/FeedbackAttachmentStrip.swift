@@ -33,7 +33,7 @@ struct FeedbackAttachmentStrip: View {
             }
             .padding(.vertical, 4)
         }
-        .accessibilityIdentifier("fst.feedback.attachments")
+        .accessibilityIdentifier("fst.settings.feedback.attachments")
         #if os(iOS)
         .quickLookPreview($previewURL, in: attachments.map(\.fileURL))
         #endif
@@ -88,7 +88,7 @@ private struct FeedbackAttachmentTile: View {
             .padding(.trailing, 10)
             .accessibilityLabel(attachment.accessibilityLabel(position: position))
             .accessibilityHint(openHint)
-            .accessibilityIdentifier("fst.feedback.attachment.\(position)")
+            .accessibilityIdentifier("fst.settings.feedback.attachment.\(position)")
 
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
@@ -101,7 +101,7 @@ private struct FeedbackAttachmentTile: View {
             .buttonStyle(.plain)
             .offset(x: 12, y: -12)
             .accessibilityLabel("Remove \(attachment.filename)")
-            .accessibilityIdentifier("fst.feedback.attachment.\(position).remove")
+            .accessibilityIdentifier("fst.settings.feedback.attachment.\(position).remove")
         }
         .padding(.trailing, 12)
         .padding(.top, 2)

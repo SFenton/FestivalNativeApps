@@ -284,11 +284,11 @@ struct SettingsScreen: View {
             if feedbackEnabled {
                 feedbackRow(
                     .bug, detail: "Tell us about something that isn't working.",
-                    action: "Report", identifier: "fst.settings.report-issue"
+                    action: "Report", identifier: "fst.settings.feedback.bug"
                 )
                 feedbackRow(
                     .feature, detail: "Suggest something new for Festival Score Tracker.",
-                    action: "Request", identifier: "fst.settings.request-feature"
+                    action: "Request", identifier: "fst.settings.feedback.feature"
                 )
             }
         }
