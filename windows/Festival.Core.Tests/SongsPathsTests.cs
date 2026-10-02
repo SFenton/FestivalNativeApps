@@ -138,11 +138,31 @@ public class SongPathsViewModelTests
         Assert.Equal(Instrument.Lead, vm.Instrument);
         vm.SelectInstrument(Instrument.Bass);
         Assert.Contains(nameof(SongPathsViewModel.Instrument), changed);
-        Assert.Equal("Instrument: Bass", vm.InstrumentButtonName);
+        Assert.Equal(1, vm.InstrumentIndex); // the compact ComboBox follows the selection
         vm.DifficultyIndex = 0;
         await Async.Until(() => vm.ShowTable && vm.Instrument == Instrument.Bass && vm.Difficulty == PathDifficulty.Easy);
         Assert.Contains(service.Handler.Requests, r => r.Uri.AbsolutePath == "/api/paths/s1/Solo_Bass/easy/data");
         vm.Close();
+    }
+
+    [Fact]
+    public void InstrumentOptions_MirrorInstrumentsWithIconsAndSpokenNames()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var session = service.Session();
+        var vm = new SongPathsViewModel(session, Song(), [Instrument.Lead, Instrument.ProLead, Instrument.Bass]);
+        Assert.Equal([Instrument.Lead, Instrument.ProLead, Instrument.Bass], vm.InstrumentOptions.Select(o => o.Instrument));
+        Assert.Equal(vm.InstrumentLabels, vm.InstrumentOptions.Select(o => o.ToString()));
+        Assert.All(vm.InstrumentOptions, o => Assert.False(string.IsNullOrEmpty(o.IconFile)));
+        Assert.Equal(Instrument.Lead.IconFile(), vm.InstrumentOptions[0].IconFile);
+        vm.InstrumentIndex = 2; // a ComboBox pick
+        Assert.Equal(Instrument.Bass, vm.Instrument);
+        vm.Close();
+        var keys = new SongPathsViewModel(session, Song() with { Sig = "Keyboard" }, [Instrument.Lead, Instrument.ProLead]);
+        Assert.Equal([Instrument.Lead.IconFile(true), Instrument.ProLead.IconFile(true)], keys.InstrumentOptions.Select(o => o.IconFile));
+        Assert.NotEqual(Instrument.Lead.IconFile(), keys.InstrumentOptions[0].IconFile);
+        keys.Close();
     }
 
     [Fact]

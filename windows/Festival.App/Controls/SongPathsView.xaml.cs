@@ -54,12 +54,9 @@ public sealed partial class SongPathsView : UserControl
     {
         ViewModel = viewModel;
         InitializeComponent();
-        foreach (var picker in (InstrumentSelector[])[InstrumentPicker, CompactInstrumentPicker])
-        {
-            picker.KeyboardLead = viewModel.Song.UsesKeyboardIcon;
-            picker.Hidden = new HashSet<Instrument> { Instrument.Karaoke };
-            picker.Instruments = viewModel.Instruments;
-        }
+        InstrumentPicker.KeyboardLead = viewModel.Song.UsesKeyboardIcon;
+        InstrumentPicker.Hidden = new HashSet<Instrument> { Instrument.Karaoke };
+        InstrumentPicker.Instruments = viewModel.Instruments;
         SyncInstrument();
         BuildHeader();
         viewModel.PropertyChanged += OnViewModelChanged;
@@ -190,33 +187,15 @@ public sealed partial class SongPathsView : UserControl
         }
     }
 
-    /// <summary>Shows the current instrument in both selectors and on the compact button.</summary>
-    private void SyncInstrument()
-    {
-        var instrument = ViewModel.Instrument;
-        InstrumentPicker.Selected = instrument;
-        CompactInstrumentPicker.Selected = instrument;
-        InstrumentToggleIcon.File = instrument.IconFile(ViewModel.Song.UsesKeyboardIcon);
-        InstrumentToggleIcon.Label = instrument.Label();
-    }
+    /// <summary>Shows the current instrument in the wide Instrument Selector (the compact ComboBox binds the index).</summary>
+    private void SyncInstrument() => InstrumentPicker.Selected = ViewModel.Instrument;
 
-    /// <summary>An Instrument Selector pick (required: it never clears); the compact panel closes like the web accordion.</summary>
+    /// <summary>A wide Instrument Selector pick (required: it never clears).</summary>
     /// <param name="sender">Selector.</param>
     /// <param name="instrument">Picked chart.</param>
     private void OnInstrumentPicked(object? sender, Instrument? instrument)
     {
         if (instrument is { } picked) ViewModel.SelectInstrument(picked);
-        if (ReferenceEquals(sender, CompactInstrumentPicker)) InstrumentToggle.IsChecked = false;
-    }
-
-    /// <summary>Opens or closes the compact instrument panel above the bottom row.</summary>
-    /// <param name="sender">Toggle.</param>
-    /// <param name="e">Unused.</param>
-    private void OnInstrumentToggle(object sender, RoutedEventArgs e)
-    {
-        var open = InstrumentToggle.IsChecked == true;
-        CompactInstrumentPicker.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
-        InstrumentChevron.Glyph = open ? "" : "";
     }
 
     /// <summary>Switches between the wide selector panel and the compact bottom row.</summary>
@@ -227,7 +206,6 @@ public sealed partial class SongPathsView : UserControl
         var compact = e.NewSize.Width < CompactWidth;
         Selectors.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactSelectors.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
-        if (!compact) InstrumentToggle.IsChecked = false;
     }
     #endregion
 

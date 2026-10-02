@@ -34,6 +34,19 @@ public static class PathSwapTiming
 }
 #endregion
 
+#region Instrument option
+/// <summary>One entry of the compact instrument <c>ComboBox</c>: icon and name (every option has an icon).</summary>
+/// <param name="Instrument">Chart.</param>
+/// <param name="Label">Visible and spoken name, e.g. <c>Lead</c>.</param>
+/// <param name="IconFile">Bundled icon file (keyboard art for Pro Lead/Bass on keyboard songs).</param>
+public sealed record PathInstrumentOption(Instrument Instrument, string Label, string IconFile)
+{
+    /// <summary>The name, which UI Automation reads as the combo box's value.</summary>
+    /// <returns><see cref="Label"/>.</returns>
+    public override string ToString() => Label;
+}
+#endregion
+
 #region Paths
 /// <summary>
 /// CHOpt Paths dialog: instrument, difficulty and image/text selectors reset on every opening; image and text
@@ -67,6 +80,7 @@ public sealed partial class SongPathsViewModel : ObservableObject
         Song = song;
         Instruments = [.. instruments];
         InstrumentLabels = [.. instruments.Select(i => i.Label())];
+        InstrumentOptions = [.. instruments.Select(i => new PathInstrumentOption(i, i.Label(), i.IconFile(song.UsesKeyboardIcon)))];
         showText = presentedText = session.Settings.PathDefaultView == PathDisplayMode.Text;
         presentedInstrument = Instruments[0];
         Status = new ServiceStatusViewModel($"paths:{song.SongId}", "Path Unavailable", LoadAsync, session.Time);
@@ -83,6 +97,9 @@ public sealed partial class SongPathsViewModel : ObservableObject
 
     /// <summary>Instrument labels for the picker.</summary>
     public List<string> InstrumentLabels { get; }
+
+    /// <summary>Compact instrument picker entries, in <see cref="Instruments"/> order (index = <see cref="InstrumentIndex"/>).</summary>
+    public List<PathInstrumentOption> InstrumentOptions { get; }
 
     /// <summary>Difficulty labels for the segmented picker.</summary>
     public List<string> DifficultyLabels { get; } = [.. PathDifficultyInfo.All.Select(d => d.Label())];
@@ -192,9 +209,6 @@ public sealed partial class SongPathsViewModel : ObservableObject
 
     /// <summary>Whether zooming out is possible.</summary>
     public bool CanZoomOut => Zoom > MinZoom;
-
-    /// <summary>Compact instrument button name, e.g. "Instrument: Lead".</summary>
-    public string InstrumentButtonName => "Instrument: " + Instrument.Label();
 
     /// <summary>Selects a chart from the Instrument Selector (ignored when it isn't offered).</summary>
     /// <param name="instrument">Chart.</param>
@@ -344,7 +358,6 @@ public sealed partial class SongPathsViewModel : ObservableObject
     partial void OnInstrumentIndexChanged(int value)
     {
         OnPropertyChanged(nameof(Instrument));
-        OnPropertyChanged(nameof(InstrumentButtonName));
         Reload();
     }
 
