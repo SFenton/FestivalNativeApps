@@ -895,7 +895,9 @@ struct RankingsCountHeader: View {
 /// Previous, Next and Last as `.bottomBar` symbol items (system-placed at the bottom
 /// of the rail, above the tab bar), with the page label as a low-priority item so it
 /// overflows into the system `…` menu first and still reads as "Page 3 of 34,770"
-/// there. Every item is a `Label(title, systemImage:)`: a title-only item would force
+/// there; Next carries `.high` so it stays in the rail (`/duo` D5: the folded rail fits
+/// one bottom item beside 5 tabs, and Next is the action a first page needs).
+/// Every item is a `Label(title, systemImage:)`: a title-only item would force
 /// the system to keep a horizontal bar just for it (`.agents/design/apple/duo.md`).
 ///
 /// Add alongside ``RankingsFloatingBar`` (in the same page); both read
@@ -913,6 +915,22 @@ struct RankingsPagerToolbarContent: ToolbarContent {
     let onChange: (Int) -> Void
     @Environment(\.deviceLayout) private var layout
 
+    private var previousButton: some View {
+        Button { onChange(page - 1) } label: {
+            Label("Previous", systemImage: "chevron.left")
+        }
+        .disabled(page <= 1)
+        .accessibilityIdentifier("\(idPrefix).page-previous")
+    }
+
+    private var nextButton: some View {
+        Button { onChange(page + 1) } label: {
+            Label("Next", systemImage: "chevron.right")
+        }
+        .disabled(page >= totalPages)
+        .accessibilityIdentifier("\(idPrefix).page-next")
+    }
+
     var body: some ToolbarContent {
         if layout.sectionChrome.isVerticalBar {
             ToolbarItem(placement: .bottomBar) {
@@ -922,13 +940,7 @@ struct RankingsPagerToolbarContent: ToolbarContent {
                 .disabled(page <= 1)
                 .accessibilityIdentifier("\(idPrefix).page-first")
             }
-            ToolbarItem(placement: .bottomBar) {
-                Button { onChange(page - 1) } label: {
-                    Label("Previous", systemImage: "chevron.left")
-                }
-                .disabled(page <= 1)
-                .accessibilityIdentifier("\(idPrefix).page-previous")
-            }
+            ToolbarItem(placement: .bottomBar) { previousButton }
             if #available(iOS 27.0, *) {
                 ToolbarItem(placement: .bottomBar) {
                     pageIndicator
@@ -939,12 +951,14 @@ struct RankingsPagerToolbarContent: ToolbarContent {
                     pageIndicator
                 }
             }
-            ToolbarItem(placement: .bottomBar) {
-                Button { onChange(page + 1) } label: {
-                    Label("Next", systemImage: "chevron.right")
-                }
-                .disabled(page >= totalPages)
-                .accessibilityIdentifier("\(idPrefix).page-next")
+            // `/duo` D5: Next stays in the rail. Folded with 5 tabs the rail fits one
+            // bottom item; with Previous `.high` too it kept the disabled Previous on
+            // page 1 and overflowed Next (measured 2026-10-02).
+            if #available(iOS 27.0, *) {
+                ToolbarItem(placement: .bottomBar) { nextButton }
+                    .visibilityPriority(.high)
+            } else {
+                ToolbarItem(placement: .bottomBar) { nextButton }
             }
             ToolbarItem(placement: .bottomBar) {
                 Button { onChange(totalPages) } label: {

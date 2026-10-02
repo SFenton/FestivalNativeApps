@@ -83,8 +83,13 @@ extension EnvironmentValues {
 /// `FestivalRootChrome`/`FestivalRootTrailingItems` apply this as the real
 /// `visibilityPriority`, so ``RootChromeRailPriorityTests`` pins the decision
 /// against a regression, not just a comment.
+///
+/// `/duo` D3 (operator, 2026-10-02): global Search joins them at high priority (HIG
+/// Searching: "Give important search a primary position"); page actions such as Sort
+/// and Filter keep the default and overflow first.
 enum RootChromeRailItem: CaseIterable, Equatable {
     case drawer
+    case search
     case bell
     case profile
 
@@ -93,7 +98,7 @@ enum RootChromeRailItem: CaseIterable, Equatable {
     var staysVisibleAheadOfOthers: Bool {
         switch self {
         case .drawer: false
-        case .bell, .profile: true
+        case .search, .bell, .profile: true
         }
     }
 }
@@ -167,7 +172,7 @@ enum RootChromeTrailingGroups {
 
 #if os(iOS)
 @available(iOS 27.0, *)
-private extension ToolbarContent {
+extension ToolbarContent {
     /// Applies ``RootChromeRailItem``'s ranking as the real `visibilityPriority`.
     ///
     /// - Parameter item: Which rail item this toolbar item represents.
@@ -290,8 +295,15 @@ struct FestivalRootTrailingItems: ToolbarContent {
         #if os(iOS)
         if let openGlobalSearch {
             // Global search before the bell and avatar (web header order).
-            ToolbarItem(placement: .topBarTrailing) {
-                GlobalSearchButton { openGlobalSearch() }
+            if #available(iOS 27.0, *) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    GlobalSearchButton { openGlobalSearch() }
+                }
+                .railVisibilityPriority(.search)
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    GlobalSearchButton { openGlobalSearch() }
+                }
             }
         }
         if #available(iOS 26.0, *) {

@@ -23,11 +23,16 @@ struct RootChromeRailPriorityTests {
         #expect(!RootChromeRailItem.drawer.staysVisibleAheadOfOthers)
     }
 
+    @Test("Global Search stays visible with the bell and profile (/duo D3)")
+    func searchOutranksPageActions() {
+        #expect(RootChromeRailItem.search.staysVisibleAheadOfOthers)
+    }
+
     @Test("Every rail item resolves to a ranking (no silent gaps as cases are added)")
     func everyCaseResolves() {
         for item in RootChromeRailItem.allCases {
             _ = item.staysVisibleAheadOfOthers
         }
-        #expect(RootChromeRailItem.allCases.count == 3)
+        #expect(RootChromeRailItem.allCases.count == 4)
     }
 }

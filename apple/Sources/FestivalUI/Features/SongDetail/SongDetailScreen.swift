@@ -227,17 +227,26 @@ struct SongDetailScreen: View {
     }
     #endif
 
+    /// Song Detail's bar items.
+    ///
+    /// In the iPhone Duo vertical bar the pinned title (a custom view) is left out: the
+    /// rail never draws it. Item Shop and Paths carry high visibility priority so they
+    /// stay in the rail ahead of Quick Links (`/duo` D4, operator 2026-10-02: page-unique
+    /// actions first; HIG iPhone Duo: "Set visibility priority by group").
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
         #if os(iOS)
-        ToolbarItem(placement: .principal) {
-            pinnedTitle
+        if !deviceLayout.sectionChrome.isVerticalBar {
+            ToolbarItem(placement: .principal) {
+                pinnedTitle
+            }
         }
         #endif
         if let offer = shopOffer {
             ToolbarItem(placement: .festivalPageAction) {
                 shopAction(offer)
             }
+            .songDetailPagePriority()
         }
         if !pathInstruments.isEmpty {
             ToolbarItem(placement: .festivalPageAction) {
@@ -248,6 +257,7 @@ struct SongDetailScreen: View {
                 }
                 .accessibilityIdentifier("fst.song-detail.paths")
             }
+            .songDetailPagePriority()
         }
         QuickLinksToolbarItem(quickLinks)
     }
@@ -501,6 +511,22 @@ extension SongDetailScreen {
         .accessibilityAddTraits(.isHeader)
         .accessibilityHidden(!heroTitleHidden)
         .accessibilityIdentifier("fst.song-detail.pinned-title")
+    }
+}
+
+/// High visibility priority for Song Detail's page-unique actions (iOS 27+).
+private extension ToolbarContent {
+    @ToolbarContentBuilder
+    func songDetailPagePriority() -> some ToolbarContent {
+        #if os(iOS)
+        if #available(iOS 27.0, *) {
+            visibilityPriority(.high)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 
