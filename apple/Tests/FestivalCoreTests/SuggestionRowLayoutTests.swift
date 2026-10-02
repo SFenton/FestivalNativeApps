@@ -58,3 +58,33 @@ import Testing
     #expect(SuggestionRowLayout.unfcAccuracy(percent: 0) == nil)
     #expect(SuggestionRowLayout.unfcAccuracy(percent: nil) == nil)
 }
+
+// MARK: - Rival name badge (issue #29)
+
+@Test func singleRivalCategoriesHideTheRepeatedRivalName() {
+    for key in [
+        "song_rival_spotlight_abc", "song_rival_gap_abc", "song_rival_protect_abc",
+        "song_rival_slipping_abc", "song_rival_dominate_abc", "SONG_RIVAL_SPOTLIGHT_abc",
+    ] {
+        #expect(!SuggestionRowLayout.showsRivalName(categoryKey: key), "\(key)")
+    }
+}
+
+@Test func mixedRivalCategoriesKeepTheRivalName() {
+    for key in [
+        "song_rival_battleground", "song_rival_near_fc", "song_rival_stale",
+        "song_rival_star_gains", "song_rival_pct_push", "lb_rival_x", "near_fc_any",
+    ] {
+        #expect(SuggestionRowLayout.showsRivalName(categoryKey: key), "\(key)")
+    }
+}
+
+@Test func rivalDeltaAccessibilityLabelNamesTheRivalWhenTheBadgeIsHidden() {
+    typealias L = SuggestionRowLayout
+    #expect(L.rivalDeltaAccessibilityLabel(delta: 3, rivalName: "TempoTide") == "3 ranks ahead of TempoTide")
+    #expect(L.rivalDeltaAccessibilityLabel(delta: -1, rivalName: "TempoTide") == "1 rank behind TempoTide")
+    #expect(L.rivalDeltaAccessibilityLabel(delta: 0, rivalName: "TempoTide") == "Tied with TempoTide")
+    #expect(L.rivalDeltaAccessibilityLabel(delta: 2, rivalName: nil) == "2 ranks ahead")
+    #expect(L.rivalDeltaAccessibilityLabel(delta: -4, rivalName: "") == "4 ranks behind")
+    #expect(L.rivalDeltaAccessibilityLabel(delta: 0, rivalName: nil) == "Tied")
+}
