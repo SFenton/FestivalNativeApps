@@ -150,8 +150,12 @@ final class SongsChromeJourneyTests: XCTestCase {
             var result: [CGRect] = []
             for id in ids {
                 let matches = app.buttons.matching(identifier: id)
-                guard matches.count == 1, matches.element.isHittable else { return nil }
-                result.append(matches.element.frame)
+                guard matches.count == 1 else { return nil }
+                // Mid-transition the accessory's button can have an empty frame, and
+                // `isHittable` then throws instead of returning false.
+                let frame = matches.element.frame
+                guard !frame.isEmpty, matches.element.isHittable else { return nil }
+                result.append(frame)
             }
             return result
         }
