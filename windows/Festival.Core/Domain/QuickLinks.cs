@@ -66,6 +66,30 @@ public static class QuickLinks
     /// </summary>
     public const double PaneMinimumWidth = 1150;
 
+    /// <summary>Offset difference (epx) below which a jump counts as landed.</summary>
+    public const double LandingTolerance = 0.5;
+
+    /// <summary>
+    /// Re-aims allowed after a jump settles: anchors below a virtualizing list move once the cards around the new
+    /// viewport are realized and replace the list's estimated heights.
+    /// </summary>
+    public const int MaxJumpCorrections = 4;
+
+    /// <summary>Scroll offset that puts an anchor <paramref name="landingMargin"/> below the viewport top.</summary>
+    /// <param name="verticalOffset">Current scroll offset.</param>
+    /// <param name="anchorTop">Anchor top relative to the viewport.</param>
+    /// <param name="scrollableHeight">Largest reachable offset.</param>
+    /// <param name="landingMargin">Gap kept above the anchor.</param>
+    /// <returns>Target offset clamped to <c>[0, scrollableHeight]</c>.</returns>
+    public static double JumpOffset(double verticalOffset, double anchorTop, double scrollableHeight, double landingMargin) =>
+        Math.Clamp(verticalOffset + anchorTop - landingMargin, 0, Math.Max(0, scrollableHeight));
+
+    /// <summary>Whether the scroller already rests at a jump target.</summary>
+    /// <param name="verticalOffset">Current scroll offset.</param>
+    /// <param name="target">Target offset from <see cref="JumpOffset"/>.</param>
+    /// <returns><see langword="true"/> within <see cref="LandingTolerance"/>.</returns>
+    public static bool IsLanded(double verticalOffset, double target) => Math.Abs(target - verticalOffset) < LandingTolerance;
+
     /// <summary>Whether a page shows its entry point.</summary>
     /// <param name="sectionCount">Section count.</param>
     /// <returns><see langword="true"/> for two or more.</returns>
