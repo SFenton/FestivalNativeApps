@@ -60,6 +60,7 @@ public struct FestivalRootView: View {
            !Self.debugProfileCleared {
             Self.debugProfileCleared = true
             UserDefaults.standard.removeObject(forKey: SelectedPlayerIdentity.storageKey)
+            NotificationSeenStore.reset()
         }
         // In memory only: never written to `selectionStorage`. Parallel lanes share
         // one simulator, and writing this to real `UserDefaults.standard` (the
