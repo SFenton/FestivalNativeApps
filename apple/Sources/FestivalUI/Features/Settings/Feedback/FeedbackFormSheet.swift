@@ -164,8 +164,10 @@ struct FeedbackFormSheet: View {
                 Button("Choose File…", systemImage: "folder") { showingFiles = true }
                     .accessibilityIdentifier("fst.feedback.attach.files")
             } label: {
+                // The whole row is the hit target, not only the label's glyphs.
                 Label("Attach Media", systemImage: "paperclip")
-                    .frame(minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .disabled(
                 model.attachments.count >= FeedbackLimits.attachments || model.isSubmitting
