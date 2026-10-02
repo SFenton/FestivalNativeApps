@@ -154,6 +154,7 @@ import com.festivalscoretracker.android.ui.rivals.rivalsDestinations
 import com.festivalscoretracker.android.ui.search.GlobalSearchHost
 import com.festivalscoretracker.android.ui.settings.LicensesScreen
 import com.festivalscoretracker.android.ui.settings.SettingsScreen
+import com.festivalscoretracker.android.ui.settings.rememberFeedbackViewModel
 import com.festivalscoretracker.android.ui.shop.ShopRouteScreen
 import com.festivalscoretracker.android.ui.songdetail.SongDetailRouteScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardRouteScreen
@@ -697,7 +698,7 @@ private fun FestivalNavHost(
             val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })
             SettingsScreen(settings, settingsViewModel, api.origin, onReplayFirstRun = { page ->
                 replayScope.launch { container.firstRun.beginReplay(page, compact) }
-            }, onShowWhatsNew = { replayScope.launch { container.whatsNew.replay() } })
+            }, onShowWhatsNew = { replayScope.launch { container.whatsNew.replay() } }, feedback = rememberFeedbackViewModel(api))
         }
         suggestionsDestinations(container, shellViewModel.settings)
         composable<LicensesRoute> { LicensesScreen() }
