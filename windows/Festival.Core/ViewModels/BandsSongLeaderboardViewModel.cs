@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Festival.Core.Domain;
 
 namespace Festival.Core.ViewModels;
 
@@ -28,6 +29,14 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
 #pragma warning restore MVVMTK0034
         Pager = new BandsPagerViewModel(GoToPageAsync);
         Status = new ServiceStatusViewModel("song-bands:" + SongId, "Failed to load band leaderboard", LoadAsync, session.Time);
+        LoadSwap = new LoadSwap(session.Time);
+        LoadSwap.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(IsLoading));
+            OnPropertyChanged(nameof(ShowRows));
+            OnPropertyChanged(nameof(ShowEmpty));
+            OnPropertyChanged(nameof(ShowError));
+        };
     }
 
     /// <summary>Requested song.</summary>
@@ -38,6 +47,12 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
 
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
+
+    /// <summary>Rows/content load-swap gate.</summary>
+    public LoadSwap LoadSwap { get; }
+
+    /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
+    public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
     /// <summary>Band sizes in switcher order.</summary>
     public List<BandType> BandTypes { get; } = [.. BandTypeInfo.All];
@@ -96,16 +111,16 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     }
 
     /// <summary>Whether a read with nothing to show is in flight.</summary>
-    public bool IsLoading => State is LoadState.Loading or LoadState.Idle;
+    public bool IsLoading => LoadSwap.IsLoading;
 
     /// <summary>Whether rows are shown.</summary>
-    public bool ShowRows => State == LoadState.Loaded;
+    public bool ShowRows => State == LoadState.Loaded && LoadSwap.ContentVisible;
 
     /// <summary>Whether the empty state is shown.</summary>
-    public bool ShowEmpty => State == LoadState.Empty;
+    public bool ShowEmpty => State == LoadState.Empty && LoadSwap.ContentVisible;
 
     /// <summary>Whether the failure is shown.</summary>
-    public bool ShowError => State == LoadState.Failed;
+    public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
     /// <summary>Switching size returns to page one.</summary>
     /// <param name="value">New size.</param>
@@ -122,7 +137,8 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     {
         var requested = ++version;
         var (type, page) = (BandType, Pager.Page);
-        State = LoadState.Loading;
+        var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
+        if (State is LoadState.Idle) State = LoadState.Loading;
         try
         {
             if (Song is null)
@@ -147,17 +163,25 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
                 await LoadAsync();
                 return;
             }
-            Status.Clear();
-            Population = board.Population;
-            Pager.PageCount = pages;
-            Rows = [.. board.Entries.Select(e => new SongBandRow(e))];
-            State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                Status.Clear();
+                Population = board.Population;
+                Pager.PageCount = pages;
+                Rows = [.. board.Entries.Select(e => new SongBandRow(e))];
+                State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+            }, AnimateLoadSwaps());
         }
         catch (FestivalApiException error)
         {
             if (requested != version) return;
-            Status.Report(error);
-            State = LoadState.Failed;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                Status.Report(error);
+                State = LoadState.Failed;
+            }, AnimateLoadSwaps());
         }
     }
 
