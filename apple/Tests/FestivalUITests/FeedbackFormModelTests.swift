@@ -1,5 +1,8 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import FestivalCore
 @testable import FestivalUI
 
@@ -29,13 +32,48 @@ private func session(_ transport: any HTTPTransport) -> FestivalSession {
     })
 }
 
-private func sourceFile(_ name: String, bytes: Int = 16) throws -> URL {
+private func sourceFolder() throws -> URL {
     let folder = FileManager.default.temporaryDirectory
         .appendingPathComponent("fst-feedback-model-test-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    let url = folder.appendingPathComponent(name)
+    return folder
+}
+
+/// Raw bytes under `name` (not a readable image or movie).
+private func sourceFile(_ name: String, bytes: Int = 16) throws -> URL {
+    let url = try sourceFolder().appendingPathComponent(name)
     try Data(repeating: 7, count: bytes).write(to: url)
     return url
+}
+
+/// A real 4×4 image, optionally GPS-tagged.
+private func sourceImage(_ name: String, type: UTType = .png, gps: Bool = false) throws -> URL {
+    let url = try sourceFolder().appendingPathComponent(name)
+    let context = try #require(CGContext(
+        data: nil, width: 4, height: 4, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ))
+    let image = try #require(context.makeImage())
+    let destination = try #require(
+        CGImageDestinationCreateWithURL(url as CFURL, type.identifier as CFString, 1, nil)
+    )
+    let properties: [CFString: Any] = gps
+        ? [kCGImagePropertyGPSDictionary: [
+            kCGImagePropertyGPSLatitude: 51.5, kCGImagePropertyGPSLatitudeRef: "N",
+            kCGImagePropertyGPSLongitude: 0.12, kCGImagePropertyGPSLongitudeRef: "W",
+        ]]
+        : [:]
+    CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+    #expect(CGImageDestinationFinalize(destination))
+    return url
+}
+
+private func hasGPS(_ url: URL) -> Bool {
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    else { return false }
+    return properties[kCGImagePropertyGPSDictionary] != nil
 }
 
 @MainActor
@@ -77,13 +115,13 @@ struct FeedbackFormModelTests {
 
     @Test("A picked file is copied, typed and removable; the original is untouched")
     func importAndRemove() async throws {
-        let source = try sourceFile("shot.png")
+        let source = try sourceImage("shot.png")
         defer { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
         let model = FeedbackFormModel(kind: .bug)
         await model.importFiles(.success([source]))
         let attachment = try #require(model.attachments.first)
         #expect(attachment.mimeType == "image/png")
-        #expect(attachment.byteCount == 16)
+        #expect(attachment.byteCount == Int64(try Data(contentsOf: source).count))
         #expect(attachment.fileURL != source)
         #expect(FileManager.default.fileExists(atPath: attachment.fileURL.path))
         #expect(model.hasUnsavedInput)
@@ -103,11 +141,15 @@ struct FeedbackFormModelTests {
         #expect(model.attachments.isEmpty)
         #expect(model.attachmentMessage?.contains("notes.txt") == true)
 
-        let clips = try (1...6).map { try sourceFile("clip\($0).mov") }
+        let broken = try sourceFile("broken.mov")
+        await model.importFiles(.success([broken]))
+        #expect(model.attachments.isEmpty)
+        #expect(model.attachmentMessage == FeedbackAttachmentRejection.unreadable.errorDescription)
+
+        let clips = try (1...6).map { try sourceImage("shot\($0).png") }
         await model.importFiles(.success(clips))
         #expect(model.attachments.count == FeedbackLimits.attachments)
         #expect(model.attachmentMessage == FeedbackAttachmentRejection.tooMany.errorDescription)
-        #expect(model.attachments.allSatisfy { $0.isVideo })
 
         await model.importFiles(.failure(URLError(.cancelled)))
         #expect(model.attachmentMessage == FeedbackAttachmentRejection.unreadable.errorDescription)
@@ -120,9 +162,22 @@ struct FeedbackFormModelTests {
         model.discardMedia()
         #expect(model.attachments.isEmpty)
         #expect(copies.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
-        for url in [text] + clips {
+        for url in [text, broken] + clips {
             try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
         }
+    }
+
+    @Test("An attached photo loses its location; the original keeps it")
+    func locationRemoved() async throws {
+        let source = try sourceImage("trip.jpg", type: .jpeg, gps: true)
+        defer { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
+        let model = FeedbackFormModel(kind: .bug)
+        await model.importFiles(.success([source]))
+        let attachment = try #require(model.attachments.first)
+        #expect(!hasGPS(attachment.fileURL))
+        #expect(hasGPS(source))
+        #expect(attachment.byteCount == Int64(try Data(contentsOf: attachment.fileURL).count))
+        model.discardMedia()
     }
 
     @Test("A successful submit ends with the receipt")

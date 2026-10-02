@@ -88,7 +88,7 @@ final class FeedbackFormModel {
     func importFiles(_ result: Result<[URL], any Error>) async {
         switch result {
         case let .success(urls):
-            for url in urls { importFile(at: url) }
+            for url in urls { await importFile(at: url) }
         case .failure:
             attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
         }
@@ -107,7 +107,7 @@ final class FeedbackFormModel {
                     attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
                     continue
                 }
-                admit(picked.url, displayName: picked.url.lastPathComponent)
+                await admit(picked.url, displayName: picked.url.lastPathComponent)
             } catch {
                 attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
             }
@@ -130,22 +130,38 @@ final class FeedbackFormModel {
         attachments = []
     }
 
-    private func importFile(at url: URL) {
+    private func importFile(at url: URL) async {
         importing += 1
         defer { importing -= 1 }
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let staged = try? FeedbackPickedMedia.stage(url) else {
+        let staged: FeedbackPickedMedia
+        do {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            staged = try FeedbackPickedMedia.stage(url)
+        } catch {
             attachmentMessage = FeedbackAttachmentRejection.unreadable.errorDescription
             return
         }
-        admit(staged.url, displayName: url.lastPathComponent)
+        await admit(staged.url, displayName: url.lastPathComponent)
     }
 
-    /// Accept or refuse a staged copy against the type and size limits.
-    private func admit(_ url: URL, displayName: String) {
-        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
+    /// Accept or refuse a staged copy against the type and size limits, after
+    /// removing location metadata (the issue is public).
+    private func admit(_ url: URL, displayName: String) async {
         let media = FeedbackAttachmentPolicy.media(forFilename: url.lastPathComponent)
+        if let media {
+            do {
+                try await FeedbackLocationScrubber.scrub(url, isVideo: media.isVideo)
+            } catch {
+                let rejection: FeedbackAttachmentRejection =
+                    error as? FeedbackLocationScrubber.Failure == .unreadable
+                        ? .unreadable : .locationNotRemoved(displayName)
+                attachmentMessage = rejection.errorDescription
+                Self.deleteCopy(url)
+                return
+            }
+        }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
         let rejection: FeedbackAttachmentRejection?
         if media == nil {
             rejection = .unsupportedType(displayName)

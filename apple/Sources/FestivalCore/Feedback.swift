@@ -340,6 +340,8 @@ public enum FeedbackAttachmentRejection: LocalizedError, Equatable, Sendable {
     case totalTooLarge
     case unsupportedType(String)
     case unreadable
+    /// Location metadata could not be removed, so the file stays private.
+    case locationNotRemoved(String)
 
     public var errorDescription: String? {
         let perFile = ByteCountFormatter.string(
@@ -359,6 +361,8 @@ public enum FeedbackAttachmentRejection: LocalizedError, Equatable, Sendable {
             return "\(name) isn't a photo or video."
         case .unreadable:
             return "That file couldn't be attached. Try another."
+        case let .locationNotRemoved(name):
+            return "\(name) wasn't attached because its location couldn't be removed."
         }
     }
 }
