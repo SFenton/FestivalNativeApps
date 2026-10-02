@@ -978,13 +978,22 @@ final class FestivalMobileUITests: XCTestCase {
         return filter
     }
 
-    /// Open and scroll to the source's public Shop toggles.
+    /// Open the Filter sheet and expand its General Item Shop accordion.
     ///
-    /// - Parameter app: Fixture app with a selected Songs profile or a saved filter.
+    /// The accordion opens by itself only while a Shop category is off; otherwise
+    /// tap its label once so `fst.songs.filter.shop.available` / `.unavailable` exist.
+    ///
+    /// - Parameter app: Fixture app showing Songs with the Item Shop visible.
     @MainActor
     private func openSongsFilter(in app: XCUIApplication) {
         _ = openFilterSheet(in: app)
-        _ = revealFilterOption(app.switches["fst.songs.filter.in-shop"], in: app)
+        let unavailable = app.switches["fst.songs.filter.shop.unavailable"]
+        if !unavailable.exists {
+            let group = app.descendants(matching: .any)
+                .matching(identifier: "fst.songs.filter.shop").firstMatch
+            revealFilterOption(group, in: app).tap()
+        }
+        _ = revealFilterOption(unavailable, in: app)
     }
 
     /// Scroll the native Filter Form until a score control clears its pinned actions.
