@@ -64,6 +64,31 @@ private func hostedRolloverPlayer() throws -> Data {
     return try JSONSerialization.data(withJSONObject: player)
 }
 
+/// Find the first pixel row holding the red Leaving Tomorrow status border.
+///
+/// Scans every pixel (the shared sampler strides by 4 and can miss a thin border).
+///
+/// - Parameters:
+///   - image: Hosted Songs render.
+///   - maxPoints: Height of the top band to scan, in points.
+///   - scale: Pixels per point of `image`.
+/// - Returns: The row's offset in points, or nil when the band has no red border.
+@MainActor
+private func hostedFirstRedRow(_ image: CGImage, maxPoints: CGFloat, scale: CGFloat) -> CGFloat? {
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    let rows = min(image.height, Int(maxPoints * scale))
+    for y in 0..<rows {
+        for x in 0..<image.width {
+            guard let color = bitmap.colorAt(x: x, y: y) else { continue }
+            if color.redComponent > 0.5 && color.greenComponent < 0.3
+                && color.blueComponent < 0.35 {
+                return CGFloat(y) / scale
+            }
+        }
+    }
+    return nil
+}
+
 /// Render a publication-backed Songs list without mounting the active network tasks.
 ///
 /// - Parameters:
@@ -179,6 +204,13 @@ private func hostedSongsState(
         ).integral))
         let accents = nativeHostedStatusPixels(rowBand)
         #expect(accents.red > 10 && accents.gold == 0)
+    }
+    if scenario.name == "grouped-shop", SongsScreen.usesSectionBar {
+        // Issue #91: a Quick Links section title must keep its zero row insets and
+        // clear backing like the A–Z titles. Wrapped by the anchor, the List dropped
+        // them and the row grew to the default inset (first card at 33pt, not 25pt).
+        let cardTop = try #require(hostedFirstRedRow(image, maxPoints: 40, scale: scale))
+        #expect(cardTop < 29, "Leaving Tomorrow card starts at \(cardTop)pt")
     }
     let paths = await transport.recordedPaths()
     #expect(paths.contains("/api/songs"))

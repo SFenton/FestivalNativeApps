@@ -46,6 +46,7 @@ ScrollView { LazyVStack { ForEach(items) { card($0).quickLinkSection(section($0)
 
 - `QuickLinkSection(id:title:icon:depth:)` (Core). The icon is `.system("sf.symbol")` or `.instrument(Instrument)`. Reuse the web `id` strings.
 - `.quickLinkSection(_:)` / `.quickLinkSection(id:title:symbol:)`: apply it to the view a `ForEach` returns. It sets `.id` as the **outermost** modifier, so lazy stacks can scroll to sections they haven't built yet. It also reports the frame, registers the section for discovery, and adds a rotor entry.
+- **In a `List`, put the row traits outside it** (#91, 2026-10-02): apply `.listRowInsets`, `.listRowSeparator` and `.listRowBackground` *after* `.quickLinkSection(…)`. On the view inside it, the List ignored them: Songs' Duration, Year, Item Shop and Score titles got the default opaque black row backing, a separator and default insets on iOS 26, and the default insets on macOS. Regression: `SongsScreenHostedStatesTests` (`grouped-shop` first card top).
 - `.quickLinks(_:title:sections:activationOffset:)`: goes on the `ScrollView` or `List`. It wraps the view in a `ScrollViewReader`. Pass `sections:` for lazy containers (`LazyVStack`, `List`). Omit it for eager `VStack` pages, which then use sections discovered in tree order.
 - `QuickLinksToolbarItem(_:placement:)`: add it inside the page's own `.toolbar`. It coexists with `festivalRootChrome` and page actions. `QuickLinksMenu` is the same button for use outside a toolbar.
 - `QuickLinksController.jump(to:)` can be called from custom UI, such as an in-page link to a section.
