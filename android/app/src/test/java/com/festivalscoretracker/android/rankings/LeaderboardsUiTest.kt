@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -271,7 +272,19 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         // Web footer: only the player's row (no page-jump button, 7.9).
         waitForTag("fst.song-leaderboard.spotlight-footer")
         assertTrue(!exists("fst.song-leaderboard.spotlight-jump"))
+        // The pinned row shares the board's columns, so its score lines up with the rows above (issue #37).
+        val footerScore = scoreBounds("fst.song-leaderboard.spotlight-footer")
+        val rowScores = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag("fst.song-leaderboard.list")), useUnmergedTree = true)
+            .fetchSemanticsNodes().map { it.boundsInRoot }.filter { it.width > 0f }
+        assertTrue(rowScores.size > 1)
+        for (bounds in rowScores) {
+            assertEquals(footerScore.right, bounds.right, 0.5f)
+            assertEquals(footerScore.width, bounds.width, 0.5f)
+        }
     }
+
+    private fun scoreBounds(ancestor: String) = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag(ancestor)), useUnmergedTree = true)
+        .fetchSemanticsNodes().single().boundsInRoot
 
     @Test
     fun songLeaderboardRowsOpenPlayers() {
