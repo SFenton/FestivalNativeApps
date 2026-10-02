@@ -367,7 +367,7 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         CardHeader(instrument.label) { InstrumentIcon(instrument, size = 40.dp, decorative = true) }
         GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
                 LoadState.Loading -> RankingsSkeletonRows(5)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${instrument.label} rankings unavailable", current.countdown, { viewModel.retryCard(instrument) }, Modifier.padding(horizontal = 8.dp))
@@ -475,7 +475,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         CardHeader(bandType.label)
         GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
                 LoadState.Loading -> RankingsSkeletonRows(5)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))

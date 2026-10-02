@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.Dp
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
+import com.festivalscoretracker.android.ui.leaderboards.LEADERBOARD_ROW_MIN_HEIGHT
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
 import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import androidx.compose.ui.unit.dp
@@ -776,7 +777,7 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
         horizontalArrangement = Arrangement.spacedBy(plan.gap.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT)
             .padding(horizontal = 8.dp),
     ) {
         if (plan.rankWidth > 0f) {
@@ -847,7 +848,7 @@ private fun SeasonCell(season: Int?, width: Float) {
 private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan, weight: FontWeight, isSelected: Boolean, navigable: Boolean) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
         Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.widthIn(min = plan.rankWidth.dp).padding(end = 8.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

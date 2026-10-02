@@ -91,6 +91,15 @@ import com.festivalscoretracker.android.ui.common.isLargeText
 private val RatingBlue = Color(0xFF4C7DFF)
 
 /**
+ * Minimum height of every leaderboard row, its loading skeleton and pinned rows (web
+ * `Layout.entryRowHeight`, issue #90). A minimum, so large text still grows rows.
+ */
+internal val LEADERBOARD_ROW_MIN_HEIGHT = 48.dp
+
+/** Vertical gap between the rows of a Leaderboards overview card (skeleton and loaded). */
+internal val LEADERBOARD_ROW_GAP = 2.dp
+
+/**
  * Fixed column widths shared by every row of one board or card, so the selected
  * player's row (inline or pinned below) lines up with the rest (web `RankingEntry`
  * `rankWidth` / reserved score width; operator batch 7, 7.9).
@@ -214,7 +223,7 @@ private fun RankingRowLayout(
     val shape = RoundedCornerShape(10.dp)
     var rowModifier = modifier
         .fillMaxWidth()
-        .heightIn(min = 48.dp)
+        .heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT)
         .clip(shape)
     // Same selected-player treatment as the song boards (web `playerEntryRow`, 7.7).
     if (isSelected) rowModifier = rowModifier.background(BrandTokens.purpleHighlight).border(BorderStroke(1.dp, BrandTokens.purpleHighlightBorder), shape)
@@ -369,22 +378,26 @@ fun RowSeparator(modifier: Modifier = Modifier) {
 // region Placeholders
 
 /**
- * Static skeleton rows (no shimmer, so no per-frame work while loading).
+ * Static skeleton rows (no shimmer, so no per-frame work while loading). Each row has the
+ * loaded rows' height, inset and gap, so rows don't jump when data arrives (issue #90).
  *
  * @param count Rows.
  */
 @Composable
 fun RankingsSkeletonRows(count: Int) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp)
             .testTag("fst.rankings.skeleton")
             .clearAndSetSemantics { contentDescription = "Loading rankings" },
     ) {
         repeat(count) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = 8.dp),
+            ) {
                 SkeletonBar(32)
                 SkeletonBar(128)
                 Spacer(Modifier.weight(1f))
@@ -416,7 +429,7 @@ fun SpotlightLoadingRow(tag: String) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
+            .heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT)
             .padding(horizontal = 8.dp)
             .testTag(tag)
             .clearAndSetSemantics { contentDescription = "Loading your rank" },
