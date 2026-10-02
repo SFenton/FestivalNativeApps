@@ -365,7 +365,8 @@ public protocol HTTPTransport: Sendable {
 
 /// Production URLSession transport that explicitly bypasses the platform cache.
 public struct URLSessionHTTPTransport: HTTPTransport {
-    private let session: URLSession
+    /// Internal so the feedback upload (`FestivalAPI+Feedback.swift`) reuses this session.
+    let session: URLSession
 
     /// Create a transport with neither a disk nor an in-memory HTTP cache.
     public init() {
