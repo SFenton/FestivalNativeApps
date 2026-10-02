@@ -47,7 +47,7 @@ import FestivalDesign
     defer { defaults.removePersistentDomain(forName: suite) }
     defaults.set(SongSortMode.shop.rawValue, forKey: SongsPresetStore.sortModeKey)
     defaults.set(false, forKey: SongsPresetStore.sortAscendingKey)
-    defaults.set(true, forKey: SongsPresetStore.filterInShopKey)
+    defaults.set(true, forKey: SongGeneralFilter.legacyInShopKey)
     defaults.set(
         try SongPlayerScoreFilter(hasScores: [.bass]).encoded(), forKey: SongPlayerScoreFilter.storageKey
     )
@@ -59,7 +59,10 @@ import FestivalDesign
     let reloaded = SongsPresetStore.load(from: defaults, instrument: saved.instrument)
     #expect(reloaded == saved)
     #expect(reloaded.playerFilter == SongPlayerScoreFilter(hasScores: [.bass], hasFCs: [.lead]))
-    #expect(reloaded.sortMode == .score && reloaded.sortAscending && reloaded.filterInShop)
+    #expect(reloaded.sortMode == .score && reloaded.sortAscending)
+    // The legacy In Shop toggle migrated into the General filter and was retired.
+    #expect(reloaded.generalFilter == SongGeneralFilter(shop: .availableOnly))
+    #expect(defaults.object(forKey: SongGeneralFilter.legacyInShopKey) == nil)
 }
 
 @MainActor

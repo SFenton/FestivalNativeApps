@@ -241,8 +241,9 @@ struct FirstRunNativeSortDemo: View {
 struct FirstRunNativeFilterDemo: View {
     var body: some View {
         SongsFilterSheet(
-            applied: SongShopFilter(inShop: true, leavingTomorrow: false),
-            showShop: true, shopAvailable: true, profileAvailable: true,
+            appliedGeneral: SongGeneralFilter(shop: .availableOnly),
+            showShop: true, shopAvailable: true,
+            availableDecades: [1970, 1980, 1990, 2000, 2010, 2020],
             appliedInstrument: .lead, selectedPlayer: true, scoreAvailable: true
         ) { _, _, _ in }
             .frame(height: 460, alignment: .top)

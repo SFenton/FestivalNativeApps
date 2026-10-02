@@ -89,7 +89,7 @@ final class SongsChromeJourneyTests: XCTestCase {
     @MainActor
     func testToolsAnchorInTheBarWhileScrolled() throws {
         continueAfterFailure = false
-        try assertToolsAnchorInTheBar(profile: false, tools: ["fst.songs.sort"])
+        try assertToolsAnchorInTheBar(profile: false, tools: ["fst.songs.sort", "fst.songs.filter"])
         try assertToolsAnchorInTheBar(profile: true, tools: ["fst.songs.sort", "fst.songs.filter"])
     }
 
