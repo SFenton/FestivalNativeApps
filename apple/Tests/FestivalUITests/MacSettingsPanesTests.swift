@@ -87,7 +87,12 @@ func macSettingsPaneShowsOnlyItsSettings(_ pane: SettingsPane) async throws {
         let (host, window) = paneHost(pane)
         defer { window.orderOut(nil) }
         let image = try await nativeHostedSettle(host, untilText: [title])
-        assertRendersContent(host, image: image, containing: [title], notContaining: ["Show Instruments"])
+        // Before its first read the Service pane shows only the state row (web parity, #22),
+        // so its glyph ink on the tall canvas sits under the default floor.
+        assertRendersContent(
+            host, image: image, minimumInkFraction: pane == .service ? 0.001 : 0.002,
+            containing: [title], notContaining: ["Show Instruments"]
+        )
     }
 }
 
