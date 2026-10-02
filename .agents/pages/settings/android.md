@@ -20,7 +20,7 @@
 
 | Section (quick-link id) | Controls (`fst.settings.*`) | Notes |
 |---|---|---|
-| App Settings (`app-settings`) | `show-instrument-icons`, `enable-visual-order`, `song-row-order.<i>.up/down` (only visible metadata; hidden keys keep their place at the end, as on the web), `path-default-view.image/text`, `path-column-order.<i>.up/down`, `filter-invalid-scores`, `leeway` (M3 `Slider`, −5…+5, 99 steps, commits on release), `experimental-ranks` (disabled, "Not available on Android yet"; sanitized off) | Consumers read `AppSettings`; this page only writes |
+| App Settings (`app-settings`) | `show-instrument-icons`, `enable-visual-order`, `song-row-order.<i>.up/down` (only visible metadata; hidden keys keep their place at the end, as on the web), `path-default-view.image/text`, `path-column-order.<i>.up/down`, `filter-invalid-scores`, `leeway` (M3 `Slider`, −5…+5, 99 steps, commits on release), `experimental-ranks` (disabled, "Not available on Android yet"; sanitized off), then `feedback.bug` / `feedback.feature` (Report an Issue / Request a Feature; shown only when `/api/features` reports `feedback: true`; see [feedback-form](../../controls/feedback-form/android.md)) | Consumers read `AppSettings`; this page only writes |
 | Diagnostics (`diagnostics`, debug builds only) | `tap-diagnostics`, `tap-telemetry` (disabled until diagnostics; turning diagnostics off clears it) | No collector reads them yet |
 | Item Shop (`item-shop`) | `disable-shop-highlighting` (disabled while hidden; value retained), `hide-shop` | `AppSettings.shopHighlightEnabled` is the effective flag |
 | Show Instruments (`show-instruments`) | `instrument.<wireId>` | The last visible chart is disabled with a reason |
