@@ -112,3 +112,4 @@ both `.xcresult` bundles to the gate — no single combined command yet.
 | Identity leaks between tests | Every `XCUIApplication` comes from the shared helper that sets `FST_UI_TEST_CLEAR_PROFILE=1`; only the explicit cold-relaunch test removes it |
 | iPad grouped-header frames span both panes | Measure visible text at the detail pane's X; focus bounds stay unverified |
 | Main-thread hang after a split-view toggle | Sample the app PID; compare against a clean baseline worktree before blaming the test |
+| Stall timings look bad only under XCUITest | Each element query snapshots the accessibility tree on the app's main thread (100–350 ms on Songs). Measure hangs with the Debug stall log while the runner idles: the app drives itself (`FST_DEBUG_SONGS_SCROLL_STRESS`) and the test reads the report ([Songs iOS](../../pages/songs/ios.md)) |
