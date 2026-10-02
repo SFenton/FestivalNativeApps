@@ -52,6 +52,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
@@ -149,6 +150,7 @@ fun ShopScreen(
     onRetry: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showFilter by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compact = maxWidth < COMPACT_WIDTH
         val effective = if (compact) ShopViewMode.List else viewMode
@@ -156,6 +158,15 @@ fun ShopScreen(
             title = "Item Shop",
             isRoot = false,
             actions = {
+                if (!state.hidden) {
+                    IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.shop.filter.open")) {
+                        Icon(
+                            Icons.Filled.FilterList,
+                            contentDescription = "Filter Item Shop",
+                            tint = if (state.filter.isActive) BrandTokens.gold else BrandTokens.textPrimary,
+                        )
+                    }
+                }
                 if (!compact && !state.hidden) {
                     val next = if (effective == ShopViewMode.Grid) ShopViewMode.List else ShopViewMode.Grid
                     IconButton(onClick = { onViewMode(next) }, modifier = Modifier.testTag("fst.shop.view-toggle")) {
@@ -179,11 +190,14 @@ fun ShopScreen(
                     // fade/stagger again (web `useViewTransition`, operator 6.10).
                     is LoadState.Loaded -> key(effective) {
                         val switched = rememberViewSwitch(effective)
-                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, padding, loadedRevealed && switched)
+                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched)
                     }
                 }
             }
         }
+    }
+    if (showFilter && !state.hidden) {
+        ShopFilterSheet(state.filter, onChange = viewModel::setFilter, onDismiss = { showFilter = false })
     }
 }
 
@@ -242,6 +256,7 @@ private fun ShopContent(
     mode: ShopViewMode,
     artworkUrl: (String?) -> String?,
     onRetryCatalog: () -> Unit,
+    onResetFilter: () -> Unit,
     padding: PaddingValues,
     revealed: Boolean,
 ) {
@@ -259,7 +274,7 @@ private fun ShopContent(
     if (state.offers.isEmpty()) {
         Column(Modifier.fillMaxSize().padding(contentPadding)) {
             header()
-            EmptyShop(Modifier.weight(1f))
+            if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
         }
         return
     }
@@ -303,6 +318,24 @@ private fun EmptyShop(modifier: Modifier = Modifier) {
         modifier.fillMaxSize().testTag("fst.shop.empty"),
         subtitle = "Check back later — the shop updates regularly.",
     )
+}
+
+/**
+ * Every offer is hidden by the page filter: distinct from the genuine empty Shop, with a way back.
+ *
+ * @param onReset Clear the filter.
+ */
+@Composable
+private fun NoMatchingOffers(onReset: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.fillMaxSize().padding(24.dp).testTag("fst.shop.filter.empty"),
+    ) {
+        Text("No Matching Songs", style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
+        Text("No Item Shop songs match your filters.", color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
+        OutlinedButton(onClick = onReset, modifier = Modifier.testTag("fst.shop.filter.empty-reset")) { Text("Reset Filters") }
+    }
 }
 
 @Composable

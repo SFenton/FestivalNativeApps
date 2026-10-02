@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -253,6 +255,48 @@ class SongsUiTest {
         val failing = transport().apply { on("/api/shop", status = 500) { "{}" } }
         launch(DebugLaunch(route = ShopRoute, stillBackground = true), transport = failing)
         waitForTag("fst.shop.error")
+    }
+
+    @Test
+    fun shopFilterSheetFiltersListAndKeepsStateWhenReopened() {
+        launch(DebugLaunch(route = ShopRoute, stillBackground = true))
+        waitForTag("fst.shop.song.s-alpha")
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.new")
+        click("fst.shop.filter.new")
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.shop.song.s-alpha").fetchSemanticsNodes().isEmpty() }
+        assertTrue(rule.onAllNodesWithTag("fst.shop.song.s-x").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.shop.song.s-beta").assertExists()
+        click("fst.shop.filter.done")
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.shop.filter.new").fetchSemanticsNodes().isEmpty() }
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.new")
+        rule.onNodeWithTag("fst.shop.filter.new").assertIsOn()
+        rule.onNodeWithTag("fst.shop.filter.available").assertIsOff()
+        click("fst.shop.filter.available")
+        waitForTag("fst.shop.song.s-x")
+        click("fst.shop.filter.reset")
+        waitForTag("fst.shop.song.s-alpha")
+        rule.onNodeWithTag("fst.shop.filter.new").assertIsOff()
+    }
+
+    @Test
+    fun shopFilterWithNoMatchesOffersReset() {
+        val plain = transport().apply {
+            on("/api/shop", headers = mapOf("X-FST-Publication-Id" to "7")) {
+                """{"count":1,"songs":[{"songId":"s-alpha","title":"Alpha Tune","artist":"Band One","shopUrl":"https://www.fortnite.com/item-shop/jam-tracks/alpha"}]}"""
+            }
+        }
+        launch(DebugLaunch(route = ShopRoute, stillBackground = true), transport = plain)
+        waitForTag("fst.shop.song.s-alpha")
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.leaving")
+        click("fst.shop.filter.leaving")
+        click("fst.shop.filter.done")
+        waitForTag("fst.shop.filter.empty")
+        assertTrue(rule.onAllNodesWithTag("fst.shop.empty").fetchSemanticsNodes().isEmpty())
+        click("fst.shop.filter.empty-reset")
+        waitForTag("fst.shop.song.s-alpha")
     }
 
     @Test
