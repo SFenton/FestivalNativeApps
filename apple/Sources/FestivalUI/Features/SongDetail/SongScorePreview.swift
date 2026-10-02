@@ -282,7 +282,7 @@ struct SongScorePreview: View {
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
-        .frame(minHeight: 48)
+        .frame(minHeight: LeaderboardRowMetrics.minHeight)
         .modifier(RankingRowSurface(isSelected: highlighted))
         .contentShape(Rectangle())
         if let route {

@@ -193,7 +193,8 @@ struct RankingRowLayout: View {
         }
         .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, 8)
-        .frame(minHeight: 44)
+        // The web's 48 pt `entryRow`, like every other leaderboard row (issue #90).
+        .frame(minHeight: LeaderboardRowMetrics.minHeight)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .modifier(HiddenSongsAccessibility(spokenSongs: hidesSongs ? spokenSongs : nil))
@@ -532,7 +533,8 @@ struct BandRankingRow: View {
 // MARK: - Skeleton
 
 /// Redacted placeholder rows shown while a rankings request is in flight; glass
-/// rows where the loaded rows are glass.
+/// rows where the loaded rows are glass, at the loaded rows' height so nothing jumps
+/// when the data arrives (issue #90).
 struct RankingsSkeletonRows: View {
     let count: Int
     /// Match glass rows (Leaderboards) instead of plain rows inside a card.
@@ -549,7 +551,7 @@ struct RankingsSkeletonRows: View {
                 }
                 .foregroundStyle(BrandTokens.surfaceMuted)
                 .padding(.horizontal, glassRows ? 14 : 0)
-                .frame(minHeight: glassRows ? 44 : nil)
+                .frame(minHeight: glassRows ? LeaderboardRowMetrics.minHeight : nil)
                 .modifier(RankingRowSurface(isSelected: false, glass: glassRows))
             }
         }

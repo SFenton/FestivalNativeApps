@@ -50,18 +50,25 @@ struct SongBandLeaderboardScreen: View {
                 }
             case let .loaded(payload):
                 VStack(spacing: 0) {
-                    List {
-                        if payload.leaderboard.entries.isEmpty {
-                            Text("No \(bandType.label.lowercased()) scores yet.")
-                                .foregroundStyle(FestivalText.primary)
-                                .listRowBackground(Color.clear)
+                    // The same band card as the Song Detail previews (web `PlayerBandCard`
+                    // on both pages, issue #90), each row its own glass card. A
+                    // `ScrollView`, not a `List`: the cards are `NavigationLink`s, and a
+                    // `List` would draw a second disclosure chevron outside each card.
+                    ScrollView {
+                        LazyVStack(spacing: 6) {
+                            if payload.leaderboard.entries.isEmpty {
+                                Text("No \(bandType.label.lowercased()) scores yet.")
+                                    .foregroundStyle(FestivalText.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            ForEach(payload.leaderboard.entries) { entry in
+                                SongBandPreviewRow(entry: entry, highlighted: false)
+                                    .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                            }
                         }
-                        ForEach(payload.leaderboard.entries) { entry in
-                            SongBandLeaderboardRow(entry: entry)
-                                .listRowBackground(BrandTokens.cardBackground)
-                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
-                    .scrollContentBackground(.hidden)
                     .rankingsListRailClearance(layout)
                     RankingsPagerView(
                         page: page, totalPages: payload.leaderboard.pageCount,
@@ -130,68 +137,5 @@ struct SongBandLeaderboardScreen: View {
             guard requested == requestKey else { return }
             state = .failed(ServiceIssue(error))
         }
-    }
-}
-
-// MARK: - Row
-
-/// One band score row: rank, member names with instruments, and the team's score,
-/// star count and accuracy, matching the web client's `SongBandScoreFooter`.
-struct SongBandLeaderboardRow: View {
-    let entry: SongBandLeaderboardEntry
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        NavigationLink(
-            value: AppRoute.band(
-                bandId: entry.bandId, name: entry.membersLabel,
-                bandType: entry.bandType, teamKey: entry.teamKey
-            )
-        ) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top, spacing: 8) {
-                    Text("#\(entry.rank.formatted())")
-                        .font(.body)
-                        .monospacedDigit()
-                        .foregroundStyle(FestivalText.primary)
-                        .frame(minWidth: 32, alignment: .trailing)
-                    Text(entry.membersLabel)
-                        .font(.body)
-                        .foregroundStyle(FestivalText.primary)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(entry.score.formatted())
-                        .font(.body.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(FestivalText.primary)
-                }
-                HStack(spacing: 12) {
-                    ForEach(entry.members) { member in
-                        HStack(spacing: 4) {
-                            ForEach(member.chartedInstruments) { instrument in
-                                InstrumentIcon(instrument, size: 20)
-                            }
-                        }
-                    }
-                    Spacer(minLength: 8)
-                    if entry.isFullCombo {
-                        Text("FC")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(FestivalText.primary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6).stroke(BrandTokens.gold, lineWidth: 1.5)
-                            )
-                    }
-                    if entry.stars > 0 {
-                        StarRating(stars: entry.stars)
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
-        }
-        .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
     }
 }

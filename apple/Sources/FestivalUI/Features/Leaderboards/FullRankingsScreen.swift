@@ -240,8 +240,9 @@ struct FullRankingsScreen: View {
                     .festivalGlass(.card, cornerRadius: 12)
                     .padding(.horizontal, 16)
                 } else {
+                    // The footer row's height, so it does not jump when the rank arrives.
                     RankingSpotlightLoadingRow()
-                        .padding(8)
+                        .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight)
                         .accessibilityIdentifier("fst.full-rankings.spotlight-footer.loading")
                 }
             case .unranked:
