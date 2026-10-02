@@ -29,6 +29,17 @@ struct SongScoreHistorySection: View {
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
 
+    /// Instrument the graph and list show; trails the selector while a swap fades (#31).
+    @State private var displayed: Instrument?
+    /// Opacity of the graph and best-scores list during an instrument swap.
+    @State private var contentOpacity: Double = 1
+    /// The running fade-out → swap → fade-in sequence, cancelled by a newer choice.
+    @State private var swap: Task<Void, Never>?
+    /// The card's measured content size (natural, before any pin).
+    @State private var cardSize: CGSize = .zero
+    /// The card height held while a swap runs, so the card keeps its size.
+    @State private var pinnedHeight: CGFloat?
+
     /// Scroll target id for deep links.
     static let anchor = "fst.song-detail.history"
 
@@ -38,9 +49,12 @@ struct SongScoreHistorySection: View {
         SongScoreHistoryModel.resolvedInstrument(preferred: instrument, available: available)
     }
 
+    private var reduceMotion: Bool { systemReduceMotion || appReduceMotion }
+
     var body: some View {
         if let shown {
-            let rows = SongScoreHistoryModel.chronological(entries, instrument: shown)
+            let current = displayed.flatMap { available.contains($0) ? $0 : nil } ?? shown
+            let rows = SongScoreHistoryModel.chronological(entries, instrument: current)
             let list = SongScoreHistoryModel.bestFirst(rows, limit: expanded ? nil : SongScoreHistoryModel.listLimit)
             VStack(alignment: .leading, spacing: 8) {
                 FestivalSectionHeader("Score History", subtitle: "Select a bar to see more score details.")
@@ -53,34 +67,114 @@ struct SongScoreHistorySection: View {
                         identifier: "fst.song-detail.history.instrument"
                     )
                     ScoreHistoryChart(
-                        rows: rows, instrument: shown,
+                        rows: rows, instrument: current, chartWidth: cardSize.width,
+                        reservesPager: SongScoreHistoryModel.reservesPager(
+                            entries, instruments: available, chartWidth: Double(cardSize.width)
+                        ),
                         motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
                     )
-                    .id(shown)
+                    .id(current)
+                    .opacity(contentOpacity)
                 }
+                .onGeometryChange(for: CGSize.self, of: { CGSize(width: $0.size.width.rounded(), height: $0.size.height.rounded()) }) { size in
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { cardSize = size }
+                }
+                .frame(minHeight: pinnedHeight, alignment: .top)
                 .padding(14)
                 .festivalGlass(.card, cornerRadius: 16)
-                VStack(spacing: 6) {
-                    ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
-                        ScoreHistoryListRow(entry: entry, isBest: index == 0)
-                            .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
-                    }
-                }
-                if rows.count > SongScoreHistoryModel.listLimit {
-                    Button {
-                        withAnimation(systemReduceMotion || appReduceMotion ? nil : .easeOut(duration: 0.25)) {
-                            expanded.toggle()
+                Group {
+                    VStack(spacing: 6) {
+                        ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
+                            ScoreHistoryListRow(entry: entry, isBest: index == 0)
+                                .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                         }
-                    } label: {
-                        PurpleActionLabel(title: expanded ? "Show top scores" : "View all scores")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    if rows.count > SongScoreHistoryModel.listLimit {
+                        Button {
+                            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+                                expanded.toggle()
+                            }
+                        } label: {
+                            PurpleActionLabel(title: expanded ? "Show top scores" : "View all scores")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    }
                 }
+                .opacity(contentOpacity)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.anchor)
+            .onAppear {
+                if displayed == nil { displayed = shown }
+            }
+            .onChange(of: shown) { old, new in
+                switchInstrument(to: new, from: displayed ?? old)
+            }
+            .onDisappear {
+                swap?.cancel()
+                swap = nil
+            }
         }
+    }
+
+    // MARK: - Instrument swap
+
+    /// Fade the graph and list out, swap to `target`, then fade them back in, keeping the
+    /// card's height for the whole swap; a newer choice cancels the running swap (HIG
+    /// Motion: let people cancel animations rather than wait). Instant under Reduce Motion.
+    ///
+    /// - Parameters:
+    ///   - target: The selector's new instrument.
+    ///   - from: The instrument the graph shows now.
+    private func switchInstrument(to target: Instrument, from: Instrument) {
+        let still = Transaction(animation: nil).disablingAnimations()
+        switch ScoreHistorySwap.plan(displayed: from, target: target, reduceMotion: reduceMotion) {
+        case .none:
+            return
+        case .settle:
+            swap?.cancel()
+            swap = nil
+            withAnimation(.easeOut(duration: ScoreHistorySwap.fadeInSeconds)) { contentOpacity = 1 }
+            withTransaction(still) { pinnedHeight = nil }
+        case .instant:
+            swap?.cancel()
+            swap = nil
+            withTransaction(still) {
+                displayed = target
+                contentOpacity = 1
+                pinnedHeight = nil
+            }
+        case .fade:
+            swap?.cancel()
+            if pinnedHeight == nil, cardSize.height > 0 { pinnedHeight = cardSize.height }
+            swap = Task { @MainActor in
+                withAnimation(.easeIn(duration: ScoreHistorySwap.fadeOutSeconds)) { contentOpacity = 0 }
+                try? await Task.sleep(for: .seconds(ScoreHistorySwap.fadeOutSeconds))
+                guard !Task.isCancelled else { return }
+                withTransaction(still) { displayed = target }
+                // Every instrument's rows are already in memory: fade in once the new
+                // graph has had a pass to lay out.
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: ScoreHistorySwap.fadeInSeconds)) { contentOpacity = 1 }
+                try? await Task.sleep(for: .seconds(ScoreHistorySwap.fadeInSeconds))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: ScoreHistorySwap.fadeInSeconds)) { pinnedHeight = nil }
+                swap = nil
+            }
+        }
+    }
+}
+
+private extension Transaction {
+    /// This transaction with implicit animations (`.animation(_:value:)`) disabled too.
+    func disablingAnimations() -> Transaction {
+        var copy = self
+        copy.disablesAnimations = true
+        return copy
     }
 }
 
@@ -90,9 +184,13 @@ struct SongScoreHistorySection: View {
 private struct ScoreHistoryChart: View {
     let rows: [ScoreHistoryEntry]
     let instrument: Instrument
+    /// The card's measured width, shared across instruments so a new graph opens on its
+    /// final page size (and pager) instead of resizing on its first frame.
+    let chartWidth: CGFloat
+    /// Keep the pager row's space even when this instrument fits one page.
+    let reservesPager: Bool
     let motion: ChartMotion
 
-    @State private var chartWidth: CGFloat = 0
     /// Index of the oldest visible row; nil shows the newest page.
     @State private var start: Int?
     @State private var selectedIndex: Int?
@@ -118,10 +216,7 @@ private struct ScoreHistoryChart: View {
     }
 
     private var paging: RankHistoryPaging {
-        let plot = Double(max(0, chartWidth - 96))
-        return RankHistoryPaging(
-            count: rows.count, pageSize: chartWidth > 0 ? RankHistoryPaging.pageSize(forPlotWidth: plot) : rows.count
-        )
+        SongScoreHistoryModel.paging(count: rows.count, chartWidth: Double(chartWidth))
     }
 
     private var first: Int { paging.clamp(start ?? paging.latestStart) }
@@ -135,13 +230,12 @@ private struct ScoreHistoryChart: View {
         let visible = Array(all[range])
         VStack(spacing: 10) {
             chart(all, range: range)
-                .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) { chartWidth = width }
-                }
             legend(visible)
-            if paging.needsPagination { pager }
+            if paging.needsPagination {
+                pager
+            } else if reservesPager {
+                pager.hidden().accessibilityHidden(true)
+            }
             if let selectedIndex, all.indices.contains(selectedIndex) {
                 let selected = all[selectedIndex]
                 ScoreHistoryListRow(entry: selected.entry, isBest: false)
