@@ -101,7 +101,10 @@ struct RankingRowLayout: View {
     /// A trailing in-card chevron on rows that open something (operator batch 7.12).
     var showsChevron: Bool = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// Minimum rank column so `#1`…`#10` names line up (web `computeRankWidth`).
+    /// The section's shared rank/rating widths (web `computeRankWidth`, issue #37).
+    @Environment(\.leaderboardRowColumns) private var columns
+    /// Minimum rank column outside a fitted section (first-run demos), so `#1`…`#10`
+    /// names still line up.
     @ScaledMetric(relativeTo: .body) private var rankWidth: CGFloat = 40
 
     var body: some View {
@@ -120,14 +123,21 @@ struct RankingRowLayout: View {
                 }
             } else {
                 HStack(spacing: 10) {
-                    rankText
-                        .frame(minWidth: rankWidth, alignment: .leading)
+                    LeaderboardColumnSlot(template: columns?.rankLabel) { rankText }
+                        .frame(minWidth: columns == nil ? rankWidth : nil, alignment: .leading)
                     nameText
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     songsText
-                    ratingColumn
-                    if showsChevron { chevron }
+                    LeaderboardColumnSlot(template: columns?.ratingLabel, alignment: .trailing) {
+                        ratingColumn
+                    }
+                    if showsChevron {
+                        chevron
+                    } else if columns != nil {
+                        // Keep the rating column aligned with linked rows in the section.
+                        chevron.hidden()
+                    }
                 }
             }
         }

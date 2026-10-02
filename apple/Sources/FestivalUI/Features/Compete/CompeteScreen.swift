@@ -176,6 +176,8 @@ struct CompeteInstrumentLeaderboardSection: View {
                         )
                     }
                 }
+                // One rank and score width for the card (issue #37).
+                .leaderboardSectionColumns(.rankings(payload.rankings.entries, metric: .totalscore))
                 .festivalFadeIn(isLoaded: true)
                 NavigationLink(
                     value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")

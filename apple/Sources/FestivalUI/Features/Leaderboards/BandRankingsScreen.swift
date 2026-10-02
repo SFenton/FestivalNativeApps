@@ -77,6 +77,8 @@ struct BandRankingsScreen: View {
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
+                // One rank and rating width for the page (issue #37).
+                .leaderboardSectionColumns(.bandRankings(payload.rankings.entries, metric: rankBy))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

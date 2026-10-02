@@ -235,6 +235,14 @@ struct SongScorePreview: View {
                         )
                 }
             }
+            // One rank/score width for the top ten and the spotlight row (web
+            // `InstrumentCard`'s card-wide `computeRankWidth`), and the season column
+            // from the card width (issue #37).
+            .leaderboardSectionColumns(LeaderboardRowColumns.fit(
+                .topScores, width: Double(cardWidth),
+                ranks: (displayed + [spotlight].compactMap { $0 }).map(\.rank),
+                scores: (displayed + [spotlight].compactMap { $0 }).map(\.score)
+            ))
             .festivalFadeInOnAppear()
         }
     }
@@ -264,15 +272,14 @@ struct SongScorePreview: View {
         let content = HStack(spacing: 8) {
             SongLeaderboardEntryRow(
                 entry: entry, isPlayer: highlighted,
-                seasonColumn: ScoreRowSeasonPolicy.showsColumn(.topScores, width: Double(cardWidth)),
                 currentSeason: session.catalogCurrentSeason
             )
-            if route != nil {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
-            }
+            // Anonymous rows keep the chevron's width so their score column lines up.
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(FestivalText.deemphasized)
+                .opacity(route == nil ? 0 : 1)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .frame(minHeight: 48)
