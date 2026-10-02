@@ -138,11 +138,11 @@ class CommandTests(unittest.TestCase):
     """Debug shell commands are checked before they reach the app."""
 
     def test_accepts_known_commands(self):
-        for raw in ("back", " sort ", "select:2", "select:leaderboards", "route:player:abc"):
+        for raw in ("back", " sort ", "select:2", "select:leaderboards", "route:player:abc", "settings", "settings:paths"):
             self.assertEqual(validate_command(raw), raw.strip())
 
     def test_rejects_unknown_or_malformed(self):
-        for raw in ("explode", "select", "select:", "back:1", "route:"):
+        for raw in ("explode", "select", "select:", "back:1", "route:", "settings:"):
             with self.assertRaises(ValueError, msg=raw):
                 validate_command(raw)
 

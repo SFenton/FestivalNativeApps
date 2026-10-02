@@ -165,6 +165,9 @@ public struct MacRootView: View {
         case .sort: pageCommands?.sort?()
         case .filter: pageCommands?.filter?()
         case .settings: openSettings()
+        case let .settingsPane(pane):
+            UserDefaults.standard.set(pane.rawValue, forKey: SettingsPane.storageKey)
+            openSettings()
         case .dismiss:
             navigation.searchPresented = false
             navigation.profilePresented = false

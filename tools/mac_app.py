@@ -63,7 +63,7 @@ PROFILES = {"sfentonx": "195e93ef108143b2975ee46662d4d0e1:SFentonX"}
 #: Debug shell commands without an argument (`MacDebugCommand`).
 SIMPLE_COMMANDS = {"settings", "back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss"}
 #: Debug shell commands that take ``verb:argument``.
-ARGUMENT_COMMANDS = {"select", "route"}
+ARGUMENT_COMMANDS = {"select", "route", "settings"}
 
 #: Smallest content size a capture accepts as the main window (filters menus/tooltips).
 MIN_WINDOW_SIDE = 200
@@ -445,7 +445,7 @@ def validate_command(raw: str) -> str:
         return command
     if verb in ARGUMENT_COMMANDS and sep and arg:
         return command
-    raise ValueError(f"unknown command {raw!r}; use {sorted(SIMPLE_COMMANDS)} or select:/route:")
+    raise ValueError(f"unknown command {raw!r}; use {sorted(SIMPLE_COMMANDS)} or select:/route:/settings:")
 
 
 def cmd_command(args: argparse.Namespace) -> int:

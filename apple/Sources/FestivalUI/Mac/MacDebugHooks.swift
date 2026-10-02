@@ -114,6 +114,8 @@ enum MacDebugCommand: Equatable {
     /// `route:<FST_DEBUG_ROUTE syntax>`: push (or select) a route.
     case route(String)
     case back, refresh, search, profile, notifications, whatsNew, sort, filter, dismiss, settings
+    /// `settings:<pane>`: open the Settings window on a pane.
+    case settingsPane(SettingsPane)
 
     /// Parse command text.
     ///
@@ -140,6 +142,9 @@ enum MacDebugCommand: Equatable {
         case ("filter", 1): self = .filter
         case ("dismiss", 1): self = .dismiss
         case ("settings", 1): self = .settings
+        case ("settings", 2):
+            guard let pane = SettingsPane(rawValue: parts[1]) else { return nil }
+            self = .settingsPane(pane)
         default: return nil
         }
     }

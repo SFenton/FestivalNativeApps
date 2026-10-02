@@ -5,17 +5,23 @@ import FestivalDesign
 
 // MARK: - Settings window
 
-/// Content of the app's Settings window (App menu › Settings…, ⌘,).
+/// Content of the app's Settings window (App menu › Settings…, ⌘,): a toolbar of
+/// panes (General, Songs, Paths, Guides, Service, About) that restores the last pane.
 ///
-/// HIG Settings › macOS puts settings in the App menu and a separate window rather than
-/// the main window's navigation, so the web's Settings page is not a sidebar row here.
-/// The window reuses the shared Settings page (one long page, like the web) in its own
-/// stack so Licenses can open inside it.
+/// HIG Settings › macOS: "Choosing Settings from the App menu opens a window,
+/// typically a toolbar of related panes … title the window for its pane … restore the
+/// last pane." Each pane is a subset of the shared Settings page
+/// (``SettingsScreen/pane``) with the same settings and identifiers, in its own stack
+/// so Licenses opens inside About.
 public struct MacSettingsView: View {
     let model: MacAppModel
-    @State private var path: [AppRoute] = []
+    @AppStorage(SettingsPane.storageKey) private var storedPane = SettingsPane.general.rawValue
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @Environment(\.colorSchemeContrast) private var systemContrast
+
+    /// Settings window content size (points): wide enough for the readable 680 pt
+    /// form column's rows, tall enough for most panes without scrolling.
+    static let size = CGSize(width: 700, height: 620)
 
     /// Create the Settings window content.
     ///
@@ -24,19 +30,44 @@ public struct MacSettingsView: View {
         self.model = model
     }
 
+    private var selection: Binding<SettingsPane> {
+        Binding {
+            SettingsPane.restored(from: storedPane)
+        } set: { storedPane = $0.rawValue }
+    }
+
     public var body: some View {
-        MacStack(
-            session: model.session, visibleInstruments: Set(Instrument.allCases),
-            stackPath: $path, fullPath: $path, isVisible: true
-        ) {
-            SettingsScreen(session: model.session, isVisible: true)
+        TabView(selection: selection) {
+            ForEach(SettingsPane.allCases) { pane in
+                MacSettingsPaneView(session: model.session, pane: pane)
+                    .tabItem { Label(pane.title, systemImage: pane.symbol) }
+                    .tag(pane)
+                    .accessibilityIdentifier(pane.accessibilityIdentifier)
+            }
         }
-        .background(BrandTokens.appBackground)
-        .frame(minWidth: 560, idealWidth: 640, minHeight: 520, idealHeight: 760)
+        .frame(width: Self.size.width, height: Self.size.height)
         .tint(moreContrast || systemContrast == .increased ? BrandTokens.textPrimary : BrandTokens.accentBlue)
         .preferredColorScheme(.dark)
         .environment(\.festivalSession, model.session)
         .environment(\.shellOwnsGlobalToolbar, true)
+        .environment(\.settingsChoicesUsePopUpButtons, true)
+    }
+}
+
+/// One Settings pane in its own stack (Licenses pushes inside About).
+struct MacSettingsPaneView: View {
+    let session: FestivalSession
+    let pane: SettingsPane
+    @State private var path: [AppRoute] = []
+
+    var body: some View {
+        MacStack(
+            session: session, visibleInstruments: Set(Instrument.allCases),
+            stackPath: $path, fullPath: $path, isVisible: true
+        ) {
+            SettingsScreen(session: session, isVisible: true, pane: pane)
+        }
+        .background(BrandTokens.appBackground)
     }
 }
 #endif
