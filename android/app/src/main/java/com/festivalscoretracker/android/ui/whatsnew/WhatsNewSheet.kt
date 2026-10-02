@@ -32,7 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.whatsnew.Changelog
-import com.festivalscoretracker.android.core.whatsnew.ChangelogEntry
+import com.festivalscoretracker.android.core.whatsnew.WhatsNewBlock
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewGate
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -65,7 +65,7 @@ fun WhatsNewHost(controller: WhatsNewController, blocked: Boolean, compact: Bool
     if (shown != null) {
         WhatsNewSheet(
             title = WhatsNewGate.title(controller.version),
-            entries = Changelog.displayEntries(),
+            blocks = Changelog.displayBlocks(channel = controller.channel),
             compact = compact,
             onDismiss = { scope.launch { controller.dismiss() } },
         )
@@ -78,21 +78,21 @@ fun WhatsNewHost(controller: WhatsNewController, blocked: Boolean, compact: Bool
 
 /**
  * The native "What's New" changelog (web `ChangelogModal`, Apple `WhatsNewSheet`, Windows
- * What's New dialog): a titled, scrolling list of Title Case sections with bullets, the
- * shared header Close button and a centred Dismiss button in an opaque bottom bar the list
- * scrolls above.
+ * What's New dialog): a titled, scrolling list of version blocks, each with its notes under
+ * page-category subheadings (web changelog order, "Other" last), the shared header Close button
+ * and a centred Dismiss button in an opaque bottom bar the list scrolls above.
  *
  * Material presentation through the shared modal component: a full-height
  * [FestivalModalSheet] on compact windows (swipe down, back or a scrim tap also close it), a
  * [FestivalModalDialog] on wider windows (outside tap or back also close it).
  *
  * @param title "What's New · <version>".
- * @param entries Displayable entries ([Changelog.displayEntries]).
+ * @param blocks Displayable blocks ([Changelog.displayBlocks]).
  * @param compact Compact window width.
  * @param onDismiss Called once when closed in any way.
  */
 @Composable
-fun WhatsNewSheet(title: String, entries: List<ChangelogEntry>, compact: Boolean, onDismiss: () -> Unit) {
+fun WhatsNewSheet(title: String, blocks: List<WhatsNewBlock>, compact: Boolean, onDismiss: () -> Unit) {
     if (compact) {
         FestivalModalSheet(
             title = title,
@@ -101,7 +101,7 @@ fun WhatsNewSheet(title: String, entries: List<ChangelogEntry>, compact: Boolean
             onDismissRequest = onDismiss,
             modifier = Modifier.testTag("fst.whats-new.sheet"),
         ) {
-            WhatsNewContent(entries, onDismiss, Modifier.fillMaxHeight())
+            WhatsNewContent(blocks, onDismiss, Modifier.fillMaxHeight())
         }
     } else {
         FestivalModalDialog(
@@ -112,30 +112,42 @@ fun WhatsNewSheet(title: String, entries: List<ChangelogEntry>, compact: Boolean
             maxHeight = 640.dp,
             modifier = Modifier.testTag("fst.whats-new.sheet"),
         ) {
-            WhatsNewContent(entries, onDismiss, Modifier)
+            WhatsNewContent(blocks, onDismiss, Modifier)
         }
     }
 }
 
 @Composable
-private fun ColumnScope.WhatsNewContent(entries: List<ChangelogEntry>, onClose: () -> Unit, modifier: Modifier) {
+private fun ColumnScope.WhatsNewContent(blocks: List<WhatsNewBlock>, onClose: () -> Unit, modifier: Modifier) {
     Column(modifier.weight(1f, fill = false).fillMaxWidth()) {
-        val sections = entries.flatMap { it.sections }
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
             modifier = Modifier.weight(1f, fill = false).fillMaxWidth().testTag("fst.whats-new.list"),
         ) {
-            itemsIndexed(sections, key = { index, section -> "$index-${section.title}" }) { index, section ->
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.testTag("fst.whats-new.section.$index")) {
+            itemsIndexed(blocks, key = { index, block -> "$index-${block.title}" }) { index, block ->
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.testTag("fst.whats-new.section.$index")) {
                     Text(
-                        section.displayTitle,
+                        block.title,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = BrandTokens.textPrimary,
                         modifier = Modifier.semantics { heading() },
                     )
-                    section.items.forEach { Bullet(it) }
+                    block.groups.forEachIndexed { groupIndex, group ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.whats-new.group.$index.$groupIndex")) {
+                            if (block.headed) {
+                                Text(
+                                    group.displayTitle,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = BrandTokens.textSecondary,
+                                    modifier = Modifier.semantics { heading() },
+                                )
+                            }
+                            group.items.forEach { Bullet(it) }
+                        }
+                    }
                 }
             }
         }

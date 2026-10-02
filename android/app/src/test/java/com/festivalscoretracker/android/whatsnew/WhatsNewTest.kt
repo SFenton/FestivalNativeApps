@@ -10,15 +10,20 @@ import com.festivalscoretracker.android.core.settings.ResetPolicy
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.core.whatsnew.Changelog
 import com.festivalscoretracker.android.core.whatsnew.ChangelogEntry
+import com.festivalscoretracker.android.core.whatsnew.ChangelogGroup
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSection
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenRecord
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenStore
+import com.festivalscoretracker.android.core.whatsnew.InstallChannel
+import com.festivalscoretracker.android.core.whatsnew.TesterNotes
+import com.festivalscoretracker.android.core.whatsnew.WhatsNewBlock
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewGate
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewMode
 import com.festivalscoretracker.android.presentation.firstrun.FirstRunCenter
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewPresentation
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -116,6 +121,108 @@ class WhatsNewTest {
         assertEquals(Changelog.entries, Changelog.displayEntries())
         val versioned = listOf(ChangelogEntry(listOf(ChangelogSection("Version 2610.01.02", listOf("Kept.", "Manual gone."))), "2610.01.02", false))
         assertEquals(listOf(ChangelogEntry(listOf(ChangelogSection("Version 2610.01.02", listOf("Kept."))), "2610.01.02", false)), Changelog.displayEntries(versioned))
+    }
+
+    // endregion
+
+    // region Groups and tester notes
+
+    private val groupedDocument = """
+        {"schema": 1, "platform": "android", "version": "2610.02.02", "baseline": "2610.01.03",
+         "entries": [
+          {"version": "2610.02.02", "released": false,
+           "items": ["Songs: Rows load faster.", "Rivals: Lists refresh.", "A loose note."],
+           "groups": [{"category": "Songs", "items": ["Rows load faster."]},
+                      {"category": "Rivals", "items": ["Lists refresh.", "See the Manual."]},
+                      {"category": null, "items": ["A loose note."]}, 5, {"category": "Bands", "items": []}],
+           "testflight": {"since": "2610.02.01", "new": ["Songs: Rows load faster."], "release": "2610.01.03",
+                          "vs_release": ["Songs: Rows load faster.", "Songs: Filter fixed.", "General: Polish."],
+                          "groups": [{"category": "Songs", "items": ["Rows load faster.", "Filter fixed."]},
+                                     {"category": "General", "items": ["Polish."]}]}},
+          {"version": "2610.01.03", "released": true, "items": ["The first release."]}
+         ]}
+    """.trimIndent()
+
+    @Test
+    fun decodesGroupsAndTesterNotesVerbatim() {
+        val entries = Changelog.decode(groupedDocument)
+        assertEquals(
+            listOf(
+                ChangelogGroup("Songs", listOf("Rows load faster.")),
+                ChangelogGroup("Rivals", listOf("Lists refresh.", "See the Manual.")),
+                ChangelogGroup(null, listOf("A loose note.")),
+            ),
+            entries[0].groups,
+        )
+        assertEquals(
+            TesterNotes("2610.01.03", listOf(ChangelogGroup("Songs", listOf("Rows load faster.", "Filter fixed.")), ChangelogGroup("General", listOf("Polish.")))),
+            entries[0].tester,
+        )
+        // No groups in the document: the flat items become one uncategorized group (never re-classified).
+        assertEquals(listOf(ChangelogGroup(null, listOf("The first release."))), entries[1].groups)
+        assertNull(entries[1].tester)
+        // The show-once hash still follows the release items only.
+        assertEquals(
+            Changelog.hash(entries.map { it.copy(groups = emptyList(), tester = null) }),
+            Changelog.hash(entries),
+        )
+    }
+
+    @Test
+    fun testerFallsBackToVsReleaseAndIsBounded() {
+        val fallback = Changelog.decode(
+            """{"entries":[{"version":"1","items":["a"],"testflight":{"release":null,"vs_release":["Songs: x"," "]}}]}""",
+        ).single().tester
+        assertEquals(TesterNotes(null, listOf(ChangelogGroup(null, listOf("Songs: x")))), fallback)
+        assertEquals("Changes So Far", fallback!!.title)
+        assertNull(Changelog.decode("""{"entries":[{"version":"1","items":["a"],"testflight":{"vs_release":[]}}]}""").single().tester)
+        val many = (0 until 30).joinToString(",") { """{"category":"${"C".repeat(50)}$it","items":[${(0 until 10).joinToString(",") { "\"n\"" }}]}""" }
+        val tester = Changelog.decode("""{"entries":[{"version":"1","items":["a"],"testflight":{"groups":[$many]}}]}""").single().tester!!
+        assertEquals(Changelog.MAX_TESTER_ITEMS, tester.groups.sumOf { it.items.size })
+        assertTrue(tester.groups.size <= Changelog.MAX_GROUPS)
+        assertEquals(Changelog.MAX_CATEGORY_LENGTH, tester.groups[0].category!!.length)
+        val groups = Changelog.decodeGroups(Json.parseToJsonElement("""[{"category":"","items":["x"]},{"items":["y"]}]"""), 1)
+        assertEquals(listOf(ChangelogGroup(null, listOf("x"))), groups)
+    }
+
+    @Test
+    fun displayBlocksPickTheChannelsNotesWithCategoryHeadings() {
+        val entries = Changelog.decode(groupedDocument)
+        val store = Changelog.displayBlocks(entries, InstallChannel.Store)
+        assertEquals(listOf("Version 2610.02.02", "Version 2610.01.03"), store.map { it.title })
+        // Manual bullets are dropped; empty groups vanish; uncategorized notes come last under "Other".
+        assertEquals(listOf("Songs", "Rivals", "Other"), store[0].groups.map { it.displayTitle })
+        assertEquals(listOf("Lists refresh."), store[0].groups[1].items)
+        assertTrue(store[0].headed)
+        // Without any category there are no headings (TestFlight's rule).
+        assertFalse(store[1].headed)
+        val tester = Changelog.displayBlocks(entries, InstallChannel.Tester)
+        assertEquals(listOf("Changes Since Release 2610.01.03", "Version 2610.01.03"), tester.map { it.title })
+        assertEquals(listOf("Rows load faster.", "Filter fixed.", "Polish."), tester[0].groups.flatMap { it.items })
+        // Entries without groups (older documents, the placeholder) keep their release bullets for both channels.
+        assertEquals(
+            listOf(WhatsNewBlock("Version 2610.01.01", listOf(ChangelogGroup(null, listOf("The first release of Festival Score Tracker for Android."))))),
+            Changelog.displayBlocks(channel = InstallChannel.Tester),
+        )
+        val manual = listOf(ChangelogEntry(listOf(ChangelogSection("MANUAL", listOf("x")))), ChangelogEntry(listOf(ChangelogSection("Version 1", listOf("Manual only.")))))
+        assertEquals(emptyList<WhatsNewBlock>(), Changelog.displayBlocks(manual, InstallChannel.Store))
+    }
+
+    @Test
+    fun installChannelComesFromTheInstallerWithADebugOverride() {
+        assertEquals(InstallChannel.Store, InstallChannel.fromInstaller("com.android.vending"))
+        for (other in listOf(null, "", "com.google.android.packageinstaller", "com.amazon.venezia", "adb")) {
+            assertEquals(other, InstallChannel.Tester, InstallChannel.fromInstaller(other))
+        }
+        assertEquals(InstallChannel.Store, InstallChannel.resolve(null, debugBuild = false) { "com.android.vending" })
+        assertEquals(InstallChannel.Tester, InstallChannel.resolve(null, debugBuild = false) { error("no install source") })
+        // The override works in debug launches only, and an unknown value falls back to the installer.
+        assertEquals(InstallChannel.Tester, InstallChannel.resolve("tester", debugBuild = true) { "com.android.vending" })
+        assertEquals(InstallChannel.Store, InstallChannel.resolve("STORE", debugBuild = true) { null })
+        assertEquals(InstallChannel.Store, InstallChannel.resolve("tester", debugBuild = false) { "com.android.vending" })
+        assertEquals(InstallChannel.Tester, InstallChannel.resolve("bogus", debugBuild = true) { null })
+        assertEquals("store", DebugLaunch.parse(mapOf("FST_DEBUG_DISTRIBUTION" to "store")).distribution)
+        assertEquals(InstallChannel.Store, WhatsNewController(ChangelogSeenStore(MemoryBlobStore()), center(), WhatsNewMode.Off, "1").channel)
     }
 
     // endregion

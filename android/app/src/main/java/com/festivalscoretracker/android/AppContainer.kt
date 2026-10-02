@@ -27,8 +27,10 @@ import com.festivalscoretracker.android.data.suggestions.SuggestionFilterStore
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileStore
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenStore
+import com.festivalscoretracker.android.core.whatsnew.InstallChannel
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewMode
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
+import com.festivalscoretracker.android.presentation.whatsnew.installerPackage
 import okhttp3.OkHttpClient
 
 // region Container
@@ -92,6 +94,7 @@ class AppContainer(
         firstRun,
         WhatsNewMode.parse(launch.whatsNew, BuildConfig.DEBUG_LAUNCH),
         BuildConfig.VERSION_NAME,
+        InstallChannel.resolve(launch.distribution, BuildConfig.DEBUG_LAUNCH) { installerPackage(context) },
     )
 
     /** Per-account notification seen-state. */
