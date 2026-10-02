@@ -14,7 +14,8 @@ import FestivalDesign
 /// - loads the catalogue for the carousel when no page has (e.g. launching on
 ///   Leaderboards or a deep link),
 /// - runs the one `ArtworkCarouselEngine` under the full artwork policy
-///   (Reduce Motion, Low Data/Power, inactive scene, in-app toggles),
+///   (Reduce Motion, Low Data/Power, inactive scene, in-app toggles) and pauses
+///   it while a sheet covers the page (`FestivalSheetCoverage`),
 /// - turns the coordinator's resolved page mode into song-cover transitions:
 ///   like the web's `BackgroundImage`, the cover fades in over the animated
 ///   background (300 ms CSS `ease`) once decoded, holds still while the
@@ -61,7 +62,8 @@ struct FestivalBackgroundHost: View {
                 for: geometry.size, displayScale: displayScale
             )
             let carouselPolicy = policy(
-                visible: coordinator.carouselVisible,
+                visible: coordinator.carouselVisible
+                    && !FestivalSheetCoverage.shared.isCovered,
                 artCount: session.artworkPaths.count
             )
             let coverPolicy = policy(visible: true, artCount: 1)

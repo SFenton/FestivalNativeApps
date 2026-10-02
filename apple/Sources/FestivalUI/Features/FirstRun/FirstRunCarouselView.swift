@@ -37,6 +37,7 @@ struct FirstRunCarouselView: View {
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
                         FirstRunSlideView(page: page, slide: slide)
+                            .environment(\.firstRunSlideActive, position == index)
                             .accessibilityFocused($focusedSlide, equals: position)
                             .tag(position)
                     }
@@ -199,6 +200,7 @@ private struct FirstRunSheetStyle: ViewModifier {
             .modifier(background)
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
+            .pausesFestivalBackdrop()
     }
 
     private var background: FirstRunSheetBackground {
