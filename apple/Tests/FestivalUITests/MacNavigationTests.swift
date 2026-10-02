@@ -101,6 +101,9 @@ private let player = AppRoute.player(accountId: "p1", displayName: "P")
     #expect(MacLayoutPolicy.widthClass(forWidth: 720) == .regular)
     #expect(MacLayoutPolicy.listColumn.min + MacLayoutPolicy.detailMinimumWidth
         <= MacLayoutPolicy.splitMinimumWidth)
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 820) == 340)
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060) == 1060 * 0.38)
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 3000) == 560)
 }
 
 // MARK: - Navigation model

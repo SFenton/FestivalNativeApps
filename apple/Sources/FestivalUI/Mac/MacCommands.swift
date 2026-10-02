@@ -76,7 +76,7 @@ public struct MacCommands: Commands {
                 .disabled(sheetOpen)
         }
         CommandGroup(before: .sidebar) {
-            Button("Refresh") { navigation.refresh() }
+            Button("Refresh") { model.refresh() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(sheetOpen)
             Divider()

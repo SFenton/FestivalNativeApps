@@ -25,7 +25,7 @@ Code: `apple/Apps/macOS/FestivalDesktopApp.swift` (scenes) and `apple/Sources/Fe
 | App | About, **Settings… ⌘,** (system) |
 | File | New items removed (one window) |
 | Edit | Standard text editing + **Search Festival… ⌘F** |
-| View | **Refresh ⌘R** (rebuilds the detail column, pages read again), **Sort…**, **Filter…** (page-published via `macPageCommands`, disabled when the page has none), Show/Hide Sidebar, toolbar items |
+| View | **Refresh ⌘R** (the frontmost page's own refresh via the shared `RefreshCommandRegistry`, else rebuilds the detail column), **Sort…**, **Filter…** (page-published via `macPageCommands`, disabled when the page has none), Show/Hide Sidebar, toolbar items |
 | Go | **Back ⌘[**, every destination (⌘1…⌘n for the n-th visible row; hidden rows disabled, never removed), **Search… ⌘K** |
 | Profile | Select/Switch Profile… ⇧⌘P, Deselect Profile, Notifications |
 | Window | System (Minimize, Zoom, Bring All to Front) |
@@ -37,11 +37,17 @@ Basis: the-menu-bar › "Disable, don't hide, unavailable items", "Provide app-s
 
 | Rule | Basis |
 |---|---|
-| **Two populated columns** (`MacListDetailStack`, `HSplitView`, thin divider) for Songs, Full/Band Rankings → Player and Rivals lists from 820 pt of content: list 340–560 pt (ideal 400), detail ≥ 480 pt. Detail is never empty: last selection, else the first row auto-selects; a list with no row after 2.5 s collapses to one column and splits again when its first row appears | split-views › macOS "set reasonable minimum/maximum defaults so the divider stays visible", "Prefer the 1 pt thin divider"; split-views › "Persistently highlight the current selection" (`listDetailSelectable`) |
+| **Two populated columns** (`MacListDetailStack`) for Songs, Full Rankings → Player and Rivals lists from 820 pt of content: list 38% within 340–560 pt beside a 1 pt divider, detail ≥ 480 pt. Detail is never empty: last selection, else the **topmost** visible row auto-selects (rows offer their top edge to the shared `ListDetailAutoSelectCollector`); a list with no row after 2.5 s collapses to one column and splits again when its first row appears. One toolbar **Back** (`MacSidebarPolicy.backPath`) serves both columns | split-views › macOS "set reasonable minimum/maximum defaults so the divider stays visible", "Prefer the 1 pt thin divider"; split-views › "Persistently highlight the current selection" (`listDetailSelectable`) |
 | Every Mac column publishes its own `DeviceLayout`; width class is **regular from 720 pt** (`MacLayoutPolicy`), so Leaderboards/Compete cards and Profile instrument tiles use two columns and Settings/Licenses use the 680 pt readable width (web detail-card grid: two 420 px columns from 844 px) | layout (foundation); designing-for-macos › "show more content … while keeping information density comfortable" |
 | Songs **Sort is a popover** from its toolbar button (no modal chrome; closes on an outside click); **Filter is a sheet** (long form) with grouped form style and a 560×640 pt default (`macSheetFrame`) | popovers › "Limit a popover to a little information or functionality"; popovers › "Use a Close … only for confirmation"; sheets › macOS "Present a sheet in a reasonable default size" |
 | Profile, Search, Notifications and What's New are window sheets (Close in the sheet's bottom bar) | sheets › "Display only one sheet at a time" (menu items disable while one is open) |
 | Toolbar buttons and sidebar rows carry `.help` tooltips naming their shortcut | pointing-devices › macOS pointer conventions (system hover/selection states on standard controls) |
+
+## Implementation gotchas
+
+- Inside the window's `NavigationSplitView`, a page pushed in a **nested** `NavigationStack` (the split's columns) is presented over both columns (list column) or not at all (detail column). Each split column therefore draws its top route as its root and turns pushes into path writes (`MacListDetailStack.pushes(after:)`); only the one-column arrangement uses real pushes. An `HSplitView` also lost its divider position when a pushed list page split after first layout (detail at zero width), so the columns are an `HStack`; a draggable divider is open.
+- Toolbar items attached outside a `NavigationStack` disappear once a page is pushed: the global group is added to every page of the primary column (`MacGlobalToolbar`).
+- A lazy list's first `onAppear` is not its first row (Full Rankings auto-selected #6), hence topmost-by-geometry.
 
 ## Open gaps
 

@@ -62,7 +62,6 @@ public struct MacRootView: View {
             } detail: {
                 detail
                     .id(navigation.refreshGeneration)
-                    .toolbar { MacGlobalToolbarItems(model: model) }
             }
         }
         .frame(minWidth: MacWindowMetrics.minimum.width, minHeight: MacWindowMetrics.minimum.height)
@@ -70,6 +69,8 @@ public struct MacRootView: View {
         .preferredColorScheme(.dark)
         .environment(\.festivalSession, session)
         .environment(\.shellOwnsGlobalToolbar, true)
+        .environment(\.macAppModel, model)
+        .environment(\.refreshCommandRegistry, model.refreshRegistry)
         .environment(\.openProfile, OpenProfileAction { navigation.profilePresented = true })
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { navigation.searchPresented = true })
         .environment(\.pushRoute, PushRouteAction { navigation.push($0) })
@@ -156,7 +157,7 @@ public struct MacRootView: View {
                 navigation.push(route)
             }
         case .back: navigation.goBack()
-        case .refresh: navigation.refresh()
+        case .refresh: model.refresh()
         case .search: navigation.searchPresented = true
         case .profile: navigation.profilePresented = true
         case .notifications: navigation.notificationsPresented = true
@@ -336,6 +337,25 @@ struct MacGlobalToolbarItems: ToolbarContent {
                 .help(model.session.selectedPlayer.map { "Profile: \($0.displayName)" } ?? "Select Profile")
         }
     }
+}
+
+/// Adds ``MacGlobalToolbarItems`` to a page when enabled and inside the Mac window.
+struct MacGlobalToolbar: ViewModifier {
+    let isEnabled: Bool
+    @Environment(\.macAppModel) private var model
+
+    func body(content: Content) -> some View {
+        if isEnabled, let model {
+            content.toolbar { MacGlobalToolbarItems(model: model) }
+        } else {
+            content
+        }
+    }
+}
+
+extension EnvironmentValues {
+    /// The app model, set by ``MacRootView`` (nil in the Settings window and tests).
+    @Entry var macAppModel: MacAppModel?
 }
 
 // MARK: - Sidebar footer

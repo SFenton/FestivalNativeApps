@@ -14,6 +14,18 @@ public final class MacAppModel {
     let session: FestivalSession
     /// Primary window navigation.
     let navigation: MacNavigationModel
+    /// Pull-to-refresh actions of the pages on screen (shared ⌘R mechanism).
+    let refreshRegistry = RefreshCommandRegistry()
+
+    /// View › Refresh (⌘R): the frontmost page's own refresh when it has one, else
+    /// rebuild the detail column so its pages read again.
+    func refresh() {
+        if refreshRegistry.canRefresh {
+            Task { await refreshRegistry.refresh() }
+        } else {
+            navigation.refresh()
+        }
+    }
 
     /// Create the app model from the launch environment (Debug deep links honoured).
     public convenience init() {

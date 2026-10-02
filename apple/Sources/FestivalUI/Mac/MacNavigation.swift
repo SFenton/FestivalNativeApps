@@ -193,6 +193,14 @@ enum MacLayoutPolicy {
     ///     Rankings, Rivals lists).
     ///   - emptyListCollapsed: The list produced no row to show beside it.
     /// - Returns: True for two columns.
+    /// List column width for a content width: 38% within ``listColumn`` bounds.
+    ///
+    /// - Parameter width: Content width in points.
+    /// - Returns: The list column width.
+    static func listWidth(forContentWidth width: CGFloat) -> CGFloat {
+        min(max(width * 0.38, listColumn.min), listColumn.max)
+    }
+
     /// Column width from which pages use their regular-width layouts (two card columns,
     /// readable-width forms). The web's detail-card grid switches to two 420 px columns
     /// at an 844 px container; 720 pt keeps two ≥ 344 pt cards beside 16 pt margins.
