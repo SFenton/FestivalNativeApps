@@ -505,6 +505,8 @@ extension SongDetailScreen {
                 .truncationMode(.tail)
         }
         .frame(maxWidth: 240)
+        // Transparent while the hero shows: keep its marquee still until it is seen.
+        .environment(\.marqueeAnimationEnabled, heroTitleHidden)
         .opacity(heroTitleHidden ? 1 : 0)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
         .accessibilityElement(children: .combine)

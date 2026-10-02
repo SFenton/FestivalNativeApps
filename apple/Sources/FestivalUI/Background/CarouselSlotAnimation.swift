@@ -1,9 +1,11 @@
 import CoreGraphics
 import Foundation
 import QuartzCore
-#if os(iOS)
 import SwiftUI
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 // MARK: - Pure slot plan
@@ -179,25 +181,36 @@ struct CarouselSlotKey: Equatable {
     }
 }
 
+// MARK: - Core Animation slot
+
 #if os(iOS)
-// MARK: - Core Animation slot (iOS)
+/// Platform view hosting Core Animation layers (carousel slots, Shop pulses, marquees).
+typealias PlatformLayerHostView = UIView
+#elseif os(macOS)
+/// Platform view hosting Core Animation layers (carousel slots, Shop pulses, marquees).
+typealias PlatformLayerHostView = NSView
+#endif
 
 /// One carousel slot rendered by Core Animation instead of SwiftUI.
 ///
-/// The SwiftUI path (`CarouselLayerView`) drives a `GeometryEffect` from the
-/// app's display link, so every frame of the never-ending zoom/pan cost a
-/// SwiftUI update in the app and, with ProMotion enabled, up to 120 Hz of
-/// full-screen recomposition and Liquid Glass re-sampling (issue #28). Here the
-/// motion and crossfade are discrete `CAKeyframeAnimation`s sampled at
+/// A SwiftUI `GeometryEffect` driven from the app's display link costs a SwiftUI
+/// graph update in the app for every frame of the never-ending zoom/pan and, with
+/// ProMotion, up to 120 Hz of full-screen recomposition and Liquid Glass re-sampling
+/// (issue #28 on iPhone; on the Mac it was about half of the Songs page's idle CPU,
+/// see `.agents/platforms/apple/architecture.md`, Performance).
+/// Here the motion and crossfade are discrete `CAKeyframeAnimation`s sampled at
 /// `CarouselSlotPlan.preferredFramesPerSecond`, which the render server plays
 /// without waking the app, with a matching frame-rate range.
-struct CarouselSlotLayer: UIViewRepresentable {
+struct CarouselSlotLayer {
     let image: CGImage
     let layer: ArtworkBackdropState.Layer
     let isActive: Bool
     let lightness: Double
     let animate: Bool
+}
 
+#if os(iOS)
+extension CarouselSlotLayer: UIViewRepresentable {
     /// Create the hosting view.
     ///
     /// - Parameter context: Representable context.
@@ -216,30 +229,61 @@ struct CarouselSlotLayer: UIViewRepresentable {
                    lightness: lightness, animate: animate)
     }
 }
+#elseif os(macOS)
+extension CarouselSlotLayer: NSViewRepresentable {
+    /// Create the hosting view.
+    ///
+    /// - Parameter context: Representable context.
+    /// - Returns: An empty slot view, configured in `updateNSView`.
+    func makeNSView(context: Context) -> CarouselSlotView {
+        CarouselSlotView()
+    }
 
-/// UIKit host of one slot: the cover (aspect-fill, transformed) and a static
+    /// Apply new inputs; re-plans animations only when timing changed.
+    ///
+    /// - Parameters:
+    ///   - view: Slot view.
+    ///   - context: Representable context.
+    func updateNSView(_ view: CarouselSlotView, context: Context) {
+        view.apply(image: image, layer: layer, isActive: isActive,
+                   lightness: lightness, animate: animate)
+    }
+}
+#endif
+
+/// Platform host of one slot: the cover (aspect-fill, transformed) and a static
 /// black dimming layer above it, equivalent to SwiftUI's gray `colorMultiply`
 /// over opaque art.
-final class CarouselSlotView: UIView {
+final class CarouselSlotView: PlatformLayerHostView {
     /// Faded container (the view's own layer is left to SwiftUI).
     private let fadeLayer = CALayer()
     private let imageLayer = CALayer()
     private let dimLayer = CALayer()
     private var image: CGImage?
+    #if os(macOS)
+    private var appliedLightness: Double?
+    #endif
     private var key: CarouselSlotKey?
     private var timing: ArtworkBackdropState.Layer?
     private var active = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        imageLayer.contentsGravity = .resizeAspectFill
+        dimLayer.backgroundColor = CGColor(gray: 0, alpha: 1)
+        fadeLayer.addSublayer(imageLayer)
+        fadeLayer.addSublayer(dimLayer)
+        #if os(iOS)
         isUserInteractionEnabled = false
         isAccessibilityElement = false
         clipsToBounds = true
-        imageLayer.contentsGravity = .resizeAspectFill
-        dimLayer.backgroundColor = UIColor.black.cgColor
-        fadeLayer.addSublayer(imageLayer)
-        fadeLayer.addSublayer(dimLayer)
         layer.addSublayer(fadeLayer)
+        #elseif os(macOS)
+        wantsLayer = true
+        setAccessibilityElement(false)
+        layer?.masksToBounds = true
+        layer?.addSublayer(fadeLayer)
+        #endif
     }
 
     @available(*, unavailable)
@@ -247,8 +291,35 @@ final class CarouselSlotView: UIView {
 
     // MARK: - Layout
 
+    #if os(iOS)
     override func layoutSubviews() {
         super.layoutSubviews()
+        layoutSlot()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        // The render server may drop animations while detached; rejoin the clock.
+        if window != nil { replan() }
+    }
+    #elseif os(macOS)
+    override func layout() {
+        super.layout()
+        layoutSlot()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // The render server may drop animations while detached; rejoin the clock.
+        if window != nil { replan() }
+    }
+
+    /// Decorative: never a click target.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    #endif
+
+    /// Size the layers to the view without disturbing a running transform.
+    private func layoutSlot() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         // Bounds + position (not frame) so the running transform stays valid.
@@ -257,12 +328,6 @@ final class CarouselSlotView: UIView {
         fadeLayer.frame = bounds
         dimLayer.frame = bounds
         CATransaction.commit()
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        // The render server may drop animations while detached; rejoin the clock.
-        if window != nil { replan() }
     }
 
     // MARK: - Configuration
@@ -281,12 +346,24 @@ final class CarouselSlotView: UIView {
     ) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        #if os(macOS)
+        // AppKit composites the black dimming layer so that it reads about twice as
+        // bright as SwiftUI's `colorMultiply` (measured on the Songs page), so the
+        // Mac multiplies the pixels once per cover instead.
+        if self.image !== image || appliedLightness != lightness {
+            self.image = image
+            appliedLightness = lightness
+            imageLayer.contents = DimmedArtwork.image(image, lightness: lightness)
+        }
+        if dimLayer.opacity != 0 { dimLayer.opacity = 0 }
+        #else
         if self.image !== image {
             self.image = image
             imageLayer.contents = image
         }
         let dim = Float(max(0, min(1, 1 - lightness)))
         if dimLayer.opacity != dim { dimLayer.opacity = dim }
+        #endif
         CATransaction.commit()
         let next = CarouselSlotKey(image: image, layer: layer, isActive: isActive, animate: animate)
         timing = layer
@@ -357,6 +434,67 @@ final class CarouselSlotView: UIView {
         animation.preferredFrameRateRange = CAFrameRateRange(
             minimum: 15, maximum: fps, preferred: fps
         )
+    }
+}
+
+#if os(macOS)
+// MARK: - Pre-dimmed artwork (macOS)
+
+/// Covers multiplied by the backdrop's gray once, shared by every mirror.
+///
+/// Exactly SwiftUI's `colorMultiply(gray)` over opaque art, computed once per cover
+/// (every five seconds at most) instead of per frame.
+@MainActor
+enum DimmedArtwork {
+    private struct Entry {
+        let source: CGImage
+        let lightness: Double
+        let dimmed: CGImage
+    }
+
+    /// Most recent results (the visible cover, the standby one and a fading one).
+    private static var entries: [Entry] = []
+    private static let capacity = 4
+
+    /// The cover with every channel multiplied by `lightness`.
+    ///
+    /// - Parameters:
+    ///   - source: Decoded, bounded cover.
+    ///   - lightness: Remaining brightness in 0...1.
+    /// - Returns: The dimmed copy (the source itself when nothing dims or drawing fails).
+    static func image(_ source: CGImage, lightness: Double) -> CGImage {
+        guard lightness < 1 else { return source }
+        if let hit = entries.first(where: { $0.source === source && $0.lightness == lightness }) {
+            return hit.dimmed
+        }
+        guard let dimmed = render(source, lightness: lightness) else { return source }
+        entries.insert(Entry(source: source, lightness: lightness, dimmed: dimmed), at: 0)
+        if entries.count > capacity { entries.removeLast(entries.count - capacity) }
+        return dimmed
+    }
+
+    /// Draw the cover, then multiply it by an opaque gray.
+    ///
+    /// - Parameters:
+    ///   - source: Cover.
+    ///   - lightness: Gray level.
+    /// - Returns: The multiplied bitmap, or nil when no context could be made.
+    nonisolated static func render(_ source: CGImage, lightness: Double) -> CGImage? {
+        let width = source.width, height = source.height
+        guard width > 0, height > 0,
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: nil, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: 0, space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue
+              ) else { return nil }
+        let rect = CGRect(x: 0, y: 0, width: width, height: height)
+        context.draw(source, in: rect)
+        context.setBlendMode(.multiply)
+        context.setFillColor(CGColor(srgbRed: lightness, green: lightness, blue: lightness, alpha: 1))
+        context.fill(rect)
+        return context.makeImage()
     }
 }
 #endif

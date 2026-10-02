@@ -318,6 +318,20 @@ struct MainThreadStallRecorderTests {
         #expect(recorder.report.maxAwakeMs == 2010)
     }
 
+    @Test func marksRecordEachCountersFirstOccurrence() {
+        var now = 3.0
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stall-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let recorder = MainThreadStallRecorder(url: url, startedAt: 1, clock: { now })
+        recorder.count("songs.stress.start")
+        now = 9
+        recorder.count("songs.stress.start")
+        recorder.count("songs.stress.end")
+        #expect(recorder.report.marks == ["songs.stress.start": 2, "songs.stress.end": 8])
+        #expect(recorder.report.counters["songs.stress.start"] == 2)
+    }
+
     @Test func countersAreFlushedWhenIdle() throws {
         let (recorder, url) = recorder()
         defer { try? FileManager.default.removeItem(at: url) }

@@ -68,11 +68,13 @@ enum ShopStatusTone: Equatable, Sendable {
 /// Circular fill that breathes between ``ShopStatusTone/base`` and the tone's colour
 /// (capped at ``ShopStatusTone/peakOpacity``), without a glow.
 ///
-/// Driven by `TimelineView(.animation)` rather than a `repeatForever` state animation:
-/// toolbar items are re-hosted by the navigation bar, which dropped the implicit
-/// repeating animation and left a static fill (operator report). Reduce Motion (system
+/// Driven by a Core Animation layer on the shared ``ShopPulseClock`` rather than a
+/// `repeatForever` state animation (toolbar items are re-hosted by the navigation
+/// bar, which dropped the implicit repeating animation and left a static fill,
+/// operator report; the layer re-joins the clock whenever it re-enters a window) or
+/// a per-view `TimelineView` (a SwiftUI update every frame). Reduce Motion (system
 /// or the app's override), an inactive scene or `FST_DEBUG_STILL_BACKGROUND` (UI tests)
-/// pause the timeline on a static tint at the tone's colour.
+/// hold a static tint at the tone's colour.
 struct ShopStatusBreathe: ViewModifier {
     let tone: ShopStatusTone
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -113,18 +115,17 @@ struct ShopStatusBreathe: ViewModifier {
             sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             still: DebugAnimationOverride.stillBackground
         )
+        // The web only cross-fades the fill; the former glow read as an overblown
+        // HDR bloom (operator batch 7), so there is none, and the peak is capped
+        // below the full status colour. The breathing layer plays on the render
+        // server from the shared ``ShopPulseClock``.
         content.background {
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in
-                let level = Self.intensity(
-                    at: context.date.timeIntervalSinceReferenceDate, animating: running
-                )
-                // The web only cross-fades the fill; the former glow read as an
-                // overblown HDR bloom (operator batch 7), so there is none, and the
-                // peak is capped below the full status colour.
-                ZStack {
-                    Circle().fill(ShopStatusTone.base)
-                    Circle().fill(tone.target).opacity(level * ShopStatusTone.peakOpacity)
-                }
+            ZStack {
+                Circle().fill(ShopStatusTone.base)
+                ShopPulseLayer(
+                    shape: .disc, color: tone.target, period: ShopStatusTone.period,
+                    restingOpacity: ShopStatusTone.peakOpacity, running: running
+                ) { Self.intensity(at: $0, animating: true) * ShopStatusTone.peakOpacity }
             }
         }
     }
@@ -156,6 +157,10 @@ extension ShopStatusTone {
 
 /// The web's `shopPulse` row border: 2pt, opacity 0 → 0.7 → 0 over 2 s (ease-in-out).
 /// Reduce Motion, an inactive scene or the UI-test still override hold it at 0.7.
+///
+/// Every row follows the one shared ``ShopPulseClock`` on the render server, so a
+/// screen of Shop rows costs no app work per frame (each row formerly ran its own
+/// 30 fps `TimelineView`).
 struct ShopRowPulseBorder: View {
     let tone: ShopStatusTone
     let cornerRadius: CGFloat
@@ -187,11 +192,11 @@ struct ShopRowPulseBorder: View {
             sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             still: DebugAnimationOverride.stillBackground
         )
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(tone.borderColor, lineWidth: 2)
-                .opacity(Self.opacity(at: context.date.timeIntervalSinceReferenceDate, animating: running))
-        }
+        ShopPulseLayer(
+            shape: .roundedStroke(cornerRadius: cornerRadius, lineWidth: 2),
+            color: tone.borderColor, period: Self.period, restingOpacity: Self.peak,
+            running: running
+        ) { Self.opacity(at: $0, animating: true) }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

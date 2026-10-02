@@ -75,6 +75,10 @@ public struct MainThreadStallReport: Codable, Equatable, Sendable {
     public var stalls: [Stall] = []
     /// Named event counts from ``MainThreadStallMonitor/count(_:)``.
     public var counters: [String: Int] = [:]
+    /// Seconds since monitoring started when each counter was first counted, so a
+    /// reader can keep only the stalls between two marks (e.g. a stress pass's start
+    /// and end, excluding launch work). Optional for reports written before it existed.
+    public var marks: [String: Double]? = nil
 
     /// One long unit of main-thread work.
     public struct Stall: Codable, Equatable, Sendable {
@@ -164,6 +168,10 @@ final class MainThreadStallRecorder: @unchecked Sendable {
     /// Count one named event; flushed to disk at the next idle, at most twice a second.
     func count(_ name: String) {
         report.counters[name, default: 0] += 1
+        if report.marks?[name] == nil {
+            report.marks = report.marks ?? [:]
+            report.marks?[name] = ((clock() - startedAt) * 10).rounded() / 10
+        }
         countersDirty = true
     }
 

@@ -115,8 +115,7 @@ struct CoverLayer: Identifiable, Equatable {
 /// Renders a backdrop state; every copy (one per on-screen page) draws the same pixels.
 ///
 /// Carousel slots and song covers animate from start points derived from the
-/// shared timestamps (see `CarouselSlotLayer` on iOS, `CarouselLayerView`
-/// elsewhere, and `CoverLayerView`), so no body is re-evaluated per frame and a
+/// shared timestamps (see `CarouselSlotLayer` and `CoverLayerView`), so no body is re-evaluated per frame and a
 /// page that appears mid-transition joins it in step.
 struct ArtworkBackdropCanvas: View {
     let carousel: ArtworkBackdropState
@@ -156,30 +155,21 @@ struct ArtworkBackdropCanvas: View {
         .accessibilityHidden(true)
     }
 
-    /// One carousel slot: Core Animation on iOS (no per-frame app work, 30 fps cap),
-    /// SwiftUI implicit animations elsewhere.
+    /// One carousel slot, played by Core Animation (no per-frame app work, 30 fps cap).
     ///
     /// - Parameters:
     ///   - image: Decoded cover.
     ///   - layer: Slot timing.
     ///   - size: Canvas size.
     /// - Returns: The slot view.
-    @ViewBuilder
     private func slot(
         image: CGImage, layer: ArtworkBackdropState.Layer, size: CGSize
     ) -> some View {
-        #if os(iOS)
         CarouselSlotLayer(
             image: image, layer: layer, isActive: layer.id == carousel.active,
             lightness: 1 - dimming, animate: animate
         )
         .frame(width: size.width, height: size.height)
-        #else
-        CarouselLayerView(
-            image: image, layer: layer, isActive: layer.id == carousel.active,
-            size: size, lightness: 1 - dimming, animate: animate
-        )
-        #endif
     }
 
     /// Opaque gray used to multiply (dim) opaque artwork without a translucent layer.
@@ -206,7 +196,7 @@ struct ArtworkBackdropCanvas: View {
 
 /// One song cover, faded by the render loop from shared timestamps.
 ///
-/// Like `CarouselLayerView`: on appear and whenever the fade changes direction
+/// Like `CarouselSlotLayer`: on appear and whenever the fade changes direction
 /// it jumps (without animation) to the timestamp value for "now", then animates
 /// the remainder on the web's `ease` curve. Only opacity animates, so a fade is
 /// composited without re-running bodies, layout or a blur per frame.
@@ -275,103 +265,10 @@ struct CoverLayerView: View {
     }
 }
 
-// MARK: - Carousel slot
+// MARK: - Motion reference
 
-/// One carousel slot, animated by the render loop from shared timestamps.
-///
-/// On appear and whenever the slot's timing changes, the view jumps (without
-/// animation) to the value the timestamps give for "now", then animates the
-/// remainder. Two mirrors therefore stay in step, a page that reappears
-/// mid-motion continues seamlessly, and SwiftUI only interpolates animatable
-/// data per frame instead of re-running view bodies.
-struct CarouselLayerView: View {
-    let image: CGImage
-    let layer: ArtworkBackdropState.Layer
-    let isActive: Bool
-    let size: CGSize
-    let lightness: Double
-    let animate: Bool
-
-    @State private var fraction: Double
-    @State private var fade: Double
-
-    /// Start at the timestamp-derived values for the current instant.
-    ///
-    /// - Parameters:
-    ///   - image: Decoded cover.
-    ///   - layer: Slot timing.
-    ///   - isActive: Whether this is the top (fading-in) slot.
-    ///   - size: Canvas size.
-    ///   - lightness: Dimming multiplier.
-    ///   - animate: Whether the owning page is on screen.
-    init(
-        image: CGImage, layer: ArtworkBackdropState.Layer, isActive: Bool,
-        size: CGSize, lightness: Double, animate: Bool
-    ) {
-        self.image = image
-        self.layer = layer
-        self.isActive = isActive
-        self.size = size
-        self.lightness = lightness
-        self.animate = animate
-        let now = Date()
-        _fraction = State(initialValue: layer.fraction(at: now))
-        _fade = State(initialValue: layer.fadeOpacity(at: now))
-    }
-
-    /// Timing inputs that require re-synchronising with the shared clock.
-    private struct Timing: Equatable {
-        let motionStart: Date?
-        let moving: Bool
-        let motionFraction: Double
-        let fadeStart: Date?
-        let animate: Bool
-    }
-
-    var body: some View {
-        Image(decorative: image, scale: 1)
-            .resizable()
-            .scaledToFill()
-            .frame(width: size.width, height: size.height)
-            .colorMultiply(ArtworkBackdropCanvas.gray(lightness))
-            .modifier(CarouselMotionEffect(fraction: fraction, motion: layer.motion))
-            .opacity(isActive ? fade : 1)
-            .onAppear { sync() }
-            .onChange(of: Timing(
-                motionStart: layer.motionStart, moving: layer.moving,
-                motionFraction: layer.motionFraction, fadeStart: layer.fadeStart,
-                animate: animate
-            )) { _, _ in sync() }
-    }
-
-    /// Jump to the shared clock's current values, then animate the remainder.
-    private func sync() {
-        let now = Date()
-        let currentFraction = layer.fraction(at: now)
-        let currentFade = layer.fadeOpacity(at: now)
-        var jump = Transaction()
-        jump.disablesAnimations = true
-        withTransaction(jump) {
-            fraction = currentFraction
-            fade = currentFade
-        }
-        guard animate else { return }
-        let motionLeft = layer.moving ? (1 - currentFraction) * 6 : 0
-        let fadeLeft = layer.fadeStart.map { max(0, 1 - now.timeIntervalSince($0)) } ?? 0
-        guard motionLeft > 0 || fadeLeft > 0 else { return }
-        // Start on the next turn so the jump above is committed first.
-        Task { @MainActor in
-            if motionLeft > 0 {
-                withAnimation(.linear(duration: motionLeft)) { fraction = 1 }
-            }
-            if fadeLeft > 0 {
-                withAnimation(.easeInOut(duration: fadeLeft)) { fade = 1 }
-            }
-        }
-    }
-}
-
-/// Six-second zoom/pan as a pure transform (no layout per frame).
+/// Six-second zoom/pan as a pure SwiftUI transform: the reference that
+/// `CarouselSlotPose.transform` (the Core Animation slot) must match.
 struct CarouselMotionEffect: GeometryEffect {
     var fraction: Double
     let motion: ArtworkMotionPreset

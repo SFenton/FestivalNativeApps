@@ -20,9 +20,10 @@ import SwiftUI
 /// to scroll made the container "fit" again and the view fell back to the static,
 /// truncated form: it never visibly scrolled.)
 ///
-/// **Cost.** The scroll is a `phaseAnimator` over an `offset`, so SwiftUI only
-/// interpolates one animatable value per frame; no `TimelineView` re-runs a body
-/// per frame, and nothing animates while the text fits, is off screen, the scene
+/// **Cost.** The scroll is a Core Animation keyframe loop over a bitmap of the
+/// track (``MarqueeTrackLayer``), so no SwiftUI update runs per frame (the former
+/// `phaseAnimator` re-rendered the window's graph every frame), and nothing
+/// animates while the text fits, is off screen, the scene
 /// is inactive or its window hidden, or Reduce Motion (system or in-app) is on. Those fall back to
 /// tail truncation, like the web's `prefers-reduced-motion` ellipsis.
 ///
@@ -49,6 +50,10 @@ public struct MarqueeText: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.festivalWindowVisible) private var windowVisible
     @Environment(\.marqueeSyncDistance) private var syncDistance
+    @Environment(\.marqueeAnimationEnabled) private var animationEnabled
+    @Environment(\.displayScale) private var displayScale
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
 
     /// Create a marquee text view.
     ///
@@ -73,7 +78,7 @@ public struct MarqueeText: View {
     }
 
     private var scrolls: Bool {
-        overflows && !reduceMotion && !appReduceMotion && isOnScreen
+        overflows && animationEnabled && !reduceMotion && !appReduceMotion && isOnScreen
             && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible) && !DebugAnimationOverride.stillBackground
     }
 
@@ -116,23 +121,30 @@ public struct MarqueeText: View {
             .accessibilityLabel(text)
     }
 
-    /// The scrolling two-copy track, shown only while ``scrolls`` is true.
+    /// The scrolling two-copy track, shown only while ``scrolls`` is true: drawn once
+    /// and scrolled by Core Animation (``MarqueeTrackLayer``), so no SwiftUI update
+    /// runs per frame.
     private var scrollingTrack: some View {
         let distance = MarqueeTiming.distance(
             textWidth: textWidth, gap: gap, syncDistance: syncDistance
         )
-        return HStack(spacing: distance - textWidth) {
+        let track = HStack(spacing: distance - textWidth) {
             Text(text).marqueeFont(font)
             Text(text).marqueeFont(font)
         }
         .fixedSize()
-        .phaseAnimator(MarqueePhase.allCases) { track, phase in
-            track.offset(x: phase == .scrolled ? -distance : 0)
-        } animation: { phase in
-            MarqueeTiming.animation(to: phase, cycleDuration: cycleDuration)
-        }
-        // A new distance or cycle restarts the loop cleanly from the start.
-        .id(MarqueeLoopKey(distance: distance, cycleDuration: cycleDuration))
+        return MarqueeTrackLayer(
+            track: AnyView(track),
+            renderKey: AnyHashable(MarqueeRenderKey(
+                text: text, font: font.map { String(describing: $0) } ?? "inherited",
+                distance: distance, cycleDuration: cycleDuration, displayScale: displayScale,
+                dynamicTypeSize: dynamicTypeSize, colorScheme: colorScheme
+            )),
+            distance: distance, cycleDuration: cycleDuration
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -146,21 +158,18 @@ private extension View {
     }
 }
 
-/// Restart identity for a marquee loop.
-private struct MarqueeLoopKey: Hashable {
+/// Re-render and restart identity of a marquee track bitmap.
+private struct MarqueeRenderKey: Hashable {
+    let text: String
+    let font: String
     let distance: CGFloat
     let cycleDuration: Double
+    let displayScale: CGFloat
+    let dynamicTypeSize: DynamicTypeSize
+    let colorScheme: ColorScheme
 }
 
-// MARK: - Phases and pure timing
-
-/// The two ends of one marquee cycle.
-enum MarqueePhase: CaseIterable {
-    /// First copy at the leading edge.
-    case rest
-    /// Track moved left by one copy (second copy now where the first started).
-    case scrolled
-}
+// MARK: - Pure timing
 
 /// Cycle math factored out of ``MarqueeText`` so it can be unit tested without a
 /// hosted SwiftUI render.
@@ -219,24 +228,6 @@ enum MarqueeTiming {
         max(0, cycleDuration) * dwellFraction
     }
 
-    /// Animation into a phase: hold, then scroll linearly (to `.scrolled`), or
-    /// hold, then jump back instantly (to `.rest`), so one loop is exactly
-    /// `cycleDuration` long.
-    ///
-    /// - Parameters:
-    ///   - phase: Phase being entered.
-    ///   - cycleDuration: Full cycle length.
-    /// - Returns: The phase animation.
-    static func animation(to phase: MarqueePhase, cycleDuration: Double) -> Animation {
-        let dwell = dwellDuration(cycleDuration: cycleDuration)
-        switch phase {
-        case .scrolled:
-            return .linear(duration: scrollDuration(cycleDuration: cycleDuration)).delay(dwell)
-        case .rest:
-            return .linear(duration: 0.0001).delay(dwell)
-        }
-    }
-
     /// Position within a repeating cycle, given elapsed absolute time.
     ///
     /// - Parameters:
@@ -276,6 +267,11 @@ struct MarqueeOverflowWidthsKey: PreferenceKey {
 extension EnvironmentValues {
     /// Shared scroll distance for marquees inside a ``SwiftUI/View/marqueeSync(gap:)`` group.
     @Entry var marqueeSyncDistance: CGFloat?
+
+    /// False holds every ``MarqueeText`` below at rest (tail-truncated). Set it where a
+    /// marquee is laid out but not seen, e.g. Song Detail's pinned toolbar title at
+    /// opacity 0 while the hero title is visible (`onAppear` still fires there).
+    @Entry var marqueeAnimationEnabled = true
 }
 
 public extension View {
