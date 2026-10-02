@@ -26,6 +26,7 @@ from tools.mac_app import (
     pick_main_window,
     resolve_profile,
     screencapture_argv,
+    validate_command,
 )
 
 
@@ -123,6 +124,19 @@ class WindowChoiceTests(unittest.TestCase):
         for bad in (0, -1, None, "42"):
             with self.assertRaises(ValueError, msg=repr(bad)):
                 screencapture_argv(bad, Path("/tmp/out.png"))
+
+
+class CommandTests(unittest.TestCase):
+    """Debug shell commands are checked before they reach the app."""
+
+    def test_accepts_known_commands(self):
+        for raw in ("back", " sort ", "select:2", "select:leaderboards", "route:player:abc"):
+            self.assertEqual(validate_command(raw), raw.strip())
+
+    def test_rejects_unknown_or_malformed(self):
+        for raw in ("explode", "select", "select:", "back:1", "route:"):
+            with self.assertRaises(ValueError, msg=raw):
+                validate_command(raw)
 
 
 class HelperStalenessTests(unittest.TestCase):

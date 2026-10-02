@@ -24,7 +24,7 @@ import Testing
     #expect(MacDestination.leaderboards.title == "Leaderboards")
     for destination in MacDestination.allCases {
         #expect(!destination.symbol.isEmpty)
-        #expect(destination.accessibilityIdentifier == "fst.mac.sidebar.\(destination.rawValue)")
+        #expect(destination.accessibilityIdentifier == "fst.nav.\(destination.rawValue)")
         #expect(destination.requiresPlayer == (destination.section.map {
             [.suggestions, .statistics, .rivals, .compete].contains($0)
         } ?? false))
@@ -184,5 +184,20 @@ private let player = AppRoute.player(accountId: "p1", displayName: "P")
         CGRect(x: 10, y: 100, width: 400, height: 300), newFrameSize: CGSize(width: 800, height: 600)
     )
     #expect(frame == CGRect(x: 10, y: -200, width: 800, height: 600))
+}
+#endif
+
+#if os(macOS)
+/// `tools/mac_app.py command` text parses into shell commands; junk is rejected.
+@Test func macDebugCommandParsing() {
+    #expect(MacDebugCommand("select:3") == .select(nil, number: 3))
+    #expect(MacDebugCommand("select:shop") == .select(.shop, number: nil))
+    #expect(MacDebugCommand("route:player:abc") == .route("player:abc"))
+    #expect(MacDebugCommand("back") == .back)
+    #expect(MacDebugCommand("whatsnew") == .whatsNew)
+    #expect(MacDebugCommand("sort") == .sort)
+    #expect(MacDebugCommand("select:nowhere") == nil)
+    #expect(MacDebugCommand("back:1") == nil)
+    #expect(MacDebugCommand("explode") == nil)
 }
 #endif

@@ -66,7 +66,7 @@ enum MacDestination: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// Stable accessibility identifier of the sidebar row.
-    var accessibilityIdentifier: String { "fst.mac.sidebar.\(rawValue)" }
+    var accessibilityIdentifier: String { "fst.nav.\(rawValue)" }
 }
 
 // MARK: - Sidebar policy

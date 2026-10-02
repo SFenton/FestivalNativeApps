@@ -140,7 +140,7 @@ struct MacListDetailStack<Root: View>: View {
             }
             .frame(minWidth: MacLayoutPolicy.detailMinimumWidth, maxWidth: .infinity)
         }
-        .accessibilityIdentifier("fst.mac.list-detail")
+        .accessibilityIdentifier("fst.nav.list-detail")
     }
 
     /// Give the list column's root the selection and the select actions. Pages pushed

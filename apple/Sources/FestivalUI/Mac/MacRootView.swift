@@ -363,11 +363,11 @@ struct MacSidebarProfileFooter: View {
                     .buttonStyle(.plain)
                     .help("Show Statistics for \(player.displayName)")
                     .accessibilityLabel("Profile: \(player.displayName). Show Statistics")
-                    .accessibilityIdentifier("fst.mac.profile.name")
+                    .accessibilityIdentifier("fst.profile.sidebar.name")
                     Button("Deselect") { model.session.deselectPlayer() }
                         .controlSize(.small)
                         .help("Deselect \(player.displayName)")
-                        .accessibilityIdentifier("fst.mac.profile.deselect")
+                        .accessibilityIdentifier("fst.profile.sidebar.deselect")
                 }
             } else {
                 Button {
@@ -379,7 +379,7 @@ struct MacSidebarProfileFooter: View {
                 }
                 .buttonStyle(.plain)
                 .help("Select Profile (⇧⌘P)")
-                .accessibilityIdentifier("fst.mac.profile.select")
+                .accessibilityIdentifier("fst.profile.sidebar.select")
             }
         }
         .font(.body)
