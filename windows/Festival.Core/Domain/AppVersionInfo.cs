@@ -29,4 +29,45 @@ public static class AppVersionInfo
     }
 
     #endregion
+
+    #region Build commit
+
+    /// <summary><c>AssemblyMetadata</c> key holding the build commit (stamped by <c>Festival.App.csproj</c>).</summary>
+    public const string GitShaMetadataKey = "FstGitSha";
+
+    /// <summary>Number of SHA characters shown (git's conventional short SHA).</summary>
+    public const int ShortShaLength = 7;
+
+    /// <summary>Separator between the version and the short commit.</summary>
+    public const string CommitSeparator = " · ";
+
+    /// <summary>Settings → App Version text for <paramref name="assembly"/>: the version plus its short build commit.</summary>
+    /// <param name="assembly">The app assembly.</param>
+    /// <returns><see cref="Display(Assembly)"/>, plus <c>" · &lt;sha7&gt;"</c> when a commit is stamped.</returns>
+    public static string SettingsText(Assembly assembly) => WithCommit(
+        Display(assembly),
+        assembly.GetCustomAttributes<AssemblyMetadataAttribute>().FirstOrDefault(a => a.Key == GitShaMetadataKey)?.Value);
+
+    /// <summary>Appends the short build commit to a version (iOS <c>AppBuildInfo.versionText</c> parity).</summary>
+    /// <param name="version">The user-facing version; returned unchanged when empty.</param>
+    /// <param name="gitSha">The stamped commit, if any.</param>
+    /// <returns><c>"&lt;version&gt; · &lt;sha7&gt;"</c>, or <paramref name="version"/> when there is no commit.</returns>
+    public static string WithCommit(string version, string? gitSha) =>
+        version.Length > 0 && ShortCommit(gitSha) is { } sha ? version + CommitSeparator + sha : version;
+
+    /// <summary>The first seven characters of a stamped commit SHA.</summary>
+    /// <param name="raw">The stamped value, if any.</param>
+    /// <returns>The lower-case short SHA, or <see langword="null"/> when the value is absent, empty, <c>dev</c>
+    /// or not hexadecimal (e.g. an unexpanded MSBuild property).</returns>
+    public static string? ShortCommit(string? raw)
+    {
+        var value = (raw ?? "").Trim();
+        if (value.Length == 0 || value.Equals("dev", StringComparison.OrdinalIgnoreCase) || !value.All(char.IsAsciiHexDigit))
+        {
+            return null;
+        }
+        return value[..Math.Min(ShortShaLength, value.Length)].ToLowerInvariant();
+    }
+
+    #endregion
 }
