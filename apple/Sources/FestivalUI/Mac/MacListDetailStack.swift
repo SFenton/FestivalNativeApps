@@ -90,8 +90,9 @@ struct MacPageWidth: ViewModifier {
 /// list row to appear selects itself (`listDetailAutoSelect`, the same contract
 /// `ListDetailLink` rows use on iPhone Duo). A list that shows no row within 2.5 s
 /// collapses to one column, and its first row to appear later splits it again.
-/// The columns sit beside a 1 pt divider; the list takes 38% of the width within
-/// ``MacLayoutPolicy/listColumn`` (an `HSplitView` lost its divider position when a
+/// The columns sit beside a draggable 1 pt ``MacColumnDivider``; the list takes 38% of
+/// the width within ``MacLayoutPolicy/listColumn`` until the person drags it, and the
+/// dragged width is remembered (an `HSplitView` lost its divider position when a
 /// pushed list page split after first layout, leaving the detail at zero width).
 struct MacListDetailStack<Root: View>: View {
     let section: FestivalSection
@@ -112,6 +113,18 @@ struct MacListDetailStack<Root: View>: View {
     /// Rows offered for auto-select (the top-most one on screen wins).
     @State private var autoSelectCollector = ListDetailAutoSelectCollector()
     @State private var collapsedCollector = ListDetailAutoSelectCollector()
+    /// The list width the person dragged the divider to (0 = automatic 38%).
+    @AppStorage(MacLayoutPolicy.listWidthKey) private var storedListWidth = 0.0
+    /// Live width during a divider drag.
+    @State private var dragListWidth: CGFloat?
+
+    /// The list column width drawn now: a live drag, else the remembered width, else
+    /// automatic; always clamped by ``MacLayoutPolicy/listWidth(forContentWidth:preferred:)``.
+    private var listColumnWidth: CGFloat {
+        MacLayoutPolicy.listWidth(
+            forContentWidth: width, preferred: dragListWidth ?? (storedListWidth > 0 ? storedListWidth : nil)
+        )
+    }
 
     private var cut: ListDetailPolicy.Split? { ListDetailPolicy.split(section: section, path: path) }
 
@@ -173,8 +186,16 @@ struct MacListDetailStack<Root: View>: View {
                 }
                 .id(split.list.last)
             }
-            .frame(width: MacLayoutPolicy.listWidth(forContentWidth: width))
-            Divider()
+            .frame(width: listColumnWidth)
+            MacColumnDivider(
+                listWidth: listColumnWidth, range: MacLayoutPolicy.listWidthRange(forContentWidth: width),
+                dragWidth: $dragListWidth
+            ) { preferred in
+                // Remember the clamped width, so a later wider window does not jump.
+                storedListWidth = preferred.map {
+                    Double(MacLayoutPolicy.listWidth(forContentWidth: width, preferred: $0))
+                } ?? 0
+            }
             MacStack(
                 session: session, visibleInstruments: visibleInstruments,
                 stackPath: pushes(after: path.count), fullPath: $path, isVisible: isVisible
@@ -203,6 +224,9 @@ struct MacListDetailStack<Root: View>: View {
             }
             .frame(maxWidth: .infinity)
         }
+        // A container element, so its identifier names the split and does not replace
+        // the divider's and rows' own identifiers.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.nav.list-detail")
     }
 
