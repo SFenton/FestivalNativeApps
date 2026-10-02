@@ -25,6 +25,11 @@ android {
         // Keyless public HTTPS by default in every build type (AGENTS.md); fixture
         // runs select a loopback origin explicitly via the FST_ORIGIN debug extra.
         buildConfigField("String", "SERVICE_ORIGIN", "\"https://festivalscoretracker.com\"")
+        // Release builds stamp the commit for Settings → App Version (core/settings/AppBuildInfo.kt):
+        // -PfstGitSha=$(git rev-parse HEAD) or FST_GIT_SHA. Local builds keep `dev` and show no commit.
+        val gitSha = ((findProperty("fstGitSha") as String?) ?: System.getenv("FST_GIT_SHA"))
+            ?.trim()?.takeIf { it.matches(Regex("[0-9A-Fa-f]{1,64}")) } ?: "dev"
+        buildConfigField("String", "GIT_SHA", "\"$gitSha\"")
     }
 
     buildTypes {
