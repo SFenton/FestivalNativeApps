@@ -16,6 +16,9 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
     private QuickLinksViewModel? model;
     private bool suppressed;
 
+    /// <summary>Fluent's minimum touch target in epx, matching the <c>FSTMinTargetSize</c> resource.</summary>
+    public const double MinTargetSize = 40;
+
     /// <summary>Creates the button.</summary>
     public QuickLinksMenuButton()
     {
@@ -26,6 +29,8 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
             Children = { new FontIcon { Glyph = "", FontSize = 14 }, new TextBlock { Text = "Quick Links" } },
         };
         AutomationProperties.SetAutomationId(this, "fst.quick-links.open");
+        // Fluent's 40 epx minimum touch target (Styles.xaml FSTMinTargetSize; issue #72): DropDownButton is 32 by default.
+        MinHeight = MinTargetSize;
         Flyout = new MenuFlyout
         {
             Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight,

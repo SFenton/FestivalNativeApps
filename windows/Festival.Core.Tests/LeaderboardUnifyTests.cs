@@ -20,9 +20,11 @@ public class LeaderboardUnifyTests
         var board = FestivalApiClient.Decode(System.Text.Encoding.UTF8.GetBytes(RankingsWire.BandBoard("Band_Duets", 1, 25, 30, [1, 12])),
             RankingsJsonContext.Default.BandRankingsResponse);
         var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, BandType.Duets, BandRankingMetric.Weighted)).ToList();
-        BandRankingRowViewModel.ShareRankWidth(rows);
+        BandRankingRowViewModel.ShareColumns(rows);
         var chars = rows.Max(r => r.RankText.Length);
-        Assert.All(rows, r => Assert.Equal(chars, r.RankChars));
+        Assert.All(rows, r => Assert.Equal(chars, r.Section!.RankChars));
+        Assert.All(rows, r => Assert.Same(rows[0].Section, r.Section));
+        Assert.Equal(LeaderboardRowKind.Ranking, rows[0].Section!.Kind);
         ILeaderboardRankingRow contract = rows[0];
         Assert.False(contract.IsSelected);
         Assert.Equal(rows[0].SongsText, contract.SongsText);
@@ -36,8 +38,8 @@ public class LeaderboardUnifyTests
         Assert.Equal("#2", ranking.RankText);
         ILeaderboardScoreRow song = new SongLeaderboardRowViewModel(
             new LeaderboardEntry { AccountId = "x", Score = 1234, Rank = 3, Season = 9, Stars = 5, Accuracy = 990000, IsFullCombo = true }, false)
-        { RankChars = 3, ScoreChars = 5 };
-        Assert.Equal(("#3", "S9", "1,234", 5, true, 3, 5), (song.RankText, song.Season, song.Score, song.StarCount, song.IsFullCombo, song.RankChars, song.ScoreChars));
+        { Section = new LeaderboardSection(LeaderboardRowKind.Score, 3, 2, 5, true, true) };
+        Assert.Equal(("#3", "S9", "1,234", 5, true, 3, 5), (song.RankText, song.Season, song.Score, song.StarCount, song.IsFullCombo, song.Section!.RankChars, song.Section.ValueChars));
     }
 
     [Fact]
@@ -51,9 +53,15 @@ public class LeaderboardUnifyTests
         Assert.Equal(point.LongDate, best.Name);
         Assert.True(best.IsSelected);
         Assert.Null(best.Route);
-        Assert.Equal((0, 0, 0), (best.RankChars, best.ScoreChars, best.StarCount));
+        Assert.Null(best.Section);
+        Assert.Equal(0, best.StarCount);
+        Assert.Equal(0, LeaderboardColumns.Measure([best]).RankChars);
         Assert.Equal("fst.song-detail.history.row.20260330120509", best.AutomationId);
         Assert.False(((ILeaderboardEntryRow)new ScoreHistoryListRow(point, false)).IsSelected);
+        // Issue #62: only the tapped bar's detail row pins the season; list and top-score rows follow the 520 epx rule.
+        Assert.False(best.PinsSeason);
+        Assert.True(((ILeaderboardScoreRow)new ScoreHistoryListRow(point, false) { IsDetail = true }).PinsSeason);
+        Assert.False(((ILeaderboardScoreRow)new LeaderboardRow(new LeaderboardEntry { AccountId = "x", Season = 9 })).PinsSeason);
     }
 
     [Fact]

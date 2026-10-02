@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using Festival.Core.Domain;
 using Festival.Core.ViewModels;
 using Microsoft.Extensions.Time.Testing;
 
@@ -220,10 +221,10 @@ public sealed class LeaderboardsOverviewTests
         Assert.True(lead.Row.IsSelected);
         Assert.False(lead.CanJump);
         // The pinned "#120" widens every rank column of the card so names line up (operator batch 7.9).
-        Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.RankChars));
-        Assert.Equal(4, lead.Row.RankChars);
+        Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.Section!.RankChars));
+        Assert.Same(vm.InstrumentCards[0].Rows[0].Section, lead.Row.Section);
         var bass = vm.InstrumentCards[1].Spotlight;
-        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(3, r.RankChars));
+        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(3, r.Section!.RankChars));
         Assert.True(bass.ShowUnranked);
         Assert.Equal("Not yet ranked on Bass.", bass.UnrankedText);
         Assert.Equal(2, reader.Calls.Count);
@@ -537,6 +538,35 @@ public sealed class FullRankingsViewModelTests
         await stale;
         Assert.Equal(2, vm.Page);
         Assert.Equal("#26", vm.Rows[0].RankText);
+    }
+
+    [Fact]
+    public async Task FullRankings_ReloadRunsLoadSwapBeforeRowsChange()
+    {
+        var time = new FakeTimeProvider();
+        var fake = new RankingsFake();
+        var vm = new FullRankingsViewModel(fake.Session(time: time), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), new FakeReader().Read)
+        {
+            AnimateLoadSwaps = () => true,
+        };
+        var initial = vm.LoadAsync();
+        await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.SpinnerOut);
+        Assert.False(vm.ShowRows);
+        time.Advance(LoadSwapTiming.SpinnerOut);
+        await initial;
+        Assert.True(vm.ShowRows);
+        Assert.Equal("#1", vm.Rows[0].RankText);
+
+        var reload = vm.GoToPageAsync(2);
+        Assert.Equal(LoadSwapPhase.ContentOut, vm.LoadSwap.Phase);
+        Assert.Equal("#1", vm.Rows[0].RankText);
+        time.Advance(LoadSwapTiming.ContentOut);
+        await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.SpinnerOut);
+        Assert.Equal("#26", vm.Rows[0].RankText);
+        Assert.False(vm.ShowRows);
+        time.Advance(LoadSwapTiming.SpinnerOut);
+        await reload;
+        Assert.True(vm.ShowRows);
     }
 
     [Fact]

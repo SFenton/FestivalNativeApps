@@ -264,7 +264,10 @@ func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
         } else {
             #expect(session.shopError != nil && session.currentShop == nil)
         }
-        try await Task.sleep(for: .milliseconds(50))
+        // The reload gate holds its spinner briefly even under Reduce Motion (issue #71).
+        try await Task.sleep(
+            for: ReloadTransition.Timing.standard(reduceMotion: true).minimumSpinner + .milliseconds(150)
+        )
         let image = try nativeHostedImage(host)
         #expect(nativeHostedControlPixels(image).bright > 20)
         let name = scenario == .empty ? "empty" : "error"

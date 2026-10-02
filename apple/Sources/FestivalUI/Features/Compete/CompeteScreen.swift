@@ -65,11 +65,21 @@ struct CompeteScreen: View {
 
     private var stackedHub: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                leaderboardsSection
-                rivalsSection
+            if layout.widthClass == .regular && !DualSourcePolicy.isActive(layout) {
+                // Regular-width columns (Mac, iPad): Leaderboards beside Rivals, the two
+                // halves of Compete side by side instead of one very long column.
+                HStack(alignment: .top, spacing: 8) {
+                    leaderboardsSection.frame(maxWidth: .infinity, alignment: .top)
+                    rivalsSection.frame(maxWidth: .infinity, alignment: .top)
+                }
+                .padding(.vertical, 12)
+            } else {
+                VStack(alignment: .leading, spacing: 24) {
+                    leaderboardsSection
+                    rivalsSection
+                }
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 12)
         }
         .quickLinks(quickLinks, title: "Quick Links")
     }
@@ -127,8 +137,16 @@ struct CompeteInstrumentLeaderboardSection: View {
     let session: FestivalSession
     let instrument: Instrument
     @State private var state: RankLoadState<RankingsPayload> = .loading
+    /// `.task(id:)` restarts whenever Compete reappears (Back from View Full
+    /// Leaderboard), so remember the key that loaded: reloading flashed the rows to a
+    /// shorter spinner card and re-faded them, making the page jump (#39).
+    @State private var gate = ReappearanceLoadGate<CompeteSectionLoadKey>()
 
     private let previewCount = 5
+
+    private var loadKey: CompeteSectionLoadKey {
+        CompeteSectionLoadKey(instrument: instrument, session: session)
+    }
 
     var body: some View {
         // Instrument header above the card, never inside it (operator rule).
@@ -138,7 +156,10 @@ struct CompeteInstrumentLeaderboardSection: View {
         }
         .padding(.horizontal, 16)
         .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
-        .task(id: instrument) { await load() }
+        .task(id: loadKey) {
+            guard gate.needsLoad(for: loadKey) else { return }
+            await load()
+        }
     }
 
     /// The one leaderboard design (operator batch 7.4): no card around the rows; each
@@ -176,6 +197,8 @@ struct CompeteInstrumentLeaderboardSection: View {
                         )
                     }
                 }
+                // One rank and score width for the card (issue #37).
+                .leaderboardSectionColumns(.rankings(payload.rankings.entries, metric: .totalscore))
                 .festivalFadeIn(isLoaded: true)
                 NavigationLink(
                     value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
@@ -197,14 +220,39 @@ struct CompeteInstrumentLeaderboardSection: View {
 
     @MainActor
     private func load() async {
+        let key = loadKey
         state = .loading
         do {
             state = .loaded(try await session.rankings(
                 instrument: instrument, rankBy: .totalscore, page: 1, pageSize: previewCount
             ))
+            gate.markLoaded(key)
         } catch is CancellationError {
         } catch {
             state = .failed(ServiceIssue(error))
         }
+    }
+}
+
+// MARK: - Section load key
+
+/// What a Compete (or Rivals) per-instrument section's read depends on: a change to
+/// any part reloads it, while a plain reappearance keeps the loaded rows
+/// (``ReappearanceLoadGate``).
+struct CompeteSectionLoadKey: Hashable, Sendable {
+    let instrument: Instrument
+    let accountId: String?
+    let publicationRevision: Int
+
+    /// Build the key from the section's instrument and the session's current state.
+    ///
+    /// - Parameters:
+    ///   - instrument: The section's instrument.
+    ///   - session: Shared session; its selected account and publication revision.
+    @MainActor
+    init(instrument: Instrument, session: FestivalSession) {
+        self.instrument = instrument
+        accountId = session.selectedPlayer?.accountId
+        publicationRevision = session.publicationRevision
     }
 }

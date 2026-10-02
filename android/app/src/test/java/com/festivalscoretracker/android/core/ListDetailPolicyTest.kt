@@ -1,10 +1,17 @@
 package com.festivalscoretracker.android.core
 
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import com.festivalscoretracker.android.core.shell.ListDetailLayout
 import com.festivalscoretracker.android.core.shell.ListDetailPolicy
 import com.festivalscoretracker.android.core.shell.ListHead
+import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Two populated columns (operator 2026-09-28) and the floating toolbar's hide-on-scroll. */
@@ -46,5 +53,22 @@ class ListDetailPolicyTest {
         state.enabled = false
         state.onScrolled(-50f)
         assertEquals(0f, state.offsetPx)
+    }
+
+    @Test
+    fun latestToolbarOwnerDecidesWhetherItIsPinned() {
+        val host = FloatingToolbarHost()
+        val content = mutableStateOf<@Composable RowScope.() -> Unit>({})
+        assertFalse(host.pinned)
+        // Songs pins its toolbar (issue #52); a pushed detail page does not.
+        val songs = host.register(content, pinned = true)
+        assertTrue(host.pinned)
+        val detail = host.register(content)
+        assertFalse(host.pinned)
+        detail()
+        assertTrue(host.pinned)
+        songs()
+        assertFalse(host.pinned)
+        assertNull(host.current)
     }
 }

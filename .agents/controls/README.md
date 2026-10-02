@@ -27,6 +27,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) |
 | global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [ios](global-search/ios.md) · [ipados](global-search/ipados.md) · [macos](global-search/macos.md) · [android](global-search/android.md) · [windows](global-search/windows.md) |
 | whats-new | `fst.whats-new.*` | 5 | pending | [spec](whats-new/spec.md) | [ios](whats-new/ios.md) · [android](whats-new/android.md) · [windows](whats-new/windows.md) |
+| leaderboard-row-columns | ? | ? | not in contract | [spec](leaderboard-row-columns/spec.md) | [ios](leaderboard-row-columns/ios.md) · [ipados](leaderboard-row-columns/ipados.md) · [macos](leaderboard-row-columns/macos.md) |
 <!-- END GENERATED -->
 # Controls router
 

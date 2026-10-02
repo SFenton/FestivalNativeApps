@@ -1,0 +1,271 @@
+package com.festivalscoretracker.android.ui.common
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.festivalscoretracker.android.ui.design.popupTestTags
+import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
+import kotlinx.coroutines.launch
+
+// region Close button
+
+/** TalkBack label of every modal's close button (the icon has no visible text). */
+const val MODAL_CLOSE_LABEL = "Close"
+
+/**
+ * The one close affordance every Festival modal carries at the top end of its header
+ * (issue #23; Apple `FestivalSheetCloseItem`, Windows `FestivalDialog`): Material's
+ * standard close icon button (`Icons.Filled.Close`, 48 dp target, no visible text), as
+ * in M3 full-screen dialogs and side sheets.
+ *
+ * @param onClick Closes the modal.
+ * @param tag Test tag (existing modals keep theirs).
+ * @param modifier Modifier.
+ */
+@Composable
+fun FestivalModalCloseButton(onClick: () -> Unit, tag: String, modifier: Modifier = Modifier) {
+    IconButton(onClick = onClick, modifier = modifier.testTag(tag)) {
+        Icon(Icons.Filled.Close, contentDescription = MODAL_CLOSE_LABEL, tint = BrandTokens.textPrimary)
+    }
+}
+
+// endregion
+
+// region Header
+
+/**
+ * Shared modal header: a Title Case heading that takes the free width, optional actions,
+ * then [FestivalModalCloseButton] at the end.
+ *
+ * @param title Heading text.
+ * @param closeTag Close button test tag.
+ * @param onClose Closes the modal.
+ * @param modifier Modifier.
+ * @param titleTag Optional heading test tag.
+ * @param titleStyle Heading style.
+ * @param actions Extra header actions placed before Close (e.g. Reset).
+ */
+@Composable
+fun FestivalModalHeader(
+    title: String,
+    closeTag: String,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    titleTag: String? = null,
+    titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier.fillMaxWidth().padding(start = 24.dp, end = 8.dp)) {
+        Text(
+            title,
+            style = titleStyle,
+            fontWeight = FontWeight.Bold,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier
+                .weight(1f)
+                .semantics { heading() }
+                .then(if (titleTag != null) Modifier.testTag(titleTag) else Modifier),
+        )
+        actions()
+        FestivalModalCloseButton(onClose, closeTag)
+    }
+}
+
+// endregion
+
+// region Sheet
+
+/**
+ * Shared modal bottom sheet: Material's `ModalBottomSheet` on the card colour, kept below
+ * the status bar ([festivalSheetTop]), titled for TalkBack (`paneTitle`) and headed by
+ * [FestivalModalHeader]. The close button slides the sheet away (instantly under Reduce
+ * Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
+ *
+ * @param title Header and pane title.
+ * @param closeTag Close button test tag.
+ * @param onDismissRequest Called once the sheet is closed in any way.
+ * @param modifier Sheet modifier (test tags, extra semantics).
+ * @param titleTag Optional heading test tag.
+ * @param skipPartiallyExpanded Open fully expanded (default) or allow the half-height stop.
+ * @param headerActions Extra header actions placed before Close.
+ * @param content Sheet body below the header.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FestivalModalSheet(
+    title: String,
+    closeTag: String,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    titleTag: String? = null,
+    skipPartiallyExpanded: Boolean = true,
+    headerActions: @Composable RowScope.() -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
+    val scope = rememberCoroutineScope()
+    val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    val close: () -> Unit = {
+        if (reduceMotion) {
+            onDismissRequest()
+        } else {
+            scope.launch { sheetState.hide() }.invokeOnCompletion { onDismissRequest() }
+        }
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = BrandTokens.cardBackground,
+        modifier = Modifier.festivalSheetTop().popupTestTags().then(modifier).semantics { paneTitle = title },
+    ) {
+        FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
+        content()
+    }
+}
+
+// endregion
+
+// region Dialog
+
+/** Widest a Festival modal dialog grows. */
+val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
+
+/**
+ * Shared modal dialog for wider windows and the first-run guide: an M3 dialog surface
+ * (28 dp corners, card colour, at most [MODAL_DIALOG_MAX_WIDTH]) headed by
+ * [FestivalModalHeader]. An outside tap, back and Close all call [onDismissRequest].
+ *
+ * @param title Header and pane title.
+ * @param closeTag Close button test tag.
+ * @param onDismissRequest Called when the dialog is closed in any way.
+ * @param modifier Surface modifier (test tags).
+ * @param titleTag Optional heading test tag.
+ * @param paneTitle TalkBack pane title (defaults to [title]).
+ * @param compact Compact window: nearly full width with a 16 dp margin.
+ * @param maxHeight Height cap ([Dp.Unspecified] for none).
+ * @param titleStyle Header title style.
+ * @param content Dialog body below the header.
+ */
+@Composable
+fun FestivalModalDialog(
+    title: String,
+    closeTag: String,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    titleTag: String? = null,
+    paneTitle: String = title,
+    compact: Boolean = false,
+    maxHeight: Dp = Dp.Unspecified,
+    titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = BrandTokens.cardBackground,
+            modifier = Modifier
+                .padding(if (compact) 16.dp else 0.dp)
+                .widthIn(max = MODAL_DIALOG_MAX_WIDTH)
+                .heightIn(max = maxHeight)
+                .fillMaxWidth()
+                .popupTestTags()
+                .then(modifier)
+                .semantics { this.paneTitle = paneTitle },
+        ) {
+            Column(Modifier.padding(top = 12.dp)) {
+                FestivalModalHeader(title, closeTag, onDismissRequest, titleTag = titleTag, titleStyle = titleStyle)
+                content()
+            }
+        }
+    }
+}
+
+// endregion
+
+// region Alert
+
+/**
+ * Shared confirmation / notice alert: Material's `AlertDialog` on the card colour with a
+ * text confirm button and a text dismiss button (the platform's standard way to close an
+ * alert, together with back and an outside tap).
+ *
+ * @param title Alert title.
+ * @param text Body.
+ * @param tag Dialog test tag.
+ * @param confirmLabel Confirm button text.
+ * @param confirmTag Confirm button test tag.
+ * @param onConfirm Confirm action (callers close the alert).
+ * @param dismissLabel Dismiss button text.
+ * @param dismissTag Dismiss button test tag.
+ * @param onDismissRequest Back, an outside tap, or (by default) the dismiss button.
+ * @param onDismissButton Dismiss button action when it differs from [onDismissRequest].
+ * @param textTag Optional body test tag.
+ * @param destructive Confirm in the error colour (e.g. Reset).
+ */
+@Composable
+fun FestivalAlertDialog(
+    title: String,
+    text: String,
+    tag: String,
+    confirmLabel: String,
+    confirmTag: String,
+    onConfirm: () -> Unit,
+    dismissLabel: String,
+    dismissTag: String,
+    onDismissRequest: () -> Unit,
+    onDismissButton: () -> Unit = onDismissRequest,
+    textTag: String? = null,
+    destructive: Boolean = false,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(title) },
+        text = { Text(text, modifier = if (textTag != null) Modifier.testTag(textTag) else Modifier) },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
+                modifier = Modifier.testTag(confirmTag),
+            ) { Text(confirmLabel) }
+        },
+        dismissButton = { TextButton(onClick = onDismissButton, modifier = Modifier.testTag(dismissTag)) { Text(dismissLabel) } },
+        containerColor = BrandTokens.cardBackground,
+        modifier = Modifier.popupTestTags().testTag(tag),
+    )
+}
+
+// endregion

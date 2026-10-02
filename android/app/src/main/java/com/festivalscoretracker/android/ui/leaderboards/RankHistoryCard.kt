@@ -79,7 +79,11 @@ import com.festivalscoretracker.android.core.rankings.RankHistoryRow
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
-import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.LoadSwap
+import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -119,25 +123,30 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
         GlassCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (instruments.size > 1) HistoryInstrumentPicker(instruments, instrument, viewModel::selectHistoryInstrument)
-                when (val value = state) {
-                    LoadState.Loading -> Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).testTag("fst.leaderboards.rank-history.loading"),
-                    ) {
-                        FestivalLoading("Loading rank history")
-                    }
-                    is LoadState.Failed -> ServiceStatusInline(value.issue, "Rank history unavailable", value.countdown, { viewModel.retryHistory(instrument) })
-                    is LoadState.Loaded -> {
-                        val chart = remember(value.value, metric) { RankHistoryChart.build(value.value.history, metric, LocalDate.now()) }
-                        if (chart == null) {
-                            Text(
-                                "No rank history for ${instrument.label}",
-                                color = BrandTokens.textPrimary,
-                                modifier = Modifier.padding(vertical = 8.dp).testTag("fst.leaderboards.rank-history.empty"),
-                            )
-                        } else {
-                            HistoryChart(chart)
-                            chart.rows.forEach { HistoryRow(it) }
+                // A chart switch fades the old history out, shows the spinner and fades the new
+                // one in, even when it was read before (web load sequence, issue #71).
+                val swap = rememberLoadSwap(instrument to state, state !is LoadState.Loading, key = instrument)
+                if (swap.showsSpinner) {
+                    LoadSwapSpinner(swap, "Loading rank history", Modifier.fillMaxWidth().heightIn(min = 96.dp), "fst.leaderboards.rank-history.loading")
+                } else {
+                    val (shownInstrument, shownState) = swap.shown
+                    Column(swap.contentModifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        when (val value = shownState) {
+                            LoadState.Loading -> Unit
+                            is LoadState.Failed -> ServiceStatusInline(value.issue, "Rank history unavailable", value.countdown, { viewModel.retryHistory(shownInstrument) })
+                            is LoadState.Loaded -> {
+                                val chart = remember(value.value, metric) { RankHistoryChart.build(value.value.history, metric, LocalDate.now()) }
+                                if (chart == null) {
+                                    Text(
+                                        "No rank history for ${shownInstrument.label}",
+                                        color = BrandTokens.textPrimary,
+                                        modifier = Modifier.staggeredIn(swap, 0).padding(vertical = 8.dp).testTag("fst.leaderboards.rank-history.empty"),
+                                    )
+                                } else {
+                                    Box(Modifier.staggeredIn(swap, 0)) { HistoryChart(chart) }
+                                    chart.rows.forEachIndexed { index, row -> Box(Modifier.staggeredIn(swap, index + 1)) { HistoryRow(row) } }
+                                }
+                            }
                         }
                     }
                 }
@@ -145,6 +154,9 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
         }
     }
 }
+
+/** The web's staggered entrance for the [index]th child of a swapped section. */
+private fun Modifier.staggeredIn(swap: LoadSwap<*>, index: Int): Modifier = festivalFadeIn(swap.revealed, fadeInStagger(index))
 
 @Composable
 private fun HistoryInstrumentPicker(instruments: List<Instrument>, selected: Instrument, onSelect: (Instrument) -> Unit) {

@@ -94,17 +94,14 @@ public sealed partial class SettingsPage : Page
     /// <param name="e">Unused.</param>
     private async void OnResetClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = "Reset Settings",
-            Content = "Are you sure you want to restore all settings to their default values? Your profile, song filters and navigation stay.",
-            PrimaryButtonText = "Reset",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
-        };
-        if (await MainWindow.ShowDialogAsync(dialog) == ContentDialogResult.Primary) ViewModel.ResetAppSettingsCommand.Execute(null);
+        var dialog = Controls.FestivalDialog.Create(
+            XamlRoot,
+            "Reset Settings",
+            "Are you sure you want to restore all settings to their default values? Your profile, song filters and navigation stay.",
+            "fst.settings.reset.dialog",
+            closeText: "Cancel",
+            primaryText: "Reset");
+        if (await Controls.FestivalDialog.ShowAsync(dialog) == ContentDialogResult.Primary) ViewModel.ResetAppSettingsCommand.Execute(null);
     }
 
     /// <summary>Replays What's New.</summary>

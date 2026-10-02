@@ -12,20 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,21 +27,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.whatsnew.Changelog
 import com.festivalscoretracker.android.core.whatsnew.ChangelogEntry
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewGate
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.festivalscoretracker.android.ui.common.FestivalModalDialog
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Host
 
@@ -89,62 +78,48 @@ fun WhatsNewHost(controller: WhatsNewController, blocked: Boolean, compact: Bool
 
 /**
  * The native "What's New" changelog (web `ChangelogModal`, Apple `WhatsNewSheet`, Windows
- * What's New dialog): a titled, scrolling list of Title Case sections with bullets, a Close
- * icon and a centred Dismiss button in an opaque bottom bar the list scrolls above.
+ * What's New dialog): a titled, scrolling list of Title Case sections with bullets, the
+ * shared header Close button and a centred Dismiss button in an opaque bottom bar the list
+ * scrolls above.
  *
- * Material presentation: a full-height modal bottom sheet on compact windows (swipe down,
- * back or a scrim tap closes it), a dialog on wider windows (outside tap or back closes it).
+ * Material presentation through the shared modal component: a full-height
+ * [FestivalModalSheet] on compact windows (swipe down, back or a scrim tap also close it), a
+ * [FestivalModalDialog] on wider windows (outside tap or back also close it).
  *
  * @param title "What's New · <version>".
  * @param entries Displayable entries ([Changelog.displayEntries]).
  * @param compact Compact window width.
  * @param onDismiss Called once when closed in any way.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WhatsNewSheet(title: String, entries: List<ChangelogEntry>, compact: Boolean, onDismiss: () -> Unit) {
     if (compact) {
-        ModalBottomSheet(
+        FestivalModalSheet(
+            title = title,
+            closeTag = "fst.whats-new.close",
+            titleTag = "fst.whats-new.title",
             onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.whats-new.sheet").semantics { paneTitle = title },
+            modifier = Modifier.testTag("fst.whats-new.sheet"),
         ) {
-            WhatsNewContent(title, entries, onDismiss, Modifier.fillMaxHeight())
+            WhatsNewContent(entries, onDismiss, Modifier.fillMaxHeight())
         }
     } else {
-        Dialog(onDismissRequest = onDismiss) {
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = BrandTokens.cardBackground,
-                modifier = Modifier
-                    .widthIn(max = 560.dp)
-                    .heightIn(max = 640.dp)
-                    .popupTestTags()
-                    .testTag("fst.whats-new.sheet")
-                    .semantics { paneTitle = title },
-            ) {
-                WhatsNewContent(title, entries, onDismiss, Modifier.padding(top = 12.dp))
-            }
+        FestivalModalDialog(
+            title = title,
+            closeTag = "fst.whats-new.close",
+            titleTag = "fst.whats-new.title",
+            onDismissRequest = onDismiss,
+            maxHeight = 640.dp,
+            modifier = Modifier.testTag("fst.whats-new.sheet"),
+        ) {
+            WhatsNewContent(entries, onDismiss, Modifier)
         }
     }
 }
 
 @Composable
-private fun WhatsNewContent(title: String, entries: List<ChangelogEntry>, onClose: () -> Unit, modifier: Modifier) {
-    Column(modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 24.dp, end = 8.dp)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.weight(1f).semantics { heading() }.testTag("fst.whats-new.title"),
-            )
-            IconButton(onClick = onClose, modifier = Modifier.testTag("fst.whats-new.close")) {
-                Icon(Icons.Filled.Close, contentDescription = "Close", tint = BrandTokens.textPrimary)
-            }
-        }
+private fun ColumnScope.WhatsNewContent(entries: List<ChangelogEntry>, onClose: () -> Unit, modifier: Modifier) {
+    Column(modifier.weight(1f, fill = false).fillMaxWidth()) {
         val sections = entries.flatMap { it.sections }
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
