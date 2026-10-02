@@ -43,13 +43,17 @@
     with the system dots hidden and white `FirstRunPageDots` (current solid, others 35 %; one
     adjustable "Page, n of m" element); the system toolbar **Close** from the shared
     `FestivalModal` (`Button(role: .close)` glyph on iOS 26, issue #23; it replaced issue #4's
-    text "Close", which itself replaced a hand-drawn ✕); a full-width glass-prominent
+    text "Close", which itself replaced a hand-drawn ✕) beside an inline navigation title naming
+    the page the guide explains (`FirstRunPageKey.guideTitle`, issue #24: the Settings row label,
+    e.g. "Songs", "Score History"; all under 15 characters per HIG Toolbars), on launch and on a
+    Settings replay alike; a full-width glass-prominent
     **Next/Done** first, then glass **Back** (only after page one) and **Skip** (until the last
     page) beneath it — a one-page guide shows only Done, and there is never a disabled Back
     (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`). Presented at an 86 % detent
     (`FirstRunSheetStyle`) so tapping the dimmed page above it, or swiping down, dismisses.
-    `@AccessibilityFocusState` moves focus to each new slide; animations skip under Reduce
-    Motion.
+    VoiceOver focus is left to the system on open, so the navigation title is announced first
+    (HIG VoiceOver: a screen's title is announced first); `@AccessibilityFocusState` then moves
+    focus to each new slide on a page change. Animations skip under Reduce Motion.
   - **Seen pages only**: the carousel records every page shown in a `FirstRunViewing` binding;
     the presenter's `onDismiss` marks only those seen (however it closed), so unviewed pages
     show next time (web new-info rule). Settings replays do the same after resetting the page.
@@ -248,7 +252,8 @@ inert previews, same as Songs').
   from storage at init, so there's no async gap where gates could evaluate against stale data on
   this platform. Revisit if a future async gate dependency is added.
 - XCUITest: `FirstRunJourneyTests.swift` (Next/Back/Skip order, native navigation-bar
-  Close labelled "Close" (`testCloseIsNativeToolbarButton`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
+  Close labelled "Close" (`testCloseIsNativeToolbarButton`), the page's navigation title on launch
+  and on a Settings replay (`testGuideShowsPageTitleInNavigationBar`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
   Tap-outside must land below the status bar (a status-bar tap is scroll-to-top).
 - `contracts/product.json` has no `first-run` control entry yet (orchestrator-owned file, not
   edited by this lane) — `check_docs.py` reports the same pending "topic not in contracts"
