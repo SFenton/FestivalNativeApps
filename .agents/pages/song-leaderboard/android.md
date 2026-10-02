@@ -12,7 +12,7 @@
 
 ## IDs
 
-`fst.song-leaderboard.list`, `.instrument`, `.row.<accountId|rank-N>`, `.spotlight-footer`, `.spotlight-jump`, `.bottom-bar`, `.pager`, `fst.stars`, `.page-first|page-previous|page-info|page-next|page-last`.
+`fst.song-leaderboard.list`, `.instrument`, `.row.<accountId|rank-N>`, `.spotlight-footer`, `.spotlight-jump`, `.bottom-bar`, `.pager`, `fst.stars`, `fst.score` (score cell; aligned per section), `.page-first|page-previous|page-info|page-next|page-last`.
 
 ## Open
 
