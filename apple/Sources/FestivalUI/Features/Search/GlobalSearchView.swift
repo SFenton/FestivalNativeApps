@@ -451,13 +451,22 @@ struct GlobalSearchToolbarItem: ViewModifier {
             .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { pageProvidesSearch = $0 }
             .toolbar {
                 if let openGlobalSearch, !pageProvidesSearch, !shellOwnsGlobalToolbar {
-                    ToolbarItem(placement: .primaryAction) {
+                    // Joins the page's own actions (`.festivalPageAction`) in one group.
+                    ToolbarItem(placement: .festivalPageAction) {
                         GlobalSearchButton { openGlobalSearch() }
                     }
                 }
                 // The profile avatar stays top-right on every pushed page too (operator
-                // batch 7), after Search; root screens carry it in their own trailing items.
+                // batch 7); root screens carry it in their own trailing items. This outer
+                // modifier's items are laid out before the page's, so on iOS the avatar is
+                // the only `.primaryAction` item (pinned to the trailing edge), in its own
+                // glass group like on tab roots (issue #85).
                 if let session, !pageProvidesSearch, !shellOwnsGlobalToolbar {
+                    #if os(iOS)
+                    if #available(iOS 26.0, *) {
+                        ToolbarSpacer(.fixed, placement: .primaryAction)
+                    }
+                    #endif
                     ToolbarItem(placement: .primaryAction) {
                         RootProfileButton(session: session) { openProfile() }
                     }

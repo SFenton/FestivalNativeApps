@@ -16,9 +16,12 @@ The bell and the avatar are **separate glass buttons** in horizontal bars (issue
 SwiftUI lays out items from an outer `.toolbar` modifier (the root chrome) *before* the page's own items, so:
 
 - A tab root **with** its own trailing actions ends its `.toolbar { … }` with `FestivalRootTrailingItems(session: session)` and applies `.festivalProvidesRootTrailingItems()`; the chrome then adds only the drawer button. Also add the section to `FestivalRootView.rootProvidesTrailingItems` (or pass `festivalRootChrome(…, providesTrailingItems: true)` where the page applies its own chrome, like Songs): the preference alone arrives an update late, so the first pass adds and removes a second bell/avatar.
-- Use `placement: .topBarTrailing` (iOS only — wrap in `#if os(iOS)`, `.primaryAction` on macOS) for page actions on tab roots. `.primaryAction` is pinned to the far trailing edge and would land after the avatar.
+- Use `placement: .festivalPageAction` (`.topBarTrailing` on iOS, `.primaryAction` elsewhere) for page actions on tab roots **and pushed pages**. iOS pins `.primaryAction` to the far trailing edge, after every `.topBarTrailing` item, whichever modifier added it.
 - Tab roots **without** their own actions do nothing; `festivalRootChrome` adds the bell + avatar itself.
-- Pushed pages never show the chrome, so `.primaryAction` is fine there.
+
+## Toolbar order rule (pushed pages)
+
+Pushed pages never show the root chrome; `FestivalTabStack` applies `.globalSearchToolbarItem()` to every destination, which adds Search and the avatar from an *outer* modifier. Until issue #85 (2026-10-02) both used `.primaryAction`, so on iPhone they were laid out before the page's own `.primaryAction` actions (Song detail: Item Shop, Paths) and the avatar sat mid-capsule. Now Search uses `.festivalPageAction` and joins the page actions, and the avatar is the **only** `.primaryAction` item, after a `ToolbarSpacer(.fixed, placement: .primaryAction)` (iOS 26+): `[Back] … [Search + page actions] · [avatar]`, two trailing groups within HIG [Toolbars](https://developer.apple.com/design/human-interface-guidelines/toolbars) "Item groupings": "Group by function/frequency and consistently across platforms; … generally use no more than three groups" (`apple-hig` `references/hig/toolbars.md`). `PushedPageAvatarPlacementTests` fails if any page outside the Mac shell uses `.primaryAction` again. The pushed avatar carries no rail `visibilityPriority` (unchanged).
 
 ## Header search and floating page tools
 

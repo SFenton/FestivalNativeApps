@@ -466,7 +466,7 @@ struct SongsScreen: View {
             filterDockToken: filterDockToken, sortDockToken: sortDockToken,
             canPresentFilter: canPresentFilter, actionsInDock: actionsInDock,
             presentation: toolsPresentation,
-            placement: Self.pageActionPlacement,
+            placement: .festivalPageAction,
             sortAction: sortAction, filterAction: filterAction,
             searchQuery: searchText,
             openSearch: { searchBarPresented = true },
@@ -580,16 +580,6 @@ struct SongsScreen: View {
                 state = .failed(.other(message: "Search could not finish: \(error.localizedDescription)"))
             }
         }
-    }
-
-    /// Tab-root page actions must precede the shared bell/avatar capsule; iOS pins
-    /// `.primaryAction` to the trailing edge, so use `.topBarTrailing` there.
-    private static var pageActionPlacement: ToolbarItemPlacement {
-        #if os(iOS)
-        .topBarTrailing
-        #else
-        .primaryAction
-        #endif
     }
 
     /// Where the `.searchable` Filter Songs field sits (unused in the tab-bar accessory).

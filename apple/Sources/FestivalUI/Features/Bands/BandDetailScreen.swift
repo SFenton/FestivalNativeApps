@@ -69,7 +69,7 @@ struct BandDetailScreen: View {
         .navigationTitle(name ?? "Band")
         .toolbar {
             if isResolvable, case .loaded = detailState {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .festivalPageAction) {
                     BandRankByMenu(selection: $rankBy)
                 }
             }

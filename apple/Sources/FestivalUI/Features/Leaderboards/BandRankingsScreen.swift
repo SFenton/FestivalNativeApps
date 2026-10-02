@@ -96,7 +96,7 @@ struct BandRankingsScreen: View {
         .festivalBackground(.carousel, session: session)
         .navigationTitle("\(bandType.label) Rankings")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .festivalPageAction) {
                 HStack(spacing: 4) {
                     if layout.sectionChrome.isVerticalBar {
                         bandTypeMenu(showsTitle: false)

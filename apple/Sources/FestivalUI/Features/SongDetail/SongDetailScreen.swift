@@ -233,12 +233,12 @@ struct SongDetailScreen: View {
         }
         #endif
         if let offer = shopOffer {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .festivalPageAction) {
                 shopAction(offer)
             }
         }
         if !pathInstruments.isEmpty {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .festivalPageAction) {
                 Button {
                     pathsPresented = true
                 } label: {

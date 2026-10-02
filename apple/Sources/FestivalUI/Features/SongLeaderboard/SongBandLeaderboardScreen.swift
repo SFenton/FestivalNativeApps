@@ -76,7 +76,7 @@ struct SongBandLeaderboardScreen: View {
         .festivalBackground(.carousel, session: session)
         .navigationTitle("\(bandType.label) Scores")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) { bandTypeMenu }
+            ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             #if os(iOS)
             if case let .loaded(payload) = state {
                 RankingsPagerToolbarContent(

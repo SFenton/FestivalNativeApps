@@ -134,9 +134,9 @@ struct ShopScreen: View {
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Item Shop")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) { filterButton }
+            ToolbarItem(placement: .festivalPageAction) { filterButton }
             if sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .festivalPageAction) {
                     Button {
                         staggerSettled = false
                         preferredMode = viewMode == .grid ? .list : .grid
