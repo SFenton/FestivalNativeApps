@@ -67,6 +67,13 @@ Status countdowns, `FestivalSectionHeader` subtitles and the tab-accessory Searc
 
 Loaded content never pops in: apply `.festivalFadeIn(isLoaded:)` (`Common/FadeInOnLoad.swift`) to the view that replaces a spinner, and `.festivalFadeIn(isLoaded:index:)` to list rows and card stacks. It ports the web's `fadeInUp` (opacity 0 → 1 while rising 12 pt, 400 ms CSS `ease-out`, `FADE_DURATION`) and `staggerDelay` ((index + 1) × 125 ms; items past the first ~8 appear instantly; same values as Android and Windows). The fade plays once per view lifetime, is instant under system or in-app Reduce Motion, and is disabled in hosted snapshots (`\.festivalFadeInEnabled`, set by `NativeHostedRoot`). Put it on the loaded content, never on a container that also holds the spinner (the content is invisible until `isLoaded`). Applied to Suggestions, Profile/Statistics, Rivals, Compete, Bands, Player Bands and Notifications; other lanes adopt it on their pages. `festivalFadeInOnAppear()` (Lane W4) is the same as `festivalFadeIn(isLoaded: true)`.
 
+**Only load-time content fades (issue #30).** A lazy container (`LazyVStack`, `LazyVGrid`, `List`) builds rows as they scroll near the screen and rebuilds them after they scroll away, so a per-view fade would replay on scroll. Each page therefore limits fading to what is visible when it opens:
+
+- Scroll pages with lazy sections (Song Detail, Leaderboards, Player Profile, Shop) apply `.festivalFadeInScope()` to the content directly inside the `ScrollView`. `FestivalFadeInScope` records the content's resting offset in the `.scrollView` space and closes once it moves more than 4 pt; after that, newly built `festivalFadeIn` views appear instantly. A fade that is already running finishes. Don't use the scope on appending feeds.
+- `List` pages stagger only until the rows settle: `FadeStagger.index(_:settled:)` plus a `.task(id:)` that calls `FadeStagger.settle` (Songs, Solo Leaderboard, Notifications, Global Search, Player Bands).
+- Suggestions fades each newly loaded batch: `SuggestionsViewModel.batchGeneration`/`latestBatchIds` and `FadeStagger.batchIndexes` stagger the newest batch in display order until it settles. Earlier cards never fade again.
+- Eager (`VStack`) pages build everything at load, so they need nothing extra. `ios_sim.py drive` keeps the background still and so turns Song Detail/Shop/Solo fades off; add the Debug-only `FST_DEBUG_KEEP_FADES=1` to record them.
+
 ## Loading indicators (operator rule)
 
 Every spinner is `Common/FestivalLoadingView` (white, **no visible title/subtitle**; spoken label only). Never `ProgressView("…")` with text. Determinate progress bars (e.g. Paths image download) are exempt.
