@@ -232,13 +232,12 @@ public sealed partial class SongPathsView : UserControl
     #endregion
 
     #region Image
-    /// <summary>Fits the image to the viewport width (never upscaling past its pixel width).</summary>
+    /// <summary>Fits the centred image to the viewport width (never upscaling past its pixel width).</summary>
     private void FitImage()
     {
         if (ViewModel.Image is not { } picture) return;
-        var scale = XamlRoot?.RasterizationScale ?? 1;
-        var available = Math.Max(1, ImageScroller.ActualWidth - 16);
-        PathImage.Width = Math.Min(available, picture.Width / scale);
+        PathImage.Width = SongPathsViewModel.FitImageWidth(ImageScroller.ViewportWidth is > 0 and var viewport ? viewport : ImageScroller.ActualWidth,
+            picture.Width, XamlRoot?.RasterizationScale ?? 1);
     }
 
     /// <summary>Refits on resize.</summary>

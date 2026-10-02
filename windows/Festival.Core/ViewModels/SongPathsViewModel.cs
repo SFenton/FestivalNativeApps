@@ -50,6 +50,21 @@ public sealed partial class SongPathsViewModel : ObservableObject
     /// <summary>Zoom steps for the image.</summary>
     public const double MinZoom = 1, MaxZoom = 3, ZoomStep = 1.5;
 
+    /// <summary>
+    /// Fit-zoom width of the path image: the full viewport width (the image is centred, and Fluent's overlay scroll
+    /// bars take no layout space, issue #87), never upscaled past the image's own pixel width.
+    /// </summary>
+    /// <param name="viewportWidth">Scroll viewport width in effective pixels.</param>
+    /// <param name="pixelWidth">Decoded image width in physical pixels.</param>
+    /// <param name="rasterizationScale">Display scale (physical per effective pixel); non-positive means 1.</param>
+    /// <returns>Image width in effective pixels, at least 1.</returns>
+    public static double FitImageWidth(double viewportWidth, int pixelWidth, double rasterizationScale)
+    {
+        var scale = rasterizationScale > 0 ? rasterizationScale : 1;
+        var available = double.IsFinite(viewportWidth) ? viewportWidth : 1;
+        return Math.Max(1, Math.Min(available, pixelWidth / scale));
+    }
+
     private readonly FestivalSession session;
     private CancellationTokenSource? request;
     private int revision;

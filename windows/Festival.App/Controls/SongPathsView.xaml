@@ -77,7 +77,8 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" MaxWidth="360"
                            Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" AutomationProperties.AutomationId="fst.paths.empty" />
 
-                <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in with ChartContent (web fadeInImage). -->
+                <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in with ChartContent (web fadeInImage).
+                     Centred with equal margins at fit zoom (issue #87); Fluent's auto-hiding scroll bars overlay it. -->
                 <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -98,7 +99,7 @@
                     <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
                                   HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
                                   ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
-                        <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top"
                                AutomationProperties.Name="{x:Bind ViewModel.ImageDescription, Mode=OneWay}"
                                AutomationProperties.AutomationId="fst.paths.image" />
                     </ScrollViewer>
