@@ -250,8 +250,6 @@
     "fst.songs.filter.form": "songs-filter",
     "fst.songs.filter.title": "songs-filter",
     "fst.songs.filter.score-sections": "songs-filter",
-    "fst.songs.filter.in-shop": "songs-filter",
-    "fst.songs.filter.leaving": "songs-filter",
     "fst.songs.filter.general": "songs-filter",
     "fst.songs.filter.year": "songs-filter",
     "fst.songs.filter.year.*": "songs-filter",
