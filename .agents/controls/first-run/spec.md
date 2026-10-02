@@ -60,6 +60,19 @@ per-page `pages/<page>/firstRun/**`, `pages/settings/SettingsPage.tsx` (replay U
   tour"). Verified 2026-10-02: Android's dialog header shows the page label (`paneTitle` "Feature
   tour: <page>") and Windows' `ContentDialog.Title` is the page label; iOS gained an inline
   navigation title.
+- Navigation controls follow each platform's onboarding convention (issue #25), not the web's
+  footer: every page has one prominent primary **Next** (**Done** on the last page); **Back**
+  appears only after page one and is never shown disabled; an optional **Skip** stays easy to
+  reach while pages remain; **Close** dismisses. Each control is a named button with at least the
+  platform's minimum target (44×44 pt iOS, 48×48 dp Android, 40×40 epx touch target on
+  Windows). Apple: Back is the leading navigation-bar chevron before the
+  title, Next is a large prominent bottom button and Skip a quiet text button beneath it. Google
+  (Material 3 / Setup Wizard footer): primary Next at the bottom end, secondary Skip at the
+  bottom start, Back is the system Back or top app bar arrow; the app's guide is a dialog, so
+  Android orders its footer as Material 3 dialog actions. Microsoft (Fluent dialogs): the
+  "do it" primary leftmost, the safe/dismiss action rightmost, Back as a secondary command.
+  Each platform file ([ios.md](ios.md), [android.md](android.md), [windows.md](windows.md))
+  records its exact layout.
 
 ## States
 

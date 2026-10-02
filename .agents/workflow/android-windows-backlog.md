@@ -33,7 +33,7 @@ Platform-specific queues: [backlog-android.md](backlog-android.md) · [backlog-w
 | 6.4 | App-wide pass: excess left inset on cards/rows (Search results, Leaderboards, etc.) | W | check | check | ✔ |
 | 6.5 | Cards with multiple entries need row separators | W | check | check | ✔ |
 | 6.6 | Chrome text (Back, hamburger, app title) white, not gray | W | check | check | ✔ |
-| 6.7 | First run: one-page guide shows only **Done** (no disabled Back, no Skip); **Next/Done before Back**; no extra left/right arrows on the modal; **white** pager dots; clicking outside dismisses and only the pages actually seen count as "don't show again" | W | ✔ | ✔ | ✔ |
+| 6.7 | First run: one-page guide shows only **Done** (no disabled Back, no Skip); **Next/Done before Back** (Windows `ContentDialog` order; Android uses M3 Back-then-Next/Done since issue #25); no extra left/right arrows on the modal; **white** pager dots; clicking outside dismisses and only the pages actually seen count as "don't show again" | W | ✔ | ✔ | ✔ |
 | 6.8 | Leaderboards: "Bands" header larger than the Duos/Trios/Quads headers | W | ✔ | ✔ | ✔ |
 | 6.9 | Item Shop: art not loading; songs currently in the shop not prioritised; cards don't look like web Item Shop cards | W | check | check | ✔ |
 | 6.10 | Switching List ↔ Grid view re-runs the fade/stagger correctly for the new layout | W | check | check | ✔ |

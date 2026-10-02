@@ -51,8 +51,12 @@ struct FestivalModal<Content: View>: View {
         self.content = content()
     }
 
+    @Environment(\.festivalModalPreview) private var isPreview
+
     var body: some View {
-        if let path {
+        if isPreview {
+            content
+        } else if let path {
             NavigationStack(path: path) { chrome }
         } else {
             NavigationStack { chrome }
@@ -74,6 +78,17 @@ struct FestivalModal<Content: View>: View {
             dismiss()
         }
     }
+}
+
+// MARK: - Preview
+
+extension EnvironmentValues {
+    /// Whether a ``FestivalModal`` shows only its content, with no navigation stack, title or
+    /// Close: a real sheet embedded as a picture inside another modal, such as a first-run
+    /// demo (issue #25). SwiftUI merges a nested `NavigationStack`'s title and toolbar into
+    /// the enclosing one, so a live modal there would replace the outer title and add a
+    /// second, working Close to the outer navigation bar.
+    @Entry var festivalModalPreview = false
 }
 
 /// Inline title (iOS) when the modal has one.
