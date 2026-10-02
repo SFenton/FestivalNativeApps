@@ -15,6 +15,7 @@ Evidence: `tools/windows/a11y_matrix.py` against the anonymized fixture (`rivals
 | HC | Aquatic, Desert, Dusk and Night sky at medium on every page: theme colours behind content, no artwork, text legible, focus visible |
 | Text | 225% at medium on every page, and at compact on the core pages; 150% on the core pages |
 | Motion | Animation effects off, transparency off, in-app Reduce Motion + Disable Animated Artwork + Save Data, and More Contrast + Less Transparency, on the core pages |
+| Touch targets | Issue #72 (2026-10-02): UIA bounds of the title-bar Search/bell/profile, Songs Sort/Filter/Jump and Quick Links at compact, then a `ui_journey.py` coordinate `click` at the centre and 18.5 epx above and below it (fresh launch each), passing when the button's flyout (`ProfileFlyout`, `Panel`, `SortFlyout`, `FilterFlyout`, a Quick Links item) or Search page appears. Coordinates are relative to the title bar's UIA origin, not the window rect (which includes the invisible resize border). Before: Search 32×32, profile 36×36, tools 32 tall; 12 of 21 clicks missed. After `FSTMinTargetSize`: every button ≥ 40×40, no overlapping bounds, 21/21 activate. Markup guard: `HitTargetMarkupTests` |
 
 ## Pages
 

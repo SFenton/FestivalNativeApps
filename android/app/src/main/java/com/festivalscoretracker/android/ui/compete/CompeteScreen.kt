@@ -61,7 +61,6 @@ import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.leaderboards.AccountRankingRow
-import com.festivalscoretracker.android.ui.leaderboards.RankingsSkeletonRows
 import com.festivalscoretracker.android.ui.rivals.AdaptiveCardGrid
 import com.festivalscoretracker.android.ui.rivals.RivalCardFailure
 import com.festivalscoretracker.android.ui.rivals.RivalCardLoading
@@ -199,7 +198,8 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.compete.leaderboard-card.${scope.key}")) {
         ScopeHeader(scope, fullBoard, "fst.compete.board.see-all.${scope.key}")
         when (val state = section.board) {
-            LoadState.Loading -> GlassCard(Modifier.fillMaxWidth()) { RankingsSkeletonRows(5) }
+            // A system progress indicator, like the Rivals cards: static skeleton bars read as empty content (#65).
+            LoadState.Loading -> RivalCardLoading("Loading ${scope.label} leaderboard", Modifier.testTag("fst.compete.leaderboard-card.${scope.key}.loading"))
             is LoadState.Failed -> RivalCardFailure(state.issue, "${scope.label} unavailable", state.countdown) { viewModel.retryBoard(scope.key) }
             is LoadState.Loaded -> {
                 val value = state.value
@@ -264,7 +264,7 @@ private fun RivalsCard(section: CompeteSection, viewModel: CompeteViewModel, nav
         ScopeHeader(scope, seeAll, "fst.compete.rivals.see-all.${scope.key}")
         when (val state = section.rivals) {
             null -> EmptyCard(CompeteText.NO_RIVALS_TITLE, CompeteText.trackForRivals(scope.label))
-            LoadState.Loading -> RivalCardLoading("Loading ${scope.label} rivals")
+            LoadState.Loading -> RivalCardLoading("Loading ${scope.label} rivals", Modifier.testTag("fst.compete.rivals-card.${scope.key}.loading"))
             is LoadState.Failed -> RivalCardFailure(state.issue, "${scope.label} rivals unavailable", state.countdown) { viewModel.retryRivals(scope.key) }
             is LoadState.Loaded -> if (state.value.isEmpty()) {
                 EmptyCard(CompeteText.NO_RIVALS_TITLE, CompeteText.noRivals(scope.label))

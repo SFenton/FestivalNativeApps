@@ -65,11 +65,21 @@ struct CompeteScreen: View {
 
     private var stackedHub: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                leaderboardsSection
-                rivalsSection
+            if layout.widthClass == .regular && !DualSourcePolicy.isActive(layout) {
+                // Regular-width columns (Mac, iPad): Leaderboards beside Rivals, the two
+                // halves of Compete side by side instead of one very long column.
+                HStack(alignment: .top, spacing: 8) {
+                    leaderboardsSection.frame(maxWidth: .infinity, alignment: .top)
+                    rivalsSection.frame(maxWidth: .infinity, alignment: .top)
+                }
+                .padding(.vertical, 12)
+            } else {
+                VStack(alignment: .leading, spacing: 24) {
+                    leaderboardsSection
+                    rivalsSection
+                }
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 12)
         }
         .quickLinks(quickLinks, title: "Quick Links")
     }

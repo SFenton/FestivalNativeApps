@@ -264,11 +264,30 @@ public sealed partial class NotificationRowViewModel : ObservableObject
     /// <summary>Whether a flag is shown.</summary>
     public bool HasFlag => Presentation.Flag is not null;
 
+    /// <summary>Flag pill background as <c>0xAARRGGBB</c> (web <c>FLAG_COLORS</c>).</summary>
+    public uint FlagArgb => (Presentation.FlagKind ?? NotificationFlagKind.Improvement).Argb();
+
+    /// <summary>Message runs (bold values as on the web).</summary>
+    public IReadOnlyList<NotificationMessagePart> MessageParts => Presentation.Parts;
+
+    /// <summary>Leading media kind.</summary>
+    public NotificationMediaKind MediaKind => Presentation.MediaKind;
+
     /// <summary>Leading album art reference, if any.</summary>
     public string? Art => Presentation.AlbumArt;
 
     /// <summary>Whether the leading rail shows album art.</summary>
     public bool HasArt => Presentation.AlbumArt is not null;
+
+    /// <summary>Art edge: 54 epx alone, 44 epx above an instrument grid (web <c>MEDIA_ART_SIZE</c> / <c>SONG_GRID_ART_SIZE</c>).</summary>
+    public double ArtSize => MediaKind == NotificationMediaKind.SongInstrumentGrid ? 44 : 54;
+
+    /// <summary>Icon files of the charts under the art (empty unless the row touches several).</summary>
+    public IReadOnlyList<string> GridIconFiles => MediaKind == NotificationMediaKind.SongInstrumentGrid
+        ? Presentation.GridInstruments.Select(i => i.IconFile()).ToList() : [];
+
+    /// <summary>Whether the rail shows the instrument grid under the art.</summary>
+    public bool HasGrid => MediaKind == NotificationMediaKind.SongInstrumentGrid;
 
     /// <summary>Leading instrument icon file when there is no art ("" for none).</summary>
     public string MediaIconFile => Presentation.MediaInstrument?.IconFile() ?? "";
@@ -293,7 +312,7 @@ public sealed partial class NotificationRowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AccessibleName))]
     private bool isUnread;
 
-    /// <summary>Narrator name: unread state, title, message and time.</summary>
-    public string AccessibleName => (IsUnread ? "Unread. " : "") + $"{Title}. {Message} {TimeText}";
+    /// <summary>Narrator name: unread state, title, message, flag and time (the art and icons are decorative).</summary>
+    public string AccessibleName => (IsUnread ? "Unread. " : "") + $"{Title}. {Message} " + (HasFlag ? $"{Flag}. " : "") + TimeText;
 }
 #endregion

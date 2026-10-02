@@ -11,6 +11,7 @@
 - Rows (shared `LeaderboardEntryRow`, operator batch 7.7; web `LeaderboardEntry` column order): rank, name, season (rows from 520 epx), score, accuracy badge (gold skewed outline for FC), stars (rows from 700 epx), chevron; separate frosted rows 4 epx apart; below 420 epx the column gaps tighten. The selected player's row opens Statistics, anyone else their profile; rows without a usable account ID are not interactive.
 - Selected player: highlighted in place, and pinned above the pager from `FestivalSession.SelectedScoreIndex` (no extra read), only while `IsSelectedProfileCurrent` (same publication). With invalid-score filtering on, an invalid score uses its valid variant (shown unranked, no jump) or no pinned row. **Your page** jumps to their page when their row is elsewhere; the list scrolls to the highlighted row after a page change. The web footer never re-pages (native addition, as on iPhone).
 - Shared pager (`fst.song-leaderboard.page-*`; batch 7.4: keyboard paging, hidden for one page; journey `tools/windows/journeys/boards-ui.json`), Back restores the page (kept view model), F5 reloads.
+- Load-swap gate (issue #71): first load, F5, invalid-score leeway reloads and paging run the shared web sequence (300 ms content-out, centered ring, 500 ms ring-out, row stagger). The new rows/empty/error state commits while hidden and rapid selections are latest-wins; Reduce Motion swaps immediately.
 
 ## Evidence
 

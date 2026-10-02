@@ -34,7 +34,9 @@ import com.festivalscoretracker.android.presentation.songs.InvalidScoreContext
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
 import com.festivalscoretracker.android.presentation.songs.songScoreSource
 import com.festivalscoretracker.android.presentation.valueOrNull
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // region Route
 
@@ -85,6 +87,7 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
                 defaultDisplay = settings.pathDefaultView,
                 loadImage = { chart, difficulty -> api.pathImage(song.songId, chart, difficulty, song.pathArtifactGenerationId) },
                 loadText = { chart, difficulty -> api.pathData(song.songId, chart, difficulty, song.pathArtifactGenerationId) },
+                decodeImage = { image -> withContext(Dispatchers.Default) { decodePathImage(image.bytes, image.width, image.height) } },
             )
         }
         SongPathsSheet(

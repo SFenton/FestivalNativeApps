@@ -83,11 +83,12 @@ struct FullRankingsScreen: View {
     }
 
     var body: some View {
-        Group {
+        // Instrument, metric and page changes fade the board out, show the spinner and
+        // fade the new page in (web LoadGate, issue #71).
+        FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading rankings") {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading rankings")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Rankings unavailable") {
                     Task { await load() }
@@ -118,16 +119,15 @@ struct FullRankingsScreen: View {
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
+                // The player's own row fades with the page it belongs to.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    spotlightFooter(entries: payload.rankings.entries)
+                }
                 .leaderboardSectionColumns(pageColumns(payload.rankings.entries))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
-                if case let .loaded(payload) = state {
-                    spotlightFooter(entries: payload.rankings.entries)
-                        .leaderboardSectionColumns(pageColumns(payload.rankings.entries))
-                }
                 RankingsFloatingBar(
                     pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },
                     idPrefix: "fst.full-rankings"
