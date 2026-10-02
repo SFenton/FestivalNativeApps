@@ -255,32 +255,32 @@ class GitFlowTests(unittest.TestCase):
     def test_testflight_notes(self):
         self._history()
         git = self.repo.git
+        head = "Festival Score Tracker iOS 2610.01.04"
         text = v.testflight_notes(git, "ios", "2610.01.04", "41", released=["2610.01.01", "2610.01.03"])
-        self.assertEqual(text, "Festival Score Tracker iOS 2610.01.04 (build 41)\n\n"
-                               "Changes since release 2610.01.03:\nRivals\n• Rivals refresh correctly.")
-        # Unreleased 2610.01.02 and 2610.01.03 fold into the comparison with the last release.
+        self.assertEqual(text, head + "\n\n• Rivals refresh correctly.")
+        # Unreleased 2610.01.02 and 2610.01.03 fold into "Other Changes" (vs. the 2610.01.01 release).
         older = v.testflight_notes(git, "ios", "2610.01.04", "41", released=["2610.01.01"])
-        self.assertIn("Changes since release 2610.01.01:\nSongs\n• Songs load faster.\n\nRivals\n"
-                      "• Rivals refresh correctly.\n\nItem Shop\n• The Item Shop badge is back.", older)
-        self.assertNotIn("New since", older)
+        self.assertEqual(older, head + "\n\n• Rivals refresh correctly.\n\nOther Changes:\n\nSongs\n\n"
+                                       "• Songs load faster.\n\nItem Shop\n\n• The Item Shop badge is back.")
+        self.assertNotIn("(build", older)
         # Commit subjects, PR titles and other platforms' notes never appear.
         for absent in ("Shop badge fix", "Merge pull request", "Windows thing", "should not appear", "generic"):
             self.assertNotIn(absent, older)
         unreleased = v.testflight_notes(git, "ios", "2610.01.03", "40")
-        self.assertIn("Changes so far (no release yet):\nSongs\n• Songs load faster.\n\nItem Shop\n"
-                      "• The Item Shop badge is back.", unreleased)
+        self.assertEqual(unreleased, "Festival Score Tracker iOS 2610.01.03\n\n• The Item Shop badge is back.\n\n"
+                                     "Other Changes:\n\nSongs\n\n• Songs load faster.")
         # Commits pushed without a trailer (the fixture's "Initial app") never become bullets.
         self.assertNotIn("Initial app", unreleased)
         rebuild = v.testflight_notes(git, "ios", "2610.01.04", "44", rebuild_reason="stale_whats_new",
                                      released=["2610.01.03"])
-        self.assertEqual(rebuild, "Festival Score Tracker iOS 2610.01.04 (build 44)\n"
-                                  "Rebuild with no iOS app changes; only the build number changed (stale_whats_new)."
-                                  "\n\nChanges since release 2610.01.03:\nRivals\n• Rivals refresh correctly.")
+        self.assertEqual(rebuild, head + "\n\n• Rebuild with no iOS app changes; only the build number changed "
+                                         "(stale_whats_new).\n\nOther Changes:\n\nRivals\n\n• Rivals refresh correctly.")
         self.repo.commit("Docs", "docs/a.md")
         self.repo.tag("ios/v2610.01.05")
-        # A build with nothing new still repeats every change since the release.
+        # A version with nothing new still lists everything since the release.
         quiet = v.testflight_notes(git, "ios", "2610.01.05", "45", released=["2610.01.03"])
-        self.assertIn("Changes since release 2610.01.03:\nRivals\n• Rivals refresh correctly.", quiet)
+        self.assertEqual(quiet, "Festival Score Tracker iOS 2610.01.05\n\n• No iOS app changes; only the version "
+                                "and build number changed.\n\nOther Changes:\n\nRivals\n\n• Rivals refresh correctly.")
 
     def test_testflight_notes_untrailered_changes_and_limit(self):
         r = self.repo
@@ -290,22 +290,66 @@ class GitFlowTests(unittest.TestCase):
         r.tag("ios/v2610.01.02")
         text = v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"])
         # One bullet per check-in: the untrailered PR by its title, never the direct code commit.
-        self.assertIn("Changes since release 2610.01.01:\n• iOS: rows show ranks", text)
-        self.assertNotIn("Refactor", text)
-        self.assertNotIn("wip", text)
+        self.assertEqual(text, "Festival Score Tracker iOS 2610.01.02\n\n• iOS: rows show ranks")
         self.assertNotIn("Bug fixes and improvements", text)
         r.commit("Internal\n\nRelease-Note: none", "apple/Sources/FestivalCore/B.swift")
         r.tag("ios/v2610.01.04")
         quiet = v.testflight_notes(r.git, "ios", "2610.01.04", "4", released=["2610.01.01"])
-        self.assertIn("Changes since release 2610.01.01:\n• iOS: rows show ranks", quiet)
+        self.assertEqual(quiet, "Festival Score Tracker iOS 2610.01.04\n\n• No user-facing changes.\n\n"
+                                "Other Changes:\n\n• iOS: rows show ranks")
         for n in range(90):
             r.commit("c\n\nRelease-Note: Songs: Note number %d with a reasonably long sentence about it." % n,
                      "apple/Sources/FestivalCore/A.swift")
         r.tag("ios/v2610.01.05")
         long = v.testflight_notes(r.git, "ios", "2610.01.05", "5")
         self.assertLessEqual(len(long), v.TESTFLIGHT_LIMIT)
-        self.assertIn("Changes so far (no release yet):\nSongs\n• Note number 0 ", long)
-        self.assertRegex(long, r"\n• …and \d+ more\.$")
+        self.assertIn("2610.01.05\n\n• Songs: Note number 0 ", long)
+        self.assertRegex(long, r"\n• …and \d+ more\.\n\nOther Changes:\n\n• iOS: rows show ranks$")
+
+    def test_notes_are_the_net_difference_replaces_tester_and_reverts(self):
+        r = self.repo
+        r.tag("ios/v2610.01.01")
+        r.commit("a\n\nRelease-Note: Songs: Rows fade in slowly.", "apple/Sources/FestivalUI/S1.swift")
+        r.commit("b\n\nRelease-Note: Songs: Rows fade in quickly.\nRelease-Note-Replaces: Rows fade in slowly.",
+                 "apple/Sources/FestivalUI/S2.swift")
+        r.commit("c\n\nRelease-Note: Settings: Reset asks first.", "apple/Sources/FestivalUI/S3.swift")
+        reverted = r.git("rev-parse", "HEAD").strip()
+        r.commit('Revert "c"\n\nThis reverts commit %s.' % reverted, "apple/Sources/FestivalUI/S3.swift")
+        r.commit("d\n\nRelease-Note-Tester-iOS: Fixed a crash in the new row fade.",
+                 "apple/Sources/FestivalUI/S4.swift")
+        r.tag("ios/v2610.01.02")
+        self.assertEqual(v.user_notes(r.git, "ios", "ios/v2610.01.01", "ios/v2610.01.02"),
+                         ["Songs: Rows fade in quickly."])
+        self.assertEqual(v.user_notes(r.git, "ios", "ios/v2610.01.01", "ios/v2610.01.02", tester=True),
+                         ["Songs: Rows fade in quickly.", "Fixed a crash in the new row fade."])
+        self.assertEqual(v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"]),
+                         "Festival Score Tracker iOS 2610.01.02\n\n• Songs: Rows fade in quickly.\n"
+                         "• Fixed a crash in the new row fade.")
+        doc = v.whats_new(r.git, "ios", "2610.01.02", ["2610.01.01"])
+        self.assertEqual(doc["entries"][0]["items"], ["Songs: Rows fade in quickly."])
+        # A notes-only commit (no app files) can undo an unreleased note; released notes are untouched.
+        r.commit("Notes\n\nRelease-Note-Replaces: Songs: Rows fade in quickly.", "docs/notes.md")
+        r.tag("ios/v2610.01.03")
+        self.assertEqual(v.user_notes(r.git, "ios", "ios/v2610.01.01", "ios/v2610.01.03"), [])
+        self.assertEqual(v.user_notes(r.git, "ios", "ios/v2610.01.02", "ios/v2610.01.03"), [])
+        entries = v.whats_new(r.git, "ios", "2610.01.03", ["2610.01.01", "2610.01.02"])["entries"]
+        self.assertEqual([e["items"] for e in entries if e["version"] == "2610.01.02"],
+                         [["Songs: Rows fade in quickly."]])
+        self.assertEqual(v.parse_revisions("Release-Note-Replaces: A note.\nRelease-Note-Tester-Android: T.\n"
+                                           "Release-Note-Tester: none"),
+                         ({"*": ["A note."]}, {"android": ["T."]}))
+
+    def test_category_bullets(self):
+        notes = ["Spinners fade in.", "Songs: Rows fade in.", "Settings: CHOpt inline.", "Songs: Index rail.",
+                 "General: Faster launch."]
+        self.assertEqual(v.category_bullets(notes, 4000),
+                         "Songs\n\n• Rows fade in.\n• Index rail.\n\nSettings\n\n• CHOpt inline.\n\nGeneral\n\n"
+                         "• Faster launch.\n• Spinners fade in.")
+        self.assertEqual(v.category_bullets(["A.", "B."], 4000), "• A.\n• B.")
+        self.assertEqual(v.category_bullets(notes, 60), "Songs\n\n• Rows fade in.\n• Index rail.\n• …and 3 more.")
+        self.assertEqual(v.category_bullets(notes, 20), "• …and 5 more.")
+        self.assertEqual(v.strip_category("Item Shop: Badges."), "Badges.")
+        self.assertEqual(v.strip_category("Note: not a category."), "Note: not a category.")
 
     def test_infer_category_prefers_the_opening_words(self):
         cases = {
@@ -325,17 +369,6 @@ class GitFlowTests(unittest.TestCase):
         self.assertEqual(v.groups_json(["Fixed a crash.", "Spinners."]),
                          [{"category": "Performance", "items": ["Fixed a crash."]},
                           {"category": None, "items": ["Spinners."]}])
-
-    def test_category_bullets(self):
-        notes = ["Spinners fade in.", "Songs: Rows fade in.", "Settings: CHOpt inline.", "Songs: Index rail."]
-        self.assertEqual(v.category_bullets(notes, 4000),
-                         "Songs\n• Rows fade in.\n• Index rail.\n\nSettings\n• CHOpt inline.\n\nOther\n• Spinners fade in.")
-        self.assertEqual(v.category_bullets(["A.", "B."], 4000), "• A.\n• B.")
-        self.assertEqual(v.category_bullets(notes, 60), "Songs\n• Rows fade in.\n• Index rail.\n• …and 2 more.")
-        self.assertEqual(v.category_bullets(notes, 40), "Songs\n• Rows fade in.\n• …and 3 more.")
-        self.assertEqual(v.category_bullets(notes, 20), "• …and 4 more.")
-        self.assertEqual(v.strip_category("Item Shop: Badges."), "Badges.")
-        self.assertEqual(v.strip_category("Note: not a category."), "Note: not a category.")
 
     def test_whats_new_tester_block_only_on_unreleased_build(self):
         self._history()
@@ -361,7 +394,7 @@ class GitFlowTests(unittest.TestCase):
                            "--released", "2610.01.01", "--released-from-tags", "--out", str(out)])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(buf.getvalue())["build"], "7")
-        self.assertIn("Changes since release 2610.01.03:", out.read_text())
+        self.assertEqual(out.read_text().splitlines()[0], "Festival Score Tracker iOS 2610.01.04")
 
     def test_release_tools_always_name_utf8(self):
         # Windows runners default to cp1252: "•" in notes became "\ufffd" in Store text (2026-10-01).
@@ -412,7 +445,7 @@ class GitFlowTests(unittest.TestCase):
         r.commit("b\n\nRelease-Note: Songs: Faster rows.", "apple/Sources/FestivalUI/B.swift")
         r.tag("ios/v2610.01.02")
         text = v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"])
-        self.assertIn("Changes since release 2610.01.01:\nSongs\n• Faster rows.\n\nSettings\n• Reset asks first.", text)
+        self.assertEqual(text, "Festival Score Tracker iOS 2610.01.02\n\n• Songs: Faster rows.\n• Settings: Reset asks first.")
         doc = v.whats_new(r.git, "ios", "2610.01.02", ["2610.01.01"])
         self.assertEqual(doc["entries"][0]["items"], ["Songs: Faster rows.", "Settings: Reset asks first."])
 
