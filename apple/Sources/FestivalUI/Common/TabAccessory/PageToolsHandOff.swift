@@ -3,7 +3,8 @@ import SwiftUI
 // MARK: - Page tools hand-off
 
 /// How a page's tools move between the iPhone floating dock and the navigation bar while
-/// the page scrolls (issue #13).
+/// the page scrolls (issue #13; iOS 17–26.0 only since issue #42 moved them into the
+/// tab-bar accessory on 26.1+).
 ///
 /// The dock buttons leave and the matching toolbar items arrive in one animation, so the
 /// tools read as moving into the bar's button row rather than vanishing and popping in.
@@ -33,16 +34,18 @@ enum PageToolsHandOff {
 
     /// Whether the page's tools belong in the navigation bar.
     ///
-    /// Only an iPhone dock hands tools off; elsewhere (Duo rail, iPad, Mac) they are
-    /// always toolbar items. Every viewer gets the hand-off: anonymous Songs has Sort (and
+    /// Only the floating dock (iOS 17–26.0 iPhone) hands tools off. In the iOS 26.1+
+    /// tab-bar accessory they stay at the bottom and move inline beside the minimized
+    /// tab bar instead (issue #42); elsewhere (Duo rail, iPad, Mac) they are always
+    /// toolbar items. Every viewer gets the hand-off: anonymous Songs has Sort (and
     /// Quick Links on grouped sorts) to anchor as much as a selected profile does.
     ///
     /// - Parameters:
     ///   - scrolled: The page's list has scrolled away from its top (``ScrollAwayGate``).
-    ///   - actionsInDock: The page's tools float above the tab bar at the top.
+    ///   - presentation: Where the page's tools sit above the tab bar; nil for toolbar items.
     /// - Returns: True when the tools should sit in the navigation bar.
-    static func toolsInBar(scrolled: Bool, actionsInDock: Bool) -> Bool {
-        scrolled && actionsInDock
+    static func toolsInBar(scrolled: Bool, presentation: PageToolsPresentation?) -> Bool {
+        scrolled && presentation == .floating
     }
 
     /// The shared timing for the dock and toolbar halves of one hand-off.
