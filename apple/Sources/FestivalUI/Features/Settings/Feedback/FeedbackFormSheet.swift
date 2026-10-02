@@ -27,7 +27,6 @@ struct FeedbackFormSheet: View {
     @State private var showingFiles = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @Environment(\.deviceLayout) private var layout
 
     /// Create an empty form.
@@ -50,7 +49,11 @@ struct FeedbackFormSheet: View {
                 #endif
                 .toolbar { toolbar }
         }
-        .interactiveDismissDisabled(model.hasUnsavedInput || model.isSubmitting)
+        // Once the service has the report (filing), closing loses nothing.
+        .interactiveDismissDisabled(
+            model.isSubmitting || (model.hasUnsavedInput && !model.isFiling)
+        )
+
         #if os(iOS)
         .background(SheetDismissAttemptObserver { requestClose() })
         #endif
@@ -70,18 +73,11 @@ struct FeedbackFormSheet: View {
         ) { result in
             Task { await model.importFiles(result) }
         }
-        .alert(successTitle, isPresented: succeededBinding, presenting: receipt) { receipt in
-            if let url = receipt.issueURL {
-                Button("View on GitHub") {
-                    openURL(url)
-                    close()
-                }
-                .accessibilityIdentifier("fst.feedback.view-issue")
-            }
+        .alert(successTitle, isPresented: finishedBinding, presenting: outcome) { _ in
             Button("Done", role: .cancel, action: close)
                 .accessibilityIdentifier("fst.feedback.done")
-        } message: { receipt in
-            Text(successMessage(receipt))
+        } message: { outcome in
+            Text(successMessage(outcome))
         }
         .alert("Couldn't Send", isPresented: failedBinding) {
             Button("OK", role: .cancel) { model.acknowledgeFailure() }
@@ -121,7 +117,7 @@ struct FeedbackFormSheet: View {
                 )
             }
             mediaSection
-            if model.isSubmitting {
+            if model.isBusy {
                 progressSection
             } else if let issue = model.draft.validationIssue {
                 Section {
@@ -146,7 +142,7 @@ struct FeedbackFormSheet: View {
                 .accessibilityLabel(label)
                 .accessibilityHint(detail)
                 .accessibilityIdentifier(identifier)
-                .disabled(model.isSubmitting)
+                .disabled(model.isBusy)
         } header: {
             FeedbackFieldHeader(label, detail: detail)
         }
@@ -156,7 +152,7 @@ struct FeedbackFormSheet: View {
         Section {
             if !model.attachments.isEmpty {
                 FeedbackAttachmentStrip(attachments: model.attachments) { model.remove($0) }
-                    .disabled(model.isSubmitting)
+                    .disabled(model.isBusy)
             }
             Menu {
                 Button("Photo Library", systemImage: "photo.on.rectangle") { showingPhotos = true }
@@ -170,7 +166,7 @@ struct FeedbackFormSheet: View {
                     .contentShape(Rectangle())
             }
             .disabled(
-                model.attachments.count >= FeedbackLimits.attachments || model.isSubmitting
+                model.attachments.count >= FeedbackLimits.attachments || model.isBusy
             )
             .accessibilityIdentifier("fst.feedback.attach")
             if model.importing > 0 {
@@ -189,28 +185,39 @@ struct FeedbackFormSheet: View {
                 detail: "Optional screenshots or screen recordings: up to "
                     + "\(FeedbackLimits.attachments) photos or videos, "
                     + ByteCountFormatter.string(
-                        fromByteCount: FeedbackLimits.attachmentBytes, countStyle: .file
-                    ) + " each."
+                        fromByteCount: FeedbackLimits.totalAttachmentBytes, countStyle: .file
+                    ) + " in total."
             )
         }
     }
 
     private var progressSection: some View {
         Section {
-            ProgressView(value: progress) {
-                Text(model.attachments.isEmpty ? "Sending…" : "Uploading media…")
+            if model.isFiling {
+                // Indeterminate: the service is filing the issue and processing media.
+                ProgressView {
+                    Text("Filing your \(kind == .bug ? "report" : "request")…")
+                }
+                .accessibilityIdentifier("fst.feedback.progress")
+                Text("It's been received. You can close this; it will still be filed.")
+                    .font(.footnote)
+                    .foregroundStyle(FestivalText.primary)
+            } else {
+                ProgressView(value: progress) {
+                    Text(model.attachments.isEmpty ? "Sending…" : "Uploading media…")
+                }
+                .accessibilityIdentifier("fst.feedback.progress")
+                Button("Stop Sending", role: .destructive) { model.cancelSubmit() }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("fst.feedback.stop")
             }
-            .accessibilityIdentifier("fst.feedback.progress")
-            Button("Stop Sending", role: .destructive) { model.cancelSubmit() }
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("fst.feedback.stop")
         }
     }
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
-            Button("Cancel", action: requestClose)
+            Button(model.isFiling ? "Close" : "Cancel", action: requestClose)
                 .accessibilityIdentifier("fst.feedback.cancel")
                 // Anchored to Cancel so iOS 26's popover-style dialog points at it.
                 .confirmationDialog(
@@ -235,9 +242,12 @@ struct FeedbackFormSheet: View {
 
     // MARK: - Actions
 
-    /// Cancel, Escape or a swipe: confirm first when something would be lost.
+    /// Cancel, Escape or a swipe: confirm first when something would be lost. While the
+    /// service files an accepted report nothing can be lost, so it closes at once.
     private func requestClose() {
-        if model.hasUnsavedInput || model.isSubmitting {
+        if model.isFiling {
+            close()
+        } else if model.hasUnsavedInput || model.isSubmitting {
             confirmingDiscard = true
         } else {
             close()
@@ -281,11 +291,20 @@ struct FeedbackFormSheet: View {
         kind == .bug ? "Report Sent" : "Request Sent"
     }
 
-    private func successMessage(_ receipt: FeedbackReceipt) -> String {
-        if let number = receipt.issueNumber {
-            return "Thank you! It was filed as issue #\(number)."
+    private func successMessage(_ outcome: FeedbackFormModel.Outcome) -> String {
+        switch outcome {
+        case let .filed(number, skipped):
+            var text = number.map { "Thank you! It was filed as issue #\($0)." }
+                ?? "Thank you! It has been filed."
+            if skipped > 0 {
+                text += skipped == 1
+                    ? " 1 attachment couldn't be included."
+                    : " \(skipped) attachments couldn't be included."
+            }
+            return text
+        case .received:
+            return "Thank you! It was received and will be filed shortly."
         }
-        return "Thank you! It will appear on GitHub shortly."
     }
 
     private var progress: Double {
@@ -293,13 +312,13 @@ struct FeedbackFormSheet: View {
         return 0
     }
 
-    private var receipt: FeedbackReceipt? {
-        if case let .succeeded(receipt) = model.phase { return receipt }
+    private var outcome: FeedbackFormModel.Outcome? {
+        if case let .finished(outcome) = model.phase { return outcome }
         return nil
     }
 
-    private var succeededBinding: Binding<Bool> {
-        Binding(get: { receipt != nil }, set: { _ in })
+    private var finishedBinding: Binding<Bool> {
+        Binding(get: { outcome != nil }, set: { _ in })
     }
 
     private var failureMessage: String {

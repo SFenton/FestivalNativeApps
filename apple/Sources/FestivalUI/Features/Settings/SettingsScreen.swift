@@ -57,6 +57,9 @@ struct SettingsScreen: View {
     @State private var showingWhatsNew = false
     /// Open Report an Issue / Request a Feature form, if any (issue #78).
     @State private var feedbackForm: FeedbackKind?
+    /// The service accepts in-app feedback (`GET /api/features` → `feedback`). The rows stay
+    /// hidden until it says so; a failed read is retried on the next Settings visit.
+    @State private var feedbackEnabled = false
     @State private var quickLinks = QuickLinksController()
     /// A reorder row is lifted, so the page must not scroll under the drag.
     @State private var reorderDragging = false
@@ -147,7 +150,7 @@ struct SettingsScreen: View {
                     + "Your profile, song filters and navigation history will remain."
             )
         }
-        .sheet(item: $feedbackForm) { kind in
+        .sheet(item: $feedbackForm, onDismiss: FeedbackFormModel.purgeStagedMedia) { kind in
             FeedbackFormSheet(kind: kind, session: session)
                 .festivalSheet(.large)
         }
@@ -161,8 +164,10 @@ struct SettingsScreen: View {
             }
         }
         .task(id: isVisible) {
-            guard isVisible, serviceVersion == nil else { return }
-            await loadServiceVersion()
+            guard isVisible else { return }
+            async let features: Void = loadFeedbackAvailability()
+            if serviceVersion == nil { await loadServiceVersion() }
+            await features
         }
     }
 
@@ -276,14 +281,16 @@ struct SettingsScreen: View {
             }
             .disabled(true)
             .accessibilityHint("Experimental ranks are not yet available")
-            feedbackRow(
-                .bug, detail: "Tell us about something that isn't working.", action: "Report",
-                identifier: "fst.settings.report-issue"
-            )
-            feedbackRow(
-                .feature, detail: "Suggest something new for Festival Score Tracker.",
-                action: "Request", identifier: "fst.settings.request-feature"
-            )
+            if feedbackEnabled {
+                feedbackRow(
+                    .bug, detail: "Tell us about something that isn't working.",
+                    action: "Report", identifier: "fst.settings.report-issue"
+                )
+                feedbackRow(
+                    .feature, detail: "Suggest something new for Festival Score Tracker.",
+                    action: "Request", identifier: "fst.settings.request-feature"
+                )
+            }
         }
         .quickLinkSection(id: "app-settings", title: "App Settings", symbol: "gearshape.fill")
     }
@@ -582,6 +589,17 @@ struct SettingsScreen: View {
     /// `.agents/platforms/service-safety.md`), "Loading" until it answers.
     private var serviceVersionText: String {
         serviceVersion ?? (serviceVersionFailed ? "Unavailable" : "Loading")
+    }
+
+    /// Show the feedback rows once the service reports in-app feedback is on (pure
+    /// `GET /api/features`). Off or unreadable keeps them hidden; an open form stays open.
+    func loadFeedbackAvailability() async {
+        guard !feedbackEnabled else { return }
+        do {
+            feedbackEnabled = try await session.client().feedbackEnabled()
+        } catch {
+            feedbackEnabled = false
+        }
     }
 
     /// Read the service version once per visible Settings session.

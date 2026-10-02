@@ -17,6 +17,42 @@ private struct CannedTransport: HTTPTransport {
     }
 }
 
+/// Answers the POST with `submit`, then each status GET with the next scripted reply
+/// (repeating the last one).
+private actor ScriptedTransport: HTTPTransport {
+    private let submit: HTTPResult
+    private var statuses: [Result<HTTPResult, URLError>]
+    private(set) var statusReads = 0
+
+    init(submit: HTTPResult, statuses: [Result<HTTPResult, URLError>]) {
+        self.submit = submit
+        self.statuses = statuses
+    }
+
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        if request.httpMethod == "POST" { return submit }
+        statusReads += 1
+        let next = statuses.count > 1 ? statuses.removeFirst() : statuses[0]
+        return try next.get()
+    }
+}
+
+private let jobID = "0123456789abcdef0123456789abcdef"
+
+private func accepted(_ id: String = jobID) -> HTTPResult {
+    HTTPResult(status: 202, data: Data(#"{"id":"\#(id)","status":"queued"}"#.utf8))
+}
+
+private func job(_ status: String, issue: Int? = nil, skipped: Int = 0) -> Result<HTTPResult, URLError> {
+    let number = issue.map { #","issueNumber":\#($0)"# } ?? ""
+    let media = Array(repeating: #"{"name":"a","kind":"image","outcome":"skipped"}"#, count: skipped)
+        .joined(separator: ",")
+    return .success(HTTPResult(
+        status: 200,
+        data: Data(#"{"id":"\#(jobID)","status":"\#(status)"\#(number),"attachments":[\#(media)]}"#.utf8)
+    ))
+}
+
 /// Never answers until cancelled, so the submitting phase can be observed.
 private struct HangingTransport: HTTPTransport {
     func send(_ request: URLRequest) async throws -> HTTPResult {
@@ -77,8 +113,8 @@ private func hasGPS(_ url: URL) -> Bool {
 }
 
 @MainActor
-private func validBug() -> FeedbackFormModel {
-    let model = FeedbackFormModel(kind: .bug)
+private func validBug(timeout: Duration = .seconds(5)) -> FeedbackFormModel {
+    let model = FeedbackFormModel(kind: .bug, pollInterval: .milliseconds(5), pollTimeout: timeout)
     model.title = "[Bug] Crash"
     model.descriptionText = "Boom"
     return model
@@ -93,7 +129,7 @@ private func waitUntil(_ condition: () -> Bool) async {
 
 // MARK: - Tests
 
-@Suite("Feedback form model")
+@Suite("Feedback form model", .serialized)
 @MainActor
 struct FeedbackFormModelTests {
     @Test("Typing keeps the prefix and marks the form unsaved")
@@ -133,7 +169,7 @@ struct FeedbackFormModelTests {
         #expect(FileManager.default.fileExists(atPath: source.path))
     }
 
-    @Test("Documents, a sixth file and importer failures are refused with a reason")
+    @Test("Documents, a fifth file and importer failures are refused with a reason")
     func refusals() async throws {
         let model = FeedbackFormModel(kind: .bug)
         let text = try sourceFile("notes.txt")
@@ -146,7 +182,7 @@ struct FeedbackFormModelTests {
         #expect(model.attachments.isEmpty)
         #expect(model.attachmentMessage == FeedbackAttachmentRejection.unreadable.errorDescription)
 
-        let clips = try (1...6).map { try sourceImage("shot\($0).png") }
+        let clips = try (1...(FeedbackLimits.attachments + 1)).map { try sourceImage("shot\($0).png") }
         await model.importFiles(.success(clips))
         #expect(model.attachments.count == FeedbackLimits.attachments)
         #expect(model.attachmentMessage == FeedbackAttachmentRejection.tooMany.errorDescription)
@@ -180,33 +216,111 @@ struct FeedbackFormModelTests {
         model.discardMedia()
     }
 
-    @Test("A successful submit ends with the receipt")
-    func submitSucceeds() async {
+    @Test("A submit is followed until the issue is filed")
+    func submitFiled() async {
         let model = validBug()
-        let body = Data(#"{"issueNumber":3,"issueUrl":"https://github.com/o/r/issues/3"}"#.utf8)
-        model.submit(
-            session: session(CannedTransport(result: .success(HTTPResult(status: 201, data: body)))),
-            platform: .ios
+        let transport = ScriptedTransport(
+            submit: accepted(),
+            statuses: [job("queued"), job("processing"), job("submitted", issue: 3, skipped: 1)]
         )
+        model.submit(session: session(transport), platform: .ios)
         #expect(model.isSubmitting)
+        #expect(model.isBusy)
         #expect(!model.canSubmit)
-        await waitUntil { !model.isSubmitting }
-        guard case let .succeeded(receipt) = model.phase else {
-            Issue.record("expected success, got \(model.phase)")
-            return
-        }
-        #expect(receipt.issueNumber == 3)
+        await waitUntil { if case .finished = model.phase { true } else { false } }
+        #expect(model.phase == .finished(.filed(issueNumber: 3, skipped: 1)))
+        #expect(await transport.statusReads == 3)
     }
 
-    @Test("A failed submit keeps the input and can be acknowledged")
-    func submitFails() async {
+    @Test("An accepted report shows the filing phase, which closes without losing anything")
+    func filingPhase() async {
         let model = validBug()
         model.submit(
-            session: session(CannedTransport(result: .success(HTTPResult(status: 503, data: Data())))),
-            platform: .macos
+            session: session(ScriptedTransport(submit: accepted(), statuses: [job("queued")])),
+            platform: .ios
         )
+        await waitUntil { model.isFiling }
+        #expect(model.isFiling)
+        #expect(model.isBusy)
+        #expect(!model.isSubmitting)
+        #expect(!model.canSubmit)
+        model.cancelSubmit()
+        #expect(model.isFiling)
+        model.discardMedia()
+        try? await Task.sleep(for: .milliseconds(30))
+        #expect(model.isFiling)
+    }
+
+    @Test("A failed job returns to the form with a message")
+    func jobFailed() async {
+        let model = validBug()
+        model.submit(
+            session: session(ScriptedTransport(submit: accepted(), statuses: [job("failed")])),
+            platform: .ios
+        )
+        await waitUntil { if case .failed = model.phase { true } else { false } }
+        #expect(model.phase == .failed(FeedbackError.filingFailed.errorDescription ?? ""))
+        model.acknowledgeFailure()
+        #expect(model.canSubmit)
+        #expect(model.title == "[Bug] Crash")
+    }
+
+    @Test(
+        "An outcome the app can't follow reads as received",
+        arguments: [
+            "no ID", "unknown job", "status reads keep failing", "wait ran out",
+        ]
+    )
+    func received(scenario: String) async {
+        let model = validBug(timeout: scenario == "wait ran out" ? .milliseconds(30) : .seconds(5))
+        let transport: ScriptedTransport
+        switch scenario {
+        case "no ID":
+            transport = ScriptedTransport(
+                submit: HTTPResult(status: 202, data: Data("{}".utf8)), statuses: [job("queued")]
+            )
+        case "unknown job":
+            transport = ScriptedTransport(
+                submit: accepted(),
+                statuses: [.success(HTTPResult(status: 404, data: Data(#"{"code":"not_found"}"#.utf8)))]
+            )
+        case "status reads keep failing":
+            transport = ScriptedTransport(
+                submit: accepted(), statuses: [.failure(URLError(.notConnectedToInternet))]
+            )
+        default:
+            transport = ScriptedTransport(submit: accepted(), statuses: [job("processing")])
+        }
+        model.submit(session: session(transport), platform: .ios)
+        await waitUntil { if case .finished = model.phase { true } else { false } }
+        #expect(model.phase == .finished(.received))
+        if scenario == "status reads keep failing" {
+            #expect(await transport.statusReads == FeedbackFormModel.pollFailureAllowance)
+        }
+    }
+
+    @Test("One lost status read does not end the wait")
+    func transientStatusFailure() async {
+        let model = validBug()
+        let transport = ScriptedTransport(
+            submit: accepted(),
+            statuses: [.failure(URLError(.timedOut)), job("submitted", issue: 8)]
+        )
+        model.submit(session: session(transport), platform: .ios)
+        await waitUntil { if case .finished = model.phase { true } else { false } }
+        #expect(model.phase == .finished(.filed(issueNumber: 8, skipped: 0)))
+    }
+
+    @Test("A refused submit keeps the input and can be acknowledged")
+    func submitFails() async {
+        let model = validBug()
+        let busy = HTTPResult(
+            status: 503, data: Data(#"{"error":"x","code":"feedback_busy"}"#.utf8),
+            headers: ["Retry-After": "60"]
+        )
+        model.submit(session: session(CannedTransport(result: .success(busy))), platform: .macos)
         await waitUntil { !model.isSubmitting }
-        #expect(model.phase == .failed(FeedbackError.unavailable.errorDescription ?? ""))
+        #expect(model.phase == .failed(FeedbackError.busy.errorDescription ?? ""))
         #expect(model.title == "[Bug] Crash")
         model.acknowledgeFailure()
         #expect(model.phase == .editing)
@@ -251,8 +365,21 @@ struct FeedbackFormModelTests {
         #expect(model.phase == .editing)
     }
 
-    @Test("The OS version names the platform")
-    func osVersion() {
+    @Test("Client info names the OS version and device")
+    func clientInfo() {
         #expect(FeedbackFormModel.osVersion.hasPrefix("macOS ") || FeedbackFormModel.osVersion.contains("OS "))
+        #expect(FeedbackFormModel.clientInfo.hasPrefix(FeedbackFormModel.osVersion + "; "))
+    }
+
+    @Test("Closing the sheet purges every staged copy")
+    func purge() async throws {
+        let source = try sourceImage("shot.png")
+        defer { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
+        let model = FeedbackFormModel(kind: .bug)
+        await model.importFiles(.success([source]))
+        let copy = try #require(model.attachments.first?.fileURL)
+        FeedbackFormModel.purgeStagedMedia()
+        #expect(!FileManager.default.fileExists(atPath: copy.path))
+        #expect(!FileManager.default.fileExists(atPath: FeedbackPickedMedia.stagingFolder.path))
     }
 }

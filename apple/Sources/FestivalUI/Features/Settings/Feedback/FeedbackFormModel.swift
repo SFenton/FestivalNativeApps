@@ -23,8 +23,19 @@ final class FeedbackFormModel {
         case editing
         /// Upload in flight; fraction of the body sent.
         case submitting(Double)
-        case succeeded(FeedbackReceipt)
+        /// The service accepted the report and is filing it; the app follows the job.
+        case filing
+        case finished(Outcome)
         case failed(String)
+    }
+
+    /// How a delivered report ended.
+    enum Outcome: Equatable {
+        /// Filed on GitHub; `skipped` attachments could not be fitted into the issue.
+        case filed(issueNumber: Int?, skipped: Int)
+        /// Accepted, but the app could not follow it to the end (no ID, a lost status
+        /// read or the wait ran out). The service still files it.
+        case received
     }
 
     private(set) var draft: FeedbackDraft
@@ -34,16 +45,28 @@ final class FeedbackFormModel {
     private(set) var attachmentMessage: String?
     /// Picked items still being copied, so Submit waits for them.
     private(set) var importing = 0
-    /// One key per form: a retried Submit cannot file the report twice.
-    let idempotencyKey = UUID()
-
     @ObservationIgnored private var submitTask: Task<Void, Never>?
+    /// Time between status reads while filing.
+    @ObservationIgnored let pollInterval: Duration
+    /// How long to follow a job before reporting it as received.
+    @ObservationIgnored let pollTimeout: Duration
+
+    /// Status reads that may fail in a row before the job is reported as received.
+    static let pollFailureAllowance = 3
 
     /// Start an empty form.
     ///
-    /// - Parameter kind: Bug report or feature request.
-    init(kind: FeedbackKind) {
+    /// - Parameters:
+    ///   - kind: Bug report or feature request.
+    ///   - pollInterval: Time between status reads (2 s, as the other native apps).
+    ///   - pollTimeout: Longest wait for the issue number (5 minutes).
+    init(
+        kind: FeedbackKind, pollInterval: Duration = .seconds(2),
+        pollTimeout: Duration = .seconds(300)
+    ) {
         draft = FeedbackDraft(kind: kind)
+        self.pollInterval = pollInterval
+        self.pollTimeout = pollTimeout
     }
 
     // MARK: - Draft
@@ -72,13 +95,20 @@ final class FeedbackFormModel {
     /// Whether closing would lose typed text or attached media.
     var hasUnsavedInput: Bool { draft.hasTypedInput || !attachments.isEmpty }
 
+    /// The upload is in flight; stopping it keeps the form.
     var isSubmitting: Bool {
         if case .submitting = phase { return true }
         return false
     }
 
+    /// The service has the report; closing now loses nothing.
+    var isFiling: Bool { phase == .filing }
+
+    /// Uploading or filing: the form is read-only.
+    var isBusy: Bool { isSubmitting || isFiling }
+
     /// Submit is enabled only for a valid draft with every picked item copied.
-    var canSubmit: Bool { draft.validationIssue == nil && importing == 0 && !isSubmitting }
+    var canSubmit: Bool { draft.validationIssue == nil && importing == 0 && phase == .editing }
 
     // MARK: - Attachments
 
@@ -184,6 +214,12 @@ final class FeedbackFormModel {
         ))
     }
 
+    /// Delete every staged media copy. Called when a feedback sheet goes away by any
+    /// route, including a swipe while the service is filing (one form is open at a time).
+    static func purgeStagedMedia() {
+        try? FileManager.default.removeItem(at: FeedbackPickedMedia.stagingFolder)
+    }
+
     /// Each copy lives alone in a UUID folder; delete the folder.
     private static func deleteCopy(_ url: URL) {
         try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
@@ -191,7 +227,8 @@ final class FeedbackFormModel {
 
     // MARK: - Submit
 
-    /// Upload the report; progress, success and failure land in ``phase``.
+    /// Upload the report, then follow the service's job until it is filed; progress,
+    /// success and failure land in ``phase``.
     ///
     /// - Parameters:
     ///   - session: App service session (keyless public origin or loopback fixture).
@@ -201,37 +238,96 @@ final class FeedbackFormModel {
         let submission = draft.submission(
             platform: platform,
             appVersion: AppBuildInfo.versionText(Bundle.main.infoDictionary),
-            osVersion: Self.osVersion
+            clientInfo: Self.clientInfo
         )
         let attachments = attachments
-        let key = idempotencyKey
         phase = .submitting(0)
         let onProgress: @Sendable (Double) -> Void = { fraction in
             Task { @MainActor [weak self] in self?.reportProgress(fraction) }
         }
+        let interval = pollInterval
+        let timeout = pollTimeout
         submitTask = Task { [weak self] in
-            let outcome: Phase
+            let client: FestivalAPI
+            let acceptance: FeedbackAcceptance
             do {
-                let client = try session.client()
-                let receipt = try await client.submitFeedback(
-                    submission, attachments: attachments, idempotencyKey: key,
-                    progress: onProgress
+                client = try session.client()
+                acceptance = try await client.submitFeedback(
+                    submission, attachments: attachments, progress: onProgress
                 )
-                outcome = .succeeded(receipt)
             } catch is CancellationError {
-                outcome = .editing
+                self?.finishUpload(.editing)
+                return
             } catch let error as FeedbackError {
-                outcome = .failed(error.errorDescription ?? "")
+                self?.finishUpload(.failed(error.errorDescription ?? ""))
+                return
             } catch {
-                outcome = .failed(FeedbackError.network.errorDescription ?? "")
+                self?.finishUpload(.failed(FeedbackError.network.errorDescription ?? ""))
+                return
             }
             guard let self, self.isSubmitting else { return }
+            guard let id = acceptance.id else {
+                self.phase = .finished(.received)
+                return
+            }
+            self.phase = .filing
+            let outcome = await Self.follow(
+                id: id, client: client, interval: interval, timeout: timeout
+            )
+            guard !Task.isCancelled, self.isFiling else { return }
             self.phase = outcome
         }
     }
 
+    /// Poll a queued job until it is submitted or failed, the reads keep failing or the
+    /// wait runs out.
+    ///
+    /// - Parameters:
+    ///   - id: Job ID.
+    ///   - client: Service client.
+    ///   - interval: Time between reads.
+    ///   - timeout: Longest wait.
+    /// - Returns: `.finished(.filed)`, `.failed` for a failed job, else `.finished(.received)`.
+    static func follow(
+        id: String, client: FestivalAPI, interval: Duration, timeout: Duration
+    ) async -> Phase {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        var failures = 0
+        while !Task.isCancelled {
+            do {
+                let status = try await client.feedbackStatus(id: id)
+                failures = 0
+                switch status.status {
+                case .submitted:
+                    return .finished(.filed(
+                        issueNumber: status.issueNumber, skipped: status.skippedAttachments
+                    ))
+                case .failed:
+                    return .failed(FeedbackError.filingFailed.errorDescription ?? "")
+                case .queued, .processing:
+                    break
+                }
+            } catch FestivalAPIError.httpStatus(404) {
+                return .finished(.received)
+            } catch {
+                failures += 1
+                if failures >= pollFailureAllowance { return .finished(.received) }
+            }
+            guard clock.now.advanced(by: interval) < deadline else { break }
+            do { try await Task.sleep(for: interval) } catch { break }
+        }
+        return .finished(.received)
+    }
+
+    private func finishUpload(_ outcome: Phase) {
+        guard isSubmitting else { return }
+        phase = outcome
+    }
+
     /// Stop an upload in flight and go back to editing with everything kept.
     func cancelSubmit() {
+        guard isSubmitting else { return }
         submitTask?.cancel()
         submitTask = nil
         phase = .editing
@@ -245,6 +341,15 @@ final class FeedbackFormModel {
     private func reportProgress(_ fraction: Double) {
         guard case let .submitting(current) = phase, fraction > current else { return }
         phase = .submitting(fraction)
+    }
+
+    /// Operating system and device for the issue, for example "iOS 26.1; iPhone".
+    static var clientInfo: String {
+        #if os(macOS)
+        return "\(osVersion); Mac"
+        #else
+        return "\(osVersion); \(UIDevice.current.model)"
+        #endif
     }
 
     /// "iOS 26.1", "iPadOS 26.1" or "macOS 26.1.0".
@@ -265,6 +370,10 @@ final class FeedbackFormModel {
 struct FeedbackPickedMedia: Transferable {
     let url: URL
 
+    /// Parent of every staged copy, inside the app's temporary directory.
+    static let stagingFolder = FileManager.default.temporaryDirectory
+        .appendingPathComponent("fst-feedback-media", isDirectory: true)
+
     static var transferRepresentation: some TransferRepresentation {
         // Movies first so a video arrives as its own file, not a still frame.
         FileRepresentation(importedContentType: .movie) { try stage($0.file) }
@@ -277,9 +386,7 @@ struct FeedbackPickedMedia: Transferable {
     /// - Returns: The app-owned copy.
     /// - Throws: File system errors.
     static func stage(_ file: URL) throws -> FeedbackPickedMedia {
-        let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fst-feedback-media", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let folder = stagingFolder.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let destination = folder.appendingPathComponent(
             FeedbackAttachmentPolicy.sanitizedFilename(file.lastPathComponent)
