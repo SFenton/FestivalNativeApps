@@ -590,6 +590,70 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "song-detail-score-history")
     }
 
+    /// Switching the Score History instrument (issue #31) swaps the graph inside a card of
+    /// one size: Lead pages and Bass fits one page, yet the best-scores list under the card
+    /// does not move, and the space kept for the pager is not exposed to VoiceOver.
+    /// Needs `tools/mock_service.py --port 18831` (its `fixture-history-multi` account).
+    ///
+    /// - Throws: A missing section, a swap that never lands or a card that resizes.
+    @MainActor
+    func testScoreHistoryInstrumentSwitchKeepsTheCardSize() throws {
+        try assertScoreHistorySwitchKeepsTheCardSize(reduceMotion: false)
+    }
+
+    /// The same switch with the app's Reduce Motion setting on: the swap is instant and the
+    /// card still keeps its size (issue #31).
+    ///
+    /// - Throws: A missing section, a swap that never lands or a card that resizes.
+    @MainActor
+    func testScoreHistoryInstrumentSwitchUnderReduceMotion() throws {
+        try assertScoreHistorySwitchKeepsTheCardSize(reduceMotion: true)
+    }
+
+    /// Open `fixture-pulse` as `fixture-history-multi`, then switch Lead → Bass → Lead.
+    ///
+    /// - Parameter reduceMotion: Launch with the app's Reduce Motion setting on.
+    /// - Throws: An XCTest failure for a missing element, swap or a moved list.
+    @MainActor
+    private func assertScoreHistorySwitchKeepsTheCardSize(reduceMotion: Bool) throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_PROFILE": "fixture-history-multi:Multi History",
+            "FST_API_BASE_URL": "http://127.0.0.1:18831",
+        ])
+        app.launchArguments += ["-fst.accessibility.reduceMotion", reduceMotion ? "YES" : "NO"]
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        func any(_ identifier: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        }
+        XCTAssertTrue(any("fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let chart = any("fst.song-detail.history.chart")
+        for _ in 0..<6 where !chart.exists { app.swipeUp() }
+        XCTAssertTrue(chart.waitForExistence(timeout: 10), "No Score History chart (is the 18831 fixture running?)")
+        let row = any("fst.song-detail.history.row.0")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(chart.label.hasPrefix("Lead"), chart.label)
+        XCTAssertTrue(app.buttons["Back one page"].exists, "Lead's eight scores should page")
+        let listTop = row.frame.minY
+
+        func choose(_ instrument: String, label: String) {
+            app.buttons["fst.song-detail.history.instrument.\(instrument)"].tap()
+            let landed = expectation(for: NSPredicate(format: "label BEGINSWITH %@", label), evaluatedWith: chart)
+            wait(for: [landed], timeout: 5)
+            XCTAssertEqual(row.frame.minY, listTop, accuracy: 0.5, "The Score History card changed size")
+        }
+        choose("Solo_Bass", label: "Bass")
+        XCTAssertFalse(app.buttons["Back one page"].exists, "The reserved pager space is exposed for Bass")
+        SongsUITestSupport.record(app, name: reduceMotion ? "song-detail-history-switch-reduced" : "song-detail-history-switch")
+        choose("Solo_Guitar", label: "Lead")
+        XCTAssertTrue(app.buttons["Back one page"].exists, "Lead lost its pager")
+    }
+
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.
     ///
     /// - Throws: An XCTest failure for missing accessible actions or screen state.

@@ -118,4 +118,80 @@ public enum SongScoreHistoryModel {
     public static func isGold(_ entry: ScoreHistoryEntry) -> Bool {
         entry.isFullCombo == true && accuracyPercent(entry) >= 100
     }
+
+    // MARK: - Paging and stable card size
+
+    /// Width the chart's two value axes take from its plot, in points.
+    public static let axisAllowance: Double = 96
+
+    /// The chart's page window for one instrument at a measured chart width.
+    ///
+    /// - Parameters:
+    ///   - count: The instrument's rows.
+    ///   - chartWidth: Measured chart width in points; 0 (not measured yet) shows every row.
+    /// - Returns: The paging window.
+    public static func paging(count: Int, chartWidth: Double) -> RankHistoryPaging {
+        RankHistoryPaging(
+            count: count,
+            pageSize: chartWidth > 0
+                ? RankHistoryPaging.pageSize(forPlotWidth: max(0, chartWidth - axisAllowance)) : count
+        )
+    }
+
+    /// Whether the chart card keeps room for the pager on **every** instrument, so the card
+    /// keeps one size when the instrument changes (issue #31): true when any selectable
+    /// instrument has more rows than one page holds.
+    ///
+    /// - Parameters:
+    ///   - entries: Every row for the song.
+    ///   - instruments: The selector's instruments (``instruments(with:in:)``).
+    ///   - chartWidth: Measured chart width in points; 0 (not measured yet) reserves nothing.
+    /// - Returns: True to lay out the pager row (hidden when not needed).
+    public static func reservesPager(
+        _ entries: [ScoreHistoryEntry], instruments: [Instrument], chartWidth: Double
+    ) -> Bool {
+        guard chartWidth > 0 else { return false }
+        return instruments.contains { instrument in
+            let count = entries.lazy.filter { $0.instrument == instrument.rawValue }.count
+            return paging(count: count, chartWidth: chartWidth).needsPagination
+        }
+    }
+}
+
+// MARK: - Instrument switch
+
+/// How Score History swaps its graph when the selected instrument changes (issue #31):
+/// the graph and its best-scores list fade out, swap to the new instrument, then fade back
+/// in, while the card keeps its size. With Reduce Motion the swap is instant.
+public enum ScoreHistorySwap {
+    /// Fade-out time of the old instrument's graph, in seconds.
+    public static let fadeOutSeconds: Double = 0.15
+    /// Fade-in time of the new instrument's graph, in seconds.
+    public static let fadeInSeconds: Double = 0.25
+
+    /// What to do when the requested instrument changes.
+    public enum Plan: Equatable, Sendable {
+        /// Nothing to show.
+        case none
+        /// The graph already shows the request: cancel any swap and fade fully back in.
+        case settle
+        /// Swap at once, without animation (first value or Reduce Motion).
+        case instant
+        /// Fade out, swap, fade in.
+        case fade
+    }
+
+    /// Plan a swap.
+    ///
+    /// - Parameters:
+    ///   - displayed: Instrument the graph shows now (nil before it first draws).
+    ///   - target: Instrument the selector now requests.
+    ///   - reduceMotion: System or app Reduce Motion.
+    /// - Returns: The swap to perform.
+    public static func plan(displayed: Instrument?, target: Instrument?, reduceMotion: Bool) -> Plan {
+        guard let target else { return .none }
+        guard let displayed else { return .instant }
+        if displayed == target { return .settle }
+        return reduceMotion ? .instant : .fade
+    }
 }
