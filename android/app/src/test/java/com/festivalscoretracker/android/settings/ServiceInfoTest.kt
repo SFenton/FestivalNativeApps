@@ -1,12 +1,23 @@
 package com.festivalscoretracker.android.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.FestivalApiException
+import com.festivalscoretracker.android.core.serviceinfo.ServiceAttemptProgress
 import com.festivalscoretracker.android.core.serviceinfo.ServiceBarProgress
 import com.festivalscoretracker.android.core.serviceinfo.ServiceInfo
 import com.festivalscoretracker.android.core.serviceinfo.ServiceInfoPhase
@@ -94,6 +105,27 @@ class ServiceInfoTest {
             copy(
                 scrapeId = 11.0, operationId = "op", phaseId = phaseId, subphaseId = subphaseId,
                 phaseAttempt = attempt, phaseOrdinal = ordinal, subphaseProgress = sub, lastProgressAt = at,
+            )
+        },
+    )
+
+    private fun attempts(attempted: Double? = 1310.0, unavailable: Double? = 70.0, schema: Double? = 1.0) =
+        ServiceInfo.AttemptProgress(schema, attempted, unavailable)
+
+    /** Registered-band discovery with phase-level units (web `discoveryAttemptText` fixture). */
+    private fun discovery(
+        progress: ServiceInfo.AttemptProgress? = attempts(),
+        attempt: Double? = 1.0,
+        completed: Double? = 1240.0,
+        total: Double? = 5000.0,
+        at: String = "2026-09-28T10:00:00Z",
+        phaseId: String = ServiceInfoText.REGISTERED_BAND_DISCOVERY_PHASE_ID,
+    ) = info(
+        update {
+            copy(
+                scrapeId = 11.0, operationId = "op", phaseId = phaseId, phaseAttempt = attempt, phaseOrdinal = 5.0,
+                unitsKind = "accounts", unitsCompleted = completed, unitsTotal = total, unitsTotalFinal = true,
+                phasePercent = 24.8, attemptProgress = progress, lastProgressAt = at,
             )
         },
     )
@@ -202,6 +234,54 @@ class ServiceInfoTest {
         assertEquals(5.0, retry.barProgress?.percent)
         val (back, _) = ServiceProgressReducer.reduce(memory, running(sub(percent = 5.0), ordinal = 1.0, phaseId = "post_rivals", subphaseId = null))
         assertTrue(back.restarted)
+    }
+
+    @Test
+    fun attemptProgressIsValidatedLikeTheWeb() {
+        val valid = ServiceProgressReducer.reduce(null, discovery()).first
+        assertEquals(ServiceAttemptProgress(1310, 70), valid.attemptProgress)
+        assertEquals(1240.0, valid.unitsCompleted)
+        assertEquals(5000.0, valid.unitsTotal)
+        assertEquals(ServiceAttemptProgress(0, 0), ServiceProgressReducer.normalizeAttemptProgress(attempts(0.0, 0.0)))
+        listOf(
+            null,
+            attempts(schema = 2.0),
+            attempts(schema = null),
+            attempts(attempted = null),
+            attempts(unavailable = null),
+            attempts(attempted = 1.5),
+            attempts(unavailable = 0.5),
+            attempts(attempted = -1.0, unavailable = -1.0),
+            attempts(unavailable = -1.0),
+            attempts(attempted = 10.0, unavailable = 11.0),
+            attempts(attempted = Double.NaN),
+            attempts(attempted = Double.POSITIVE_INFINITY),
+            attempts(attempted = 1e15, unavailable = 0.0),
+        ).forEach { raw ->
+            assertNull("$raw", ServiceProgressReducer.normalizeAttemptProgress(raw))
+            assertNull("$raw", ServiceProgressReducer.reduce(null, discovery(raw)).first.attemptProgress)
+        }
+    }
+
+    @Test
+    fun attemptProgressNeverMovesBackwardsWithinAPhaseAttempt() {
+        val (_, memory) = ServiceProgressReducer.reduce(null, discovery(attempts(100.0, 20.0)))
+        // Lower counts in the same phase attempt keep the larger value of each count.
+        val (same, memory2) = ServiceProgressReducer.reduce(memory, discovery(attempts(90.0, 30.0), at = "2026-09-28T10:00:05Z"))
+        assertEquals(ServiceAttemptProgress(100, 30), same.attemptProgress)
+        // Invalid counts hide the line rather than reusing the old ones.
+        assertNull(ServiceProgressReducer.reduce(memory2, discovery(attempts(schema = 3.0), at = "2026-09-28T10:00:06Z")).first.attemptProgress)
+        // A new phase attempt restarts the counts.
+        val (retry, _) = ServiceProgressReducer.reduce(memory2, discovery(attempts(5.0, 1.0), attempt = 2.0, at = "2026-09-28T10:00:07Z"))
+        assertTrue(retry.restarted)
+        assertEquals(ServiceAttemptProgress(5, 1), retry.attemptProgress)
+        // A different phase does not inherit them either.
+        val (other, _) = ServiceProgressReducer.reduce(memory2, discovery(attempts(5.0, 1.0), phaseId = "post_rivals", at = "2026-09-28T10:00:08Z"))
+        assertEquals(ServiceAttemptProgress(5, 1), other.attemptProgress)
+        // A stale payload keeps the previous counts.
+        val (stale, _) = ServiceProgressReducer.reduce(memory2, discovery(attempts(1.0, 0.0), at = "2026-09-28T09:00:00Z"))
+        assertTrue(stale.stalePayloadIgnored)
+        assertEquals(ServiceAttemptProgress(100, 30), stale.attemptProgress)
     }
 
     @Test
@@ -333,6 +413,17 @@ class ServiceInfoTest {
 
     // endregion
 
+    @Test
+    fun discoveryAttemptTextMatchesTheWeb() {
+        fun text(info: ServiceInfo) = ServiceInfoText.discoveryAttemptText(ServiceProgressReducer.reduce(null, info).first, us)
+        assertEquals("1,310 attempted this pass · 70 temporarily unavailable · 1,240 of 5,000 completed", text(discovery()))
+        assertEquals("1,310 attempted this pass · 70 temporarily unavailable · 1,240 completed", text(discovery(total = null)))
+        assertEquals("1,310 attempted this pass · 70 temporarily unavailable · 0 completed", text(discovery(completed = null, total = null)))
+        assertEquals("1,310 attempted this pass · 70 temporarily unavailable · 0 of 5,000 completed", text(discovery(completed = Double.NaN)))
+        assertNull(text(discovery(progress = null)))
+        assertNull(text(discovery(phaseId = "post_rivals")))
+    }
+
     // region Rows
 
     @Test
@@ -351,7 +442,13 @@ class ServiceInfoTest {
         assertEquals("42.5%", rows.progressText)
         assertEquals("425 of 1,000 leaderboards completed", rows.unitsText)
         assertEquals(ServiceInfoText.PUBLICATION_UNAVAILABLE, rows.lastPublished)
+        assertNull(rows.attemptText)
         assertNull(rows.freezeNotice)
+
+        val discovering = ServiceInfoSnapshot(discovery())
+        val discoveryRows = ServiceInfoRows.make(ServiceInfoPhase.Loaded(discovering, ServiceProgressReducer.reduce(null, discovering.info).first), utc, us)
+        assertEquals("1,310 attempted this pass · 70 temporarily unavailable · 1,240 of 5,000 completed", discoveryRows.attemptText)
+        assertEquals("1,240 of 5,000 accounts completed", discoveryRows.unitsText)
 
         val indeterminate = ServiceInfoSnapshot(running(sub = null))
         val indeterminateRows = ServiceInfoRows.make(ServiceInfoPhase.Loaded(indeterminate, ServiceProgressReducer.reduce(null, indeterminate.info).first))
@@ -369,6 +466,7 @@ class ServiceInfoTest {
         assertNull(idleRows.phaseTitle)
         assertFalse(idleRows.showBar)
         assertNull(idleRows.progressText)
+        assertNull(idleRows.attemptText)
         assertEquals("Sep 28, 2026, 10:00 AM UTC", idleRows.lastPublished)
         assertTrue(idleRows.freezeNotice!!.startsWith("Paused while"))
 
@@ -429,13 +527,32 @@ class ServiceInfoSectionUiTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private fun render(reduceMotion: Boolean, snapshot: ServiceInfoSnapshot) {
+    private fun render(reduceMotion: Boolean, snapshot: ServiceInfoSnapshot, fontScale: Float? = null) {
         val poller = ServiceInfoPoller(read = { snapshot })
         rule.setContent {
-            FestivalTheme(appReduceMotion = reduceMotion) { Column { ServiceInfoSection(poller) } }
+            FestivalTheme(appReduceMotion = reduceMotion) {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
+                    Column { ServiceInfoSection(poller) }
+                }
+            }
         }
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("fst.settings.service-info.last-published").fetchSemanticsNodes().isNotEmpty() }
     }
+
+    private val discovery = ServiceInfoSnapshot(
+        ServiceInfo(
+            contractVersion = 2.0,
+            currentUpdate = ServiceInfo.CurrentUpdate(
+                status = "updating", scrapeId = 2.0, operationId = "op", phaseId = ServiceInfoText.REGISTERED_BAND_DISCOVERY_PHASE_ID,
+                phaseOrdinal = 5.0, phaseAttempt = 1.0, unitsKind = "accounts", unitsCompleted = 1240.0, unitsTotal = 5000.0,
+                unitsTotalFinal = true, phasePercent = 24.8, attemptProgress = ServiceInfo.AttemptProgress(1.0, 1310.0, 70.0),
+            ),
+            workerStatus = ServiceInfo.WorkerStatus("online"),
+        ),
+    )
+
+    private fun bounds(text: String, index: Int = 0) = rule.onAllNodesWithText(text, useUnmergedTree = true)[index].getUnclippedBoundsInRoot()
 
     private val indeterminate = ServiceInfoSnapshot(
         ServiceInfo(
@@ -446,11 +563,52 @@ class ServiceInfoSectionUiTest {
     )
 
     @Test
-    fun indeterminateBarWithFreezeNotice() {
+    fun indeterminateBarSpeaksProgressWithoutCaptionsOrFreezeRow() {
         render(reduceMotion = false, indeterminate)
         rule.onNodeWithTag("fst.settings.service-info.bar", useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("fst.settings.service-info.freeze").assertExists()
-        rule.onNodeWithText(ServiceInfoText.PROGRESS_INDETERMINATE, useUnmergedTree = true).assertExists()
+        // The web card has no freeze row and prints no progress caption; TalkBack still hears it.
+        rule.onNodeWithTag("fst.settings.service-info.freeze").assertDoesNotExist()
+        rule.onNodeWithText(ServiceInfoText.PROGRESS_INDETERMINATE, useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithTag("fst.settings.service-info.phase")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, ServiceInfoText.PROGRESS_INDETERMINATE))
+        rule.onNodeWithTag("fst.settings.service-info.attempt", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun discoveryPrintsTheAttemptLineAndSpeaksPercentUnitsAndAttempts() {
+        val attempt = "1,310 attempted this pass · 70 temporarily unavailable · 1,240 of 5,000 completed"
+        render(reduceMotion = true, discovery)
+        rule.onNodeWithTag("fst.settings.service-info.attempt", useUnmergedTree = true).assertTextEquals(attempt)
+        rule.onNodeWithText("24.8%", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithText("1,240 of 5,000 accounts completed", useUnmergedTree = true).assertDoesNotExist()
+        rule.onNodeWithTag("fst.settings.service-info.phase")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "24.8%. 1,240 of 5,000 accounts completed. $attempt"))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo(0.248f, 0f..1f)))
+        // Title, 8 dp bar and attempt line are 4 dp apart, like the web's gap (4 + 8 + 4). The bar's
+        // semantics bounds are not its drawn height, so measure title to line.
+        // The phase title repeats the state description; it is the second node in tree order.
+        val title = bounds("Registered Player Band Discovery", index = 1)
+        val line = rule.onNodeWithTag("fst.settings.service-info.attempt", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertEquals(16f, (line.top - title.bottom).value, 0.5f)
+    }
+
+    @Test
+    fun stateRowKeepsTheProcessStateBesideTheLabelAtDefaultText() {
+        render(reduceMotion = true, discovery, fontScale = 1f)
+        val title = bounds(ServiceInfoText.SERVICE_STATE_TITLE)
+        val process = rule.onNodeWithTag("fst.settings.service-info.process", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertTrue(process.left > title.right)
+        assertTrue(process.top < title.bottom)
+    }
+
+    @Test
+    fun stateRowStacksTheProcessStateUnderTheLabelAtLargeText() {
+        render(reduceMotion = true, discovery, fontScale = 2f)
+        val title = bounds(ServiceInfoText.SERVICE_STATE_TITLE)
+        val description = bounds("Registered Player Band Discovery")
+        val process = rule.onNodeWithTag("fst.settings.service-info.process", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertTrue("process ${process.top} under description ${description.bottom}", process.top >= description.bottom)
+        assertEquals(title.left.value, process.left.value, 0.5f)
     }
 
     @Test
