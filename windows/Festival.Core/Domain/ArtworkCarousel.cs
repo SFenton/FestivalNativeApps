@@ -22,9 +22,10 @@ public enum ArtworkMode
 /// <param name="DisableAnimatedArtwork">In-app disable artwork animation.</param>
 /// <param name="SaveData">In-app data saving or a metered connection.</param>
 /// <param name="HighContrast">A Windows contrast theme is on: decorative art is hidden so content sits on the theme's window colour.</param>
+/// <param name="ModalOpen">A modal dialog (first run, What's New, confirmations) covers the page: the dimmed backdrop holds its frame.</param>
 public readonly record struct ArtworkPolicyInputs(
     bool SystemAnimationsEnabled, bool WindowVisible, bool WindowOccluded,
-    bool ReduceMotion, bool DisableAnimatedArtwork, bool SaveData, bool HighContrast = false);
+    bool ReduceMotion, bool DisableAnimatedArtwork, bool SaveData, bool HighContrast = false, bool ModalOpen = false);
 
 /// <summary>Combines policy inputs (artwork-background spec). Focus moving to a game does not pause.</summary>
 public static class ArtworkPlaybackPolicy
@@ -37,7 +38,8 @@ public static class ArtworkPlaybackPolicy
         if (inputs.SaveData || inputs.HighContrast) return ArtworkMode.Hidden;
         if (!inputs.WindowVisible || inputs.WindowOccluded) return ArtworkMode.Paused;
         if (!inputs.SystemAnimationsEnabled || inputs.ReduceMotion || inputs.DisableAnimatedArtwork) return ArtworkMode.Static;
-        return ArtworkMode.Animated;
+        // Like iOS (#28), motion behind a modal is unseen work: hold the frame, but keep a still cover still.
+        return inputs.ModalOpen ? ArtworkMode.Paused : ArtworkMode.Animated;
     }
 }
 #endregion

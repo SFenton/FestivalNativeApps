@@ -279,8 +279,11 @@ public sealed partial class ArtworkBackground : Grid
     /// </summary>
     private static int DriftStepsPerSecond => App.Options.DriftFps ?? 30;
 
-    /// <summary>Crossfade updates per second: 60 opacity steps are indistinguishable from continuous.</summary>
-    private const int CrossfadeStepsPerSecond = 60;
+    /// <summary>
+    /// Crossfade updates per second. Matches the drift so the two step together (30 redraws a second rather than up to
+    /// 90 while a fade overlaps a drift, as at 60 steps); 30 opacity steps over 1 s of dimmed art read as continuous.
+    /// </summary>
+    private static int CrossfadeStepsPerSecond => DriftStepsPerSecond > 0 ? DriftStepsPerSecond : 60;
 
     /// <summary>Hides a slot and releases its surface.</summary>
     /// <param name="slot">Outgoing slot.</param>
