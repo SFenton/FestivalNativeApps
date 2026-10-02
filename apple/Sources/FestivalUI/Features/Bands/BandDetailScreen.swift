@@ -33,6 +33,7 @@ struct BandDetailScreen: View {
     @State private var rankBy: BandRankingMetric = .adjusted
     @State private var songsById: [String: Song] = [:]
     @State private var quickLinks = QuickLinksController()
+    @Environment(\.deviceLayout) private var layout
 
     /// Create the screen.
     ///
@@ -113,8 +114,19 @@ struct BandDetailScreen: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // New content fades in as it loads (`Common/FadeInOnLoad.swift`).
                     membersSection(detail).festivalFadeIn(isLoaded: true, index: 0)
-                    summarySection(detail).festivalFadeIn(isLoaded: true, index: 1)
-                    statisticsSection(detail).festivalFadeIn(isLoaded: true, index: 2)
+                    if summaryBesideStatistics {
+                        // Mac regular-width column: the short Summary beside Statistics,
+                        // like the web's auto-fit detail-card grid, instead of two
+                        // window-wide tables with values far from their labels.
+                        HStack(alignment: .top, spacing: 20) {
+                            summarySection(detail).frame(maxWidth: .infinity)
+                            statisticsSection(detail).frame(maxWidth: .infinity)
+                        }
+                        .festivalFadeIn(isLoaded: true, index: 1)
+                    } else {
+                        summarySection(detail).festivalFadeIn(isLoaded: true, index: 1)
+                        statisticsSection(detail).festivalFadeIn(isLoaded: true, index: 2)
+                    }
                     rankHistorySection(detail).festivalFadeIn(isLoaded: true, index: 3)
                     songsSection(detail).festivalFadeIn(isLoaded: true, index: 4)
                 }
@@ -127,6 +139,16 @@ struct BandDetailScreen: View {
                 await loadSongs()
             }
         }
+    }
+
+    /// Summary and Statistics side by side: the Mac at regular column width only
+    /// (iPhone, iPad and Duo keep their stacked sections).
+    private var summaryBesideStatistics: Bool {
+        #if os(macOS)
+        layout.widthClass == .regular
+        #else
+        false
+        #endif
     }
 
     // MARK: Members

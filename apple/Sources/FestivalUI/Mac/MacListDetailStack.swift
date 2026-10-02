@@ -58,6 +58,18 @@ struct MacStack<Root: View>: View {
     }
 
     var body: some View {
+        MacColumnLayoutReader { columnLayout in
+            stack(columnLayout: columnLayout)
+        }
+        // Each column publishes its own layout, so its pages pick one or two card
+        // columns and readable widths from the column's width, not the window's.
+        .publishesDeviceLayout(usesSidebarShell: true)
+    }
+
+    /// The column's `NavigationStack`. Pushed pages get the column layout explicitly:
+    /// an environment value published around the stack did not reach its pushed
+    /// destinations (Band Detail read the default zero-width compact layout).
+    private func stack(columnLayout: DeviceLayout) -> some View {
         NavigationStack(path: $stackPath) {
             root
                 .modifier(MacKeyboardNavigation(
@@ -78,11 +90,9 @@ struct MacStack<Root: View>: View {
                     .environment(\.macPageIsTop, stackPath.last == route)
                     .modifier(MacPageWidth(maxWidth: MacLayoutPolicy.pageMaxWidth(for: route)))
                     .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
+                    .environment(\.deviceLayout, columnLayout)
                 }
         }
-        // Each column publishes its own layout, so its pages pick one or two card
-        // columns and readable widths from the column's width, not the window's.
-        .publishesDeviceLayout(usesSidebarShell: true)
     }
 
     /// Return on a keyboard-highlighted row: push in this column (in a split's columns
@@ -90,6 +100,15 @@ struct MacStack<Root: View>: View {
     private func push(_ route: AppRoute) {
         stackPath.append(route)
     }
+}
+
+/// Hands the published column layout to a builder (``MacStack`` passes it to pushed
+/// pages explicitly).
+private struct MacColumnLayoutReader<Content: View>: View {
+    @Environment(\.deviceLayout) private var layout
+    let content: (DeviceLayout) -> Content
+
+    var body: some View { content(layout) }
 }
 
 /// Centres a page at most `maxWidth` wide in its column (web page max width).
