@@ -261,6 +261,7 @@ struct SongsFilterSheet: View {
         .foregroundStyle(FestivalText.primary)
     } header: {
       Text("General")
+        .accessibilityIdentifier("fst.songs.filter.general")
     }
     generalBucketSection(
       id: "year", title: "Year", hint: "Filter songs by their release decade.",
@@ -276,9 +277,9 @@ struct SongsFilterSheet: View {
       Section {
         DisclosureGroup(isExpanded: $shopExpanded) {
           Toggle("Available in Item Shop", isOn: shopBinding(available: true))
-            .accessibilityIdentifier("fst.songs.filter.shop.available")
+            .accessibilityIdentifier("fst.songs.filter.shop-available")
           Toggle("Not Available in Item Shop", isOn: shopBinding(available: false))
-            .accessibilityIdentifier("fst.songs.filter.shop.unavailable")
+            .accessibilityIdentifier("fst.songs.filter.shop-unavailable")
           if !shopAvailable && draftGeneral.shop.needsShopFeed {
             Text("Item Shop filters need matching public Songs and Shop data.")
               .font(.footnote)

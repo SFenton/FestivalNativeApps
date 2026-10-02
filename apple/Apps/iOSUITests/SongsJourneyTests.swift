@@ -537,7 +537,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         // General sits above the score sections; set it before scrolling down to them.
         SongsUITestSupport.openSongsFilter(in: app)
-        let unavailable = app.switches["fst.songs.filter.shop.unavailable"]
+        let unavailable = app.switches["fst.songs.filter.shop-unavailable"]
         SongsUITestSupport.setSwitch(unavailable, to: "0")
         let scoreSections = app.buttons["fst.songs.filter.score-sections"]
         SongsUITestSupport.revealFilterOption(scoreSections, in: app).tap()
@@ -723,7 +723,7 @@ final class SongsJourneyTests: XCTestCase {
         let filter = app.buttons["fst.songs.filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         SongsUITestSupport.openSongsFilter(in: app)
-        let unavailable = app.switches["fst.songs.filter.shop.unavailable"]
+        let unavailable = app.switches["fst.songs.filter.shop-unavailable"]
         let done = app.buttons["fst.songs.filter.done"]
         SongsUITestSupport.setSwitch(unavailable, to: "0")
         done.tap()
@@ -1518,7 +1518,7 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
         SongsUITestSupport.selectViewedPlayer(in: app)
         SongsUITestSupport.openSongsFilter(in: app)
-        let unavailable = app.switches["fst.songs.filter.shop.unavailable"]
+        let unavailable = app.switches["fst.songs.filter.shop-unavailable"]
         SongsUITestSupport.setSwitch(unavailable, to: "0")
         app.buttons["fst.songs.filter.done"].tap()
         XCTAssertTrue(pulse.exists && orbit.exists)
