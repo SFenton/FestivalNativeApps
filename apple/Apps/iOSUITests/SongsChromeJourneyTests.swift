@@ -137,8 +137,9 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
     }
 
-    /// Issue #42: the tools stay together at the bottom, drop inline beside the minimized
-    /// tab bar when scrolled down and rise back when scrolled to the top.
+    /// Issues #42 and #89: search sits in the accessory and the tools float above it as
+    /// separate round buttons, never overlapping it; all drop when the tab bar minimizes
+    /// on scroll down and rise back when scrolled to the top.
     @MainActor
     private func assertToolsRideTheAccessory(
         _ app: XCUIApplication, profile: Bool, tools: [String]
@@ -149,21 +150,31 @@ final class SongsChromeJourneyTests: XCTestCase {
             var result: [CGRect] = []
             for id in ids {
                 let matches = app.buttons.matching(identifier: id)
-                guard matches.count == 1, matches.element.isHittable else { return nil }
-                result.append(matches.element.frame)
+                guard matches.count == 1 else { return nil }
+                // Mid-transition the accessory's button can have an empty frame, and
+                // `isHittable` then throws instead of returning false.
+                let frame = matches.element.frame
+                guard !frame.isEmpty, matches.element.isHittable else { return nil }
+                result.append(frame)
             }
             return result
         }
         let barBottom = app.navigationBars.firstMatch.frame.maxY
         let tabsTop = app.tabBars.firstMatch.frame.minY
         let expanded = frames()
-        XCTAssertNotNil(expanded, "\(who): tools missing from the accessory")
+        XCTAssertNotNil(expanded, "\(who): search or a tool is missing")
         for frame in expanded ?? [] {
             XCTAssertGreaterThan(frame.minY, barBottom + 100, "\(who): a tool is in the header")
             XCTAssertLessThanOrEqual(frame.maxY, tabsTop + 1, "\(who): accessory overlaps the tab bar")
             XCTAssertGreaterThanOrEqual(frame.height, 44, "\(who): tool hit target under 44 pt")
         }
-        let top = expanded?.first?.minY ?? 0
+        if let search = expanded?.first {
+            for frame in expanded?.dropFirst() ?? [] {
+                XCTAssertLessThanOrEqual(frame.maxY, search.minY + 1, "\(who): a tool sits in the search bar")
+                XCTAssertEqual(frame.width, frame.height, accuracy: 1, "\(who): a tool is not round")
+            }
+        }
+        let before = expanded ?? []
         func wait(_ condition: @escaping ([CGRect]) -> Bool, _ message: String) {
             let settled = XCTNSPredicateExpectation(
                 predicate: NSPredicate { _, _ in frames().map(condition) ?? false }, object: nil
@@ -171,12 +182,12 @@ final class SongsChromeJourneyTests: XCTestCase {
             XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 10), .completed, message)
         }
         app.swipeUp()
-        wait({ $0.allSatisfy { $0.minY > top + 20 } }, "\(who): accessory did not move inline")
+        wait({ zip($0, before).allSatisfy { $0.minY > $1.minY + 20 } }, "\(who): tools did not follow the tab bar")
         XCTAssertTrue(app.buttons["fst.global-search.open"].isHittable)
         SongsUITestSupport.record(app, name: "songs-tools-inline-\(who)")
 
         for _ in 0..<4 { app.swipeDown() }
-        wait({ abs(($0.first?.minY ?? 0) - top) < 2 }, "\(who): accessory did not expand again")
+        wait({ zip($0, before).allSatisfy { abs($0.minY - $1.minY) < 2 } }, "\(who): tools did not rise again")
         XCTAssertEqual(app.state, .runningForeground)
     }
 

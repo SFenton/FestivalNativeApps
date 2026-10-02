@@ -136,29 +136,68 @@ func pageToolsPresentationResolves(
     ) == expected)
 }
 
-/// Songs: the field spans and a hairline separates it from Filter, Sort and Quick Links.
-@Test func accessoryArrangementWithAField() {
-    let layout = PageToolsAccessoryArrangement(kinds: [.field, .tool, .tool, .tool])
-    #expect(layout.spans(0))
-    #expect(!layout.spans(1) && !layout.spans(2) && !layout.spans(3))
-    #expect(!layout.showsDivider(before: 0))
-    #expect(layout.showsDivider(before: 1))
-    #expect(!layout.showsDivider(before: 2) && !layout.showsDivider(before: 3))
+// MARK: - Separate tools and the accessory (issue #89)
+
+/// The tab-bar accessory holds only the front page's field (Songs search); Filter, Sort
+/// and Quick Links float as separate round buttons in dock order.
+@MainActor
+@Test func accessoryHoldsOnlyFieldsAndToolsFloat() {
+    let registry = TabAccessoryRegistry()
+    let songs = UUID()
+    let detail = UUID()
+    let search = UUID()
+    let filter = UUID()
+    let sort = UUID()
+    let links = UUID()
+    let detailLinks = UUID()
+    registry.upsert(id: links, order: DockOrder.quickLinks, scope: songs, content: AnyView(EmptyView()))
+    registry.upsert(id: sort, order: DockOrder.sort, scope: songs, content: AnyView(EmptyView()))
+    registry.upsert(id: filter, order: DockOrder.filter, scope: songs, content: AnyView(EmptyView()))
+    registry.upsert(
+        id: search, order: DockOrder.search, scope: songs, kind: .field, content: AnyView(EmptyView())
+    )
+    registry.upsert(
+        id: detailLinks, order: DockOrder.quickLinks, scope: detail, content: AnyView(EmptyView())
+    )
+    registry.pageAppeared(songs)
+    #expect(registry.frontFields.map(\.id) == [search])
+    #expect(registry.tools(in: songs).map(\.id) == [filter, sort, links])
+    registry.pageAppeared(detail)
+    #expect(registry.frontFields.isEmpty, "Song Detail has no field: no accessory")
+    #expect(registry.tools(in: detail).map(\.id) == [detailLinks])
 }
 
-/// A page's only tool (Quick Links on Song Detail) fills the capsule with its title.
-@Test func accessoryArrangementWithALoneTool() {
-    let layout = PageToolsAccessoryArrangement(kinds: [.tool])
-    #expect(layout.spans(0))
-    #expect(!layout.showsDivider(before: 0))
+/// While the accessory is inline the tools drop until their resting bottom meets its top,
+/// and rise again when it expands.
+@Test func accessoryFollowDropsToTheInlineAccessory() {
+    var follow = AccessoryFollow()
+    #expect(follow.drop(restingBottom: 736) == 0)
+    follow.report(top: 736, inline: false)
+    #expect(follow.drop(restingBottom: 736) == 0, "Expanded: tools rest on the safe area above it")
+    follow.report(top: 798, inline: true)
+    #expect(follow.drop(restingBottom: 736) == 62)
+    follow.report(top: 736, inline: false)
+    #expect(follow.drop(restingBottom: 736) == 0)
 }
 
-/// Several tools without a field stay icon buttons with no divider.
-@Test func accessoryArrangementWithToolsOnly() {
-    let layout = PageToolsAccessoryArrangement(kinds: [.tool, .tool])
-    #expect(!layout.spans(0) && !layout.spans(1))
-    #expect(!layout.showsDivider(before: 1))
-    #expect(!layout.spans(5) && !layout.showsDivider(before: 5), "Out of range is harmless")
+/// Before the tools are laid out, or if the accessory sits above them, they stay where
+/// the safe area puts them.
+@Test func accessoryFollowNeverGuessesOrRises() {
+    var follow = AccessoryFollow()
+    follow.report(top: 798, inline: true)
+    #expect(follow.drop(restingBottom: nil) == 0, "Tools not laid out yet")
+    follow.report(top: 700, inline: true)
+    #expect(follow.drop(restingBottom: 736) == 0, "Never negative")
+}
+
+/// Withdrawing the accessory (a page without a field) resets the tools' drop.
+@MainActor
+@Test func withdrawingTheAccessoryResetsTheDrop() {
+    let registry = TabAccessoryRegistry()
+    registry.reportAccessory(top: 822, inline: true)
+    #expect(registry.accessoryFollow.drop(restingBottom: 760) == 62)
+    registry.accessoryWithdrawn()
+    #expect(registry.accessoryFollow == AccessoryFollow())
 }
 
 // MARK: - Profile identity action

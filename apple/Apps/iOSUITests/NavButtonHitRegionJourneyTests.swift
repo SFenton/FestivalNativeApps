@@ -178,8 +178,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.quick-links.item.'")).firstMatch
     }
 
-    /// Close Quick Links: the accessory's sheet (issue #42) with its close button, the
-    /// floating or in-bar menu by tapping away from it (the dismissing tap is consumed).
+    /// Close the Quick Links menu (floating or in the bar) by tapping away from it; the
+    /// dismissing tap is consumed. A legacy sheet closes with its close button.
     @MainActor
     private static func closeQuickLinks(in app: XCUIApplication) {
         let close = app.buttons["fst.quick-links.close"]
