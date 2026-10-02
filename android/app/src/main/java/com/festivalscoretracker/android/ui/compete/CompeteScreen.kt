@@ -17,8 +17,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.ui.leaderboards.rememberAccountColumns
 import com.festivalscoretracker.android.ui.leaderboards.RowSeparator
@@ -202,8 +207,12 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                     EmptyCard(CompeteText.NO_RANKINGS_TITLE, CompeteText.noRankings(scope.label))
                 } else {
                     GlassCard(Modifier.fillMaxWidth()) {
-                        CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(value.entries + listOfNotNull(value.spotlight), RankingMetric.TotalScore)) {
-                        Column(Modifier.padding(8.dp)) {
+                        // Rows fill this column, so its inner width is the row width the songs column must fit in (issue #38).
+                        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+                        val density = LocalDensity.current
+                        val columns = rememberAccountColumns(value.entries + listOfNotNull(value.spotlight), RankingMetric.TotalScore, fitNamesTo = rowWidth)
+                        CompositionLocalProvider(LocalRankingColumns provides columns) {
+                        Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }) {
                             value.entries.forEachIndexed { index, entry ->
                                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
                                     if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))

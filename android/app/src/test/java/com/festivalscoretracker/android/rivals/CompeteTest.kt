@@ -5,6 +5,7 @@ import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -271,6 +272,16 @@ class CompeteUiTest {
             shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
             rule.onAllNodesWithTag("fst.compete.grid").fetchSemanticsNodes().isEmpty()
         }
+    }
+
+    @Test
+    fun rowsKeepTheSongsCountInTheirDescription() {
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        waitForTag("fst.compete.leaderboard-card.Solo_Guitar")
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.spotlight.Solo_Guitar"))
+        // Narrow cards may hide the songs column (issue #38); TalkBack still hears the count.
+        val spoken = rule.onNodeWithTag("fst.compete.spotlight.Solo_Guitar").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
+        assertTrue(spoken, spoken.contains("160 / 250 songs"))
     }
 
     @Test
