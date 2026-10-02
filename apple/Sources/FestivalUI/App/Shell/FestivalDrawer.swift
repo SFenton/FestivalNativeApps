@@ -186,6 +186,97 @@ struct DrawerPlacement: Equatable {
             height: max(0, size.height - panelPadding.top - panelPadding.bottom)
         )
     }
+
+    /// Padding that places the scrim's cut-out over the panel, in the scrim's coordinates.
+    ///
+    /// The scrim is itself inset by ``scrimInsets``, so the cut-out is laid out at the
+    /// panel's real window position (rather than offset there), which keeps any
+    /// position-dependent (concentric) corners identical to the panel's.
+    var cutoutPadding: EdgeInsets {
+        EdgeInsets(
+            top: panelPadding.top - scrimInsets.top,
+            leading: panelPadding.leading - scrimInsets.leading,
+            bottom: panelPadding.bottom - scrimInsets.bottom,
+            // The cut-out is leading-aligned at a fixed width, so its trailing edge is free.
+            trailing: 0
+        )
+    }
+}
+
+// MARK: - Drawer corners
+
+/// Corner geometry of the floating drawer panel.
+///
+/// iOS/macOS 26+ resolve every panel corner with `ConcentricRectangle` against the
+/// window's container shape, which the system derives from the display's own corners:
+/// each iPhone model, each iPhone Duo display, and the Duo's hinge-side versus outer
+/// corners as it rotates. A corner nested in a display corner gets that radius minus its
+/// inset; a corner that is not (beside the Duo's vertical bar or below its status bar),
+/// or whose display corner is too tight, gets ``minimumRadius``. Only public API is used;
+/// the display corner radius itself is never read (`_displayCornerRadius` is private).
+enum DrawerCorners {
+    /// Horizontal padding between the panel edge and its rows.
+    static let contentInset: CGFloat = 12
+    /// Corner radius of a row's current-page and pressed highlight.
+    static let rowRadius: CGFloat = 14
+    /// Smallest panel radius: concentric with the rows inside it (row radius plus the
+    /// inset), so the panel still nests its own content where no display corner applies.
+    static let minimumRadius: CGFloat = rowRadius + contentInset
+    /// Fixed radius before iOS 26, which has no public container-concentric shape. It
+    /// approximates an iPhone display corner at the 8 pt margin.
+    static let legacyRadius: CGFloat = 44
+
+    /// Per-corner style for the panel (iOS/macOS 26+): concentric with the display
+    /// wherever it can be, never tighter than ``minimumRadius``.
+    @available(iOS 26.0, macOS 26.0, *)
+    static var panelCornerStyle: Edge.Corner.Style {
+        .concentric(minimum: .fixed(minimumRadius))
+    }
+
+    /// The panel shape (iOS/macOS 26+). Corners resolve independently (not uniform), so
+    /// a Duo panel can sit in an outer-side and a hinge-side corner at once.
+    @available(iOS 26.0, macOS 26.0, *)
+    static var panelShape: ConcentricRectangle {
+        ConcentricRectangle(corners: panelCornerStyle, isUniform: false)
+    }
+}
+
+/// Clip, mask or back a drawer view with the panel's corner shape.
+private struct DrawerPanelShapeModifier: ViewModifier {
+    enum Use {
+        /// Liquid Glass (or its accessible fallback) behind the panel.
+        case glass
+        /// Clip to the shape (the panel's contents, and the scrim's cut-out under it).
+        case clip
+    }
+
+    let use: Use
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            apply(DrawerCorners.panelShape, to: content)
+        } else {
+            apply(
+                RoundedRectangle(cornerRadius: DrawerCorners.legacyRadius, style: .continuous),
+                to: content
+            )
+        }
+    }
+
+    @ViewBuilder private func apply(_ shape: some Shape, to content: Content) -> some View {
+        switch use {
+        case .glass:
+            content.modifier(FestivalGlassModifier(role: .overlay, shape: shape, interactive: false))
+        case .clip:
+            content.clipShape(shape)
+        }
+    }
+}
+
+private extension View {
+    func drawerPanelShape(_ use: DrawerPanelShapeModifier.Use) -> some View {
+        modifier(DrawerPanelShapeModifier(use: use))
+    }
 }
 
 // MARK: - Drawer view
@@ -211,9 +302,6 @@ struct FestivalDrawer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
 
-    /// Roughly concentric with an iPhone's display corners at an 8 pt inset.
-    private static let cornerRadius: CGFloat = 44
-
     private var profile: FestivalProfileKind {
         session.selectedPlayer == nil ? .none : .player
     }
@@ -230,10 +318,14 @@ struct FestivalDrawer: View {
                     // real colour rather than the scrim.
                     .mask {
                         Rectangle().overlay(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                            // Laid out at the panel's own window position (the scrim is
+                            // inset by `scrimInsets`), so its concentric corners resolve
+                            // exactly like the panel's.
+                            Color.black
                                 .frame(width: width)
-                                .padding(placement.panelPadding)
-                                .offset(x: min(0, dragOffset) - placement.scrimInsets.leading)
+                                .drawerPanelShape(.clip)
+                                .padding(placement.cutoutPadding)
+                                .offset(x: min(0, dragOffset))
                                 .blendMode(.destinationOut)
                         }
                         .compositingGroup()
@@ -246,11 +338,10 @@ struct FestivalDrawer: View {
                 panel(topInset: placement.contentTop, bottomInset: placement.contentBottom)
                     .frame(width: width)
                     .frame(maxHeight: .infinity)
-                    .modifier(FestivalGlassModifier(
-                        role: .overlay,
-                        shape: RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous),
-                        interactive: false
-                    ))
+                    .drawerPanelShape(.glass)
+                    #if DEBUG && os(iOS)
+                    .overlay { DrawerCornerReadout(subject: "panel") }
+                    #endif
                     .shadow(color: .black.opacity(0.3), radius: 20, x: 4)
                     .padding(placement.panelPadding)
                     .offset(x: min(0, dragOffset))
@@ -258,6 +349,10 @@ struct FestivalDrawer: View {
                     .accessibilityAddTraits(.isModal)
                     .accessibilityAction(.escape, onClose)
             }
+            #if DEBUG && os(iOS)
+            // Full-window radii: the display's own corners, for comparison.
+            .overlay(alignment: .bottom) { DrawerCornerReadout(subject: "display") }
+            #endif
             .ignoresSafeArea()
         }
         .preferredColorScheme(.dark)
@@ -317,8 +412,8 @@ struct FestivalDrawer: View {
             }
             .padding(.bottom, bottomInset)
         }
-        .padding(.horizontal, 12)
-        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
+        .padding(.horizontal, DrawerCorners.contentInset)
+        .drawerPanelShape(.clip)
         // A container element, so the identifier does not replace the rows' own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.shell.drawer")
@@ -401,6 +496,56 @@ struct FestivalDrawer: View {
     }
 }
 
+#if DEBUG && os(iOS)
+// MARK: - Debug corner readout
+
+/// `FST_DEBUG_DRAWER_RADII=1` (Debug, iOS 27+): prints the system-resolved concentric
+/// radii (before ``DrawerCorners/minimumRadius``) of the view it overlays, so simulator
+/// captures can verify concentricity per device, Duo display and rotation. Over the
+/// full window it reports the display's own corner radii. Hidden from VoiceOver.
+private struct DrawerCornerReadout: View {
+    private static let enabled = ProcessInfo.processInfo.environment["FST_DEBUG_DRAWER_RADII"] == "1"
+
+    /// Label for the first line (`panel` or `display`).
+    let subject: String
+
+    var body: some View {
+        if Self.enabled {
+            GeometryReader { geometry in
+                Text(Self.describe(geometry, subject: subject))
+                    .font(.caption.monospacedDigit().bold())
+                    .foregroundStyle(.yellow)
+                    .padding(6)
+                    .background(.black.opacity(0.7), in: .rect(cornerRadius: 6))
+                    .padding(.bottom, subject == "display" ? 180 : 0)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity,
+                           alignment: subject == "display" ? .bottom : .center)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private static func describe(_ geometry: GeometryProxy, subject: String) -> String {
+        let frame = geometry.frame(in: .global)
+        var lines = [String(format: "%@ x%.0f y%.0f w%.0f h%.0f", subject,
+                            frame.minX, frame.minY, frame.width, frame.height)]
+        if #available(iOS 27.0, *) {
+            if let radii = geometry.concentricCornerRadii {
+                lines.append(String(format: "TL %.1f  TR %.1f", radii.topLeading, radii.topTrailing))
+                lines.append(String(format: "BL %.1f  BR %.1f", radii.bottomLeading, radii.bottomTrailing))
+            } else {
+                lines.append("no container shape")
+            }
+        } else {
+            lines.append("radii need iOS 27")
+        }
+        lines.append(String(format: "minimum %.0f", DrawerCorners.minimumRadius))
+        return lines.joined(separator: "\n")
+    }
+}
+#endif
+
 // MARK: - Row
 
 /// Full-width drawer row with an SF Symbol, ≥ 48 pt tall, highlighted while pressed.
@@ -434,7 +579,7 @@ struct DrawerRow: View {
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
             .background(
                 isCurrent ? BrandTokens.accentBlue.opacity(0.28) : .clear,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                in: RoundedRectangle(cornerRadius: DrawerCorners.rowRadius, style: .continuous)
             )
             .contentShape(Rectangle())
         }
@@ -449,7 +594,7 @@ struct DrawerRowStyle: ButtonStyle {
         configuration.label
             .background(
                 Color.white.opacity(configuration.isPressed ? 0.12 : 0),
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                in: RoundedRectangle(cornerRadius: DrawerCorners.rowRadius, style: .continuous)
             )
     }
 }

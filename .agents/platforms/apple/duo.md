@@ -14,7 +14,7 @@ Sources: Xcode 27.1 SDK headers/swiftinterfaces (`UIHinge.h`, `UIVerticalBarEdge
 | Idiom | `.phone` (`IsLargeFormatPhone`, Touch ID, no Face ID) | `.phone` — **`userInterfaceIdiom` cannot tell the displays apart** |
 | Camera | Front camera in a corner, always visible; grows into the Dynamic Island for Live Activities (`occlusion` region) | Under-display, occludes only while active |
 | Fold | — | `division` region, active only while partially open |
-| Corner radii (px) | 8 on the hinge side, 59 on the outer side | 55 all round |
+| Corner radii (pt; framebuffer mask ≈7–8 / ≈58 / ≈53) | 8 on the hinge side, 59 on the outer side | 55 all round |
 
 - Apps move between displays on open/close as a **resize of the same scene** (compact ↔ regular); nothing tells the app "you are on the other display" except geometry, size class, `toolbarVerticalEdge` and the hinge. Keep state; never tie functionality to a pose (HIG).
 - Build with Xcode 27.1+: apps built with Xcode 26 or earlier do not extend under the status bar and camera.

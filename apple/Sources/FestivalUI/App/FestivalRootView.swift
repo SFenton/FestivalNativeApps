@@ -653,6 +653,8 @@ public struct FestivalRootView: View {
 /// captured) — it is never written to `UserDefaults`, so it cannot clobber another
 /// lane's real persisted selection on the shared simulator.
 /// `FST_DEBUG_ANONYMOUS=1` ignores any stored profile for this launch without deleting it.
+/// `FST_DEBUG_DRAWER_RADII=1` overlays the drawer panel's frame and resolved concentric
+/// corner radii (read by `FestivalDrawer`, not here).
 struct DebugLaunchRoute {
     let section: FestivalSection?
     let route: AppRoute?

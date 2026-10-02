@@ -31,6 +31,11 @@ final class NotificationsCenter {
 
     /// Reload the feed for the given account, replacing any previous account's rows.
     ///
+    /// Rows already loaded for the same account stay visible while the feed
+    /// revalidates (the bell refreshes on selection and the sheet again on open), so
+    /// reopening the sheet, or a cancelled revalidation, never regresses to a spinner.
+    /// A different account clears the previous rows before loading.
+    ///
     /// - Parameter session: Shared app session (provides the client and player).
     func refresh(session: FestivalSession) async {
         guard let identity = session.selectedPlayer else {
@@ -40,8 +45,13 @@ final class NotificationsCenter {
             state = .idle
             return
         }
+        let revalidating = accountId == identity.accountId && state == .loaded
         accountId = identity.accountId
-        state = .loading
+        if !revalidating {
+            notifications = []
+            unreadIds = []
+            state = .loading
+        }
         do {
             let payload = try await session.client().playerNotifications(
                 accountId: identity.accountId
