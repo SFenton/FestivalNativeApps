@@ -44,6 +44,7 @@ final class SongDetailJourneyTests: XCTestCase {
             try SongsUITestSupport.assertHeaderContrast(app.staticTexts["Paths"], in: app)
             try SongsUITestSupport.assertHeaderContrast(app.buttons["fst.paths.close"], in: app)
         }
+        assertPathImageCentered(image, in: app, "at fit zoom")
         let fittedWidth = image.frame.width
         let zoom = app.buttons["fst.paths.zoom-in"]
         XCTAssertTrue(zoom.isHittable)
@@ -57,6 +58,13 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(zoomOut.isEnabled)
         zoomOut.tap()
         XCTAssertTrue(zoom.isEnabled)
+        // Zoomed wider than the sheet, the path still pans sideways; zooming back to
+        // fit re-centres it rather than keeping the panned offset (issue #87).
+        let zoomedMinX = image.frame.minX
+        image.swipeLeft()
+        XCTAssertLessThan(image.frame.minX, zoomedMinX, "Zoomed path did not scroll horizontally")
+        while zoomOut.isEnabled { zoomOut.tap() }
+        assertPathImageCentered(image, in: app, "after zooming back out")
 
         choose("Text", in: display, app: app)
         // Web mobile table: no path summary or max score above the activation cards.
@@ -110,8 +118,33 @@ final class SongDetailJourneyTests: XCTestCase {
             app.buttons["fst.paths.instrument-selector.previous"].tap()
         }
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        // Back to the image after instrument and view switches, then a difficulty switch.
+        choose("Image", in: display, app: app)
+        XCTAssertTrue(image.waitForExistence(timeout: 15))
+        assertPathImageCentered(image, in: app, "after instrument and view switches")
+        choose("Hard", in: difficulty, app: app)
+        XCTAssertTrue(menuShows("Hard", difficulty), "Difficulty: \(difficulty.label)")
+        let hardImage = app.images.matching(NSPredicate(
+            format: "identifier == %@ AND label CONTAINS %@", "fst.paths.image", "Hard"
+        )).firstMatch
+        XCTAssertTrue(hardImage.waitForExistence(timeout: 15))
+        assertPathImageCentered(hardImage, in: app, "after a difficulty switch")
         app.buttons["fst.paths.close"].tap()
         XCTAssertTrue(open.waitForExistence(timeout: 10))
+    }
+
+    /// Assert the fitted path image has equal left and right margins in the sheet (issue #87).
+    ///
+    /// - Parameters:
+    ///   - image: The `fst.paths.image` element, at a zoom no wider than the sheet.
+    ///   - app: The running app, whose window the full-width Paths sheet spans.
+    ///   - context: When the check ran, for the failure message.
+    private func assertPathImageCentered(_ image: XCUIElement, in app: XCUIApplication, _ context: String) {
+        let window = app.windows.firstMatch.frame
+        XCTAssertEqual(
+            image.frame.midX, window.midX, accuracy: 1,
+            "Path image off centre \(context): \(image.frame) in \(window)"
+        )
     }
 
     /// A saved Settings path default initializes the next modal without erasing it.
