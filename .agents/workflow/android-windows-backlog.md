@@ -84,7 +84,7 @@ Take these **after** your batch-6 items, in your areas. Verify each on your plat
 | 7.6 | Chart paging: moving back/forth must not re-animate the line from scratch ("figuring out where to go"); keep stable x-positions |
 | 7.7 | One unified leaderboard design: individual row styling vs multi-row cards must be consistent (song boards, full boards, Leaderboards, Compete) |
 | 7.8 | Song instrument leaderboard page: album art/title/artist/instrument header scrolls into the top bar; no odd background behind it; no dead space above the first row |
-| 7.9 | Selected-player row: score, percentage, position and name aligned in the same columns as other rows (web) |
+| 7.9 | Selected-player row: score, percentage, position and name aligned in the same columns as other rows (web). Issue #37: one per-section column fitter per platform (Android `core/rankings/LeaderboardColumnLayout`, Windows `Festival.Core/Domain/LeaderboardColumnLayout`) decides which columns fit and their widths for every row and the pinned row |
 | 7.10 | "Reset" in filter/sort sheets is red (red text or red button) |
 | 7.11 | Full-combo notation and badge colours match the web exactly (not "FC 100%") |
 | 7.12 | Persistent profile/avatar button on every page (including pushed pages like View All Rivals); "Deselect" lives in the navigation drawer/flyout like the web, not a page header button |
