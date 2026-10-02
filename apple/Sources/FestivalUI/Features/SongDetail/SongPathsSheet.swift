@@ -10,7 +10,12 @@ struct SongPathsSheet: View {
     @State private var instrument: Instrument
     @State private var difficulty = PathDifficulty.expert
     @State private var display: PathDisplayMode
-    @State private var state = LoadState.loading
+    /// The image, table or error on screen; nil while the spinner shows (issue #70).
+    @State private var shown: LoadState?
+    /// The loading spinner is on screen (it fades in and out between charts).
+    @State private var spinnerVisible = true
+    /// A chart has been requested before, so later loads are switches VoiceOver announces.
+    @State private var hasRequested = false
     @State private var retryRevision = 0
     @State private var zoom: CGFloat = 1
     @State private var pinchOrigin: CGFloat = 1
@@ -25,7 +30,6 @@ struct SongPathsSheet: View {
     let warnAboutKaraoke: Bool
 
     private enum LoadState {
-        case loading
         case image(SongPathImagePayload)
         case text(SongPathDataPayload)
         case failed(ServiceIssue)
@@ -93,9 +97,6 @@ struct SongPathsSheet: View {
         // the extra room on Duo unfolded/iPad rather than a centered form card.
         .festivalSheet(.large, sizing: .page)
         .task(id: requestKey) { await loadPath() }
-        .onChange(of: instrument) { _, _ in resetZoom() }
-        .onChange(of: difficulty) { _, _ in resetZoom() }
-        .onChange(of: display) { _, _ in resetZoom() }
         .onAppear { warningPresented = warnAboutKaraoke && !warningDismissed }
         .alert("Some Instruments Unavailable", isPresented: $warningPresented) {
             Button("OK") {}
@@ -141,7 +142,7 @@ struct SongPathsSheet: View {
 
     /// The image (not the text table) is showing, so zoom applies.
     private var showsZoom: Bool {
-        if case .image = state { return true }
+        if case .image = shown { return true }
         return false
     }
 
@@ -226,13 +227,30 @@ struct SongPathsSheet: View {
             .festivalGlassCapsule(.control, interactive: true)
     }
 
-    /// Render the independent image/text state with honest freshness and errors.
-    @ViewBuilder
+    /// The spinner and the current image, table or error, each fading in and out on its
+    /// own (web `PathImage` phases, issue #70).
     private var pathContent: some View {
+        ZStack {
+            if let shown {
+                loadedContent(shown)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+            }
+            if spinnerVisible {
+                FestivalLoadingView(accessibilityLabel: "Loading \(display.label.lowercased()) path")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    /// Render the independent image/text state with honest freshness and errors.
+    ///
+    /// - Parameter state: The loaded image, table or failure.
+    /// - Returns: The content for that state.
+    @ViewBuilder
+    private func loadedContent(_ state: LoadState) -> some View {
         switch state {
-        case .loading:
-            FestivalLoadingView(accessibilityLabel: "Loading \(display.label.lowercased()) path")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .failed(issue):
             ServiceStatusView(issue, title: "Path unavailable") {
                 retryRevision += 1
@@ -441,36 +459,116 @@ struct SongPathsSheet: View {
         pinchOrigin = 1
     }
 
-    /// Ignore late responses after any selector, retry or publication change.
+    // MARK: - Switching
+
+    /// Swap to the selected chart: fade the old content out, show the spinner while the
+    /// path loads (at least 400 ms for an image, 500 ms for text), then fade the new
+    /// content in. A newer selection, retry or publication change cancels this task, so
+    /// a late response never paints (issue #70).
     private func loadPath() async {
         let requested = requestKey
-        state = .loading
+        let announces = hasRequested
+        hasRequested = true
+        let timing = PathSwitchTransition.timing(for: requested.display, reduceMotion: reduceMotion)
+        let session = session
+        let song = song
+        do {
+            try await PathSwitchTransition.run(
+                timing: timing, contentShown: shown != nil, clock: ContinuousClock(),
+                load: { try await Self.fetch(requested, song: song, session: session) },
+                apply: { step in apply(step, for: requested, timing: timing, announces: announces) }
+            )
+        } catch {
+            // Cancelled by a newer selection, which now owns the sheet.
+        }
+    }
+
+    /// Perform one visible step of a switch.
+    ///
+    /// - Parameters:
+    ///   - step: The fade to perform.
+    ///   - requested: The selection being loaded.
+    ///   - timing: Fade duration (zero swaps instantly for Reduce Motion).
+    ///   - announces: Whether VoiceOver hears the loading and loaded announcements.
+    private func apply(
+        _ step: PathSwitchTransition.Step<LoadState>, for requested: RequestKey,
+        timing: PathSwitchTransition.Timing, announces: Bool
+    ) {
+        let fade: Animation? = timing.fadeSeconds > 0 ? .easeInOut(duration: timing.fadeSeconds) : nil
+        switch step {
+        case .hideContent:
+            withAnimation(fade) { shown = nil }
+        case .showSpinner:
+            resetZoom()
+            withAnimation(fade) { spinnerVisible = true }
+            if announces {
+                AccessibilityNotification.Announcement(
+                    "Loading \(Self.chartName(requested)) \(requested.display.label.lowercased()) path"
+                ).post()
+            }
+        case .hideSpinner:
+            withAnimation(fade) { spinnerVisible = false }
+        case let .showContent(content):
+            guard requestKey == requested else { return }
+            withAnimation(fade) { shown = content }
+            if announces, let spoken = Self.loadedAnnouncement(content, for: requested) {
+                AccessibilityNotification.Announcement(spoken).post()
+            }
+        }
+    }
+
+    /// Fetch the requested image or text; a service failure becomes the error state.
+    ///
+    /// - Parameters:
+    ///   - requested: The selection to load.
+    ///   - song: Catalogue item with optional artifact generation ID.
+    ///   - session: Process-scoped, publication-aware public client.
+    /// - Returns: The image, table or failure to show.
+    /// - Throws: `CancellationError` when a newer selection cancels the request.
+    @MainActor
+    private static func fetch(
+        _ requested: RequestKey, song: Song, session: FestivalSession
+    ) async throws -> LoadState {
         do {
             switch requested.display {
             case .image:
-                let result = try await session.pathImage(
-                    song: song, instrument: requested.instrument,
-                    difficulty: requested.difficulty
-                )
-                try Task.checkCancellation()
-                guard requestKey == requested else { return }
-                state = .image(result)
+                return .image(try await session.pathImage(
+                    song: song, instrument: requested.instrument, difficulty: requested.difficulty
+                ))
             case .text:
-                let result = try await session.pathData(
-                    song: song, instrument: requested.instrument,
-                    difficulty: requested.difficulty
-                )
-                try Task.checkCancellation()
-                guard requestKey == requested else { return }
-                state = .text(result)
+                return .text(try await session.pathData(
+                    song: song, instrument: requested.instrument, difficulty: requested.difficulty
+                ))
             }
         } catch is CancellationError {
-            return
+            throw CancellationError()
         } catch let error as URLError where error.code == .cancelled {
-            return
+            throw CancellationError()
         } catch {
-            guard !Task.isCancelled, requestKey == requested else { return }
-            state = .failed(ServiceIssue(error))
+            try Task.checkCancellation()
+            return .failed(ServiceIssue(error))
+        }
+    }
+
+    /// "Lead Expert" for announcements.
+    private static func chartName(_ requested: RequestKey) -> String {
+        "\(requested.instrument.label) \(requested.difficulty.label)"
+    }
+
+    /// What VoiceOver hears once the new content fades in; failures announce themselves.
+    ///
+    /// - Parameters:
+    ///   - content: The content now shown.
+    ///   - requested: The selection it belongs to.
+    /// - Returns: The announcement, or nil for an error state.
+    private static func loadedAnnouncement(_ content: LoadState, for requested: RequestKey) -> String? {
+        switch content {
+        case .image:
+            "\(chartName(requested)) path image"
+        case let .text(payload):
+            "\(chartName(requested)) path, \(payload.rows.count) \(payload.rows.count == 1 ? "activation" : "activations")"
+        case .failed:
+            nil
         }
     }
 }
