@@ -71,6 +71,15 @@ public sealed record ServiceSubphaseProgress(
     [property: JsonPropertyName("unitsTotalFinal")] bool? UnitsTotalFinal,
     [property: JsonPropertyName("percent")] double? Percent);
 
+/// <summary>Registered-player band discovery attempt counts (<c>schemaVersion</c> 1).</summary>
+/// <param name="SchemaVersion">Schema version.</param>
+/// <param name="AttemptedThisPass">Accounts attempted in this pass.</param>
+/// <param name="RetryableUnavailableThisPass">Attempted accounts that were temporarily unavailable.</param>
+public sealed record ServiceAttemptProgressWire(
+    [property: JsonPropertyName("schemaVersion")] double? SchemaVersion,
+    [property: JsonPropertyName("attemptedThisPass")] double? AttemptedThisPass,
+    [property: JsonPropertyName("retryableUnavailableThisPass")] double? RetryableUnavailableThisPass);
+
 /// <summary>The running (or last failed) update.</summary>
 /// <param name="Status"><c>idle</c>, <c>updating</c>, <c>failed</c> or <c>stalled</c> (unknown values kept verbatim).</param>
 /// <param name="ScrapeId">Scrape ID.</param>
@@ -94,6 +103,7 @@ public sealed record ServiceSubphaseProgress(
 /// <param name="LastProgressAt">Last progress time.</param>
 /// <param name="UpdatedAt">Update time.</param>
 /// <param name="HeartbeatAt">Heartbeat time.</param>
+/// <param name="AttemptProgress">Band discovery attempt counts, when the phase reports them.</param>
 public sealed record ServiceCurrentUpdate(
     [property: JsonPropertyName("status")] string? Status,
     [property: JsonPropertyName("scrapeId")] double? ScrapeId = null,
@@ -116,7 +126,8 @@ public sealed record ServiceCurrentUpdate(
     [property: JsonPropertyName("subphaseProgress")] ServiceSubphaseProgress? SubphaseProgress = null,
     [property: JsonPropertyName("lastProgressAt")] string? LastProgressAt = null,
     [property: JsonPropertyName("updatedAt")] string? UpdatedAt = null,
-    [property: JsonPropertyName("heartbeatAt")] string? HeartbeatAt = null);
+    [property: JsonPropertyName("heartbeatAt")] string? HeartbeatAt = null,
+    [property: JsonPropertyName("attemptProgress")] ServiceAttemptProgressWire? AttemptProgress = null);
 
 /// <summary>Publication pointers and the public-read freeze.</summary>
 /// <param name="PublishedAt">Publication time.</param>

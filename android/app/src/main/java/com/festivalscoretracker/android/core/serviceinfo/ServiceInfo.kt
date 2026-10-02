@@ -102,9 +102,25 @@ data class ServiceInfo(
     )
 
     /**
+     * Per-pass lookup counts (`schemaVersion` 1) the registered-band discovery phase reports
+     * beside its durable completion (`PhaseAttemptProgressInfo`).
+     *
+     * @property schemaVersion Only 1 is understood.
+     * @property attemptedThisPass Lookups attempted in the current pass.
+     * @property retryableUnavailableThisPass Of those, lookups that were temporarily unavailable.
+     */
+    @Serializable
+    data class AttemptProgress(
+        val schemaVersion: Double? = null,
+        val attemptedThisPass: Double? = null,
+        val retryableUnavailableThisPass: Double? = null,
+    )
+
+    /**
      * The running (or last failed) update.
      *
      * @property status `idle`, `updating`, `failed` or `stalled` (unknown values kept verbatim).
+     * @property attemptProgress Registered-band discovery lookup counts for this pass.
      */
     @Serializable
     data class CurrentUpdate(
@@ -127,6 +143,7 @@ data class ServiceInfo(
         val unitsTotalFinal: Boolean? = null,
         val phasePercent: Double? = null,
         val subphaseProgress: SubphaseProgress? = null,
+        val attemptProgress: AttemptProgress? = null,
         val lastProgressAt: String? = null,
         val updatedAt: String? = null,
         val heartbeatAt: String? = null,
@@ -190,12 +207,27 @@ data class ServiceBarProgress(
 }
 
 /**
- * What the card renders for one poll (web `ServiceProgressDisplay`; ETA, overall percent and
- * discovery-attempt counts are not shown by the natives).
+ * Validated per-pass lookup counts (web `ServiceAttemptProgress`).
+ *
+ * @property attemptedThisPass Lookups attempted in the current pass.
+ * @property retryableUnavailableThisPass Of those, lookups that were temporarily unavailable.
+ */
+data class ServiceAttemptProgress(val attemptedThisPass: Long, val retryableUnavailableThisPass: Long)
+
+/**
+ * What the card renders for one poll (web `ServiceProgressDisplay`; ETA and overall percent are
+ * not shown by the web card either, so they are not ported).
+ *
+ * @property unitsCompleted Phase-level completed units (the discovery-attempt line reports these).
+ * @property unitsTotal Phase-level total units.
+ * @property attemptProgress Registered-band discovery lookup counts, monotonic within one phase attempt.
  */
 data class ServiceProgressDisplay(
     val phasePercent: Double? = null,
     val phaseId: String? = null,
+    val unitsCompleted: Double? = null,
+    val unitsTotal: Double? = null,
+    val attemptProgress: ServiceAttemptProgress? = null,
     val subphaseId: String? = null,
     val phaseAttempt: Double? = null,
     val phaseOrdinal: Double? = null,
@@ -257,9 +289,20 @@ object ServiceProgressReducer {
         val previousPhasePercent = if (samePhase && !restarted) previous?.display?.phasePercent else null
         val phasePercent = rawPhasePercent?.let { max(it, previousPhasePercent ?: it) }
 
+        val previousAttempt = if (samePhase && !restarted) previous?.display?.attemptProgress else null
+        val attemptProgress = normalizeAttemptProgress(current.attemptProgress)?.let { raw ->
+            ServiceAttemptProgress(
+                attemptedThisPass = max(previousAttempt?.attemptedThisPass ?: 0L, raw.attemptedThisPass),
+                retryableUnavailableThisPass = max(previousAttempt?.retryableUnavailableThisPass ?: 0L, raw.retryableUnavailableThisPass),
+            )
+        }
+
         val display = ServiceProgressDisplay(
             phasePercent = phasePercent,
             phaseId = phaseId,
+            unitsCompleted = finite(current.unitsCompleted),
+            unitsTotal = finite(current.unitsTotal),
+            attemptProgress = attemptProgress,
             subphaseId = current.subphaseId,
             phaseAttempt = phaseAttempt,
             phaseOrdinal = phaseOrdinal,
@@ -350,6 +393,25 @@ object ServiceProgressReducer {
         )
     }
 
+    /**
+     * Web `normalizeAttemptProgress`: schema 1 only, non-negative whole counts, and never more
+     * unavailable lookups than attempts; anything else hides the attempt line.
+     *
+     * @param value Wire counts.
+     * @return Validated counts, or null.
+     */
+    fun normalizeAttemptProgress(value: ServiceInfo.AttemptProgress?): ServiceAttemptProgress? {
+        if (value?.schemaVersion != 1.0) return null
+        val attempted = finite(value.attemptedThisPass) ?: return null
+        val unavailable = finite(value.retryableUnavailableThisPass) ?: return null
+        if (attempted != floor(attempted) || unavailable != floor(unavailable)) return null
+        if (attempted < 0 || unavailable < 0 || unavailable > attempted || attempted >= MAX_COUNT) return null
+        return ServiceAttemptProgress(attempted.toLong(), unavailable.toLong())
+    }
+
+    /** Counts at or above this cannot be represented exactly and are rejected. */
+    private const val MAX_COUNT = 1e15
+
     private fun finite(value: Double?): Double? = value?.takeIf { it.isFinite() }
 
     private fun clamp(value: Double?): Double? = value?.let { min(100.0, max(0.0, it)) }
@@ -387,7 +449,6 @@ object ServiceInfoText {
     const val LAST_PUBLISHED_TITLE = "Last Successful Publication"
     const val PUBLICATION_UNAVAILABLE = "No successful publication yet"
     const val PROGRESS_INDETERMINATE = "In progress — total not yet known"
-    const val FREEZE_TITLE = "Public Reads"
 
     /**
      * Process state: stopped when the worker is missing, offline, stale or stopping.
@@ -472,6 +533,27 @@ object ServiceInfoText {
         val done = grouped(completed, locale)
         return progress.unitsTotal?.let { "$done of ${grouped(it, locale)} $unit completed" } ?: "$done $unit completed"
     }
+
+    /**
+     * Registered-band discovery lookup line under the bar (web `discoveryAttemptText`:
+     * "1,310 attempted this pass · 70 temporarily unavailable · 1,240 of 5,000 completed"),
+     * shown only for that phase.
+     *
+     * @param display Reduced progress for this poll.
+     * @param locale Number locale.
+     * @return Attempt sentence, or null for any other phase or without valid counts.
+     */
+    fun discoveryAttemptText(display: ServiceProgressDisplay, locale: Locale = Locale.getDefault()): String? {
+        if (display.phaseId != REGISTERED_BAND_DISCOVERY_PHASE_ID) return null
+        val attempts = display.attemptProgress ?: return null
+        val head = "${grouped(attempts.attemptedThisPass.toDouble(), locale)} attempted this pass · " +
+            "${grouped(attempts.retryableUnavailableThisPass.toDouble(), locale)} temporarily unavailable · "
+        val completed = grouped(display.unitsCompleted ?: 0.0, locale)
+        return display.unitsTotal?.let { "$head$completed of ${grouped(it, locale)} completed" } ?: "$head$completed completed"
+    }
+
+    /** Phase whose row adds the lookup-attempt line (web `discoveryAttemptText`). */
+    const val REGISTERED_BAND_DISCOVERY_PHASE_ID = "post.registered_player_band_discovery"
 
     /**
      * Percent text for a determinate bar, or the indeterminate sentence.
@@ -708,10 +790,11 @@ sealed interface ServiceInfoPhase {
  * @property phaseTitle Phase row title, or null when there is no phase row.
  * @property showBar Whether the phase row has a bar.
  * @property barPercent 0–100 for a determinate bar, null for indeterminate.
- * @property progressText Percent or indeterminate caption under the bar.
- * @property unitsText Units caption under the bar.
+ * @property progressText Percent or indeterminate sentence (spoken with the bar, not printed: the web card shows neither).
+ * @property unitsText Units sentence (spoken, not printed).
+ * @property attemptText Registered-band discovery lookup line under the bar, null for every other phase.
  * @property lastPublished Last publication text, or null while loading/failed (web shows only the state row).
- * @property freezeNotice Public-read freeze explanation, when frozen.
+ * @property freezeNotice Public-read freeze explanation, when frozen (kept for parity with Apple; not rendered, the web card has no freeze row).
  */
 data class ServiceInfoRows(
     val stateDescription: String,
@@ -721,6 +804,7 @@ data class ServiceInfoRows(
     val barPercent: Double? = null,
     val progressText: String? = null,
     val unitsText: String? = null,
+    val attemptText: String? = null,
     val lastPublished: String? = null,
     val freezeNotice: String? = null,
 ) {
@@ -754,6 +838,7 @@ data class ServiceInfoRows(
                     barPercent = if (showBar && determinate) bar?.percent else null,
                     progressText = if (showBar) ServiceInfoText.progressText(bar) else null,
                     unitsText = if (showBar) ServiceInfoText.unitsText(bar, locale) else null,
+                    attemptText = if (showBar) ServiceInfoText.discoveryAttemptText(display, locale) else null,
                     lastPublished = ServiceInfoText.lastPublished(info, zone, locale),
                     freezeNotice = ServiceInfoText.freezeNotice(phase.snapshot),
                 )

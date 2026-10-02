@@ -28,6 +28,11 @@ public sealed record ServiceBarProgress(
     string Identity, string? Id, double Sequence, ServiceBarKind Kind, double? Percent,
     string? UnitsKind, double? UnitsCompleted, double? UnitsTotal);
 
+/// <summary>Validated band discovery attempt counts (web <c>ServiceAttemptProgress</c>).</summary>
+/// <param name="AttemptedThisPass">Accounts attempted in this pass.</param>
+/// <param name="RetryableUnavailableThisPass">Attempted accounts that were temporarily unavailable (never more than attempted).</param>
+public sealed record ServiceAttemptProgress(long AttemptedThisPass, long RetryableUnavailableThisPass);
+
 /// <summary>What the Service Info card renders for one poll (web <c>ServiceProgressDisplay</c>).</summary>
 public sealed record ServiceProgressDisplay
 {
@@ -39,6 +44,15 @@ public sealed record ServiceProgressDisplay
 
     /// <summary>Phase ID.</summary>
     public string? PhaseId { get; init; }
+
+    /// <summary>Phase-level completed units (finite), used by the discovery attempt line.</summary>
+    public double? UnitsCompleted { get; init; }
+
+    /// <summary>Phase-level total units (finite), used by the discovery attempt line.</summary>
+    public double? UnitsTotal { get; init; }
+
+    /// <summary>Attempt counts (monotonic within a phase attempt), when valid.</summary>
+    public ServiceAttemptProgress? AttemptProgress { get; init; }
 
     /// <summary>Subphase ID.</summary>
     public string? SubphaseId { get; init; }
@@ -110,11 +124,20 @@ public static class ServiceProgressReducer
         var rawPhasePercent = unitsTotalFinal ? Clamp(Finite(current.PhasePercent)) : null;
         var previousPhasePercent = samePhase && !restarted ? previous!.Display.PhasePercent : null;
         double? phasePercent = rawPhasePercent is { } raw ? Math.Max(raw, previousPhasePercent ?? raw) : null;
+        var previousAttempt = samePhase && !restarted ? previous!.Display.AttemptProgress : null;
+        var attemptProgress = NormalizeAttemptProgress(current.AttemptProgress) is { } attempts
+            ? new ServiceAttemptProgress(
+                Math.Max(previousAttempt?.AttemptedThisPass ?? 0, attempts.AttemptedThisPass),
+                Math.Max(previousAttempt?.RetryableUnavailableThisPass ?? 0, attempts.RetryableUnavailableThisPass))
+            : null;
 
         var display = new ServiceProgressDisplay
         {
             PhasePercent = phasePercent,
             PhaseId = phaseId,
+            UnitsCompleted = Finite(current.UnitsCompleted),
+            UnitsTotal = Finite(current.UnitsTotal),
+            AttemptProgress = attemptProgress,
             SubphaseId = current.SubphaseId,
             PhaseAttempt = phaseAttempt,
             PhaseOrdinal = phaseOrdinal,
@@ -190,6 +213,25 @@ public static class ServiceProgressReducer
             phasePercent is not null ? ServiceBarKind.Exact : ServiceBarKind.Indeterminate, phasePercent,
             current.UnitsKind, Finite(current.UnitsCompleted), Finite(current.UnitsTotal));
     }
+
+    /// <summary>
+    /// Web <c>normalizeAttemptProgress</c>: schema 1, finite whole non-negative counts, unavailable never above
+    /// attempted, and counts small enough to stay exact.
+    /// </summary>
+    /// <param name="value">Wire counts.</param>
+    /// <returns>Validated counts, or <see langword="null"/> when any rule fails.</returns>
+    public static ServiceAttemptProgress? NormalizeAttemptProgress(ServiceAttemptProgressWire? value)
+    {
+        if (value?.SchemaVersion != 1) return null;
+        if (Finite(value.AttemptedThisPass) is not { } attempted || Finite(value.RetryableUnavailableThisPass) is not { } unavailable)
+            return null;
+        if (attempted != Math.Floor(attempted) || unavailable != Math.Floor(unavailable)) return null;
+        if (attempted < 0 || unavailable < 0 || unavailable > attempted || attempted >= MaxCount) return null;
+        return new ServiceAttemptProgress((long)attempted, (long)unavailable);
+    }
+
+    /// <summary>Counts at or above this cannot be represented exactly and are rejected.</summary>
+    private const double MaxCount = 1e15;
 
     /// <summary>Drops NaN/∞.</summary>
     /// <param name="value">Value.</param>
@@ -330,6 +372,36 @@ public static class ServiceInfoText
         return progress.UnitsTotal is { } total
             ? $"{Grouped(completed)} of {Grouped(total)} {unit} completed"
             : $"{Grouped(completed)} {unit} completed";
+    }
+
+    /// <summary>Windows text size at and above which the process state stacks under its label.</summary>
+    public const double StackedStateTextScale = 1.5;
+
+    /// <summary>
+    /// Whether the "Leaderboard Service State" row stacks its process state under the label (Apple's accessibility-size
+    /// rule; the shell uses the same 150% threshold) instead of squeezing the label beside it.
+    /// </summary>
+    /// <param name="textScale">Windows text size factor (1–2.25).</param>
+    /// <returns><see langword="true"/> at 150% text and above.</returns>
+    public static bool StacksStateRow(double textScale) => textScale >= StackedStateTextScale;
+
+    /// <summary>Phase whose row adds the lookup-attempt line (web <c>discoveryAttemptText</c>).</summary>
+    public const string RegisteredBandDiscoveryPhaseId = "post.registered_player_band_discovery";
+
+    /// <summary>
+    /// Band discovery attempt line (web <c>discoveryAttemptText</c>): "12 attempted this pass · 1 temporarily
+    /// unavailable · 10 of 50 completed", or "… · 10 completed" without a total.
+    /// </summary>
+    /// <param name="display">Reduced progress.</param>
+    /// <returns>Sentence, or <see langword="null"/> outside band discovery or without valid counts.</returns>
+    public static string? DiscoveryAttemptText(ServiceProgressDisplay display)
+    {
+        if (display.PhaseId != RegisteredBandDiscoveryPhaseId || display.AttemptProgress is not { } attempts) return null;
+        var head = $"{Grouped(attempts.AttemptedThisPass)} attempted this pass · {Grouped(attempts.RetryableUnavailableThisPass)} temporarily unavailable · ";
+        var completed = Grouped(display.UnitsCompleted ?? 0);
+        return display.UnitsTotal is { } total
+            ? $"{head}{completed} of {Grouped(total)} completed"
+            : $"{head}{completed} completed";
     }
 
     /// <summary>Percent text for a determinate bar, else the indeterminate sentence.</summary>

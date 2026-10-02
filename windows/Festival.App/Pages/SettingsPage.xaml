@@ -458,23 +458,30 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Service Info (web SettingsServiceProgressCard): live update state, phase progress, last publication. -->
+                <!-- Service Info (web SettingsServiceProgressCard): live update state, phase progress, last publication. Percent and
+                     units are spoken on the phase row rather than printed (web parity); band discovery adds its attempt line. -->
                 <StackPanel controls:QuickLinkAnchor.Id="service-info">
                     <TextBlock Text="Service Info" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Live leaderboard update status, exact phase progress when available, and publication timing." Style="{StaticResource SectionSubtitleStyle}" />
                     <Border Style="{StaticResource FSTCardStyle}" Padding="16,8" AutomationProperties.AutomationId="fst.settings.service-info">
                         <StackPanel Spacing="4">
-                            <Grid ColumnSpacing="12" MinHeight="56" AutomationProperties.AutomationId="fst.settings.service-info.state">
+                            <!-- At 150%+ Windows text size the process state moves under the label (code-behind) instead of squeezing it. -->
+                            <Grid x:Name="ServiceStateGrid" ColumnSpacing="12" MinHeight="56" Padding="0,8"
+                                  AutomationProperties.AutomationId="fst.settings.service-info.state">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
                                 <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Leaderboard Service State" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="{x:Bind ViewModel.ServiceInfo.StateDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                                AutomationProperties.LiveSetting="Polite" />
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <StackPanel x:Name="ServiceProcessPanel" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind ViewModel.ServiceInfo.ProcessStateText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
                                                VerticalAlignment="Center" AutomationProperties.AutomationId="fst.settings.service-info.process" />
                                     <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.ServiceInfo.ShowsSpinner, Mode=OneWay}"
@@ -482,7 +489,7 @@
                                                   AutomationProperties.AccessibilityView="Raw" />
                                 </StackPanel>
                             </Grid>
-                            <StackPanel Spacing="6" Padding="0,4,0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasPhase, Mode=OneWay}"
+                            <StackPanel Spacing="4" Padding="0,4,0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasPhase, Mode=OneWay}"
                                         AutomationProperties.Name="{x:Bind ViewModel.ServiceInfo.PhaseAccessibleName, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.settings.service-info.phase">
                                 <StackPanel.Resources>
@@ -490,21 +497,16 @@
                                     <CornerRadius x:Key="ProgressBarTrackCornerRadius">4</CornerRadius>
                                 </StackPanel.Resources>
                                 <TextBlock Text="{x:Bind ViewModel.ServiceInfo.PhaseTitle, Mode=OneWay}" Style="{StaticResource SettingTitleStyle}" />
-                                <!-- Unknown totals show an empty track and the caption rather than a looping shimmer (no idle animation). -->
+                                <!-- Unknown totals show an empty track rather than a looping shimmer (no idle animation). -->
                                 <ProgressBar Height="8" MinHeight="8" CornerRadius="4" Maximum="100" Value="{x:Bind ViewModel.ServiceInfo.BarPercent, Mode=OneWay}"
                                              Foreground="#FF7C3AED" Background="#FF223047"
                                              Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
-                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.ProgressText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                                           Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}" />
-                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.UnitsText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                                           Visibility="{x:Bind ViewModel.ServiceInfo.HasUnits, Mode=OneWay}" />
+                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.AttemptText, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                           Visibility="{x:Bind ViewModel.ServiceInfo.HasAttempt, Mode=OneWay}"
+                                           AutomationProperties.AutomationId="fst.settings.service-info.attempt" />
                             </StackPanel>
-                            <StackPanel Spacing="4" MinHeight="48" Visibility="{x:Bind ViewModel.ServiceInfo.HasFreezeNotice, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.settings.service-info.freeze">
-                                <TextBlock Text="Public Reads" Style="{StaticResource SettingTitleStyle}" />
-                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.FreezeNotice, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
-                            </StackPanel>
-                            <StackPanel Spacing="4" MinHeight="56" Padding="0,8" AutomationProperties.AutomationId="fst.settings.service-info.last-published">
+                            <StackPanel Spacing="4" MinHeight="56" Padding="0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasLastPublished, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.settings.service-info.last-published">
                                 <TextBlock Text="Last Successful Publication" Style="{StaticResource SettingTitleStyle}" />
                                 <TextBlock Text="{x:Bind ViewModel.ServiceInfo.LastPublished, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
                             </StackPanel>
