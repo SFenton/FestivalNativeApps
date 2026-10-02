@@ -153,6 +153,15 @@ private let routableRivalId = "f1c749eb07c32578cfa3e59ec38c03a8"
         containing: ["Common Rivals", "Combo Rivals", "Fixture Rival Golf", "ahead", "behind"],
         notContaining: ["shared"]
     )
+    // #41: every loaded section ends with the shared purple "View All Rivals" button.
+    let identifiers = nativeHostedAccessibility(host).identifiers
+    for id in [
+        "fst.rivals.common.view-all", "fst.rivals.combo.view-all",
+        "fst.rivals.song.\(Instrument.lead.rawValue).view-all",
+        "fst.rivals.song.\(Instrument.bass.rawValue).view-all",
+    ] {
+        #expect(identifiers.contains(id), "missing \(id)")
+    }
 }
 
 /// Switch to the Leaderboard tab via the real `NSSegmentedControl` (mirrors
@@ -186,6 +195,31 @@ private let routableRivalId = "f1c749eb07c32578cfa3e59ec38c03a8"
         containing: ["Fixture Rival Bravo", "View All Rivals", "ahead", "behind"],
         notContaining: ["shared"]
     )
+    #expect(nativeHostedAccessibility(host).identifiers.contains(
+        "fst.rivals.leaderboard.\(Instrument.lead.rawValue).view-all"
+    ))
+}
+
+/// #41: "View All Rivals" draws exactly the shared ``PurpleActionLabel`` that
+/// "View Full Leaderboard" uses (no extra row chrome from the link).
+@MainActor
+@Test func rivalsViewAllButtonMatchesViewFullLeaderboardStyle() async throws {
+    let size = CGSize(width: 360, height: 80)
+    func capture(_ content: some View) throws -> CGImage {
+        let host = nativeHostedView(
+            NavigationStack { content.padding(16) }.preferredColorScheme(.dark), size: size
+        )
+        return try nativeHostedImage(host)
+    }
+    let rivals = try capture(RivalsViewAllButton(
+        route: .allRivals(scope: .song(instruments: [Instrument.lead.rawValue])),
+        identifier: "fst.rivals.song.lead.view-all"
+    ))
+    let shared = try capture(PurpleActionLabel(title: "View All Rivals"))
+    let plainRow = try capture(RivalViewAllRow(title: "View All Rivals"))
+    #expect(nativeHostedControlPixels(rivals).bright > 0)
+    #expect(nativeHostedSignature(rivals) == nativeHostedSignature(shared))
+    #expect(nativeHostedSignature(rivals) != nativeHostedSignature(plainRow))
 }
 
 /// A 503 (matching the live service's scrape-window freeze) shows each section's

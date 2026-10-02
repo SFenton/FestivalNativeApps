@@ -121,7 +121,25 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
     }
 }
 
-/// "View All Rivals" row, styled like the web's trailing `viewAllButton`.
+/// "View All Rivals" link below a rivals preview card (#41): the shared purple
+/// ``PurpleActionLabel`` that "View Full Leaderboard" uses, sitting under the card
+/// rather than inside it, like the web's shared `viewAllButton`.
+struct RivalsViewAllButton: View {
+    /// Full rivals list to push.
+    let route: AppRoute
+    /// Per-section `…view-all` accessibility identifier.
+    let identifier: String
+
+    var body: some View {
+        NavigationLink(value: route) {
+            PurpleActionLabel(title: "View All Rivals")
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// In-card trailing "See All" row for Rival Detail's category cards.
 struct RivalViewAllRow: View {
     let title: String
 
