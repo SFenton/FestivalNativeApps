@@ -24,6 +24,15 @@
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,-4,0,8" />
         </Style>
+        <!-- Feedback rows: a full-width, borderless settings row that opens a dialog. -->
+        <Style x:Key="FeedbackRowStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="MinHeight" Value="56" />
+            <Setter Property="Padding" Value="0,8,4,8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
         <Style x:Key="SettingSwitchStyle" TargetType="ToggleSwitch">
             <Setter Property="OnContent" Value="" />
             <Setter Property="OffContent" Value="" />
@@ -221,6 +230,47 @@
                                               AutomationProperties.HelpText="Experimental ranks are not yet available."
                                               AutomationProperties.AutomationId="fst.settings.experimental-ranks" />
                             </Grid>
+                            <!-- Feedback (issue #78): each row opens its form dialog (.agents/controls/feedback-form/windows.md). -->
+                            <StackPanel Spacing="4">
+                                <StackPanel.Resources>
+                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#14FFFFFF" />
+                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0AFFFFFF" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                                </StackPanel.Resources>
+                            <Button Style="{StaticResource FeedbackRowStyle}" Click="OnFeedbackClick" Tag="Bug"
+                                    AutomationProperties.Name="Report an Issue"
+                                    AutomationProperties.HelpText="Tell us about something that isn't working right."
+                                    AutomationProperties.AutomationId="fst.settings.feedback.bug">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Spacing="4">
+                                        <TextBlock Text="Report an Issue" Style="{StaticResource SettingTitleStyle}" />
+                                        <TextBlock Text="Tell us about something that isn't working right." Style="{StaticResource SettingDescriptionStyle}" />
+                                    </StackPanel>
+                                    <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                </Grid>
+                            </Button>
+                            <Button Style="{StaticResource FeedbackRowStyle}" Click="OnFeedbackClick" Tag="Feature"
+                                    AutomationProperties.Name="Request a Feature"
+                                    AutomationProperties.HelpText="Suggest something new for Festival Score Tracker."
+                                    AutomationProperties.AutomationId="fst.settings.feedback.feature">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Spacing="4">
+                                        <TextBlock Text="Request a Feature" Style="{StaticResource SettingTitleStyle}" />
+                                        <TextBlock Text="Suggest something new for Festival Score Tracker." Style="{StaticResource SettingDescriptionStyle}" />
+                                    </StackPanel>
+                                    <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                </Grid>
+                            </Button>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>

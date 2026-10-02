@@ -46,7 +46,8 @@ public enum GateStatus
 /// <summary>
 /// The single keyless request path: every service and artwork GET passes here. It enforces GET-only,
 /// rejects <c>X-API-Key</c> and <c>x-fst-selected-*</c> headers, applies a 30-second deadline and maps
-/// failures onto <see cref="FestivalApiException"/>.
+/// failures onto <see cref="FestivalApiException"/>. The one exception is the user-initiated feedback POST
+/// (<see cref="SendFeedbackAsync"/>), allowed only to exactly <see cref="FeedbackPath"/> with the same header rules.
 /// </summary>
 public sealed class RequestGate
 {
@@ -59,6 +60,12 @@ public sealed class RequestGate
 
     /// <summary>Header prefixes that must never leave the app (selected-profile headers register activity).</summary>
     public static IReadOnlyList<string> ForbiddenHeaderPrefixes { get; } = ["x-fst-selected-"];
+
+    /// <summary>The one path the app may POST to: user-initiated feedback (issue #78).</summary>
+    public const string FeedbackPath = "/api/feedback";
+
+    /// <summary>Upload deadline for a feedback POST (videos over a slow uplink).</summary>
+    public static readonly TimeSpan FeedbackTimeout = TimeSpan.FromMinutes(10);
 
     private readonly HttpClient http;
     private readonly TimeSpan timeout;
@@ -90,7 +97,42 @@ public sealed class RequestGate
     {
         if (request.Method != HttpMethod.Get || request.Content is not null)
             throw new FestivalApiException(FestivalApiErrorKind.ForbiddenRequest);
-        foreach (var header in request.Headers)
+        RejectUnsafeHeaders(request.Headers);
+    }
+
+    /// <summary>Builds the one user-initiated feedback POST (issue #78; <c>.agents/controls/feedback-form/spec.md</c>).</summary>
+    /// <param name="url">Feedback endpoint (<see cref="FeedbackPath"/> on the service origin).</param>
+    /// <param name="content">Multipart form body.</param>
+    /// <returns>A no-cache keyless POST.</returns>
+    public static HttpRequestMessage CreateFeedbackPost(Uri url, HttpContent content)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+        request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true };
+        request.Headers.Accept.ParseAdd("application/json");
+        return request;
+    }
+
+    /// <summary>
+    /// The only write the app may send: a POST with a body to exactly <see cref="FeedbackPath"/> (no query or
+    /// fragment), with no privileged or selected-profile header on the request or its content.
+    /// </summary>
+    /// <param name="request">Request about to be sent.</param>
+    /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.ForbiddenRequest"/>.</exception>
+    public static void ValidateFeedback(HttpRequestMessage request)
+    {
+        if (request.Method != HttpMethod.Post || request.Content is null || request.RequestUri is not { IsAbsoluteUri: true } uri ||
+            uri.AbsolutePath != FeedbackPath || uri.Query.Length > 0 || uri.Fragment.Length > 0)
+            throw new FestivalApiException(FestivalApiErrorKind.ForbiddenRequest);
+        RejectUnsafeHeaders(request.Headers);
+        RejectUnsafeHeaders(request.Content.Headers);
+    }
+
+    /// <summary>Throws when any header is privileged or selected-profile.</summary>
+    /// <param name="headers">Request or content headers.</param>
+    /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.ForbiddenRequest"/>.</exception>
+    private static void RejectUnsafeHeaders(HttpHeaders headers)
+    {
+        foreach (var header in headers)
         {
             if (ForbiddenHeaderNames.Contains(header.Key) ||
                 ForbiddenHeaderPrefixes.Any(p => header.Key.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
@@ -131,13 +173,37 @@ public sealed class RequestGate
     /// <returns>Raw status, body and headers (no status mapping).</returns>
     /// <exception cref="FestivalApiException">Forbidden request, timeout, offline or oversized body.</exception>
     /// <exception cref="OperationCanceledException">The caller cancelled.</exception>
-    public async Task<GateResponse> SendAsync(
+    public Task<GateResponse> SendAsync(
         HttpRequestMessage request, int maxBytes = 32_000_000, CancellationToken cancellationToken = default)
     {
         ValidateKeyless(request);
+        return SendCoreAsync(request, maxBytes, timeout, cancellationToken);
+    }
+
+    /// <summary>Sends one validated feedback POST (<see cref="ValidateFeedback"/>) under the longer upload deadline.</summary>
+    /// <param name="request">Request from <see cref="CreateFeedbackPost"/>.</param>
+    /// <param name="cancellationToken">Caller cancellation (the user discarded the form).</param>
+    /// <returns>Raw status, body (at most 1 MB) and headers.</returns>
+    /// <exception cref="FestivalApiException">Forbidden request, timeout, offline or oversized body.</exception>
+    /// <exception cref="OperationCanceledException">The caller cancelled.</exception>
+    public Task<GateResponse> SendFeedbackAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
+    {
+        ValidateFeedback(request);
+        return SendCoreAsync(request, 1_000_000, timeout > FeedbackTimeout ? timeout : FeedbackTimeout, cancellationToken);
+    }
+
+    /// <summary>Sends an already-validated request under a deadline and reads a bounded body.</summary>
+    /// <param name="request">Validated request.</param>
+    /// <param name="maxBytes">Largest accepted body.</param>
+    /// <param name="limit">Deadline.</param>
+    /// <param name="cancellationToken">Caller cancellation.</param>
+    /// <returns>Raw status, body and headers.</returns>
+    private async Task<GateResponse> SendCoreAsync(
+        HttpRequestMessage request, int maxBytes, TimeSpan limit, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeout);
+        deadline.CancelAfter(limit);
         try
         {
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token)

@@ -108,5 +108,14 @@ public sealed partial class SettingsPage : Page
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
     private void OnShowWhatsNew(object sender, RoutedEventArgs e) => MainWindow.Instance?.ShowWhatsNew();
+
+    /// <summary>Report an Issue / Request a Feature: opens that form (issue #78).</summary>
+    /// <param name="sender">Row tagged <c>Bug</c> or <c>Feature</c>.</param>
+    /// <param name="e">Unused.</param>
+    private async void OnFeedbackClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string tag } && Enum.TryParse<FeedbackKind>(tag, out var kind))
+            await FeedbackDialog.ShowAsync(XamlRoot, kind);
+    }
 }
 #endregion
