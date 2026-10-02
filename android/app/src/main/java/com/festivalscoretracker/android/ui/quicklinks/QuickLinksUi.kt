@@ -36,11 +36,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -56,8 +54,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -73,7 +69,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Controller
 
@@ -337,20 +333,13 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
         }
     }
     if (open && QuickLinks.usesSheet(windowWidthDp)) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = controller.sections.size <= 8)
-        ModalBottomSheet(
+        FestivalModalSheet(
+            title = controller.title,
+            closeTag = "fst.quick-links.close",
             onDismissRequest = { open = false },
-            sheetState = sheetState,
-            containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.quick-links.sheet").semantics { paneTitle = controller.title },
+            skipPartiallyExpanded = controller.sections.size <= 8,
+            modifier = Modifier.testTag("fst.quick-links.sheet"),
         ) {
-            Text(
-                controller.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp).semantics { heading() },
-            )
             SectionList(controller, Modifier.fillMaxWidth().testTag("fst.quick-links.list"), PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp)) { id ->
                 open = false
                 controller.jump(id)

@@ -1,7 +1,6 @@
 package com.festivalscoretracker.android.ui.firstrun
 
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,19 +12,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,26 +37,24 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.festivalscoretracker.android.presentation.firstrun.FirstRunCarousel
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.festivalscoretracker.android.ui.common.FestivalModalDialog
 
 // region Carousel
 
 /**
- * First-run carousel: an M3 dialog with a horizontal pager, white page dots, a close
- * button and the footer actions (operator batch 6.7): **Next/Done first, then Back**
+ * First-run carousel: the shared [FestivalModalDialog] (page label header with the
+ * standard Close button) holding a horizontal pager, white page dots and the footer actions (operator batch 6.7): **Next/Done first, then Back**
  * (Back only after the first slide, never shown disabled) and no Skip — the close button
  * is the web's only early exit — so a one-slide guide shows only Done. Close, Done, system
  * back and a tap outside all complete it, marking only the slides actually displayed as
@@ -86,90 +76,75 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
     val close = { onComplete(maxOf(viewed, pager.currentPage + 1)) }
     fun go(page: Int) = scope.launch { if (reduceMotion) pager.scrollToPage(page) else pager.animateScrollToPage(page) }
 
-    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = BrandTokens.cardBackground,
-            modifier = Modifier
-                .padding(if (compact) 16.dp else 0.dp)
-                .widthIn(max = 560.dp)
-                .fillMaxWidth()
-                .popupTestTags()
-                .testTag("fst.first-run.dialog")
-                .semantics { paneTitle = "Feature tour: ${carousel.page.label}" },
-        ) {
-            Column(Modifier.padding(vertical = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 24.dp, end = 8.dp)) {
-                    Text(
-                        carousel.page.label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = BrandTokens.textPrimary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(onClick = close, modifier = Modifier.testTag("fst.first-run.close")) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close")
-                    }
-                }
-                HorizontalPager(
-                    state = pager,
-                    key = { carousel.slides[it].id },
-                    // Takes what the header, dots and buttons leave, so the buttons stay on screen
-                    // at large font sizes; each slide then scrolls vertically.
-                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false).testTag("fst.first-run.pager"),
-                ) { page ->
-                    val slide = carousel.slides[page]
-                    Column(
-                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).testTag("fst.first-run.slide.${slide.id}"),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Box(Modifier.fillMaxWidth().height(220.dp).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
-                            FirstRunDemo(slide.id, active = page == pager.currentPage && pager.currentPageOffsetFraction == 0f)
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            slide.title,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandTokens.textPrimary,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .semantics { heading() }
-                                .then(if (page == pager.currentPage) Modifier.focusRequester(titleFocus) else Modifier),
-                        )
-                        Text(
-                            slide.description,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = BrandTokens.textSecondary,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 8.dp).heightIn(min = 96.dp),
-                        )
-                    }
-                }
-                // Position is spoken from the dots' state ("Slide 2 of 6"); no visible text.
-                Dots(
-                    pager.currentPage,
-                    carousel.slides.size,
-                    carousel.position(pager.currentPage),
-                    Modifier.align(Alignment.CenterHorizontally).padding(vertical = 12.dp),
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, top = 8.dp),
+    FestivalModalDialog(
+        title = carousel.page.label,
+        closeTag = "fst.first-run.close",
+        onDismissRequest = close,
+        compact = compact,
+        paneTitle = "Feature tour: ${carousel.page.label}",
+        titleStyle = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.testTag("fst.first-run.dialog"),
+    ) {
+        Column(Modifier.weight(1f, fill = false).padding(bottom = 12.dp)) {
+            HorizontalPager(
+                state = pager,
+                key = { carousel.slides[it].id },
+                // Takes what the header, dots and buttons leave, so the buttons stay on screen
+                // at large font sizes; each slide then scrolls vertically.
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false).testTag("fst.first-run.pager"),
+            ) { page ->
+                val slide = carousel.slides[page]
+                Column(
+                    Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).testTag("fst.first-run.slide.${slide.id}"),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Spacer(Modifier.weight(1f))
-                    Button(
-                        onClick = { if (last) close() else go(pager.currentPage + 1) },
-                        colors = festivalFilledButtonColors(),
-                        modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
-                    ) { Text(if (last) "Done" else "Next") }
-                    if (pager.currentPage > 0) {
-                        TextButton(
-                            onClick = { go(pager.currentPage - 1) },
-                            colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
-                            modifier = Modifier.testTag("fst.first-run.back"),
-                        ) { Text("Back") }
+                    Box(Modifier.fillMaxWidth().height(220.dp).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+                        FirstRunDemo(slide.id, active = page == pager.currentPage && pager.currentPageOffsetFraction == 0f)
                     }
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        slide.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandTokens.textPrimary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .semantics { heading() }
+                            .then(if (page == pager.currentPage) Modifier.focusRequester(titleFocus) else Modifier),
+                    )
+                    Text(
+                        slide.description,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = BrandTokens.textSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp).heightIn(min = 96.dp),
+                    )
+                }
+            }
+            // Position is spoken from the dots' state ("Slide 2 of 6"); no visible text.
+            Dots(
+                pager.currentPage,
+                carousel.slides.size,
+                carousel.position(pager.currentPage),
+                Modifier.align(Alignment.CenterHorizontally).padding(vertical = 12.dp),
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, top = 8.dp),
+            ) {
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = { if (last) close() else go(pager.currentPage + 1) },
+                    colors = festivalFilledButtonColors(),
+                    modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
+                ) { Text(if (last) "Done" else "Next") }
+                if (pager.currentPage > 0) {
+                    TextButton(
+                        onClick = { go(pager.currentPage - 1) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
+                        modifier = Modifier.testTag("fst.first-run.back"),
+                    ) { Text("Back") }
                 }
             }
         }

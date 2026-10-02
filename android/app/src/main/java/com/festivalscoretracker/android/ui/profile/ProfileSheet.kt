@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SegmentedButton
@@ -46,15 +44,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.presentation.ProfileSearchScope
@@ -66,6 +60,8 @@ import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Sheet
 
@@ -91,15 +87,14 @@ fun ProfileSheet(
     onDismiss: () -> Unit,
 ) {
     var confirmDeselect by rememberSaveable { mutableStateOf(false) }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = BrandTokens.cardBackground, modifier = Modifier.festivalSheetTop().semantics { testTagsAsResourceId = true }.testTag("fst.profile.sheet")) {
+    FestivalModalSheet(
+        title = "Profiles",
+        closeTag = "fst.profile.close",
+        onDismissRequest = onDismiss,
+        skipPartiallyExpanded = false,
+        modifier = Modifier.testTag("fst.profile.sheet"),
+    ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
-            Text(
-                "Profiles",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.semantics { heading() },
-            )
             if (player != null) {
                 SectionHeader("Selected Profile")
                 SelectedSummary(
@@ -113,16 +108,16 @@ fun ProfileSheet(
         }
     }
     if (confirmDeselect) {
-        AlertDialog(
+        FestivalAlertDialog(
+            title = "Deselect Profile?",
+            text = "Scores and profile-only content will be hidden; app Settings stay saved.",
+            tag = "fst.profile.deselect-confirm",
+            confirmLabel = "Deselect",
+            confirmTag = "fst.profile.deselect-confirm.ok",
+            onConfirm = { confirmDeselect = false; onDeselect() },
+            dismissLabel = "Cancel",
+            dismissTag = "fst.profile.deselect-confirm.cancel",
             onDismissRequest = { confirmDeselect = false },
-            title = { Text("Deselect Profile?") },
-            text = { Text("Scores and profile-only content will be hidden; app Settings stay saved.") },
-            confirmButton = {
-                TextButton(onClick = { confirmDeselect = false; onDeselect() }, modifier = Modifier.testTag("fst.profile.deselect-confirm.ok")) { Text("Deselect") }
-            },
-            dismissButton = { TextButton(onClick = { confirmDeselect = false }) { Text("Cancel") } },
-            containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.testTag("fst.profile.deselect-confirm"),
         )
     }
 }
