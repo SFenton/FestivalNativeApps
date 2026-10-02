@@ -119,6 +119,25 @@ private func hostedHistorySession(transport: HostedHistoryTransport) -> Festival
     return FestivalSession(factory: { client }, selectionStorage: defaults)
 }
 
+/// Build a selected-profile session whose notification feed is already loaded.
+///
+/// The sheet's own `.task` refresh then revalidates without leaving the loaded
+/// rows, so readiness never depends on when SwiftUI starts that task in an
+/// offscreen host under a loaded parallel CI run (it once stayed on the spinner
+/// for the whole settle timeout).
+///
+/// - Parameter transport: Fixture transport serving the feed.
+/// - Returns: Session whose `notificationsCenter` is `.loaded`.
+@MainActor
+private func preloadedNotificationsSession(
+    transport: HostedHistoryTransport
+) async -> FestivalSession {
+    let session = hostedHistorySession(transport: transport)
+    await session.notificationsCenter.refresh(session: session)
+    #expect(session.notificationsCenter.state == .loaded)
+    return session
+}
+
 private let fixtureSong = Song(
     songId: "fixture-song", title: "Fixture Anthem", artist: "The Fixtures", album: nil,
     year: 2024, durationSeconds: 180, albumArt: nil, difficulty: nil,
@@ -162,7 +181,7 @@ private let fixtureSong = Song(
 @MainActor
 @Test func notificationsSheetRendersRowsWithUnreadSection() async throws {
     let transport = HostedHistoryTransport()
-    let session = hostedHistorySession(transport: transport)
+    let session = await preloadedNotificationsSession(transport: transport)
     let size = CGSize(width: 420, height: 700)
     let host = nativeHostedView(
         NotificationsSheet(session: session)
@@ -215,7 +234,7 @@ private let fixtureSong = Song(
     {"generatedAt":"2024-01-05T00:00:00Z","expiresAfterHours":72,"sourceRunId":1,
      "sourceCompletedAt":"2024-01-05T00:00:00Z","notificationsGenerated":true,"items":[]}
     """.utf8))
-    let session = hostedHistorySession(transport: transport)
+    let session = await preloadedNotificationsSession(transport: transport)
     let size = CGSize(width: 420, height: 500)
     let host = nativeHostedView(
         NotificationsSheet(session: session)
@@ -247,7 +266,7 @@ private let fixtureSong = Song(
     {"generatedAt":"2024-01-05T00:00:00Z","expiresAfterHours":72,"sourceRunId":null,
      "sourceCompletedAt":null,"notificationsGenerated":false,"items":[]}
     """.utf8))
-    let session = hostedHistorySession(transport: transport)
+    let session = await preloadedNotificationsSession(transport: transport)
     let size = CGSize(width: 420, height: 500)
     let host = nativeHostedView(
         NotificationsSheet(session: session)
