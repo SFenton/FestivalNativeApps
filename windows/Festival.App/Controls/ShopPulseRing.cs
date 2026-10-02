@@ -22,6 +22,7 @@ public sealed partial class ShopPulseRing : Grid
     private readonly Border ring = new() { BorderThickness = new Thickness(SongRowShopPulse.Thickness), CornerRadius = new CornerRadius(8) };
     private SongRowShopPulse? pulse;
     private bool attached;
+    private bool live = true;
 
     /// <summary>Creates a hidden ring.</summary>
     public ShopPulseRing()
@@ -53,11 +54,32 @@ public sealed partial class ShopPulseRing : Grid
         if (IsLoaded) Attach();
     }
 
+    /// <summary>
+    /// Whether the ring may follow the shared clock (default <see langword="true"/>). First-run demos clear it on slides
+    /// that are not the visible one, so realized neighbours hold the peak opacity and don't keep the clock running.
+    /// </summary>
+    public bool Live
+    {
+        get => live;
+        set
+        {
+            if (live == value) return;
+            live = value;
+            if (!value) Detach();
+            else if (IsLoaded) Attach();
+        }
+    }
+
     /// <summary>Binds this ring's opacity to the shared clock.</summary>
     private void Attach()
     {
         if (attached || pulse is null) return;
         var visual = ElementCompositionPreview.GetElementVisual(this);
+        if (!live)
+        {
+            visual.Opacity = pulse.PeakOpacity;
+            return;
+        }
         var opacity = visual.Compositor.CreateExpressionAnimation("clock.Level * peak");
         opacity.SetReferenceParameter("clock", ShopPulseClock.Acquire(visual.Compositor));
         opacity.SetScalarParameter("peak", pulse.PeakOpacity);
@@ -71,7 +93,7 @@ public sealed partial class ShopPulseRing : Grid
         if (!attached) return;
         var visual = ElementCompositionPreview.GetElementVisual(this);
         visual.StopAnimation("Opacity");
-        visual.Opacity = 1;
+        visual.Opacity = live || pulse is null ? 1 : pulse.PeakOpacity;
         ShopPulseClock.Release();
         attached = false;
     }

@@ -37,6 +37,8 @@ public sealed partial class FirstRunDemo : UserControl
     private CancellationTokenSource? artLoads;
     private Action<int>? advance;
     private readonly List<ActiveSwap> activeSwaps = [];
+    private readonly List<ShopPulseRing> pulseRings = [];
+    private readonly List<ShopPulseFill> pulseFills = [];
     private TimeSpan activeInterval = FirstRunDemoTiming.Interval;
     private int step;
     private bool active;
@@ -357,6 +359,8 @@ public sealed partial class FirstRunDemo : UserControl
         root.Children.Clear();
         slots.Clear();
         slotSetters.Clear();
+        pulseRings.Clear();
+        pulseFills.Clear();
         advance = null;
         activeInterval = FirstRunDemoTiming.Interval;
         step = 0;
@@ -511,7 +515,8 @@ public sealed partial class FirstRunDemo : UserControl
             host.Children.Add(row);
             if (pulse is not null && i == 1)
             {
-                var ring = new ShopPulseRing();
+                var ring = new ShopPulseRing { Live = active };
+                pulseRings.Add(ring);
                 ring.Apply(pulse);
                 host.Children.Add(ring);
                 if (k == FirstRunDemoKind.LeavingPulse) trailing.Children.Add(LeavingPill());
@@ -645,7 +650,8 @@ public sealed partial class FirstRunDemo : UserControl
         var button = new Grid { Height = 44, MinWidth = 200, CornerRadius = new CornerRadius(22), HorizontalAlignment = HorizontalAlignment.Center };
         if (!paths)
         {
-            var fill = new ShopPulseFill();
+            var fill = new ShopPulseFill { Live = active };
+            pulseFills.Add(fill);
             fill.Apply(id.Contains("leaving", StringComparison.Ordinal) ? ShopHighlight.LeavingTomorrow
                 : id.Contains("new", StringComparison.Ordinal) ? ShopHighlight.New : null, breathe: true);
             button.Children.Add(fill);
@@ -734,7 +740,8 @@ public sealed partial class FirstRunDemo : UserControl
                 VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(8, 6, 8, 6), Child = new Grid { Children = { title, titleBar } },
                 Background = new SolidColorBrush(Color.FromArgb(0xB3, 0, 0, 0)),
             });
-            var ring = new ShopPulseRing();
+            var ring = new ShopPulseRing { Live = active };
+            pulseRings.Add(ring);
             ring.Apply(i == 0 ? SongRowShopPulse.New : i == 2 ? SongRowShopPulse.Leaving : null);
             tile.Children.Add(ring);
             Grid.SetColumn(tile, i);
@@ -990,6 +997,9 @@ public sealed partial class FirstRunDemo : UserControl
     /// <summary>Runs the step timer only for the visible foreground slide; motion-off swaps are instant.</summary>
     private void UpdateTimer()
     {
+        // Shop pulses breathe only on the visible slide (iOS #28): FlipView keeps neighbours realized off-screen.
+        foreach (var ring in pulseRings) ring.Live = active;
+        foreach (var fill in pulseFills) fill.Live = active;
         var run = active && IsLoaded && advance is not null && !Motion.Paused;
         if (!run)
         {
