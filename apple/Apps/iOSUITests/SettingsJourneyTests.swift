@@ -217,4 +217,60 @@ final class SettingsJourneyTests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [jumped], timeout: 10), .completed)
     }
+
+    /// **Fixed bug (#12):** a Quick Link landed its section flush with the navigation
+    /// bar's bottom edge, inside iOS 26's scroll-edge effect, so the section title was
+    /// blurred and dimmed. Each jump must now land the title about 32 pt below the bar
+    /// (`QuickLinks.defaultActivationOffset`), clear of that effect but not far below.
+    @MainActor
+    func testQuickLinksLandSectionTitlesBelowTheNavigationBar() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let quickLinks = app.buttons["fst.quick-links.open"]
+        XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
+
+        let targets = [
+            ("accessibility", "Accessibility"), ("item-shop", "Item Shop"),
+            ("service-info", "Service Info"), ("show-instruments", "Show Instruments"),
+        ]
+        for (id, title) in targets {
+            quickLinks.tap()
+            let row = app.buttons["fst.quick-links.item.\(id)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 10))
+            row.tap()
+            let landed = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in
+                    MainActor.assumeIsolated {
+                        Self.titleGap(title, in: app).map { (24...48).contains($0) } ?? false
+                    }
+                },
+                object: nil
+            )
+            let outcome = XCTWaiter.wait(for: [landed], timeout: 8)
+            let gap = Self.titleGap(title, in: app)
+            XCTAssertEqual(
+                outcome, .completed,
+                "\(title) landed \(gap.map { "\(Int($0)) pt" } ?? "off screen") below the navigation bar; expected ~32 pt"
+            )
+        }
+        SongsUITestSupport.record(app, name: "settings-quick-links-landing")
+    }
+
+    /// Distance from the navigation bar's bottom to the highest on-screen copy of a
+    /// section title at or below it (another row may reuse the same words further down).
+    ///
+    /// - Parameters:
+    ///   - title: The section title's label.
+    ///   - app: Foreground app.
+    /// - Returns: The gap in points, or `nil` when no copy is near the top.
+    @MainActor
+    private static func titleGap(_ title: String, in app: XCUIApplication) -> CGFloat? {
+        let barBottom = app.navigationBars.firstMatch.frame.maxY
+        return app.staticTexts.matching(NSPredicate(format: "label == %@", title)).allElementsBoundByIndex
+            .map(\.frame.minY)
+            .filter { $0 >= barBottom - 8 }
+            .min()
+            .map { $0 - barBottom }
+    }
 }
