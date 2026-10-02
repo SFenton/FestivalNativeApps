@@ -6,18 +6,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoBars
 import java.text.NumberFormat
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSong
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSuggestionTemplate
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoTiming
 import com.festivalscoretracker.android.core.firstrun.FirstRunRotatingDemos
 import com.festivalscoretracker.android.ui.firstrun.FirstRunDemo
-import com.festivalscoretracker.android.ui.firstrun.LocalFirstRunDemoSongs
+import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.ui.firstrun.FirstRunDemoCatalog
+import com.festivalscoretracker.android.ui.firstrun.LocalFirstRunDemoCatalog
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -34,37 +36,48 @@ class FirstRunRotatingDemoUiTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private val pool = List(10) { FirstRunDemoSong("song-$it", "Demo Song $it", "Epic Games") }
+    private val catalog = FirstRunDemoCatalog(List(10) { Song("song-$it", "Demo Song $it", "Epic Games", albumArt = "$it.jpg") })
 
     /** One swap: interval plus fade out and fade in. */
     private val cycle = FirstRunDemoTiming.SWAP_INTERVAL_MS + 2L * FirstRunDemoTiming.FADE_MS + 50
 
+    /** Texts of nodes tagged [tag]; a tag ending in `.` matches every tag with that prefix (per-song `fst.first-run.demo.song.<id>`). */
     private fun texts(tag: String): List<String> =
-        rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().map { node ->
+        rule.onAllNodes(SemanticsMatcher("tag $tag") { node -> node.config.getOrNull(SemanticsProperties.TestTag)?.let { if (tag.endsWith(".")) it.startsWith(tag) else it == tag } == true }, useUnmergedTree = true).fetchSemanticsNodes().map { node ->
             node.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }.orEmpty()
         }
 
-    private fun show(id: String, active: () -> Boolean = { true }, reduceMotion: Boolean = false) {
+    private fun show(id: String, active: () -> Boolean = { true }, reduceMotion: Boolean = false, demoCatalog: FirstRunDemoCatalog = catalog) {
         rule.mainClock.autoAdvance = false
         rule.setContent {
             FestivalTheme(appReduceMotion = reduceMotion) {
-                CompositionLocalProvider(LocalFirstRunDemoSongs provides pool) { FirstRunDemo(id, active()) }
+                CompositionLocalProvider(LocalFirstRunDemoCatalog provides demoCatalog) { FirstRunDemo(id, active()) }
             }
         }
         rule.mainClock.advanceTimeByFrame()
     }
 
     @Test
-    fun songListSwapsOneRowEveryFiveSecondsWithAFade() {
-        show("songs-song-list")
-        val before = texts("fst.first-run.demo.song")
+    fun placeholdersHoldStillUntilTheCatalogueArrives() {
+        show("songs-song-list", demoCatalog = FirstRunDemoCatalog())
+        fun placeholders() = rule.onAllNodesWithTag("fst.first-run.demo.placeholder", useUnmergedTree = true).fetchSemanticsNodes().size
+        assertEquals("no invented titles", emptyList<String>(), texts("fst.first-run.demo.song."))
+        assertEquals("three rows of title + artist bars", 6, placeholders())
+        rule.mainClock.advanceTimeBy(cycle * 2)
+        assertEquals(6, placeholders())
+        assertEquals(emptyList<String>(), texts("fst.first-run.demo.song."))
+    }
+
+    @Test
+    fun songListSwapsOneRowEveryFiveSecondsWithAFade() {        show("songs-song-list")
+        val before = texts("fst.first-run.demo.song.")
         assertEquals(listOf("Demo Song 0", "Demo Song 1", "Demo Song 2"), before)
         rule.mainClock.advanceTimeBy(FirstRunDemoTiming.SWAP_INTERVAL_MS - 500)
-        assertEquals("no swap before the interval", before, texts("fst.first-run.demo.song"))
+        assertEquals("no swap before the interval", before, texts("fst.first-run.demo.song."))
         rule.mainClock.advanceTimeBy(500L + FirstRunDemoTiming.FADE_MS / 2)
-        assertEquals("still fading out the old row", before, texts("fst.first-run.demo.song"))
+        assertEquals("still fading out the old row", before, texts("fst.first-run.demo.song."))
         rule.mainClock.advanceTimeBy(FirstRunDemoTiming.FADE_MS * 2L)
-        val after = texts("fst.first-run.demo.song")
+        val after = texts("fst.first-run.demo.song.")
         assertEquals(3, after.size)
         assertEquals(1, before.indices.count { before[it] != after[it] })
         assertEquals(3, after.toSet().size)
@@ -74,9 +87,9 @@ class FirstRunRotatingDemoUiTest {
     fun inactiveSlideDoesNotRotateUntilItSettles() {
         var active by mutableStateOf(false)
         show("songs-song-list", active = { active })
-        val before = texts("fst.first-run.demo.song")
+        val before = texts("fst.first-run.demo.song.")
         rule.mainClock.advanceTimeBy(cycle * 3)
-        assertEquals(before, texts("fst.first-run.demo.song"))
+        assertEquals(before, texts("fst.first-run.demo.song."))
         rule.runOnIdle { active = true }
         rule.mainClock.advanceTimeByFrame()
         // Step the clock so the restarted ticker's launch is flushed before its delay is due.
@@ -84,15 +97,15 @@ class FirstRunRotatingDemoUiTest {
             rule.mainClock.advanceTimeBy(1_000)
             rule.waitForIdle()
         }
-        assertNotEquals(before, texts("fst.first-run.demo.song"))
+        assertNotEquals(before, texts("fst.first-run.demo.song."))
     }
 
     @Test
     fun reduceMotionStillSwapsWithACrossFade() {
         show("songs-song-list", reduceMotion = true)
-        val before = texts("fst.first-run.demo.song")
+        val before = texts("fst.first-run.demo.song.")
         rule.mainClock.advanceTimeBy(FirstRunDemoTiming.SWAP_INTERVAL_MS + FirstRunDemoTiming.FADE_MS + 100L)
-        val after = texts("fst.first-run.demo.song")
+        val after = texts("fst.first-run.demo.song.")
         assertEquals(3, after.size)
         assertNotEquals(before, after)
     }
@@ -132,7 +145,7 @@ class FirstRunRotatingDemoUiTest {
         rule.mainClock.autoAdvance = false
         rule.setContent {
             FestivalTheme {
-                CompositionLocalProvider(LocalFirstRunDemoSongs provides pool) { FirstRunDemo(ids[index], true) }
+                CompositionLocalProvider(LocalFirstRunDemoCatalog provides catalog) { FirstRunDemo(ids[index], true) }
             }
         }
         ids.indices.forEach {
@@ -152,7 +165,7 @@ class FirstRunRotatingDemoUiTest {
         rule.mainClock.autoAdvance = false
         rule.setContent {
             FestivalTheme(appReduceMotion = true) {
-                CompositionLocalProvider(LocalFirstRunDemoSongs provides emptyList()) { FirstRunDemo(ids[index], true) }
+                CompositionLocalProvider(LocalFirstRunDemoCatalog provides FirstRunDemoCatalog()) { FirstRunDemo(ids[index], true) }
             }
         }
         ids.indices.forEach {

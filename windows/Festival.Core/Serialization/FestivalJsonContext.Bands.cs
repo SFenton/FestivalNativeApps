@@ -11,5 +11,6 @@ namespace Festival.Core.Data;
 [JsonSerializable(typeof(BandRankHistoryResponse))]
 [JsonSerializable(typeof(BandSongExtremesResponse))]
 [JsonSerializable(typeof(SongBandLeaderboardResponse))]
+[JsonSerializable(typeof(SongBandLeaderboardsResponse))]
 internal sealed partial class BandsJsonContext : JsonSerializerContext;
 #endregion

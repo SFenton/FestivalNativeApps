@@ -82,11 +82,21 @@ public interface IFirstRunDemoPoolItem
     string Id { get; }
 }
 
-/// <summary>A catalogue-backed demo song row.</summary>
-/// <param name="Id">Stable song ID.</param>
-/// <param name="Row">Display row.</param>
-/// <param name="Art">Album-art reference, or <see langword="null"/> for fallback text rows.</param>
-public sealed record FirstRunDemoSong(string Id, FirstRunDemoRow Row, string? Art) : IFirstRunDemoPoolItem;
+/// <summary>One song a song demo shows: a real catalogue song, or a placeholder drawn redacted.</summary>
+/// <param name="SongId">Catalogue song ID, or <see langword="null"/> for a placeholder.</param>
+/// <param name="Row">Title and "artist · year" (empty for a placeholder).</param>
+/// <param name="Art">Album-art reference, or <see langword="null"/>.</param>
+public sealed record FirstRunDemoSong(string? SongId, FirstRunDemoRow Row, string? Art) : IFirstRunDemoPoolItem
+{
+    /// <summary>Whether this stands in for a song while the catalogue loads or is unavailable.</summary>
+    public bool IsPlaceholder => SongId is null;
+
+    /// <summary>Rotation identity: the song ID, or empty for every placeholder (so placeholders never rotate).</summary>
+    public string Id => SongId ?? "";
+
+    /// <summary>A placeholder: no title, artist or art (never an invented song).</summary>
+    public static FirstRunDemoSong Placeholder { get; } = new(null, new FirstRunDemoRow("", ""), null);
+}
 #endregion
 
 #region Timing
@@ -489,16 +499,17 @@ public static class FirstRunDemos
     /// <summary>The twelve rotating slide IDs.</summary>
     public static IReadOnlyList<string> RotatingSlideIds { get; } = [.. RotatingKinds.Keys.Order(StringComparer.Ordinal)];
 
-    /// <summary>Fallback songs when the catalogue is unavailable.</summary>
-    public static IReadOnlyList<FirstRunDemoSong> FallbackSongs { get; } =
-    [
-        new("fallback-festival-anthem", new("Festival Anthem", "Epic Games · 2023"), null),
-        new("fallback-main-stage", new("Main Stage", "Epic Games · 2024"), null),
-        new("fallback-encore", new("Encore", "Epic Games · 2023"), null),
-        new("fallback-soundcheck", new("Soundcheck", "Epic Games · 2024"), null),
-        new("fallback-headliner", new("Headliner", "Epic Games · 2025"), null),
-        new("fallback-spotlight", new("Spotlight", "Epic Games · 2025"), null),
-    ];
+    /// <summary>Artist marker the web uses to pick neutral, first-party demo songs.</summary>
+    public const string PreferredArtistMarker = "Epic Games";
+
+    /// <summary>Most songs a demo rotates through.</summary>
+    public const int PoolSize = 12;
+
+    /// <summary>Whether a demo shows Item Shop songs, so it prefers the current Shop (web <c>useItemShopDemoSongs</c>).</summary>
+    /// <param name="kind">Demo kind.</param>
+    /// <returns><see langword="true"/> for the Shop pulse rows and Shop tiles.</returns>
+    public static bool UsesShopSongs(FirstRunDemoKind kind) =>
+        kind is FirstRunDemoKind.ShopPulse or FirstRunDemoKind.NewPulse or FirstRunDemoKind.LeavingPulse or FirstRunDemoKind.ShopTiles;
 
     /// <summary>Web demo rankings.</summary>
     public static IReadOnlyList<FirstRunDemoRanking> Rankings { get; } =
@@ -611,20 +622,6 @@ public static class FirstRunDemos
         new("Top 1%", "", "31"), new("Gold Stars", "", "189"), new("Best Rank", "", "#42"),
     ];
 
-    /// <summary>Picks demo songs from the catalogue, else the fallback pool.</summary>
-    /// <param name="catalog">Loaded catalogue songs, or <see langword="null"/>.</param>
-    /// <returns>Rows plus album-art references.</returns>
-    public static IReadOnlyList<FirstRunDemoSong> SongPool(IEnumerable<Song>? catalog)
-    {
-        var epic = (catalog ?? [])
-            .Where(s => s.Artist.Contains("Epic Games", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(s.AlbumArt))
-            .OrderBy(s => s.SongId, StringComparer.Ordinal)
-            .Take(24)
-            .Select(s => new FirstRunDemoSong(s.SongId, new FirstRunDemoRow(s.Title, s.Year is { } y ? $"{s.Artist} · {y}" : s.Artist), s.AlbumArt))
-            .ToList();
-        return epic.Count >= RowCount ? epic : FallbackSongs;
-    }
-
     /// <summary>Formats score metadata.</summary>
     /// <param name="metadata">Metadata sample.</param>
     /// <param name="layout">Two-pill layout.</param>
@@ -646,6 +643,62 @@ public static class FirstRunDemos
             _ => [metadata.Percentile, score],
         };
     }
+
+    /// <summary>
+    /// Picks up to <paramref name="count"/> distinct catalogue songs with art (web <c>useDemoSongs</c> /
+    /// <c>useItemShopDemoSongs</c>, Apple <c>FirstRunDemoSongs.pick</c>): preferred IDs in order, then artists containing
+    /// <see cref="PreferredArtistMarker"/>, then any other song. Catalogue order replaces the web's shuffle so captures
+    /// and tests are deterministic.
+    /// </summary>
+    /// <param name="catalog">Loaded catalogue songs, or <see langword="null"/>.</param>
+    /// <param name="count">Maximum songs; non-positive returns none.</param>
+    /// <param name="preferring">Song IDs to show first (current Shop songs), or <see langword="null"/>.</param>
+    /// <returns>Songs, each with art.</returns>
+    public static IReadOnlyList<Song> Pick(IEnumerable<Song>? catalog, int count, IEnumerable<string>? preferring = null)
+    {
+        if (count <= 0) return [];
+        var withArt = (catalog ?? []).Where(s => !string.IsNullOrEmpty(s.AlbumArt)).ToList();
+        var byId = new Dictionary<string, Song>(StringComparer.Ordinal);
+        foreach (var song in withArt) byId.TryAdd(song.SongId, song);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<Song>();
+        void Add(Song song)
+        {
+            if (result.Count < count && seen.Add(song.SongId)) result.Add(song);
+        }
+        foreach (var id in preferring ?? [])
+            if (byId.TryGetValue(id, out var song)) Add(song);
+        foreach (var song in withArt.Where(s => s.Artist.Contains(PreferredArtistMarker, StringComparison.Ordinal))) Add(song);
+        foreach (var song in withArt) Add(song);
+        return result;
+    }
+
+    /// <summary>
+    /// The songs a demo rotates through: real catalogue songs, padded with <see cref="FirstRunDemoSong.Placeholder"/>s to
+    /// <see cref="RowCount"/> (all placeholders while the catalogue loads or is unavailable). Never invents songs.
+    /// </summary>
+    /// <param name="catalog">Loaded catalogue songs, or <see langword="null"/>.</param>
+    /// <param name="preferring">Song IDs to show first, or <see langword="null"/>.</param>
+    /// <returns>At least <see cref="RowCount"/> entries.</returns>
+    public static IReadOnlyList<FirstRunDemoSong> SongPool(IEnumerable<Song>? catalog, IEnumerable<string>? preferring = null)
+    {
+        var pool = Pick(catalog, PoolSize, preferring)
+            .Select(s => new FirstRunDemoSong(s.SongId, new FirstRunDemoRow(s.Title, s.Year is { } y ? $"{s.Artist} · {y}" : s.Artist), s.AlbumArt))
+            .ToList();
+        while (pool.Count < RowCount) pool.Add(FirstRunDemoSong.Placeholder);
+        return pool;
+    }
+
+    /// <summary>
+    /// Shop song IDs Shop demos may prefer: the already-loaded feed's order, only when it shares the catalogue's observed
+    /// publication and the Shop isn't hidden. Demos never fetch the Shop.
+    /// </summary>
+    /// <param name="shop">Loaded Shop feed, or <see langword="null"/>.</param>
+    /// <param name="offersForCatalog">Session offers for the catalogue's publication (<see langword="null"/> on mismatch).</param>
+    /// <param name="hideShop">Settings hide the Shop.</param>
+    /// <returns>IDs, or empty.</returns>
+    public static IReadOnlyList<string> ShopPreference(ShopResponse? shop, IReadOnlyDictionary<string, ShopSong>? offersForCatalog, bool hideShop) =>
+        hideShop || shop is null || offersForCatalog is null ? [] : [.. shop.Songs.Select(s => s.SongId)];
 
     /// <summary>Legacy fixed-turn swap retained for callers that have not moved to <see cref="FirstRunRowRotation{T}"/>.</summary>
     /// <param name="step">Swap number, 0-based.</param>

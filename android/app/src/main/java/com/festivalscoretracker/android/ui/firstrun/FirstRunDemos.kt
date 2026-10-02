@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,19 +36,28 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSongs
 import com.festivalscoretracker.android.core.firstrun.FirstRunRotatingDemos
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -71,10 +81,12 @@ internal val FIRST_RUN_DEMO_IDS: Set<String> = setOf(
 )
 
 /**
- * A non-networked mini-demo for one slide (web `pages/<page>/firstRun/demo/`), built
- * from shared design primitives. The twelve web demos that swap data on a timer rotate
- * through [FirstRunRotatingDemo] (issue #58); the rest are still, with pulses only for
- * the settled current page and never under reduce motion.
+ * A non-networked mini-demo for one slide (web `pages/<page>/firstRun/demo/`), built from
+ * shared design primitives. Song-using demos read real catalogue songs from
+ * [LocalFirstRunDemoCatalog] (placeholder rows while it loads or is unavailable); players,
+ * ranks and scores are demo numbers. The twelve web demos that swap data on a timer rotate
+ * through [FirstRunRotatingDemo] (issue #58); the rest are still, with pulses only for the
+ * settled current page and never under reduce motion.
  *
  * @param id Slide ID.
  * @param active Whether the slide is the settled current page.
@@ -91,9 +103,9 @@ fun FirstRunDemo(id: String, active: Boolean) {
         "songs-navigation" -> NavigationReplica()
         "songs-filter", "suggestions-global-filter" -> FilterDemo(showInstruments = id == "songs-filter")
         "suggestions-instrument-filter" -> FilterDemo(showInstruments = true)
-        "songs-shop-highlight", "shop-highlighting" -> SongRows(3, highlight = BrandTokens.statusGreen, pulse = pulse)
-        "songs-new-in-shop", "shop-new-items" -> SongRows(3, highlight = BrandTokens.gold, pulse = pulse)
-        "songs-leaving-tomorrow", "shop-leaving-tomorrow" -> SongRows(3, highlight = BrandTokens.statusRed, pulse = pulse)
+        "songs-shop-highlight", "shop-highlighting" -> SongRows(3, highlight = BrandTokens.statusGreen, pulse = pulse, shop = true)
+        "songs-new-in-shop", "shop-new-items" -> SongRows(3, highlight = BrandTokens.gold, pulse = pulse, shop = true)
+        "songs-leaving-tomorrow", "shop-leaving-tomorrow" -> SongRows(3, highlight = BrandTokens.statusRed, pulse = pulse, shop = true)
         "songinfo-chart" -> BarChart(selectLast = false)
         "songinfo-view-all", "playerhistory-score-list" -> ScoreRows(pulse)
         "songinfo-top-scores", "leaderboards-overview", "compete-leaderboards" -> RankRows(highlightYou = false)
@@ -116,7 +128,38 @@ fun FirstRunDemo(id: String, active: Boolean) {
 
 // region Sample data
 
-private val demoSongs = listOf("Synthetic Anthem" to "Demo Band", "Placeholder Groove" to "Sample Artist", "Example Encore" to "The Fixtures")
+/**
+ * The catalogue songs demos may show (web `useDemoSongs`/`useItemShopDemoSongs`).
+ *
+ * @property songs Loaded catalogue, or null while loading/unavailable (demos draw placeholders).
+ * @property shopSongIds Publication-matched Shop song IDs that Shop demos show first.
+ * @property artworkUrl Artwork resolver.
+ */
+@Immutable
+class FirstRunDemoCatalog(
+    val songs: List<Song>? = null,
+    val shopSongIds: List<String> = emptyList(),
+    val artworkUrl: (String?) -> String? = { null },
+)
+
+/** Demo songs for the presented carousel; placeholders by default. */
+val LocalFirstRunDemoCatalog = compositionLocalOf { FirstRunDemoCatalog() }
+
+/**
+ * Songs one demo shows: real catalogue picks, or `null` placeholder slots.
+ *
+ * @param count Rows.
+ * @param shop Prefer current Item Shop songs (Shop-themed demos).
+ * @return Songs or nulls.
+ */
+@Composable
+private fun demoSongs(count: Int, shop: Boolean = false): List<Song?> {
+    val catalog = LocalFirstRunDemoCatalog.current
+    return remember(catalog, count, shop) {
+        FirstRunDemoSongs.forDemo(catalog.songs, count, if (shop) catalog.shopSongIds else emptyList())
+    }
+}
+
 private val demoPlayers = listOf("Player One", "Player Two", "You", "Player Four", "Player Five")
 
 // endregion
@@ -142,18 +185,53 @@ private fun pulseAlpha(pulse: Boolean): Float {
     return value
 }
 
+/**
+ * Song artwork from the shared image loader, over a muted tile (the placeholder look).
+ *
+ * @param song Catalogue song, or null for a placeholder.
+ * @param modifier Size and shape.
+ */
 @Composable
-private fun SongRows(count: Int, highlight: Color? = null, pulse: Boolean = false, badges: Boolean = false) {
+private fun DemoArt(song: Song?, modifier: Modifier) {
+    val url = song?.let { LocalFirstRunDemoCatalog.current.artworkUrl(it.albumArt) }
+    Box(modifier.background(BrandTokens.surfaceMuted)) {
+        if (url != null) AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+    }
+}
+
+/**
+ * A redacted text bar standing in for a placeholder row's text (Material has no redaction
+ * primitive; a muted shape is its loading-skeleton pattern).
+ *
+ * @param fraction Share of the available width.
+ * @param height Bar height.
+ */
+@Composable
+internal fun RedactedBar(fraction: Float, height: androidx.compose.ui.unit.Dp) {
+    Box(
+        Modifier.padding(vertical = 3.dp).fillMaxWidth(fraction).height(height)
+            .background(BrandTokens.surfaceMuted, RoundedCornerShape(4.dp))
+            .testTag("fst.first-run.demo.placeholder"),
+    )
+}
+
+@Composable
+private fun SongRows(count: Int, highlight: Color? = null, pulse: Boolean = false, badges: Boolean = false, shop: Boolean = false) {
     val alpha = pulseAlpha(pulse && highlight != null)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        demoSongs.take(count).forEachIndexed { index, (title, artist) ->
+        demoSongs(count, shop).forEachIndexed { index, song ->
             val border = if (highlight != null && index != 1) highlight.copy(alpha = alpha) else BrandTokens.glassBorder
             DemoCard(border = border) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(36.dp).background(BrandTokens.surfaceMuted, RoundedCornerShape(6.dp)))
+                    DemoArt(song, Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)))
                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                        Text(title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text(artist, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        if (song == null) {
+                            RedactedBar(0.7f, 14.dp)
+                            RedactedBar(0.45f, 10.dp)
+                        } else {
+                            Text(song.title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("fst.first-run.demo.song.${song.songId}"))
+                            Text(song.year?.takeIf { it != 0 }?.let { "${song.artist} · $it" } ?: song.artist, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                     if (badges) {
                         Text("Top ${index * 4 + 1}%", color = BrandTokens.gold, style = MaterialTheme.typography.labelMedium)
@@ -326,16 +404,23 @@ private fun CategoryCard() {
 
 @Composable
 private fun ShopGrid() {
+    val songs = demoSongs(6, shop = true)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(2) { row ->
+        songs.chunked(3).forEachIndexed { row, rowSongs ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(3) { col ->
+                rowSongs.forEachIndexed { col, song ->
+                    val shape = RoundedCornerShape(10.dp)
                     Box(
-                        Modifier.weight(1f).height(72.dp).background(BrandTokens.surfaceMuted, RoundedCornerShape(10.dp))
-                            .border(1.dp, if ((row + col) % 3 == 0) BrandTokens.statusGreen else BrandTokens.glassBorder, RoundedCornerShape(10.dp)),
+                        Modifier.weight(1f).height(72.dp).clip(shape)
+                            .border(1.dp, if ((row + col) % 3 == 0) BrandTokens.statusGreen else BrandTokens.glassBorder, shape),
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Outlined.ShoppingBag, contentDescription = null, tint = BrandTokens.textSecondary) }
+                    ) {
+                        DemoArt(song, Modifier.matchParentSize())
+                        if (song == null) Icon(Icons.Outlined.ShoppingBag, contentDescription = null, tint = BrandTokens.textSecondary)
+                    }
                 }
+                // Keep tile widths when fewer than three songs have art.
+                repeat(3 - rowSongs.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

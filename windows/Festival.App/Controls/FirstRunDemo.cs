@@ -58,12 +58,14 @@ public sealed partial class FirstRunDemo : UserControl
         Loaded += (_, _) =>
         {
             Motion.Changed += OnMotionChanged;
-            if (UsesFallbackPool) Build();
+            App.Session.PropertyChanged += OnSessionChanged;
+            if (CatalogueNowAvailable) Build();
             UpdateTimer();
         };
         Unloaded += (_, _) =>
         {
             Motion.Changed -= OnMotionChanged;
+            App.Session.PropertyChanged -= OnSessionChanged;
             timer?.Stop();
             CompleteSwaps();
             artLoads?.Cancel();
@@ -315,8 +317,28 @@ public sealed partial class FirstRunDemo : UserControl
         }
     }
 
-    /// <summary>Whether the rows come from the text fallback pool while a catalogue could now supply real songs.</summary>
-    private bool UsesFallbackPool => songs.Count > 0 && songs[0].Art is null && FirstRunDemos.SongPool(App.Session.Catalog?.Songs)[0].Art is not null;
+    /// <summary>Whether the rows are placeholders while the catalogue could now supply real songs.</summary>
+    private bool CatalogueNowAvailable => songs.Count > 0 && songs[0].IsPlaceholder && !SongPoolFor(kind)[0].IsPlaceholder;
+
+    /// <summary>The songs a demo kind rotates through (Shop demos prefer the publication-matched Shop feed).</summary>
+    /// <param name="k">Kind, or <see langword="null"/>.</param>
+    /// <returns>Pool, placeholders while the catalogue is loading or unavailable.</returns>
+    private static IReadOnlyList<FirstRunDemoSong> SongPoolFor(FirstRunDemoKind? k)
+    {
+        var session = App.Session;
+        var shopIds = k is { } kind && FirstRunDemos.UsesShopSongs(kind)
+            ? FirstRunDemos.ShopPreference(session.Shop, session.ShopOffersForCatalog, session.Settings.HideShop)
+            : [];
+        return FirstRunDemos.SongPool(session.Catalog?.Songs, shopIds);
+    }
+
+    /// <summary>Swaps placeholders for real songs as soon as the catalogue arrives (even with motion off).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnSessionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(App.Session.Catalog) && CatalogueNowAvailable) Rebuild();
+    }
 
     /// <summary>Rebuilds with the current catalogue, keeping the timer state.</summary>
     private void Rebuild()
@@ -340,7 +362,7 @@ public sealed partial class FirstRunDemo : UserControl
         step = 0;
         kind = FirstRunDemos.KindFor(SlideId);
         if (kind is not { } k) return;
-        songs = FirstRunDemos.SongPool(App.Session.Catalog?.Songs);
+        songs = SongPoolFor(k);
         artLoads?.Cancel();
         artLoads = new CancellationTokenSource();
         if (FirstRunDemos.RotationKindFor(SlideId) is { } rotating)
@@ -704,11 +726,12 @@ public sealed partial class FirstRunDemo : UserControl
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var art = new Image { Stretch = Stretch.UniformToFill };
             var title = Text("", 12, true);
+            var titleBar = RedactedBar(70, 10);
             var tile = new Grid { Height = 120, CornerRadius = new CornerRadius(8), Background = Placeholder(i) };
             tile.Children.Add(art);
             tile.Children.Add(new Border
             {
-                VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(8, 6, 8, 6), Child = title,
+                VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(8, 6, 8, 6), Child = new Grid { Children = { title, titleBar } },
                 Background = new SolidColorBrush(Color.FromArgb(0xB3, 0, 0, 0)),
             });
             var ring = new ShopPulseRing();
@@ -716,10 +739,13 @@ public sealed partial class FirstRunDemo : UserControl
             tile.Children.Add(ring);
             Grid.SetColumn(tile, i);
             grid.Children.Add(tile);
+            var seed = i;
             Action<int> set = n =>
             {
                 var song = songs[n % songs.Count];
                 title.Text = song.Row.Title;
+                ShowRedacted(song.IsPlaceholder, [title], [titleBar]);
+                tile.Background = song.IsPlaceholder ? Muted() : Placeholder(seed);
                 LoadArt(art, song.Art, 160);
             };
             set(i);
@@ -745,11 +771,13 @@ public sealed partial class FirstRunDemo : UserControl
         var artHost = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(6), Child = art };
         var title = Text("", 14, true);
         var detail = Text("", 12, false);
+        var titleBar = RedactedBar(140, 12);
+        var detailBar = RedactedBar(90, 9);
         var grid = new Grid { ColumnSpacing = 10 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { title, detail } };
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { title, detail, titleBar, detailBar } };
         Grid.SetColumn(text, 1);
         var trailing = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(trailing, 2);
@@ -760,11 +788,39 @@ public sealed partial class FirstRunDemo : UserControl
         {
             var song = songs[index % songs.Count];
             (title.Text, detail.Text) = (song.Row.Title, song.Row.Detail);
-            artHost.Background = Placeholder(index);
+            ShowRedacted(song.IsPlaceholder, [title, detail], [titleBar, detailBar]);
+            artHost.Background = song.IsPlaceholder ? Muted() : Placeholder(index);
             LoadArt(art, song.Art, 36);
         };
         return RowCard(grid);
     }
+
+    /// <summary>
+    /// A muted bar standing in for a placeholder song's text (Fluent's loading-skeleton look; WinUI has no redaction
+    /// primitive).
+    /// </summary>
+    /// <param name="width">Bar width in epx.</param>
+    /// <param name="height">Bar height in epx.</param>
+    /// <returns>Bar, collapsed until shown.</returns>
+    private static Border RedactedBar(double width, double height) => new()
+    {
+        Width = width, Height = height, CornerRadius = new CornerRadius(3), Margin = new Thickness(0, 3, 0, 3),
+        HorizontalAlignment = HorizontalAlignment.Left, Background = Muted(), Visibility = Visibility.Collapsed,
+    };
+
+    /// <summary>Shows a placeholder's redacted bars instead of its text, or the text of a real song.</summary>
+    /// <param name="placeholder">Whether the song is a placeholder.</param>
+    /// <param name="text">Text blocks.</param>
+    /// <param name="bars">Redacted bars.</param>
+    private static void ShowRedacted(bool placeholder, TextBlock[] text, Border[] bars)
+    {
+        foreach (var t in text) t.Visibility = placeholder ? Visibility.Collapsed : Visibility.Visible;
+        foreach (var b in bars) b.Visibility = placeholder ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Muted fill for placeholder art and text bars.</summary>
+    /// <returns>Brush.</returns>
+    private static SolidColorBrush Muted() => new(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
 
     /// <summary>A text row: title, detail and a trailing value.</summary>
     /// <param name="setter">Receives a row.</param>
@@ -853,7 +909,7 @@ public sealed partial class FirstRunDemo : UserControl
     private static Brush Resource(string key, Color fallback) =>
         Application.Current.Resources.TryGetValue(key, out var value) && value is Brush brush ? brush : new SolidColorBrush(fallback);
 
-    /// <summary>Brand gradient placeholder behind art (or instead of it with Save Data / the fallback pool).</summary>
+    /// <summary>Brand gradient behind a real song's art (or instead of it with Save Data).</summary>
     /// <param name="seed">Variation.</param>
     /// <returns>Brush.</returns>
     private static LinearGradientBrush Placeholder(int seed) => new()
@@ -945,12 +1001,7 @@ public sealed partial class FirstRunDemo : UserControl
         {
             timer = DispatcherQueue.CreateTimer();
             timer.Interval = FirstRunDemos.Cycle;
-            timer.Tick += (_, _) =>
-            {
-                // A carousel can open before the catalogue arrives: switch from the fallback pool to real songs then.
-                if (UsesFallbackPool) Rebuild();
-                else advance?.Invoke(step++);
-            };
+            timer.Tick += (_, _) => advance?.Invoke(step++);
         }
         timer.Interval = activeInterval;
         if (!timer.IsRunning) timer.Start();

@@ -2,7 +2,6 @@ package com.festivalscoretracker.android.core.firstrun
 
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
-import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.songs.SongMetadataPill
 import com.festivalscoretracker.android.core.songs.SongPercentileTier
@@ -26,49 +25,34 @@ object FirstRunRotatingDemos {
 // region Songs
 
 /**
- * One catalogue song a demo row shows.
+ * One song a rotating demo row shows: a real catalogue song, or a placeholder drawn as
+ * redacted bars while the catalogue loads or is unavailable (demos never invent titles).
  *
- * @property id Catalogue song ID.
- * @property title Title.
- * @property artist Artist.
+ * @property id Catalogue song ID (`placeholder-<n>` for a placeholder).
+ * @property title Title (empty for a placeholder).
+ * @property artist Artist (empty for a placeholder).
  * @property year Release year.
  * @property artUrl Resolved album-art URL, if any.
+ * @property isPlaceholder Whether this stands in for a song.
  */
-data class FirstRunDemoSong(val id: String, val title: String, val artist: String, val year: Int? = null, val artUrl: String? = null)
-
-/** The demo song pool (web `useDemoSongs`: Epic Games songs with album art). */
-object FirstRunDemoSongs {
-    /** Most catalogue songs a pool keeps (rows only ever show a handful). */
-    const val MAX_POOL = 40
-
-    /**
-     * Catalogue songs by Epic Games that have album art, in catalogue order.
-     *
-     * @param songs Catalogue.
-     * @param artwork Resolves a raw `albumArt` to a loadable URL (null drops the song).
-     * @return Up to [MAX_POOL] songs.
-     */
-    fun pool(songs: List<Song>, artwork: (String?) -> String?): List<FirstRunDemoSong> = songs.asSequence()
-        .filter { it.artist.contains("Epic Games", ignoreCase = true) && !it.albumArt.isNullOrBlank() }
-        .mapNotNull { song -> artwork(song.albumArt)?.let { FirstRunDemoSong(song.songId, song.title, song.artist, song.year, it) } }
-        .distinctBy { it.id }
-        .take(MAX_POOL)
-        .toList()
-
-    /** Placeholder rows used until the catalogue loads (or when it cannot). */
-    val FALLBACK: List<FirstRunDemoSong> = listOf(
-        "Synthetic Anthem" to "Demo Band", "Placeholder Groove" to "Sample Artist", "Example Encore" to "The Fixtures",
-        "Mock Overture" to "Demo Band", "Stand-In Shuffle" to "Sample Artist", "Prototype Ballad" to "The Fixtures",
-        "Draft Riff" to "Demo Band", "Rehearsal Run" to "Sample Artist",
-    ).mapIndexed { index, (title, artist) -> FirstRunDemoSong("fre-demo-$index", title, artist) }
-
-    /**
-     * The catalogue pool, or [FALLBACK] when it is empty.
-     *
-     * @param loaded Catalogue pool.
-     * @return Songs to rotate through.
-     */
-    fun orFallback(loaded: List<FirstRunDemoSong>): List<FirstRunDemoSong> = loaded.ifEmpty { FALLBACK }
+data class FirstRunDemoSong(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val year: Int? = null,
+    val artUrl: String? = null,
+    val isPlaceholder: Boolean = false,
+) {
+    companion object {
+        /**
+         * Distinct placeholder rows.
+         *
+         * @param count Rows.
+         * @return [count] placeholders.
+         */
+        fun placeholders(count: Int): List<FirstRunDemoSong> =
+            List(count.coerceAtLeast(0)) { FirstRunDemoSong("placeholder-$it", "", "", isPlaceholder = true) }
+    }
 }
 
 // endregion

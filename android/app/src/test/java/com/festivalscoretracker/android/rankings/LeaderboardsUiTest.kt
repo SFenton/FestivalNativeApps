@@ -29,6 +29,9 @@ import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -174,10 +177,32 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
+    fun pageChangesFadeThroughTheSpinnerLikeTheWeb() {
+        launch("fullRankings:Solo_Guitar")
+        waitForDescription("Page 1 of 3")
+        assertFalse(exists("fst.full-rankings.loading"))
+        // Issue #71: even a page served at once fades the old rows out and shows the spinner.
+        rule.mainClock.autoAdvance = false
+        node("fst.full-rankings.page-next").performSemanticsAction(SemanticsActions.OnClick)
+        var sawSpinner = false
+        repeat(80) {
+            rule.mainClock.advanceTimeBy(32)
+            shadowOf(Looper.getMainLooper()).idle()
+            if (exists("fst.full-rankings.loading")) sawSpinner = true
+        }
+        rule.mainClock.autoAdvance = true
+        assertTrue(sawSpinner)
+        waitForDescription("Page 2 of 3")
+        waitForTag("fst.rankings.row.${RankingsFixtures.accountId(26)}")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.full-rankings.loading") }
+    }
+
+    @Test
     fun rankHistoryAndQuickLinksOnTheOverview() {
         launch("leaderboards", selected)
         waitForTag("fst.leaderboards.rank-history")
-        waitForText("Sep 25, 2026")
+        // The chart carries the fixture history forward to today and lists the newest days.
+        waitForText(LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)))
         assertTrue(transport.requests.any { it.url.contains("/api/rankings/Solo_Guitar/${RankingsFixtures.SELECTED}/history?days=30") })
         click("fst.leaderboards.rank-history.picker.Solo_Bass")
         waitForText("No rank history for Bass")

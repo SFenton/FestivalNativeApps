@@ -151,20 +151,28 @@ class FirstRunDemoRotationTest {
     }
 
     @Test
-    fun poolKeepsEpicGamesSongsWithArt() {
+    fun rotationPoolUsesTheSharedPickerElsePlaceholders() {
         val catalogue = listOf(
-            Song("a", "One", "Epic Games", albumArt = "a.jpg"),
-            Song("b", "Two", "Someone Else", albumArt = "b.jpg"),
-            Song("c", "Three", "epic games feat. X", albumArt = "c.jpg"),
+            Song("a", "One", "Someone Else", albumArt = "a.jpg", year = 2024),
+            Song("b", "Two", "Epic Games", albumArt = "b.jpg", year = 0),
+            Song("c", "Three", "Epic Games feat. X", albumArt = "c.jpg"),
             Song("d", "Four", "Epic Games"),
-            Song("e", "Five", "Epic Games", albumArt = "bad"),
         )
-        val pool = FirstRunDemoSongs.pool(catalogue) { raw -> raw?.takeIf { it.endsWith(".jpg") }?.let { "https://cdn/$it" } }
-        assertEquals(listOf("a", "c"), pool.map { it.id })
-        assertEquals("https://cdn/a.jpg", pool[0].artUrl)
-        assertEquals(FirstRunDemoSongs.FALLBACK, FirstRunDemoSongs.orFallback(emptyList()))
-        assertEquals(pool, FirstRunDemoSongs.orFallback(pool))
-        assertTrue(FirstRunDemoSongs.FALLBACK.size > 3)
+        val pool = FirstRunDemoSongs.rotationPool(catalogue) { raw -> raw?.let { "https://cdn/$it" } }
+        assertEquals(listOf("b", "c", "a"), pool.map { it.id })
+        assertEquals("https://cdn/b.jpg", pool[0].artUrl)
+        assertEquals("year 0 is unknown", null, pool[0].year)
+        assertEquals(2024, pool[2].year)
+        assertTrue(pool.none { it.isPlaceholder })
+        val many = List(60) { Song("s$it", "Song $it", "Epic Games", albumArt = "$it.jpg") }
+        assertEquals(FirstRunDemoSongs.ROTATION_POOL, FirstRunDemoSongs.rotationPool(many) { it }.size)
+
+        listOf(null, emptyList(), listOf(Song("x", "No Art", "Epic Games"))).forEach { missing ->
+            val placeholders = FirstRunDemoSongs.rotationPool(missing) { it }
+            assertEquals(FirstRunDemoSongs.ROTATION_PLACEHOLDERS, placeholders.size)
+            assertTrue(placeholders.all { it.isPlaceholder && it.title.isEmpty() && it.artist.isEmpty() && it.artUrl == null })
+            assertEquals("placeholders stay distinct rows", placeholders.size, placeholders.map { it.id }.toSet().size)
+        }
     }
 
     @Test

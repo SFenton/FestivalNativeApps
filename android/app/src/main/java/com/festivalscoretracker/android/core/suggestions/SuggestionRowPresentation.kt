@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.core.suggestions
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.sign
 
@@ -28,7 +29,7 @@ enum class SuggestionRowLayout {
     /** No right-side metadata. */
     Hidden,
 
-    /** Rival name, rank delta and instrument icon. */
+    /** Rival name badge (see [SuggestionRowPresentation.showsRivalName]), rank delta and instrument icon. */
     Rival,
 }
 
@@ -72,7 +73,8 @@ data class SuggestionInstrumentChip(val instrument: Instrument, val hasScore: Bo
  * @property seasonText Season pill ("S6").
  * @property percentileText "Top N%".
  * @property percentileTier Pill tier.
- * @property rivalName Rival name, truncated to 12 characters.
+ * @property rivalName Rival name badge text, truncated to 12 characters; null on single-rival
+ *   cards, whose title already names the rival ([showsRivalName]).
  * @property rivalDeltaText "+5" / "-3", or null when zero.
  * @property rivalDeltaSign Sign of the rank delta (positive: the player leads).
  * @property rivalFromSong The rival comes from song rivals (blue badge), not leaderboard rivals (yellow).
@@ -123,6 +125,46 @@ data class SuggestionRowPresentation(
         }
 
         /**
+         * Key prefixes of rival categories built around one rival, whose title already names
+         * that rival ("Rival Spotlight: {name}", "Close the Gap vs {name}", …).
+         */
+        private val singleRivalPrefixes = listOf(
+            "song_rival_spotlight_", "song_rival_gap_", "song_rival_protect_",
+            "song_rival_slipping_", "song_rival_dominate_",
+        )
+
+        /**
+         * Whether a rival row draws the rival's name badge beside its rank difference (Apple
+         * `SuggestionRowLayout.showsRivalName`). Single-rival cards name the rival in their title,
+         * so a per-row badge only repeats it (issue #29); mixed-rival cards (Battleground and the
+         * cross-pollination families) keep it because each row can be about a different rival.
+         *
+         * @param categoryKey Generator key.
+         * @return False for single-rival categories, true otherwise.
+         */
+        fun showsRivalName(categoryKey: String): Boolean {
+            val k = categoryKey.lowercase(Locale.ROOT)
+            return singleRivalPrefixes.none { k.startsWith(it) }
+        }
+
+        /**
+         * Spoken rank difference that names the rival (Apple `rivalDeltaAccessibilityLabel`).
+         *
+         * @param delta Player rank minus rival rank, signed so positive means the player leads.
+         * @param rivalName Rival to name, or null/empty to omit it.
+         * @return e.g. "3 ranks ahead of Name", "1 rank behind" or "Tied with Name".
+         */
+        fun rivalDeltaAccessibilityLabel(delta: Int, rivalName: String?): String {
+            val magnitude = abs(delta)
+            val ranks = if (magnitude == 1) "rank" else "ranks"
+            if (rivalName.isNullOrEmpty()) {
+                return if (delta == 0) "Tied" else "$magnitude $ranks ${if (delta > 0) "ahead" else "behind"}"
+            }
+            if (delta == 0) return "Tied with $rivalName"
+            return "$magnitude $ranks ${if (delta > 0) "ahead of" else "behind"} $rivalName"
+        }
+
+        /**
          * Tier of a "Top N%" label.
          *
          * @param display Label.
@@ -164,7 +206,8 @@ data class SuggestionRowPresentation(
             when (layout) {
                 SuggestionRowLayout.Rival -> {
                     val delta = item.rivalRankDelta ?: 0
-                    val name = item.rivalName?.let { if (it.length > 12) it.take(11) + "…" else it }
+                    val showsName = showsRivalName(category.key)
+                    val name = item.rivalName?.takeIf { showsName }?.let { if (it.length > 12) it.take(11) + "…" else it }
                     result = result.copy(
                         instrument = item.instrument,
                         rivalName = name,
@@ -176,8 +219,15 @@ data class SuggestionRowPresentation(
                             else -> delta.toString()
                         },
                     )
-                    item.rivalName?.let { details += "rival $it" }
-                    if (delta != 0) details += if (delta > 0) "ahead by $delta ranks" else "behind by ${-delta} ranks"
+                    val rival = item.rivalName?.takeIf { it.isNotEmpty() }
+                    if (!showsName && rival != null && delta != 0) {
+                        // No visible badge: the delta itself says which rival ("1 rank behind Name").
+                        details += rivalDeltaAccessibilityLabel(delta, rival)
+                    } else {
+                        rival?.let { details += "rival $it" }
+                        val ranks = if (abs(delta) == 1) "rank" else "ranks"
+                        if (delta != 0) details += if (delta > 0) "ahead by $delta $ranks" else "behind by ${-delta} $ranks"
+                    }
                 }
                 SuggestionRowLayout.UnfcAccuracy -> {
                     val percent = item.percent

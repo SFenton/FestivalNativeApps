@@ -104,6 +104,26 @@ public sealed partial class FestivalApiClient
         board.Validate(songId, bandType, top);
         return board;
     }
+
+    /// <summary>
+    /// Reads Song Detail's band previews: every band size's top rows in one request
+    /// (<c>GET /api/leaderboard/{songId}/bands/all</c>). The selected player is sent only as the <c>accountId</c> query,
+    /// which makes the service add that player's best band per size; never as a selected-profile header.
+    /// </summary>
+    /// <param name="songId">Catalogue song.</param>
+    /// <param name="top">Rows per band size, 1–50.</param>
+    /// <param name="accountId">Selected player, or <see langword="null"/>.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Validated previews.</returns>
+    public async Task<SongBandLeaderboardsResponse> GetSongBandLeaderboardsAsync(
+        string songId, int top = 10, string? accountId = null, CancellationToken cancellationToken = default)
+    {
+        var url = BandEndpoints.SongBandLeaderboards(BaseUri, songId, top, accountId);
+        var bytes = await ReadPinnedAsync(url, BandResponseLimit, cancellationToken).ConfigureAwait(false);
+        var previews = Decode(bytes, BandsJsonContext.Default.SongBandLeaderboardsResponse);
+        previews.Validate(songId, top);
+        return previews;
+    }
 }
 #endregion
 
@@ -188,6 +208,23 @@ public static class BandEndpoints
         if (top is < 1 or > 100 || offset < 0) throw new FestivalApiException(FestivalApiErrorKind.InvalidResource);
         return ServiceEndpoints.Build(baseUri, ["api", "leaderboard", songId, "bands", bandType.ServiceId()],
             [("top", Text(top)), ("offset", Text(offset))]);
+    }
+
+    /// <summary><c>GET /api/leaderboard/{songId}/bands/all?top=[&amp;accountId=]</c> (pure read, allowlisted).</summary>
+    /// <param name="baseUri">Validated origin.</param>
+    /// <param name="songId">Catalogue song.</param>
+    /// <param name="top">Rows per band size, 1–50.</param>
+    /// <param name="accountId">Selected player, or <see langword="null"/>.</param>
+    /// <returns>Endpoint URL.</returns>
+    /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResource"/>.</exception>
+    public static Uri SongBandLeaderboards(Uri baseUri, string songId, int top, string? accountId)
+    {
+        ServiceEndpoints.RequireSegment(songId);
+        if (top is < 1 or > 50 || (accountId is not null && !ProfileText.IsValidAccountId(accountId)))
+            throw new FestivalApiException(FestivalApiErrorKind.InvalidResource);
+        List<(string, string)> query = [("top", Text(top))];
+        if (accountId is not null) query.Add(("accountId", accountId));
+        return ServiceEndpoints.Build(baseUri, ["api", "leaderboard", songId, "bands", "all"], [.. query]);
     }
 
     /// <summary>Whether a team key is a <c>:</c>-joined list of 1–4 valid account IDs (the service joins the sorted

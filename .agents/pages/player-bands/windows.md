@@ -10,6 +10,7 @@
 - Cards (`BandCardView`, `UniformGridLayout` min 320 epx: one column compact/medium, 2–3 wide): distinct members with name and 28 px instrument icons, band-size pill, `N appearances`, chevron. The card opens `AppRoute.Band(bandId, bandType, teamKey)`.
 - Paging: the shared board pager (`LeaderboardsPager` over `IBoardPager`, operator batch 7.4; floating over the cards), hidden for one page; a page past the end (list shrank) reloads the last page. Late responses for an older group/page are discarded.
 - States: loading ring, empty (`No bands found` + `No <group> have been recorded for this player yet.`), failure (`ServiceStatusView`, Retry).
+- Load-swap gate (issue #71): first load, group changes and paging run the shared web sequence (300 ms content-out, centered ring, 500 ms ring-out, card stagger). New cards/empty/error state commits while hidden; rapid choices are latest-wins. Reduce Motion swaps immediately.
 
 ## Evidence
 

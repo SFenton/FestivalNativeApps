@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using Festival.Core.Domain;
 using Festival.Core.ViewModels;
 using Microsoft.Extensions.Time.Testing;
 
@@ -537,6 +538,35 @@ public sealed class FullRankingsViewModelTests
         await stale;
         Assert.Equal(2, vm.Page);
         Assert.Equal("#26", vm.Rows[0].RankText);
+    }
+
+    [Fact]
+    public async Task FullRankings_ReloadRunsLoadSwapBeforeRowsChange()
+    {
+        var time = new FakeTimeProvider();
+        var fake = new RankingsFake();
+        var vm = new FullRankingsViewModel(fake.Session(time: time), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), new FakeReader().Read)
+        {
+            AnimateLoadSwaps = () => true,
+        };
+        var initial = vm.LoadAsync();
+        await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.SpinnerOut);
+        Assert.False(vm.ShowRows);
+        time.Advance(LoadSwapTiming.SpinnerOut);
+        await initial;
+        Assert.True(vm.ShowRows);
+        Assert.Equal("#1", vm.Rows[0].RankText);
+
+        var reload = vm.GoToPageAsync(2);
+        Assert.Equal(LoadSwapPhase.ContentOut, vm.LoadSwap.Phase);
+        Assert.Equal("#1", vm.Rows[0].RankText);
+        time.Advance(LoadSwapTiming.ContentOut);
+        await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.SpinnerOut);
+        Assert.Equal("#26", vm.Rows[0].RankText);
+        Assert.False(vm.ShowRows);
+        time.Advance(LoadSwapTiming.SpinnerOut);
+        await reload;
+        Assert.True(vm.ShowRows);
     }
 
     [Fact]

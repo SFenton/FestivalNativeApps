@@ -30,7 +30,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,16 +76,6 @@ import java.text.NumberFormat
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-
-// region Song pool
-
-/**
- * Catalogue songs the rotating demos show (web `useDemoSongs`: Epic Games songs with
- * album art). Empty until the catalogue loads; demos then use [FirstRunDemoSongs.FALLBACK].
- */
-val LocalFirstRunDemoSongs = staticCompositionLocalOf { emptyList<FirstRunDemoSong>() }
-
-// endregion
 
 // region Driver
 
@@ -233,7 +222,7 @@ private fun DemoArt(url: String?, size: Dp) {
     }
 }
 
-/** A demo song row (web `DemoSongRow` + `SongInfo`). */
+/** A demo song row (web `DemoSongRow` + `SongInfo`); a placeholder shows redacted bars. */
 @Composable
 private fun DemoSongRow(song: FirstRunDemoSong, artSize: Dp = 36.dp, trailing: @Composable () -> Unit = {}, below: (@Composable () -> Unit)? = null) {
     DemoCard {
@@ -241,9 +230,14 @@ private fun DemoSongRow(song: FirstRunDemoSong, artSize: Dp = 36.dp, trailing: @
             Row(verticalAlignment = Alignment.CenterVertically) {
                 DemoArt(song.artUrl, artSize)
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text(song.title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("fst.first-run.demo.song"))
-                    val subtitle = listOfNotNull(song.artist, song.year?.toString()).joinToString(" · ")
-                    Text(subtitle, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (song.isPlaceholder) {
+                        RedactedBar(0.7f, 14.dp)
+                        RedactedBar(0.45f, 10.dp)
+                    } else {
+                        Text(song.title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("fst.first-run.demo.song.${song.id}"))
+                        val subtitle = listOfNotNull(song.artist, song.year?.toString()).joinToString(" · ")
+                        Text(subtitle, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
                 trailing()
             }
@@ -252,9 +246,32 @@ private fun DemoSongRow(song: FirstRunDemoSong, artSize: Dp = 36.dp, trailing: @
     }
 }
 
-/** The demo pool: catalogue songs, else placeholders. */
+/** A compact song title, or a redacted bar for a placeholder. */
 @Composable
-private fun demoPool(): List<FirstRunDemoSong> = FirstRunDemoSongs.orFallback(LocalFirstRunDemoSongs.current)
+private fun DemoSongTitle(song: FirstRunDemoSong, modifier: Modifier) {
+    if (song.isPlaceholder) {
+        Box(modifier) { RedactedBar(0.6f, 10.dp) }
+    } else {
+        Text(song.title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier.testTag("fst.first-run.demo.song.${song.id}"))
+    }
+}
+
+/**
+ * The demo pool: real catalogue songs from [LocalFirstRunDemoCatalog] (shared with the still
+ * demos), else placeholders.
+ */
+@Composable
+private fun demoPool(): List<FirstRunDemoSong> {
+    val catalog = LocalFirstRunDemoCatalog.current
+    return remember(catalog) { FirstRunDemoSongs.rotationPool(catalog.songs, catalog.artworkUrl) }
+}
+
+/**
+ * Whether song rows may rotate: placeholders hold still until real songs arrive.
+ *
+ * @receiver Pool.
+ */
+private val List<FirstRunDemoSong>.rotates: Boolean get() = none { it.isPlaceholder }
 
 /** Rotating song rows with an optional trailing/below part per row. */
 @Composable
@@ -267,7 +284,7 @@ private fun RotatingSongRows(
     val pool = demoPool()
     var rotation by remember(pool) { mutableStateOf(FirstRunRowRotation.start(pool, visible) { it.id }) }
     val fade = remember { DemoFade() }
-    DemoTicker(running, fade, plan = { rotation.nextIndices() }, commit = { rotation = rotation.swapped(it) })
+    DemoTicker(running && pool.rotates, fade, plan = { rotation.nextIndices() }, commit = { rotation = rotation.swapped(it) })
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         rotation.rows.forEachIndexed { index, song ->
             DemoSlot(song, fade, index) { shown ->
@@ -292,11 +309,13 @@ internal fun FirstRunRotatingDemo(id: String, active: Boolean) {
     val running = active && rememberDemoRotationAllowed()
     when (id) {
         "songs-song-list" -> RotatingSongRows(running, visible = 3)
-        "songs-icons" -> RotatingSongRows(running, visible = 2, below = { song -> IconChips(song) })
+        "songs-icons" -> RotatingSongRows(running, visible = 2, below = { song -> if (!song.isPlaceholder) IconChips(song) })
         "songs-metadata" -> MetadataDemo(running)
         "statistics-top-songs" -> RotatingSongRows(running, visible = 3, trailing = { index, song ->
-            val label = FirstRunDemoPools.topSongPercentile(index)
-            MetadataPill(SongMetadataPill(MetadataField.Percentile, label, label, percentile = FirstRunDemoPools.percentileTier(label)), song.id)
+            if (!song.isPlaceholder) {
+                val label = FirstRunDemoPools.topSongPercentile(index)
+                MetadataPill(SongMetadataPill(MetadataField.Percentile, label, label, percentile = FirstRunDemoPools.percentileTier(label)), song.id)
+            }
         })
         "songinfo-bar-select" -> BarSelectDemo(running)
         "suggestions-category-card" -> CategoryCardDemo(running)
@@ -331,13 +350,15 @@ private fun MetadataDemo(running: Boolean) {
     val pool = demoPool()
     var rotation by remember(pool) { mutableStateOf(FirstRunMetadataRotation.start(pool, 2)) }
     val fade = remember { DemoFade() }
-    DemoTicker(running, fade, plan = { rotation.nextIndices() }, commit = { rotation = rotation.swapped(it) })
+    DemoTicker(running && pool.rotates, fade, plan = { rotation.nextIndices() }, commit = { rotation = rotation.swapped(it) })
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         rotation.rows.forEachIndexed { index, row ->
             DemoSlot(row, fade, index) { shown ->
-                DemoSongRow(shown.song, below = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        FirstRunMetadataRotation.pills(shown.meta, shown.layout).forEach { MetadataPill(it, shown.song.id) }
+                DemoSongRow(shown.song, below = if (shown.song.isPlaceholder) null else {
+                    {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            FirstRunMetadataRotation.pills(shown.meta, shown.layout).forEach { MetadataPill(it, shown.song.id) }
+                        }
                     }
                 })
             }
@@ -404,7 +425,7 @@ private fun CategoryCardDemo(running: Boolean) {
                 card.items(index, pool, count = 3).forEach { item ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                         DemoArt(item.song.artUrl, 28.dp)
-                        Text(item.song.title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+                        DemoSongTitle(item.song, Modifier.weight(1f).padding(horizontal = 8.dp))
                         item.detail?.let { Text(it, color = BrandTokens.gold, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 6.dp)) }
                         item.instrument?.let { InstrumentIcon(it, size = 18.dp, decorative = true) }
                     }
@@ -552,7 +573,7 @@ private fun RivalsDetailDemo(running: Boolean) {
                     modifier = Modifier.fillMaxWidth().background(BrandTokens.surfaceFrosted, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
                 ) {
                     DemoArt(song.artUrl, 28.dp)
-                    Text(song.title, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 8.dp).testTag("fst.first-run.demo.song"))
+                    DemoSongTitle(song, Modifier.weight(1f).padding(horizontal = 8.dp))
                     Text(
                         "#${rank.userRank} vs #${rank.rivalRank}",
                         color = if (rank.playerWins) BrandTokens.statusGreen else BrandTokens.statusRed,

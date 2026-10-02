@@ -188,6 +188,11 @@
          beside a game; operator batch 6.6). -->
     <x:Double x:Key="TitleBarDeactivatedOpacity">1</x:Double>
 
+    <!-- Fluent's minimum touch target (40x40 epx, "Guidelines for touch targets"). The title-bar search and profile
+         buttons and the page Sort/Filter/Jump/Quick Links buttons use it as MinWidth/MinHeight, so a tap just beside
+         the glyph still lands on the button (issue #72; HitTargetMarkupTests guards it). -->
+    <x:Double x:Key="FSTMinTargetSize">40</x:Double>
+
     <services:InverseVisibilityConverter x:Key="FSTInverseVisibility" />
 
     <!-- MenuFlyout presenters are UIA Menus and need a name (Axe); the invoking button already names the choice. -->

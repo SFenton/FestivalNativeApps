@@ -45,11 +45,12 @@ struct BandRankingsScreen: View {
     }
 
     var body: some View {
-        Group {
+        // Band size, metric and page changes fade the board out, show the spinner and
+        // fade the new page in (web LoadGate, issue #71).
+        FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading rankings") {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading rankings")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Rankings unavailable") {
                     Task { await load() }

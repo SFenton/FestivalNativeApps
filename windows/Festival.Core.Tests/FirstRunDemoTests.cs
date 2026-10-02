@@ -28,19 +28,44 @@ public class FirstRunDemoTests
     }
 
     [Fact]
-    public void SongPool_UsesEpicGamesSongsWithArt_ElseFallback()
+    public void SongPool_UsesCatalogueSongsWithArt_EpicGamesFirst_ElsePlaceholders()
     {
         Song S(string id, string artist, string? art, int? year = 2024) => new() { SongId = id, Title = "T" + id, Artist = artist, AlbumArt = art, Year = year };
-        Assert.Equal(FirstRunDemos.FallbackSongs, FirstRunDemos.SongPool(null));
-        Assert.All(FirstRunDemos.SongPool(null), p => Assert.Null(p.Art));
-        var few = new[] { S("a", "Epic Games", "a.jpg"), S("b", "Other", "b.jpg") };
-        Assert.Equal(FirstRunDemos.FallbackSongs.Count, FirstRunDemos.SongPool(few).Count);
-        var many = new[] { S("c", "Epic Games", "c.jpg"), S("a", "epic games", "a.jpg", null), S("b", "Epic Games ft. X", "b.jpg"),
+        foreach (var empty in new[] { null, Array.Empty<Song>(), [S("x", "Epic Games", null), S("y", "Other", "")] })
+        {
+            var placeholders = FirstRunDemos.SongPool(empty);
+            Assert.Equal(FirstRunDemos.RowCount, placeholders.Count);
+            Assert.All(placeholders, p => Assert.True(p.IsPlaceholder && p.Row.Title == "" && p.Row.Detail == "" && p.Art is null));
+        }
+        // A short catalogue shows its real songs, padded with placeholders rather than invented rows.
+        var few = FirstRunDemos.SongPool([S("b", "Other", "b.jpg")]);
+        Assert.Equal(["b", null, null], few.Select(p => p.SongId));
+        var many = new[] { S("c", "Epic Games", "c.jpg"), S("a", "Epic Games", "a.jpg", null), S("b", "Epic Games ft. X", "b.jpg"),
             S("d", "Epic Games", null), S("e", "Someone", "e.jpg") };
         var pool = FirstRunDemos.SongPool(many);
-        Assert.Equal(["Ta", "Tb", "Tc"], pool.Select(p => p.Row.Title));
-        Assert.Equal(("a", "epic games", "a.jpg"), (pool[0].Id, pool[0].Row.Detail, pool[0].Art));
-        Assert.Equal("Epic Games ft. X · 2024", pool[1].Row.Detail);
+        Assert.Equal(["Tc", "Ta", "Tb", "Te"], pool.Select(p => p.Row.Title));
+        Assert.All(pool, p => Assert.False(p.IsPlaceholder));
+        Assert.Equal(("Epic Games", "a.jpg"), (pool[1].Row.Detail, pool[1].Art));
+        Assert.Equal("Epic Games ft. X · 2024", pool[2].Row.Detail);
+        Assert.Equal(["e", "c", "a", "b"], FirstRunDemos.SongPool(many, ["e", "d", "missing", "e"]).Select(p => p.SongId));
+        var lots = Enumerable.Range(0, 20).Select(i => S($"s{i:00}", "Epic Games", "x.jpg")).ToList();
+        Assert.Equal(FirstRunDemos.PoolSize, FirstRunDemos.SongPool(lots).Count);
+        Assert.Empty(FirstRunDemos.Pick(many, 0));
+    }
+
+    [Fact]
+    public void ShopPreference_RequiresAMatchingVisibleFeed()
+    {
+        var feed = new ShopResponse { Count = 2, Songs = [new() { SongId = "f", Title = "F", Artist = "A", ShopUrl = "https://www.fortnite.com/item-shop/jam-tracks/f" },
+            new() { SongId = "a", Title = "A", Artist = "A", ShopUrl = "https://www.fortnite.com/item-shop/jam-tracks/a" }] };
+        var offers = feed.Songs.ToDictionary(s => s.SongId);
+        Assert.Equal(["f", "a"], FirstRunDemos.ShopPreference(feed, offers, hideShop: false));
+        Assert.Empty(FirstRunDemos.ShopPreference(feed, null, hideShop: false));
+        Assert.Empty(FirstRunDemos.ShopPreference(feed, offers, hideShop: true));
+        Assert.Empty(FirstRunDemos.ShopPreference(null, offers, hideShop: false));
+        Assert.True(FirstRunDemos.UsesShopSongs(FirstRunDemoKind.ShopTiles));
+        Assert.True(FirstRunDemos.UsesShopSongs(FirstRunDemoKind.LeavingPulse));
+        Assert.False(FirstRunDemos.UsesShopSongs(FirstRunDemoKind.Metadata));
     }
 
     [Theory]
@@ -98,6 +123,16 @@ public class FirstRunDemoTests
     {
         var pool = Enumerable.Range(0, 3).Select(i => new FirstRunDemoSong($"s{i}", new FirstRunDemoRow($"Song {i}", "Epic Games"), null)).ToList();
         var rotation = new FirstRunRowRotation<FirstRunDemoSong>(pool, 3);
+        Assert.False(rotation.CanRotate);
+        Assert.Empty(rotation.NextSwap());
+    }
+
+    [Fact]
+    public void RowRotation_HoldsPlaceholdersStill()
+    {
+        Assert.False(new FirstRunRowRotation<FirstRunDemoSong>(FirstRunDemos.SongPool(null), FirstRunDemos.RowCount).CanRotate);
+        var shortPool = FirstRunDemos.SongPool([new Song { SongId = "b", Title = "B", Artist = "Other", AlbumArt = "b.jpg" }]);
+        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(shortPool, FirstRunDemos.RowCount);
         Assert.False(rotation.CanRotate);
         Assert.Empty(rotation.NextSwap());
     }

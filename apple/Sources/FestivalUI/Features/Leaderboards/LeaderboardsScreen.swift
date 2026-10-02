@@ -32,9 +32,11 @@ struct LeaderboardsScreen: View {
     @State private var quickLinks = QuickLinksController()
     /// `reloadKey` whose cards finished loading; a reappearance with the same key keeps them.
     @State private var loadedKey: String?
-    /// The first read of every card settled: until then only a spinner shows, then the
-    /// cards fade in with the web stagger (operator batch 6.41).
-    @State private var firstLoadDone = false
+    /// `reloadKey` whose read of every card settled (loaded or failed). Until it matches,
+    /// only a spinner shows; then the cards fade in with the web stagger (operator batch
+    /// 6.41). A Rank By, instrument or player change fades the cards out and back in
+    /// (issue #71); pull to refresh leaves this alone so the cards stay up.
+    @State private var settledKey: String?
 
     /// Create the screen.
     ///
@@ -110,7 +112,7 @@ struct LeaderboardsScreen: View {
     /// use 2-column grids"). Compact windows (iPhone, Duo folded) keep the single
     /// column unchanged.
     private var regularWidthColumns: [GridItem] {
-        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
+        [GridItem(.flexible(), spacing: 20, alignment: .top), GridItem(.flexible(), spacing: 20, alignment: .top)]
     }
 
     @ViewBuilder
@@ -126,14 +128,11 @@ struct LeaderboardsScreen: View {
     }
 
     var body: some View {
-        Group {
-            if firstLoadDone {
-                loadedScroll
-            } else {
-                FestivalLoadingView(accessibilityLabel: "Loading Leaderboards")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("fst.leaderboards.loading")
-            }
+        FestivalReloadGate(
+            key: reloadKey, isLoading: settledKey != reloadKey,
+            spinnerLabel: "Loading Leaderboards", spinnerIdentifier: "fst.leaderboards.loading"
+        ) {
+            loadedScroll
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("Leaderboards")
@@ -150,11 +149,14 @@ struct LeaderboardsScreen: View {
             // then reset all cards and re-rendered the page and its toolbar for ~0.5 s,
             // which the iPhone Duo rail showed as jitter (Lane W1). Pull to refresh still
             // reloads.
-            guard loadedKey != reloadKey else { return }
+            guard loadedKey != reloadKey else {
+                settledKey = reloadKey
+                return
+            }
             let key = reloadKey
             await loadAll()
             guard !Task.isCancelled else { return }
-            firstLoadDone = true
+            settledKey = key
             if allCardsLoaded { loadedKey = key }
         }
     }
@@ -176,7 +178,7 @@ struct LeaderboardsScreen: View {
             .festivalFadeInScope()
         }
         .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
-        .refreshable { await loadAll() }
+        .festivalRefreshable { await loadAll() }
     }
 
     // MARK: Instrument cards

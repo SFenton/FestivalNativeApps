@@ -72,11 +72,19 @@ public struct FestivalGlassSection<Content: View>: View {
     }
 }
 
-/// Standard row insets and minimum touch height inside a glass section.
+/// Standard row insets and minimum hit height inside a glass section: 44 pt on touch
+/// platforms, the Mac's 28 pt default control size (HIG Accessibility › Mobility) so
+/// pointer-driven forms stay dense.
 struct FestivalRowPadding: ViewModifier {
+    #if os(macOS)
+    private static let minimumHeight: CGFloat = 28
+    #else
+    private static let minimumHeight: CGFloat = 44
+    #endif
+
     func body(content: Content) -> some View {
         content
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: Self.minimumHeight, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.vertical, 6)
     }
