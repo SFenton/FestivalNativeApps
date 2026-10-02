@@ -359,6 +359,32 @@ class MockServiceTests(unittest.TestCase):
             urlopen(tracking)
         self.assertEqual(error.exception.code, 405)
 
+    def test_feedback_fixture_accepts_only_keyless_multipart(self):
+        """The feedback fixture answers 201, 503 on request, and refuses keys (issue #78)."""
+        def post(title: str, headers: dict) -> Request:
+            body = (
+                "--B\r\nContent-Disposition: form-data; name=\"submission\"\r\n"
+                "Content-Type: application/json\r\n\r\n"
+                + json.dumps({"kind": "bug", "title": title}) + "\r\n--B--\r\n"
+            ).encode()
+            return Request(
+                self.base + "/api/feedback", data=body, method="POST",
+                headers={"Content-Type": "multipart/form-data; boundary=B", **headers},
+            )
+
+        with urlopen(post("[Bug] ok", {"Idempotency-Key": "k"})) as response:
+            self.assertEqual(response.status, 201)
+            self.assertEqual(json.load(response)["issueNumber"], 1)
+        for title, headers, code in [
+            ("[Bug] fixture-unavailable", {"Idempotency-Key": "k"}, 503),
+            ("[Bug] ok", {}, 400),
+            ("[Bug] ok", {"Idempotency-Key": "k", "X-API-Key": "x"}, 400),
+            ("[Bug] ok", {"Idempotency-Key": "k", "X-FST-Selected-Player": "p"}, 400),
+        ]:
+            with self.assertRaises(HTTPError) as error:
+                urlopen(post(title, headers))
+            self.assertEqual(error.exception.code, code)
+
     def test_shared_player_rows_match_both_song_leaderboards(self):
         """Never prove selection with a profile that contradicts the chart fixture."""
         with urlopen(self.base + "/api/account/search?q=Fixture%20Player&limit=10") as response:

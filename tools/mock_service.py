@@ -1829,12 +1829,46 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(404, {"status": "not_found"})
 
     def do_POST(self) -> None:
-        """Reject all profile-tracking, refresh and admin mutation attempts.
+        """Accept fixture feedback; reject every other mutation attempt.
 
         Returns:
-            None; a 405 JSON error is written to the local response.
+            None; a JSON response is written to the local response.
         """
+        if urlsplit(self.path).path == "/api/feedback":
+            self._feedback()
+            return
         self._json(405, {"status": "mock_is_read_only"})
+
+    def _feedback(self) -> None:
+        """Fixture for the native feedback form's ``POST /api/feedback`` (issue #78).
+
+        Drains the multipart body, refuses privileged or selected-profile headers, and
+        answers 201 with a fixture issue. A title containing ``fixture-unavailable``
+        returns 503 so automation can reach the error state. Nothing is filed anywhere.
+
+        Returns:
+            None; a JSON response is written to the local response.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(min(length, 300 * 1024 * 1024)) if length > 0 else b""
+        names = {name.lower() for name in self.headers.keys()}
+        if "x-api-key" in names or any(name.startswith("x-fst-selected") for name in names):
+            self._json(400, {"status": "forbidden_header"})
+            return
+        if (
+            "multipart/form-data" not in (self.headers.get("Content-Type") or "")
+            or not self.headers.get("Idempotency-Key")
+            or b'name="submission"' not in body
+        ):
+            self._json(400, {"status": "invalid_submission"})
+            return
+        if b"fixture-unavailable" in body:
+            self._json(503, {"status": "fixture_unavailable"})
+            return
+        self._json(
+            201,
+            {"issueNumber": 1, "issueUrl": "https://github.com/example/feedback-fixture/issues/1"},
+        )
 
     def log_message(self, format: str, *args: object) -> None:
         """Avoid logging player identifiers or request URLs in automation output.
