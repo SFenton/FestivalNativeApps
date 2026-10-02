@@ -149,6 +149,7 @@ class StatusTests(Base):
         self.assertEqual(doc["state"], "Published")
         self.assertFalse(doc["in_review"])
         self.assertEqual(doc["version"], "0.1.900.0")
+        self.assertEqual(doc["publish_mode"], "Immediate")
         self.assertEqual(doc["released_sha"], SHA_OLD)
         self.assertEqual(doc["latest_build"], {"version": "0.1.912.0", "build": "0.1.912.0", "sha": SHA_NEW,
                                                "processing_state": "VALID"})
