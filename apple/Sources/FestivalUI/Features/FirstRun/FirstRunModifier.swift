@@ -39,6 +39,7 @@ struct FirstRunPageModifier: ViewModifier {
                     presentation = nil
                 }
                 .environment(\.firstRunSession, session)
+                .macSheetFrame(width: 520, height: 680)
             }
     }
 

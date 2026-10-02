@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serialized Android emulator access for parallel lanes on the Windows host.
 
-The Windows host ``sfenton-primary`` runs several lanes at once (Android app,
+The Windows host ``sfenton-music`` runs several lanes at once (Android app,
 Windows app, device lab, ...), but only ONE product emulator may run at a time.
 Every emulator interaction goes through this tool, which holds the shared
 FIFO ``emulator`` host lock (:mod:`hostlock`, ≤300 s per hold) for the whole

@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.songs
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -96,6 +95,7 @@ import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongRowModel
 import com.festivalscoretracker.android.core.songs.SongSection
+import com.festivalscoretracker.android.core.songs.SongSectionIndex
 import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongsUiState
@@ -159,7 +159,7 @@ fun SongsScreen(
     var warning by remember { mutableStateOf<InvalidScoreWarning?>(null) }
     val listState = rememberLazyListState()
     val listed = state.catalog is LoadState.Loaded && !state.invalidSavedFilter
-    val leading = 1 + state.notices.size
+    val leading = state.notices.size
     val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
     // Headers are their own (sticky) items, so a header's list index counts the headers before it.
     val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections) { id ->
@@ -175,6 +175,8 @@ fun SongsScreen(
             title = "Songs",
             isRoot = true,
             scrolled = scrolled,
+            // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
+            pinActions = true,
             actions = {
                 QuickLinksAction(quickLinks, windowWidthDp)
                 IconButton(onClick = { showSort = true }, modifier = Modifier.testTag("fst.songs.sort.open")) {
@@ -326,7 +328,7 @@ private fun SongList(
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val leading = 1 + state.notices.size
+    val leading = state.notices.size
     val showIndex = state.sections.size > 1
     val pulse = rememberShopPulse(active = state.rows.any { it.pulse != null || it.warning != null })
     val breathe = rememberShopBreathe(active = state.rows.any { it.pulse != null })
@@ -337,83 +339,89 @@ private fun SongList(
         if (lastShape != null && lastShape != shape) listState.scrollToItem(0)
         lastShape = shape
     }
-    // Ctrl+F focuses the Songs filter (it is the list's first item, so bring it back first).
+    // Ctrl+F focuses the Songs filter (pinned above the list, so it is always on screen).
     val findFocus = remember { FocusRequester() }
     RegisterPageFind {
         scope.launch {
-            listState.scrollToItem(0)
             withFrameNanos { }
             runCatching { findFocus.requestFocus() }
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        val density = LocalDensity.current
-        val accessibility = LocalFestivalAccessibility.current
-        val fadeDepth = with(density) { SongHeaderEdgeFade.DEPTH_DP.dp.toPx() }
-        val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
-            ?.takeIf { SongHeaderEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency) }
-        val edgeFade by remember(listState, firstHeaderKey, fadeDepth, density) {
-            val spacing = with(density) { LIST_SPACING.roundToPx() }
-            derivedStateOf {
-                if (firstHeaderKey == null) return@derivedStateOf null
-                val info = listState.layoutInfo
-                SongHeaderEdgeFade.edge(
-                    info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
-                    info.viewportStartOffset, firstHeaderKey, spacing, fadeDepth,
-                )
-            }
+    val endPadding = if (showIndex) 28.dp else 16.dp
+    val density = LocalDensity.current
+    val accessibility = LocalFestivalAccessibility.current
+    val fadeDepth = with(density) { SongHeaderEdgeFade.DEPTH_DP.dp.toPx() }
+    val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
+        ?.takeIf { SongHeaderEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency) }
+    val edgeFade by remember(listState, firstHeaderKey, fadeDepth, density) {
+        val spacing = with(density) { LIST_SPACING.roundToPx() }
+        derivedStateOf {
+            if (firstHeaderKey == null) return@derivedStateOf null
+            val info = listState.layoutInfo
+            SongHeaderEdgeFade.edge(
+                info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
+                info.viewportStartOffset, firstHeaderKey, spacing, fadeDepth,
+            )
         }
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = if (showIndex) 28.dp else 16.dp,
-                top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding() + 16.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
-            modifier = Modifier.fillMaxSize().pinnedHeaderEdgeFade({ edgeFade }, fadeDepth).testTag("fst.songs.list"),
-        ) {
-            item(key = "search", contentType = "search") { SearchField(search, onSearchChange, findFocus) }
-            state.notices.forEachIndexed { index, notice ->
-                item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
-            }
-            // Web full-page EmptyState, vertically centred in the viewport (6.33).
-            if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
-            val songRow: @Composable (SongRowModel) -> Unit = { row ->
-                SongRow(
-                    row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
-                    onWarning = row.warning?.let { shown -> { onWarning(shown) } },
-                ) { onSongClick(row.song) }
-            }
-            if (state.headers.isEmpty()) {
-                items(state.rows, key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
-            } else {
-                // Bucket headers stick under the top bar on an opaque strip; rows passing beneath it
-                // fade out just below it (pinnedHeaderEdgeFade, issue #49).
-                val first = state.headers.first().firstIndex
-                if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
-                state.headers.forEachIndexed { ordinal, header ->
-                    val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
-                    stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header) }
-                    items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+    }
+    // The search field is pinned above the scrolling list (issue #52): it never scrolls away, so
+    // nothing moves or animates between the top and scrolled states.
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
+            SearchField(search, onSearchChange, findFocus)
+        }
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = endPadding,
+                    bottom = padding.calculateBottomPadding() + 16.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
+                modifier = Modifier.fillMaxSize().pinnedHeaderEdgeFade({ edgeFade }, fadeDepth).testTag("fst.songs.list"),
+            ) {
+                state.notices.forEachIndexed { index, notice ->
+                    item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
+                }
+                // Web full-page EmptyState, vertically centred in the viewport (6.33).
+                if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
+                val songRow: @Composable (SongRowModel) -> Unit = { row ->
+                    SongRow(
+                        row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
+                        onWarning = row.warning?.let { shown -> { onWarning(shown) } },
+                    ) { onSongClick(row.song) }
+                }
+                if (state.headers.isEmpty()) {
+                    items(state.rows, key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+                } else {
+                    // Bucket headers stick under the pinned search field on an opaque strip; rows passing beneath
+                    // it fade out just below it (pinnedHeaderEdgeFade, issue #49).
+                    val first = state.headers.first().firstIndex
+                    if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+                    state.headers.forEachIndexed { ordinal, header ->
+                        val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
+                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header) }
+                        items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+                    }
                 }
             }
-        }
-        AnimatedVisibility(
-            visible = showIndex,
-            enter = fadeIn() + slideInHorizontally { it },
-            exit = fadeOut() + slideOutHorizontally { it },
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(top = padding.calculateTopPadding() + 56.dp, bottom = padding.calculateBottomPadding() + 8.dp)
-                .fillMaxHeight(),
-        ) {
-            SectionIndexScrubber(
-                sections = state.sections,
-                current = currentSection(listState, state.sections, leading),
-                onJump = { section -> scope.launch { listState.scrollToItem(section.firstIndex + leading) } },
-            )
+            // Fully qualified: the ColumnScope overload would otherwise capture this call.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showIndex,
+                enter = fadeIn() + slideInHorizontally { it },
+                exit = fadeOut() + slideOutHorizontally { it },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(top = 8.dp, bottom = padding.calculateBottomPadding() + 8.dp)
+                    .fillMaxHeight(),
+            ) {
+                SectionIndexScrubber(
+                    sections = state.sections,
+                    current = currentSection(listState, state.sections, leading),
+                    onJump = { section -> scope.launch { listState.scrollToItem(section.firstIndex + leading) } },
+                )
+            }
         }
     }
 }
@@ -586,8 +594,10 @@ private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusR
 
 /**
  * Contacts-style right-edge index: tap or drag to jump. Labels are sampled when
- * there are more sections than fit, while drag positions still reach every
- * section. One accessibility element whose state names the current section, with
+ * there are more sections than fit, each centred in an equal slot: a touch on a
+ * drawn label opens that label's section, while positions between labels still
+ * reach the skipped sections ([SongSectionIndex.sectionAt]). One accessibility
+ * element whose state names the current section, with
  * next/previous actions equivalent to dragging one section.
  *
  * @param sections Sections in list order.
@@ -617,35 +627,41 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
             },
     ) {
         // Each label is one 14 sp line plus breathing room; in sp so larger text samples more.
-        val labelStep = with(LocalDensity.current) { SECTION_LABEL_STEP.toDp() }
+        val density = LocalDensity.current
+        val labelStep = with(density) { SECTION_LABEL_STEP.toDp() }
         val maxLabels = (maxHeight / labelStep).toInt().coerceAtLeast(2)
-        val stride = (sections.size + maxLabels - 1) / maxLabels
+        val stride = SongSectionIndex.stride(sections.size, maxLabels)
+        val drawn = sections.filterIndexed { index, _ -> index % stride == 0 }
         val heightPx = constraints.maxHeight.toFloat()
+        // A touch within a drawn label's line opens exactly that label (issue #48).
+        val labelHalf = with(density) { SECTION_LABEL_LINE.toPx() } / 2f / (heightPx / drawn.size.coerceAtLeast(1))
         fun jumpTo(y: Float) {
-            val index = ((y / heightPx) * sections.size).toInt().coerceIn(0, sections.lastIndex)
-            val section = sections[index]
+            val index = SongSectionIndex.sectionAt(y / heightPx, sections.size, stride, labelHalf)
+            val section = sections.getOrNull(index) ?: return
             active = section.label
             onJump(section)
         }
         Column(
-            verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
                 .background(if (active != null) BrandTokens.surfaceFrosted else Color.Transparent, RoundedCornerShape(12.dp))
-                .pointerInput(sections) { detectTapGestures(onPress = { jumpTo(it.y); tryAwaitRelease(); active = null }) }
-                .pointerInput(sections) {
+                .pointerInput(sections, stride, heightPx) { detectTapGestures(onPress = { jumpTo(it.y); tryAwaitRelease(); active = null }) }
+                .pointerInput(sections, stride, heightPx) {
                     detectVerticalDragGestures(onDragEnd = { active = null }, onDragCancel = { active = null }) { change, _ -> jumpTo(change.position.y) }
                 },
         ) {
-            sections.filterIndexed { index, _ -> index % stride == 0 }.forEach { section ->
-                Text(
-                    section.label.take(4),
-                    fontSize = if (section.label.length > 2) 8.sp else 11.sp,
-                    lineHeight = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (section.label == active) BrandTokens.gold else BrandTokens.textSecondary,
-                )
+            // Equal slots put label k's centre at (k + ½) / labels of the height, where sectionAt expects it.
+            drawn.forEach { section ->
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(
+                        section.label.take(4),
+                        fontSize = if (section.label.length > 2) 8.sp else 11.sp,
+                        lineHeight = SECTION_LABEL_LINE,
+                        fontWeight = FontWeight.Bold,
+                        color = if (section.label == active) BrandTokens.gold else BrandTokens.textSecondary,
+                    )
+                }
             }
         }
     }
@@ -653,5 +669,8 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
 
 /** Vertical space budgeted per section-index label (a 14 sp line plus spacing). */
 private val SECTION_LABEL_STEP = 20.sp
+
+/** One section-index label's line height. */
+private val SECTION_LABEL_LINE = 14.sp
 
 // endregion

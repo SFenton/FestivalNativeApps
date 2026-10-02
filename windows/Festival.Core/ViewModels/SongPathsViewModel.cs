@@ -3,10 +3,47 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Festival.Core.ViewModels;
 
+#region Swap phases
+/// <summary>
+/// Where a Paths content swap is (web <c>PathsModal</c> phases <c>fadeOutImage</c> → <c>spinner</c> →
+/// <c>fadeOutSpinner</c> → <c>fadeInImage</c>/<c>textStagger</c> → <c>idle</c>).
+/// </summary>
+public enum PathSwapPhase
+{
+    /// <summary>The previous chart, table or message is fading out.</summary>
+    ContentOut,
+    /// <summary>The spinner is fading in or holding while the new content loads.</summary>
+    Spinner,
+    /// <summary>The spinner is fading out.</summary>
+    SpinnerOut,
+    /// <summary>The presented content is fading in or shown.</summary>
+    Content,
+}
+
+/// <summary>Web <c>PathsModal</c> swap timing.</summary>
+public static class PathSwapTiming
+{
+    /// <summary>Content and spinner fade (web <c>FADE_MS</c>).</summary>
+    public static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>Minimum spinner hold for an image (web <c>MIN_SPINNER_MS</c>).</summary>
+    public static readonly TimeSpan MinImageSpinner = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>Minimum spinner hold for the table (web <c>MIN_TEXT_SPINNER_MS</c>).</summary>
+    public static readonly TimeSpan MinTextSpinner = TimeSpan.FromMilliseconds(500);
+}
+#endregion
+
 #region Paths
 /// <summary>
 /// CHOpt Paths dialog: instrument, difficulty and image/text selectors reset on every opening; image and text
 /// each load independently and an older request never paints after a newer choice.
+/// <para>
+/// When <see cref="AnimateSwaps"/> allows motion a switch runs the web swap: the presented content fades out
+/// (<see cref="PathSwapTiming.Fade"/>), the spinner fades in and holds for at least the web minimum while the read
+/// (and <see cref="PrepareImageAsync"/>) runs, fades out, and the new content fades in. A newer selection cancels the
+/// sequence, so the spinner, never the stale content, stays up. Without motion the swap is instant.
+/// </para>
 /// </summary>
 public sealed partial class SongPathsViewModel : ObservableObject
 {
@@ -16,6 +53,9 @@ public sealed partial class SongPathsViewModel : ObservableObject
     private readonly FestivalSession session;
     private CancellationTokenSource? request;
     private int revision;
+    private bool presentedText;
+    private Instrument presentedInstrument;
+    private PathDifficulty presentedDifficulty = PathDifficulty.Expert;
 
     /// <summary>Creates a Paths session.</summary>
     /// <param name="session">Shared session.</param>
@@ -27,7 +67,8 @@ public sealed partial class SongPathsViewModel : ObservableObject
         Song = song;
         Instruments = [.. instruments];
         InstrumentLabels = [.. instruments.Select(i => i.Label())];
-        showText = session.Settings.PathDefaultView == PathDisplayMode.Text;
+        showText = presentedText = session.Settings.PathDefaultView == PathDisplayMode.Text;
+        presentedInstrument = Instruments[0];
         Status = new ServiceStatusViewModel($"paths:{song.SongId}", "Path Unavailable", LoadAsync, session.Time);
         ShowWarning = session.Settings.VisibleInstruments.Contains(Instrument.Karaoke) && !session.Settings.PathUnavailableWarningDismissed &&
                       !session.PathNoticeShown;
@@ -66,10 +107,15 @@ public sealed partial class SongPathsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DisplayIndex))]
     private bool showText;
 
-    /// <summary>Load lifecycle for the current selection.</summary>
+    /// <summary>Load lifecycle of the presented content (lags the selection while the old content fades out).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowImage), nameof(ShowTable), nameof(ShowError), nameof(ShowNotGenerated))]
+    [NotifyPropertyChangedFor(nameof(ShowImage), nameof(ShowTable), nameof(ShowError), nameof(ShowNotGenerated))]
     private LoadState state = LoadState.Idle;
+
+    /// <summary>Swap phase.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ContentOpacity), nameof(SpinnerOpacity))]
+    private PathSwapPhase phase = PathSwapPhase.Spinner;
 
     /// <summary>Loaded image.</summary>
     [ObservableProperty]
@@ -102,14 +148,29 @@ public sealed partial class SongPathsViewModel : ObservableObject
     /// <summary>Selected difficulty.</summary>
     public PathDifficulty Difficulty => (PathDifficulty)Math.Clamp(DifficultyIndex, 0, 3);
 
-    /// <summary>Whether loading.</summary>
-    public bool IsLoading => State is LoadState.Loading or LoadState.Idle;
+    /// <summary>Whether the spinner is up (fading in, holding or fading out).</summary>
+    public bool IsLoading => Phase is PathSwapPhase.Spinner or PathSwapPhase.SpinnerOut;
+
+    /// <summary>Target opacity of the presented content (the view animates the change).</summary>
+    public double ContentOpacity => Phase == PathSwapPhase.Content ? 1 : 0;
+
+    /// <summary>Target opacity of the spinner (the view animates the change).</summary>
+    public double SpinnerOpacity => Phase == PathSwapPhase.Spinner ? 1 : 0;
+
+    /// <summary>Whether motion is allowed for the swap (the view supplies the system/app setting; default instant).</summary>
+    public Func<bool> AnimateSwaps { get; set; } = () => false;
+
+    /// <summary>Prepares (decodes) a loaded image while the spinner is up, before it is presented.</summary>
+    public Func<PathImage, CancellationToken, Task>? PrepareImageAsync { get; set; }
+
+    /// <summary>Screen-reader announcements: loading on a switch, then what loaded (failures: the status view).</summary>
+    public event EventHandler<Announcement>? Announced;
 
     /// <summary>Whether the image shows.</summary>
-    public bool ShowImage => State == LoadState.Loaded && !ShowText && Image is not null;
+    public bool ShowImage => State == LoadState.Loaded && !presentedText && Image is not null;
 
     /// <summary>Whether the table shows.</summary>
-    public bool ShowTable => State == LoadState.Loaded && ShowText && Data is not null;
+    public bool ShowTable => State == LoadState.Loaded && presentedText && Data is not null;
 
     /// <summary>Whether the error shows.</summary>
     public bool ShowError => State == LoadState.Failed;
@@ -143,8 +204,11 @@ public sealed partial class SongPathsViewModel : ObservableObject
         if (index >= 0) InstrumentIndex = index;
     }
 
-    /// <summary>Spoken image description.</summary>
-    public string ImageDescription => $"{Instrument.Label()} {Difficulty.Label()} CHOpt path";
+    /// <summary>Spoken image description of the presented chart.</summary>
+    public string ImageDescription => $"{presentedInstrument.Label()} {presentedDifficulty.Label()} CHOpt path";
+
+    /// <summary>Copy shown when the service has no path for the chart and difficulty.</summary>
+    public const string NotGeneratedText = "No path has been generated for this instrument and difficulty yet.";
 
     /// <summary>Loads the current selection (first call on open; selector changes reload automatically).</summary>
     /// <returns>Load task.</returns>
@@ -152,44 +216,105 @@ public sealed partial class SongPathsViewModel : ObservableObject
     {
         request?.Cancel();
         var cancellation = request = new CancellationTokenSource();
+        var token = cancellation.Token;
         var mine = ++revision;
         var (instrument, difficulty, text) = (Instrument, Difficulty, ShowText);
-        State = LoadState.Loading;
+        var animate = AnimateSwaps();
+        // The opening read is announced by the dialog title; switches and retries announce loading and the result.
+        var announce = State != LoadState.Idle;
+        var fetch = FetchAsync(instrument, difficulty, text, token);
         try
         {
-            if (text)
+            if (animate && Phase is PathSwapPhase.Content or PathSwapPhase.ContentOut)
             {
-                var path = await session.Api.GetPathDataAsync(Song.SongId, instrument, difficulty, Song.PathArtifactGenerationId, cancellation.Token);
-                if (mine != revision) return;
-                Data = path;
-                Rows = path.ActivationRows();
+                Phase = PathSwapPhase.ContentOut;
+                await Task.Delay(PathSwapTiming.Fade, session.Time, token);
             }
-            else
+            // Unmount the old content before anything new shows: no stale chart or automation nodes.
+            presentedText = text;
+            State = LoadState.Loading;
+            Zoom = MinZoom;
+            Phase = PathSwapPhase.Spinner;
+            if (announce) Announced?.Invoke(this, new Announcement($"Loading {instrument.Label()} {difficulty.Label()} path", AnnouncementKind.Progress));
+            var minimum = animate ? Task.Delay(text ? PathSwapTiming.MinTextSpinner : PathSwapTiming.MinImageSpinner, session.Time, token) : Task.CompletedTask;
+            var result = await fetch;
+            await minimum;
+            if (animate)
             {
-                var picture = await session.Api.GetPathImageAsync(Song.SongId, instrument, difficulty, Song.PathArtifactGenerationId, cancellation.Token);
-                if (mine != revision) return;
-                Image = picture;
+                Phase = PathSwapPhase.SpinnerOut;
+                await Task.Delay(PathSwapTiming.Fade, session.Time, token);
             }
-            Status.Clear();
-            State = LoadState.Loaded;
-            OnPropertyChanged(nameof(ShowImage));
-            OnPropertyChanged(nameof(ShowTable));
+            if (mine != revision) return;
+            var summary = Present(result, instrument, difficulty);
+            Phase = PathSwapPhase.Content;
+            if (announce && summary is not null) Announced?.Invoke(this, new Announcement(summary, AnnouncementKind.Completed));
         }
         catch (OperationCanceledException)
         {
             // Superseded by a newer selection or the dialog closing.
         }
-        catch (FestivalApiException error) when (error is { Kind: FestivalApiErrorKind.HttpStatus, StatusCode: 404 })
+    }
+
+    /// <summary>One read's outcome.</summary>
+    /// <param name="Image">Loaded image.</param>
+    /// <param name="Data">Loaded table.</param>
+    /// <param name="Error">Failure (404 means not generated).</param>
+    private sealed record PathFetch(PathImage? Image, SongPathData? Data, FestivalApiException? Error);
+
+    /// <summary>Reads (and prepares) the selection; API failures become a result, cancellation propagates.</summary>
+    /// <param name="instrument">Chart.</param>
+    /// <param name="difficulty">Difficulty.</param>
+    /// <param name="text">Table instead of image.</param>
+    /// <param name="token">Cancellation.</param>
+    /// <returns>Outcome.</returns>
+    private async Task<PathFetch> FetchAsync(Instrument instrument, PathDifficulty difficulty, bool text, CancellationToken token)
+    {
+        try
         {
-            if (mine != revision) return;
-            Status.Clear();
-            State = LoadState.Empty;
+            if (text) return new PathFetch(null, await session.Api.GetPathDataAsync(Song.SongId, instrument, difficulty, Song.PathArtifactGenerationId, token), null);
+            var picture = await session.Api.GetPathImageAsync(Song.SongId, instrument, difficulty, Song.PathArtifactGenerationId, token);
+            if (PrepareImageAsync is { } prepare) await prepare(picture, token);
+            return new PathFetch(picture, null, null);
         }
         catch (FestivalApiException error)
         {
-            if (mine != revision) return;
-            Status.Report(error);
-            State = LoadState.Failed;
+            return new PathFetch(null, null, error);
+        }
+    }
+
+    /// <summary>Presents a read's outcome.</summary>
+    /// <param name="result">Outcome.</param>
+    /// <param name="instrument">Chart it belongs to.</param>
+    /// <param name="difficulty">Difficulty it belongs to.</param>
+    /// <returns>Announcement text, or <see langword="null"/> when the status view announces a failure.</returns>
+    private string? Present(PathFetch result, Instrument instrument, PathDifficulty difficulty)
+    {
+        (presentedInstrument, presentedDifficulty) = (instrument, difficulty);
+        OnPropertyChanged(nameof(ImageDescription));
+        var label = $"{instrument.Label()} {difficulty.Label()}";
+        switch (result)
+        {
+            case { Data: { } path }:
+                Data = path;
+                Rows = path.ActivationRows();
+                Status.Clear();
+                State = LoadState.Loaded;
+                OnPropertyChanged(nameof(ShowTable));
+                return $"{label} path loaded, {(Rows.Count == 1 ? "1 activation" : $"{Rows.Count} activations")}";
+            case { Image: { } picture }:
+                Image = picture;
+                Status.Clear();
+                State = LoadState.Loaded;
+                OnPropertyChanged(nameof(ShowImage));
+                return $"{label} path image loaded";
+            case { Error: { Kind: FestivalApiErrorKind.HttpStatus, StatusCode: 404 } }:
+                Status.Clear();
+                State = LoadState.Empty;
+                return NotGeneratedText;
+            default:
+                Status.Report(result.Error!);
+                State = LoadState.Failed;
+                return null;
         }
     }
 
@@ -227,12 +352,7 @@ public sealed partial class SongPathsViewModel : ObservableObject
 
     partial void OnShowTextChanged(bool value) => Reload();
 
-    /// <summary>Resets zoom and reloads after a selector change.</summary>
-    private void Reload()
-    {
-        Zoom = MinZoom;
-        OnPropertyChanged(nameof(ImageDescription));
-        _ = LoadAsync();
-    }
+    /// <summary>Reloads after a selector change (zoom resets once the old chart has faded out).</summary>
+    private void Reload() => _ = LoadAsync();
 }
 #endregion

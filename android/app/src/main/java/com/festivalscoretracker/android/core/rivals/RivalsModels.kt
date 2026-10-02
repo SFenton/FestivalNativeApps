@@ -324,14 +324,6 @@ object RivalText {
     fun rivalsTitle(label: String) = "$label Rivals"
 
     /**
-     * `rivals.sharedSongs`.
-     *
-     * @param count Shared songs.
-     * @return Text.
-     */
-    fun sharedSongs(count: Int) = "${"%,d".format(count)} shared songs"
-
-    /**
      * Empty-hub subtitle for the number of visible charts.
      *
      * @param visibleCount Visible charts.

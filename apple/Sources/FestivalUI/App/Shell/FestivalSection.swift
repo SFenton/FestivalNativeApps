@@ -15,11 +15,14 @@ enum FestivalSection: String, CaseIterable, Identifiable, Sendable {
     case rivals
     case statistics
     case settings
+    /// Item Shop as its own destination: only in the iPad/macOS sidebar (web `Sidebar`).
+    /// Phones never show it as a tab; their drawer pushes ``AppRoute/shop`` instead.
+    case shop
 
     var id: Self { self }
 
     /// Title Case tab/sidebar label.
-    var title: String { rawValue.capitalized }
+    var title: String { self == .shop ? "Item Shop" : rawValue.capitalized }
 
     /// SF Symbol matching the web's Ionicons choice for the same destination.
     var symbol: String {
@@ -31,6 +34,7 @@ enum FestivalSection: String, CaseIterable, Identifiable, Sendable {
         case .rivals: "person.2"
         case .statistics: "chart.bar"
         case .settings: "gearshape"
+        case .shop: "bag"
         }
     }
 }
@@ -88,6 +92,8 @@ enum FestivalTabPolicy {
     /// - Returns: `current` when still visible, its slot equivalent, or the nearest section.
     static func resolve(_ current: FestivalSection, in visible: [FestivalSection]) -> FestivalSection {
         if visible.contains(current) { return current }
+        // Item Shop is reached from Songs wherever it is not a sidebar row.
+        if current == .shop { return visible.contains(.songs) ? .songs : visible.first ?? .songs }
         if let equivalent = slotEquivalent(of: current, in: visible) { return equivalent }
         let order = FestivalSection.allCases
         let index = order.firstIndex(of: current) ?? 0
@@ -128,6 +134,14 @@ enum FestivalTabPolicy {
     ) -> (selected: FestivalSection, paths: [FestivalSection: [AppRoute]]) {
         guard !visible.contains(selected) else { return (selected, paths) }
         var paths = paths
+        // Leaving the sidebar (an iPad window narrowed to compact width): the Item Shop
+        // row's page stays on screen, pushed on Songs like the phone drawer does.
+        if selected == .shop {
+            let target = resolve(.shop, in: visible)
+            paths[target] = (paths[target] ?? []) + [.shop] + (paths[.shop] ?? [])
+            paths[.shop] = []
+            return (target, paths)
+        }
         if let equivalent = slotEquivalent(of: selected, in: visible) {
             if let carried = paths[selected], !carried.isEmpty {
                 paths[equivalent] = carried

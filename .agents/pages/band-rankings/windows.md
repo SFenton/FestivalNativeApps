@@ -8,6 +8,7 @@
 - Header: "<Size> Rankings" (heading 1), "N ranked bands"; band-size switcher (Duos · Trios · Quads) and band Rank By (no Max Score; starts from the persisted Leaderboards metric narrowed like `coerceBandRankingMetric`). Switching returns to page 1.
 - Rows: rank, roster ("Unknown User" for blank member names), songs, rating; a row opens `AppRoute.Band(bandId, bandType, teamKey)` so Band Detail uses the safe rankings read, never `/api/bands/{bandId}` ([service-safety](../../platforms/service-safety.md)). Rows without `bandId`/`teamKey` are shown but not interactive.
 - Shared pager and Back-state behavior as Full Rankings; compact collapses the band-size label to its icon.
+- Load-swap gate (issue #71): first load, F5, band-size/metric changes and paging run the shared web sequence (300 ms content-out, centered ring, 500 ms ring-out, row stagger). New rows, empty and failure states commit only while hidden; rapid choices are latest-wins. Reduce Motion swaps immediately.
 
 ## Evidence
 

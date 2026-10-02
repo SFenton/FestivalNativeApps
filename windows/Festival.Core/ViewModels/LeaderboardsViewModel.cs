@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Festival.Core.Domain;
 
 namespace Festival.Core.ViewModels;
 
@@ -26,6 +27,7 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         this.session = session;
         this.reader = reader ?? LeaderboardPreferences.DefaultReader(session);
         metric = LeaderboardPreferences.RankBy(session);
+        LoadSwap = new LoadSwap(session.Time);
     }
 
     /// <summary>Metrics offered by the Rank By picker.</summary>
@@ -57,6 +59,12 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
 
     /// <summary>Quick Links: one per card in page order (web <c>instrument:&lt;key&gt;</c>, <c>band:&lt;type&gt;</c>).</summary>
     public QuickLinksViewModel QuickLinks { get; } = new("Leaderboards Quick Links");
+
+    /// <summary>Whole-page cards load-swap gate.</summary>
+    public LoadSwap LoadSwap { get; }
+
+    /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
+    public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
     /// <summary>Picker label.</summary>
     public string MetricLabel => Metric.Label();
@@ -117,11 +125,14 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         load?.Cancel();
         load = new CancellationTokenSource();
         var token = load.Token;
+        var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), IsReady && LoadSwap.ContentVisible);
         loadedKey = Key;
         var visible = session.Settings.VisibleInstruments;
         var cards = InstrumentInfo.All.Where(visible.Contains)
             .Select(i => new RankingCardViewModel(session, i, Metric, reader)).ToList();
         var bands = BandTypeInfo.All.Select(b => new BandRankingCardViewModel(session, b, Metric.ToBandMetric())).ToList();
+        var swapRequest = await swap;
+        if (token.IsCancellationRequested) return;
         InstrumentCards = cards;
         BandCards = bands;
         QuickLinks.SetSections(cards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument))
@@ -132,7 +143,8 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
             .Concat(bands.Select(b => Throttled(gate, () => b.LoadAsync(token)))).ToList();
         // Instrument cards start first (the gate admits them in order), so the first screenful settles first.
         await Task.WhenAll(loads.Take(Math.Min(RevealCardCount, cards.Count)));
-        if (!token.IsCancellationRequested) IsReady = true;
+        if (!token.IsCancellationRequested)
+            await LoadSwap.CommitAsync(swapRequest, () => IsReady = true, AnimateLoadSwaps());
         await Task.WhenAll(loads);
         if (!token.IsCancellationRequested) IsReady = true;
     }

@@ -54,9 +54,11 @@ import com.festivalscoretracker.android.ui.common.FestivalModalDialog
 
 /**
  * First-run carousel: the shared [FestivalModalDialog] (page label header with the
- * standard Close button) holding a horizontal pager, white page dots and the footer actions (operator batch 6.7): **Next/Done first, then Back**
- * (Back only after the first slide, never shown disabled) and no Skip — the close button
- * is the web's only early exit — so a one-slide guide shows only Done. Close, Done, system
+ * standard Close button) holding a horizontal pager, white page dots and the footer actions,
+ * ordered as Material 3 dialog actions (issue #25): **Back, then Next/Done** at the trailing
+ * edge, so the confirming action is always last and never moves under the finger. Back shows
+ * only after the first slide (never disabled; operator batch 6.7) and there is no Skip: the
+ * close button is the one-tap early exit, so a one-slide guide shows only Done. Close, Done, system
  * back and a tap outside all complete it, marking only the slides actually displayed as
  * seen. Off-screen pages are not composed beyond the pager's single-page beyond bound,
  * so demo animations cost nothing while hidden.
@@ -134,11 +136,6 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, top = 8.dp),
             ) {
                 Spacer(Modifier.weight(1f))
-                Button(
-                    onClick = { if (last) close() else go(pager.currentPage + 1) },
-                    colors = festivalFilledButtonColors(),
-                    modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
-                ) { Text(if (last) "Done" else "Next") }
                 if (pager.currentPage > 0) {
                     TextButton(
                         onClick = { go(pager.currentPage - 1) },
@@ -146,6 +143,12 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                         modifier = Modifier.testTag("fst.first-run.back"),
                     ) { Text("Back") }
                 }
+                // M3 dialog actions: the confirming action is last, so Next/Done keeps its place when Back appears.
+                Button(
+                    onClick = { if (last) close() else go(pager.currentPage + 1) },
+                    colors = festivalFilledButtonColors(),
+                    modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
+                ) { Text(if (last) "Done" else "Next") }
             }
         }
     }

@@ -36,7 +36,9 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         base.OnNavigatedTo(e);
         ViewModel = LeaderboardsPageState<SongLeaderboardViewModel>.GetOrCreate(e.Parameter,
             () => new SongLeaderboardViewModel(App.Session, (AppRoute.SongLeaderboard)e.Parameter), out _);
+        ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         shownPage = ViewModel.Page;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title} leaderboard, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title} leaderboard, no entries" : null,
@@ -51,6 +53,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     {
         headerArt.Cancel();
         ViewModel.PropertyChanged -= OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
         ViewModel.Deactivate();
         base.OnNavigatedFrom(e);
     }
@@ -76,6 +79,12 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
             }
         }
     }
+
+    /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
+    /// <param name="sender">Swap.</param>
+    /// <param name="e">Unused.</param>
+    private void OnContentRevealed(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
 
     /// <summary>Updates the backdrop and header art for the resolved song.</summary>
     /// <returns>Load task.</returns>

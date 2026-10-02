@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -86,7 +87,9 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberFadeInWindow
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -173,6 +176,10 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Rows fade in (staggered) on the frame after the profile finishes loading.
     val revealed = rememberRevealed(state.phase == ProfilePhase.Loaded)
+    // Sections that start loading when scrolled to (rank history, bands) show in place
+    // once the page has scrolled; only what is visible at load fades in.
+    val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
+    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow) {
     when (val phase = state.phase) {
         ProfilePhase.NoAccount -> Message(
             "No Profile Selected",
@@ -192,6 +199,7 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
         ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed)
+    }
     }
 }
 

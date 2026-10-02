@@ -18,6 +18,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Finding | Where | Fix |
 |---|---|---|
 | Leaderboard rows 45 dp tall (ATF touch target) | Song Detail previews, full song board (`ScoreRow`) | Minimum height 48 dp |
+| Issue #72 check (iOS #15, nav buttons needing a forgiving tap area): not reproducible | Quick Links, Sort, Filter (floating toolbar), Search, bell, profile (top bar) | None needed: all are M3 `IconButton`s (40 dp layout, 48 dp touch bounds via `minimumInteractiveComponentSize`, no overlap). A Robolectric probe on a w411dp phone tapped each 20 dp off-centre in four directions; 24/24 activated |
 | White on `#2D82E6` is 3.86:1 (ATF contrast) | Filled buttons | `BrandTokens.accentBlueFill` `#1A6FD8` (4.9:1) via `festivalFilledButtonColors()` |
 | Row wrappers made two stops; summaries read then every child text again | Song boards, Score History, band rows, Item Shop, See All | One stop per row (`clearAndSetSemantics`/hidden inner texts) |
 | Decorative pieces read as stops | Chart legend/axis dates, avatar initials (top bar, rail, profile sheet) | Hidden (`clearAndSetSemantics {}`) |
@@ -39,7 +40,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Titles, artists and names ended in an ellipsis (marquee under Remove animations) | `FestivalMarqueeText` wraps at ≥ 1.3×; plain one-line texts use `oneLineUnlessLarge()` (Shop, top songs, licenses, drawer, Intensity, band tiles) |
 | Nav bar labels cut to "Song Sugg Com Stati Setti" | Bar and rail go icon-only at ≥ 1.3×; icons carry the names |
 | Stat tiles broke words ("PLAYE D") | `StatGridColumns.count(width, fontScale)`: tiles widen with the scale; narrow grids may drop to one column (exception to the two-column phone minimum) |
-| Rival names squeezed out beside "N shared songs"; tabs broke mid-word | Name above the count; Rivals tabs scroll |
+| Rival names squeezed out beside "N shared songs"; tabs broke mid-word | Name wraps at ≥ 1.3× (the shared count was later removed, issue #67); Rivals tabs scroll |
 | First-run Next/Done pushed off screen | Pager takes the remaining height; slides scroll |
 | Profile sheet "Deselect" one letter per line | Buttons wrap (`FlowRow`) |
 | Chart axis "100" clipped to "10" | Axis ticks keep their 100% size (`chartAxisTextStyle()`; decorative, values listed below each chart) |
