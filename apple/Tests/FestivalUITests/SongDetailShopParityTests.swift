@@ -185,6 +185,41 @@ private func playerScore(rank: Int?, score: Int = 500) throws -> PlayerScore {
     ) == nil)
 }
 
+/// Preview rows open profiles like the web `InstrumentCard` links (issue #33): another
+/// player's profile, the selected player's Statistics, and the footer row's own page
+/// of the full chart; anonymous rows stay inert.
+@Test func previewRowsRouteToProfilesLikeTheWeb() throws {
+    let song = try JSONDecoder().decode(Song.self, from: Data("""
+    {"songId":"fixture-pulse","title":"Fixture Pulse","artist":"Fixture Artist"}
+    """.utf8))
+    let me = try JSONDecoder().decode(
+        SelectedPlayerIdentity.self, from: Data(#"{"accountId":"ME","displayName":"Me"}"#.utf8)
+    )
+    func route(_ entry: LeaderboardEntry, selected: SelectedPlayerIdentity?, footer: Bool = false)
+        -> AppRoute? {
+        SongPreviewSpotlightPolicy.route(
+            for: entry, selected: selected, song: song, instrument: .lead, isFooter: footer
+        )
+    }
+    let other = row("p1", rank: 1)
+    #expect(route(other, selected: me) == .player(accountId: "p1", displayName: "p1"))
+    #expect(route(other, selected: nil) == .player(accountId: "p1", displayName: "p1"))
+    // Own row in the top ten (case-insensitive) → Statistics, as on the Solo chart.
+    #expect(route(row("me", rank: 3), selected: me) == .statistics)
+    // Own footer row → the full chart page containing the rank (25 per page).
+    #expect(route(row("ME", rank: 42), selected: me, footer: true)
+        == .songLeaderboard(song, .lead, 2))
+    #expect(route(row("ME", rank: 25), selected: me, footer: true)
+        == .songLeaderboard(song, .lead, 1))
+    // Anonymous rows have no profile.
+    #expect(route(row("", rank: 4), selected: me) == nil)
+    #expect(SongPreviewSpotlightPolicy.hint(for: .statistics) == "Opens your statistics")
+    #expect(SongPreviewSpotlightPolicy.hint(for: .player(accountId: "p1", displayName: nil))
+        == "Opens player profile")
+    #expect(SongPreviewSpotlightPolicy.hint(for: .songLeaderboard(song, .lead, 2))
+        == "Opens your page of the full leaderboard")
+}
+
 /// The Shop action's breathe really cycles (0 → 1 → 0 over 3 s) and holds a static
 /// tint whenever motion is off.
 @Test func shopBreatheAnimatesUnlessMotionIsOff() {

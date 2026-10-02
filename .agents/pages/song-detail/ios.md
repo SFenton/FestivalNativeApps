@@ -18,6 +18,7 @@
 - **Score History section (operator batch 6.39):** the selected player's history is a section of this page after Intensity, with the shared `InstrumentSelector`; see [player-history/ios.md](../player-history/ios.md). The per-card "View `<chart>` score history" link (the only "Your score…" text on these cards, batch 6.38) is gone.
 - **Loading (operator batch 6.41):** only a spinner (`fst.song-detail.loading`) shows until every visible chart's top ten (`SongDetailPreloader`, in parallel) and the history have loaded; then the header, Intensity, Score History and cards fade in with the web stagger. Cards adopt the preloaded reads (`SongScorePreview(preloaded:)`) and still reload themselves on a new publication, leeway or Retry; later history reloads are quiet.
 - **One leaderboard row design (operator batch 7.4):** no card around a chart's rows; each row is its own 48 pt glass card (`RankingRowSurface`), the selected player's row the web's `purpleHighlight` with bold rank and name (batch 6.42); failures and empty charts sit on their own glass card. "View full leaderboard" is the shared `PurpleActionLabel` (batch 6.29). Accuracy pills are sized for "XX.X%" (batch 7.8).
+- **Rows open profiles (issue #33):** each preview row with an account is one `NavigationLink` button (web `InstrumentCardRowLink`) with the in-card chevron: another player → `.player`, the selected player's own top-ten row → `.statistics`, the spotlight footer → `.songLeaderboard` at the page containing their rank (web `navToPlayer`); anonymous rows stay inert (`SongPreviewSpotlightPolicy.route`). VoiceOver reads one button per row ("#2, Fixture Player 2, 99,800, Full combo, accuracy 98%") with a hint naming the destination. Child texts no longer inherit the row's `fst.song-detail.preview-row.*` ID, so UI tests query them through the row button (`previewText` in `SongDetailJourneyTests`). `FST_DEBUG_SONG` pushes Song Detail with `navigationDestination(item:)`, so a row tapped there lands *under* it; drive through `fst.songs.row.*` instead.
 
 ## Native decisions
 
@@ -33,5 +34,5 @@
 ## Open (iPhone)
 
 - Full-page `.all` audit fails: score rows under the Liquid Glass tab (y≈792/849 vs tab y=791) and large-type Intensity labels; edge/inset/footer/geometry attempts did not fix it and were reverted ([accessibility](../../testing/apple/accessibility.md)). Fix before certifying. Re-check after the glass/icon change above, since neither the audit nor a screen reader pass has been re-run against it.
-- Missing: member spotlight, band cards, per-row profile navigation.
+- Missing: member spotlight, band cards.
 - Done: warm-offline preview/path banners no longer render (`OfflineDisclosure`/`isStale`) per the online-only decision; the unrelated "unverified live" notice is unchanged.

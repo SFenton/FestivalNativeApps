@@ -223,7 +223,7 @@ struct SongScorePreview: View {
                 // Web `InstrumentCard` spotlight footer: the selected player's own row
                 // (rank 11+) sits after the top ten, before View full leaderboard.
                 if let spotlight {
-                    previewRow(spotlight, highlighted: true)
+                    previewRow(spotlight, highlighted: true, isFooter: true)
                         .padding(.top, 4)
                         .accessibilityIdentifier(
                             "fst.song-detail.spotlight.\(instrument.rawValue)"
@@ -236,17 +236,47 @@ struct SongScorePreview: View {
 
     /// One preview score row; the selected player's row gets the web's purple highlight.
     ///
+    /// Rows with an account are one navigation button (web `InstrumentCardRowLink`),
+    /// so VoiceOver reads rank, name, score and accuracy as a single button and the
+    /// whole 48 pt card is the hit target.
+    ///
     /// - Parameters:
     ///   - entry: Score row to draw.
     ///   - highlighted: Whether this row belongs to the selected player.
+    ///   - isFooter: The selected player's own row appended after the top ten.
     /// - Returns: Row view.
-    private func previewRow(_ entry: LeaderboardEntry, highlighted: Bool) -> some View {
+    @ViewBuilder
+    private func previewRow(
+        _ entry: LeaderboardEntry, highlighted: Bool, isFooter: Bool = false
+    ) -> some View {
+        let route = SongPreviewSpotlightPolicy.route(
+            for: entry, selected: session.selectedPlayer,
+            song: song, instrument: instrument, isFooter: isFooter
+        )
         // Web `InstrumentCard` `entryRow`: every row its own 48 pt glass card, the
-        // player's purple (the one leaderboard row design, operator batch 7.4).
-        SongLeaderboardEntryRow(entry: entry, isPlayer: highlighted)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 48)
-            .modifier(RankingRowSurface(isSelected: highlighted))
+        // player's purple (the one leaderboard row design, operator batch 7.4), with
+        // the drill-down chevron inside the card like the Solo chart.
+        let content = HStack(spacing: 8) {
+            SongLeaderboardEntryRow(entry: entry, isPlayer: highlighted)
+            if route != nil {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(FestivalText.deemphasized)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 48)
+        .modifier(RankingRowSurface(isSelected: highlighted))
+        .contentShape(Rectangle())
+        if let route {
+            NavigationLink(value: route) { content }
+                .buttonStyle(.plain)
+                .accessibilityHint(SongPreviewSpotlightPolicy.hint(for: route))
+        } else {
+            // Anonymous rows have no profile to open.
+            content
+        }
     }
 
     /// Refresh one chart only when visible or after an explicit retry.
@@ -286,6 +316,44 @@ enum SongPreviewSpotlightPolicy {
     static func isSelected(_ entry: LeaderboardEntry, selected: SelectedPlayerIdentity?) -> Bool {
         guard let selected else { return false }
         return entry.accountId.caseInsensitiveCompare(selected.accountId) == .orderedSame
+    }
+
+    /// Where tapping a preview row goes, mirroring the web `InstrumentCard` links:
+    /// a top-ten row opens that player's profile (the selected player's own row opens
+    /// Statistics, like `getPlayerRoute`); the selected player's footer row opens the
+    /// full chart at the page that contains their rank (web `navToPlayer`).
+    ///
+    /// - Parameters:
+    ///   - entry: Tapped preview row.
+    ///   - selected: Current selected player, if any.
+    ///   - song: Song whose chart is previewed.
+    ///   - instrument: Previewed chart.
+    ///   - isFooter: The row is the selected player's footer after the top ten.
+    /// - Returns: The route to push, or nil for an anonymous row with no account.
+    static func route(
+        for entry: LeaderboardEntry, selected: SelectedPlayerIdentity?,
+        song: Song, instrument: Instrument, isFooter: Bool
+    ) -> AppRoute? {
+        guard !entry.accountId.isEmpty else { return nil }
+        if isFooter {
+            return .songLeaderboard(
+                song, instrument, LeaderboardPaging.page(forRank: entry.rank, pageSize: 25)
+            )
+        }
+        if isSelected(entry, selected: selected) { return .statistics }
+        return .player(accountId: entry.accountId, displayName: entry.displayName)
+    }
+
+    /// Spoken hint naming where a preview row's button goes.
+    ///
+    /// - Parameter route: Route from ``route(for:selected:song:instrument:isFooter:)``.
+    /// - Returns: A short VoiceOver hint.
+    static func hint(for route: AppRoute) -> String {
+        switch route {
+        case .statistics: "Opens your statistics"
+        case .songLeaderboard: "Opens your page of the full leaderboard"
+        default: "Opens player profile"
+        }
     }
 
     /// The selected player's own row to append after the top ten, when they have a

@@ -14,7 +14,7 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:109-731`, `sr
 1. Intensity for **all charted** instruments (even ones hidden in Settings), using the [difficulty meter](../../controls/difficulty-meter/spec.md) (`raw: true`).
 2. Optional player history (more than five scores exposes View All).
 3. Promoted selected-band section.
-4. Leaderboard cards for **visible** instruments: preview 10 solo scores per chart (up to 10 band scores), loading / empty / error / entries, highlighted selected player or member, rank outside the preview. A selected player's off-preview score opens the 25-row [solo leaderboard](../song-leaderboard/spec.md) with `page` and `navToPlayer`; card/View All opens page one. Web places View All **after** the rows and only for non-empty, error-free previews (`InstrumentCard.tsx:300-327`).
+4. Leaderboard cards for **visible** instruments: preview 10 solo scores per chart (up to 10 band scores), loading / empty / error / entries, highlighted selected player or member, rank outside the preview. A selected player's off-preview score opens the 25-row [solo leaderboard](../song-leaderboard/spec.md) with `page` and `navToPlayer`; card/View All opens page one. Every other preview row links to that player's profile (`/player/:accountId`), the selected player's own row to `/statistics` (`InstrumentCard.tsx:133-135,230-234`). Web places View All **after** the rows and only for non-empty, error-free previews (`InstrumentCard.tsx:300-327`).
 5. Other Duet/Trio/Quad band previews.
 
 Shop: a validated offer adds an official Shop action and availability badge ([shop-offers](../../controls/shop-offers/spec.md)).
@@ -33,4 +33,4 @@ Static artwork; seven meter levels; text sizes; missing artwork; no/one/many his
 
 ## Open gaps (all platforms)
 
-Selected-player/member spotlight and history, promoted band rows, per-row profile navigation, icon-based Intensity header, full Paths table/column reorder, complete focus order. Gap text: `python3 tools/parity_backlog.py --list`.
+Selected-player/member spotlight and history, promoted band rows, per-row profile navigation (done on iPhone), icon-based Intensity header, full Paths table/column reorder, complete focus order. Gap text: `python3 tools/parity_backlog.py --list`.
