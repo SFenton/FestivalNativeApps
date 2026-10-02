@@ -65,10 +65,10 @@ public enum FeedbackLimits {
     public static let bodyCharacters = 8_000
     /// Attachments per submission.
     public static let attachments = 5
-    /// Bytes per attached file (100 MB).
-    public static let attachmentBytes: Int64 = 100 * 1_024 * 1_024
+    /// Bytes per attached file (100 MB, decimal as the system formats file sizes).
+    public static let attachmentBytes: Int64 = 100_000_000
     /// Bytes across all attached files (250 MB).
-    public static let totalAttachmentBytes: Int64 = 250 * 1_024 * 1_024
+    public static let totalAttachmentBytes: Int64 = 250_000_000
 }
 
 // MARK: - Draft

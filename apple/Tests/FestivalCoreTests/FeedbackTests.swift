@@ -205,7 +205,7 @@ struct FeedbackAttachmentTests {
 
     @Test("Count, per-file and total limits reject in that order")
     func limits() {
-        let mb: Int64 = 1_024 * 1_024
+        let mb: Int64 = 1_000_000
         #expect(FeedbackAttachmentPolicy.rejection(byteCount: mb, filename: "a", existing: []) == nil)
         let five = Array(repeating: attachment(mb), count: FeedbackLimits.attachments)
         #expect(FeedbackAttachmentPolicy.rejection(byteCount: 1, filename: "a", existing: five) == .tooMany)

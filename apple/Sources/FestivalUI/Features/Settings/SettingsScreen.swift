@@ -55,6 +55,8 @@ struct SettingsScreen: View {
     @State private var serviceVersion: String?
     @State private var serviceVersionFailed = false
     @State private var showingWhatsNew = false
+    /// Open Report an Issue / Request a Feature form, if any (issue #78).
+    @State private var feedbackForm: FeedbackKind?
     @State private var quickLinks = QuickLinksController()
     /// A reorder row is lifted, so the page must not scroll under the drag.
     @State private var reorderDragging = false
@@ -144,6 +146,10 @@ struct SettingsScreen: View {
                 "Are you sure you want to restore all settings to their default values? "
                     + "Your profile, song filters and navigation history will remain."
             )
+        }
+        .sheet(item: $feedbackForm) { kind in
+            FeedbackFormSheet(kind: kind, session: session)
+                .festivalSheet(.large)
         }
         .whatsNewPresentation(isPresented: $showingWhatsNew) {
             WhatsNewSheet(
@@ -270,8 +276,35 @@ struct SettingsScreen: View {
             }
             .disabled(true)
             .accessibilityHint("Experimental ranks are not yet available")
+            feedbackRow(
+                .bug, detail: "Tell us about something that isn't working.", action: "Report",
+                identifier: "fst.settings.report-issue"
+            )
+            feedbackRow(
+                .feature, detail: "Suggest something new for Festival Score Tracker.",
+                action: "Request", identifier: "fst.settings.request-feature"
+            )
         }
         .quickLinkSection(id: "app-settings", title: "App Settings", symbol: "gearshape.fill")
+    }
+
+    /// A row that opens the bug or feature form, styled like What's New's "Show" row.
+    private func feedbackRow(
+        _ kind: FeedbackKind, detail: String, action: String, identifier: String
+    ) -> some View {
+        Button { feedbackForm = kind } label: {
+            HStack {
+                SettingLabel(kind.formTitle, detail: detail)
+                Spacer(minLength: 8)
+                Text(action)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(BrandTokens.accentBlue)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityHint("Opens a form that files it on GitHub")
     }
 
     private var accessibility: some View {
