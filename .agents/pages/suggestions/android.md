@@ -46,6 +46,7 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 - Suggestions keeps its own score read rather than the profile lane's `presentation/profile/SelectedProfileStore` (landed mid-lane): the second `GET /api/player/{id}` within one publication is a 304 through `FestivalApi`'s per-URL ETag cache. TODO(orchestrator): consolidate onto `SelectedProfileStore` once its API exposes an awaitable score index, so Retry on Suggestions also refreshes Songs/Statistics.
 - The mix persists per back-stack entry (tab switches restore it); a player switch/deselect, a new catalogue or score publication, or Start a new mix rebuilds it; `mixId` is monotonic so the grid returns to the top.
 - A filter that disables every type skips generation (nothing could show).
+- Filter stays reachable while the cards scroll (issue #52): `FestivalScreen(pinActions = true)` pins the compact floating toolbar instead of hiding it on scroll; global search is already in the pinned top app bar.
 - Button copy follows the web (`Start a new mix`, `Reset Filters`, empty-state strings from `FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`).
 
 ## Debug and fixtures

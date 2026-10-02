@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.songs
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -150,7 +149,7 @@ fun SongsScreen(
     var warning by remember { mutableStateOf<InvalidScoreWarning?>(null) }
     val listState = rememberLazyListState()
     val listed = state.catalog is LoadState.Loaded && !state.invalidSavedFilter
-    val leading = 1 + state.notices.size
+    val leading = state.notices.size
     val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
     // Headers are their own (sticky) items, so a header's list index counts the headers before it.
     val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections) { id ->
@@ -166,6 +165,8 @@ fun SongsScreen(
             title = "Songs",
             isRoot = true,
             scrolled = scrolled,
+            // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
+            pinActions = true,
             actions = {
                 QuickLinksAction(quickLinks, windowWidthDp)
                 IconButton(onClick = { showSort = true }, modifier = Modifier.testTag("fst.songs.sort.open")) {
@@ -317,7 +318,7 @@ private fun SongList(
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val leading = 1 + state.notices.size
+    val leading = state.notices.size
     val showIndex = state.sections.size > 1
     val pulse = rememberShopPulse(active = state.rows.any { it.pulse != null || it.warning != null })
     val breathe = rememberShopBreathe(active = state.rows.any { it.pulse != null })
@@ -328,66 +329,72 @@ private fun SongList(
         if (lastShape != null && lastShape != shape) listState.scrollToItem(0)
         lastShape = shape
     }
-    // Ctrl+F focuses the Songs filter (it is the list's first item, so bring it back first).
+    // Ctrl+F focuses the Songs filter (pinned above the list, so it is always on screen).
     val findFocus = remember { FocusRequester() }
     RegisterPageFind {
         scope.launch {
-            listState.scrollToItem(0)
             withFrameNanos { }
             runCatching { findFocus.requestFocus() }
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = if (showIndex) 28.dp else 16.dp,
-                top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding() + 16.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxSize().testTag("fst.songs.list"),
-        ) {
-            item(key = "search", contentType = "search") { SearchField(search, onSearchChange, findFocus) }
-            state.notices.forEachIndexed { index, notice ->
-                item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
-            }
-            // Web full-page EmptyState, vertically centred in the viewport (6.33).
-            if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
-            val songRow: @Composable (SongRowModel) -> Unit = { row ->
-                SongRow(
-                    row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
-                    onWarning = row.warning?.let { shown -> { onWarning(shown) } },
-                ) { onSongClick(row.song) }
-            }
-            if (state.headers.isEmpty()) {
-                items(state.rows, key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
-            } else {
-                // Bucket headers stick under the top bar on an opaque strip, so rows never show through.
-                val first = state.headers.first().firstIndex
-                if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
-                state.headers.forEachIndexed { ordinal, header ->
-                    val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
-                    stickyHeader(key = "header:${header.id}", contentType = "header") { BucketHeader(header) }
-                    items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+    val endPadding = if (showIndex) 28.dp else 16.dp
+    // The search field is pinned above the scrolling list (issue #52): it never scrolls away, so
+    // nothing moves or animates between the top and scrolled states.
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
+            SearchField(search, onSearchChange, findFocus)
+        }
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = endPadding,
+                    bottom = padding.calculateBottomPadding() + 16.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxSize().testTag("fst.songs.list"),
+            ) {
+                state.notices.forEachIndexed { index, notice ->
+                    item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
+                }
+                // Web full-page EmptyState, vertically centred in the viewport (6.33).
+                if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
+                val songRow: @Composable (SongRowModel) -> Unit = { row ->
+                    SongRow(
+                        row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
+                        onWarning = row.warning?.let { shown -> { onWarning(shown) } },
+                    ) { onSongClick(row.song) }
+                }
+                if (state.headers.isEmpty()) {
+                    items(state.rows, key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+                } else {
+                    // Bucket headers stick under the pinned search field on an opaque strip, so rows never show through.
+                    val first = state.headers.first().firstIndex
+                    if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+                    state.headers.forEachIndexed { ordinal, header ->
+                        val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
+                        stickyHeader(key = "header:${header.id}", contentType = "header") { BucketHeader(header) }
+                        items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+                    }
                 }
             }
-        }
-        AnimatedVisibility(
-            visible = showIndex,
-            enter = fadeIn() + slideInHorizontally { it },
-            exit = fadeOut() + slideOutHorizontally { it },
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(top = padding.calculateTopPadding() + 56.dp, bottom = padding.calculateBottomPadding() + 8.dp)
-                .fillMaxHeight(),
-        ) {
-            SectionIndexScrubber(
-                sections = state.sections,
-                current = currentSection(listState, state.sections, leading),
-                onJump = { section -> scope.launch { listState.scrollToItem(section.firstIndex + leading) } },
-            )
+            // Fully qualified: the ColumnScope overload would otherwise capture this call.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showIndex,
+                enter = fadeIn() + slideInHorizontally { it },
+                exit = fadeOut() + slideOutHorizontally { it },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(top = 8.dp, bottom = padding.calculateBottomPadding() + 8.dp)
+                    .fillMaxHeight(),
+            ) {
+                SectionIndexScrubber(
+                    sections = state.sections,
+                    current = currentSection(listState, state.sections, leading),
+                    onJump = { section -> scope.launch { listState.scrollToItem(section.firstIndex + leading) } },
+                )
+            }
         }
     }
 }
