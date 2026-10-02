@@ -22,6 +22,19 @@ waitfor:id=fst.full-rankings.instrument.Solo_Bass@5
 invoke:id=fst.full-rankings.instrument.Solo_Bass
 waitfor:id=fst.rankings.row.fixture-player-1@15
 key:alt+left
+# Back keeps the cached overview where it was (issue #82): Quick Links to Drums, open its focused View All, Back. The
+# Drums button must still be on screen; focus walking out of the leaving page used to scroll it sections further down.
+waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@15
+invoke:id=fst.quick-links.open
+waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5
+toggle:id=fst.quick-links.item.instrument:Solo_Drums
+waitfor:id=fst.leaderboards.card.Solo_Drums.view-all@10
+focus:id=fst.leaderboards.card.Solo_Drums.view-all
+invoke:id=fst.leaderboards.card.Solo_Drums.view-all
+waitfor:id=fst.full-rankings.list@15
+invoke:id=PART_BackButton
+waitfor:id=fst.leaderboards.card.Solo_Drums.view-all@15
+focus:id=fst.leaderboards.card.Solo_Drums.view-all
 # Band Rankings from the Duos card, band-size switcher, back.
 waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@15
 scroll:down

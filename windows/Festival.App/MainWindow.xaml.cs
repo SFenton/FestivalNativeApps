@@ -167,6 +167,7 @@ public sealed partial class MainWindow : Window
         {
             frame = new Frame { CacheSize = 4 };
             frame.Navigated += (_, _) => OnFrameNavigated();
+            CachedPageScroll.Attach(frame);
             frames[section] = frame;
             frame.Navigate(RootPage(section), section);
         }

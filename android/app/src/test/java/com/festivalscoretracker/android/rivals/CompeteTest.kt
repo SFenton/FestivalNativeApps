@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
@@ -32,6 +33,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.service.ServiceIssue
@@ -56,7 +58,9 @@ import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
@@ -224,6 +228,73 @@ class CompeteLogicTest {
         assertTrue(none.content.value.sections.isEmpty())
         assertFalse(none.scopes.any { it is CompeteScope.Combo })
     }
+
+    @Test
+    fun newerPublicationRefreshesInPlaceAndSamePublicationDoesNot() = runTest(main.dispatcher) {
+        val publications = MutableStateFlow<Int?>(7)
+        var boardReads = 0
+        var gate: CompletableDeferred<Unit>? = null
+        val reads = CompeteReads(
+            board = { scope ->
+                boardReads++
+                gate?.await()
+                listOf(AccountRankingEntry(accountId = "${scope.key}-$boardReads", totalScoreRank = if (boardReads > 1) 2 else 1))
+            },
+            playerRow = { _, _ -> null },
+        )
+        val model = CompeteViewModel(null, setOf(Instrument.Lead), reads, RivalsRepository(api), ServiceRetryBackoff(), publications)
+        advanceUntilIdle()
+        assertEquals(1, boardReads)
+        val first = model.content.value.sections.single().board
+
+        // Returning to Compete or re-observing the same publication keeps the loaded cards without a read.
+        publications.value = 7
+        advanceUntilIdle()
+        assertEquals(1, boardReads)
+        assertEquals(first, model.content.value.sections.single().board)
+
+        // A newer publication refreshes in place: the loaded card stays visible (never Loading) until new rows land.
+        gate = CompletableDeferred()
+        publications.value = 8
+        runCurrent()
+        assertEquals(2, boardReads)
+        val during = model.content.value.sections.single().board
+        assertTrue("refresh replaced the card with a placeholder: $during", during is LoadState.Loaded && during.refreshing)
+        assertEquals(first.valueOrNull, during.valueOrNull)
+        gate!!.complete(Unit)
+        advanceUntilIdle()
+        val after = model.content.value.sections.single().board
+        assertEquals(2, after.valueOrNull!!.entries.single().totalScoreRank)
+        assertFalse((after as LoadState.Loaded).refreshing)
+    }
+
+    @Test
+    fun firstObservedPublicationDoesNotReloadAndNewerOneRetriesFailures() = runTest(main.dispatcher) {
+        val publications = MutableStateFlow<Int?>(null)
+        var boardReads = 0
+        var down = true
+        val reads = CompeteReads(
+            board = { scope ->
+                boardReads++
+                if (down) throw IOException("offline")
+                listOf(AccountRankingEntry(accountId = scope.key, totalScoreRank = 1))
+            },
+            playerRow = { _, _ -> null },
+        )
+        val model = CompeteViewModel(null, setOf(Instrument.Lead), reads, RivalsRepository(api), ServiceRetryBackoff(), publications)
+        advanceUntilIdle()
+        assertTrue(model.content.value.sections.single().board is LoadState.Failed)
+        // The first publication seen (from Compete's own reads) is the one they already used.
+        publications.value = 7
+        advanceUntilIdle()
+        assertEquals(1, boardReads)
+        down = false
+        publications.value = 8
+        advanceUntilIdle()
+        assertEquals(2, boardReads)
+        assertEquals(1, model.content.value.sections.single().board.valueOrNull!!.entries.size)
+        assertNull(model.content.value.fullPageIssue)
+    }
 }
 
 // endregion
@@ -330,6 +401,45 @@ class CompeteUiTest {
             rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(cardTag))
             rule.onAllNodes(matcher).fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    @Test
+    fun returningFromFullLeaderboardKeepsCompeteInPlaceWithoutReloading() {
+        launch(DebugLaunch(section = FestivalSection.Compete, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        val card = "fst.compete.leaderboard-card.Solo_Guitar"
+        val button = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag(card)))
+        awaitInCard(card, button)
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(button)
+        repeat(20) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        val before = rule.onNode(button).fetchSemanticsNode().boundsInRoot
+        fun reads() = transport.requests.count { "/api/rankings" in it.url || "/rivals/" in it.url }
+        val readsBefore = reads()
+
+        rule.onNode(button).performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+            rule.onAllNodesWithTag("fst.compete.grid").fetchSemanticsNodes().isEmpty()
+        }
+        repeat(10) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        val readsAway = reads()
+
+        rule.mainClock.autoAdvance = false
+        rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        // Sample every frame of the return transition and the settle afterwards: the card must
+        // never move, show a loading placeholder or re-request its rows.
+        val positions = mutableListOf<Rect>()
+        repeat(120) {
+            rule.mainClock.advanceTimeByFrame()
+            shadowOf(Looper.getMainLooper()).idle()
+            rule.onAllNodes(button).fetchSemanticsNodes().firstOrNull()?.let { positions += it.boundsInRoot }
+            assertTrue("Compete showed a loading placeholder on return", rule.onAllNodes(hasTestTag("$card.loading")).fetchSemanticsNodes().isEmpty())
+        }
+        rule.mainClock.autoAdvance = true
+        assertTrue("Compete never reappeared", positions.isNotEmpty())
+        assertEquals("Compete re-read its boards or rivals on return", readsAway, reads())
+        assertTrue("Opening the full board reads only its own page", readsAway >= readsBefore)
+        // Kept on the back stack, the grid comes back already laid out at the scroll position it had.
+        assertTrue("Compete moved on return: $before -> ${positions.distinct()}", positions.all { it == before })
     }
 
     @Test
