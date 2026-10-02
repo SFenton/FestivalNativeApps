@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serialized Windows-desktop UI driving for parallel lanes on ``sfenton-primary``.
+"""Serialized Windows-desktop UI driving for parallel lanes on ``sfenton-music``.
 
 The Windows app is not a simulator: it runs on the operator's real interactive
 desktop (console session 1), which every lane shares. This tool serializes all
