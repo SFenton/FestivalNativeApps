@@ -98,7 +98,7 @@
       "id": "shop-offers",
       "status": "pending",
       "source": "FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41",
-      "states": ["hidden", "loading", "empty", "failed", "populated", "new", "leaving", "grid", "list", "offline", "unverified", "official-link", "song-detail", "highlight-disabled"],
+      "states": ["hidden", "loading", "empty", "failed", "populated", "new", "leaving", "grid", "list", "offline", "unverified", "official-link", "song-detail", "highlight-disabled", "filtered", "filter-no-match"],
       "testId": "fst.songs.shop",
       "spec": ".agents/controls/shop-offers/spec.md"
     },

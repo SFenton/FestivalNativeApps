@@ -27,4 +27,6 @@ Source: `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41-190`, `src/pages/sho
 
 ## Open gaps (all platforms)
 
-WebSocket rotation updates, Shop filters beyond In Shop / Leaving Tomorrow (Android and Windows now have a page-local New / Available / Leaving Tomorrow Filters sheet, issue #19; see their notes), quick-link rail, profile-dependent sorts, wide sidebar Shop entry, performance with many real images.
+WebSocket rotation updates, Shop filters beyond In Shop / Leaving Tomorrow, quick-link rail, profile-dependent sorts, wide sidebar Shop entry, performance with many real images.
+
+Native addition (not on the web, issue #19): a page-local Item Shop Filter sheet (Windows: flyout) with New / Available / Leaving Tomorrow switches on Apple, Android and Windows. Shared semantics: *Available* = neither New nor Leaving Tomorrow, selected groups combine as a union, none selected shows every offer, wire flags (works with highlighting off), live apply, and a no-match Reset card distinct from the empty Shop. See [ios.md](ios.md), [android.md](android.md), [windows.md](windows.md).
