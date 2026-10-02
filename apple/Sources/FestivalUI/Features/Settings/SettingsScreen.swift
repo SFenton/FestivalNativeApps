@@ -201,7 +201,7 @@ struct SettingsScreen: View {
             }
             if feedbackEnabled {
                 FestivalGlassSection(
-                    "Feedback", subtitle: "Report a problem or suggest an idea on GitHub."
+                    "Feedback", subtitle: "Report an issue or request a feature on GitHub."
                 ) {
                     feedbackRows
                 }
@@ -258,38 +258,6 @@ struct SettingsScreen: View {
             }
         }
         .quickLinkSection(id: "app-settings", title: "App Settings", symbol: "gearshape.fill")
-    }
-
-    /// Report an Issue and Request a Feature (issue #78): the end of App Settings on iPhone
-    /// and iPad, the General pane's Feedback section on the Mac.
-    @ViewBuilder private var feedbackRows: some View {
-        feedbackRow(
-            .bug, detail: "Tell us about something that isn't working.",
-            action: "Report", identifier: "fst.settings.feedback.bug"
-        )
-        feedbackRow(
-            .feature, detail: "Suggest something new for Festival Score Tracker.",
-            action: "Request", identifier: "fst.settings.feedback.feature"
-        )
-    }
-
-    /// A row that opens the bug or feature form, styled like What's New's "Show" row.
-    private func feedbackRow(
-        _ kind: FeedbackKind, detail: String, action: String, identifier: String
-    ) -> some View {
-        Button { feedbackForm = kind } label: {
-            HStack {
-                SettingLabel(kind.formTitle, detail: detail)
-                Spacer(minLength: 8)
-                Text(action)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTokens.accentBlue)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
-        .accessibilityHint("Opens a form that files it on GitHub")
     }
 
     private var instrumentIconsRow: some View {
@@ -409,6 +377,37 @@ struct SettingsScreen: View {
         }
         .disabled(true)
         .accessibilityHint("Experimental ranks are not yet available")
+    }
+
+    /// The Report an Issue and Request a Feature rows (issue #78).
+    @ViewBuilder private var feedbackRows: some View {
+        feedbackRow(
+            .bug, detail: "Tell us about something that isn't working.",
+            action: "Report", identifier: "fst.settings.feedback.bug"
+        )
+        feedbackRow(
+            .feature, detail: "Suggest something new for Festival Score Tracker.",
+            action: "Request", identifier: "fst.settings.feedback.feature"
+        )
+    }
+
+    /// A row that opens the bug or feature form, styled like What's New's "Show" row.
+    private func feedbackRow(
+        _ kind: FeedbackKind, detail: String, action: String, identifier: String
+    ) -> some View {
+        Button { feedbackForm = kind } label: {
+            HStack {
+                SettingLabel(kind.formTitle, detail: detail)
+                Spacer(minLength: 8)
+                Text(action)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(BrandTokens.accentBlue)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+        .accessibilityHint("Opens a form that files it on GitHub")
     }
 
     /// Where system accessibility options live on this platform.

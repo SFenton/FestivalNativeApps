@@ -285,7 +285,7 @@ data class FeedbackDraft(
  * What `POST /api/feedback` carries (`.agents/controls/feedback-form/spec.md`).
  *
  * @property kind Form.
- * @property platform Platform label the service turns into the issue's `surface:` label.
+ * @property platform Platform wire value (`android`); the service maps it to the issue's plain platform label (`Android`) and adds `From App`.
  * @property title Prefixed title.
  * @property description Description.
  * @property reproSteps Steps (empty for features: omitted on the wire).

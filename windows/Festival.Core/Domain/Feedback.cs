@@ -314,7 +314,7 @@ public sealed record FeedbackDraft(FeedbackKind Kind)
 #region Submission
 /// <summary>What <c>POST /api/feedback</c> carries (<c>.agents/controls/feedback-form/spec.md</c>).</summary>
 /// <param name="Kind">Form.</param>
-/// <param name="Platform">Platform label the service turns into the issue's <c>surface:</c> label.</param>
+/// <param name="Platform">Platform wire value (<c>windows</c>); the service maps it to the issue's plain platform label (<c>Windows</c>) and adds <c>From App</c>.</param>
 /// <param name="Title">Prefixed title.</param>
 /// <param name="Description">Description.</param>
 /// <param name="ReproSteps">Steps (empty for features: omitted on the wire).</param>
