@@ -26,4 +26,4 @@
 
 ## Open
 
-Band feeds, multi-event coalescing copy and flag groups (as on iPhone); scroll-visibility seen marking.
+Band feeds, multi-event coalescing copy and flag groups (Android lacks them too; Apple ports them, issue #76); scroll-visibility seen marking.
