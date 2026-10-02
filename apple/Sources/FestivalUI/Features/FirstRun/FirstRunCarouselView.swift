@@ -11,7 +11,9 @@ import FestivalDesign
 /// full-width glass-prominent button, the HIG onboarding pattern) with glass **Back** (once
 /// there is a page to go back to) and **Skip** (while pages remain) beneath it; a one-page
 /// guide shows only Done; no arrows; white page dots; the system toolbar **Close** top-right
-/// from the shared ``FestivalModal`` (issue #23; it replaced issue #4's text "Close"). Close,
+/// from the shared ``FestivalModal`` (issue #23; it replaced issue #4's text "Close"), beside
+/// an inline navigation title naming the page the guide explains (issue #24,
+/// ``FirstRunPageKey/guideTitle``), which VoiceOver reads first when the sheet opens. Close,
 /// swiping down and tapping outside the sheet all dismiss, and only the pages actually
 /// shown are recorded in `viewing` (see ``FirstRunViewing``).
 ///
@@ -33,8 +35,9 @@ struct FirstRunCarouselView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        // The shared modal: the system Close top-right (issue #23), not a text button.
-        FestivalModal(nil, closeIdentifier: "fst.first-run.close", onClose: onFinish) {
+        // The shared modal: an inline page title (issue #24) and the system Close top-right
+        // (issue #23), not a text button.
+        FestivalModal(page.guideTitle, closeIdentifier: "fst.first-run.close", onClose: onFinish) {
             VStack(spacing: 0) {
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
@@ -62,8 +65,9 @@ struct FirstRunCarouselView: View {
             focusedSlide = newValue
         }
         .onAppear {
+            // VoiceOver focus is left to the system on open so the navigation title is
+            // announced first (HIG VoiceOver); it follows the slide only on a page change.
             viewing.view(index, of: slides)
-            focusedSlide = index
         }
     }
 

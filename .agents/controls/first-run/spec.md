@@ -54,6 +54,12 @@ per-page `pages/<page>/firstRun/**`, `pages/settings/SettingsPage.tsx` (replay U
   a pushed route for the same or a different page must not both present simultaneously.
 - Settings replay must ignore both gates and seen-state (`getAllSlides`), matching the web
   exactly — a platform must not "improve" this by re-applying gates to replay.
+- Native carousels are titled modals (issue #24): a short visible title naming the page the guide
+  explains (the Settings row label, e.g. "Songs", "Score History"), announced first by the screen
+  reader, on first run and replay alike. The web only labels its overlay (`aria-label` "Feature
+  tour"). Verified 2026-10-02: Android's dialog header shows the page label (`paneTitle` "Feature
+  tour: <page>") and Windows' `ContentDialog.Title` is the page label; iOS gained an inline
+  navigation title.
 
 ## States
 

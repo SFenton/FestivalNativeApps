@@ -98,6 +98,36 @@ final class FirstRunJourneyTests: XCTestCase {
         assertCarouselClosed(app)
     }
 
+    /// Issue #24: like the app's other modals, each guide names its page in an inline
+    /// navigation title beside Close: the launch Songs guide and a Settings replay alike.
+    @MainActor
+    func testGuideShowsPageTitleInNavigationBar() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let close = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 15))
+        let sheetBar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        XCTAssertTrue(sheetBar.staticTexts["Songs"].exists, "The Songs guide is titled Songs")
+        close.tap()
+        assertCarouselClosed(app)
+
+        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        let replay = app.buttons["fst.settings.first-run.playerhistory"]
+        SongsUITestSupport.reveal(replay, in: app, scrollingUp: true)
+        replay.tap()
+        let replayClose = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertTrue(replayClose.waitForExistence(timeout: 10))
+        let replayBar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        let title = replayBar.staticTexts["Score History"]
+        XCTAssertTrue(title.exists, "A Settings replay is titled with its page")
+        XCTAssertTrue(replayClose.isHittable, "The title leaves Close reachable")
+        XCTAssertFalse(title.frame.intersects(replayClose.frame), "The title does not overlap Close")
+        XCTAssertTrue(app.buttons["fst.first-run.next"].isHittable)
+        SongsUITestSupport.record(app, name: "first-run-replay-title")
+        replayClose.tap()
+    }
+
     /// Swiping the carousel down dismisses it, like any sheet.
     @MainActor
     func testSwipeDownDismissesCarousel() throws {

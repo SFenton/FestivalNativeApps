@@ -30,8 +30,9 @@ struct FestivalModal<Content: View>: View {
     /// Create a modal.
     ///
     /// - Parameters:
-    ///   - title: Inline navigation title; `nil` for a modal whose content carries its own
-    ///     heading (the first-run guide).
+    ///   - title: Inline navigation title, which VoiceOver announces first; `nil` only for a
+    ///     modal whose content carries its own heading (every current modal, the first-run
+    ///     guide included since issue #24, passes one).
     ///   - closeIdentifier: Accessibility identifier of the Close button (existing modals
     ///     keep theirs so UI tests stay stable).
     ///   - path: Navigation path for modals that push routes inside themselves; `nil` for a
