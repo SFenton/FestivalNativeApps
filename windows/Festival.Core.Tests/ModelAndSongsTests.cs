@@ -72,6 +72,14 @@ public class ModelAndSongsTests
         Assert.Equal("Artist · 2020 · 1:02:05", song.Subtitle);
         Assert.Equal("A", Make("x", "t").Subtitle);
         Assert.False(Make("x", "t").Supports(Instrument.Lead));
+        Assert.True(System.Text.Json.JsonSerializer.Deserialize<Song>(
+            """{"songId":"a","title":"A","artist":"B","doubleBassSupported":true}""", FestivalJsonContext.Default.Song)!.DoubleBassSupported);
+        Assert.False(System.Text.Json.JsonSerializer.Deserialize<Song>(
+            """{"songId":"a","title":"A","artist":"B","doubleBassSupported":false}""", FestivalJsonContext.Default.Song)!.DoubleBassSupported);
+        Assert.Null(System.Text.Json.JsonSerializer.Deserialize<Song>(
+            """{"songId":"a","title":"A","artist":"B","doubleBassSupported":null}""", FestivalJsonContext.Default.Song)!.DoubleBassSupported);
+        Assert.Null(System.Text.Json.JsonSerializer.Deserialize<Song>(
+            """{"songId":"a","title":"A","artist":"B"}""", FestivalJsonContext.Default.Song)!.DoubleBassSupported);
     }
 
     [Fact]

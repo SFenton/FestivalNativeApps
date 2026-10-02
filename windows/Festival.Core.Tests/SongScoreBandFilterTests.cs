@@ -107,7 +107,7 @@ public class SongsScoreBandTests
     }
 
     [Fact]
-    public async Task Pipeline_PausesWithoutPlayer()
+    public async Task Pipeline_IgnoresPlayerFiltersWithoutPlayer()
     {
         var (session, vm) = await Loaded(player: false);
         session.UpdateSettings(s => s with
@@ -115,8 +115,9 @@ public class SongsScoreBandTests
             SongFilter = new SongFilter(Instrument.Lead),
             PlayerScoreFilter = SongPlayerScoreFilter.None.Only(SongBucketKind.Percentile, 1),
         });
-        Assert.Contains(vm.Notices, n => n == "Player score filters paused until a player is selected.");
+        Assert.DoesNotContain(vm.Notices, n => n.Contains("Player score filters", StringComparison.Ordinal));
         Assert.True(vm.ResultCount > 1);
+        Assert.False(vm.IsFilterActive);
     }
 
     [Fact]

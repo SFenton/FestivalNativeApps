@@ -16,15 +16,15 @@ public class SongListFilterTests
     };
 
     [Fact]
-    public void ShopFilter_KeepsMembersAndLeaving()
+    public void ShopFilter_KeepsAvailabilityBuckets()
     {
         IReadOnlyList<Song> songs = [S("a"), S("b"), S("c")];
         Assert.Same(songs, SongShopFilter.None.Filter(songs, null));
-        Assert.Equal(["a", "b"], new SongShopFilter(InShop: true).Filter(songs, Offers).Select(s => s.SongId));
-        Assert.Equal(["a"], new SongShopFilter(LeavingTomorrow: true).Filter(songs, Offers).Select(s => s.SongId));
-        Assert.Equal(["a"], new SongShopFilter(true, true).Filter(songs, Offers).Select(s => s.SongId));
-        Assert.Empty(new SongShopFilter(InShop: true).Filter(songs, new Dictionary<string, ShopSong>()));
-        Assert.Throws<InvalidOperationException>(() => new SongShopFilter(InShop: true).Filter(songs, null));
+        Assert.Equal(["a", "b"], new SongShopFilter(available: true, unavailable: false).Filter(songs, Offers).Select(s => s.SongId));
+        Assert.Equal(["c"], new SongShopFilter(available: false, unavailable: true).Filter(songs, Offers).Select(s => s.SongId));
+        Assert.Empty(new SongShopFilter(available: false, unavailable: false).Filter(songs, Offers));
+        Assert.Empty(new SongShopFilter(available: true, unavailable: false).Filter(songs, new Dictionary<string, ShopSong>()));
+        Assert.Throws<InvalidOperationException>(() => new SongShopFilter(available: true, unavailable: false).Filter(songs, null));
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class SongListFilterTests
 
 public class SongListPipelineTests
 {
-    private static Song S(string id, string title, string artist = "A", int? year = 2020) =>
-        new() { SongId = id, Title = title, Artist = artist, Year = year, Difficulty = new SongDifficulty { Guitar = 2 } };
+    private static Song S(string id, string title, string artist = "A", int? year = 2020, int? duration = 180, bool? doubleBass = null) =>
+        new() { SongId = id, Title = title, Artist = artist, Year = year, DurationSeconds = duration, DoubleBassSupported = doubleBass, Difficulty = new SongDifficulty { Guitar = 2 } };
 
     private static readonly IReadOnlyList<Song> Songs = [S("a", "Alpha"), S("b", "Beta"), S("c", "Charlie"), S("d", "Delta")];
 
@@ -162,12 +162,13 @@ public class SongListPipelineTests
     {
         var result = SongListPipeline.Run(new SongListInputs
         {
-            Songs = Songs, Sort = SongSortMode.Shop, ShopFilter = new SongShopFilter(InShop: true), HideShop = hide,
+            Songs = Songs, Sort = SongSortMode.Shop, ShopFilter = new SongShopFilter(available: true, unavailable: false), HideShop = hide,
             ShopPublicationMismatch = mismatch, Offers = hasOffers && !mismatch ? Offers : null,
         });
         Assert.Equal(SongSortMode.Title, result.EffectiveSort);
         Assert.Contains(reason, result.SortPaused);
-        Assert.Contains("filters paused", result.ShopFilterPaused);
+        if (hide) Assert.Null(result.ShopFilterPaused);
+        else Assert.Contains("filters paused", result.ShopFilterPaused);
         Assert.Equal(4, result.Count);
         Assert.False(result.FiltersApplied);
     }
@@ -175,9 +176,73 @@ public class SongListPipelineTests
     [Fact]
     public void ShopFilter_AppliesWithMatchingFeed()
     {
-        var result = SongListPipeline.Run(new SongListInputs { Songs = Songs, ShopFilter = new SongShopFilter(LeavingTomorrow: true), Offers = Offers });
-        Assert.Equal(["c"], result.Sections.SelectMany(s => s.Songs).Select(s => s.SongId));
+        var result = SongListPipeline.Run(new SongListInputs { Songs = Songs, ShopFilter = new SongShopFilter(available: true, unavailable: false), Offers = Offers });
+        Assert.Equal(["b", "c"], result.Sections.SelectMany(s => s.Songs).Select(s => s.SongId));
         Assert.True(result.FiltersApplied);
+    }
+
+    [Fact]
+    public void GeneralFilters_ApplyYearDurationAndDoubleBass()
+    {
+        IReadOnlyList<Song> songs =
+        [
+            S("a", "Alpha", year: 1989, duration: 59, doubleBass: true),
+            S("b", "Beta", year: 1991, duration: 600, doubleBass: false),
+            S("c", "Charlie", year: null, duration: 0, doubleBass: null),
+        ];
+        Assert.Equal([1980, 1990], SongGeneralBuckets.Decades(songs));
+        Assert.Equal([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], SongGeneralBuckets.DurationBuckets(songs));
+        Assert.Equal(("1980s", "Under 1 Minute", "10+ Minutes"), (SongGeneralBuckets.DecadeLabel(1980),
+            SongGeneralBuckets.DurationLabel(0), SongGeneralBuckets.DurationLabel(10)));
+
+        var no1980s = SongListPipeline.Run(new SongListInputs
+        {
+            Songs = songs, GeneralFilter = new SongGeneralFilter { ExcludedDecades = [1980] },
+        });
+        Assert.Equal(["b"], no1980s.Sections.SelectMany(s => s.Songs).Select(s => s.SongId));
+
+        var noShort = SongListPipeline.Run(new SongListInputs
+        {
+            Songs = songs, GeneralFilter = new SongGeneralFilter { ExcludedDurationBuckets = [0] },
+        });
+        Assert.Equal(["b"], noShort.Sections.SelectMany(s => s.Songs).Select(s => s.SongId));
+
+        var supported = SongListPipeline.Run(new SongListInputs
+        {
+            Songs = songs, GeneralFilter = new SongGeneralFilter { DoubleBassSupported = true, DoubleBassUnsupported = false },
+        });
+        Assert.Equal(["a"], supported.Sections.SelectMany(s => s.Songs).Select(s => s.SongId));
+
+        var unsupported = SongListPipeline.Run(new SongListInputs
+        {
+            Songs = songs, GeneralFilter = new SongGeneralFilter { DoubleBassSupported = false, DoubleBassUnsupported = true },
+        });
+        Assert.Equal(["b"], unsupported.Sections.SelectMany(s => s.Songs).Select(s => s.SongId));
+
+        var neither = SongListPipeline.Run(new SongListInputs
+        {
+            Songs = songs, GeneralFilter = new SongGeneralFilter { DoubleBassSupported = false, DoubleBassUnsupported = false },
+        });
+        Assert.Equal(0, neither.Count);
+    }
+
+    [Fact]
+    public void ShopAvailability_InertWhenShopHiddenAndCanYieldNoRows()
+    {
+        var hidden = SongListPipeline.Run(new SongListInputs
+        {
+            Songs = Songs, ShopFilter = new SongShopFilter(available: true, unavailable: false), HideShop = true,
+        });
+        Assert.Equal(4, hidden.Count);
+        Assert.Null(hidden.ShopFilterPaused);
+        Assert.False(hidden.FiltersApplied);
+
+        var none = SongListPipeline.Run(new SongListInputs
+        {
+            Songs = Songs, ShopFilter = new SongShopFilter(available: false, unavailable: false), Offers = Offers,
+        });
+        Assert.Equal(0, none.Count);
+        Assert.True(none.FiltersApplied);
     }
 
     [Fact]
@@ -194,7 +259,8 @@ public class SongListPipelineTests
         Assert.Equal(1, Run().Count);
         Assert.Null(Run().ScoreFilterPaused);
         Assert.Contains("hidden in Settings", Run(visible: [Instrument.Bass]).ScoreFilterPaused);
-        Assert.Contains("until a player", Run(player: false).ScoreFilterPaused);
+        Assert.Null(Run(player: false).ScoreFilterPaused);
+        Assert.Equal(4, Run(player: false).Count);
         // Filter Invalid Scores resolves scores upstream (SongScoreSource) instead of pausing the filters.
         Assert.Null(Run(invalid: true).ScoreFilterPaused);
         Assert.Equal(1, Run(invalid: true).Count);
@@ -422,10 +488,12 @@ public class SongsViewModelPlayerTests
         vm.FilterDraft.Begin();
         Assert.True(vm.FilterDraft.HasHiddenScoreChecks);
         Assert.Contains(vm.Notices, n => n.Contains("hidden in Settings"));
-        vm.FilterDraft.InShop = true;
+        vm.FilterDraft.ShopAvailable = true;
+        vm.FilterDraft.ShopUnavailable = false;
         vm.ApplyFilterCommand.Execute(null);
         Assert.False(session.Settings.PlayerScoreFilter.IsActive);
-        Assert.True(session.Settings.ShopFilter.InShop);
+        Assert.True(session.Settings.ShopFilter.Available);
+        Assert.False(session.Settings.ShopFilter.Unavailable);
         Assert.Equal(["s2", "s3"], vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId));
         vm.ClearFilterCommand.Execute(null);
         Assert.False(vm.IsFilterActive);
@@ -489,16 +557,64 @@ public class SongsViewModelPlayerTests
         Assert.Equal(-1, vm.SortDraft.ModeIndex);
         Assert.Null(Row(vm, "s2").Highlight);
         vm.FilterDraft.Begin();
-        Assert.False(vm.FilterDraft.ShopEnabled);
+        Assert.False(vm.FilterDraft.ShowShopFilter);
         Assert.False(vm.FilterDraft.ShowScoreFilters);
     }
 
     [Fact]
-    public async Task ChartFilter_WithoutPlayerShowsMeter()
+    public async Task ChartFilter_WithoutPlayerIsIgnored()
     {
         var (_, _, vm) = await Loaded(new AppSettings { SongFilter = new SongFilter(Instrument.Lead) }, player: false);
         var row = Row(vm, "s1");
-        Assert.Equal((Instrument.Lead, 2d), (row.Chart!.Value, row.ChartRaw!.Value));
+        Assert.Null(row.Chart);
+        Assert.Equal(3, vm.ResultCount);
+        Assert.False(vm.IsFilterActive);
         Assert.Empty(row.Chips);
+    }
+
+    [Fact]
+    public async Task ActiveIndicator_GeneralWithoutPlayer_PlayerFiltersOnlyWithPlayer()
+    {
+        var general = new SongGeneralFilter { ExcludedDecades = [1990] };
+        var (_, _, anonymous) = await Loaded(new AppSettings
+        {
+            GeneralFilter = general,
+            SongFilter = new SongFilter(Instrument.Lead, [1]),
+            PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.HasScores, Instrument.Lead, true),
+            ShopFilter = new SongShopFilter(available: true, unavailable: false),
+            HideShop = true,
+        }, player: false);
+        Assert.True(anonymous.ShowFilterButton);
+        Assert.True(anonymous.IsFilterActive);
+        Assert.DoesNotContain(anonymous.Notices, n => n.Contains("Player score filters"));
+
+        var (_, _, hiddenShopOnly) = await Loaded(new AppSettings
+        {
+            ShopFilter = new SongShopFilter(available: true, unavailable: false),
+            HideShop = true,
+        }, player: false);
+        Assert.False(hiddenShopOnly.IsFilterActive);
+
+        var (_, _, withPlayer) = await Loaded(new AppSettings { SongFilter = new SongFilter(Instrument.Lead, [1]) });
+        Assert.True(withPlayer.IsFilterActive);
+    }
+
+    [Fact]
+    public async Task Deselect_ClearsInstrumentIntensityAndPlayerFiltersButKeepsGeneral()
+    {
+        var general = new SongGeneralFilter { ExcludedDurationBuckets = [0], DoubleBassSupported = true, DoubleBassUnsupported = false };
+        var (_, session, _) = await Loaded(new AppSettings
+        {
+            GeneralFilter = general,
+            SongFilter = new SongFilter(Instrument.Lead, [1, 2]),
+            ShopFilter = new SongShopFilter(available: true, unavailable: false),
+            PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.HasScores, Instrument.Lead, true),
+        });
+        session.DeselectPlayer();
+        Assert.Null(session.SelectedPlayer);
+        Assert.Equal(general, session.Settings.GeneralFilter);
+        Assert.True(session.Settings.ShopFilter.IsActive);
+        Assert.Equal(SongFilter.None, session.Settings.SongFilter);
+        Assert.False(session.Settings.PlayerScoreFilter.IsActive);
     }
 }

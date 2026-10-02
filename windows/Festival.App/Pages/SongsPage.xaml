@@ -179,6 +179,66 @@
                                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.filter.title" />
                             <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
                                 <StackPanel Spacing="8" Padding="0,0,0,12">
+                                    <StackPanel Padding="0,8,0,0" AutomationProperties.AutomationId="fst.songs.filter.general">
+                                        <TextBlock Text="General" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3" />
+                                        <TextBlock Text="General filters that apply to all songs."
+                                                   Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                    </StackPanel>
+                                    <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.GeneralSections, Mode=OneWay}" IsTabStop="False">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Spacing="8" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:GeneralFilterSection">
+                                                <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                          AutomationProperties.Name="{x:Bind Title}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                                    <Expander.Header>
+                                                        <StackPanel Padding="0,8">
+                                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                            <TextBlock Text="{x:Bind Hint}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                                        </StackPanel>
+                                                    </Expander.Header>
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,-8,0">
+                                                            <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}"
+                                                                             AutomationProperties.Name="{x:Bind SelectAllName}" AutomationProperties.AutomationId="{x:Bind SelectAllId}" />
+                                                            <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}"
+                                                                             AutomationProperties.Name="{x:Bind ClearAllName}" AutomationProperties.AutomationId="{x:Bind ClearAllId}" />
+                                                        </StackPanel>
+                                                        <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                                    </StackPanel>
+                                                </Expander>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              Visibility="{x:Bind ViewModel.FilterDraft.ShowShopFilter, Mode=OneWay}"
+                                              AutomationProperties.Name="Item Shop" AutomationProperties.AutomationId="fst.songs.filter.shop">
+                                        <Expander.Header>
+                                            <StackPanel Padding="0,8">
+                                                <TextBlock Text="Item Shop" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="Filter songs by whether they are available in the Item Shop."
+                                                           Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.ShopRows, Mode=OneWay}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                    </Expander>
+
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              AutomationProperties.Name="Double Bass" AutomationProperties.AutomationId="fst.songs.filter.double-bass">
+                                        <Expander.Header>
+                                            <StackPanel Padding="0,8">
+                                                <TextBlock Text="Double Bass" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="Filter songs that have or don't have double bass charts for Pro Drums."
+                                                           Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.DoubleBassRows, Mode=OneWay}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                    </Expander>
+
                                     <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreFilters, Mode=OneWay}">
                                         <!-- Web Accordions start collapsed. -->
                                         <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -226,19 +286,7 @@
                                                  AutomationProperties.AutomationId="fst.songs.score-filter-hidden" />
                                     </StackPanel>
 
-                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                              AutomationProperties.Name="Item Shop" AutomationProperties.AutomationId="fst.songs.filter.shop">
-                                        <Expander.Header>
-                                            <StackPanel Padding="0,8">
-                                                <TextBlock Text="Item Shop" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                <TextBlock Text="Toggles that impact visibility of songs based on the current Item Shop rotation."
-                                                           Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.ShopRows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
-                                    </Expander>
-
-                                    <StackPanel Spacing="8" Padding="0,8,0,0">
+                                    <StackPanel Spacing="8" Padding="0,8,0,0" Visibility="{x:Bind ViewModel.FilterDraft.ShowInstrumentFilters, Mode=OneWay}">
                                         <StackPanel>
                                             <TextBlock Text="Selected Instrument Filters" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3"
                                                        AutomationProperties.AutomationId="fst.songs.filter.instrument-filters" />
