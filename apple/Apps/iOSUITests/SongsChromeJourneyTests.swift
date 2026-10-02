@@ -161,4 +161,80 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].isHittable, "First row not shown")
         XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Floating Sort did not return")
     }
+
+    /// Issue #8: scrolling near the top changed scroll-driven state on the Songs screen
+    /// (scrolled away, passed section titles, section bar edge, tools in the bar), and
+    /// every change re-ran the whole screen: re-sort, re-diff every List row, re-render
+    /// every visible row. Bursts of those passes hung the app near the top of the list.
+    ///
+    /// The app replays its in-app stress pass (`FST_DEBUG_SONGS_SCROLL_STRESS`: quick
+    /// jumps near the top and long trips back to the top, six rounds) while the Debug
+    /// stall monitor (`FST_DEBUG_STALL_LOG`) counts Songs body passes and run loop
+    /// stalls. XCUITest stays idle meanwhile, so its accessibility snapshots don't add
+    /// main-thread work. Before the fix this pass ran the Songs body about 158 times and
+    /// re-sorted 147 times; after it, 12 and 1. Needs the large fixture like the test
+    /// above (skips otherwise).
+    @MainActor
+    func testScrollStressNearTheTopDoesNotRebuildTheScreen() throws {
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let log = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("songs-stall-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: log) }
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_DEBUG_SONGS_SCROLL_STRESS": "1",
+            "FST_DEBUG_STALL_LOG": log.path,
+        ])
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
+        guard app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+            .waitForExistence(timeout: 3) else {
+            throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
+        }
+
+        struct Report: Decodable {
+            var maxStallMs: Double
+            var maxAwakeMs: Double
+            var counters: [String: Int]
+        }
+        func read() -> Report? {
+            (try? Data(contentsOf: log)).flatMap { try? JSONDecoder().decode(Report.self, from: $0) }
+        }
+        var started: Report?
+        var finished: Report?
+        let deadline = Date.now.addingTimeInterval(90)
+        while finished == nil, Date.now < deadline {
+            Thread.sleep(forTimeInterval: 1)
+            guard let report = read() else { continue }
+            if started == nil, report.counters["songs.stress.start"] != nil { started = report }
+            if report.counters["songs.stress.end"] != nil { finished = report }
+        }
+        let start = try XCTUnwrap(started, "Stress pass never started")
+        let end = try XCTUnwrap(finished, "Stress pass did not finish: hung or crashed")
+        XCTAssertEqual(app.state, .runningForeground)
+
+        let bodies = (end.counters["songs.body"] ?? 0) - (start.counters["songs.body"] ?? 0)
+        let sorts = (end.counters["songs.sort"] ?? 0) - (start.counters["songs.sort"] ?? 0)
+        XCTContext.runActivity(
+            named: "bodies \(bodies), sorts \(sorts), max stall \(end.maxStallMs) ms, "
+                + "max awake \(end.maxAwakeMs) ms"
+        ) { _ in }
+        // Sixty jumps change the scroll-driven chrome well over a hundred times; none of
+        // those may re-run the screen. Allow a few incidental passes (artwork, scores).
+        XCTAssertLessThanOrEqual(bodies, 20, "Scrolling re-ran the Songs screen body")
+        XCTAssertLessThanOrEqual(sorts, 10, "Scrolling re-sorted the catalogue")
+        // A feedback loop keeps the run loop awake (#5); the pass must keep idling.
+        XCTAssertLessThan(end.maxAwakeMs, 2_000, "Main run loop never went idle")
+
+        // The last jump lands on the first section title; flick the rest of the way up.
+        app.swipeDown()
+        app.swipeDown()
+        XCTAssertTrue(app.searchFields["Filter Songs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Floating Sort did not return")
+    }
 }
