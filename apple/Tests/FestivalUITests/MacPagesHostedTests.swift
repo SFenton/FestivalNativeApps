@@ -122,4 +122,58 @@ private struct MacPageHost<Content: View>: View {
     _ = try nativeHostedPNG(image, filename: "mac-full-rankings-split.png", environment: "FST_SHELL_RENDER_OUT")
     #expect(recorder.path == [start, .player(accountId: "fixture-rank-1", displayName: "Fixture Rank 1")])
 }
+/// The accessibility node with an identifier (selector-checked KVC, as
+/// `nativeHostedAccessibility` does).
+@MainActor
+private func macAccessibilityNode(_ root: Any, identifier: String, depth: Int = 0) -> NSObject? {
+    guard depth < 80, let object = root as? NSObject else { return nil }
+    func read(_ key: String) -> Any? {
+        object.responds(to: NSSelectorFromString(key)) ? object.value(forKey: key) : nil
+    }
+    if read("accessibilityIdentifier") as? String == identifier { return object }
+    for child in (read("accessibilityChildren") as? [Any]) ?? [] {
+        if let found = macAccessibilityNode(child, identifier: identifier, depth: depth + 1) { return found }
+    }
+    for subview in (object as? NSView)?.subviews ?? [] {
+        if let found = macAccessibilityNode(subview, identifier: identifier, depth: depth + 1) { return found }
+    }
+    return nil
+}
+
+/// The list column follows a remembered divider width (clamped so the detail keeps its
+/// minimum), else 38%; the divider is a slider to assistive technologies whose value is
+/// the list width.
+@MainActor
+@Test func macListDetailDividerUsesRememberedWidth() async throws {
+    let size = CGSize(width: 1060, height: 600)
+    for (stored, expected) in [(0.0, 1060 * 0.38), (500.0, 500.0), (2000.0, 579.0)] {
+        let defaults = UserDefaults(suiteName: "fst.tests.mac-divider.\(UUID().uuidString)")!
+        defaults.set(true, forKey: "fst.accessibility.reduceMotion")
+        defaults.set(stored, forKey: MacLayoutPolicy.listWidthKey)
+        let session = macRankingsSession()
+        let recorder = MacPageRecorder()
+        let start = AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore")
+        let host = nativeHostedView(
+            MacPageHost(path: [start], recorder: recorder) { binding in
+                MacListDetailStack(
+                    section: .leaderboards, session: session, visibleInstruments: Set(Instrument.allCases),
+                    path: binding, isVisible: true, onSplitChange: { _ in }
+                ) { _ in LeaderboardsScreen(session: session) }
+            }
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .defaultAppStorage(defaults),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        var value: Double?
+        try await nativeHostedSettle(host, timeout: .seconds(60)) {
+            let node = macAccessibilityNode(host, identifier: "fst.nav.column-divider")
+            value = (node?.value(forKey: "accessibilityValue") as? NSNumber)?.doubleValue
+            return node?.value(forKey: "accessibilityRole") as? String == "AXSlider" && value != nil
+        }
+        #expect(abs((value ?? 0) - expected) < 0.5, "stored \(stored): \(String(describing: value))")
+    }
+}
 #endif

@@ -180,8 +180,15 @@ enum MacLayoutPolicy {
     /// plus a 480 pt detail (HIG Split views › macOS: "set reasonable minimum/maximum
     /// defaults so the divider stays visible").
     static let splitMinimumWidth: CGFloat = 820
-    /// List column bounds (points).
-    static let listColumn = (min: CGFloat(340), ideal: CGFloat(400), max: CGFloat(560))
+    /// List column bounds (points): `max` caps the automatic 38% width; a dragged
+    /// divider may widen the list to `dragMax` (still a compact-width column, so its
+    /// rows keep their list layout) while the detail keeps ``detailMinimumWidth``.
+    static let listColumn = (min: CGFloat(340), ideal: CGFloat(400), max: CGFloat(560), dragMax: CGFloat(680))
+    /// UserDefaults key remembering a dragged list column width (HIG Split views ›
+    /// macOS: "draggable dividers resize them"); absent or 0 means automatic.
+    static let listWidthKey = "fst.mac.listColumnWidth"
+    /// Points one accessibility increment/decrement moves the divider.
+    static let dividerStep: CGFloat = 20
     /// Detail column minimum (points).
     static let detailMinimumWidth: CGFloat = 480
 
@@ -209,6 +216,30 @@ enum MacLayoutPolicy {
     /// - Returns: The list column width.
     static func listWidth(forContentWidth width: CGFloat) -> CGFloat {
         min(max(width * 0.38, listColumn.min), listColumn.max)
+    }
+
+    /// List column width honouring a width the person set by dragging the divider,
+    /// clamped so the divider stays visible: the list keeps ``listColumn`` `min`…
+    /// `dragMax` and the detail at least ``detailMinimumWidth`` (HIG Split views ›
+    /// macOS: "set reasonable minimum/maximum defaults so the divider stays visible").
+    ///
+    /// - Parameters:
+    ///   - width: Content width in points.
+    ///   - preferred: The remembered dragged width, or nil/≤ 0 for automatic.
+    /// - Returns: The list column width.
+    static func listWidth(forContentWidth width: CGFloat, preferred: CGFloat?) -> CGFloat {
+        guard let preferred, preferred > 0 else { return listWidth(forContentWidth: width) }
+        let range = listWidthRange(forContentWidth: width)
+        return min(max(preferred, range.lowerBound), range.upperBound)
+    }
+
+    /// Widths a dragged divider may take at a content width.
+    ///
+    /// - Parameter width: Content width in points.
+    /// - Returns: ``listColumn`` `min` up to `dragMax` or the width that leaves the
+    ///   detail ``detailMinimumWidth`` beside the 1 pt divider, whichever is smaller.
+    static func listWidthRange(forContentWidth width: CGFloat) -> ClosedRange<CGFloat> {
+        listColumn.min...max(listColumn.min, min(listColumn.dragMax, width - detailMinimumWidth - 1))
     }
 
     /// Column width from which pages use their regular-width layouts (two card columns,

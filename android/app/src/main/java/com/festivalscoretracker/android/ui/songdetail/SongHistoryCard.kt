@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.sp
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.ScoreHistoryEntry
+import com.festivalscoretracker.android.core.songs.ScoreRowSeasonPolicy
 import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
@@ -187,8 +188,19 @@ fun SongHistoryCard(
             }
         }
         val top = remember(points) { SongHistoryChart.top(points) }
-        Column(Modifier.padding(top = 8.dp).graphicsLayer { alpha = fade.value }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            top.forEachIndexed { index, point -> HistoryRow(point, best = index == 0, tag = "fst.song-detail.history.top.$index") }
+        // Issue #62: the list shows seasons only when its rows are at least 520 dp wide (web QUERY_SHOW_SEASON).
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp).graphicsLayer { alpha = fade.value }) {
+            val width = maxWidth.value
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                top.forEachIndexed { index, point ->
+                    HistoryRow(
+                        point,
+                        best = index == 0,
+                        tag = "fst.song-detail.history.top.$index",
+                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
+                    )
+                }
+            }
         }
         if (points.size > SongHistoryChart.TOP_COUNT) {
             ViewFullLeaderboardButton(
@@ -298,7 +310,14 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, rese
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut(),
             ) {
-                paging.selected?.let { points.getOrNull(it) }?.let { HistoryRow(it, best = false, tag = "fst.song-detail.history.detail") }
+                paging.selected?.let { points.getOrNull(it) }?.let {
+                    HistoryRow(
+                        it,
+                        best = false,
+                        tag = "fst.song-detail.history.detail",
+                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryDetail, Float.NaN, it.season),
+                    )
+                }
             }
             if (paging.needsPaging) {
                 Pager(paging) { paging = it }
@@ -350,9 +369,15 @@ private fun Pager(paging: SongHistoryPaging, onChange: (SongHistoryPaging) -> Un
 /**
  * One score card (web score list card): date, season, score and accuracy; the best
  * score is purple-highlighted and bold like a selected leaderboard row.
+ *
+ * @param point The score.
+ * @param best Whether this is the best score (highlighted).
+ * @param tag Test tag.
+ * @param showSeason Whether to show the season pill and read it to TalkBack ([ScoreRowSeasonPolicy]).
  */
 @Composable
-private fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String) {
+private fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean) {
+    val season = point.season?.takeIf { showSeason }
     val shape = RoundedCornerShape(12.dp)
     val date = longDate(point.dateKey)
     val accuracy = "${ScoreFormatting.accuracy(point.accuracyPercent * 10_000)}%"
@@ -369,11 +394,11 @@ private fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String) {
             .testTag(tag)
             // One stop that reads the summary once (not the summary and then each child text).
             .clearAndSetSemantics {
-                contentDescription = listOfNotNull(date, point.season?.let { "Season $it" }, "score ${NumberFormat.getIntegerInstance().format(point.score)}", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
+                contentDescription = listOfNotNull(date, season?.let { "Season $it" }, "score ${NumberFormat.getIntegerInstance().format(point.score)}", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
             },
     ) {
         Text(date, color = BrandTokens.textPrimary, fontWeight = if (best) FontWeight.Bold else null, modifier = Modifier.weight(1f), maxLines = 1)
-        point.season?.let { SeasonPill(it) }
+        season?.let { SeasonPill(it) }
         Text(NumberFormat.getIntegerInstance().format(point.score), color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
         AccuracyText(accuracy, point.isFullCombo)
     }

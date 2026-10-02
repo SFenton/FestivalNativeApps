@@ -52,6 +52,34 @@ class QuickLinksTest {
     }
 
     @Test
+    fun landingMathPutsSectionsOnTheLandingLine() {
+        // Lazy offsets start after the leading padding, which content still scrolls through.
+        assertEquals(-32, QuickLinks.lazyLandingScrollOffset(32, 0))
+        assertEquals(-24, QuickLinks.lazyLandingScrollOffset(32, 8))
+        assertEquals(0, QuickLinks.lazyLandingScrollOffset(0, 0))
+        assertEquals(468, QuickLinks.scrollLandingTarget(500, 32, 2000))
+        assertEquals(0, QuickLinks.scrollLandingTarget(20, 32, 2000))
+        assertEquals(300, QuickLinks.scrollLandingTarget(500, 32, 300))
+        assertEquals(0, QuickLinks.scrollLandingTarget(500, 32, -1))
+    }
+
+    @Test
+    fun landingAndActivationShareTheLine() {
+        val line = QuickLinks.LANDING_OFFSET_DP.toFloat()
+        assertEquals(32f, line)
+        // A section landed on the line is the natural active one, and the previous section is not.
+        assertEquals("c", QuickLinks.naturalActive(sections, frames("b" to line - 300f, "c" to line, "d" to line + 300f), line))
+        val tracker = QuickLinkTracker()
+        tracker.beginJump("c")
+        tracker.settle(sections, frames("b" to line - 300f, "c" to line, "d" to line + 300f), 800f)
+        assertEquals(QuickLinkPhase.Owned, tracker.phase)
+        // Landed on the line: ownership is drift-based, not the near-end "while visible" lock,
+        // so scrolling the target well past the band releases it.
+        tracker.update(sections, frames("c" to line - 200f, "d" to line + 100f), 800f)
+        assertEquals(QuickLinkPhase.Idle, tracker.phase)
+    }
+
+    @Test
     fun jumpOwnershipAndRelease() {
         val tracker = QuickLinkTracker()
         tracker.update(sections, frames("a" to 0f, "b" to 300f), 800f)
