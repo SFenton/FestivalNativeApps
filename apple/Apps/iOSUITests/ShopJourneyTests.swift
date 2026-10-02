@@ -53,6 +53,64 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.song-detail.paths"].exists)
     }
 
+    /// Issue #19: the Filter sheet narrows offers live, reopens with its saved state and resets.
+    ///
+    /// - Throws: A missing Filter action, switches that do not filter, lost state or a broken Reset.
+    @MainActor
+    func testShopFilterSheetNarrowsOffersAndResets() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        SongsUITestSupport.openItemShop(in: app)
+        let pulse = app.buttons["fst.shop.song.fixture-pulse"]
+        let orbit = app.buttons["fst.shop.song.fixture-orbit"]
+        let filter = app.buttons["fst.shop.filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 15))
+        XCTAssertEqual(filter.label, "Filter Item Shop")
+
+        filter.tap()
+        let reset = app.buttons["fst.shop.filter.reset"]
+        XCTAssertTrue(reset.waitForExistence(timeout: 10))
+        reset.tap()
+        let new = app.switches["fst.shop.filter.new"]
+        let available = app.switches["fst.shop.filter.available"]
+        let leaving = app.switches["fst.shop.filter.leavingTomorrow"]
+        XCTAssertEqual(new.label, "New")
+        XCTAssertEqual(available.label, "Available")
+        XCTAssertEqual(leaving.label, "Leaving Tomorrow")
+        XCTAssertEqual(new.value as? String, "0")
+        try app.performAccessibilityAudit(for: .all)
+        SongsUITestSupport.setSwitch(new, to: "1")
+        SongsUITestSupport.record(app, name: "shop-filter-sheet-new")
+        app.buttons["fst.shop.filter.done"].tap()
+
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists, "New filter left a Leaving Tomorrow offer visible")
+        XCTAssertEqual(filter.value as? String, "New")
+
+        filter.tap()
+        XCTAssertTrue(new.waitForExistence(timeout: 10))
+        XCTAssertEqual(new.value as? String, "1", "Reopened sheet lost the New filter")
+        SongsUITestSupport.setSwitch(new, to: "0")
+        SongsUITestSupport.setSwitch(available, to: "1")
+        app.buttons["fst.shop.filter.done"].tap()
+        let emptyReset = app.buttons["fst.shop.filter-empty.reset"]
+        XCTAssertTrue(emptyReset.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["No offers match these filters"].exists)
+        XCTAssertFalse(pulse.exists)
+        XCTAssertFalse(orbit.exists)
+        SongsUITestSupport.record(app, name: "shop-filter-no-matches")
+        try app.performAccessibilityAudit(for: .all)
+
+        emptyReset.tap()
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertTrue(orbit.exists)
+        XCTAssertEqual(filter.value as? String, "No filters")
+    }
+
     /// PWA parity (gap #17): compact two-line rows with the bag before the chevron,
     /// as sibling actions of one row.
     ///

@@ -92,7 +92,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun LiveSheet(
+internal fun LiveSheet(
     title: String,
     tag: String,
     onReset: () -> Unit,
@@ -432,8 +432,9 @@ private fun Accordion(
     }
 }
 
+/** Secondary hint text under a filter section (also used by the Item Shop filter sheet). */
 @Composable
-private fun Hint(text: String, modifier: Modifier = Modifier) {
+internal fun Hint(text: String, modifier: Modifier = Modifier) {
     Text(text, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, modifier = modifier.padding(vertical = 4.dp))
 }
 
@@ -491,7 +492,7 @@ internal fun bucketLabel(kind: SongBucketKind, key: Int): String = when {
 
 /** Web `ToggleRow`: label, description and a switch; the whole row toggles. */
 @Composable
-private fun ToggleRow(label: String, description: String?, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(label: String, description: String?, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

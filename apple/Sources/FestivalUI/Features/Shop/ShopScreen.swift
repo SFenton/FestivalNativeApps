@@ -30,6 +30,10 @@ struct ShopScreen: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
+    @AppStorage("fst.shop.filterNew") private var filterNew = false
+    @AppStorage("fst.shop.filterAvailable") private var filterAvailable = false
+    @AppStorage("fst.shop.filterLeavingTomorrow") private var filterLeavingTomorrow = false
+    @State private var filterPresented = false
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
@@ -76,6 +80,22 @@ struct ShopScreen: View {
             ? .list : preferredMode
     }
 
+    /// The saved New / Available / Leaving Tomorrow filter (issue #19).
+    private var appliedFilter: ShopOfferFilter {
+        ShopOfferFilter(
+            new: filterNew, available: filterAvailable, leavingTomorrow: filterLeavingTomorrow
+        )
+    }
+
+    /// Save a filter from the sheet or a Reset action.
+    ///
+    /// - Parameter filter: The filter to apply.
+    private func applyFilter(_ filter: ShopOfferFilter) {
+        filterNew = filter.new
+        filterAvailable = filter.available
+        filterLeavingTomorrow = filter.leavingTomorrow
+    }
+
     private var offerActionsLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
@@ -97,7 +117,9 @@ struct ShopScreen: View {
                 shopContent(snapshot)
                     // The settle timer starts at the gate's reveal, not at the load.
                     .task {
-                        await FadeStagger.settle(afterRevealing: snapshot.payload.sortedSongs.count) {
+                        await FadeStagger.settle(
+                            afterRevealing: appliedFilter.filtered(snapshot.payload.sortedSongs).count
+                        ) {
                             staggerSettled = true
                         }
                     }
@@ -112,6 +134,7 @@ struct ShopScreen: View {
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Item Shop")
         .toolbar {
+            ToolbarItem(placement: .primaryAction) { filterButton }
             if sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -127,6 +150,14 @@ struct ShopScreen: View {
                 }
             }
         }
+        .sheet(isPresented: $filterPresented) {
+            ShopFilterSheet(applied: appliedFilter, onApply: applyFilter)
+                .macSheetFrame(width: 420, height: 360)
+        }
+        #if os(macOS)
+        // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command".
+        .macPageCommands(MacPageCommands(filter: { filterPresented = true }))
+        #endif
         .task(id: requestKey) {
             guard isVisible else { return }
             // Returning from Song Detail re-runs `.task`; keep the loaded list instead
@@ -154,7 +185,7 @@ struct ShopScreen: View {
             // Warm the first screen's covers while the catalogue loads, so rows
             // reveal with art (bounded; slow covers keep their own placeholder).
             let primePaths = viewMode == .list
-                ? ShopArtworkPrimePolicy.paths(for: feed.sortedSongs) : []
+                ? ShopArtworkPrimePolicy.paths(for: appliedFilter.filtered(feed.sortedSongs)) : []
             async let primed: Void = primeArtwork(primePaths)
             var songsById: [String: Song] = [:]
             var detailsError: String?
@@ -222,9 +253,11 @@ struct ShopScreen: View {
     /// Preserve an explicit empty/error/provenance state in either adaptive layout.
     ///
     /// - Parameter snapshot: Public shop feed with optional valid catalog links.
-    /// - Returns: Readable list, adaptive grid or genuine empty message.
+    /// - Returns: Readable list, adaptive grid, genuine empty message, or a no-match card
+    ///   when the Shop filter hides every offer.
     @ViewBuilder
     private func shopContent(_ snapshot: ShopSnapshot) -> some View {
+        let offers = appliedFilter.filtered(snapshot.payload.sortedSongs)
         if snapshot.payload.sortedSongs.isEmpty {
             VStack(spacing: 12) {
                 Image(systemName: "bag")
@@ -246,6 +279,8 @@ struct ShopScreen: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityIdentifier("fst.shop.empty")
+        } else if offers.isEmpty {
+            filteredEmpty(snapshot)
         } else if viewMode == .list {
             // A plain ScrollView, not a List: each row holds two sibling actions (Detail
             // and the official bag), and a List would add its own disclosure chevron
@@ -253,7 +288,7 @@ struct ShopScreen: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     shopDisclosures(snapshot)
-                    ForEach(Array(snapshot.payload.sortedSongs.enumerated()), id: \.element.id) { index, offer in
+                    ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                         offerCard(offer, snapshot: snapshot, grid: false)
                             .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                     }
@@ -270,7 +305,7 @@ struct ShopScreen: View {
                         columns: [GridItem(.adaptive(minimum: 210), spacing: 12)],
                         spacing: 12
                     ) {
-                        ForEach(Array(snapshot.payload.sortedSongs.enumerated()), id: \.element.id) { index, offer in
+                        ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                             offerCard(offer, snapshot: snapshot, grid: true)
                                 .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                         }
@@ -279,6 +314,78 @@ struct ShopScreen: View {
                 .padding(16)
                 .festivalFadeInScope()
             }
+        }
+    }
+
+    // MARK: - Filter
+
+    /// The toolbar Filter button: Songs' icon, gold while a filter is on.
+    private var filterButton: some View {
+        Button {
+            filterPresented = true
+        } label: {
+            Label("Filter", systemImage: "line.3.horizontal.decrease")
+        }
+        .accessibilityLabel("Filter Item Shop")
+        #if os(macOS)
+        .help("Filter Item Shop")
+        #endif
+        .accessibilityValue(Self.filterAccessibilityValue(appliedFilter))
+        .accessibilityIdentifier("fst.shop.filter")
+        .tint(appliedFilter.isActive ? BrandTokens.gold : BrandTokens.accentBlue)
+    }
+
+    /// What the Filter button announces after its label.
+    ///
+    /// - Parameter filter: The applied Shop filter.
+    /// - Returns: "No filters", or the selected groups in display order.
+    static func filterAccessibilityValue(_ filter: ShopOfferFilter) -> String {
+        filter.isActive
+            ? filter.selected.map(\.label).joined(separator: ", ")
+            : "No filters"
+    }
+
+    /// A loaded Shop whose offers the filter hides: distinct from a genuinely empty
+    /// Shop, with Reset in place.
+    ///
+    /// - Parameter snapshot: The loaded Shop, for its disclosures.
+    /// - Returns: A readable card with Reset Filters.
+    private func filteredEmpty(_ snapshot: ShopSnapshot) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                shopDisclosures(snapshot)
+                VStack(spacing: 12) {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.largeTitle)
+                        .accessibilityHidden(true)
+                    Text("No offers match these filters")
+                        .font(.title2.bold())
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Try different filters, or reset them to see the whole Item Shop.")
+                        .font(.body)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Reset Filters", role: .destructive) {
+                        applyFilter(ShopOfferFilter())
+                    }
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(FestivalSheetActionColor.destructive)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("fst.shop.filter-empty.reset")
+                }
+                .foregroundStyle(FestivalText.primary)
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .background(
+                    BrandTokens.cardBackground,
+                    in: RoundedRectangle(cornerRadius: 12)
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("fst.shop.filter-empty")
+            }
+            .padding(16)
         }
     }
 
