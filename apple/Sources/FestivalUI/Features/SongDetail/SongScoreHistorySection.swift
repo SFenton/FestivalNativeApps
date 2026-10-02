@@ -25,6 +25,11 @@ struct SongScoreHistorySection: View {
     let keyboardIcon: Bool
     @Binding var instrument: Instrument?
     @Binding var expanded: Bool
+    /// The page (viewport) width: list rows show the season from 520 pt, like the web's
+    /// `QUERY_SHOW_SEASON` media query (`ScoreRowSeasonPolicy`, issue #32).
+    var viewportWidth: CGFloat = 0
+    /// The catalogue's current season, whose pill is inverted.
+    var currentSeason: Int?
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
@@ -71,7 +76,8 @@ struct SongScoreHistorySection: View {
                         reservesPager: SongScoreHistoryModel.reservesPager(
                             entries, instruments: available, chartWidth: Double(cardSize.width)
                         ),
-                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
+                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion),
+                        currentSeason: currentSeason
                     )
                     .id(current)
                     .opacity(contentOpacity)
@@ -87,7 +93,13 @@ struct SongScoreHistorySection: View {
                 Group {
                     VStack(spacing: 6) {
                         ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
-                            ScoreHistoryListRow(entry: entry, isBest: index == 0)
+                            ScoreHistoryListRow(
+                                entry: entry, isBest: index == 0,
+                                seasonColumn: ScoreRowSeasonPolicy.showsColumn(
+                                    .historyList, width: Double(viewportWidth)
+                                ),
+                                currentSeason: currentSeason
+                            )
                                 .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                         }
                     }
@@ -190,6 +202,8 @@ private struct ScoreHistoryChart: View {
     /// Keep the pager row's space even when this instrument fits one page.
     let reservesPager: Bool
     let motion: ChartMotion
+    /// The catalogue's current season, for the tapped bar's season pill.
+    let currentSeason: Int?
 
     /// Index of the oldest visible row; nil shows the newest page.
     @State private var start: Int?
@@ -238,7 +252,12 @@ private struct ScoreHistoryChart: View {
             }
             if let selectedIndex, all.indices.contains(selectedIndex) {
                 let selected = all[selectedIndex]
-                ScoreHistoryListRow(entry: selected.entry, isBest: false)
+                // The tapped bar's row always carries the season (web `renderDetailCard`).
+                ScoreHistoryListRow(
+                    entry: selected.entry, isBest: false,
+                    seasonColumn: ScoreRowSeasonPolicy.showsColumn(.historyDetail, width: 0),
+                    currentSeason: currentSeason
+                )
                     .transition(.opacity)
                     .accessibilityIdentifier("fst.song-detail.history.detail")
             }
@@ -417,29 +436,48 @@ private struct ScoreHistoryChart: View {
 // MARK: - List row
 
 /// One score beneath the chart (web score list card with `LeaderboardEntry`): date,
-/// season, score and the shared accuracy badge; the best score purple and bold.
+/// optional season pill, score and the shared accuracy badge; the best score purple
+/// and bold.
 struct ScoreHistoryListRow: View {
     let entry: ScoreHistoryEntry
     let isBest: Bool
+    /// Show the season pill before the score; callers decide with
+    /// `ScoreRowSeasonPolicy` (issue #32: the web hides it below 520 px).
+    var seasonColumn = false
+    /// The catalogue's current season, whose pill is inverted.
+    var currentSeason: Int?
+
+    private var season: Int? {
+        guard seasonColumn, let season = entry.season, season > 0 else { return nil }
+        return season
+    }
 
     private var dateText: String {
         guard let date = entry.displayDate else { return "\u{2014}" }
         return date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        // Accessibility sizes stack the season under the date (HIG layout: horizontal
+        // views may stack); standard sizes keep the web's single-line label.
+        let stacked = dynamicTypeSize.isAccessibilitySize
         HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(dateText)
                     .font(.body.weight(isBest ? .bold : .regular))
                     .foregroundStyle(FestivalText.primary)
-                if let season = entry.season {
-                    Text("Season \(season)")
-                        .font(.caption)
-                        .foregroundStyle(FestivalText.primary)
+                    .lineLimit(stacked ? nil : 1)
+                    .minimumScaleFactor(stacked ? 1 : 0.75)
+                if stacked, let season {
+                    ScoreSeasonPill(season: season, current: season == currentSeason)
                 }
             }
             Spacer(minLength: 8)
+            if seasonColumn, !stacked {
+                ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
+            }
             Text(entry.newScore.formatted())
                 .font(.body.weight(.semibold).monospacedDigit())
                 .foregroundStyle(FestivalText.primary)
@@ -469,7 +507,9 @@ struct ScoreHistoryListRow: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(dateText), score \(entry.newScore.formatted())"
+            "\(dateText)"
+                + (season.map { ", " + ScoreSeasonPill.spokenLabel(season: $0, current: $0 == currentSeason).lowercased() } ?? "")
+                + ", score \(entry.newScore.formatted())"
                 + (entry.accuracy.map { ", accuracy \(ScoreFormatting.accuracy($0)) percent" } ?? "")
                 + (entry.isFullCombo == true ? ", full combo" : "")
                 + (isBest ? ", best score" : "")

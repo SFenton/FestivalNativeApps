@@ -13,6 +13,8 @@ struct SongScorePreview: View {
     @State private var state: LoadState
     @State private var loadedKey: RequestKey?
     @State private var adoptedPreload = false
+    /// Width of the rows column (the web card), for the season column (issue #32).
+    @State private var cardWidth: CGFloat = 0
     private let usesLiveClient: Bool
     /// The page already read this chart (Song Detail waits for every card before it
     /// appears); the first `.task` adopts it instead of reading again.
@@ -87,6 +89,9 @@ struct SongScorePreview: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
+                cardWidth = width
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: requestKey) {
@@ -257,7 +262,11 @@ struct SongScorePreview: View {
         // player's purple (the one leaderboard row design, operator batch 7.4), with
         // the drill-down chevron inside the card like the Solo chart.
         let content = HStack(spacing: 8) {
-            SongLeaderboardEntryRow(entry: entry, isPlayer: highlighted)
+            SongLeaderboardEntryRow(
+                entry: entry, isPlayer: highlighted,
+                seasonColumn: ScoreRowSeasonPolicy.showsColumn(.topScores, width: Double(cardWidth)),
+                currentSeason: session.catalogCurrentSeason
+            )
             if route != nil {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
