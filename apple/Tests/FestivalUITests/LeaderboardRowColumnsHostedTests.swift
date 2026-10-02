@@ -57,11 +57,11 @@ private func accessibilityFrames(_ view: NSView) -> [String: NSRect] {
 ///   - entries: Rows to draw, top to bottom (the last one bold, like a pinned row).
 ///   - width: Section width in points.
 ///   - fitted: Apply `LeaderboardRowColumns.fit(.songLeaderboard, …)` to the section.
-/// - Returns: Label frames once every row name is exposed.
+/// - Returns: Label frames once every row name is exposed, and every exposed text.
 @MainActor
-private func hostedRowFrames(
+private func hostedRows(
     _ entries: [LeaderboardEntry], width: CGFloat, fitted: Bool
-) async throws -> [String: NSRect] {
+) async throws -> (frames: [String: NSRect], texts: [String]) {
     let size = CGSize(width: width, height: 60 * CGFloat(entries.count) + 32)
     let columns = LeaderboardRowColumns.fit(
         .songLeaderboard, width: Double(width),
@@ -85,7 +85,15 @@ private func hostedRowFrames(
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     try await nativeHostedSettle(host, untilText: entries.map { "Name \($0.rank)" })
-    return accessibilityFrames(host)
+    return (accessibilityFrames(host), nativeHostedAccessibility(host).texts)
+}
+
+/// Label frames of `hostedRows`.
+@MainActor
+private func hostedRowFrames(
+    _ entries: [LeaderboardEntry], width: CGFloat, fitted: Bool
+) async throws -> [String: NSRect] {
+    try await hostedRows(entries, width: width, fitted: fitted).frames
 }
 
 // MARK: - Alignment
@@ -101,11 +109,16 @@ func fittedSectionAlignsNamesAndScores(width: CGFloat) async throws {
         scoreEntry(rank: 10, score: 1_234_567),
         scoreEntry(rank: 1_234, score: 708_315),
     ]
-    let frames = try await hostedRowFrames(entries, width: width, fitted: true)
+    let (frames, texts) = try await hostedRows(entries, width: width, fitted: true)
+    // The hidden width templates never reach assistive technology.
+    let pinnedRank = LeaderboardRowColumns.rankLabel(1_234)
+    let widestScore = LeaderboardRowColumns.scoreLabel(1_234_567)
+    #expect(texts.filter { $0 == pinnedRank }.count == 1, "texts: \(texts)")
+    #expect(texts.filter { $0 == widestScore }.count == 1, "texts: \(texts)")
     let names = entries.compactMap { frames["Name \($0.rank)"]?.minX }
     let scores = entries.compactMap { frames[$0.score.formatted()]?.maxX }
     #expect(names.count == entries.count && scores.count == entries.count, "frames: \(frames)")
-    #expect((names.max() ?? 0) - (names.min() ?? 0) < 0.5, "name x: \(names) \(frames)")
+    #expect((names.max() ?? 0) - (names.min() ?? 0) < 0.5, "name x: \(names)")
     #expect((scores.max() ?? 0) - (scores.min() ?? 0) < 0.5, "score max x: \(scores)")
 }
 
