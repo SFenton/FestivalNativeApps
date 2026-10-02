@@ -138,6 +138,7 @@ import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.compete.competeDestinations
+import com.festivalscoretracker.android.ui.firstrun.FirstRunDemoSongsSource
 import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
 import com.festivalscoretracker.android.ui.firstrun.firstRunPage
 import com.festivalscoretracker.android.ui.leaderboards.leaderboardsGraph
@@ -578,12 +579,16 @@ private fun FestivalShell(
     }
     val firstRunActive by container.firstRun.active.collectAsStateWithLifecycle()
     val whatsNewShown by container.whatsNew.shown.collectAsStateWithLifecycle()
+    val firstRunDemoSongs = remember(container) {
+        FirstRunDemoSongsSource({ container.api.catalog() }, container.shop.state, container.api.publicationChanges, container.api::artworkUrl)
+    }
     FirstRunHost(
         center = container.firstRun,
         page = firstRunPage(stack.lastOrNull()),
         settings = settings,
         compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
         blocked = showProfile || showNotifications || whatsNewShown != null,
+        demoSongs = firstRunDemoSongs,
     )
     // After the launch page's carousel (web order); Settings replays it.
     WhatsNewHost(
