@@ -25,8 +25,11 @@ struct FirstRunLeaderboardsOverviewDemo: View {
 // MARK: - leaderboards-experimental-metrics
 
 /// Ported from `pages/leaderboards/firstRun/demo/ExperimentalMetricsDemo.tsx`: the "Rank By"
-/// metric picker limited to the experimental metrics.
+/// metric picker limited to the experimental metrics. The selected metric moves to the next one
+/// every 5 s, as on the web.
 struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
+    @State private var active = 0
+
     private let metrics: [(String, String)] = [
         ("Adjusted Percentile", "Estimated skill from your rank position."),
         ("Popularity-Weighted Percentile", "Adjusts for how many players know this song."),
@@ -40,8 +43,8 @@ struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
                 .foregroundStyle(FestivalText.primary)
             ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
                 HStack {
-                    Image(systemName: index == 0 ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(index == 0 ? BrandTokens.accentBlue : FestivalText.deemphasized)
+                    Image(systemName: index == active ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(index == active ? BrandTokens.accentBlue : FestivalText.deemphasized)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(metric.0).foregroundStyle(FestivalText.primary)
                         Text(metric.1).font(.caption2).foregroundStyle(FestivalText.deemphasized)
@@ -54,6 +57,7 @@ struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .festivalGlass(.card, cornerRadius: 16)
         .accessibilityHidden(true)
+        .firstRunDemoTicker { active = (active + 1) % metrics.count }
     }
 }
 

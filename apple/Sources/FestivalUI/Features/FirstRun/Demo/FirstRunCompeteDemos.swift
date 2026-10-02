@@ -3,26 +3,51 @@ import FestivalDesign
 
 // MARK: - compete-hub
 
-/// Ported from `pages/compete/firstRun/demo/CompeteHubDemo.tsx`: the web alternates between a
-/// leaderboard layout and a rivals layout on a timer. This static port shows both halves at
-/// once (a compact ranking snippet plus one rival above/below) so the "competitive snapshot"
-/// description reads correctly without a timer that would keep running while off-screen.
+/// Ported from `pages/compete/firstRun/demo/CompeteHubDemo.tsx`: like the web, the demo
+/// alternates every 5 s between a leaderboard layout (top rankings plus the player's row) and a
+/// rivals layout (Above You / Below You), fading the whole demo out and in with a 6 pt drop.
 struct FirstRunCompeteHubDemo: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showsRivals = false
+    @State private var fading: Set<Int> = []
+
     var body: some View {
-        VStack(spacing: 10) {
-            VStack(spacing: 4) {
-                ForEach(FirstRunDemoPool.rankings.prefix(2)) { entry in
-                    FirstRunRankRow(entry: entry)
-                }
-                FirstRunRankRow(entry: FirstRunDemoPool.rankingNeighborhood[3])
-            }
-            if let above = FirstRunDemoPool.rivalsAbove.first,
-               let below = FirstRunDemoPool.rivalsBelow.first {
-                FirstRunRivalRow(rival: above, direction: .above)
-                FirstRunRivalRow(rival: below, direction: .below)
+        Group {
+            if showsRivals {
+                rivals
+            } else {
+                leaderboard
             }
         }
+        .firstRunSwapRow(0, key: showsRivals, rise: 6)
+        .environment(\.firstRunFadingRows, fading)
         .accessibilityHidden(true)
+        .firstRunDemoTicker { await swap() }
+    }
+
+    private var leaderboard: some View {
+        VStack(spacing: 6) {
+            ForEach(FirstRunDemoPool.rankings.prefix(4)) { FirstRunRankRow(entry: $0) }
+            FirstRunRankRow(entry: FirstRunDemoPool.rankingNeighborhood[3])
+        }
+    }
+
+    private var rivals: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
+            ForEach(FirstRunDemoPool.rivalsAbove.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .above) }
+            Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
+            ForEach(FirstRunDemoPool.rivalsBelow.prefix(2)) { FirstRunRivalRow(rival: $0, direction: .below) }
+        }
+    }
+
+    private func swap() async {
+        await FirstRunDemoSwap.run(
+            reduceMotion: reduceMotion,
+            fadeOut: { fading = [0] },
+            update: { showsRivals.toggle() },
+            fadeIn: { fading = [] }
+        )
     }
 }
 
@@ -39,19 +64,9 @@ struct FirstRunCompeteLeaderboardsDemo: View {
 // MARK: - compete-rivals
 
 /// Ported from `pages/compete/firstRun/demo/CompeteRivalsDemo.tsx`: Above You / Below You rival
-/// sections.
+/// sections, alternately swapping each whole group every 5 s like the web.
 struct FirstRunCompeteRivalsDemo: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(FirstRunDemoPool.rivalsAbove.prefix(2)) { rival in
-                FirstRunRivalRow(rival: rival, direction: .above)
-            }
-            Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(FirstRunDemoPool.rivalsBelow.prefix(2)) { rival in
-                FirstRunRivalRow(rival: rival, direction: .below)
-            }
-        }
-        .accessibilityHidden(true)
+        FirstRunRivalGroupsDemo(visible: 2)
     }
 }
