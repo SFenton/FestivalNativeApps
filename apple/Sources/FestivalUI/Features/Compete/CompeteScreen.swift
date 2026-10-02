@@ -131,8 +131,9 @@ struct CompeteScreen: View {
 // MARK: - Per-instrument leaderboard preview
 
 /// One instrument's Top-5 ranking preview, reusing Lane L's `RankLoadState`/
-/// `AccountRankingRow`/`RankingsSkeletonRows` (`Features/Leaderboards/RankingsSupport.swift`)
-/// so Compete's cards match `LeaderboardsScreen`'s own overview cards exactly.
+/// `AccountRankingRow` (`Features/Leaderboards/RankingsSupport.swift`) so Compete's
+/// rows match `LeaderboardsScreen`'s own overview cards. While loading it shows a
+/// system spinner card, like the Rivals sections below it.
 struct CompeteInstrumentLeaderboardSection: View {
     let session: FestivalSession
     let instrument: Instrument
@@ -158,7 +159,15 @@ struct CompeteInstrumentLeaderboardSection: View {
         VStack(alignment: .leading, spacing: 6) {
             switch state {
             case .loading:
-                RankingsSkeletonRows(count: previewCount, glassRows: true)
+                // A system spinner, not `RankingsSkeletonRows`: the redacted bars read
+                // as content, so the first screen showed no loading indicator (#35).
+                // Same place as the Rivals sections' spinners and this card's own
+                // empty/error states.
+                FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) leaderboard")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 26)
+                    .festivalGlass(.card, cornerRadius: 12)
+                    .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).loading")
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "compete.\(instrument.rawValue)") { Task { await load() } }
                     .padding(14)
