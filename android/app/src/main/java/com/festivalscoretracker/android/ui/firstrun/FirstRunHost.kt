@@ -1,13 +1,23 @@
 package com.festivalscoretracker.android.ui.firstrun
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
+import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSongs
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
+import com.festivalscoretracker.android.core.shop.ShopPayload
+import com.festivalscoretracker.android.data.CatalogPayload
+import com.festivalscoretracker.android.presentation.LoadState
+import com.festivalscoretracker.android.presentation.valueOrNull
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.StateFlow
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.CompeteTab
 import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
@@ -68,9 +78,17 @@ fun firstRunPage(entry: NavBackStackEntry?): FirstRunPageKey? {
  * @param settings Current settings (gate facts; non-null means `ready`).
  * @param compact Compact window width.
  * @param blocked Another modal owns the screen (e.g. the profile sheet).
+ * @param demoSongs Where song demos read real catalogue songs; null shows placeholders.
  */
 @Composable
-fun FirstRunHost(center: FirstRunCenter, page: FirstRunPageKey?, settings: AppSettings, compact: Boolean, blocked: Boolean) {
+fun FirstRunHost(
+    center: FirstRunCenter,
+    page: FirstRunPageKey?,
+    settings: AppSettings,
+    compact: Boolean,
+    blocked: Boolean,
+    demoSongs: FirstRunDemoSongsSource? = null,
+) {
     val active by center.active.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val hasPlayer = settings.selectedPlayer != null
@@ -80,7 +98,54 @@ fun FirstRunHost(center: FirstRunCenter, page: FirstRunPageKey?, settings: AppSe
         center.tryBegin(page, settings, compact)
     }
     active?.let { carousel ->
-        FirstRunCarouselDialog(carousel, compact) { viewed -> scope.launch { center.complete(carousel, viewed) } }
+        val demoCatalog = demoSongs?.let { rememberFirstRunDemoCatalog(it, settings.hideShop) } ?: FirstRunDemoCatalog()
+        CompositionLocalProvider(LocalFirstRunDemoCatalog provides demoCatalog) {
+            FirstRunCarouselDialog(carousel, compact) { viewed -> scope.launch { center.complete(carousel, viewed) } }
+        }
+    }
+}
+
+/**
+ * Catalogue inputs for song demos (web `useDemoSongs`/`useItemShopDemoSongs`). Demos only read
+ * the memoized keyless `/api/songs` and an already-loaded Shop feed; they never fetch the Shop.
+ *
+ * @property loadCatalog Memoized catalogue read.
+ * @property shop Shared Shop feed state.
+ * @property publication Latest publication the app observed.
+ * @property artworkUrl Artwork resolver.
+ */
+class FirstRunDemoSongsSource(
+    val loadCatalog: suspend () -> CatalogPayload,
+    val shop: StateFlow<LoadState<ShopPayload>>,
+    val publication: StateFlow<Int?>,
+    val artworkUrl: (String?) -> String?,
+)
+
+/**
+ * Loads the catalogue once while a carousel is shown; a failure keeps placeholders (the demos
+ * are decorative and online-only).
+ *
+ * @param source Inputs.
+ * @param hideShop Shop hidden in Settings: Shop demos then use Epic Games songs.
+ * @return Demo songs.
+ */
+@Composable
+private fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideShop: Boolean): FirstRunDemoCatalog {
+    val catalog by produceState<CatalogPayload?>(null, source) {
+        value = try {
+            source.loadCatalog()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+    }
+    val shop by source.shop.collectAsStateWithLifecycle()
+    val current by source.publication.collectAsStateWithLifecycle()
+    val payload = catalog
+    return remember(payload, shop, current, hideShop) {
+        val shopIds = if (hideShop) emptyList() else FirstRunDemoSongs.shopPreference(shop.valueOrNull, payload?.publicationId, current)
+        FirstRunDemoCatalog(payload?.catalog?.songs, shopIds, source.artworkUrl)
     }
 }
 
