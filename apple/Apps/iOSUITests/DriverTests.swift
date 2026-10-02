@@ -35,6 +35,8 @@ import UIKit
 ///   hierarchy — the fastest way for an agent to discover identifiers) to
 ///   an absolute host path.
 /// - `rotate:<portrait|portraitUpsideDown|landscapeLeft|landscapeRight|faceUp|faceDown>`.
+/// - `home[:<icon label>]` — press Home; with a label, page the Home Screen until an
+///   icon with that label is on screen (Home Screen captures of the just-installed app).
 enum DriverStep {
     case tap(String)
     case tapText(String)
@@ -49,6 +51,7 @@ enum DriverStep {
     case shot(String)
     case tree(String)
     case rotate(UIDeviceOrientation)
+    case home(String?)
 
     /// A cardinal swipe direction.
     enum Direction: String {
@@ -123,6 +126,8 @@ enum DriverStep {
         case "rotate":
             guard let orientation = orientation(named: arg) else { throw ParseError.malformed(raw) }
             return .rotate(orientation)
+        case "home":
+            return .home(arg.isEmpty ? nil : arg)
         default:
             throw ParseError.unknownVerb(verb)
         }
@@ -340,7 +345,45 @@ final class DriverTests: XCTestCase {
             try app.debugDescription.write(toFile: path, atomically: true, encoding: .utf8)
         case let .rotate(orientation):
             XCUIDevice.shared.orientation = orientation
+        case let .home(label):
+            XCUIDevice.shared.press(.home)
+            if let label { _ = try visibleHomeScreenIcon(label) }
         }
+    }
+
+    /// Page the Home Screen until an icon with this label is on screen.
+    ///
+    /// A newly installed app or web clip lands on the first page with room, often not the
+    /// first page. iPhone Duo's SpringBoard reports visible icons as not hittable, so an
+    /// icon counts as visible when its frame's centre lies inside the SpringBoard window.
+    ///
+    /// - Parameter label: The icon's Home Screen label (its `CFBundleDisplayName`).
+    /// - Returns: The first on-screen icon with that label.
+    /// - Throws: ``DriverError/elementNotFound(_:)`` when no such icon exists or none is
+    ///   on screen within three page swipes.
+    @MainActor
+    static func visibleHomeScreenIcon(_ label: String) throws -> XCUIElement {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let icons = springboard.icons.matching(identifier: label)
+        guard icons.firstMatch.waitForExistence(timeout: 10) else {
+            throw DriverError.elementNotFound(label)
+        }
+        let screen = springboard.windows.firstMatch.frame
+        func visibleIcon() -> XCUIElement? {
+            icons.allElementsBoundByIndex.first { icon in
+                let frame = icon.frame
+                return !frame.isEmpty && screen.contains(CGPoint(x: frame.midX, y: frame.midY))
+            }
+        }
+        let settle = Date().addingTimeInterval(3)
+        while visibleIcon() == nil && Date() < settle { Thread.sleep(forTimeInterval: 0.25) }
+        var pages = 0
+        while visibleIcon() == nil && pages < 3 {
+            springboard.swipeLeft()
+            pages += 1
+        }
+        guard let icon = visibleIcon() else { throw DriverError.elementNotFound(label) }
+        return icon
     }
 
     /// Resolve `tap:`'s target: try an accessibility-identifier match first,

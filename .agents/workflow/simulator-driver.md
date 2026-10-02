@@ -44,6 +44,7 @@ Defined in `apple/Apps/iOSUITests/DriverTests.swift` (`DriverStep.parse`):
 | `shot:<path>` | Write a full-screen PNG to an absolute host path |
 | `tree:<path>` | Write `app.debugDescription` (the accessibility hierarchy) to an absolute host path — the fastest way to discover identifiers before scripting taps |
 | `rotate:<portrait\|portraitUpsideDown\|landscapeLeft\|landscapeRight\|faceUp\|faceDown>` | Set device orientation (ignored by the iPhone Duo outer display) |
+| `home[:<icon label>]` | Press Home; with a label, page the Home Screen (up to 3 swipes) until an icon with that label is on screen. For Home Screen captures of the just-installed build, e.g. `home:FST; wait:1.5; shot:/tmp/home.png`. Run install and capture in one `drive` so other jobs' installs of the same bundle can't intervene |
 
 A `tree:` dump early in a script is the standard way to find an unknown identifier: run `drive` with just `wait:1; tree:/tmp/x.txt`, `grep` the file for `identifier:`, then script the real steps.
 
