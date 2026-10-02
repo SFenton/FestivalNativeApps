@@ -68,29 +68,57 @@ struct AppBuildInfoTests {
 /// line, so each Apple app's Info.plist must read those settings rather than fixed values.
 @Suite("Release version stamping")
 struct ReleaseVersionStampingTests {
-    /// The `apple/project.yml` block for one target (its lines up to the next target).
-    private func targetBlock(_ name: String) throws -> String {
+    /// The `apple/project.yml` target blocks, keyed by target name (each block runs from its
+    /// `  Name:` line up to the next two-space-indented key or top-level key).
+    private func targetBlocks() throws -> [String: String] {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("project.yml")
         let lines = try String(contentsOf: url, encoding: .utf8).components(separatedBy: "\n")
-        guard let start = lines.firstIndex(of: "  \(name):") else { return "" }
-        let rest = lines[(start + 1)...]
-        let end = rest.firstIndex { line in
-            line.hasPrefix("  ") && !line.hasPrefix("   ") && !line.trimmingCharacters(in: .whitespaces).isEmpty
-                || (!line.hasPrefix(" ") && !line.isEmpty)
-        } ?? lines.endIndex
-        return lines[start..<end].joined(separator: "\n")
+        guard let targets = lines.firstIndex(of: "targets:") else { return [:] }
+        var blocks: [String: String] = [:]
+        var name: String?
+        var body: [String] = []
+        func flush() {
+            if let name { blocks[name] = body.joined(separator: "\n") }
+        }
+        for line in lines[(targets + 1)...] {
+            if !line.hasPrefix(" "), !line.isEmpty { break }
+            let isTargetKey = line.hasPrefix("  ") && !line.hasPrefix("   ") && line.hasSuffix(":")
+                && !line.trimmingCharacters(in: .whitespaces).hasPrefix("#")
+            if isTargetKey {
+                flush()
+                name = String(line.dropFirst(2).dropLast())
+                body = [line]
+            } else {
+                body.append(line)
+            }
+        }
+        flush()
+        return blocks
     }
 
-    @Test("iPhone and Mac apps take version, build and commit from release build settings",
-          arguments: ["FestivalMobile", "FestivalDesktop"])
-    func infoPlistReadsBuildSettings(target: String) throws {
-        let block = try targetBlock(target)
-        #expect(!block.isEmpty, "target \(target) not found in apple/project.yml")
-        #expect(block.contains("CFBundleShortVersionString: $(MARKETING_VERSION)"))
-        #expect(block.contains("CFBundleVersion: $(CURRENT_PROJECT_VERSION)"))
-        #expect(block.contains("\(AppBuildInfo.gitSHAKey): $(FST_GIT_SHA)"))
-        #expect(block.contains("FST_GIT_SHA: dev"), "local builds must keep the dev default (no commit shown)")
+    /// Names of every app (`type: application`) target: iPhone, iPad and Mac.
+    private func applicationTargets() throws -> [String: String] {
+        try targetBlocks().filter { $0.value.contains("type: application") }
+    }
+
+    @Test("The iPhone and Mac apps are found in apple/project.yml")
+    func knownAppsPresent() throws {
+        let apps = try applicationTargets()
+        #expect(apps["FestivalMobile"] != nil)
+        #expect(apps["FestivalDesktop"] != nil)
+    }
+
+    @Test("Every Apple app takes version, build and commit from release build settings")
+    func infoPlistReadsBuildSettings() throws {
+        let apps = try applicationTargets()
+        #expect(!apps.isEmpty, "no application targets found in apple/project.yml")
+        for (target, block) in apps.sorted(by: { $0.key < $1.key }) {
+            #expect(block.contains("CFBundleShortVersionString: $(MARKETING_VERSION)"), "\(target)")
+            #expect(block.contains("CFBundleVersion: $(CURRENT_PROJECT_VERSION)"), "\(target)")
+            #expect(block.contains("\(AppBuildInfo.gitSHAKey): $(FST_GIT_SHA)"), "\(target)")
+            #expect(block.contains("FST_GIT_SHA: dev"), "\(target): local builds must keep the dev default (no commit shown)")
+        }
     }
 }
