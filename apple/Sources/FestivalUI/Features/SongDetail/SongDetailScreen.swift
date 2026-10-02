@@ -302,6 +302,9 @@ struct SongDetailScreen: View {
                 }
             }
             .padding(16)
+            // Only what is on screen at load fades; lazily built cards scrolled into
+            // view afterwards appear without a fade (issue #30).
+            .festivalFadeInScope()
         }
         .onAppear {
             // Deep link (`/history`): land on the Score History section.

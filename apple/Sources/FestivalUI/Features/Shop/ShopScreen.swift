@@ -255,6 +255,7 @@ struct ShopScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
+                .festivalFadeInScope()
             }
         } else {
             ScrollView {
@@ -271,6 +272,7 @@ struct ShopScreen: View {
                     }
                 }
                 .padding(16)
+                .festivalFadeInScope()
             }
         }
     }

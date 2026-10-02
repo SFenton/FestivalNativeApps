@@ -17,6 +17,9 @@ struct SuggestionsScreen: View {
     let visibleInstruments: Set<Instrument>
     @State private var viewModel: SuggestionsViewModel
     @State private var filterPresented = false
+    /// `batchGeneration` whose stagger has finished: its rows no longer fade, so a row
+    /// rebuilt after scrolling away and back appears without a fade (issue #30).
+    @State private var settledBatchGeneration: Int?
     /// Revisions already handled by the tasks below; a reappearance re-fires
     /// `.task(id:)` even when the id value is unchanged (the same `NavigationStack`
     /// root quirk Leaderboards hit, Lane W1), and `session.selectionRevision`'s task
@@ -181,16 +184,23 @@ struct SuggestionsScreen: View {
     }
 
     private var list: some View {
-        ScrollView {
+        let categories = visibleCategories
+        // Only the newest generated page fades in, staggered in its own order; earlier
+        // pages and rows rebuilt by scrolling appear without a fade (issue #30).
+        let fadeIndexes = FadeStagger.batchIndexes(
+            order: categories.map(\.id), batch: viewModel.latestBatchIds,
+            settled: settledBatchGeneration == viewModel.batchGeneration
+        )
+        return ScrollView {
             LazyVStack(spacing: 20) {
-                ForEach(Array(visibleCategories.enumerated()), id: \.element.id) { index, category in
+                ForEach(categories) { category in
                     SuggestionCategoryCardView(
                         category: category, session: session,
                         currentSeason: viewModel.currentSeason, visibleInstruments: visibleInstruments
                     )
                         .padding(.horizontal, 16)
                         // Web `getCardDelay`: the first screenful staggers 125 ms apart.
-                        .festivalFadeIn(isLoaded: true, index: index)
+                        .festivalFadeIn(isLoaded: true, index: fadeIndexes[category.id] ?? -1)
                         .onAppear { maybeLoadMore(after: category) }
                 }
                 footer
@@ -198,6 +208,12 @@ struct SuggestionsScreen: View {
             .padding(.vertical, 16)
         }
         .scrollContentBackground(.hidden)
+        .task(id: viewModel.batchGeneration) {
+            let generation = viewModel.batchGeneration
+            await FadeStagger.settle(afterRevealing: viewModel.latestBatchIds.count) {
+                settledBatchGeneration = generation
+            }
+        }
         .refreshable { viewModel.startNewMix(); await viewModel.ensureLoaded(session: session) }
         .accessibilityIdentifier("fst.suggestions.list")
     }
