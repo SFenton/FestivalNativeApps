@@ -180,6 +180,8 @@ struct TabAccessoryHost: ViewModifier {
 /// the pages and let the tab's `fst.nav.*` identifier replace the buttons' own.)
 struct FloatingPageControls: ViewModifier {
     @Environment(\.tabAccessoryRegistry) private var registry
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     /// This page's scope: only controls registered from inside it are shown here.
     @State private var scope = UUID()
 
@@ -191,6 +193,9 @@ struct FloatingPageControls: ViewModifier {
         // Only the front page draws its buttons (see `TabAccessoryRegistry.isFront`);
         // the inset stays so an outgoing page's layout does not jump mid-transition.
         let front = registry?.isFront(scope) ?? false
+        let style = PageToolsHandOff.style(
+            systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
+        )
         content
             .environment(\.floatingControlsScope, scope)
             .environment(\.floatingControlsInset, items.isEmpty ? 0 : Self.height)
@@ -199,24 +204,31 @@ struct FloatingPageControls: ViewModifier {
             .onDisappear { registry?.pageDisappeared(scope) }
             .animation(.easeInOut(duration: 0.15), value: front)
             .overlay(alignment: .bottomTrailing) {
-                if !items.isEmpty && front {
-                    FestivalGlassGroup(spacing: 12) {
-                        HStack(spacing: 12) {
-                            ForEach(items, id: \.id) { item in
-                                item.content
-                                    .labelStyle(.iconOnly)
-                                    .font(.title3)
-                                    .frame(width: 50, height: 50)
-                                    .contentShape(Circle())
-                                    .festivalGlassCapsule(.control, interactive: true)
-                                    .accessibilityIdentifier(item.accessibilityID ?? "")
+                ZStack(alignment: .bottomTrailing) {
+                    if !items.isEmpty && front {
+                        FestivalGlassGroup(spacing: 12) {
+                            HStack(spacing: 12) {
+                                ForEach(items, id: \.id) { item in
+                                    item.content
+                                        .labelStyle(.iconOnly)
+                                        .font(.title3)
+                                        .frame(width: 50, height: 50)
+                                        .contentShape(Circle())
+                                        .festivalGlassCapsule(.control, interactive: true)
+                                        .accessibilityIdentifier(item.accessibilityID ?? "")
+                                        .transition(PageToolsHandOff.dockTransition(style))
+                                }
                             }
                         }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 8)
+                        .transition(PageToolsHandOff.dockTransition(style))
                     }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 8)
-                    .transition(.opacity)
                 }
+                // Registrations change outside the scroll hand-off's transaction, so the
+                // dock animates its own half with the same timing (issue #13); scoped to
+                // the overlay so the page itself never animates with it.
+                .animation(PageToolsHandOff.animation(style), value: items.map(\.id))
             }
     }
 }

@@ -34,13 +34,14 @@
 9. **Header legibility:** every page gets `TopEdgeScrim` (`Common/Chrome/PageChrome.swift`): iOS 26 `scrollEdgeEffectStyle(.soft, for: .top)` plus a dark gradient behind the bar region over the artwork (the gradient alone before 26). Collapsed inline titles are 20 pt semibold, Dynamic Type scaled (`NavigationTitleStyle`).
 10. **Bell only with a selected profile**; Search and the avatar always show. On a 375 pt-wide iPhone a tab root carries at most drawer + page action + Search + bell + avatar; titles collapse inline beside them rather than truncating (large titles sit below the bar).
 11. **Sheets open at the large detent** (`festivalSheet`, both presets); `.compact` can still be dragged down to medium.
+12. **Tools rise into the bar while scrolled** (issue #13, iPhone). A page whose tools float may hand them to the navigation bar once its list scrolls away from the top, for every viewer, and take them back at the top. Use `PageToolsHandOff` (`Common/TabAccessory/PageToolsHandOff.swift`) for the decision, the shared animation and the dock transition; `FloatingPageControls` already animates its half. Under system or app Reduce Motion it is a cross-fade (HIG Accessibility: "replacing axis transitions with fades"). Never toggle `toolbar(removing: .title)` with it: removing the title removes the large title and jumps the list; use a permanent empty `.principal` item when the inline title has no room. Keep the trailing side at three groups (HIG Toolbars: "generally use no more than three groups"); the system overflows the rest into **More**. A page's inline list filter stays pinned (`.navigationBarDrawer(displayMode: .always)`; HIG Search fields: "consider pinning it to the top toolbar while scrolling"). Songs only so far; Suggestions' Filter and Search are toolbar items already.
 
 ## Decisions per page
 
 | Page | Header (iPhone) | Floating tools (iPhone) | Duo vertical bar, iPad, Mac |
 |---|---|---|---|
 | Every page | Search; avatar (+ bell) on tab roots | — | Search, bell, avatar in the toolbar / rail |
-| Songs (root) | Drawer, inline "Filter Songs" field, Search, bell, avatar | Filter · Sort · Quick Links (Duration/Shop sorts) | Sort, Filter, Quick Links as toolbar items |
+| Songs (root) | Drawer, pinned "Filter Songs" field, Search, bell, avatar; Sort, Filter, Quick Links join once scrolled (rule 12) | Filter · Sort · Quick Links (Year/Duration/Shop sorts) at the top | Sort, Filter, Quick Links as toolbar items |
 | Player `/player/:id`, Statistics | **Select** / **Switch** / **Deselect** button, Search (+ bell, avatar on Statistics) | Quick Links | Rail: `VerticalBarActionItem`; iPad/Mac: header button |
 | Song Detail | Item Shop, Paths, Search | Quick Links | Toolbar |
 | Leaderboards, Compete, Settings, Rivals, Rival Detail, Rivalry, Band Detail | Page actions (metric menu, Find Rival…), Search, bell + avatar on roots | Quick Links | Toolbar |
