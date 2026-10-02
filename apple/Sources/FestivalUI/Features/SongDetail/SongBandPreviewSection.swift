@@ -191,7 +191,7 @@ struct SongBandPreviewRow: View {
             .modifier(RankingRowSurface(isSelected: highlighted))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .festivalRowButtonStyle()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SongBandPreviewText.spokenLabel(entry, selected: highlighted))
         .accessibilityHint("Opens band")

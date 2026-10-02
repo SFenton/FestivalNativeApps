@@ -61,7 +61,7 @@ HELPER_SOURCE = REPO_ROOT / "tools" / "mac_window.swift"
 PROFILES = {"sfentonx": "195e93ef108143b2975ee46662d4d0e1:SFentonX"}
 
 #: Debug shell commands without an argument (`MacDebugCommand`).
-SIMPLE_COMMANDS = {"settings", "back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss"}
+SIMPLE_COMMANDS = {"menus", "settings", "back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss"}
 #: Debug shell commands that take ``verb:argument``.
 ARGUMENT_COMMANDS = {"select", "route", "settings"}
 

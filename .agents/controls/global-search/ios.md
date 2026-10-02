@@ -20,7 +20,7 @@ Operator (2026-09-28): "Global search button should be in header" (web: the head
 
 ## Songs: filter stays separate
 
-Songs keeps its **inline** `.searchable` field with the prompt "Filter Songs". It filters the list together with sort, filters and the A–Z scrubber. HIG: "Search as an inline field … when you need to filter or search within a single view"; Music does the same (global search plus an inline Library filter). Global search never reads or writes the Songs text, and vice versa ([spec](spec.md#page-local-search-songs-is-separate)). A Songs-only accessory pill from this lane's first pass was removed once search became global.
+Songs keeps its own list search: on iPhone iOS 26.1+ a "Search songs or artists" field-button in the tab-bar accessory that opens a focused bar above the keyboard (issue #42, [nav accessories](../../design/apple/nav-accessories.md) rule 13, like the web dock's search); elsewhere the **inline** `.searchable` field with the prompt "Filter Songs". It filters the list together with sort, filters and the A–Z scrubber. HIG: "Search as an inline field … when you need to filter or search within a single view"; Music does the same (global search plus an inline Library filter). Global search never reads or writes the Songs text, and vice versa ([spec](spec.md#page-local-search-songs-is-separate)). A Songs-only accessory pill from this lane's first pass was removed once search became global.
 
 ## Implementation
 

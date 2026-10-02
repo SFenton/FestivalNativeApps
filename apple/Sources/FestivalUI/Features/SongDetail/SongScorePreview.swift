@@ -287,7 +287,7 @@ struct SongScorePreview: View {
         .contentShape(Rectangle())
         if let route {
             NavigationLink(value: route) { content }
-                .buttonStyle(.plain)
+                .festivalRowButtonStyle()
                 .accessibilityHint(SongPreviewSpotlightPolicy.hint(for: route))
         } else {
             // Anonymous rows have no profile to open.

@@ -512,6 +512,10 @@ enum SongsUITestSupport {
 
     /// Select native sidebar buttons on iPad, system tab buttons on iPhone.
     ///
+    /// On iPhone iOS 26.1+ the tab bar minimizes on scroll (issue #42) and then exposes
+    /// only the selected tab, valued "Collapsed"; that button is tapped first to expand
+    /// the bar so the requested tab exists.
+    ///
     /// - Parameters:
     ///   - name: Root section's visible label.
     ///   - app: Launched Festival fixture app.
@@ -522,23 +526,53 @@ enum SongsUITestSupport {
             return app.descendants(matching: .any)
                 .matching(identifier: "fst.nav.\(name.lowercased())").firstMatch
         }
-        return app.tabBars.buttons[name]
+        let tab = app.tabBars.buttons[name]
+        if !tab.exists {
+            let collapsed = app.tabBars.buttons
+                .matching(NSPredicate(format: "value == %@", "Collapsed")).firstMatch
+            if collapsed.exists {
+                collapsed.tap()
+                _ = tab.waitForExistence(timeout: 3)
+            }
+        }
+        return tab
     }
 
-    /// The Songs list's inline filter field (`.searchable`, prompt "Filter Songs").
+    /// The Songs list's search field, opened and ready to type into.
     ///
-    /// Matched by its prompt so it is never confused with global search's field
-    /// (the iOS 26 search tab), see `.agents/controls/global-search/ios.md`.
+    /// iPhone iOS 26.1+: the field-shaped "Search Songs" button in the tab-bar accessory
+    /// opens a focused field above the keyboard (`fst.songs.search.field`, issue #42).
+    /// Elsewhere it is the `.searchable` field matched by its prompt "Filter Songs", so it
+    /// is never confused with global search's field
+    /// (`.agents/controls/global-search/ios.md`).
     ///
     /// - Parameter app: Foreground app on the Songs root.
-    /// - Returns: The Songs filter search field.
+    /// - Returns: The Songs search field.
     @MainActor
     static func songsSearchField(in app: XCUIApplication) -> XCUIElement {
+        let open = app.buttons["fst.songs.search.open"]
+        if open.waitForExistence(timeout: 3) {
+            open.tap()
+            let field = app.textFields["fst.songs.search.field"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            return field
+        }
         let field = app.searchFields.matching(
             NSPredicate(format: "placeholderValue == %@", "Filter Songs")
         ).firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         return field
+    }
+
+    /// The Songs search entry point without opening it: the accessory's "Search Songs"
+    /// button on iPhone iOS 26.1+ (issue #42), otherwise the "Filter Songs" field.
+    ///
+    /// - Parameter app: Foreground app on the Songs root.
+    /// - Returns: The visible search control.
+    @MainActor
+    static func songsSearchEntry(in app: XCUIApplication) -> XCUIElement {
+        let open = app.buttons["fst.songs.search.open"]
+        return open.waitForExistence(timeout: 3) ? open : app.searchFields["Filter Songs"]
     }
 
     /// Scroll a large-type error until Retry is both tappable and above native navigation.
@@ -956,9 +990,22 @@ enum SongsUITestSupport {
     ///   - scrollingUp: Preferred direction, reversed if Settings retained its scroll position.
     @MainActor
     static func reveal(_ element: XCUIElement, in app: XCUIApplication, scrollingUp: Bool) {
+        let window = app.windows.firstMatch
         for direction in [scrollingUp, !scrollingUp] {
             for _ in 0..<8 {
-                if element.isHittable { return }
+                if element.isHittable {
+                    if clearsBottomChrome(element, in: app) { return }
+                    // Hittable but behind the tab-bar accessory (issue #42): XCUITest
+                    // reports it hittable while a tap opens Quick Links instead.
+                    window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                        .press(
+                            forDuration: 0.05,
+                            thenDragTo: window.coordinate(
+                                withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)
+                            )
+                        )
+                    continue
+                }
                 if direction {
                     app.swipeUp()
                 } else {
@@ -971,6 +1018,26 @@ enum SongsUITestSupport {
             "Settings control not reachable: \(element.identifier); visible controls: "
                 + "\(app.buttons.allElementsBoundByIndex.prefix(16).map(\.label))"
         )
+    }
+
+    /// Whether a control sits wholly above the tab bar and any bottom page tools.
+    ///
+    /// - Parameters:
+    ///   - element: Hittable control to check.
+    ///   - app: Foreground app.
+    /// - Returns: `true` when nothing at the bottom of the window can take its taps.
+    @MainActor
+    private static func clearsBottomChrome(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        let window = app.windows.firstMatch.frame
+        var limit = window.maxY
+        let tabs = app.tabBars.firstMatch
+        if tabs.exists { limit = min(limit, tabs.frame.minY) }
+        let quickLinks = app.buttons.matching(identifier: "fst.quick-links.open")
+        for index in 0..<quickLinks.count {
+            let frame = quickLinks.element(boundBy: index).frame
+            if frame.minY > window.midY { limit = min(limit, frame.minY) }
+        }
+        return element.frame.maxY <= limit
     }
 
     /// Toggle the trailing native switch only when its current value differs.

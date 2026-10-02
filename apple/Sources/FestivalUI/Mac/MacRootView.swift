@@ -70,6 +70,7 @@ public struct MacRootView: View {
         .environment(\.festivalSession, session)
         .environment(\.shellOwnsGlobalToolbar, true)
         .environment(\.macAppModel, model)
+        .environment(\.songRowsAllowSingleLine, true)
         .environment(\.refreshCommandRegistry, model.refreshRegistry)
         .environment(\.openProfile, OpenProfileAction { navigation.profilePresented = true })
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { navigation.searchPresented = true })
@@ -106,7 +107,12 @@ public struct MacRootView: View {
             .macSheetFrame(width: 620, height: 720)
         }
         .whatsNew(session: session)
-        .background { MacWindowConfigurator() }
+        .background {
+            MacWindowConfigurator(
+                selectionText: { model.navigation.selectionCopyText },
+                onFullScreenChange: { model.isFullScreen = $0 }
+            )
+        }
         #if DEBUG
         .onReceive(NotificationCenter.default.publisher(for: MacDebugHooks.localCommandName)) { note in
             if let command = note.object as? MacDebugCommand { run(command) }
@@ -165,6 +171,12 @@ public struct MacRootView: View {
         case .sort: pageCommands?.sort?()
         case .filter: pageCommands?.filter?()
         case .settings: openSettings()
+        case .menus:
+            // Titles and shortcuts; enabled states reflect the key window, so they read
+            // as disabled while the app is in the background (never activated here).
+            let lines = NSApplication.shared.mainMenu.map { MacDebugHooks.describe($0) } ?? []
+            try? lines.joined(separator: "\n")
+                .write(toFile: MacDebugHooks.menuDumpPath, atomically: true, encoding: .utf8)
         case let .settingsPane(pane):
             UserDefaults.standard.set(pane.rawValue, forKey: SettingsPane.storageKey)
             openSettings()
@@ -420,17 +432,53 @@ struct MacSidebarProfileFooter: View {
 
 /// Turns AppKit window restoration off (so a crash or forced quit never leads to the
 /// "reopen windows" prompt) and keeps the frame in an autosave name instead; the
-/// sidebar destination is restored by ``MacNavigationModel``.
+/// sidebar destination is restored by ``MacNavigationModel``. Also puts
+/// ``MacSelectionCopyResponder`` in the window's responder chain for Edit › Copy.
 struct MacWindowConfigurator: NSViewRepresentable {
     static let autosaveName = "FestivalMainWindow"
+    /// The selected row's name for Edit › Copy (``MacSelectionCopyResponder``).
+    var selectionText: @MainActor () -> String? = { nil }
+    /// Reports entering and leaving full screen (View › Enter/Exit Full Screen title).
+    var onFullScreenChange: @MainActor (Bool) -> Void = { _ in }
 
-    func makeNSView(context: Context) -> NSView { WindowProbe() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func makeNSView(context: Context) -> NSView {
+        let probe = WindowProbe()
+        probe.copyResponder.selectionText = selectionText
+        probe.onFullScreenChange = onFullScreenChange
+        return probe
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let probe = nsView as? WindowProbe else { return }
+        probe.copyResponder.selectionText = selectionText
+        probe.onFullScreenChange = onFullScreenChange
+    }
 
     private final class WindowProbe: NSView {
+        let copyResponder = MacSelectionCopyResponder()
+        var onFullScreenChange: @MainActor (Bool) -> Void = { _ in }
+        private var observers: [NSObjectProtocol] = []
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            observers.forEach(NotificationCenter.default.removeObserver)
+            observers = []
             guard let window else { return }
+            for (name, isFullScreen) in [
+                (NSWindow.didEnterFullScreenNotification, true), (NSWindow.didExitFullScreenNotification, false),
+            ] {
+                observers.append(NotificationCenter.default.addObserver(
+                    forName: name, object: window, queue: .main
+                ) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.onFullScreenChange(isFullScreen) }
+                })
+            }
+            // After the window in its responder chain: a focused text field's own
+            // Copy still wins.
+            if window.nextResponder !== copyResponder {
+                copyResponder.nextResponder = window.nextResponder
+                window.nextResponder = copyResponder
+            }
             window.isRestorable = false
             window.tabbingMode = .disallowed
             #if DEBUG

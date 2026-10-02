@@ -125,7 +125,7 @@ struct SoloLeaderboardScreen: View {
                                 .modifier(RankingRowSurface(isSelected: isSelectedRow))
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .festivalRowButtonStyle()
                             // Accessibility grouping first, fade outermost: wrapping the
                             // link in the fade before `.contain` hid its score texts
                             // from the row's descendants.

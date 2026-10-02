@@ -82,6 +82,12 @@ struct MacPageWidth: ViewModifier {
 
 // MARK: - List/detail stack
 
+extension EnvironmentValues {
+    /// How long a Mac list page may show no row before its second column collapses
+    /// (2.5 s; hosted tests lengthen it so a loaded test machine cannot race it).
+    @Entry var macListCollapseDelay: Duration = .milliseconds(2500)
+}
+
 /// A Mac destination's content: one stack, or **two populated columns** (list and
 /// detail) when the window is wide enough, as decided by ``MacLayoutPolicy`` over the
 /// shared ``ListDetailPolicy`` path cut.
@@ -117,6 +123,8 @@ struct MacListDetailStack<Root: View>: View {
     @AppStorage(MacLayoutPolicy.listWidthKey) private var storedListWidth = 0.0
     /// Live width during a divider drag.
     @State private var dragListWidth: CGFloat?
+    /// How long a list may show no row before it collapses to one column.
+    @Environment(\.macListCollapseDelay) private var collapseDelay
 
     /// The list column width drawn now: a live drag, else the remembered width, else
     /// automatic; always clamped by ``MacLayoutPolicy/listWidth(forContentWidth:preferred:)``.
@@ -272,7 +280,7 @@ struct MacListDetailStack<Root: View>: View {
             selectAction(lastSelection)
             return
         }
-        try? await Task.sleep(for: .milliseconds(2500))
+        try? await Task.sleep(for: collapseDelay)
         guard !Task.isCancelled, cut?.selection == nil else { return }
         emptyLists.insert(split.list)
     }

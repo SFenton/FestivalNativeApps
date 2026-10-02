@@ -29,7 +29,7 @@ fun NavGraphBuilder.competeDestinations(container: AppContainer, settings: AppSe
 private fun Compete(container: AppContainer, settings: AppSettings, isRoot: Boolean) {
     val accountId = settings.selectedPlayer?.accountId
     val viewModel = viewModel(key = "compete:$accountId:${settings.visibleInstruments}") {
-        CompeteViewModel(accountId, settings.visibleInstruments, CompeteReads.from(container.api), container.rivals, container.backoff)
+        CompeteViewModel(accountId, settings.visibleInstruments, CompeteReads.from(container.api), container.rivals, container.backoff, container.api.publicationChanges)
     }
     CompeteScreen(viewModel, isRoot)
 }

@@ -415,7 +415,7 @@ struct LeaderboardsScreen: View {
         NavigationLink(value: route) {
             PurpleActionLabel(title: title)
         }
-        .buttonStyle(.plain)
+        .festivalRowButtonStyle()
         .accessibilityIdentifier(id)
     }
 
