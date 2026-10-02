@@ -23,8 +23,9 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 
 ## List/detail
 
-- **Three panes**: Songs, Leaderboards › Full Rankings and Rivals show sidebar | list | detail. `ListDetailStack` nests its `NavigationSplitView` in the root split's detail column (iPadOS 26.5: the inner list floats as its own glass column with its own toolbar and hide button). An `HStack` of two `NavigationStack`s was rejected: both toolbars and the Filter Songs field merged into one bar. HIG split-views.md iPadOS "two vertical panes (Mail) or three (Keynote)".
-- **When**: `ListDetailPolicy.usesSplit` for `sectionChrome == .sidebar` measures the section's own container (≥ 760 pt), so hiding the sidebar, rotating or resizing a window reflows live (HIG windows.md "Make sure windows adapt fluidly to different sizes"; multitasking.md "adapt to every window size").
+- **Three columns**: Songs, Leaderboards › Full Rankings and Rivals show sidebar | list | detail as one three-column `NavigationSplitView` (`.balanced`), each column with its own toolbar (HIG split-views.md iPadOS "two vertical panes (Mail) or three (Keynote)"). For these sections `ListDetailStack` draws the whole shell split itself, sidebar included (`SidebarShellContext` from the root): sidebar | stack or sidebar | list | detail, two distinct split views, so changing arrangement replaces the split. Rejected on iPadOS 26.5: a split **nested** in the root split's detail column (worked once, but after one stack had been shown there it never reappeared: the column's navigation controller kept the stack's pushed pages) and an `HStack` of two `NavigationStack`s (both toolbars and the Filter Songs field merged into one bar).
+- **When**: `ListDetailPolicy.usesSplit` splits the sidebar shell from a **1000 pt window** (11-inch landscape; portrait shows the sidebar beside a full-width list), by window width alone so the layout never flips while someone opens an overlaid sidebar. Rotation and window resizing reflow live (HIG windows.md "Make sure windows adapt fluidly to different sizes"; multitasking.md "adapt to every window size"). A shared column visibility keeps a hidden sidebar hidden across destinations; in portrait the system may tuck the sidebar away in three columns.
+- **Column layouts**: pages see a per-column `DeviceLayout` (`DeviceLayout.column(width:)`): the list column is compact, the detail and one-stack columns are regular only from 600 pt (window minus the sidebar's reported trailing edge, minus the 320 pt list column), so Leaderboards and Profile do not squeeze two card columns into ~500 pt. Widths come from the root (window probe + `FestivalSidebar` extent): geometry modifiers around a `NavigationStack` hoisted into a split column stopped updating.
 - **Never empty**: the detail restores the last selection, else auto-selects the **top-most** row on screen (rows offer route + `minY`, `ListDetailAutoSelectCollector` picks the smallest after 120 ms; lazy lists call `onAppear` out of order). Selected rows keep the accent highlight (split-views.md "Persistently highlight").
 - Shop stays a grid that pushes Song Detail (a grid beside a detail column would leave two cramped columns).
 
@@ -33,7 +34,7 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 | Page | iPad behavior | HIG |
 |---|---|---|
 | Shop | Adaptive art grid (`.adaptive(minimum: 210)`), List/Grid toggle; list at accessibility sizes | collections.md "Prefer the familiar standard horizontal row or grid" |
-| Leaderboards, Profile/Statistics instrument cards | Two flexible columns at regular width | layout.md (adapt to size classes) |
+| Leaderboards, Profile/Statistics instrument cards | Two flexible columns when their column is ≥ 600 pt (column layout above) | layout.md (adapt to size classes) |
 | Song Detail instrument cards | `.adaptive(minimum: 360)`: two columns when the page is ≥ ~730 pt (full-width detail); one in a list/detail detail column | collections.md "make dynamic layout changes sensible and easy to track" |
 | Sheets | `festivalSheet` applies `presentationSizing(.form)` (or `.page`) at regular width, centered; compact windows get the phone sheets | sheets.md "Prefer page or form sheet styles in an iPadOS app" |
 | Popovers | Not used for page content; menus (Quick Links, metric pickers) are system menus | popovers.md "Avoid popovers in compact views" |
@@ -53,7 +54,7 @@ Shortcuts are invisible `KeyCommandButton`s titled for the ⌘-hold overlay. Poi
 
 - Multiple windows (`UIApplicationSupportsMultipleScenes` is false) and "Open in New Window" (windows.md "Consider offering a context-menu ... command to view content in a new window").
 - iPadOS menu-bar `commands` (Go/View menus) instead of hidden shortcut buttons; Full Keyboard Access audit.
-- Per-column size classes: Profile/Leaderboards pick two columns from the window's size class, so a narrow list/detail detail column can still show two.
+- Debug: `FST_DEBUG_LIST_DETAIL=1` overlays the window width, sidebar extent and split sections (root shell).
 - Never fix row counts or hardcode device sizes: chips wrap (5 + 4 where the web tablet shows 9 in one row) as the detail width changes.
 - A Form in a centered sheet may need scrolling to expose Reset above a pinned footer.
 - Always exercise Hide Sidebar with a detail visible: badge padding once caused a main-thread layout loop there.

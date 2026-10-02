@@ -1,4 +1,3 @@
-#if os(iOS)
 import SwiftUI
 import FestivalCore
 import FestivalDesign
@@ -14,6 +13,9 @@ import FestivalDesign
 /// pane"; HIG Keyboards: "iPadOS navigates ... sidebars"). The footer mirrors the web
 /// sidebar footer: the selected player (name opens their profile, Deselect beside it)
 /// or Select Profile, then Settings.
+///
+/// Compiles on macOS only so hosted snapshot tests can render it; the Mac app has its
+/// own sidebar (`Mac/MacRootView.swift`).
 struct FestivalSidebar: View {
     let session: FestivalSession
     /// Browse rows (``SidebarMenu/browse(profile:hideShop:)``).
@@ -26,6 +28,9 @@ struct FestivalSidebar: View {
     let onOpenPlayer: (AppRoute) -> Void
     /// Present profile selection.
     let onChooseProfile: () -> Void
+    /// Reports the sidebar's trailing edge in window coordinates (0 while hidden), so
+    /// the shell knows how much width its sections get.
+    var onExtentChange: (CGFloat) -> Void = { _ in }
 
     @State private var deselectPending = false
 
@@ -40,6 +45,13 @@ struct FestivalSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        // On the list only: applied after the footer inset it would rename every
+        // footer button too.
+        .accessibilityIdentifier("fst.nav.sidebar")
+        .onGeometryChange(for: CGFloat.self, of: { $0.frame(in: .global).maxX }) { maxX in
+            onExtentChange(max(0, maxX))
+        }
+        .onDisappear { onExtentChange(0) }
         // No title: HIG Toolbars, "Never use the app name"; the rows are the context.
         .navigationTitle("")
         .safeAreaInset(edge: .bottom, spacing: 0) { footer }
@@ -51,7 +63,6 @@ struct FestivalSidebar: View {
         } message: {
             Text("Scores and profile tabs will be hidden until you select a profile again.")
         }
-        .accessibilityIdentifier("fst.nav.sidebar")
     }
 
     /// List selection: only browse rows; Settings (footer) leaves the list unselected.
@@ -98,7 +109,7 @@ struct FestivalSidebar: View {
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-                .hoverEffect(.highlight)
+                .sidebarHover()
                 .accessibilityLabel(DrawerMenu.selectedPlayerAccessibilityLabel(player.displayName))
                 .accessibilityHint("Opens your profile")
                 .accessibilityIdentifier("fst.profile.sidebar")
@@ -141,8 +152,19 @@ private struct SidebarFooterRow: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .hoverEffect(.highlight)
+        .sidebarHover()
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
-#endif
+
+extension View {
+    /// Pointer highlight on iPad (HIG Pointing devices: "highlight for small elements
+    /// with transparent backgrounds"); nothing on macOS.
+    @ViewBuilder fileprivate func sidebarHover() -> some View {
+        #if os(iOS)
+        hoverEffect(.highlight)
+        #else
+        self
+        #endif
+    }
+}

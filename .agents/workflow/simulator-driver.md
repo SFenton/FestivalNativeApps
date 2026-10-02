@@ -45,6 +45,9 @@ Defined in `apple/Apps/iOSUITests/DriverTests.swift` (`DriverStep.parse`):
 | `tree:<path>` | Write `app.debugDescription` (the accessibility hierarchy) to an absolute host path — the fastest way to discover identifiers before scripting taps |
 | `rotate:<portrait\|portraitUpsideDown\|landscapeLeft\|landscapeRight\|faceUp\|faceDown>` | Set device orientation (ignored by the iPhone Duo outer display) |
 | `home[:<icon label>]` | Press Home; with a label, page the Home Screen (up to 3 swipes) until an icon with that label is on screen. For Home Screen captures of the just-installed build, e.g. `home:FST; wait:1.5; shot:/tmp/home.png`. Run install and capture in one `drive` so other jobs' installs of the same bundle can't intervene |
+| `resize:<fraction>` | iPad windowed multitasking: drag the window's resize corner to that fraction of the screen width (`0.5`, `0.33`; iPadOS clamps to its ~375 pt minimum). Run `fill` first for an exact ½ |
+| `fill` | iPad: window controls › **Zoom**, so the window fills the screen. **End every resizing script with it**: iPadOS remembers each app's window size per orientation for the next launch |
+| `systemTree:<path>` / `systemTap:<id-prefix-or-label>` | Dump or tap SpringBoard elements (window controls `window-controls:…`, `Zoom-button`, `resize-grabber`) |
 
 A `tree:` dump early in a script is the standard way to find an unknown identifier: run `drive` with just `wait:1; tree:/tmp/x.txt`, `grep` the file for `identifier:`, then script the real steps.
 

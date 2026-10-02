@@ -84,7 +84,10 @@ class OutputPathsTests(unittest.TestCase):
         )
 
     def test_ignores_other_verbs_and_missing_arguments(self):
-        self.assertEqual(output_paths(["wait:1", "back", "tap:x"]), [])
+        self.assertEqual(output_paths(["wait:1", "back", "tap:x", "fill", "resize:0.5"]), [])
+
+    def test_collects_system_tree_paths(self):
+        self.assertEqual(output_paths(["systemTree:/tmp/sb.txt", "systemTap:window-controls"]), ["/tmp/sb.txt"])
 
 
 class SelectProductTests(unittest.TestCase):

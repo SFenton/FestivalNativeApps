@@ -77,31 +77,36 @@ enum ListDetailPolicy {
     /// Two windows qualify:
     /// - An iPhone Duo inner display (unfolded or partially folded, either orientation;
     ///   the shelved dual-source arrangement would replace it in portrait,
-    ///   ``DualSourcePolicy/isEnabled``), measured by the window width.
-    /// - The iPad sections sidebar shell (`sectionChrome == .sidebar`), measured by the
-    ///   width actually left for the section beside the sidebar (`containerWidth`), so
-    ///   showing or hiding the sidebar and resizing a Stage Manager window reflow live
-    ///   (HIG Split views, iPadOS: "design for narrow, compact, and intermediate fluid
-    ///   widths"). macOS keeps one stack until its own phase (``sidebarShellSplits``).
+    ///   ``DualSourcePolicy/isEnabled``) at least ``minimumSplitWidth`` wide.
+    /// - The iPad sidebar shell (`sectionChrome == .sidebar`) at least
+    ///   ``minimumSidebarSplitWidth`` wide: sidebar, list and detail side by side.
+    ///   Decided by the window alone, never by the sidebar's own width: the system
+    ///   tiles or overlays the sidebar per width, and following it would flip the
+    ///   layout while someone opens the sidebar. Rotation and window resizing reflow
+    ///   live (HIG Split views, iPadOS: "design for narrow, compact, and intermediate
+    ///   fluid widths"). macOS keeps one stack until its own phase (``sidebarShellSplits``).
     ///
     /// A large iPhone in landscape is regular width but keeps its iPhone layout
     /// (`pose == .standard`, tab shell).
     ///
     /// - Parameters:
     ///   - layout: Published window layout.
-    ///   - containerWidth: Width of the section's own container, when measured.
     ///   - sidebarShellSplits: Whether the sidebar shell splits (iPad: true).
     /// - Returns: True when list/detail sections should split.
     static func usesSplit(
-        _ layout: DeviceLayout, containerWidth: CGFloat? = nil,
-        sidebarShellSplits: Bool = ListDetailPolicy.sidebarShellSplits
+        _ layout: DeviceLayout, sidebarShellSplits: Bool = ListDetailPolicy.sidebarShellSplits
     ) -> Bool {
         guard layout.contentArrangement == .listDetail else { return false }
         if layout.sectionChrome == .sidebar {
-            return sidebarShellSplits && (containerWidth ?? layout.size.width) >= minimumSplitWidth
+            return sidebarShellSplits && layout.size.width >= minimumSidebarSplitWidth
         }
         return layout.pose != .standard && layout.size.width >= minimumSplitWidth
     }
+
+    /// Narrowest iPad window that shows sidebar, list and detail: three readable
+    /// columns (320 + 320 + ~400 pt). An 11-inch iPad in landscape (1194 pt) splits;
+    /// in portrait (834 pt) it shows the sidebar beside a full-width list.
+    static let minimumSidebarSplitWidth: CGFloat = 1000
 
     /// Whether the sidebar shell splits list/detail pages: iPad yes; macOS not yet
     /// (Lane MAC decides its own columns).
@@ -113,15 +118,9 @@ enum ListDetailPolicy {
         #endif
     }
 
-    /// Width of the list column beside a detail column in the iPad sidebar shell: 40 %
-    /// of the section's width, kept between 320 and 420 pt so rows stay readable and
-    /// the detail keeps the larger share (Mail-like proportions).
-    ///
-    /// - Parameter containerWidth: Width of the section's container.
-    /// - Returns: The list column width.
-    static func listColumnWidth(containerWidth: CGFloat) -> CGFloat {
-        min(420, max(320, (containerWidth * 0.4).rounded()))
-    }
+    /// Width the nested list column takes in the iPad sidebar shell (the system
+    /// `.balanced` split's primary column, measured 320 pt on iPadOS 26.5).
+    static let splitListColumnWidth: CGFloat = 320
 
     /// Narrowest window that fits two comfortable columns (operator, 2026-09-28: "two
     /// columns if width allows"). The Duo inner display in landscape (951 pt) splits;
@@ -190,14 +189,12 @@ enum ListDetailPolicy {
     ///   - section: Section owning the path.
     ///   - path: The section's navigation path.
     ///   - layout: Published window layout.
-    ///   - containerWidth: Width of the section's container, when measured.
     ///   - emptyListCollapsed: True once the list page produced no row to select.
     /// - Returns: The arrangement to render.
     static func arrangement(
-        section: FestivalSection, path: [AppRoute], layout: DeviceLayout, containerWidth: CGFloat? = nil,
-        emptyListCollapsed: Bool = false
+        section: FestivalSection, path: [AppRoute], layout: DeviceLayout, emptyListCollapsed: Bool = false
     ) -> Arrangement {
-        guard usesSplit(layout, containerWidth: containerWidth), let split = split(section: section, path: path) else { return .stack }
+        guard usesSplit(layout), let split = split(section: section, path: path) else { return .stack }
         if split.selection == nil, emptyListCollapsed { return .stack }
         return .split(split)
     }
@@ -209,12 +206,9 @@ enum ListDetailPolicy {
     ///   - section: Section owning the path.
     ///   - path: The section's navigation path.
     ///   - layout: Published window layout.
-    ///   - containerWidth: Width of the section's container, when measured.
     /// - Returns: True while the next row tap should open the detail column.
-    static func awaitsSelection(
-        section: FestivalSection, path: [AppRoute], layout: DeviceLayout, containerWidth: CGFloat? = nil
-    ) -> Bool {
-        guard usesSplit(layout, containerWidth: containerWidth), let split = split(section: section, path: path) else { return false }
+    static func awaitsSelection(section: FestivalSection, path: [AppRoute], layout: DeviceLayout) -> Bool {
+        guard usesSplit(layout), let split = split(section: section, path: path) else { return false }
         return split.selection == nil
     }
 

@@ -147,6 +147,29 @@ struct DeviceLayout: Sendable, Equatable {
             || (pose != .standard && widthClass == .regular && contentArrangement != .dualSource)
     }
 
+    /// Narrowest column that pages treat as regular width (two-column dashboards,
+    /// readable-width containers) inside the iPad sidebar shell.
+    static let regularColumnWidth: CGFloat = 600
+
+    /// This layout re-classified for one column of the iPad sidebar shell.
+    ///
+    /// The window's size class stays regular beside the sidebar and in a list/detail
+    /// detail column, but the column may be ~500 pt: pages that pick two card columns
+    /// from ``widthClass`` (Leaderboards, Profile) would squeeze them. Each column
+    /// instead gets a width class from its own width and never splits again.
+    ///
+    /// - Parameter width: The column's width in points.
+    /// - Returns: The same layout with `widthClass` from `width` and a stack arrangement.
+    func column(width: CGFloat) -> DeviceLayout {
+        DeviceLayout(
+            pose: pose, orientation: orientation,
+            widthClass: width >= Self.regularColumnWidth ? .regular : .compact,
+            sectionChrome: sectionChrome, contentArrangement: .stack,
+            overlayInsets: overlayInsets, foldFrame: foldFrame,
+            safeAreaInsets: safeAreaInsets, size: size
+        )
+    }
+
     /// Default before the first geometry pass: an ordinary compact phone.
     static let standardPhone = DeviceLayout(
         pose: .standard, orientation: .portrait, widthClass: .compact,

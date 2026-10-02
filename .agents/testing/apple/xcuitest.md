@@ -114,3 +114,5 @@ both `.xcresult` bundles to the gate — no single combined command yet.
 | iPad grouped-header frames span both panes | Measure visible text at the detail pane's X; focus bounds stay unverified |
 | Main-thread hang after a split-view toggle | Sample the app PID; compare against a clean baseline worktree before blaming the test |
 | Stall timings look bad only under XCUITest | Each element query snapshots the accessibility tree on the app's main thread (100–350 ms on Songs). Measure hangs with the Debug stall log while the runner idles: the app drives itself (`FST_DEBUG_SONGS_SCROLL_STRESS`) and the test reads the report ([Songs iOS](../../pages/songs/ios.md)) |
+| iPad journey starts in a small window | iPadOS remembers resized windows across launches: `IPadShellJourneyTests` launches through `launchFilled` and `WindowResize.fill` in `tearDown`; driver scripts end with `fill` |
+| iPad identifier on a split replaces its rows' IDs | Put `.accessibilityElement(children: .contain)` before a container identifier (`fst.nav.list-detail`); `testSongsShowsTwoPopulatedColumns` asserts a `fst.songs.row.*` is findable inside the split |

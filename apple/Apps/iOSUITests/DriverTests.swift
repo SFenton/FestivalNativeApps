@@ -37,6 +37,13 @@ import UIKit
 /// - `rotate:<portrait|portraitUpsideDown|landscapeLeft|landscapeRight|faceUp|faceDown>`.
 /// - `home[:<icon label>]` — press Home; with a label, page the Home Screen until an
 ///   icon with that label is on screen (Home Screen captures of the just-installed app).
+/// - `resize:<fraction>` — iPad windowed multitasking: drag the app window's resize
+///   corner so it spans that fraction of the screen width (e.g. `0.5`, `0.33`).
+/// - `systemTree:<path>` — like `tree`, for SpringBoard (window controls, multitasking).
+/// - `systemTap:<identifier-prefix-or-label>` — tap a SpringBoard element (e.g.
+///   `window-controls`, then a window-controls menu item by label).
+/// - `fill` — iPad windowed multitasking: make the window fill the screen again
+///   (always end a script that resized with it: iPadOS remembers window sizes).
 enum DriverStep {
     case tap(String)
     case tapText(String)
@@ -52,6 +59,10 @@ enum DriverStep {
     case tree(String)
     case rotate(UIDeviceOrientation)
     case home(String?)
+    case resize(Double)
+    case fill
+    case systemTree(String)
+    case systemTap(String)
 
     /// A cardinal swipe direction.
     enum Direction: String {
@@ -123,6 +134,17 @@ enum DriverStep {
         case "tree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tree(arg)
+        case "fill":
+            return .fill
+        case "systemTap":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .systemTap(arg)
+        case "systemTree":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .systemTree(arg)
+        case "resize":
+            guard let fraction = Double(arg), (0.2...1).contains(fraction) else { throw ParseError.malformed(raw) }
+            return .resize(fraction)
         case "rotate":
             guard let orientation = orientation(named: arg) else { throw ParseError.malformed(raw) }
             return .rotate(orientation)
@@ -343,11 +365,25 @@ final class DriverTests: XCTestCase {
             try writeScreenshot(to: path)
         case let .tree(path):
             try app.debugDescription.write(toFile: path, atomically: true, encoding: .utf8)
+        case let .systemTap(identifier):
+            let target = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+                .descendants(matching: .any).matching(
+                    NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
+                ).firstMatch
+            guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
+            target.tap()
+        case let .systemTree(path):
+            try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
+                .write(toFile: path, atomically: true, encoding: .utf8)
         case let .rotate(orientation):
             XCUIDevice.shared.orientation = orientation
         case let .home(label):
             XCUIDevice.shared.press(.home)
             if let label { _ = try visibleHomeScreenIcon(label) }
+        case let .resize(fraction):
+            WindowResize.resize(app, toScreenFraction: CGFloat(fraction))
+        case .fill:
+            WindowResize.fill(app)
         }
     }
 

@@ -102,3 +102,25 @@ import Testing
     registry.unregister(detail)
     #expect(!registry.canRefresh)
 }
+
+// MARK: - Column layouts
+
+/// iPad sidebar-shell columns get a width class from their own width (two-column
+/// dashboards only from 600 pt) and never split again; other shells are unchanged.
+@Test func sidebarColumnsReclassifyWidth() {
+    let iPad = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 1194, height: 834), widthClass: .regular, usesSidebarShell: true
+    ))
+    #expect(iPad.widthClass == .regular)
+    #expect(iPad.column(width: 504).widthClass == .compact)
+    #expect(iPad.column(width: 600).widthClass == .regular)
+    #expect(iPad.column(width: 874).contentArrangement == .stack)
+    #expect(iPad.column(width: 874).sectionChrome == .sidebar)
+    #expect(ListDetailStack<EmptyView>.columnLayout(iPad, width: 320).widthClass == .compact)
+    #expect(ListDetailStack<EmptyView>.columnLayout(iPad, width: nil) == iPad)
+    let duo = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 951, height: 669), widthClass: .regular,
+        verticalBarEdge: .trailing, hinge: .fullyOpen
+    ))
+    #expect(ListDetailStack<EmptyView>.columnLayout(duo, width: 300) == duo)
+}

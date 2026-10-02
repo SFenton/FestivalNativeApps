@@ -268,25 +268,19 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
 
 // MARK: - iPad sidebar shell
 
-/// The iPad sidebar shell splits by the width left beside the sidebar, so hiding the
-/// sidebar or resizing a window re-decides it; narrow containers keep one stack.
-@Test func iPadSplitFollowsContainerWidth() {
-    let iPad = ListDetailLayouts.iPad
-    #expect(ListDetailPolicy.usesSplit(iPad, containerWidth: 874, sidebarShellSplits: true))
-    #expect(ListDetailPolicy.usesSplit(iPad, containerWidth: 760, sidebarShellSplits: true))
-    #expect(!ListDetailPolicy.usesSplit(iPad, containerWidth: 759, sidebarShellSplits: true))
-    #expect(!ListDetailPolicy.usesSplit(iPad, containerWidth: 504, sidebarShellSplits: true))
-    // Unmeasured: the window width decides.
-    #expect(ListDetailPolicy.usesSplit(iPad, containerWidth: nil, sidebarShellSplits: true))
-    // The Duo gate ignores the container width (it measures the window).
-    #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfolded, containerWidth: 300))
-}
-
-/// The list column takes 40 % of the container, kept between 320 and 420 pt.
-@Test func iPadListColumnWidth() {
-    #expect(ListDetailPolicy.listColumnWidth(containerWidth: 760) == 320)
-    #expect(ListDetailPolicy.listColumnWidth(containerWidth: 874) == 350)
-    #expect(ListDetailPolicy.listColumnWidth(containerWidth: 1194) == 420)
+/// The iPad sidebar shell splits by window width alone (sidebar | list | detail from
+/// 1000 pt): 11-inch landscape splits, portrait and narrow windows keep one stack.
+@Test func iPadSplitFollowsWindowWidth() {
+    func iPad(_ width: CGFloat) -> DeviceLayout {
+        DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: width, height: 834), widthClass: .regular, usesSidebarShell: true
+        ))
+    }
+    #expect(ListDetailPolicy.usesSplit(iPad(1194), sidebarShellSplits: true))
+    #expect(ListDetailPolicy.usesSplit(iPad(1000), sidebarShellSplits: true))
+    #expect(!ListDetailPolicy.usesSplit(iPad(999), sidebarShellSplits: true))
+    #expect(!ListDetailPolicy.usesSplit(iPad(834), sidebarShellSplits: true))
+    #expect(!ListDetailPolicy.usesSplit(iPad(1194), sidebarShellSplits: false))
 }
 
 /// ⌘[ pops one stack's top page, or in a split the column that has a Back button.

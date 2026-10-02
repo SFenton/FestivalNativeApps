@@ -48,6 +48,11 @@ public struct FestivalRootView: View {
     /// Sections currently shown as two columns (reported by `ListDetailStack`), so ⌘[
     /// pops the right column.
     @State private var splitSections: Set<FestivalSection> = []
+    /// The iPad sidebar's trailing edge in window coordinates (0 while hidden).
+    @State private var sidebarExtent: CGFloat = 0
+    /// Shell split column visibility, shared by every section's split so a hidden
+    /// sidebar stays hidden across destinations.
+    @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
@@ -158,7 +163,21 @@ public struct FestivalRootView: View {
                 FestivalBackgroundHost(session: session)
                     .ignoresSafeArea()
                 shell(presentation)
+                    .environment(
+                        \.sidebarShellContentWidth,
+                        presentation.navigation == .sidebar && layout.size.width > 0
+                            ? max(0, layout.size.width - sidebarExtent) : nil
+                    )
                     .background { keyboardCommands(presentation, layout: layout) }
+                #if DEBUG
+                if ProcessInfo.processInfo.environment["FST_DEBUG_LIST_DETAIL"] == "1" {
+                    Text("win=\(Int(layout.size.width)) sb=\(Int(sidebarExtent)) split=\(splitSections.map(\.rawValue).sorted().joined(separator: ",")) nav=\(presentation.navigation == .sidebar ? "SB" : "T")")
+                        .font(.caption2).foregroundStyle(.yellow).background(.black)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .allowsHitTesting(false)
+                        .accessibilityIdentifier("fst.nav.debug-layout")
+                }
+                #endif
                 if drawerPresented && usesDrawer {
                     FestivalDrawer(
                         session: session, visibleSections: sections(for: presentation),
@@ -184,6 +203,11 @@ public struct FestivalRootView: View {
             #endif
         }
         .publishesDeviceLayout(usesSidebarShell: usesSidebarShell)
+        // A window that widens back into the sidebar shell shows every column again:
+        // the split may have tucked them away (`.detailOnly`) while it was narrow.
+        .onChange(of: usesSidebarShell) { _, sidebar in
+            if sidebar { sidebarVisibility = .all }
+        }
         // Debug only: lay the whole app out in a narrower canvas (e.g. 375 pt, iPhone
         // SE width) on a wider simulator, so small-width chrome (title truncation,
         // toolbar crowding) can be captured without an SE simulator.
@@ -260,16 +284,19 @@ public struct FestivalRootView: View {
             }
             #else
             if presentation.navigation == .sidebar {
-                NavigationSplitView {
-                    FestivalSidebar(
-                        session: session,
-                        browse: SidebarMenu.browse(profile: profileKind, hideShop: hideShop),
-                        selected: selected, onSelect: select,
-                        onOpenPlayer: { paths[selected, default: []].append($0) },
-                        onChooseProfile: { rootProfilePresented = true }
-                    )
-                } detail: {
+                if ListDetailPolicy.splittableSections.contains(selected) {
+                    // List/detail sections draw the whole shell split themselves
+                    // (sidebar | stack, or sidebar | list | detail; `ListDetailStack`).
                     content(for: selected)
+                        .environment(\.sidebarShell, SidebarShellContext(
+                            sidebar: AnyView(sidebarColumn), visibility: $sidebarVisibility
+                        ))
+                } else {
+                    NavigationSplitView(columnVisibility: $sidebarVisibility) {
+                        sidebarColumn
+                    } detail: {
+                        content(for: selected)
+                    }
                 }
             } else {
                 tabs(visibleSections)
@@ -429,6 +456,22 @@ public struct FestivalRootView: View {
         get { paths[.songs] ?? [] }
         nonmutating set { paths[.songs] = newValue }
     }
+
+    #if os(iOS)
+    /// The iPad sections sidebar (primary column of the shell split).
+    private var sidebarColumn: some View {
+        FestivalSidebar(
+            session: session,
+            browse: SidebarMenu.browse(profile: profileKind, hideShop: hideShop),
+            selected: selected, onSelect: select,
+            onOpenPlayer: { paths[selected, default: []].append($0) },
+            onChooseProfile: { rootProfilePresented = true },
+            onExtentChange: { extent in
+                if abs(extent - sidebarExtent) >= 1 { sidebarExtent = extent }
+            }
+        )
+    }
+    #endif
 
     // MARK: - Keyboard commands
 
