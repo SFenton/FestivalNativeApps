@@ -18,6 +18,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Finding | Where | Fix |
 |---|---|---|
 | Leaderboard rows 45 dp tall (ATF touch target) | Song Detail previews, full song board (`ScoreRow`) | Minimum height 48 dp |
+| Issue #72 check (iOS #15, nav buttons needing a forgiving tap area): not reproducible | Quick Links, Sort, Filter (floating toolbar), Search, bell, profile (top bar) | None needed: all are M3 `IconButton`s (40 dp layout, 48 dp touch bounds via `minimumInteractiveComponentSize`, no overlap). A Robolectric probe on a w411dp phone tapped each 20 dp off-centre in four directions; 24/24 activated |
 | White on `#2D82E6` is 3.86:1 (ATF contrast) | Filled buttons | `BrandTokens.accentBlueFill` `#1A6FD8` (4.9:1) via `festivalFilledButtonColors()` |
 | Row wrappers made two stops; summaries read then every child text again | Song boards, Score History, band rows, Item Shop, See All | One stop per row (`clearAndSetSemantics`/hidden inner texts) |
 | Decorative pieces read as stops | Chart legend/axis dates, avatar initials (top bar, rail, profile sheet) | Hidden (`clearAndSetSemantics {}`) |
