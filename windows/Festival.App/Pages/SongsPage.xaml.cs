@@ -55,6 +55,8 @@ public sealed partial class SongsPage : Page, IPageBack
     private int[] groupStarts = [];
     private List<SongGroup> stickyGroups = [];
     private bool wideLayout;
+    private readonly TopEdgeFade edgeFade;
+    private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
     /// <summary>Creates the page.</summary>
     public SongsPage()
@@ -69,6 +71,9 @@ public sealed partial class SongsPage : Page, IPageBack
         SongList.SelectionChanged += OnSongSelectionChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
         Zoom.ViewChangeCompleted += (_, _) => UpdateStickyHeader();
+        edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
+        Loaded += (_, _) => AttachEdgeFadeSettings();
+        Unloaded += (_, _) => DetachEdgeFadeSettings();
     }
 
     /// <summary>Page model.</summary>
@@ -149,7 +154,52 @@ public sealed partial class SongsPage : Page, IPageBack
         StickyHeader.Text = label;
         var shown = label.Length > 0 && Zoom.IsZoomedInViewActive && ViewModel.ShowList && Zoom.Opacity > 0;
         StickyHeader.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        UpdateEdgeFade(shown);
     }
+
+    /// <summary>
+    /// Fades rows out at the list's top edge under the section header bar (issue #49) while the header shows and the
+    /// list is scrolled, unless a contrast theme, Windows transparency effects off or the in-app Increase Contrast or
+    /// Less Transparency setting asks for the hard edge.
+    /// </summary>
+    /// <param name="headerShown">Whether the section header bar is visible.</param>
+    private void UpdateEdgeFade(bool headerShown)
+    {
+        var settings = App.Session.Settings;
+        var enabled = headerShown && SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
+            settings.LessTransparency, settings.MoreContrast);
+        edgeFade.Update(enabled ? SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0) : 0);
+    }
+
+    /// <summary>Follows appearance changes that switch the edge fade on or off while the page is shown.</summary>
+    private void AttachEdgeFadeSettings()
+    {
+        App.Session.PropertyChanged += OnEdgeFadeSettingsChanged;
+        fadeUiSettings.AdvancedEffectsEnabledChanged += OnEdgeFadeSystemChanged;
+        // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
+        fadeUiSettings.ColorValuesChanged += OnEdgeFadeSystemChanged;
+    }
+
+    /// <summary>Stops following appearance changes.</summary>
+    private void DetachEdgeFadeSettings()
+    {
+        App.Session.PropertyChanged -= OnEdgeFadeSettingsChanged;
+        fadeUiSettings.AdvancedEffectsEnabledChanged -= OnEdgeFadeSystemChanged;
+        fadeUiSettings.ColorValuesChanged -= OnEdgeFadeSystemChanged;
+    }
+
+    /// <summary>Re-evaluates the fade when the in-app settings change.</summary>
+    /// <param name="sender">Session.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnEdgeFadeSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == "Settings") DispatcherQueue.TryEnqueue(UpdateStickyHeader);
+    }
+
+    /// <summary>Re-evaluates the fade when Windows transparency effects or the contrast theme change (any thread).</summary>
+    /// <param name="sender">Settings source.</param>
+    /// <param name="args">Ignored.</param>
+    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(UpdateStickyHeader);
 
     /// <summary>First-paint gate: decode the first rows' art (bounded), then fade the list in.</summary>
     /// <returns>Reveal task.</returns>
