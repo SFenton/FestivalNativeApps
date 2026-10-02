@@ -47,6 +47,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -69,7 +70,12 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -85,6 +91,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -421,17 +428,30 @@ private fun SongList(
     val density = LocalDensity.current
     val accessibility = LocalFestivalAccessibility.current
     val fadeDepth = with(density) { SongHeaderEdgeFade.DEPTH_DP.dp.toPx() }
+    // Increase Contrast and Reduce Transparency keep a hard edge under the header (no band).
+    val bandDepth = if (SongHeaderEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency)) fadeDepth else 0f
     val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
-        ?.takeIf { SongHeaderEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency) }
-    val edgeFade by remember(listState, firstHeaderKey, fadeDepth, density) {
+    val edgeFade by remember(listState, firstHeaderKey, bandDepth, density) {
         val spacing = with(density) { LIST_SPACING.roundToPx() }
         derivedStateOf {
             if (firstHeaderKey == null) return@derivedStateOf null
             val info = listState.layoutInfo
             SongHeaderEdgeFade.edge(
                 info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
-                info.viewportStartOffset, firstHeaderKey, spacing, fadeDepth,
+                info.viewportStartOffset, firstHeaderKey, spacing, bandDepth,
             )
+        }
+    }
+    // Each bucket header records its drawing here; the list redraws them above the cut (issue #91).
+    val headerLayers = remember { HashMap<Any, GraphicsLayer>() }
+    val headerStart = with(density) { 16.dp.toPx() }
+    val headersAboveCut: (Float) -> List<Pair<GraphicsLayer, Float>> = remember(listState, headerLayers) {
+        { top ->
+            val info = listState.layoutInfo
+            SongHeaderEdgeFade.headersAboveCut(
+                info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
+                info.viewportStartOffset, top,
+            ).mapNotNull { item -> headerLayers[item.key]?.let { it to (item.offset - info.viewportStartOffset).toFloat() } }
         }
     }
     // On wider windows the search field is pinned above the scrolling list (issue #52): it never
@@ -452,7 +472,9 @@ private fun SongList(
                     bottom = padding.calculateBottomPadding() + 16.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
-                modifier = Modifier.fillMaxSize().pinnedHeaderEdgeFade({ edgeFade }, fadeDepth).testTag("fst.songs.list"),
+                modifier = Modifier.fillMaxSize()
+                    .pinnedHeaderEdgeFade({ edgeFade }, bandDepth, headerStart, headersAboveCut)
+                    .testTag("fst.songs.list"),
             ) {
                 state.notices.forEachIndexed { index, notice ->
                     item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
@@ -468,13 +490,14 @@ private fun SongList(
                 if (state.headers.isEmpty()) {
                     items(state.rows, key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                 } else {
-                    // Bucket headers stick under the pinned search field on an opaque strip; rows passing beneath
-                    // it fade out just below it (pinnedHeaderEdgeFade, issue #49).
+                    // Bucket headers stick under the pinned search field with no backing (issue #91, like the
+                    // Title/Artist list and iOS): rows passing beneath are hidden behind them and fade out
+                    // just below them (pinnedHeaderEdgeFade, issue #49).
                     val first = state.headers.first().firstIndex
                     if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     state.headers.forEachIndexed { ordinal, header ->
                         val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
-                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header) }
+                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header, headerLayers) }
                         items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     }
                 }
@@ -575,20 +598,34 @@ private fun currentSection(listState: LazyListState, sections: List<SongSection>
     return current
 }
 
+/**
+ * One bucket header: transparent like the rest of the list (issue #91). It records its own
+ * drawing into a [GraphicsLayer] registered under its key in [layers], so the list can redraw it
+ * above the cut that hides rows scrolling under it ([pinnedHeaderEdgeFade]).
+ *
+ * @param header Header.
+ * @param layers Recorded header drawings by list key.
+ */
 @Composable
-private fun BucketHeader(header: SongListHeader) {
+private fun BucketHeader(header: SongListHeader, layers: MutableMap<Any, GraphicsLayer>) {
+    val layer = rememberGraphicsLayer()
+    val key = headerKey(header)
+    DisposableEffect(key, layer) {
+        layers[key] = layer
+        onDispose { if (layers[key] === layer) layers.remove(key) }
+    }
     SectionHeader(
         header.label,
         Modifier
-            .background(STICKY_HEADER_BACKGROUND)
+            .drawWithContent {
+                layer.record { this@drawWithContent.drawContent() }
+                drawLayer(layer)
+            }
             .padding(horizontal = 4.dp)
             .testTag(header.testTag)
             .semantics { contentDescription = header.spoken },
     )
 }
-
-/** Opaque strip behind a stuck bucket header (the frosted surface without translucency). */
-private val STICKY_HEADER_BACKGROUND = Color(0xFF121826)
 
 /** Gap between Songs list items. */
 private val LIST_SPACING = 4.dp
@@ -600,29 +637,47 @@ private fun headerKey(header: SongListHeader): String = HEADER_KEY_PREFIX + head
 private fun isHeaderKey(key: Any): Boolean = key is String && key.startsWith(HEADER_KEY_PREFIX)
 
 /**
- * Fades rows out over a short eased band just below the pinned section header
- * ([SongHeaderEdgeFade]) by masking the list with a vertical gradient (`BlendMode.DstIn`).
- * Drawing only: hit testing, semantics and TalkBack order are unchanged. The header strip itself
- * sits above the band, so its text stays fully opaque. Without an edge it draws nothing and skips
- * the offscreen layer.
+ * Hides rows under the pinned section header and fades them out over a short eased band just
+ * below it ([SongHeaderEdgeFade]), so the header needs no backing (issue #91). On an offscreen
+ * layer it clears everything above the header's resting bottom edge, masks the band with a
+ * vertical gradient (`BlendMode.DstIn`), then redraws the headers' recorded layers above the cut,
+ * so their text stays fully opaque and no row ever shows behind it. Drawing only: hit testing,
+ * semantics and TalkBack order are unchanged. Without an edge it draws nothing and skips the
+ * offscreen layer.
  *
- * @param edge Reads the current fade (draw phase only, so scrolling never recomposes).
- * @param depth Band depth in px.
+ * @param edge Reads the current edge (draw phase only, so scrolling never recomposes).
+ * @param depth Band depth in px; 0 keeps a hard edge.
+ * @param headerStart Headers' start inset in px (the list's start content padding).
+ * @param headers Header layers above a cut and their top offsets in px, for the cut's position.
  */
-private fun Modifier.pinnedHeaderEdgeFade(edge: () -> EdgeFade?, depth: Float): Modifier = this
+private fun Modifier.pinnedHeaderEdgeFade(
+    edge: () -> EdgeFade?,
+    depth: Float,
+    headerStart: Float,
+    headers: (Float) -> List<Pair<GraphicsLayer, Float>>,
+): Modifier = this
     .graphicsLayer { compositingStrategy = if (edge() != null) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
     .drawWithContent {
         drawContent()
         val fade = edge() ?: return@drawWithContent
-        val stops = SongHeaderEdgeFade.STOPS
-            .map { (t, alpha) -> t to Color.Black.copy(alpha = SongHeaderEdgeFade.maskAlpha(alpha, fade.strength)) }
-            .toTypedArray()
-        drawRect(
-            Brush.verticalGradient(*stops, startY = fade.top, endY = fade.top + depth),
-            topLeft = Offset(0f, fade.top),
-            size = Size(size.width, depth),
-            blendMode = BlendMode.DstIn,
-        )
+        drawRect(Color.Transparent, size = Size(size.width, fade.top), blendMode = BlendMode.Clear)
+        if (depth > 0f) {
+            val stops = SongHeaderEdgeFade.STOPS
+                .map { (t, alpha) -> t to Color.Black.copy(alpha = SongHeaderEdgeFade.maskAlpha(alpha, fade.strength)) }
+                .toTypedArray()
+            drawRect(
+                Brush.verticalGradient(*stops, startY = fade.top, endY = fade.top + depth),
+                topLeft = Offset(0f, fade.top),
+                size = Size(size.width, depth),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+        clipRect(bottom = fade.top) {
+            for ((layer, y) in headers(fade.top)) {
+                val x = if (layoutDirection == LayoutDirection.Ltr) headerStart else size.width - headerStart - layer.size.width
+                translate(x, y) { drawLayer(layer) }
+            }
+        }
     }
 
 @Composable

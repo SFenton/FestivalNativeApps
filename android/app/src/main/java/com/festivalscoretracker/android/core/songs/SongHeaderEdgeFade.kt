@@ -14,17 +14,22 @@ package com.festivalscoretracker.android.core.songs
 data class EdgeFadeItem(val index: Int, val key: Any, val offset: Int, val size: Int, val isHeader: Boolean)
 
 /**
- * Where rows fade out below the pinned section header.
+ * Where rows are cut and fade out below the pinned section header.
  *
- * @property top Top of the fade band in px from the list's top edge (the pinned header's bottom).
- * @property strength 0 = no fade (hard edge), 1 = full fade.
+ * @property top The pinned header's resting bottom edge in px from the list's top edge: rows
+ *   are hidden above it (the header has no backing, issue #91) and fade in over the band below it.
+ * @property strength Band strength: 0 = no fade (hard edge), 1 = full fade.
  */
 data class EdgeFade(val top: Float, val strength: Float)
 
 /**
- * The soft edge under a pinned Songs section header (issue #49, port of the iOS
- * `SectionBarEdgeFade`, issue #10): rows scrolling under the header fade out over a short
- * eased band below it instead of being cut off hard at its bottom edge.
+ * The cut and soft edge under a pinned Songs section header (issue #49, port of the iOS
+ * `SectionBarEdgeFade`, issue #10): rows scrolling under the header are hidden behind it and
+ * fade out over a short eased band below it instead of being cut off hard at its bottom edge.
+ *
+ * The header has no backing (issue #91, iOS operator batch 7): rows never show through it
+ * because the list hides everything above [EdgeFade.top] and redraws only the headers there
+ * ([headersAboveCut]).
  *
  * The band starts at the pinned header's resting bottom, which does not move while the next
  * header pushes the current one away, so headers and rows pass through the same band without
@@ -40,9 +45,9 @@ object SongHeaderEdgeFade {
     val STOPS: List<Pair<Float, Float>> = listOf(0f, 0.25f, 0.5f, 0.75f, 1f).map { it to smoothstep(it) }
 
     /**
-     * Whether the fade is drawn. Increase Contrast (system high-contrast text or the app toggle)
-     * and the app's Reduce Transparency keep the solid, hard edge, as on iOS: the header never
-     * sits next to see-through rows in those modes.
+     * Whether the fade band is drawn. Increase Contrast (system high-contrast text or the app
+     * toggle) and the app's Reduce Transparency keep a hard edge (depth 0), as on iOS: rows are
+     * still hidden under the header, but never half see-through beside it.
      *
      * @param increaseContrast Increase Contrast is on.
      * @param reduceTransparency Reduce Transparency is on.
@@ -61,11 +66,12 @@ object SongHeaderEdgeFade {
      * @param viewportStart Viewport start offset (`LazyListLayoutInfo.viewportStartOffset`).
      * @param firstHeaderKey Key of the list's first header; its fade ramps in as it pins.
      * @param spacing Gap between items in px.
-     * @param depth Fade depth in px.
-     * @return The fade, or null for a hard edge (nothing pinned or not scrolled under yet).
+     * @param depth Fade depth in px; 0 keeps a hard edge (accessibility modes, [isEnabled]).
+     * @return The edge, or null when nothing is pinned or nothing has scrolled under it yet
+     *   (the header then sits at rest and draws itself).
      */
     fun edge(items: List<EdgeFadeItem>, viewportStart: Int, firstHeaderKey: Any?, spacing: Int, depth: Float): EdgeFade? {
-        if (depth <= 0f) return null
+        if (firstHeaderKey == null) return null
         val pinned = items.firstOrNull { it.isHeader && it.offset <= viewportStart } ?: return null
         val top = pinned.size.toFloat()
         if (pinned.key != firstHeaderKey) return EdgeFade(top, 1f)
@@ -73,9 +79,21 @@ object SongHeaderEdgeFade {
         // after the header sits `size + spacing` below the header's natural (unpinned) position.
         val next = items.firstOrNull { it.index == pinned.index + 1 && !it.isHeader } ?: return EdgeFade(top, 1f)
         val scrolled = viewportStart + pinned.size + spacing - next.offset
-        val strength = (scrolled / depth).coerceIn(0f, 1f)
-        return if (strength > 0f) EdgeFade(top, strength) else null
+        if (scrolled <= 0) return null
+        return EdgeFade(top, if (depth > 0f) (scrolled / depth).coerceIn(0f, 1f) else 1f)
     }
+
+    /**
+     * Headers that reach above the cut at [top] and are redrawn there, over the hidden rows:
+     * the pinned header (also while it is pushed away) and the next header pushing it.
+     *
+     * @param items Visible items.
+     * @param viewportStart Viewport start offset.
+     * @param top The cut ([EdgeFade.top]) in px from the list's top edge.
+     * @return Headers with any part between the list's top edge and [top], in list order.
+     */
+    fun headersAboveCut(items: List<EdgeFadeItem>, viewportStart: Int, top: Float): List<EdgeFadeItem> =
+        items.filter { it.isHeader && it.offset - viewportStart < top && it.offset - viewportStart + it.size > 0 }
 
     /**
      * Mask alpha at a stop, scaled by the fade strength (1 = unchanged row).

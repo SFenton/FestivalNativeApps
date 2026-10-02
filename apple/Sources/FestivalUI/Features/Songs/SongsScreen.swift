@@ -1359,14 +1359,19 @@ struct SongsScreen: View {
             } action: { passed in
                 scrollChrome.setHeader(key, passed: passed)
             }
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-        if let link = group.quickLink {
-            label.quickLinkSection(link)
-        } else {
-            label.id(group.id)
+        // The row traits go outside the anchor: under `QuickLinkSectionModifier` the
+        // List no longer read them, so Duration, Year, Shop and score titles got the
+        // default opaque row backing, separator and insets (issue #91).
+        Group {
+            if let link = group.quickLink {
+                label.quickLinkSection(link)
+            } else {
+                label.id(group.id)
+            }
         }
+        .listRowInsets(EdgeInsets())
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
 
     /// A pinned section title: full-width, fully opaque backing (a flat surface with a
