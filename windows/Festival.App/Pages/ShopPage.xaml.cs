@@ -104,7 +104,7 @@ public sealed partial class ShopPage : Page
         RevealRing.IsActive = true;
         if (!App.Session.Settings.SaveData && !App.Options.NoArt)
         {
-            var pixels = (int)Math.Ceiling((grid ? tileSize : 56) * (XamlRoot?.RasterizationScale ?? 1));
+            var pixels = (int)Math.Ceiling((grid ? tileSize : SongRowCard.ArtSize) * (XamlRoot?.RasterizationScale ?? 1));
             using var cancellation = new CancellationTokenSource(ArtworkPrimeTimeout);
             var loads = ViewModel.Offers.Take(ArtworkPrimeCount)
                 .Select(o => ArtworkImages.LoadAsync(o.Offer.AlbumArt, pixels, cancellation.Token));
@@ -167,48 +167,69 @@ public sealed partial class ShopPage : Page
         if (args.Element is FrameworkElement element && artLoads.Remove(element, out var pending)) pending.Cancel();
     }
 
-    /// <summary>Styles and loads art for a realized list row.</summary>
+    /// <summary>Fills the shared song row card with the offer's badge, cart button, pulse and art.</summary>
     /// <param name="sender">List.</param>
     /// <param name="args">Container info.</param>
     private void OnListContainerChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.ItemContainer is not ListViewItem container || args.Item is not ShopOfferItem item) return;
-        if (container.ContentTemplateRoot is not Grid row) return;
+        if (container.ContentTemplateRoot is not SongRowCard card) return;
         if (artLoads.Remove(container, out var pending)) pending.Cancel();
-        if (args.InRecycleQueue) return;
+        if (args.InRecycleQueue)
+        {
+            card.ApplyShop(null);
+            return;
+        }
+        card.Reset();
         AutomationProperties.SetName(container, item.Announcement);
         AutomationProperties.SetAutomationId(container, $"fst.shop.song.{item.Offer.SongId}");
-        ApplyBadge(row, item, "BadgePill", "BadgeLabel");
-        row.BorderBrush = BorderFor(item);
-        row.BorderThickness = new Thickness(item.HasBadge ? 2 : 1);
-        var image = (Image)row.FindName("Art");
-        image.Source = null;
-        _ = LoadArtAsync(container, image, item, 56);
+        // The text badge names the Shop state here, so the Songs bag on the art is not repeated.
+        card.ApplyShop(item.Pulse, showBag: false);
+        if (item.HasBadge)
+        {
+            var label = new TextBlock { Text = item.BadgeText, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
+            var badge = new Border { Padding = new Thickness(8, 2, 8, 2), CornerRadius = new CornerRadius(10), VerticalAlignment = VerticalAlignment.Center, Child = label };
+            ApplyBadge(badge, label, item);
+            card.Trailing.Children.Add(badge);
+        }
+        var external = new Button
+        {
+            Width = 44,
+            Height = 44,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(22),
+            Tag = item,
+            Content = new FontIcon { Glyph = "\uE719", FontSize = 16 },
+        };
+        external.Click += OnExternalClick;
+        AutomationProperties.SetName(external, item.ExternalName);
+        AutomationProperties.SetAutomationId(external, item.ExternalAutomationId);
+        ToolTipService.SetToolTip(external, "Open official Item Shop");
+        card.Trailing.Children.Add(external);
+        _ = LoadArtAsync(container, card.Art, item, SongRowCard.ArtSize);
     }
 
-    /// <summary>Colors a New (gold on dark) or Leaving Tomorrow (white on red) badge.</summary>
+    /// <summary>Colors a grid tile's New (gold on dark) or Leaving Tomorrow (white on red) badge.</summary>
     /// <param name="root">Template root.</param>
     /// <param name="item">Offer.</param>
     /// <param name="badgeName">Badge border name.</param>
     /// <param name="textName">Badge text name.</param>
     private static void ApplyBadge(FrameworkElement root, ShopOfferItem item, string badgeName, string textName)
     {
-        if (root.FindName(badgeName) is not Border badge || root.FindName(textName) is not TextBlock text) return;
+        if (root.FindName(badgeName) is Border badge && root.FindName(textName) is TextBlock text) ApplyBadge(badge, text, item);
+    }
+
+    /// <summary>Colors a New (gold on dark) or Leaving Tomorrow (white on red) badge.</summary>
+    /// <param name="badge">Badge pill.</param>
+    /// <param name="text">Badge text.</param>
+    /// <param name="item">Offer.</param>
+    private static void ApplyBadge(Border badge, TextBlock text, ShopOfferItem item)
+    {
         badge.Background = item.IsLeaving ? Brush("FSTShopLeavingBrush")
             : Services.ContrastTheme.IsOn ? Brush("FSTShopNewBrush") : new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, 0x12, 0x18, 0x26));
         text.Foreground = item.IsLeaving || Services.ContrastTheme.IsOn ? Brush("FSTShopBadgeTextBrush") : Brush("FSTShopNewBrush");
         AutomationProperties.SetAutomationId(text, item.IsLeaving ? $"fst.shop.badge.leaving.{item.Offer.SongId}" : $"fst.shop.badge.new.{item.Offer.SongId}");
     }
-
-    /// <summary>Accent border for an offer.</summary>
-    /// <param name="item">Offer.</param>
-    /// <returns>Brush.</returns>
-    private static Brush BorderFor(ShopOfferItem item) => item.Highlight switch
-    {
-        ShopHighlight.LeavingTomorrow => Brush("FSTShopLeavingBrush"),
-        ShopHighlight.New => Brush("FSTShopNewBrush"),
-        _ => Brush("FSTCardStrokeBrush"),
-    };
 
     /// <summary>Loads cover art for a card or row.</summary>
     /// <param name="owner">Card or container.</param>

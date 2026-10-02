@@ -10,10 +10,6 @@
     Background="Transparent">
     <Page.Resources>
         <CollectionViewSource x:Name="GroupedSongs" IsSourceGrouped="True" />
-        <Style x:Key="SongTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}" />
-        <Style x:Key="SongSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
-            <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
-        </Style>
         <!-- Web ToggleRow: label (or stars / intensity bars), optional description, trailing switch. -->
         <DataTemplate x:Key="FilterToggleTemplate" x:DataType="vm:FilterToggleRow">
             <Grid ColumnSpacing="12" MinHeight="40" Padding="0,4">
@@ -398,41 +394,8 @@
                         </ListView.GroupStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="vm:SongRowItem">
-                                <Grid x:Name="Card" MinHeight="64" Padding="10,8,14,8" ColumnSpacing="12" CornerRadius="8"
-                                      BorderThickness="1" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="44" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <!-- Spans the wrapped second row only while it has content (SongsPage.BuildTrailing): a Grid shares a spanning
-                                         child's height across Auto rows, so an empty second row got half the art's height
-                                         as dead space under anonymous rows (operator batch 6.3). -->
-                                    <Grid x:Name="ArtHost" Width="44" Height="44" VerticalAlignment="Center">
-                                        <Border CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}">
-                                            <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                                        </Border>
-                                        <!-- Item Shop bag on songs in the Shop, coloured like the row's pulse (operator batch 7.19);
-                                             the row's UIA name already carries the Shop state. -->
-                                        <Border x:Name="ShopBadge" Width="18" Height="18" CornerRadius="9" Margin="0,0,-5,-5"
-                                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Visibility="Collapsed"
-                                                BorderThickness="1.5" BorderBrush="#FF121826" AutomationProperties.AccessibilityView="Raw">
-                                            <FontIcon Glyph="&#xE719;" FontSize="10" Foreground="#FF121826" />
-                                        </Border>
-                                    </Grid>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                        <controls:MarqueeText x:Name="TitleText" Text="{x:Bind Title}" TextStyle="{StaticResource SongTitleStyle}" />
-                                        <controls:MarqueeText x:Name="SubtitleText" Text="{x:Bind Subtitle}" TextStyle="{StaticResource SongSubtitleStyle}" />
-                                    </StackPanel>
-                                    <StackPanel x:Name="Trailing" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" />
-                                    <controls:FlowPanel x:Name="Secondary" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,6,0,0" Visibility="Collapsed" />
-                                    <!-- Pulsing Item Shop ring over the card edge (green in Shop, gold New, red Leaving). -->
-                                    <controls:ShopPulseRing x:Name="ShopRing" Grid.RowSpan="2" Grid.ColumnSpan="3" Margin="-11,-9,-15,-9" />
-                                </Grid>
+                                <!-- The shared song row (also the Item Shop list row); SongsPage fills its slots per phase. -->
+                                <controls:SongRowCard Title="{x:Bind Title}" Subtitle="{x:Bind Subtitle}" />
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
