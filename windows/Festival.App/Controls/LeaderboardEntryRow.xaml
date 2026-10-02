@@ -10,7 +10,8 @@
         Which columns show and their widths come from one per-section plan (Festival.Core LeaderboardColumnLayout, issue
         #37), measured over every row of the section and its pinned row, so columns line up vertically like the web; a
         row without a value keeps the column's space. One UIA stop per row (Android one-stop learning): the Button's name reads
-        everything, and its parts are Raw so Narrator scan mode doesn't read them a second time. The selected player's row is purpleHighlight with a purple border and
+        everything, and its parts are Raw so Narrator scan mode doesn't read them a second time. A row without a destination
+        (empty account ID) is not hit-testable or tabbable and its peer is Text with no Invoke (issue #63). The selected player's row is purpleHighlight with a purple border and
         bold rank and name. The surface is a Border behind a transparent Button, so hover/press add a white tint on top
         of the frosted fill instead of replacing it.
     -->
@@ -20,15 +21,15 @@
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
         <Border x:Name="Surface" CornerRadius="12" BorderThickness="1" IsHitTestVisible="False"
                 Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" />
-        <Button x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+        <controls:LeaderboardRowButton x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                 VerticalAlignment="Stretch" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="0"
                 Background="Transparent" SizeChanged="OnSizeChanged">
-            <Button.Resources>
+            <controls:LeaderboardRowButton.Resources>
                 <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
                 <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
                 <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
                 <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
-            </Button.Resources>
+            </controls:LeaderboardRowButton.Resources>
             <Grid x:Name="RowGrid" ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="RankColumn" Width="Auto" />
@@ -62,6 +63,6 @@
                 <FontIcon x:Name="Chevron" Grid.Column="6" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                           AutomationProperties.AccessibilityView="Raw" />
             </Grid>
-        </Button>
+        </controls:LeaderboardRowButton>
     </Grid>
 </UserControl>

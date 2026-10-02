@@ -720,7 +720,7 @@ private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
 private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppRoute?, instrument: Instrument, columns: LeaderboardColumnPlan, onOpen: (AppRoute) -> Unit) {
     var modifier = Modifier.fillMaxWidth().selectedRowHighlight(isSelected)
     modifier = if (route != null) {
-        modifier.clickable(role = Role.Button, onClickLabel = "Open profile") { onOpen(route) }
+        modifier.clickable(role = Role.Button, onClickLabel = RankingNavigation.actionLabel(route)) { onOpen(route) }
     } else {
         modifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
     }
