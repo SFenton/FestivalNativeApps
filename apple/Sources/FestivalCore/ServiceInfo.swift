@@ -41,6 +41,14 @@ public struct ServiceInfo: Decodable, Sendable, Equatable {
         public let percent: Double?
     }
 
+    /// Per-pass lookup counts (`schemaVersion` 1) the registered-band discovery phase reports
+    /// beside its durable completion (`PhaseAttemptProgressInfo`).
+    public struct AttemptProgress: Decodable, Sendable, Equatable {
+        public let schemaVersion: Double?
+        public let attemptedThisPass: Double?
+        public let retryableUnavailableThisPass: Double?
+    }
+
     /// The running (or last failed) update.
     public struct CurrentUpdate: Decodable, Sendable, Equatable {
         /// `idle`, `updating`, `failed` or `stalled` (unknown values are kept verbatim).
@@ -63,6 +71,7 @@ public struct ServiceInfo: Decodable, Sendable, Equatable {
         public let unitsTotalFinal: Bool?
         public let phasePercent: Double?
         public let subphaseProgress: SubphaseProgress?
+        public let attemptProgress: AttemptProgress?
         public let lastProgressAt: String?
         public let updatedAt: String?
         public let heartbeatAt: String?
@@ -183,12 +192,32 @@ public struct ServiceBarProgress: Sendable, Equatable {
     public let unitsTotal: Double?
 }
 
+/// Validated per-pass lookup counts, the web's `ServiceAttemptProgress`.
+public struct ServiceAttemptProgress: Sendable, Equatable {
+    public var attemptedThisPass: Int
+    public var retryableUnavailableThisPass: Int
+
+    /// Create counts.
+    ///
+    /// - Parameters:
+    ///   - attemptedThisPass: Lookups attempted in the current pass.
+    ///   - retryableUnavailableThisPass: Of those, lookups that were temporarily unavailable.
+    public init(attemptedThisPass: Int, retryableUnavailableThisPass: Int) {
+        self.attemptedThisPass = attemptedThisPass
+        self.retryableUnavailableThisPass = retryableUnavailableThisPass
+    }
+}
+
 /// What the Service Info card renders for one poll, the web's `ServiceProgressDisplay`
-/// (ETA, overall percent and discovery-attempt counts are not shown by the web card either,
-/// so they are not ported).
+/// (ETA and overall percent are not shown by the web card either, so they are not ported).
 public struct ServiceProgressDisplay: Sendable, Equatable {
     public var phasePercent: Double?
     public var phaseId: String?
+    /// Phase-level unit counts (the discovery-attempt line reports these as "completed").
+    public var unitsCompleted: Double?
+    public var unitsTotal: Double?
+    /// Registered-band discovery lookup counts, monotonic within one phase attempt.
+    public var attemptProgress: ServiceAttemptProgress?
     public var subphaseId: String?
     public var phaseAttempt: Double?
     public var phaseOrdinal: Double?
@@ -270,6 +299,17 @@ public enum ServiceProgressReducer {
         display.phaseAttempt = phaseAttempt
         display.phaseOrdinal = phaseOrdinal
         display.restarted = restarted
+        display.unitsCompleted = finite(current.unitsCompleted)
+        display.unitsTotal = finite(current.unitsTotal)
+        let previousAttempt = samePhase && !restarted ? previous?.display.attemptProgress : nil
+        display.attemptProgress = normalizedAttemptProgress(current.attemptProgress).map { raw in
+            ServiceAttemptProgress(
+                attemptedThisPass: max(previousAttempt?.attemptedThisPass ?? 0, raw.attemptedThisPass),
+                retryableUnavailableThisPass: max(
+                    previousAttempt?.retryableUnavailableThisPass ?? 0, raw.retryableUnavailableThisPass
+                )
+            )
+        }
         display.barProgress = reduceBar(
             previous: previous?.display.barProgress, info: info, identity: identity,
             phaseId: phaseId, phaseAttempt: phaseAttempt, phasePercent: phasePercent,
@@ -352,6 +392,24 @@ public enum ServiceProgressReducer {
             kind: phasePercent != nil ? .exact : .indeterminate, percent: phasePercent,
             unitsKind: current.unitsKind, unitsCompleted: finite(current.unitsCompleted),
             unitsTotal: finite(current.unitsTotal)
+        )
+    }
+
+    /// The web's `normalizeAttemptProgress`: schema 1 only, non-negative integers, and never
+    /// more unavailable lookups than attempts; anything else hides the line.
+    ///
+    /// - Parameter value: Wire counts.
+    /// - Returns: Validated counts, or nil.
+    static func normalizedAttemptProgress(_ value: ServiceInfo.AttemptProgress?) -> ServiceAttemptProgress? {
+        guard let value, value.schemaVersion == 1,
+              let attempted = finite(value.attemptedThisPass),
+              let unavailable = finite(value.retryableUnavailableThisPass),
+              attempted == attempted.rounded(), unavailable == unavailable.rounded(),
+              attempted >= 0, unavailable >= 0, unavailable <= attempted,
+              attempted < 1e15
+        else { return nil }
+        return ServiceAttemptProgress(
+            attemptedThisPass: Int(attempted), retryableUnavailableThisPass: Int(unavailable)
         )
     }
 
@@ -491,6 +549,24 @@ public enum ServiceInfoText {
         }
         return "\(done) \(unit) completed"
     }
+
+    /// Registered-band discovery lookup line under the bar ("1,310 attempted this pass ·
+    /// 70 temporarily unavailable · 1,240 of 5,000 completed"), shown only for that phase.
+    ///
+    /// - Parameter display: Reduced progress for this poll.
+    /// - Returns: Attempt sentence, or nil for any other phase or without valid counts.
+    public static func discoveryAttemptText(_ display: ServiceProgressDisplay) -> String? {
+        guard display.phaseId == registeredBandDiscoveryPhaseId,
+              let attempts = display.attemptProgress else { return nil }
+        let head = "\(grouped(Double(attempts.attemptedThisPass))) attempted this pass · "
+            + "\(grouped(Double(attempts.retryableUnavailableThisPass))) temporarily unavailable · "
+        let completed = grouped(display.unitsCompleted ?? 0)
+        guard let total = display.unitsTotal else { return head + "\(completed) completed" }
+        return head + "\(completed) of \(grouped(total)) completed"
+    }
+
+    /// Phase whose card row adds the lookup-attempt line (web `discoveryAttemptText`).
+    static let registeredBandDiscoveryPhaseId = "post.registered_player_band_discovery"
 
     /// Percent text for a determinate bar, or the indeterminate sentence.
     ///

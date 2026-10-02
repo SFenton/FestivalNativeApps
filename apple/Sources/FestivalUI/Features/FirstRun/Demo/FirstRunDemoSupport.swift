@@ -13,23 +13,61 @@ import AppKit
 /// Skipped entirely under Reduce Motion, matching the requirement that demos have "lightweight
 /// looping animations only where the web animates" and none while Reduce Motion is on.
 ///
-/// Implemented as a single `repeatForever` SwiftUI animation (no `Timer`/Combine subscription),
-/// so it costs nothing while a slide is off-screen in the carousel.
+/// Implemented as a single `repeatForever` SwiftUI animation (no `Timer`/Combine subscription).
+/// The paged carousel keeps neighbouring slides alive, and an animated shadow is redrawn every
+/// frame, so the pulse runs only on the slide on screen (`firstRunSlideActive`, issue #28)
+/// and settles at its dim resting glow elsewhere.
 private struct FirstRunPulse: ViewModifier {
     let tint: Color
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.firstRunSlideActive) private var slideActive
     @State private var lit = false
 
     func body(content: Content) -> some View {
         content
             .shadow(color: tint.opacity(lit ? 0.55 : 0.12), radius: lit ? 10 : 3)
-            .onAppear {
-                guard !reduceMotion, !DebugAnimationOverride.stillBackground else { return }
-                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
-                    lit = true
-                }
-            }
+            .onAppear { update() }
+            .onChange(of: slideActive) { _, _ in update() }
+            .onChange(of: reduceMotion) { _, _ in update() }
     }
+
+    /// Start the loop on the visible slide; otherwise stop it at the resting glow.
+    private func update() {
+        let run = FirstRunPulsePolicy.runs(
+            slideActive: slideActive, reduceMotion: reduceMotion,
+            stillBackground: DebugAnimationOverride.stillBackground
+        )
+        if run {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                lit = true
+            }
+        } else {
+            var stop = Transaction()
+            stop.disablesAnimations = true
+            withTransaction(stop) { lit = false }
+        }
+    }
+}
+
+/// When a first-run demo's looping glow may run.
+enum FirstRunPulsePolicy {
+    /// Whether the pulse loops.
+    ///
+    /// - Parameters:
+    ///   - slideActive: Whether the demo's slide is the one on screen.
+    ///   - reduceMotion: System Reduce Motion.
+    ///   - stillBackground: Debug override freezing decorative motion.
+    /// - Returns: True only on the visible slide with motion allowed.
+    static func runs(slideActive: Bool, reduceMotion: Bool, stillBackground: Bool) -> Bool {
+        slideActive && !reduceMotion && !stillBackground
+    }
+}
+
+extension EnvironmentValues {
+    /// Whether the enclosing first-run slide is the page on screen. Neighbouring slides that
+    /// the paged carousel keeps alive see false, so their looping demos stay idle. True
+    /// outside a carousel (hosted tests, previews).
+    @Entry var firstRunSlideActive: Bool = true
 }
 
 extension View {

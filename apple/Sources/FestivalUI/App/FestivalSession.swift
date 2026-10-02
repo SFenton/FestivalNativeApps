@@ -342,6 +342,32 @@ final class FestivalSession {
         return result
     }
 
+    /// Already decoded art for a tile, without suspending or touching the network.
+    ///
+    /// Lazy lists rebuild rows as they scroll back into view; reading this in the
+    /// row's initializer lets it draw its cover in the first frame instead of
+    /// building a spinner and laying the row out a second time when the async
+    /// lookup in ``preparedArtwork(raw:maxPixels:)`` returns.
+    ///
+    /// - Parameters:
+    ///   - raw: Public artwork path from a validated song.
+    ///   - maxPixels: The same bounded edge later passed to ``preparedArtwork(raw:maxPixels:)``.
+    /// - Returns: The decoded image for the current publication, or nil when not yet decoded.
+    func cachedArtwork(raw: String, maxPixels: Int) -> CGImage? {
+        guard (1...2048).contains(maxPixels) else { return nil }
+        return thumbnails.object(forKey: Self.thumbnailKey(raw: raw, maxPixels: maxPixels))?.image
+    }
+
+    /// Cache key shared by the synchronous and asynchronous decoded-art lookups.
+    ///
+    /// - Parameters:
+    ///   - raw: Public artwork path.
+    ///   - maxPixels: Bounded displayed edge.
+    /// - Returns: One key per path and decoded size.
+    private static func thumbnailKey(raw: String, maxPixels: Int) -> NSString {
+        NSString(string: "\(raw)|\(maxPixels)")
+    }
+
     /// Reuse bounded, decoded art instead of decoding the same cover while scrolling.
     ///
     /// - Parameters:
@@ -356,7 +382,7 @@ final class FestivalSession {
             throw FestivalAPIError.invalidArtwork
         }
         let startedAt = publicationRevision
-        let key = NSString(string: "\(raw)|\(maxPixels)")
+        let key = Self.thumbnailKey(raw: raw, maxPixels: maxPixels)
         if let cached = thumbnails.object(forKey: key) {
             return (cached.image, true)
         }

@@ -32,6 +32,12 @@ Source: `FortniteFestivalWeb/src/pages/suggestions/SuggestionsPage.tsx`, `.../su
 - ~~`SuggestionsScreen` computes Settings-visible instruments itself~~ — fixed this pass (Lane G2): `FestivalRootView.content(for:)` now passes its `visibleInstruments` into `SuggestionsScreen(session:visibleInstruments:)` like every other `tabStack` hub, and `AppRouteDestination`'s `.suggestions` case (the pushed-route destination, e.g. from the drawer) does the same with its own in-scope `visibleInstruments`. `SuggestionsScreen` no longer reads the nine `fst.settings.show*` keys itself; it derives the filter sheet's ordered `[Instrument]` list from the injected `Set<Instrument>` via `Instrument.allCases.filter(visibleInstruments.contains)` (same technique `LeaderboardsScreen` uses, which still has its own independent `@AppStorage` reads — out of this lane's ownership to fix).
 - `SuggestionFilterSettings.storageKey` (`"fst.suggestions.filter"`) is a new persisted `@AppStorage` key; Settings' "Reset Settings" registry (Lane A, `dec1cbf`) should include it alongside `SongPlayerScoreFilter.storageKey` so a full reset clears it too. Still open — Settings is out of this lane's ownership.
 
+## Scroll cost (issue #28)
+
+- Rows rebuilt by the `LazyVStack` draw already decoded covers in their first frame (`FestivalSession.cachedArtwork(raw:maxPixels:)` read in `ArtworkTile.init`), so they skip the spinner and the second layout pass when the async lookup returns.
+- A static `MarqueeText` draws its sizing `Text` directly (two texts per marquee instead of three); the overlay track exists only while it scrolls.
+- What remains per incoming card is SwiftUI building its five rows and the glass card at once (~20 ms on the Debug simulator with XCUITest accessibility on). XCUITest swipes also add 55–75 ms accessibility snapshots, so judge hitches on a device with Instruments, not from a `drive` trace.
+
 ## IDs
 
 `fst.suggestions.filter-button`, `fst.suggestions.choose-profile`, `fst.suggestions.syncing`, `fst.suggestions.loading`, `fst.suggestions.no-results`, `fst.suggestions.list`, `fst.suggestions.start-new-mix`, `fst.suggestions.category.<key>`, `fst.suggestions.row.<songId or songId|instrument>`, `fst.suggestions.filter.{title,form,instrument.<X>,type.<type>,type.<X>.<type>,instrument-picker.<X|previous|next|centre>,reset,done}`.

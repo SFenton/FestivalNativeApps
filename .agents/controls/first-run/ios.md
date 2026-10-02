@@ -158,8 +158,7 @@ Shared building blocks live in `Features/FirstRun/Demo/`:
   history, percentiles, rival rank/score comparisons), mirroring the shape of the web's
   `demoData.ts`. It holds no songs: song-using demos read the catalogue (see "Demo songs come
   from the catalogue" above).
-- `FirstRunDemoSupport.swift` — `firstRunPulse(_:)` (a `repeatForever` glow, standing in for the
-  web's `shopBreathe*`/`pulseWrap` CSS animations; a no-op under Reduce Motion) and
+- `FirstRunDemoSupport.swift` — `firstRunPulse(_:)` (a `repeatForever` glow, standing in for the web's `shopBreathe*`/`pulseWrap` CSS animations; a no-op under Reduce Motion and on any slide but the visible one, via `\.firstRunSlideActive` and `FirstRunPulsePolicy`, because the paged `TabView` keeps neighbours alive; the sheet also pauses the backdrop, see [artwork background](../artwork-background/ios.md#power-and-frame-budget-issue-28)) and
   `firstRunStagger(_:)` (a brief per-row fade/rise-in echoing the web's cascading `FadeIn`, also a
   no-op under Reduce Motion — appears immediately instead), plus shared row views
   (`FirstRunRankRow`, `FirstRunRivalRow`, `FirstRunViewAllRow`, `FirstRunInstrumentHeader`,

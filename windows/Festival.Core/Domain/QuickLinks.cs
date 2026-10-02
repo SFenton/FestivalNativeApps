@@ -51,8 +51,17 @@ public static class QuickLinks
     /// <summary>Fewer sections hide the entry point (a one-item jump list does nothing).</summary>
     public const int MinimumSectionCount = 2;
 
-    /// <summary>A section is naturally active once its top is within this many epx of the viewport top.</summary>
-    public const double DefaultActivationOffset = 16;
+    /// <summary>
+    /// A jump lands the section's top this many epx below the viewport top (the web's default 32 px offset), so its
+    /// title sits fully visible under the title bar rather than flush with it (#51).
+    /// </summary>
+    public const double LandingOffset = 32;
+
+    /// <summary>
+    /// A section is naturally active once its top is within this many epx of the viewport top. It matches
+    /// <see cref="LandingOffset"/> so the section a jump lands is the highlighted one.
+    /// </summary>
+    public const double DefaultActivationOffset = LandingOffset;
 
     /// <summary>After a jump the target stays active while its top is within this band of the landing line.</summary>
     public const double ReachableBand = 96;
@@ -79,10 +88,11 @@ public static class QuickLinks
     /// <param name="verticalOffset">Current scroll offset.</param>
     /// <param name="anchorTop">Anchor top relative to the viewport.</param>
     /// <param name="scrollableHeight">Largest reachable offset.</param>
-    /// <param name="landingMargin">Gap kept above the anchor.</param>
+    /// <param name="landingMargin">Gap kept above the anchor (default <see cref="LandingOffset"/>).</param>
     /// <returns>Target offset clamped to <c>[0, scrollableHeight]</c>.</returns>
-    public static double JumpOffset(double verticalOffset, double anchorTop, double scrollableHeight, double landingMargin) =>
-        Math.Clamp(verticalOffset + anchorTop - landingMargin, 0, Math.Max(0, scrollableHeight));
+    public static double JumpOffset(
+        double verticalOffset, double anchorTop, double scrollableHeight, double landingMargin = LandingOffset) =>
+        LandingTarget(verticalOffset + anchorTop, scrollableHeight, landingMargin);
 
     /// <summary>Whether the scroller already rests at a jump target.</summary>
     /// <param name="verticalOffset">Current scroll offset.</param>
@@ -123,6 +133,14 @@ public static class QuickLinks
     /// <returns><see langword="true"/> within the reachable band.</returns>
     public static bool IsReachable(QuickLinkFrame frame, double activationOffset) =>
         frame.MinY >= -ReachableBand && frame.MinY <= activationOffset + ReachableBand;
+
+    /// <summary>The scroll offset that lands a section's top on the landing line, clamped to the scrollable range.</summary>
+    /// <param name="contentTop">Section top in scroll-content coordinates (current offset plus its viewport top).</param>
+    /// <param name="scrollableHeight">Maximum scroll offset.</param>
+    /// <param name="landingOffset">Landing line below the viewport top.</param>
+    /// <returns>Vertical offset; sections near either end land as close as the content allows.</returns>
+    public static double LandingTarget(double contentTop, double scrollableHeight, double landingOffset = LandingOffset) =>
+        Math.Clamp(contentTop - landingOffset, 0, Math.Max(0, scrollableHeight));
 
     /// <summary>
     /// The section a reader is "in": the last (display order) whose top crossed the activation line; unknown frames are

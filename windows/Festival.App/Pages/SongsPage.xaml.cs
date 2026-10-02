@@ -56,6 +56,8 @@ public sealed partial class SongsPage : Page, IPageBack
     private string[] stickyLabels = [];
     private int stickyRowCount;
     private bool wideLayout;
+    private readonly TopEdgeFade edgeFade;
+    private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
     /// <summary>Creates the page.</summary>
     public SongsPage()
@@ -70,6 +72,9 @@ public sealed partial class SongsPage : Page, IPageBack
         SongList.SelectionChanged += OnSongSelectionChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
         Zoom.ViewChangeCompleted += OnZoomViewChangeCompleted;
+        edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
+        Loaded += (_, _) => AttachEdgeFadeSettings();
+        Unloaded += (_, _) => DetachEdgeFadeSettings();
     }
 
     /// <summary>Page model.</summary>
@@ -160,7 +165,52 @@ public sealed partial class SongsPage : Page, IPageBack
         StickyHeader.Text = label;
         var shown = label.Length > 0 && Zoom.IsZoomedInViewActive && ViewModel.ShowList && Zoom.Opacity > 0;
         StickyHeader.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        UpdateEdgeFade(shown);
     }
+
+    /// <summary>
+    /// Fades rows out at the list's top edge under the section header bar (issue #49) while the header shows and the
+    /// list is scrolled, unless a contrast theme, Windows transparency effects off or the in-app Increase Contrast or
+    /// Less Transparency setting asks for the hard edge.
+    /// </summary>
+    /// <param name="headerShown">Whether the section header bar is visible.</param>
+    private void UpdateEdgeFade(bool headerShown)
+    {
+        var settings = App.Session.Settings;
+        var enabled = headerShown && SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
+            settings.LessTransparency, settings.MoreContrast);
+        edgeFade.Update(enabled ? SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0) : 0);
+    }
+
+    /// <summary>Follows appearance changes that switch the edge fade on or off while the page is shown.</summary>
+    private void AttachEdgeFadeSettings()
+    {
+        App.Session.PropertyChanged += OnEdgeFadeSettingsChanged;
+        fadeUiSettings.AdvancedEffectsEnabledChanged += OnEdgeFadeSystemChanged;
+        // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
+        fadeUiSettings.ColorValuesChanged += OnEdgeFadeSystemChanged;
+    }
+
+    /// <summary>Stops following appearance changes.</summary>
+    private void DetachEdgeFadeSettings()
+    {
+        App.Session.PropertyChanged -= OnEdgeFadeSettingsChanged;
+        fadeUiSettings.AdvancedEffectsEnabledChanged -= OnEdgeFadeSystemChanged;
+        fadeUiSettings.ColorValuesChanged -= OnEdgeFadeSystemChanged;
+    }
+
+    /// <summary>Re-evaluates the fade when the in-app settings change.</summary>
+    /// <param name="sender">Session.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnEdgeFadeSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == "Settings") DispatcherQueue.TryEnqueue(UpdateStickyHeader);
+    }
+
+    /// <summary>Re-evaluates the fade when Windows transparency effects or the contrast theme change (any thread).</summary>
+    /// <param name="sender">Settings source.</param>
+    /// <param name="args">Ignored.</param>
+    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(UpdateStickyHeader);
 
     /// <summary>Realized row containers with their edges relative to the list viewport's top.</summary>
     /// <param name="panel">Items panel.</param>
@@ -221,54 +271,35 @@ public sealed partial class SongsPage : Page, IPageBack
     private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.ItemContainer is not ListViewItem container || args.Item is not SongRowItem row) return;
-        if (container.ContentTemplateRoot is not Grid root) return;
+        if (container.ContentTemplateRoot is not SongRowCard card) return;
         if (args.InRecycleQueue)
         {
             CancelArt(container);
-            ((ShopPulseRing)root.FindName("ShopRing")).Apply(null);
+            card.ApplyShop(null);
             return;
         }
         if (args.Phase == 0)
         {
             CancelArt(container);
-            ((Image)root.FindName("Art")).Source = null;
-            ((Panel)root.FindName("Trailing")).Children.Clear();
-            var secondary = (Panel)root.FindName("Secondary");
-            secondary.Children.Clear();
-            secondary.Visibility = Visibility.Collapsed;
-            Grid.SetRowSpan((FrameworkElement)root.FindName("ArtHost"), 1);
+            card.Reset();
             AutomationProperties.SetName(container, row.Announcement);
             AutomationProperties.SetAutomationId(container, $"fst.songs.row.{row.Song.SongId}");
-            ((ShopPulseRing)root.FindName("ShopRing")).Apply(row.Pulse);
-            var badge = (Border)root.FindName("ShopBadge");
-            badge.Visibility = row.Pulse is null ? Visibility.Collapsed : Visibility.Visible;
-            if (row.Pulse is { } pulse)
-            {
-                // Contrast themes: Highlight / HighlightText instead of the brand gold/red bag.
-                var contrast = Services.ContrastTheme.IsOn;
-                badge.Background = contrast ? Services.ContrastTheme.Brush("FSTShopNewBrush")
-                    : new SolidColorBrush(Color.FromArgb(0xFF, (byte)(pulse.Argb >> 16), (byte)(pulse.Argb >> 8), (byte)pulse.Argb));
-                if (contrast)
-                {
-                    badge.BorderBrush = Services.ContrastTheme.Brush("FSTShopBadgeTextBrush");
-                    ((FontIcon)badge.Child).Foreground = Services.ContrastTheme.Brush("FSTShopBadgeTextBrush");
-                }
-            }
+            card.ApplyShop(row.Pulse);
             // Not Handled: x:Bind template bindings run in this same event.
             args.RegisterUpdateCallback(1, OnContainerContentChanging);
             return;
         }
-        BuildTrailing(root, row);
-        _ = LoadArtAsync(container, (Image)root.FindName("Art"), row.Song);
+        BuildTrailing(card, row);
+        _ = LoadArtAsync(container, card.Art, row.Song);
     }
 
     /// <summary>Builds chips, metadata pills, the chart meter or the score-state text.</summary>
     /// <param name="card">Row card.</param>
     /// <param name="row">Row.</param>
-    private void BuildTrailing(Grid card, SongRowItem row)
+    private void BuildTrailing(SongRowCard card, SongRowItem row)
     {
-        var trailing = (Panel)card.FindName("Trailing");
-        var secondary = (FlowPanel)card.FindName("Secondary");
+        var trailing = card.Trailing;
+        var secondary = card.Secondary;
         trailing.Children.Clear();
         secondary.Children.Clear();
         var inlineChips = ListWidth() >= InlineChipsWidth;
@@ -298,8 +329,7 @@ public sealed partial class SongsPage : Page, IPageBack
                 trailing.Children.Add(new TextBlock { Text = state, Style = (Style)Application.Current.Resources["FSTSecondaryTextStyle"], VerticalAlignment = VerticalAlignment.Center });
         }
         var wrapped = secondary.Children.Count > 0;
-        secondary.Visibility = wrapped ? Visibility.Visible : Visibility.Collapsed;
-        Grid.SetRowSpan((FrameworkElement)card.FindName("ArtHost"), wrapped ? 2 : 1);
+        card.SetWrapped(wrapped);
     }
 
     /// <summary>Loads a row thumbnail unless the container is recycled first.</summary>

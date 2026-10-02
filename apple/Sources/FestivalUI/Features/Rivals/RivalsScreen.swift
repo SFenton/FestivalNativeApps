@@ -370,11 +370,21 @@ struct RivalInstrumentSongSection: View {
     /// empty (`CompeteInstrumentLeaderboardSection`).
     var emptyMessage: String? = nil
     @State private var state: RivalsLoadState<RivalsListResponse> = .loading
+    /// Skips the reload `.task(id:)` starts on every reappearance (Back from a pushed
+    /// page), which flashed the rows to a spinner and shifted Compete (#39).
+    @State private var gate = ReappearanceLoadGate<CompeteSectionLoadKey>()
 
     private let previewCount = 3
 
+    private var loadKey: CompeteSectionLoadKey {
+        CompeteSectionLoadKey(instrument: instrument, session: session)
+    }
+
     var body: some View {
-        content.task(id: instrument) { await load() }
+        content.task(id: loadKey) {
+            guard gate.needsLoad(for: loadKey) else { return }
+            await load()
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -456,9 +466,11 @@ struct RivalInstrumentSongSection: View {
 
     @MainActor
     private func load() async {
+        let key = loadKey
         state = .loading
         do {
             state = .loaded(try await session.rivalsList(instrument: instrument))
+            gate.markLoaded(key)
         } catch is CancellationError {
         } catch {
             state = .failed(ServiceIssue(error))

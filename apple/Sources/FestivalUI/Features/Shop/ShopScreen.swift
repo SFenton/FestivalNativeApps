@@ -32,6 +32,8 @@ struct ShopScreen: View {
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @Environment(\.colorSchemeContrast) private var systemContrast
     @State private var state = LoadState.loading
     @State private var retryRevision = 0
     @State private var loadedKey: RequestKey?
@@ -319,8 +321,10 @@ struct ShopScreen: View {
         }
     }
 
-    /// Compact two-line phone row matching the installed PWA: art, title, artist ·
-    /// year, then the official bag and the Detail chevron (gap #17).
+    /// The shared Songs ``SongRowView`` (surface, art, marquee title/artist line and
+    /// Item Shop pulse border), decorated for the Shop: New / Leaving Tomorrow badge,
+    /// then the official bag and the Detail chevron (web `ShopPage` list renders the
+    /// Songs `SongRow`; PWA gap #17 order).
     ///
     /// The Detail link spans the whole row; the bag is a sibling `Link` drawn over
     /// the slot the row reserves for it, so the two actions never nest. At
@@ -329,19 +333,32 @@ struct ShopScreen: View {
     /// - Parameters:
     ///   - offer: Public item with separate official outbound URL.
     ///   - snapshot: Catalogue lookup for safe native Detail navigation.
-    /// - Returns: Compact native row with two independent actions.
+    /// - Returns: Shared Song row with two independent actions.
     private func listOffer(_ offer: ShopSong, snapshot: ShopSnapshot) -> some View {
-        let song = snapshot.songsById[offer.songId]
         let large = dynamicTypeSize.isAccessibilitySize
+        let row = ShopRowPolicy.row(
+            for: offer, catalogue: snapshot.songsById,
+            hidden: hideShop, highlightingDisabled: disableHighlights,
+            reservesBag: !large
+        )
+        let summary = SongRowView(
+            song: row.song, instrument: nil, session: session,
+            highContrast: moreContrast || systemContrast == .increased,
+            shopOffer: row.decoration
+        )
         return VStack(alignment: .leading, spacing: 4) {
-            if let song {
-                NavigationLink(value: AppRoute.songDetail(song)) {
-                    listSummary(offer, navigable: true, reservesBag: !large)
+            if let detail = row.detailSong {
+                // One combined button element (like the Songs `songLink`), so the
+                // marquee lines are read and audited as the row, not as clipped text.
+                NavigationLink(value: AppRoute.songDetail(detail)) {
+                    summary.contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isButton)
                 .accessibilityIdentifier("fst.shop.song.\(offer.songId)")
             } else {
-                listSummary(offer, navigable: false, reservesBag: !large)
+                summary
             }
             if large {
                 Link(destination: offer.shopUrl) {
@@ -350,6 +367,10 @@ struct ShopScreen: View {
                         .foregroundStyle(FestivalText.primary)
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .padding(.horizontal, 12)
+                        .background(
+                            BrandTokens.cardBackground,
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
                 }
                 .accessibilityLabel("\(offer.title), Open Official Item Shop")
                 .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
@@ -358,15 +379,13 @@ struct ShopScreen: View {
         .overlay(alignment: .trailing) {
             if !large {
                 bagLink(offer)
-                    .padding(.trailing, ShopRowMetrics.bagTrailingInset(navigable: song != nil))
+                    .padding(
+                        .trailing,
+                        ShopRowMetrics.bagTrailingInset(navigable: row.detailSong != nil)
+                    )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(borderColor(for: offer), lineWidth: 2)
-        }
     }
 
     /// The official Item Shop action as a plain bag glyph with a 44pt target.
@@ -383,57 +402,6 @@ struct ShopScreen: View {
         }
         .accessibilityLabel("\(offer.title), Open Official Item Shop")
         .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
-    }
-
-    /// Art, two single-line texts, badge, bag slot and chevron.
-    ///
-    /// - Parameters:
-    ///   - offer: Item available in the current public Shop feed.
-    ///   - navigable: Whether a catalogue match makes this row open Song Detail.
-    ///   - reservesBag: Leave room for the overlaid bag link (compact text sizes).
-    /// - Returns: Concise source-like row label and original fixture/live art.
-    private func listSummary(
-        _ offer: ShopSong, navigable: Bool, reservesBag: Bool
-    ) -> some View {
-        let large = dynamicTypeSize.isAccessibilitySize
-        return HStack(spacing: ShopRowMetrics.spacing) {
-            ArtworkTile(raw: offer.albumArt, session: session, size: ShopRowMetrics.art)
-                .accessibilityHidden(true)
-                .padding(.trailing, 4)
-            VStack(alignment: .leading, spacing: 2) {
-                // One line each when they fit; long names wrap rather than
-                // truncate (truncation fails the accessibility audit's clipping check).
-                Text(offer.title)
-                    .font(.headline)
-                    .foregroundStyle(FestivalText.primary)
-                    .minimumScaleFactor(large ? 1 : 0.9)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(offer.year.map { "\(offer.artist) · \($0)" } ?? offer.artist)
-                    .font(.subheadline)
-                    .foregroundStyle(FestivalText.primary)
-                    .minimumScaleFactor(large ? 1 : 0.9)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            offerBadge(offer, compact: true)
-            if reservesBag {
-                Color.clear
-                    .frame(width: ShopRowMetrics.bagReserve, height: ShopRowMetrics.bagSlot)
-                    .accessibilityHidden(true)
-            }
-            if navigable {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .frame(width: ShopRowMetrics.chevronWidth)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.leading, 10)
-        .padding(.trailing, ShopRowMetrics.rowInset)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 
     /// The web `ShopCard`: a square of full-bleed art with a bottom scrim holding the
@@ -466,7 +434,7 @@ struct ShopScreen: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.width)
                 .overlay(alignment: .topTrailing) {
-                    offerBadge(offer, compact: false).padding(12)
+                    offerBadge(offer).padding(12)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .overlay {
@@ -509,14 +477,13 @@ struct ShopScreen: View {
         }
     }
 
-    /// Keep badged meaning in VoiceOver even when compact rows show only an icon.
+    /// The grid card's labelled New / Leaving Tomorrow pill (list rows use the shared
+    /// Song row's badge).
     ///
-    /// - Parameters:
-    ///   - offer: Upstream New or Leaving Tomorrow state.
-    ///   - compact: Hide text only on narrow rows, preserving spoken labels.
+    /// - Parameter offer: Upstream New or Leaving Tomorrow state.
     /// - Returns: Optional visible and accessible Shop badge.
     @ViewBuilder
-    private func offerBadge(_ offer: ShopSong, compact: Bool) -> some View {
+    private func offerBadge(_ offer: ShopSong) -> some View {
         if let highlight = ShopPresentationPolicy.highlight(
             for: offer, hidden: hideShop, highlightingDisabled: disableHighlights
         ) {
@@ -524,7 +491,7 @@ struct ShopScreen: View {
             let title = highlight.label
             HStack(spacing: 4) {
                 Image(systemName: leaving ? "clock" : "sparkles")
-                if !compact { Text(title) }
+                Text(title)
             }
             .font(.caption.bold())
             .foregroundStyle(leaving ? FestivalText.primary : BrandTokens.gold)
@@ -545,9 +512,10 @@ struct ShopScreen: View {
 
 // MARK: - Row metrics and first-screen artwork
 
-/// Fixed geometry shared by the compact row and its overlaid bag link.
+/// Fixed geometry shared by the Song row's Item Shop decoration and the Shop's
+/// overlaid bag link.
 enum ShopRowMetrics {
-    /// Album art edge in points (the PWA's list rows use ~44pt art).
+    /// Album art edge in points: the shared Song row's art (the PWA's rows use ~44pt).
     static let art: CGFloat = 44
     /// Minimum hit target of the official bag action.
     static let bagSlot: CGFloat = 44
@@ -558,7 +526,7 @@ enum ShopRowMetrics {
     static let chevronWidth: CGFloat = 12
     /// Horizontal spacing between row elements.
     static let spacing: CGFloat = 8
-    /// Trailing inset inside the row card.
+    /// Trailing inset inside the row card (the Song row's horizontal padding).
     static let rowInset: CGFloat = 12
 
     /// Trailing padding that centres the 44pt bag target on its reserved slot.
