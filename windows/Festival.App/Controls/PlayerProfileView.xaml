@@ -44,10 +44,10 @@
                         <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Content="{x:Bind ViewModel.SelectLabel, Mode=OneWay}" Click="OnSelectClick"
-                                        Style="{StaticResource AccentButtonStyle}" MinHeight="32"
+                                        Style="{StaticResource AccentButtonStyle}" MinHeight="{StaticResource FSTMinTargetSize}"
                                         Visibility="{x:Bind ViewModel.CanSelect, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.player.select" />
-                                <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="32" FontWeight="SemiBold"
+                                <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="{StaticResource FSTMinTargetSize}" FontWeight="SemiBold"
                                         Background="{ThemeResource FSTDangerBackgroundBrush}" Foreground="{ThemeResource FSTDangerForegroundBrush}"
                                         BorderBrush="{ThemeResource FSTDangerBorderBrush}"
                                         Visibility="{x:Bind ViewModel.CanDeselect, Mode=OneWay}"
@@ -61,7 +61,7 @@
                                         <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
                                     </Button.Resources>
                                 </Button>
-                                <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="32" />
+                                <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="{StaticResource FSTMinTargetSize}" />
                             </StackPanel>
                             <TextBlock Text="{x:Bind ViewModel.IdentityNotice, Mode=OneWay}" TextWrapping="Wrap"
                                        Foreground="{ThemeResource FSTEmphasisBrush}"

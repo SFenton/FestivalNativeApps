@@ -52,7 +52,7 @@
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
                            VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <StackPanel x:Name="HeaderActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <DropDownButton x:Name="RankByButton" VerticalAlignment="Center"
+                <DropDownButton x:Name="RankByButton" VerticalAlignment="Center" MinHeight="{StaticResource FSTMinTargetSize}"
                                 AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">

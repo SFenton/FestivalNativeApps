@@ -41,6 +41,7 @@
     </UserControl.Resources>
 
     <Button x:Name="BellButton" Padding="4" Margin="0,0,4,0" Background="Transparent" BorderThickness="0"
+            MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
             AutomationProperties.Name="{x:Bind Model.BellName, Mode=OneWay}"
             AutomationProperties.AutomationId="fst.shell.notifications"
             ToolTipService.ToolTip="Notifications">
