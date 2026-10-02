@@ -18,6 +18,10 @@ overrides plus captures of **only the app's own window**:
 - ``shot``    ``screencapture -l <CGWindowID>`` of the app's main window, found
   with ``tools/mac_window.swift`` (``CGWindowListCopyWindowInfo`` filtered to the
   app's PID). It **never** captures the full screen: without a window ID it fails.
+- ``command`` runs a Debug shell command in the running app (``select:3``,
+  ``select:leaderboards``, ``route:player:<id>``, ``back``, ``refresh``, ``search``,
+  ``profile``, ``notifications``, ``whatsnew``, ``sort``, ``filter``), so one launch can
+  visit many pages and sheets without Accessibility permission.
 - ``quit``    posts the Debug quit notification so AppKit terminates normally;
   falls back to SIGTERM.
 
@@ -27,6 +31,7 @@ Examples::
     python3 tools/mac_app.py launch --tab leaderboards --profile sfentonx --size 1280x800
     python3 tools/mac_app.py shot --out ~/FestivalShowcase/native-mac/leaderboards.png
     python3 tools/mac_app.py resize --size 760x600
+    python3 tools/mac_app.py command route:fullRankings:Solo_Guitar
     python3 tools/mac_app.py quit
 """
 
@@ -54,6 +59,11 @@ HELPER_SOURCE = REPO_ROOT / "tools" / "mac_window.swift"
 #: Named profiles for ``--profile``. SFentonX is the operator's own account and the
 #: only identity used for operator-facing live media (`.agents/testing/strategy.md`).
 PROFILES = {"sfentonx": "195e93ef108143b2975ee46662d4d0e1:SFentonX"}
+
+#: Debug shell commands without an argument (`MacDebugCommand`).
+SIMPLE_COMMANDS = {"back", "refresh", "search", "profile", "notifications", "whatsnew", "sort", "filter", "dismiss"}
+#: Debug shell commands that take ``verb:argument``.
+ARGUMENT_COMMANDS = {"select", "route"}
 
 #: Smallest content size a capture accepts as the main window (filters menus/tooltips).
 MIN_WINDOW_SIDE = 200
@@ -414,6 +424,37 @@ def cmd_resize(args: argparse.Namespace) -> int:
     return 0
 
 
+def validate_command(raw: str) -> str:
+    """Check a Debug shell command before sending it.
+
+    Args:
+        raw: Command text.
+
+    Returns:
+        The command, stripped.
+
+    Raises:
+        ValueError: Unknown verb or a missing argument.
+    """
+    command = raw.strip()
+    verb, sep, arg = command.partition(":")
+    if verb in SIMPLE_COMMANDS and not sep:
+        return command
+    if verb in ARGUMENT_COMMANDS and sep and arg:
+        return command
+    raise ValueError(f"unknown command {raw!r}; use {sorted(SIMPLE_COMMANDS)} or select:/route:")
+
+
+def cmd_command(args: argparse.Namespace) -> int:
+    pid = running_pid()
+    if pid is None:
+        print("app is not running; use `launch` first", file=sys.stderr)
+        return 1
+    subprocess.run([str(ensure_helper()), "command", validate_command(args.text)], check=True)
+    time.sleep(args.settle)
+    return 0
+
+
 def cmd_shot(args: argparse.Namespace) -> int:
     pid = running_pid()
     if pid is None:
@@ -464,6 +505,11 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--wait", type=float, default=3.0, help="Seconds before the first capture")
     shot.add_argument("--interval", type=float, default=1.0, help="Seconds between captures")
     shot.set_defaults(func=cmd_shot)
+
+    command = sub.add_parser("command", help="Run a Debug shell command in the running app")
+    command.add_argument("text", help="e.g. select:2, route:shop, back, sort, search")
+    command.add_argument("--settle", type=float, default=1.5)
+    command.set_defaults(func=cmd_command)
 
     quit_ = sub.add_parser("quit", help="Quit the app normally")
     quit_.add_argument("--timeout", type=float, default=5.0)

@@ -3,32 +3,6 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
-// MARK: - Mac layout policy
-
-/// Pure width rules for the Mac window's content area (right of the sidebar).
-enum MacLayoutPolicy {
-    /// Narrowest content width that shows list and detail side by side: a 340 pt list
-    /// plus a 480 pt detail (HIG Split views › macOS: "set reasonable minimum/maximum
-    /// defaults so the divider stays visible").
-    static let splitMinimumWidth: CGFloat = 820
-    /// List column bounds (points).
-    static let listColumn = (min: CGFloat(340), ideal: CGFloat(400), max: CGFloat(560))
-    /// Detail column minimum (points).
-    static let detailMinimumWidth: CGFloat = 480
-
-    /// Whether a destination shows two columns at a content width.
-    ///
-    /// - Parameters:
-    ///   - width: Content width in points (0 before the first layout pass).
-    ///   - hasListPage: Whether the destination's path has a list page (Songs, Full
-    ///     Rankings, Rivals lists).
-    ///   - emptyListCollapsed: The list produced no row to show beside it.
-    /// - Returns: True for two columns.
-    static func showsSplit(width: CGFloat, hasListPage: Bool, emptyListCollapsed: Bool) -> Bool {
-        hasListPage && !emptyListCollapsed && width >= splitMinimumWidth
-    }
-}
-
 // MARK: - Mac stack
 
 /// One `NavigationStack` with every `AppRoute` destination, for a Mac column.
@@ -73,6 +47,9 @@ struct MacStack<Root: View>: View {
                     )
                 }
         }
+        // Each column publishes its own layout, so its pages pick one or two card
+        // columns and readable widths from the column's width, not the window's.
+        .publishesDeviceLayout(usesSidebarShell: true)
     }
 }
 
@@ -85,7 +62,7 @@ struct MacStack<Root: View>: View {
 /// The detail column is never empty: it restores the last selection, else the first
 /// list row to appear selects itself (`listDetailAutoSelect`, the same contract
 /// `ListDetailLink` rows use on iPhone Duo). A list that shows no row within 2.5 s
-/// collapses to one column. Columns are an `HSplitView` with the system thin divider.
+/// collapses to one column, and its first row to appear later splits it again. Columns are an `HSplitView` with the system thin divider.
 struct MacListDetailStack<Root: View>: View {
     let section: FestivalSection
     let session: FestivalSession
@@ -121,6 +98,9 @@ struct MacListDetailStack<Root: View>: View {
                     stackPath: $path, fullPath: $path, isVisible: isVisible
                 ) {
                     root(path.isEmpty)
+                        // A list that collapsed while it was still loading: its first row
+                        // brings the second column back, already selected.
+                        .environment(\.listDetailAutoSelect, collapsedAutoSelect)
                 }
             }
         }
@@ -203,6 +183,18 @@ struct MacListDetailStack<Root: View>: View {
     private var autoSelectAction: ListDetailSelectAction {
         ListDetailSelectAction(section: section) { route in
             guard split != nil, cut?.selection == nil else { return }
+            selectAction(route)
+        }
+    }
+
+    /// Offered to the one-column root only while its list collapsed for lack of rows.
+    private var collapsedAutoSelect: ListDetailSelectAction? {
+        guard let cut, cut.selection == nil, emptyLists.contains(cut.list),
+              MacLayoutPolicy.showsSplit(width: width, hasListPage: true, emptyListCollapsed: false)
+        else { return nil }
+        return ListDetailSelectAction(section: section) { route in
+            guard let current = self.cut, current.selection == nil else { return }
+            emptyLists.remove(current.list)
             selectAction(route)
         }
     }

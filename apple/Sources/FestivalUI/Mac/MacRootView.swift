@@ -33,6 +33,7 @@ public struct MacRootView: View {
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.colorSchemeContrast) private var systemContrast
+    @FocusedValue(\.macPageCommands) private var pageCommands
 
     /// Create the window content.
     ///
@@ -79,17 +80,17 @@ public struct MacRootView: View {
         }
         .sheet(isPresented: $navigation.profilePresented, onDismiss: pushPendingSheetRoute) {
             ProfileSelectionSheet(session: session) { pendingSheetRoute = $0 }
-                .frame(minWidth: 520, idealWidth: 560, minHeight: 560, idealHeight: 640)
+                .macSheetFrame(width: 560, height: 640)
                 .festivalSheet()
         }
         .sheet(isPresented: $navigation.searchPresented, onDismiss: pushPendingSheetRoute) {
             GlobalSearchSheet(session: session) { pendingSheetRoute = $0 }
-                .frame(minWidth: 560, idealWidth: 620, minHeight: 560, idealHeight: 680)
+                .macSheetFrame(width: 620, height: 680)
                 .festivalSheet()
         }
         .sheet(isPresented: $navigation.notificationsPresented, onDismiss: pushPendingSheetRoute) {
             NotificationsSheet(session: session) { pendingSheetRoute = $0 }
-                .frame(minWidth: 520, idealWidth: 560, minHeight: 560, idealHeight: 680)
+                .macSheetFrame(width: 560, height: 680)
                 .festivalSheet(.large)
         }
         .whatsNewPresentation(isPresented: $navigation.whatsNewPresented) {
@@ -100,10 +101,15 @@ public struct MacRootView: View {
                 ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
                 navigation.whatsNewPresented = false
             }
-            .frame(minWidth: 560, idealWidth: 620, minHeight: 600, idealHeight: 720)
+            .macSheetFrame(width: 620, height: 720)
         }
         .whatsNew(session: session)
         .background { MacWindowConfigurator() }
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: MacDebugHooks.localCommandName)) { note in
+            if let command = note.object as? MacDebugCommand { run(command) }
+        }
+        #endif
         .onChange(of: visibleDestinations, initial: true) { _, visible in
             navigation.update(visible: visible)
         }
@@ -133,6 +139,37 @@ public struct MacRootView: View {
             navigation.push(route)
         }
     }
+
+    #if DEBUG
+    /// Carry out a `tools/mac_app.py command` (Debug evidence driver).
+    private func run(_ command: MacDebugCommand) {
+        switch command {
+        case let .select(destination, number):
+            if let destination { navigation.select(destination) }
+            if let number { navigation.selectShortcut(number) }
+        case let .route(raw):
+            guard let route = DebugLaunchRoute(environment: ["FST_DEBUG_ROUTE": raw]).route else { return }
+            if let destination = MacSidebarPolicy.destination(for: route) {
+                navigation.select(destination)
+            } else {
+                navigation.push(route)
+            }
+        case .back: navigation.goBack()
+        case .refresh: navigation.refresh()
+        case .search: navigation.searchPresented = true
+        case .profile: navigation.profilePresented = true
+        case .notifications: navigation.notificationsPresented = true
+        case .whatsNew: navigation.whatsNewPresented = true
+        case .sort: pageCommands?.sort?()
+        case .filter: pageCommands?.filter?()
+        case .dismiss:
+            navigation.searchPresented = false
+            navigation.profilePresented = false
+            navigation.notificationsPresented = false
+            navigation.whatsNewPresented = false
+        }
+    }
+    #endif
 
     // MARK: Sidebar
 

@@ -1,5 +1,7 @@
+import CoreGraphics
 import Foundation
 import Observation
+import SwiftUI
 
 // MARK: - Mac sidebar destinations
 
@@ -169,6 +171,45 @@ enum MacSidebarPolicy {
     }
 }
 
+// MARK: - Mac layout policy
+
+/// Pure width rules for the Mac window's content area (right of the sidebar).
+enum MacLayoutPolicy {
+    /// Narrowest content width that shows list and detail side by side: a 340 pt list
+    /// plus a 480 pt detail (HIG Split views › macOS: "set reasonable minimum/maximum
+    /// defaults so the divider stays visible").
+    static let splitMinimumWidth: CGFloat = 820
+    /// List column bounds (points).
+    static let listColumn = (min: CGFloat(340), ideal: CGFloat(400), max: CGFloat(560))
+    /// Detail column minimum (points).
+    static let detailMinimumWidth: CGFloat = 480
+
+    /// Whether a destination shows two columns at a content width.
+    ///
+    /// - Parameters:
+    ///   - width: Content width in points (0 before the first layout pass).
+    ///   - hasListPage: Whether the destination's path has a list page (Songs, Full
+    ///     Rankings, Rivals lists).
+    ///   - emptyListCollapsed: The list produced no row to show beside it.
+    /// - Returns: True for two columns.
+    /// Column width from which pages use their regular-width layouts (two card columns,
+    /// readable-width forms). The web's detail-card grid switches to two 420 px columns
+    /// at an 844 px container; 720 pt keeps two ≥ 344 pt cards beside 16 pt margins.
+    static let regularMinimumWidth: CGFloat = 720
+
+    /// Width class of a Mac column.
+    ///
+    /// - Parameter width: Column width in points.
+    /// - Returns: Regular from ``regularMinimumWidth``, else compact.
+    static func widthClass(forWidth width: CGFloat) -> WidthClass {
+        width >= regularMinimumWidth ? .regular : .compact
+    }
+
+    static func showsSplit(width: CGFloat, hasListPage: Bool, emptyListCollapsed: Bool) -> Bool {
+        hasListPage && !emptyListCollapsed && width >= splitMinimumWidth
+    }
+}
+
 // MARK: - Navigation model
 
 /// The Mac window's navigation state: sidebar selection, one path per destination,
@@ -285,5 +326,26 @@ final class MacNavigationModel {
             if selected == .statistics { paths[.statistics] = [] }
             selected = resolved
         }
+    }
+}
+
+// MARK: - Sheet size
+
+extension View {
+    /// A reasonable default size for a sheet on the Mac (HIG Sheets › macOS: "Present a
+    /// sheet in a reasonable default size") with grouped forms (the Mac's default
+    /// columns form style drops the sections' cards); a no-op elsewhere.
+    ///
+    /// - Parameters:
+    ///   - width: Minimum and ideal width in points.
+    ///   - height: Minimum and ideal height in points.
+    /// - Returns: The sheet content.
+    func macSheetFrame(width: CGFloat = 560, height: CGFloat = 640) -> some View {
+        #if os(macOS)
+        frame(minWidth: width, idealWidth: width, minHeight: height, idealHeight: height)
+            .formStyle(.grouped)
+        #else
+        self
+        #endif
     }
 }

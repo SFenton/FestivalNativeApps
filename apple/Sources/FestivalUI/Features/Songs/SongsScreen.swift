@@ -418,16 +418,13 @@ struct SongsScreen: View {
             placement: Self.pageActionPlacement,
             sortAction: sortAction, filterAction: filterAction
         ))
-        .sheet(isPresented: $sortPresented) {
-            SongsSortSheet(
-                mode: sortMode, ascending: sortAscending,
-                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
-                playerModes: playerSortModesOffered
-            ) { mode, order in
-                sortMode = mode
-                sortAscending = order
-            }
-        }
+        #if os(iOS)
+        .sheet(isPresented: $sortPresented) { sortSheet }
+        #else
+        // Mac: Sort is a popover from its toolbar button (HIG Popovers: "a little
+        // information or functionality"); View › Sort… opens it too.
+        .macPageCommands(macCommands)
+        #endif
         .sheet(isPresented: $filterPresented) {
             if let appliedPlayerScoreFilter {
                 SongsFilterSheet(
@@ -448,6 +445,7 @@ struct SongsScreen: View {
                     filterLeavingTomorrow = shop.leavingTomorrow
                     instrument = instrumentChoice
                 }
+                .macSheetFrame()
             } else {
                 Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
@@ -552,6 +550,28 @@ struct SongsScreen: View {
         #endif
     }
 
+    #if os(macOS)
+    /// Sort and Filter for View › Sort… / Filter… (Filter disabled when unavailable).
+    private var macCommands: MacPageCommands {
+        var commands = MacPageCommands()
+        commands.sort = { sortPresented = true }
+        if canPresentFilter { commands.filter = { filterPresented = true } }
+        return commands
+    }
+    #endif
+
+    /// Sort options (a sheet on iPhone/iPad, a popover on the Mac).
+    private var sortSheet: some View {
+        SongsSortSheet(
+            mode: sortMode, ascending: sortAscending,
+            showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
+            playerModes: playerSortModesOffered
+        ) { mode, order in
+            sortMode = mode
+            sortAscending = order
+        }
+    }
+
     /// Open a native Sort sheet while retaining the current instrument selection.
     private var sortAction: some View {
         Button {
@@ -559,6 +579,17 @@ struct SongsScreen: View {
         } label: {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
+        #if os(macOS)
+        .popover(isPresented: $sortPresented, arrowEdge: .bottom) {
+            // The popover is its own chrome: no modal stack, title bar or Close (which
+            // would otherwise join the window toolbar); it closes on an outside click.
+            sortSheet
+                .environment(\.festivalModalPreview, true)
+                .formStyle(.grouped)
+                .frame(width: 340, height: 470)
+        }
+        .help("Sort Songs")
+        #endif
         .accessibilityValue(
             "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
                 + (sortPausedMessage == nil ? "" : ", paused; showing Title order")
@@ -605,6 +636,9 @@ struct SongsScreen: View {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Filter Songs")
+        #if os(macOS)
+        .help("Filter Songs")
+        #endif
         .accessibilityValue(filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
         .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true

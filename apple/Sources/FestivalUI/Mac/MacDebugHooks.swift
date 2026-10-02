@@ -16,6 +16,10 @@ import Foundation
 public enum MacDebugHooks {
     /// Notification posted by `tools/mac_window.swift quit`.
     static let quitName = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.quit")
+    /// Notification posted by `tools/mac_window.swift command`.
+    static let commandName = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.command")
+    /// In-process notification carrying a parsed ``MacDebugCommand`` to the window.
+    static let localCommandName = Notification.Name("FSTMacDebugCommand")
     /// Notification posted by `tools/mac_window.swift resize`.
     static let resizeName = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.resize")
 
@@ -25,6 +29,13 @@ public enum MacDebugHooks {
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: quitName, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { NSApplication.shared.terminate(nil) }
+        }
+        center.addObserver(forName: commandName, object: nil, queue: .main) { note in
+            guard let raw = note.userInfo?["command"] as? String,
+                  let command = MacDebugCommand(raw) else { return }
+            MainActor.assumeIsolated {
+                NotificationCenter.default.post(name: localCommandName, object: command)
+            }
         }
         center.addObserver(forName: resizeName, object: nil, queue: .main) { note in
             let width = (note.userInfo?["width"] as? NSNumber)?.doubleValue
@@ -90,6 +101,46 @@ public enum MacDebugHooks {
         guard let window = mainWindow else { return }
         let target = window.frameRect(forContentRect: CGRect(origin: .zero, size: size)).size
         window.setFrame(topAnchoredFrame(window.frame, newFrameSize: target), display: true)
+    }
+}
+
+// MARK: - Debug commands
+
+/// A shell command sent by `tools/mac_app.py command` (Debug only), so one launch can
+/// visit pages and sheets for evidence without Accessibility permission.
+enum MacDebugCommand: Equatable {
+    /// `select:<n>` (⌘n) or `select:<destination>`.
+    case select(MacDestination?, number: Int?)
+    /// `route:<FST_DEBUG_ROUTE syntax>`: push (or select) a route.
+    case route(String)
+    case back, refresh, search, profile, notifications, whatsNew, sort, filter, dismiss
+
+    /// Parse command text.
+    ///
+    /// - Parameter raw: e.g. `select:2`, `select:shop`, `route:player:abc`, `back`.
+    init?(_ raw: String) {
+        let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
+        switch (parts.first, parts.count) {
+        case ("select", 2):
+            if let number = Int(parts[1]) {
+                self = .select(nil, number: number)
+            } else if let destination = MacDestination(rawValue: parts[1]) {
+                self = .select(destination, number: nil)
+            } else {
+                return nil
+            }
+        case ("route", 2): self = .route(parts[1])
+        case ("back", 1): self = .back
+        case ("refresh", 1): self = .refresh
+        case ("search", 1): self = .search
+        case ("profile", 1): self = .profile
+        case ("notifications", 1): self = .notifications
+        case ("whatsnew", 1): self = .whatsNew
+        case ("sort", 1): self = .sort
+        case ("filter", 1): self = .filter
+        case ("dismiss", 1): self = .dismiss
+        default: return nil
+        }
     }
 }
 #endif

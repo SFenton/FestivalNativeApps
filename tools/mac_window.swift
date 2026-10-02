@@ -4,6 +4,9 @@
 //   mac_window list <pid>   Print one JSON object per on-screen window owned by <pid>:
 //                           {"id": CGWindowID, "layer": Int, "name": String?, "x", "y", "w", "h"}.
 //   mac_window resize <w> <h>  Ask the Debug app to set its main window's content size.
+//   mac_window command <c>  Ask the Debug app to run a shell command (select:<n|name>, back,
+//                           refresh, search, profile, notifications, whatsnew, sort, filter,
+//                           route:<FST_DEBUG_ROUTE syntax>).
 //   mac_window quit         Post the Debug-only distributed notification that asks the
 //                           Festival Mac app to terminate normally (no Apple Events, so no
 //                           Automation permission prompt and no "reopen windows" state).
@@ -15,6 +18,8 @@ import Foundation
 
 /// Distributed notification observed by the Debug Mac app (`MacDebugHooks`).
 let quitNotification = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.quit")
+/// Distributed notification carrying a `command` string for the Debug shell.
+let commandNotification = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.command")
 /// Distributed notification carrying `width`/`height` (points) for the main window.
 let resizeNotification = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.resize")
 
@@ -56,11 +61,15 @@ case "resize" where arguments.count == 4:
         resizeNotification, object: nil,
         userInfo: ["width": width, "height": height], deliverImmediately: true
     )
+case "command" where arguments.count == 3:
+    DistributedNotificationCenter.default().postNotificationName(
+        commandNotification, object: nil, userInfo: ["command": arguments[2]], deliverImmediately: true
+    )
 case "quit":
     DistributedNotificationCenter.default().postNotificationName(
         quitNotification, object: nil, userInfo: nil, deliverImmediately: true
     )
 default:
-    FileHandle.standardError.write(Data("usage: mac_window list <pid> | resize <w> <h> | quit\n".utf8))
+    FileHandle.standardError.write(Data("usage: mac_window list <pid> | resize <w> <h> | command <c> | quit\n".utf8))
     exit(2)
 }
