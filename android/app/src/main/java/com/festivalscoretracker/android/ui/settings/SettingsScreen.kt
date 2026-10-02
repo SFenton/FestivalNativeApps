@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.BuildConfig
+import com.festivalscoretracker.android.core.appinfo.AppBuildInfo
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.LicensesRoute
@@ -423,7 +424,11 @@ private fun VersionSection(
     LaunchedEffect(Unit) { loadServiceVersion() }
     Header("Festival Score Tracker Version", "Festival Score Tracker information to help with debugging.")
     GlassCard(Modifier.fillMaxWidth()) {
-        ValueRow("App Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", "fst.settings.app-version")
+        ValueRow(
+            "App Version",
+            AppBuildInfo.versionText(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.GIT_SHA),
+            "fst.settings.app-version",
+        )
         Divider()
         ValueRow("Build", if (debug) "Debug" else "Release", "fst.settings.build")
         Divider()

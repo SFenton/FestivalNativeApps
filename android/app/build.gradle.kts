@@ -9,6 +9,15 @@ plugins {
     jacoco
 }
 
+// The commit shown in Settings → App Version (core/appinfo/AppBuildInfo.kt): -PfstGitSha, otherwise the
+// checked-out HEAD, otherwise empty (no git). Only hex digits reach BuildConfig.
+val fstGitSha: String = ((findProperty("fstGitSha") as String?) ?: runCatching {
+    providers.exec {
+        commandLine("git", "rev-parse", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get()
+}.getOrDefault("")).trim().filter { it in "0123456789abcdefABCDEF" }
+
 android {
     namespace = "com.festivalscoretracker.android"
     compileSdk = 36
@@ -21,6 +30,7 @@ android {
         // -PfstVersionName=2610.01.01 -PfstVersionCode=261001010. Local builds keep the development values.
         versionCode = (findProperty("fstVersionCode") as String?)?.toInt() ?: 1
         versionName = (findProperty("fstVersionName") as String?) ?: "0.2.0"
+        buildConfigField("String", "GIT_SHA", "\"$fstGitSha\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Keyless public HTTPS by default in every build type (AGENTS.md); fixture
         // runs select a loopback origin explicitly via the FST_ORIGIN debug extra.

@@ -26,7 +26,7 @@
 | Show Instruments (`show-instruments`) | `instrument.<wireId>` | The last visible chart is disabled with a reason |
 | Show Instrument Metadata (`show-metadata`) | `metadata.<field.tag>` (web toggle order) | All may be off (web); not disabled for anonymous users (web does not either) |
 | Accessibility (`accessibility`, native) | `motion`, `still-artwork`, `contrast`, `transparency` | Additive only. Still artwork holds the backdrop; Reduce Transparency makes `GlassCard` opaque (`FestivalAccessibility.reduceTransparency`) |
-| Version (`version`) | `app-version` (`versionName (versionCode)`), `build`, `service-version`, `service-origin` | Service Version reads `GET /api/version` once per view model: Loading → value, or Unavailable (retried on the next visit) |
+| Version (`version`) | `app-version` (`versionName (versionCode) · sha7`, `core/appinfo/AppBuildInfo.kt`), `build`, `service-version`, `service-origin` | App Version: release builds take `YYMM.DD.NN` from the `android/v*` tag (`-PfstVersionName/-PfstVersionCode`); every build stamps its commit as `BuildConfig.GIT_SHA` (`-PfstGitSha`, else `git rev-parse HEAD`; omitted when unknown, iPhone parity, issue #21). Service Version reads `GET /api/version` once per view model: Loading → value, or Unavailable (retried on the next visit) |
 | Service Info (`service-info`) | `service-info`, `service-info.state` (+ `.process`), `service-info.phase` (+ `.bar`), `service-info.freeze`, `service-info.last-published` | Live card like the web `SettingsServiceProgressCard` (batch 6, 6.15; no "Check for Updates", the web has none): polls keyless `GET /api/service-info` every 5 s only while the section is composed and the app is STARTED (`repeatOnLifecycle`). Loading/failure show only the state row (web); a failed poll after a success shows the failure. Phase title "Phase · Subphase", purple capsule bar (determinate `LinearProgressIndicator`; unknown total = M3 indeterminate sweep, still empty track under Reduce Motion), percent + units captions (Apple), freeze notice from the header or body, last publication as "Sep 28, 2026, 10:00 AM PDT" |
 | First Run Guides (`first-run`) | `first-run.<pageKey>` | Replay: [first-run/android.md](../../controls/first-run/android.md) |
 | Licenses (`licenses`) | `licenses` | Pushes `LicensesRoute` on the Settings stack |
@@ -45,7 +45,7 @@
 
 ## Tests and evidence
 
-- `settings/SettingsModelTest.kt` (defaults vs web, guards, codecs, leeway, every-field round trip, registry, Reset), `settings/SettingsUiTest.kt` (every control persists, Reset cancel/confirm, Quick Links sheet jumps to the live Service Info card and the service version, expanded pane), `settings/ServiceInfoTest.kt` (keyless unpinned read + freeze header, malformed bodies/versions, reducer monotonicity/stale/restart/indeterminate rules, labels, rows, 5 s poll/stop).
+- `settings/SettingsModelTest.kt` (defaults vs web, guards, codecs, leeway, every-field round trip, registry, Reset), `core/AppBuildInfoTest.kt` (App Version text, short-commit rules, Gradle's stamped `GIT_SHA`), `settings/SettingsUiTest.kt` (every control persists, Reset cancel/confirm, Quick Links sheet jumps to the live Service Info card and the service version, expanded pane), `settings/ServiceInfoTest.kt` (keyless unpinned read + freeze header, malformed bodies/versions, reducer monotonicity/stale/restart/indeterminate rules, labels, rows, 5 s poll/stop).
 - Screenshots: `android/reports/screenshots/settings-*.png` (fixture mode).
 
 ## Open
