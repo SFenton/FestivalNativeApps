@@ -1,0 +1,15 @@
+<Project>
+  <!-- Every Windows assembly records the commit it was built from as AssemblyMetadata("FSTGitSHA"), which
+       Settings → App Version shows after the release version (Festival.Core/Domain/AppVersionInfo.cs, issue #21).
+       -p:FstGitSha=<sha> overrides; otherwise the SDK's source-control commit (SourceRevisionId) is used, and a
+       build without git stamps nothing. -->
+  <Target Name="FstStampGitSha" BeforeTargets="GetAssemblyAttributes" DependsOnTargets="InitializeSourceControlInformation">
+    <PropertyGroup>
+      <_FstGitSha>$(FstGitSha)</_FstGitSha>
+      <_FstGitSha Condition="'$(_FstGitSha)' == ''">$(SourceRevisionId)</_FstGitSha>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_FstGitSha)' != ''">
+      <AssemblyMetadata Include="FSTGitSHA" Value="$(_FstGitSha)" />
+    </ItemGroup>
+  </Target>
+</Project>
