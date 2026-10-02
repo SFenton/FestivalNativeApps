@@ -64,7 +64,8 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -74,7 +75,6 @@ import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import com.festivalscoretracker.android.ui.leaderboards.RankingsBoardScaffold
 import com.festivalscoretracker.android.ui.leaderboards.SyncRouteArguments
 import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
-import com.festivalscoretracker.android.ui.leaderboards.RankingsSkeletonRows
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.flow.StateFlow
 
@@ -139,10 +139,12 @@ fun SongLeaderboardScreen(
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     val title = (song as? LoadState.Loaded)?.value?.title ?: "Leaderboard"
-    val payload = (board as? LoadState.Loaded)?.value
+    // Page reloads fade the rows out, show the spinner and stagger the new page in, like the
+    // web's PaginatedLeaderboard (issue #71).
+    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = page)
+    val payload = (swap.shown as? LoadState.Loaded)?.value
     val loaded = payload?.leaderboard
     val profile = selectedProfile?.collectAsStateWithLifecycle()?.value
-    val revealed = rememberRevealed(loaded != null)
     val footer = payload?.let {
         SongScoreSpotlight.footer(
             player = profile?.player?.takeIf { player -> RankingSpotlight.isSelected(selectedAccountId, player.accountId) },
@@ -178,7 +180,6 @@ fun SongLeaderboardScreen(
             padding = padding,
             listState = listState,
             idPrefix = "fst.song-leaderboard",
-            loadingOverlay = false,
             controls = {
                 val loadedSong = (song as? LoadState.Loaded)?.value
                 loadedSong?.let { SongHeader(it, artworkUrl(it.albumArt), artSize = 64.dp) }
@@ -190,16 +191,17 @@ fun SongLeaderboardScreen(
             footer = { footer?.let { AnchoredRowCard { LeaderboardSectionMember(columns, "footer") { SelectedScoreFooter(it, navigate, columns.plan) } } } },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
         ) {
-            item(key = "rows") {
-                GlassCard(Modifier.fillMaxWidth()) {
+            if (swap.showsSpinner || loaded == null) {
+                loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading")
+            } else item(key = "rows") {
+                GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
                     // Same 8 dp horizontal inset as AnchoredRowCard, so the pinned row's columns line up (issue #37).
                     LeaderboardSectionMember(columns, "rows", Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                         when {
-                            loaded == null -> RankingsSkeletonRows(10)
                             loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
                             else -> {
                                 loaded.entries.forEachIndexed { index, entry ->
-                                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                                    Column(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
                                         if (index > 0) RowSeparator()
                                         SongLeaderboardRow(
                                             entry = entry,

@@ -23,6 +23,7 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
@@ -54,7 +56,9 @@ import com.festivalscoretracker.android.core.rankings.RankingSpotlightPlacement
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightSource
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
-import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.core.shell.LoadSwapPhase
+import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -123,27 +127,48 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
                 // first would anchor the list on them once instrument rows are inserted above.
                 if (layout == null) return@PullToRefreshBox
                 // Web load phase (operator batch 6, 6.41): a spinner until the first card has
-                // data, then the page fades in and its rows stagger. The list stays composed
-                // underneath so its cards load meanwhile.
+                // data, then the page fades in and its rows stagger. A Rank By change first fades
+                // the old cards out (issue #71). The list stays composed (hidden) under the
+                // spinner so its cards load meanwhile.
                 val lead = layout.instruments.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
                 val contentReady = lead == null || lead.value !is LoadState.Loading
-                val pageRevealed = rememberRevealed(contentReady)
+                val swap = rememberLoadSwap(metric, contentReady, key = metric)
                 // Cards still loading (or reloading for a new Rank By) after the list has
                 // scrolled show in place; only what is visible at load fades in.
                 val fadeWindow = rememberFadeInWindow(listState)
-                Box(Modifier.fillMaxSize().festivalFadeIn(pageRevealed)) {
-                    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow) {
-                        OverviewList(viewModel, layout, metric, selected, listState, padding, shell.navigate)
+                val pageModifier = when (swap.phase) {
+                    LoadSwapPhase.ContentIn -> Modifier.festivalFadeIn(swap.revealed)
+                    LoadSwapPhase.ContentOut -> swap.contentModifier
+                    LoadSwapPhase.Loading, LoadSwapPhase.SpinnerOut -> Modifier.alpha(0f)
+                }
+                Box(Modifier.fillMaxSize().then(pageModifier)) {
+                    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow, LocalHoldCards provides (swap.phase == LoadSwapPhase.ContentOut)) {
+                        OverviewList(viewModel, layout, swap.shown, selected, listState, padding, shell.navigate)
                     }
                 }
-                if (!contentReady) {
-                    Box(Modifier.fillMaxSize().testTag("fst.leaderboards.loading"), contentAlignment = Alignment.Center) {
-                        FestivalLoading("Loading leaderboards")
-                    }
+                if (swap.showsSpinner) {
+                    LoadSwapSpinner(swap, "Loading leaderboards", Modifier.fillMaxSize(), "fst.leaderboards.loading")
                 }
             }
         }
     }
+}
+
+/** Whether the overview's cards keep their last settled state (the page is fading out for a reload). */
+private val LocalHoldCards = compositionLocalOf { false }
+
+/**
+ * This state, or the last settled one while [hold] is set and a reload is in flight, so a page
+ * fading out keeps its old rows rather than cutting to placeholders.
+ *
+ * @param hold Whether to keep the last settled state.
+ * @return State to draw.
+ */
+@Composable
+private fun <T> LoadState<T>.heldWhile(hold: Boolean): LoadState<T> {
+    val settled = remember { arrayOfNulls<LoadState<T>>(1) }
+    if (this !is LoadState.Loading) settled[0] = this
+    return if (hold && this is LoadState.Loading) settled[0] ?: this else this
 }
 
 /** Quick Links title (web `rankings.quickLinks.title`). */
@@ -335,7 +360,8 @@ internal fun viewAllLabel(noun: String, total: Int): String =
  */
 @Composable
 private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewModel, metric: RankingMetric, selected: String?, navigate: (AppRoute) -> Unit) {
-    val state by viewModel.card(instrument).collectAsStateWithLifecycle()
+    val live by viewModel.card(instrument).collectAsStateWithLifecycle()
+    val state = live.heldWhile(LocalHoldCards.current)
     val tag = "fst.leaderboards.card.${instrument.wireId}"
     val revealed = rememberRevealed(state is LoadState.Loaded)
     Column(Modifier.fillMaxWidth().testTag(tag)) {
@@ -441,7 +467,8 @@ private fun CardSpotlight(
  */
 @Composable
 private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metric: RankingMetric, selected: String?, navigate: (AppRoute) -> Unit) {
-    val state by viewModel.bandCard(bandType).collectAsStateWithLifecycle()
+    val live by viewModel.bandCard(bandType).collectAsStateWithLifecycle()
+    val state = live.heldWhile(LocalHoldCards.current)
     val bandMetric = metric.bandMetric
     val tag = "fst.leaderboards.band-card.${bandType.wireId}"
     val revealed = rememberRevealed(state is LoadState.Loaded)

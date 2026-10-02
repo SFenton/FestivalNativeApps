@@ -72,6 +72,12 @@ struct SongsScreen: View {
         case loading
         case loaded(CatalogPayload)
         case failed(ServiceIssue)
+
+        /// Whether the catalogue is still loading (drives ``FestivalReloadGate``).
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
     }
 
     /// Restart a single catalogue task on publication or tab/route visibility changes.
@@ -288,12 +294,20 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.navigation-notice")
             }
 
-            Group {
+            // Sort, filter, instrument and search changes fade the list out, show the
+            // spinner (also while a search is typed ahead of its debounce) and stagger the
+            // new list in (web `SongsPage` `settingsKey`, issue #71).
+            FestivalReloadGate(
+                key: reloadKey, isLoading: state.isLoading || searchText != settledSearch,
+                spinnerLabel: "Loading songs",
+                onReveal: {
+                    fadeLoadedAt = .now
+                    scrollChrome.resetHeaders()
+                }
+            ) {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading songs")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Songs unavailable") {
                     Task { await reload() }
@@ -1097,6 +1111,26 @@ struct SongsScreen: View {
         guard let fadeLoadedAt else { return false }
         return Date.now.timeIntervalSince(fadeLoadedAt)
             < FestivalFadeIn.completionDelay(itemCount: FestivalFadeIn.maxStaggeredItems)
+    }
+
+    /// The list settings whose change replays the load sequence (web `settingsKey`):
+    /// sort, direction, filters, instrument and the settled search.
+    private struct ReloadKey: Equatable {
+        let sortMode: SongSortMode
+        let sortAscending: Bool
+        let filterInShop: Bool
+        let filterLeavingTomorrow: Bool
+        let playerScoreFilter: Data
+        let instrument: Instrument?
+        let search: String
+    }
+
+    private var reloadKey: ReloadKey {
+        ReloadKey(
+            sortMode: sortMode, sortAscending: sortAscending, filterInShop: filterInShop,
+            filterLeavingTomorrow: filterLeavingTomorrow, playerScoreFilter: playerScoreFilterData,
+            instrument: instrument, search: settledSearch
+        )
     }
 
     /// Changes whenever the list is re-sorted or re-filtered.

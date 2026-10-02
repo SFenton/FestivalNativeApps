@@ -43,7 +43,9 @@
         </SelectorBar>
 
         <Grid Grid.Row="2" Grid.RowSpan="2">
-            <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+            <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56"
+                      controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                      ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" Padding="0,0,0,16" MaxWidth="1200"
                       AutomationProperties.Name="Band scores" AutomationProperties.AutomationId="fst.song-band-leaderboard.list">
                 <ListView.ItemContainerStyle>
@@ -125,13 +127,16 @@
             </ListView>
 
             <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
+                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
                           AutomationProperties.Name="Loading band scores" />
 
             <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+                                        controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.song-band-leaderboard.error" />
 
             <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                         Spacing="8" AutomationProperties.AutomationId="fst.song-band-leaderboard.empty">
                 <TextBlock Text="No band scores found" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
                 <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" HorizontalAlignment="Center" TextAlignment="Center"
