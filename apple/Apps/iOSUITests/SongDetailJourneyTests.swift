@@ -299,61 +299,55 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.collapseSidebarOnPad(app)
         let viewFull = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
         XCTAssertTrue(viewFull.waitForExistence(timeout: 15))
-        let first = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
+        let first = previewText("fixture-player-1", "#1", in: app)
         XCTAssertTrue(first.waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Fixture Player 1"].exists)
-        let previewNonFC = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "Accuracy 98%")).firstMatch
-        let previewFC = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-2"
-        ).matching(NSPredicate(
-            format: "label == %@", "Full combo, accuracy 98%"
-        )).firstMatch
+        let previewNonFC = previewText("fixture-player-1", "Accuracy 98%", in: app)
+        let previewFC = previewText("fixture-player-2", "Full combo, accuracy 98%", in: app)
         XCTAssertTrue(previewNonFC.waitForExistence(timeout: 10))
         XCTAssertEqual(previewNonFC.label, "Accuracy 98%")
         XCTAssertTrue(previewFC.exists)
         XCTAssertEqual(previewFC.label, "Full combo, accuracy 98%")
         try SongsUITestSupport.assertScoreAccuracyAccent(previewNonFC, fullCombo: false)
         try SongsUITestSupport.assertScoreAccuracyAccent(previewFC, fullCombo: true)
-        let previewScoreOne = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "99,900")).firstMatch
-        let previewScoreTwo = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-2"
-        ).matching(NSPredicate(format: "label == %@", "99,800")).firstMatch
+        let previewScoreOne = previewText("fixture-player-1", "99,900", in: app)
+        let previewScoreTwo = previewText("fixture-player-2", "99,800", in: app)
         SongsUITestSupport.assertAlignedScoreColumn(
             firstScore: previewScoreOne, secondScore: previewScoreTwo,
             firstBadge: previewNonFC, secondBadge: previewFC
         )
-        let previewRowThree = "fst.song-detail.preview-row.Solo_Guitar.fixture-player-3"
-        let previewRowFour = "fst.song-detail.preview-row.Solo_Guitar.fixture-player-4"
-        let previewScoreThree = app.staticTexts.matching(identifier: previewRowThree)
-            .matching(NSPredicate(format: "label == %@", "99,700")).firstMatch
-        let previewScoreFour = app.staticTexts.matching(identifier: previewRowFour)
-            .matching(NSPredicate(format: "label == %@", "99,600")).firstMatch
+        let previewScoreThree = previewText("fixture-player-3", "99,700", in: app)
+        let previewScoreFour = previewText("fixture-player-4", "99,600", in: app)
         SongsUITestSupport.assertAlignedScoreEnds(previewScoreOne, previewScoreThree)
         SongsUITestSupport.assertAlignedScoreEnds(previewScoreOne, previewScoreFour)
-        XCTAssertFalse(app.staticTexts.matching(identifier: previewRowThree)
-            .matching(NSPredicate(
-                format: "label CONTAINS[c] %@", "accuracy"
-            )).firstMatch.exists)
-        let previewFCWithoutAccuracy = app.staticTexts.matching(identifier: previewRowFour)
-            .matching(NSPredicate(
-                format: "label == %@", "Full combo; accuracy unavailable"
-            )).firstMatch
+        XCTAssertFalse(previewRow("fixture-player-3", in: app)
+            .descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label CONTAINS[c] %@", "accuracy")).firstMatch.exists)
+        let previewFCWithoutAccuracy = previewText(
+            "fixture-player-4", "Full combo; accuracy unavailable", in: app
+        )
         XCTAssertTrue(previewFCWithoutAccuracy.exists)
         let previewQuery = try await SongsUITestSupport.latestFixtureScoreQuery()
         XCTAssertEqual(previewQuery.top, 10)
         XCTAssertEqual(previewQuery.offset, 0)
         XCTAssertNil(previewQuery.leeway)
-        XCTAssertFalse(app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-11"
-        ).matching(NSPredicate(format: "label == %@", "#11")).firstMatch.exists)
+        XCTAssertFalse(previewRow("fixture-player-11", in: app).exists)
         SongsUITestSupport.record(app, name: "song-detail-real-top-scores")
         try SongsUITestSupport.assertHeaderContrast(app.staticTexts["Fixture Player 1"], in: app)
+
+        // Issue #33: a top-ten row is one button that opens that player's profile.
+        let secondRow = previewRow("fixture-player-2", in: app)
+        XCTAssertEqual(secondRow.elementType, .button)
+        XCTAssertEqual(
+            secondRow.label, "#2, Fixture Player 2, 99,800, Full combo, accuracy 98%"
+        )
+        secondRow.tap()
+        let profileName = app.staticTexts["fst.player.name"]
+        XCTAssertTrue(profileName.waitForExistence(timeout: 10), "Row did not open the profile")
+        XCTAssertEqual(profileName.label, "Fixture Player 2")
+        SongsUITestSupport.record(app, name: "song-detail-preview-row-opens-profile")
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
 
         viewFull.tap()
         XCTAssertTrue(app.buttons["fst.song-leaderboard.page-next"].waitForExistence(timeout: 10))
@@ -446,9 +440,7 @@ final class SongDetailJourneyTests: XCTestCase {
         )
         SongsUITestSupport.record(app, name: "song-detail-pinned-title-hidden")
 
-        let tenth = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-10"
-        ).matching(NSPredicate(format: "label == %@", "#10")).firstMatch
+        let tenth = previewText("fixture-player-10", "#10", in: app)
         XCTAssertTrue(tenth.waitForExistence(timeout: 15))
         app.swipeUp()
         XCTAssertEqual(
@@ -484,9 +476,10 @@ final class SongDetailJourneyTests: XCTestCase {
         )
     }
 
-    /// Probe system accessibility scrolling to the last score in a populated preview.
+    /// Probe system accessibility scrolling to the last score in a populated preview,
+    /// then confirm the row is a button that opens another page (issue #33).
     ///
-    /// - Throws: A stalled offscreen score target or missing painted preview row.
+    /// - Throws: A stalled offscreen score target, missing preview row or profile.
     @MainActor
     func testOffscreenDetailScoreRemainsReachable() throws {
         continueAfterFailure = false
@@ -498,20 +491,30 @@ final class SongDetailJourneyTests: XCTestCase {
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
         song.tap()
-        let first = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
+        let first = previewText("fixture-player-1", "#1", in: app)
         XCTAssertTrue(first.waitForExistence(timeout: 15))
-        let tenth = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-10"
-        ).matching(NSPredicate(format: "label == %@", "#10")).firstMatch
-        XCTAssertTrue(tenth.waitForExistence(timeout: 10))
+        let tenthRow = previewRow("fixture-player-10", in: app)
+        XCTAssertTrue(tenthRow.waitForExistence(timeout: 10))
         if UIDevice.current.userInterfaceIdiom == .phone {
-            XCTAssertFalse(tenth.isHittable, "The last score did not start offscreen")
+            XCTAssertFalse(tenthRow.isHittable, "The last score did not start offscreen")
         }
-        tenth.tap()
-        XCTAssertTrue(tenth.isHittable, "Offscreen score could not be brought into view")
-        SongsUITestSupport.record(app, name: "song-detail-offscreen-score-revealed")
+        // Each row is one button (issue #33): VoiceOver hears it as a button, and
+        // activating the offscreen row scrolls it into view and opens the profile.
+        XCTAssertEqual(
+            tenthRow.label, "#10, Fixture Player 10, 99,000, Full combo, accuracy 98%"
+        )
+        // This listener closes after its first score read, so only the push itself
+        // is asserted here; the profile content is covered on the 8765 service.
+        tenthRow.tap()
+        XCTAssertTrue(
+            app.buttons["BackButton"].waitForExistence(timeout: 10) && !tenthRow.isHittable,
+            "Activating the revealed preview row did not open another page"
+        )
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(
+            tenthRow.waitForExistence(timeout: 10) && tenthRow.isHittable,
+            "Back did not return to the revealed preview row"
+        )
     }
 
     /// A chart with no scores says so in its header and offers no View full action
@@ -698,6 +701,30 @@ final class SongDetailJourneyTests: XCTestCase {
 
 
     // MARK: - Paths menu helpers
+
+    /// One Lead top-ten preview row: a single navigation button (issue #33).
+    ///
+    /// - Parameters:
+    ///   - player: Fixture account ID.
+    ///   - app: Running app on Song Detail.
+    /// - Returns: The row's button element.
+    @MainActor
+    private func previewRow(_ player: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons["fst.song-detail.preview-row.Solo_Guitar.\(player)"]
+    }
+
+    /// One text inside a Lead preview row button.
+    ///
+    /// - Parameters:
+    ///   - player: Fixture account ID.
+    ///   - label: Exact text label (rank, score or accuracy).
+    ///   - app: Running app on Song Detail.
+    /// - Returns: The matching static text.
+    @MainActor
+    private func previewText(_ player: String, _ label: String, in app: XCUIApplication) -> XCUIElement {
+        previewRow(player, in: app).descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label == %@", label)).firstMatch
+    }
 
     /// The Paths sheet's bottom-row menu picker with this identifier.
     ///
