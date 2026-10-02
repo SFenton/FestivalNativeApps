@@ -98,7 +98,7 @@
                 <!-- Score history (web ScoreHistoryChart in GraphCard): selected player only; hidden when there is none. -->
                 <StackPanel x:Name="HistorySection" Spacing="8" Margin="0,16,0,0" Visibility="{x:Bind ViewModel.History.IsVisible, Mode=OneWay}"
                             controls:QuickLinkAnchor.Id="score-history">
-                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,20">
+                    <Border x:Name="HistoryCard" Style="{StaticResource FSTCardStyle}" Padding="16,20">
                         <StackPanel Spacing="12">
                             <controls:InstrumentSelector x:Name="HistorySelector" IdPrefix="fst.history.instrument" Required="True"
                                                          Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" />
@@ -110,13 +110,15 @@
                                            Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
                                            AutomationProperties.AutomationId="fst.history.subtitle" />
                             </StackPanel>
-                            <controls:SongScoreHistoryChart Model="{x:Bind ViewModel.History}" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
+                            <controls:SongScoreHistoryChart x:Name="HistoryChart" Model="{x:Bind ViewModel.History}" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
                                                             AutomationProperties.AutomationId="fst.history.chart" />
                             <!-- Selected bar's detail row (web detail card; half width on desktop). -->
-                            <ContentControl Content="{x:Bind ViewModel.History.SelectedRow, Mode=OneWay}" ContentTemplate="{StaticResource HistoryRowTemplate}"
+                            <ContentControl x:Name="HistoryDetail" Content="{x:Bind ViewModel.History.SelectedRow, Mode=OneWay}" ContentTemplate="{StaticResource HistoryRowTemplate}"
                                             HorizontalContentAlignment="Stretch" HorizontalAlignment="Center" MaxWidth="560" MinWidth="280"
                                             Visibility="{x:Bind ViewModel.History.HasSelectedPoint, Mode=OneWay}" IsTabStop="False"
                                             AutomationProperties.AutomationId="fst.history.detail" />
+                            <!-- Pager row: kept (empty) while another chart pages, so switching charts keeps the card's size (issue #61). -->
+                            <Grid x:Name="HistoryPagerSlot" MinHeight="40" Visibility="{x:Bind ViewModel.History.ShowPagerSlot, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center"
                                         Visibility="{x:Bind ViewModel.History.ShowPaging, Mode=OneWay}">
                                 <Button Command="{x:Bind ViewModel.History.BackPageCommand}" IsEnabled="{x:Bind ViewModel.History.CanGoBack, Mode=OneWay}"
@@ -144,6 +146,7 @@
                                     <FontIcon Glyph="&#xE893;" FontSize="12" />
                                 </Button>
                             </StackPanel>
+                            </Grid>
                             <!-- 202: still preparing (paused, never "no history"). -->
                             <StackPanel Spacing="8" HorizontalAlignment="Center" Visibility="{x:Bind ViewModel.History.ShowSyncing, Mode=OneWay}">
                                 <TextBlock Text="This player's score history is still being prepared. Try again shortly." TextWrapping="Wrap"
@@ -189,7 +192,7 @@
                             <StackLayout Spacing="8" />
                         </ItemsRepeater.Layout>
                     </ItemsRepeater>
-                    <Button Content="{x:Bind ViewModel.History.ViewAllLabel}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
+                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllLabel}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
                             Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}" HorizontalAlignment="Stretch" MinHeight="48"
                             FontWeight="SemiBold" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
                             CornerRadius="8" AutomationProperties.AutomationId="fst.history.view-all" />
