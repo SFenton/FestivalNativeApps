@@ -450,8 +450,8 @@ struct SongsScreen: View {
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
-        // Search this list: in the iOS 26.1+ iPhone tab-bar accessory beside Filter and
-        // Sort (issue #42; HIG Search fields: "Place search at the bottom if there's
+        // Search this list: the iOS 26.1+ iPhone tab-bar accessory holds only this field
+        // (issues #42, #89; HIG Search fields: "Place search at the bottom if there's
         // room"), else the inline `.searchable` field (HIG "search as an inline field",
         // like Music's Library). Global search stays a header button.
         .modifier(SongsListSearch(
@@ -459,8 +459,9 @@ struct SongsScreen: View {
             sidebarShell: deviceLayout.sectionChrome == .sidebar,
             barPresented: $searchBarPresented
         ))
-        // iPhone: search, Filter, Sort and Quick Links sit above the tab bar, like the
-        // web's Songs dock (issue #42); toolbar items elsewhere (Duo rail, iPad, Mac).
+        // iPhone: Filter, Sort and Quick Links float as round buttons above the tab bar
+        // (and above the search accessory, never inside it, issue #89), like the web's
+        // Songs dock; toolbar items elsewhere (Duo rail, iPad, Mac).
         .modifier(SongsPageTools(
             chrome: scrollChrome, session: session, quickLinks: quickLinks,
             filterDockToken: filterDockToken, sortDockToken: sortDockToken,
@@ -1779,8 +1780,8 @@ private struct SongsListSearch: ViewModifier {
     }
 }
 
-/// Songs' search/Filter/Sort/Quick Links placement: the iOS 26.1+ iPhone tab-bar
-/// accessory (issue #42), the earlier iPhone floating dock (handed to the navigation bar
+/// Songs' search/Filter/Sort/Quick Links placement: on iOS 26.1+ iPhone search in the
+/// tab-bar accessory and the rest floating beside it (issues #42, #89), the earlier iPhone floating dock (handed to the navigation bar
 /// once scrolled, issue #13), or the navigation bar (Duo rail, iPad, Mac), plus the root
 /// trailing items and, with the floating dock, an empty inline title.
 ///
