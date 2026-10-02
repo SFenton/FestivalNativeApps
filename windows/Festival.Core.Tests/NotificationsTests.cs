@@ -75,6 +75,108 @@ public class NotificationsTests
     }
 
     [Fact]
+    public void Media_MultiChartRowsShowArtAboveAnInstrumentGrid()
+    {
+        var coalesced = Item("player_score_pb", payload: new NotificationPayload
+        {
+            CoalescedEvents = [new() { EventKind = "player_score_pb", Instrument = "Solo_Drums" }, new() { EventKind = "player_fc_achieved", Instrument = "Solo_Bass" }],
+            CoalescedInstruments = ["Solo_PeripheralGuitar", "bogus", "Solo_Bass"],
+        });
+        Assert.Equal([Instrument.Lead, Instrument.Bass, Instrument.Drums, Instrument.ProLead], NotificationMediaRules.SurfaceInstruments(coalesced));
+        var grid = NotificationText.Format(coalesced, "Song", "art.jpg");
+        Assert.Equal(NotificationMediaKind.SongInstrumentGrid, grid.MediaKind);
+        var row = new NotificationRowViewModel(grid, false, "1h ago");
+        Assert.True(row.HasGrid);
+        Assert.Equal(44, row.ArtSize);
+        Assert.Equal(["instrument_guitar.png", "instrument_bass.png", "instrument_drums.png", "instrument_pro_guitar.png"], row.GridIconFiles);
+
+        var single = new NotificationRowViewModel(NotificationText.Format(Item("player_score_pb"), "Song", "art.jpg"), false, "1h ago");
+        Assert.Equal((NotificationMediaKind.Song, 54d, false), (single.MediaKind, single.ArtSize, single.HasGrid));
+        Assert.Empty(single.GridIconFiles);
+
+        // Without art the rail shows the row's instrument (Lead when it names none), never a grid.
+        var noArt = NotificationText.Format(coalesced, "Song");
+        Assert.Equal((NotificationMediaKind.SoloInstrument, (Instrument?)Instrument.Lead), (noArt.MediaKind, noArt.MediaInstrument));
+        Assert.Empty(noArt.GridInstruments);
+        Assert.Equal(Instrument.Lead, NotificationText.Format(Item("player_total_score_improved", instrument: null), null).MediaInstrument);
+        Assert.Equal(Instrument.Bass, NotificationText.Format(Item("player_total_score_improved", instrument: "Solo_Bass"), null).MediaInstrument);
+    }
+
+    [Fact]
+    public void Media_ShopSongPrefersCatalogueArtThenPayloadArtElseLead()
+    {
+        var shop = Item("service_new_shop_song", instrument: null, payload: new NotificationPayload { SongTitle = "Hit", Artist = "Band", AlbumArt = "shop.jpg" });
+        Assert.Equal("cat.jpg", NotificationText.Format(shop, null, "cat.jpg").AlbumArt);
+        var payloadArt = NotificationText.Format(shop, null);
+        Assert.Equal((NotificationMediaKind.Song, "shop.jpg"), (payloadArt.MediaKind, payloadArt.AlbumArt));
+        var bare = NotificationText.Format(shop with { Payload = null }, null);
+        Assert.Equal((NotificationMediaKind.SoloInstrument, (Instrument?)Instrument.Lead), (bare.MediaKind, bare.MediaInstrument));
+        Assert.Equal([new("Hit", true), new(" by "), new("Band", true), new(" has been added to the Item Shop.")], payloadArt.Parts);
+        Assert.Null(payloadArt.FlagKind);
+    }
+
+    public static TheoryData<string, string[]> Emphasis => new()
+    {
+        { "player_first_score", ["Lead", "Song", "123,456", "#4"] },
+        { "player_score_pb", ["Lead", "Song", "123,456"] },
+        { "player_song_rank_improved", ["#1,009", "#4", "Lead", "Song"] },
+        { "player_stars_improved", ["5 to 123,456 stars", "Lead", "Song"] },
+        { "player_gold_stars_achieved", ["gold stars", "Lead", "Song"] },
+        { "player_fc_achieved", ["Full Combo", "Lead", "Song"] },
+        { "player_difficulty_bumped", ["Lead", "Song", "5", "123,456"] },
+        { "player_weighted_rank_improved", ["#1,009", "#4", "Lead"] },
+        { "player_total_score_improved", ["Lead", "123,456"] },
+        { "player_fc_count_improved", ["Lead", "123,456"] },
+        { "something_new", [] },
+    };
+
+    [Theory]
+    [MemberData(nameof(Emphasis))]
+    public void Text_BoldsTheWebsValues(string kind, string[] bold)
+    {
+        var p = NotificationText.Format(Item(kind, oldN: 5, newN: 123456, oldRank: 1009, newRank: 4), "Song");
+        Assert.Equal(p.Message, string.Concat(p.Parts.Select(x => x.Text)));
+        Assert.Equal(bold, p.Parts.Where(x => x.Emphasis).Select(x => x.Text));
+        Assert.Equal(p.Parts, new NotificationRowViewModel(p, true, "now").MessageParts);
+    }
+
+    [Fact]
+    public void Text_NeverBoldsFallbackWording()
+    {
+        var p = NotificationText.Format(Item("player_song_rank_improved", instrument: null), null);
+        Assert.Equal("You climbed from your new rank to your new rank on this instrument for this song.", p.Message);
+        Assert.DoesNotContain(p.Parts, x => x.Emphasis);
+        Assert.Equal([new("plain")], NotificationText.Emphasize("plain", ["", "  ", "absent"]));
+        Assert.Equal([new("a "), new("bc", true), new(" "), new("b", true)], NotificationText.Emphasize("a bc b", ["b", "bc"]));
+        Assert.Equal([new("ab", true)], NotificationText.Emphasize("ab", ["a", "b"]));
+        Assert.Equal("x", new NotificationPresentation("i", "t", "x", null, Now, null).Parts.Single().Text);
+    }
+
+    [Fact]
+    public void Flags_UseTheWebsColours()
+    {
+        var kinds = Enum.GetValues<NotificationFlagKind>();
+        Assert.Equal(kinds.Length, kinds.Select(k => k.Argb()).Distinct().Count());
+        Assert.All(kinds, k => Assert.Equal(0xFFu, k.Argb() >> 24));
+        Assert.Equal(0xFF0F766Eu, NotificationFlagKind.NewHighScore.Argb());
+        Assert.Equal(0xFF4B5563u, NotificationFlagKind.Improvement.Argb());
+        var pb = NotificationText.Format(Item("player_score_pb"), "Song");
+        Assert.Equal(NotificationFlagKind.NewHighScore, pb.FlagKind);
+        var row = new NotificationRowViewModel(pb, true, "1h ago");
+        Assert.Equal(0xFF0F766Eu, row.FlagArgb);
+        Assert.Equal("Unread. Song · Lead. You set a new personal best on Lead for Song with a new score points. New High Score. 1h ago", row.AccessibleName);
+        Assert.Equal(0xFF4B5563u, new NotificationRowViewModel(new NotificationPresentation("x", "T", "M.", "F", Now, null), false, "").FlagArgb);
+    }
+
+    [Fact]
+    public void Wire_DecodesCoalescedInstruments()
+    {
+        var feed = JsonSerializer.Deserialize(Envelope("""{"eventId":1,"notificationGuid":"g","eventKind":"player_score_pb","payload":{"coalescedInstruments":["Solo_Bass","Solo_Guitar"]},"detectedAt":"2026-09-28T11:00:00Z","expiresAt":"2026-10-01T00:00:00Z"}"""),
+            NotificationsJsonContext.Default.ImprovementNotificationsEnvelope)!;
+        Assert.Equal(["Solo_Bass", "Solo_Guitar"], feed.Items![0].Payload!.CoalescedInstruments!);
+    }
+
+    [Fact]
     public void Text_FallbacksWithoutValuesTitleOrInstrument()
     {
         var p = NotificationText.Format(Item("player_score_pb", instrument: "bogus"), null);

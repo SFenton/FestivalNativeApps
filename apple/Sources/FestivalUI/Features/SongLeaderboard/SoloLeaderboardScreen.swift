@@ -31,6 +31,12 @@ struct SoloLeaderboardScreen: View {
         case loading
         case loaded(LeaderboardPayload)
         case failed(ServiceIssue)
+
+        /// Whether the page is still loading (drives ``FestivalReloadGate``).
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
     }
 
     private struct RequestKey: Hashable {
@@ -74,11 +80,12 @@ struct SoloLeaderboardScreen: View {
     }
 
     var body: some View {
-        Group {
+        // Page changes fade the rows out, show the spinner and fade the new page in
+        // (web LoadGate, issue #71).
+        FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard") {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading leaderboard")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Leaderboard unavailable") {
                     Task { await loadPage() }
@@ -162,16 +169,17 @@ struct SoloLeaderboardScreen: View {
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
                     chartWidth = width
                 }
+                .task {
+                    await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
+                        staggerSettled = true
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: loadedRowsKey) {
-            guard case let .loaded(payload) = state else { return }
-            staggerSettled = false
-            await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
-                staggerSettled = true
-            }
-        }
+        // New rows stagger in again; the gate reveals them after its spinner, so the
+        // settle timer runs from the reveal (inside the gated content).
+        .onChange(of: loadedRowsKey) { _, _ in staggerSettled = false }
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)

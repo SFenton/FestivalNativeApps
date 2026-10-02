@@ -1,6 +1,12 @@
 package com.festivalscoretracker.android.ui.songdetail
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,7 +37,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,7 +54,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -65,12 +76,14 @@ import com.festivalscoretracker.android.core.songs.ScoreRowSeasonPolicy
 import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
+import com.festivalscoretracker.android.core.songs.SongHistorySwap
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import java.text.NumberFormat
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -87,7 +100,10 @@ import kotlin.math.max
  * with history, accuracy bars (red→green, gold for a 100% FC) with the score line,
  * tap a bar for its detail row, « ‹ › » paging when bars don't fit, the five best
  * scores (best highlighted) and "View all scores" to the full history page when there
- * are more than five.
+ * are more than five. Switching chart fades the graph and best scores out and the new
+ * chart's back in ([SongHistorySwap]; instant with reduced motion) while the card keeps
+ * its height: the pager row stays reserved when any chart pages and the height is held
+ * during the swap.
  *
  * @param entries This song's history rows (every chart, invalid scores already dropped).
  * @param visible Settings-visible charted instruments.
@@ -105,17 +121,53 @@ fun SongHistoryCard(
     onViewAll: (Instrument) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val available = remember(entries, visible) { SongHistoryChart.available(SongHistoryChart.counts(entries), visible) }
+    val counts = remember(entries) { SongHistoryChart.counts(entries) }
+    val available = remember(counts, visible) { SongHistoryChart.available(counts, visible) }
     var chosen by rememberSaveable { mutableStateOf(initialInstrument) }
-    val chart = SongHistoryChart.resolve(chosen, available) ?: return
+    val selected = SongHistoryChart.resolve(chosen, available) ?: return
+    // The selector follows the choice at once; the graph keeps the shown chart until it has faded out.
+    var shown by remember { mutableStateOf(selected) }
+    val chart = if (shown in available) shown else selected
+    val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    val fade = remember { Animatable(1f) }
+    // Card height (px) held while swapping, so the card keeps its size; 0 = not pinned.
+    val pin = remember { Animatable(0f) }
+    var natural by remember { mutableIntStateOf(0) }
+    LaunchedEffect(selected, reduceMotion) {
+        // A newer choice relaunches this effect, cancelling the running swap.
+        when (SongHistorySwap.plan(chart, selected, reduceMotion)) {
+            SongHistorySwap.Plan.None -> Unit
+            SongHistorySwap.Plan.Instant -> {
+                shown = selected
+                fade.snapTo(1f)
+                pin.snapTo(0f)
+            }
+            SongHistorySwap.Plan.Settle -> {
+                shown = selected
+                if (reduceMotion) fade.snapTo(1f) else fade.animateTo(1f, tween(SongHistorySwap.FADE_IN_MILLIS, easing = LinearOutSlowInEasing))
+                releasePin(pin, natural, reduceMotion)
+            }
+            SongHistorySwap.Plan.Fade -> {
+                if (pin.value == 0f) pin.snapTo(natural.toFloat())
+                fade.animateTo(0f, tween(SongHistorySwap.FADE_OUT_MILLIS, easing = FastOutLinearInEasing))
+                shown = selected
+                fade.animateTo(1f, tween(SongHistorySwap.FADE_IN_MILLIS, easing = LinearOutSlowInEasing))
+                releasePin(pin, natural, reduceMotion)
+            }
+        }
+    }
     val points = remember(entries, chart) { SongHistoryChart.points(entries, chart) }
+    val pinned = with(LocalDensity.current) { pin.value.toDp() }
     Column(modifier.fillMaxWidth().testTag("fst.song-detail.history")) {
         SectionHeader("Score History")
-        GlassCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        GlassCard(Modifier.fillMaxWidth().heightIn(min = pinned).testTag("fst.song-detail.history.card")) {
+            Column(
+                Modifier.padding(horizontal = 12.dp, vertical = 12.dp).onSizeChanged { natural = it.height },
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 InstrumentSelector(
                     instruments = available,
-                    selected = chart,
+                    selected = selected,
                     onSelect = { next -> if (next != null) chosen = next },
                     required = true,
                     keyboard = keyboard,
@@ -127,12 +179,17 @@ fun SongHistoryCard(
                     color = BrandTokens.textSecondary,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                HistoryChart(points, chart)
+                HistoryChart(
+                    points,
+                    chart,
+                    reservesPager = { maxBars -> SongHistoryChart.reservesPager(counts, available, maxBars) },
+                    modifier = Modifier.graphicsLayer { alpha = fade.value },
+                )
             }
         }
         val top = remember(points) { SongHistoryChart.top(points) }
         // Issue #62: the list shows seasons only when its rows are at least 520 dp wide (web QUERY_SHOW_SEASON).
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp).graphicsLayer { alpha = fade.value }) {
             val width = maxWidth.value
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 top.forEachIndexed { index, point ->
@@ -150,19 +207,38 @@ fun SongHistoryCard(
                 onClick = { onViewAll(chart) },
                 label = "View All Scores",
                 testTag = "fst.song-detail.history.view-all",
-                modifier = Modifier.padding(top = 8.dp),
+                modifier = Modifier.padding(top = 8.dp).graphicsLayer { alpha = fade.value },
             )
         }
     }
 }
 
 /**
+ * Release the swap's height pin: ease from the held height to the new content height,
+ * or at once with reduced motion.
+ *
+ * @param pin Held card height in px (0 = not pinned).
+ * @param natural New content height in px.
+ * @param reduceMotion System or app reduced motion.
+ */
+private suspend fun releasePin(pin: Animatable<Float, AnimationVector1D>, natural: Int, reduceMotion: Boolean) {
+    if (!reduceMotion && pin.value > natural) pin.animateTo(natural.toFloat(), tween(SongHistorySwap.FADE_IN_MILLIS, easing = FastOutSlowInEasing))
+    pin.snapTo(0f)
+}
+
+/**
  * Bars + line on one canvas (drawn, never recomposed per frame), paging and the
  * selected bar's detail row.
+ *
+ * @param points The shown chart's points.
+ * @param chart Shown chart.
+ * @param reservesPager Whether to keep the pager row's space for a page size, so the card
+ *   keeps its size across charts that do and don't page.
+ * @param modifier Modifier (the swap fade).
  */
 @Composable
-private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
+private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, reservesPager: (Int) -> Boolean, modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier.fillMaxWidth()) {
         val maxBars = SongHistoryChart.maxBars((maxWidth - AXES_WIDTH).value)
         var paging by remember(chart) { mutableStateOf(SongHistoryPaging(points.size, maxBars)) }
         if (paging.size != points.size || paging.maxBars != maxBars) paging = paging.resized(points.size, maxBars)
@@ -243,7 +319,12 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument) {
                     )
                 }
             }
-            if (paging.needsPaging) Pager(paging) { paging = it }
+            if (paging.needsPaging) {
+                Pager(paging) { paging = it }
+            } else if (reservesPager(maxBars)) {
+                // Another chart pages: keep the pager row's height, empty and silent for TalkBack.
+                Spacer(Modifier.fillMaxWidth().height(PAGER_HEIGHT).testTag("fst.song-detail.history.pager-slot").clearAndSetSemantics { })
+            }
         }
     }
 }
@@ -393,6 +474,9 @@ internal val PurpleHighlightBorder get() = BrandTokens.purpleHighlightBorder
 
 private val SCORE_BLUE = Color(0xFF4C7DFF)
 private val CHART_HEIGHT = 220.dp
+
+/** Pager row height: the 48 dp frosted buttons. */
+private val PAGER_HEIGHT = 48.dp
 
 /** Widest bar, so a short history doesn't draw slabs. */
 private val MAX_BAR = 72.dp

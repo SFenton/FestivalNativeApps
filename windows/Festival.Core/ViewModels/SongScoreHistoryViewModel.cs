@@ -29,6 +29,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private List<ScoreHistoryEntry> entries = [];
+    private Dictionary<Instrument, int> counts = [];
     private Song? song;
     private IReadOnlyList<Instrument> pool = [];
 
@@ -109,6 +110,12 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 
     /// <summary>Whether paging arrows show.</summary>
     public bool ShowPaging => Pager.NeedsPagination;
+
+    /// <summary>
+    /// Whether the pager row keeps its space: while paging, or whenever another selectable chart pages, so the card keeps
+    /// its size when the chart changes (issue #61). The row is empty (and absent for Narrator) when this chart doesn't page.
+    /// </summary>
+    public bool ShowPagerSlot => ShowPaging || ScoreHistorySwap.ReservesPager(counts, Instruments, Pager.MaxBars);
 
     /// <summary>Whether « and » show.</summary>
     public bool ShowPageJumps => Pager.ShowPageJumps;
@@ -282,7 +289,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     private void Show(SongScoreHistoryPhase next, List<ScoreHistoryEntry> loaded)
     {
         entries = loaded;
-        var counts = SongScoreHistory.Counts(entries);
+        counts = SongScoreHistory.Counts(entries);
         Instruments = [.. pool.Where(i => counts.GetValueOrDefault(i) > 0)];
         var choice = SongScoreHistory.DefaultInstrument(pool, counts, Selected ?? Requested);
         if (next == SongScoreHistoryPhase.Loaded && choice is null) next = SongScoreHistoryPhase.Hidden;
@@ -323,6 +330,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
             string.Create(CultureInfo.CurrentCulture,
                 $"{Selected?.Label()} score history, {Bars.Count} of {Points.Count} scores from {Bars[0].Point.LongDate} to {Bars[^1].Point.LongDate}.");
         OnPropertyChanged(nameof(ShowPaging));
+        OnPropertyChanged(nameof(ShowPagerSlot));
         OnPropertyChanged(nameof(ShowPageJumps));
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));

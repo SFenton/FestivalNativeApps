@@ -2,7 +2,11 @@ package com.festivalscoretracker.android.ui.songdetail
 
 import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -66,6 +70,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -80,7 +85,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
@@ -97,15 +104,17 @@ import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.data.paths.SongPathDataPayload
 import com.festivalscoretracker.android.data.paths.SongPathImagePayload
 import com.festivalscoretracker.android.presentation.songs.PathLoad
+import com.festivalscoretracker.android.presentation.songs.PathSwapPhase
+import com.festivalscoretracker.android.presentation.songs.PathSwapTiming
+import com.festivalscoretracker.android.presentation.songs.SongPathsState
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -144,7 +153,11 @@ fun SongPathsSheet(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var warning by rememberSaveable { mutableStateOf(showKaraokeWarning) }
     var panel by rememberSaveable { mutableStateOf<PathPanel?>(null) }
-    val revealed = rememberRevealed(state.load is PathLoad.Image || state.load is PathLoad.Text)
+    val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    SideEffect { viewModel.reduceMotion = reduceMotion }
+    val fade: AnimationSpec<Float> = if (reduceMotion) snap() else tween(PathSwapTiming.FADE_MILLIS.toInt(), easing = LinearEasing)
+    val contentAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Content) 1f else 0f, fade, label = "paths-content")
+    val spinnerAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Spinner) 1f else 0f, fade, label = "paths-spinner")
     FestivalModalSheet(
         title = "Paths",
         closeTag = "fst.paths.close",
@@ -154,20 +167,28 @@ fun SongPathsSheet(
         BoxWithConstraints(Modifier.fillMaxHeight()) {
             val wide = maxWidth >= PATH_TABLE_WIDE
             Column(Modifier.fillMaxHeight().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                if (state.display == PathDisplayMode.Text && wide && state.load is PathLoad.Text) PathTableHeader(columns)
+                if (wide && state.load is PathLoad.Text) Box(Modifier.graphicsLayer { alpha = contentAlpha }) { PathTableHeader(columns) }
+                // Polite live region: "Loading <chart> path", then what loaded (web swap has no announcement).
+                Box(Modifier.size(1.dp).testTag("fst.paths.status").semantics { contentDescription = state.status; liveRegion = LiveRegionMode.Polite })
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when (val load = state.load) {
-                        PathLoad.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            FestivalLoading("Loading paths", Modifier.testTag("fst.paths.loading"), size = 32.dp)
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                        val shown = state.shown
+                        when (val load = state.load) {
+                            PathLoad.Loading -> Unit
+                            PathLoad.NotGenerated -> Text(
+                                SongPathsState.notGeneratedText(shown),
+                                color = BrandTokens.textPrimary,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.not-generated"),
+                            )
+                            is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
+                            is PathLoad.Image -> PathImage(load, "${shown.instrument.label} ${shown.difficulty.label} CHOpt path")
+                            is PathLoad.Text -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { PathTable(load.data, columns, wide) }
                         }
-                        PathLoad.NotGenerated -> Text(
-                            "No ${state.difficulty.label} path has been generated for ${state.instrument.label} yet.",
-                            color = BrandTokens.textPrimary,
-                            modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.not-generated"),
-                        )
-                        is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
-                        is PathLoad.Image -> Box(Modifier.festivalFadeIn(revealed)) { PathImage(load.image, "${state.instrument.label} ${state.difficulty.label} CHOpt path") }
-                        is PathLoad.Text -> Box(Modifier.fillMaxSize().festivalFadeIn(revealed).verticalScroll(rememberScrollState())) { PathTable(load.data, columns, wide) }
+                    }
+                    if (state.spinnerVisible) {
+                        Box(Modifier.fillMaxSize().graphicsLayer { alpha = spinnerAlpha }, contentAlignment = Alignment.Center) {
+                            FestivalLoading(null, Modifier.testTag("fst.paths.loading"), size = 32.dp)
+                        }
                     }
                 }
                 PathControls(state.instrument, state.difficulty, state.display, viewModel, panel, keyboard) { panel = it }
@@ -317,10 +338,11 @@ private const val MAX_DECODED_WIDTH = 2_048
 private const val MAX_DECODED_PIXELS = 16_000_000L
 
 @Composable
-private fun PathImage(image: SongPathImagePayload, description: String) {
-    // null = decoding, empty = undecodable, else the image.
-    val bitmap by produceState<List<ImageBitmap>?>(null, image) {
-        value = withContext(Dispatchers.Default) { listOfNotNull(decodePathImage(image.bytes, image.width, image.height)) }
+private fun PathImage(load: PathLoad.Image, description: String) {
+    val image = load.image
+    // null = decoding, empty = undecodable, else the image (decoded during the swap spinner when prepared).
+    val bitmap by produceState(if (load.prepared) listOfNotNull(load.decoded) else null, load) {
+        if (!load.prepared) value = withContext(Dispatchers.Default) { listOfNotNull(decodePathImage(image.bytes, image.width, image.height)) }
     }
     var zoom by remember(image) { mutableFloatStateOf(1f) }
     Box(Modifier.fillMaxSize().testTag("fst.paths.image")) {

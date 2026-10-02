@@ -42,6 +42,7 @@ import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import java.time.Duration
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -96,6 +97,7 @@ class SuggestionsRenderTest {
         val a = song("a")
         return listOf(
             card("song_rival_gap_r", null, SuggestionSongItem(a, Instrument.Lead, rivalName = "Rival Person", rivalRankDelta = -4), SuggestionSongItem(song("b"), Instrument.Bass, rivalName = "R", rivalRankDelta = 6)),
+            card("song_rival_battleground", null, SuggestionSongItem(a, Instrument.Lead, rivalName = "Mixed Rival", rivalRankDelta = 1)),
             card("unfc_Solo_Guitar", Instrument.Lead, SuggestionSongItem(a, percent = 97.2)),
             card("stale_global_2", null, SuggestionSongItem(a)),
             card("pct_push", null, SuggestionSongItem(a, Instrument.Lead, percentileDisplay = "Top 1%"), SuggestionSongItem(song("b"), Instrument.Bass, percentileDisplay = "Top 4%"), SuggestionSongItem(song("c"), percentileDisplay = "Top 30%")),
@@ -109,7 +111,11 @@ class SuggestionsRenderTest {
     fun loadedCardsDrawEveryLayoutAndTheMixLimitFooter() {
         show(SuggestionsUiState(SuggestionsPhase.Loaded, cards = cards(), reachedLimit = true))
         rule.onNodeWithTag("fst.suggestions.category.song_rival_gap_r").assertIsDisplayed()
-        rule.onNodeWithContentDescription("Render Track a, Render Artist · 1999, Lead, rival Rival Person, behind by 4 ranks").assertIsDisplayed()
+        // Single-rival card: no name badge, but TalkBack still names the rival (issue #29).
+        assertNull(cards().first().rows.first().presentation.rivalName)
+        rule.onNodeWithContentDescription("Render Track a, Render Artist · 1999, Lead, 4 ranks behind Rival Person").assertIsDisplayed()
+        rule.onNodeWithTag("fst.suggestions.list").performScrollToNode(hasTestTag("fst.suggestions.category.song_rival_battleground"))
+        rule.onNodeWithContentDescription("Render Track a, Render Artist · 1999, Lead, rival Mixed Rival, ahead by 1 rank").assertIsDisplayed()
         rule.onAllNodesWithTag("fst.suggestions.row.a|Solo_Guitar")[0].performSemanticsAction(SemanticsActions.OnClick)
         assertTrue("song:a" in events)
         rule.onNodeWithTag("fst.suggestions.list").performScrollToNode(hasTestTag("fst.suggestions.mix-limit"))
