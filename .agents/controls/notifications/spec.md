@@ -37,8 +37,8 @@ Source: `FortniteFestivalWeb/src/components/notifications/MobileNotificationsMod
 | Empty, feed generated | `notifications.empty.generatedBody` copy |
 | Empty, feed never generated | `notifications.empty.notGeneratedBody` copy |
 | Loaded, has unread | "New" section, gold unread dot, badge count on the bell |
-| Row tap, has destination | Marks seen, pushes inside the sheet's own nav stack |
-| Row tap, no destination | Marks seen, no navigation |
+| Row tap, has destination | Marks seen, dismisses the sheet and opens the page on the main app's current navigation stack (web `App.tsx` `handleNotificationOpen`); Back returns to the page under the sheet |
+| Row tap, no destination | Marks seen; the sheet stays open, no navigation |
 
 ## Test matrix
 

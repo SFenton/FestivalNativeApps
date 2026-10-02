@@ -38,11 +38,26 @@ struct OpenDrawerAction: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
+/// Environment action that pushes a route on the currently selected section's stack
+/// (the root-owned path), for chrome presented above it such as the notifications sheet.
+///
+/// Equatable for the same reason as ``OpenProfileAction``.
+struct PushRouteAction: Equatable {
+    let handler: @MainActor (AppRoute) -> Void
+
+    /// Push `route` on the current section's navigation stack.
+    @MainActor func callAsFunction(_ route: AppRoute) { handler(route) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
 extension EnvironmentValues {
     /// Opens the profile selection sheet owned by the root shell.
     @Entry var openProfile = OpenProfileAction(handler: {})
     /// Opens the hamburger drawer; nil where the platform shows a permanent sidebar.
     @Entry var openDrawer: OpenDrawerAction? = nil
+    /// Pushes on the current section's stack; nil outside the root shell (hosted tests).
+    @Entry var pushRoute: PushRouteAction? = nil
     /// The shared session, so pushed pages' shared chrome (the persistent avatar) can
     /// read the selected profile; nil outside the root shell.
     @Entry var festivalSession: FestivalSession? = nil
@@ -245,6 +260,8 @@ struct FestivalRootTrailingItems: ToolbarContent {
     let session: FestivalSession
     var showsNotifications: Bool = true
     @Environment(\.openProfile) private var openProfile
+    /// Notification rows open their destination on the current tab (issue #75).
+    @Environment(\.pushRoute) private var pushRoute
     /// Global search: a header button on every layout (operator, 2026-09-28).
     @Environment(\.openGlobalSearch) private var openGlobalSearch
     @Environment(\.deviceLayout) private var layout
@@ -263,10 +280,14 @@ struct FestivalRootTrailingItems: ToolbarContent {
         // Bell only with a selected profile (operator, 2026-09-28): notifications are per player.
         if showsNotifications && session.selectedPlayer != nil {
             if #available(iOS 27.0, *) {
-                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
-                    .railVisibilityPriority(.bell)
+                ToolbarItem(placement: .topBarTrailing) {
+                    NotificationsButton(session: session, pushRoute: pushRoute)
+                }
+                .railVisibilityPriority(.bell)
             } else {
-                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NotificationsButton(session: session, pushRoute: pushRoute)
+                }
             }
             if #available(iOS 26.0, *) {
                 if RootChromeTrailingGroups.separatesBellFromProfile(chrome: layout.sectionChrome) {
@@ -408,6 +429,9 @@ enum NotificationBadge {
 /// Owned by the Notifications feature lane; see `Features/Notifications/NotificationsSheet.swift`.
 struct NotificationsButton: View {
     let session: FestivalSession
+    /// The root shell's push on the current tab; a tapped row's page opens there after
+    /// the sheet closes. Nil outside the shell.
+    var pushRoute: PushRouteAction?
     @State private var presented = false
     private var center: NotificationsCenter { session.notificationsCenter }
 
@@ -427,7 +451,8 @@ struct NotificationsButton: View {
         .accessibilityIdentifier("fst.shell.notifications")
         .task(id: session.selectionRevision) { await center.refresh(session: session) }
         .sheet(isPresented: $presented) {
-            NotificationsSheet(session: session)
+            // Closure passed directly, like the profile sheet (environment trap).
+            NotificationsSheet(session: session) { route in pushRoute?(route) }
                 .festivalSheet(.large)
         }
     }
