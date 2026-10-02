@@ -310,6 +310,7 @@ struct PlayerProfileContent: View {
                     .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + 3)
             }
             .padding(16)
+            .festivalFadeInScope()
         }
         .quickLinks(quickLinks, title: "Quick Links")
         .accessibilityIdentifier("fst.player.available")

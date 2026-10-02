@@ -19,6 +19,9 @@ struct PlayerBandsScreen: View {
     @State private var group: PlayerBandGroup = .all
     @State private var page = 1
     @State private var state: RankLoadState<PlayerBandListPayload> = .loading
+    /// The loaded page's first stagger finished: rows the List rebuilds after that
+    /// (scrolled away and back) appear without a fade (issue #30).
+    @State private var staggerSettled = false
     @Environment(\.deviceLayout) private var layout
 
     /// Includes `accountId` so a reused view identity can never keep, or accept a
@@ -76,12 +79,17 @@ struct PlayerBandsScreen: View {
                         List {
                             ForEach(Array(payload.list.entries.enumerated()), id: \.element.id) { index, entry in
                                 PlayerBandRow(entry: entry)
-                                    .festivalFadeIn(isLoaded: true, index: index)
+                                    .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                                     .listRowBackground(BrandTokens.cardBackground)
                             }
                         }
                         .scrollContentBackground(.hidden)
                         .listStyle(.plain)
+                        .task(id: requestKey) {
+                            await FadeStagger.settle(afterRevealing: payload.list.entries.count) {
+                                staggerSettled = true
+                            }
+                        }
                         .rankingsListRailClearance(layout)
                         RankingsPagerView(
                             page: page,
@@ -117,6 +125,7 @@ struct PlayerBandsScreen: View {
     private func load() async {
         let requested = requestKey
         state = .loading
+        staggerSettled = false
         do {
             let payload = try await session.playerBands(
                 accountId: accountId, group: requested.group, page: requested.page, pageSize: 25

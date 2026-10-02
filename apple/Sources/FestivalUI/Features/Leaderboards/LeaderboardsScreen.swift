@@ -173,6 +173,7 @@ struct LeaderboardsScreen: View {
                 }
             }
             .padding(16)
+            .festivalFadeInScope()
         }
         .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
         .refreshable { await loadAll() }

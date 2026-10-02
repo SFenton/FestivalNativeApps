@@ -10,7 +10,8 @@ import SwiftUI
 /// `staggerDelay(index) = (index + 1) × 125 ms` (`packages/ui-utils/src/stagger.ts`,
 /// `packages/theme/src/animation.ts`); the same values are used on Android and Windows.
 /// Items past the first screenful (`estimateVisibleCount`) appear without animation so a
-/// long list never makes the user wait for off-screen rows.
+/// long list never makes the user wait for off-screen rows. Only content visible when a
+/// page opens fades; see ``FestivalFadeInScope`` for lazily built sections.
 public enum FestivalFadeIn {
     /// Length of one fade (web `FADE_DURATION`, 400 ms).
     public static let duration: TimeInterval = 0.4
@@ -54,6 +55,67 @@ public enum FestivalFadeIn {
     }
 }
 
+// MARK: - Page scope
+
+/// A page's "only content visible at page load fades in" window (issue #30).
+///
+/// Lazy containers (`LazyVStack`, `LazyVGrid`) build a row only when it scrolls near the
+/// viewport and rebuild it after it scrolls away and back, so a per-view fade alone
+/// replays as the user scrolls. A page installs one scope on its scroll content
+/// (``SwiftUICore/View/festivalFadeInScope()``); the scope stays open until the content
+/// first moves (a user drag, deceleration, a Quick Links jump or a deep-link scroll), and
+/// any fade that has not started by then shows its content immediately. Content already
+/// revealing when the scope closes finishes its fade.
+///
+/// Deliberately not `@Observable`: closing must not re-render the page; each fade reads
+/// the flag when it is built or revealed.
+@MainActor
+public final class FestivalFadeInScope {
+    /// Content movement (points) that counts as a scroll; absorbs sub-point layout jitter.
+    public static let scrollThreshold: CGFloat = 4
+
+    /// Whether fades on this page may still animate.
+    public private(set) var isOpen = true
+
+    /// The content's resting position, captured from the first geometry report.
+    private var restingOffset: CGFloat?
+
+    /// Creates an open scope.
+    public init() {}
+
+    /// Record the scroll content's current position and close once it has moved.
+    ///
+    /// - Parameter offset: The content's `minY` in its scroll view's coordinate space.
+    public func noteContentOffset(_ offset: CGFloat) {
+        guard isOpen, offset.isFinite else { return }
+        guard let restingOffset else {
+            restingOffset = offset
+            return
+        }
+        if abs(offset - restingOffset) > Self.scrollThreshold { isOpen = false }
+    }
+
+    /// Close the window explicitly: later fades on this page show content immediately.
+    public func close() {
+        isOpen = false
+    }
+}
+
+/// Installs a ``FestivalFadeInScope`` and feeds it the scroll content's position.
+struct FestivalFadeInScopeModifier: ViewModifier {
+    @State private var scope = FestivalFadeInScope()
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.festivalFadeInScope, scope)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.frame(in: .scrollView).minY
+            } action: { offset in
+                scope.noteContentOffset(offset)
+            }
+    }
+}
+
 // MARK: - Environment
 
 extension EnvironmentValues {
@@ -61,6 +123,9 @@ extension EnvironmentValues {
     ///
     /// Hosted snapshot tests set this to `false` so a capture never lands mid-fade.
     @Entry public var festivalFadeInEnabled: Bool = true
+
+    /// The enclosing page's fade window, or nil outside a scoped page (fades always play).
+    @Entry public var festivalFadeInScope: FestivalFadeInScope? = nil
 }
 
 // MARK: - Modifier
@@ -74,6 +139,7 @@ struct FestivalFadeInModifier: ViewModifier {
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.festivalFadeInEnabled) private var fadeEnabled
+    @Environment(\.festivalFadeInScope) private var scope
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @State private var revealed = false
 
@@ -88,9 +154,11 @@ struct FestivalFadeInModifier: ViewModifier {
             .onChange(of: isLoaded) { _, _ in reveal() }
     }
 
-    /// Reduce Motion (system or in-app) and the test override show content immediately.
+    /// Reduce Motion (system or in-app), the test override and a closed page scope (the
+    /// page has scrolled since it loaded) show content immediately.
     private var animates: Bool {
         fadeEnabled && !systemReduceMotion && !appReduceMotion && delay != nil
+            && scope?.isOpen != false
     }
 
     /// Reveal once per view lifetime; later reloads keep the content visible.
@@ -141,5 +209,17 @@ extension View {
     /// - Returns: The view, fading in when it first appears.
     public func festivalFadeInOnAppear() -> some View {
         festivalFadeIn(isLoaded: true)
+    }
+
+    /// Limit every `festivalFadeIn` inside this content to what is on screen at page
+    /// load: once the content scrolls, later-built content appears without a fade.
+    ///
+    /// Apply it to the content directly inside a page's `ScrollView` (it measures its own
+    /// frame in the `.scrollView` coordinate space). An appending feed that should fade
+    /// each newly loaded batch (Suggestions) must not use it.
+    ///
+    /// - Returns: The content with a page-level fade window.
+    public func festivalFadeInScope() -> some View {
+        modifier(FestivalFadeInScopeModifier())
     }
 }
