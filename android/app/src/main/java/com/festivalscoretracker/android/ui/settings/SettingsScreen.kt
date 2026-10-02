@@ -135,7 +135,8 @@ internal fun settingsSections(debug: Boolean): List<QuickLinkSection> = buildLis
  * @param onReplayFirstRun Settings "Show" for one page's first-run guide.
  * @param debug Whether this is a debug build (Diagnostics section).
  * @param onShowWhatsNew Settings → Version "What's New" Show (replays the changelog sheet).
- * @param feedback Report an Issue / Request a Feature form (App Settings rows; hidden when null).
+ * @param feedback Report an Issue / Request a Feature form (App Settings rows; hidden when null or
+ *   until `GET /api/features` reports `feedback: true`).
  */
 @Composable
 fun SettingsScreen(
@@ -155,6 +156,9 @@ fun SettingsScreen(
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     val serviceVersion by viewModel.serviceVersion.collectAsStateWithLifecycle()
+    // The rows show only once the service reports `feedback: true`; each Settings visit retries a failed read.
+    val feedbackAvailable = feedback?.let { it.available.collectAsStateWithLifecycle().value } == true
+    LaunchedEffect(feedback) { feedback?.loadAvailability() }
 
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
@@ -174,7 +178,7 @@ fun SettingsScreen(
                         item(key = section.id) {
                             Column(Modifier.fillMaxWidth().widthIn(max = 840.dp).testTag("fst.settings.section.${section.id}")) {
                                 when (section.id) {
-                                    "app-settings" -> AppSettingsSection(settings, viewModel, feedback?.let { it::open })
+                                    "app-settings" -> AppSettingsSection(settings, viewModel, feedback?.takeIf { feedbackAvailable }?.let { it::open })
                                     "diagnostics" -> DiagnosticsSection(settings, viewModel)
                                     "item-shop" -> ItemShopSection(settings, viewModel)
                                     "show-instruments" -> InstrumentsSection(settings, viewModel)

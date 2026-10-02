@@ -35,22 +35,34 @@ enum class FeedbackKind(
 
 // region Limits and copy
 
-/** Client-side bounds; the service transcodes oversized media itself, these only stop absurd uploads. */
+/**
+ * Client-side bounds matching the service (`docs/components/in-app-feedback.md` on the service repo).
+ * The service fits each accepted file under GitHub's limits itself; these only stop uploads it would reject.
+ */
 object FeedbackLimits {
-    /** Most attachments one submission carries. */
-    const val MAX_ATTACHMENTS = 10
+    /** Most attachments one submission carries (service `MaxAttachments`). */
+    const val MAX_ATTACHMENTS = 4
 
-    /** Largest single attachment (250 MB). */
-    const val MAX_ATTACHMENT_BYTES = 250L * 1024 * 1024
+    /** Largest whole request the service accepts (90 MiB; larger answers 413 `payload_too_large`). */
+    const val MAX_REQUEST_BYTES = 94_371_840L
 
-    /** Largest combined upload (500 MB). */
-    const val MAX_TOTAL_BYTES = 500L * 1024 * 1024
+    /** Combined attachment budget: the request cap less 512 KiB for text fields and multipart framing. */
+    const val MAX_TOTAL_BYTES = MAX_REQUEST_BYTES - 512L * 1024
+
+    /** Largest single attachment (the whole budget; there is no separate per-file cap). */
+    const val MAX_ATTACHMENT_BYTES = MAX_TOTAL_BYTES
 
     /** Longest title, prefix included. */
     const val MAX_TITLE_LENGTH = 200
 
     /** Longest description, steps or expected-behavior text. */
     const val MAX_TEXT_LENGTH = 10_000
+
+    /** Longest `appVersion` field. */
+    const val MAX_APP_VERSION_LENGTH = 64
+
+    /** Longest `clientInfo` field (OS and device). */
+    const val MAX_CLIENT_INFO_LENGTH = 256
 
     /** MIME filters handed to the system document picker. */
     val PICKER_MIME_TYPES = arrayOf("image/*", "video/*")
@@ -101,8 +113,10 @@ object FeedbackCopy {
     /** Attach button label. */
     const val ATTACH = "Attach Media"
 
-    /** Helper above the attach button. */
-    const val ATTACH_HELP = "Screenshots or screen recordings help a lot. Tap an attachment to open it."
+    /** Helper above the attach button (count and size budget, then how to open one). */
+    val ATTACH_HELP: String =
+        "Add up to ${FeedbackLimits.MAX_ATTACHMENTS} screenshots or screen recordings, " +
+            "${FeedbackFormat.bytes(FeedbackLimits.MAX_REQUEST_BYTES)} in total. Tap one to open it."
 }
 
 // endregion
@@ -237,12 +251,7 @@ data class FeedbackDraft(
         val notices = buildList {
             if (skippedType > 0) add("Only images and videos can be attached.")
             if (skippedCount > 0) add("You can attach up to ${FeedbackLimits.MAX_ATTACHMENTS} files.")
-            if (skippedSize > 0) {
-                add(
-                    "Files must be under ${FeedbackFormat.bytes(FeedbackLimits.MAX_ATTACHMENT_BYTES)} each and " +
-                        "${FeedbackFormat.bytes(FeedbackLimits.MAX_TOTAL_BYTES)} in total.",
-                )
-            }
+            if (skippedSize > 0) add("Attachments must add up to less than ${FeedbackFormat.bytes(FeedbackLimits.MAX_REQUEST_BYTES)}.")
         }
         return AttachmentAddResult(result, notices.joinToString(" ").ifEmpty { null })
     }
@@ -252,10 +261,10 @@ data class FeedbackDraft(
      *
      * @param platform Platform label (`android`, `windows`).
      * @param appVersion App version string.
-     * @param osVersion OS description.
+     * @param clientInfo OS and device description.
      * @return Submission with trimmed text; bug-only fields are empty for features.
      */
-    fun submission(platform: String, appVersion: String, osVersion: String): FeedbackSubmission = FeedbackSubmission(
+    fun submission(platform: String, appVersion: String, clientInfo: String): FeedbackSubmission = FeedbackSubmission(
         kind = kind,
         platform = platform,
         title = normalizedTitle,
@@ -263,7 +272,7 @@ data class FeedbackDraft(
         reproSteps = if (kind.hasBugFields) reproSteps.trim() else "",
         expectedBehavior = if (kind.hasBugFields) expectedBehavior.trim() else "",
         appVersion = appVersion,
-        osVersion = osVersion,
+        clientInfo = clientInfo,
         attachments = attachments,
     )
 }
@@ -276,13 +285,13 @@ data class FeedbackDraft(
  * What `POST /api/feedback` carries (`.agents/controls/feedback-form/spec.md`).
  *
  * @property kind Form.
- * @property platform Platform label the service turns into the issue's platform label.
+ * @property platform Platform label the service turns into the issue's `surface:` label.
  * @property title Prefixed title.
  * @property description Description.
  * @property reproSteps Steps (empty for features: omitted on the wire).
  * @property expectedBehavior Expected behavior (empty for features: omitted on the wire).
- * @property appVersion App version.
- * @property osVersion OS description.
+ * @property appVersion App version (clipped to [FeedbackLimits.MAX_APP_VERSION_LENGTH] on the wire).
+ * @property clientInfo OS and device (clipped to [FeedbackLimits.MAX_CLIENT_INFO_LENGTH] on the wire).
  * @property attachments Media parts, each sent as a `media` file part.
  */
 data class FeedbackSubmission(
@@ -293,7 +302,7 @@ data class FeedbackSubmission(
     val reproSteps: String,
     val expectedBehavior: String,
     val appVersion: String,
-    val osVersion: String,
+    val clientInfo: String,
     val attachments: List<FeedbackAttachment>,
 ) {
     /** Text form fields in wire order; empty optional fields are omitted. */
@@ -303,10 +312,10 @@ data class FeedbackSubmission(
             add("platform" to platform)
             add("title" to title)
             add("description" to description)
-            if (reproSteps.isNotEmpty()) add("reproSteps" to reproSteps)
-            if (expectedBehavior.isNotEmpty()) add("expectedBehavior" to expectedBehavior)
-            if (appVersion.isNotEmpty()) add("appVersion" to appVersion)
-            if (osVersion.isNotEmpty()) add("osVersion" to osVersion)
+            if (reproSteps.isNotEmpty()) add("repro" to reproSteps)
+            if (expectedBehavior.isNotEmpty()) add("expected" to expectedBehavior)
+            clip(appVersion, FeedbackLimits.MAX_APP_VERSION_LENGTH).takeIf { it.isNotEmpty() }?.let { add("appVersion" to it) }
+            clip(clientInfo, FeedbackLimits.MAX_CLIENT_INFO_LENGTH).takeIf { it.isNotEmpty() }?.let { add("clientInfo" to it) }
         }
 
     companion object {
@@ -315,64 +324,153 @@ data class FeedbackSubmission(
 
         /** Platform label Android submits. */
         const val PLATFORM_ANDROID = "android"
+
+        private fun clip(value: String, max: Int): String {
+            val trimmed = value.trim()
+            return if (trimmed.length > max) trimmed.take(max).trimEnd() else trimmed
+        }
     }
 }
 
+// endregion
+
+// region Job status
+
+/** Service processing state of an accepted submission (`GET /api/feedback/{id}`). */
+enum class FeedbackJobState {
+    /** Accepted (the 202 answer), waiting for a worker. */
+    Queued,
+
+    /** Media being prepared or the issue being filed. */
+    Processing,
+
+    /** Filed on GitHub. */
+    Submitted,
+
+    /** Filing failed; nothing was created. */
+    Failed,
+}
+
 /**
- * The service's answer to a successful submission. Both fields are optional so a bare 2xx is still success.
+ * An accepted submission as last seen. The 202 answer is `{id, status:"queued"}`; polling adds the
+ * issue number and per-attachment outcomes. The service never returns an issue URL (the tracker may
+ * be private), so the app shows the number only and opens no link.
  *
- * @property issueNumber Created issue number.
- * @property issueUrl Created issue URL (only `https://github.com/…` URLs are kept).
+ * @property id 32 lowercase hex characters, or null when the 2xx body carried none (no polling).
+ * @property state Processing state.
+ * @property issueNumber Created issue number once submitted, when reported.
+ * @property skippedAttachments Attachments the service could not fit and left out.
  */
-data class FeedbackReceipt(val issueNumber: Int?, val issueUrl: String?) {
+data class FeedbackJob(
+    val id: String?,
+    val state: FeedbackJobState,
+    val issueNumber: Int? = null,
+    val skippedAttachments: Int = 0,
+) {
+    /** Whether polling can stop. */
+    val isTerminal: Boolean get() = state == FeedbackJobState.Submitted || state == FeedbackJobState.Failed
+
     /**
-     * Success text shown in the form.
+     * Success text. A submitted job names its issue; an accepted job whose outcome is unknown (still
+     * processing when polling stopped, status expired or unreadable) says it will be filed shortly
+     * rather than inviting a duplicate.
      *
      * @param kind Form.
      * @return Readable confirmation.
      */
     fun message(kind: FeedbackKind): String {
-        val noun = kind.noun.replaceFirstChar { it.titlecase(Locale.ROOT) }
-        return if (issueNumber != null) "$noun sent as issue #$issueNumber. Thank you!" else "$noun sent. Thank you!"
+        val noun = kind.noun
+        val text = when {
+            state != FeedbackJobState.Submitted -> "Thanks! Your $noun was received and will be filed on GitHub shortly."
+            issueNumber != null -> "Thanks! Your $noun was filed as issue #$issueNumber."
+            else -> "Thanks! Your $noun was filed on GitHub."
+        }
+        return when {
+            skippedAttachments <= 0 -> text
+            skippedAttachments == 1 -> "$text 1 attachment couldn't be attached."
+            else -> "$text $skippedAttachments attachments couldn't be attached."
+        }
     }
 
     companion object {
         /**
-         * Keep only a GitHub HTTPS URL (never open an arbitrary server-provided link).
+         * Whether a value is a well-formed job ID (the only shape the status route answers).
          *
-         * @param raw Wire value.
-         * @return The URL, or null.
+         * @param id Candidate.
+         * @return True for exactly 32 lowercase hex characters.
          */
-        fun safeUrl(raw: String?): String? =
-            raw?.takeIf { it.startsWith("https://github.com/") && it.none(Char::isWhitespace) }
+        fun isValidId(id: String?): Boolean = id != null && id.length == 32 && id.all { it in '0'..'9' || it in 'a'..'f' }
+
+        /**
+         * Wire `status` value, case-insensitively.
+         *
+         * @param wire Value.
+         * @return State, or null for anything unknown.
+         */
+        fun parseState(wire: String?): FeedbackJobState? = when (wire?.trim()?.lowercase(Locale.ROOT)) {
+            "queued" -> FeedbackJobState.Queued
+            "processing" -> FeedbackJobState.Processing
+            "submitted" -> FeedbackJobState.Submitted
+            "failed" -> FeedbackJobState.Failed
+            else -> null
+        }
     }
 }
 
 /**
- * A failed submission with text safe to show (never server text).
+ * A failed submission with fixed, readable text (server `error` strings are never shown).
  *
  * @property status HTTP status, when one arrived.
  */
 class FeedbackException(message: String, val status: Int? = null) : Exception(message) {
     companion object {
         /**
-         * Map an HTTP status to readable text.
+         * Map a service error `code` (preferred) or HTTP status to readable text.
          *
          * @param status Non-2xx status.
+         * @param code `code` from the `{error, code}` body, when present.
+         * @param retryAfterSeconds Positive `Retry-After` delta, when present.
          * @return Exception to surface.
          */
-        fun forStatus(status: Int): FeedbackException = FeedbackException(
-            when (status) {
-                400, 422 -> "The service couldn't accept this form. Check the fields and try again."
-                404, 405, 501 -> "Sending feedback isn't available yet. Try again after the next update."
-                413 -> "The attachments are too large to send. Remove some and try again."
-                415 -> "One of the attachments isn't a supported image or video."
-                429 -> "Too many submissions right now. Try again in a few minutes."
-                in 500..599 -> "The service is temporarily unavailable. Try again."
-                else -> "Your feedback couldn't be sent (HTTP $status). Try again."
-            },
-            status,
-        )
+        fun forStatus(status: Int, code: String? = null, retryAfterSeconds: Int? = null): FeedbackException {
+            val budget = FeedbackFormat.bytes(FeedbackLimits.MAX_REQUEST_BYTES)
+            val busy = "Feedback is busy right now. Try again in a minute."
+            val unavailable = "Sending feedback isn't available right now."
+            val message = when (code) {
+                "payload_too_large" -> "The attachments are too large. Keep them under $budget in total."
+                "too_many_attachments" -> "Attach up to ${FeedbackLimits.MAX_ATTACHMENTS} files."
+                "unsupported_media" -> "Only image and video attachments are supported."
+                "feedback_disabled" -> unavailable
+                "feedback_busy" -> busy
+                "title_required" -> FeedbackProblem.MissingTitle.message
+                "description_required" -> FeedbackProblem.MissingDescription.message
+                "field_too_long" -> "One of the fields is too long. Shorten it and try again."
+                else -> when (status) {
+                    429 -> if (retryAfterSeconds != null && retryAfterSeconds > 0) {
+                        "Too many submissions from this network. Try again in ${FeedbackFormat.wait(retryAfterSeconds)}."
+                    } else {
+                        "Too many submissions from this network. Try again later."
+                    }
+                    400, 422 -> "The service couldn't accept this form. Check the fields and try again."
+                    404, 405, 501 -> unavailable
+                    413 -> "The attachments are too large. Keep them under $budget in total."
+                    415 -> "Only image and video attachments are supported."
+                    503 -> busy
+                    in 500..599 -> "The service is temporarily unavailable. Try again."
+                    else -> "Your feedback couldn't be sent (HTTP $status). Try again."
+                }
+            }
+            return FeedbackException(message, status)
+        }
+
+        /**
+         * The service accepted the form but could not file it.
+         *
+         * @param kind Form.
+         * @return Exception to surface (the form keeps every field for a retry).
+         */
+        fun filingFailed(kind: FeedbackKind): FeedbackException =
+            FeedbackException("Your ${kind.noun} couldn't be filed on GitHub. Try again in a few minutes.")
 
         /**
          * Connectivity failure.
@@ -414,6 +512,18 @@ object FeedbackFormat {
             bytes < gb -> String.format(Locale.US, "%.1f MB", bytes / mb).replace(".0 MB", " MB")
             else -> String.format(Locale.US, "%.1f GB", bytes / gb).replace(".0 GB", " GB")
         }
+    }
+
+    /**
+     * A short wait for retry messages.
+     *
+     * @param seconds Seconds (positive).
+     * @return E.g. `45 seconds`, `1 minute`, `10 minutes` (rounded up).
+     */
+    fun wait(seconds: Int): String {
+        if (seconds < 60) return if (seconds == 1) "1 second" else "$seconds seconds"
+        val minutes = (seconds + 59) / 60
+        return if (minutes == 1) "1 minute" else "$minutes minutes"
     }
 }
 

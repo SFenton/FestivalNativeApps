@@ -99,6 +99,8 @@ import com.festivalscoretracker.android.core.feedback.FeedbackKind
 import com.festivalscoretracker.android.core.feedback.FeedbackLimits
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.data.FestivalApi
+import com.festivalscoretracker.android.data.feedback.feedbackEnabled
+import com.festivalscoretracker.android.data.feedback.feedbackStatus
 import com.festivalscoretracker.android.data.feedback.submitFeedback
 import com.festivalscoretracker.android.presentation.feedback.FeedbackFormState
 import com.festivalscoretracker.android.presentation.feedback.FeedbackPhase
@@ -132,8 +134,10 @@ fun rememberFeedbackViewModel(api: FestivalApi): FeedbackViewModel {
                     resolver.openInputStream(Uri.parse(attachment.id)) ?: throw FileNotFoundException(attachment.name)
                 }
             },
+            status = { id -> api.feedbackStatus(id) },
+            features = { api.feedbackEnabled() },
             appVersion = BuildConfig.VERSION_NAME,
-            osVersion = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}); ${Build.MANUFACTURER} ${Build.MODEL}",
+            clientInfo = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}); ${Build.MANUFACTURER} ${Build.MODEL}",
         )
     }
 }
@@ -215,7 +219,7 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
                 ) { Text("Submit", fontWeight = FontWeight.Bold) }
             }
         }
-        if (form.phase == FeedbackPhase.Submitting) {
+        if (form.busy) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -224,7 +228,7 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
                     .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             ) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text("Sending your ${kind.noun}…", color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
+                Text(form.progressText, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
             }
         }
         Column(
@@ -244,7 +248,6 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
 
 @Composable
 private fun SentContent(kind: FeedbackKind, phase: FeedbackPhase.Sent, onDone: () -> Unit) {
-    val context = LocalContext.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -255,17 +258,11 @@ private fun SentContent(kind: FeedbackKind, phase: FeedbackPhase.Sent, onDone: (
     ) {
         Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = BrandTokens.statusGreen, modifier = Modifier.size(48.dp))
         Text(
-            phase.receipt.message(kind),
+            phase.job.message(kind),
             style = MaterialTheme.typography.titleMedium,
             color = BrandTokens.textPrimary,
             modifier = Modifier.padding(top = 12.dp),
         )
-    }
-    phase.receipt.issueUrl?.let { url ->
-        OutlinedButton(
-            onClick = { openUri(context, Uri.parse(url), null) },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("fst.settings.feedback.view-issue"),
-        ) { Text("View on GitHub") }
     }
     Button(
         onClick = onDone,

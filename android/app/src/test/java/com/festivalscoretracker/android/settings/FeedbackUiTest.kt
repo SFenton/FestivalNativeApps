@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -44,7 +45,9 @@ class FeedbackUiTest {
     private val transport = FakeTransport.standard().apply {
         on("/api/service-info") { """{"contractVersion":2}""" }
         on("/api/version") { """{"version":"9.9.9"}""" }
+        on("/api/features") { """{"appManual":false,"feedback":true}""" }
     }
+    private val jobId = "0123456789abcdef0123456789abcdef"
 
     private fun launch() {
         val debug = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
@@ -52,6 +55,8 @@ class FeedbackUiTest {
         rule.setContent { FestivalApp(container, debug) }
         settle()
         waitFor("fst.settings.list")
+        rule.waitUntil(10_000) { settle(100); transport.sent("/api/features").isNotEmpty() }
+        settle()
     }
 
     private fun settle(millis: Long = 400) = repeat(4) {
@@ -83,7 +88,8 @@ class FeedbackUiTest {
 
     @Test
     fun bugFormGuardsDiscardAndSubmits() {
-        transport.on("/api/feedback", status = 201) { """{"issueNumber":42}""" }
+        transport.on("/api/feedback", status = 202) { """{"id":"$jobId","status":"queued"}""" }
+        transport.on("/api/feedback/$jobId") { """{"id":"$jobId","status":"submitted","issueNumber":42,"attachments":[]}""" }
         launch()
         openForm(FeedbackKind.Bug)
         rule.onNodeWithTag("fst.settings.feedback.title").assertIsDisplayed()
@@ -112,7 +118,8 @@ class FeedbackUiTest {
 
         rule.onNodeWithTag("fst.settings.feedback.submit").performClick()
         waitFor("fst.settings.feedback.sent")
-        rule.onNodeWithText("Report sent as issue #42. Thank you!").assertIsDisplayed()
+        rule.onNodeWithText("Thanks! Your report was filed as issue #42.").assertIsDisplayed()
+        assertEquals("GET", transport.sent("/api/feedback/$jobId").first().method)
         val request = transport.sent("/api/feedback").single()
         assertEquals("POST", request.method)
         val body = java.io.ByteArrayOutputStream().also { request.body!!.writeTo(it) }.toString(Charsets.UTF_8)
@@ -121,6 +128,15 @@ class FeedbackUiTest {
 
         rule.onNodeWithTag("fst.settings.feedback.done").performClick()
         waitGone("fst.settings.feedback.dialog")
+    }
+
+    @Test
+    fun rowsStayHiddenUntilTheServiceEnablesFeedback() {
+        transport.on("/api/features") { """{"appManual":false}""" }
+        launch()
+        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.bug").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.feature").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithText("Report an Issue").fetchSemanticsNodes().isEmpty())
     }
 
     @Test

@@ -4,7 +4,8 @@ import com.festivalscoretracker.android.core.feedback.FeedbackAttachment
 import com.festivalscoretracker.android.core.feedback.FeedbackDraft
 import com.festivalscoretracker.android.core.feedback.FeedbackException
 import com.festivalscoretracker.android.core.feedback.FeedbackKind
-import com.festivalscoretracker.android.core.feedback.FeedbackReceipt
+import com.festivalscoretracker.android.core.feedback.FeedbackJob
+import com.festivalscoretracker.android.core.feedback.FeedbackJobState
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.HttpBody
@@ -19,6 +20,8 @@ import java.io.IOException
 import java.io.OutputStream
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -26,6 +29,7 @@ import org.junit.Test
 
 class FeedbackDataTest {
     private val png = byteArrayOf(1, 2, 3, 4)
+    private val jobId = "0123456789abcdef0123456789abcdef"
 
     private fun bytesOf(body: HttpBody): ByteArray = ByteArrayOutputStream().also(body::writeTo).toByteArray()
 
@@ -123,18 +127,18 @@ class FeedbackDataTest {
     // region Submit
 
     @Test
-    fun submitPostsMultipartAndDecodesReceipt() = runTest {
+    fun submitPostsMultipartAndDecodesTheAcceptedJob() = runTest {
         val transport = FakeTransport().apply {
-            on("/api/feedback", status = 201) { """{"issueNumber":42,"issueUrl":"https://github.com/o/r/issues/42","extra":1}""" }
+            on("/api/feedback", status = 202) { """{"id":"$jobId","status":"queued","extra":1}""" }
         }
         val api = FestivalApi("https://fixture.test", transport)
         val attachment = FeedbackAttachment("content://a", "shot.png", "image/png", png.size.toLong())
         var opens = 0
-        val receipt = api.submitFeedback(submission(listOf(attachment))) {
+        val job = api.submitFeedback(submission(listOf(attachment))) {
             opens++
             ByteArrayInputStream(png)
         }
-        assertEquals(FeedbackReceipt(42, "https://github.com/o/r/issues/42"), receipt)
+        assertEquals(FeedbackJob(jobId, FeedbackJobState.Queued), job)
         val request = transport.requests.single()
         assertEquals("POST", request.method)
         assertEquals("https://fixture.test/api/feedback", request.url)
@@ -142,19 +146,91 @@ class FeedbackDataTest {
         val text = String(bytesOf(request.body!!))
         listOf(
             "name=\"kind\"\r\n\r\nbug\r\n", "name=\"platform\"\r\n\r\nandroid\r\n", "name=\"title\"\r\n\r\n[Bug] Crash\r\n",
-            "name=\"reproSteps\"\r\n\r\nTap\r\n", "name=\"expectedBehavior\"\r\n\r\nNo crash\r\n",
+            "name=\"repro\"\r\n\r\nTap\r\n", "name=\"expected\"\r\n\r\nNo crash\r\n", "name=\"clientInfo\"\r\n\r\nAndroid 15\r\n",
             "name=\"media\"; filename=\"shot.png\"\r\nContent-Type: image/png",
         ).forEach { assertTrue(it, text.contains(it)) }
         assertEquals(2, opens) // preflight + the write above
     }
 
     @Test
-    fun submitAcceptsBareOrUnsafeReceipts() = runTest {
+    fun submitAcceptsBareOrOddBodies() = runTest {
         val transport = FakeTransport().apply { on("/api/feedback", status = 202) { "" } }
         val api = FestivalApi("https://fixture.test", transport)
-        assertEquals(FeedbackReceipt(null, null), api.submitFeedback(submission()) { fail(); ByteArrayInputStream(png) })
-        transport.on("/api/feedback", status = 200) { """{"issueNumber":0,"issueUrl":"javascript:alert(1)"}""" }
-        assertEquals(FeedbackReceipt(null, null), api.submitFeedback(submission()) { ByteArrayInputStream(png) })
+        assertEquals(FeedbackJob(null, FeedbackJobState.Queued), api.submitFeedback(submission()) { fail(); ByteArrayInputStream(png) })
+        transport.on("/api/feedback", status = 200) { """{"id":"BAD","status":"submitted","issueNumber":9}""" }
+        assertEquals(FeedbackJob(null, FeedbackJobState.Submitted, 9), api.submitFeedback(submission()) { ByteArrayInputStream(png) })
+        transport.on("/api/feedback", status = 202) { "[1]" }
+        assertEquals(FeedbackJob(null, FeedbackJobState.Queued), api.submitFeedback(submission()) { ByteArrayInputStream(png) })
+    }
+
+    @Test
+    fun submitMapsServiceCodesAndRetryAfter() = runTest {
+        val transport = FakeTransport()
+        val api = FestivalApi("https://fixture.test", transport)
+        transport.on("/api/feedback", status = 400) { """{"error":"server words","code":"too_many_attachments"}""" }
+        val coded = expectFailure { api.submitFeedback(submission()) { ByteArrayInputStream(png) } }
+        assertEquals("Attach up to 4 files.", coded.message)
+        assertEquals(400, coded.status)
+        transport.on("/api/feedback", status = 429, headers = mapOf("retry-after" to "120")) { """{"error":"slow down"}""" }
+        assertEquals(
+            "Too many submissions from this network. Try again in 2 minutes.",
+            expectFailure { api.submitFeedback(submission()) { ByteArrayInputStream(png) } }.message,
+        )
+        transport.on("/api/feedback", status = 429, headers = mapOf("Retry-After" to "Wed, 21 Oct 2015 07:28:00 GMT")) { "x" }
+        assertEquals(
+            FeedbackException.forStatus(429).message,
+            expectFailure { api.submitFeedback(submission()) { ByteArrayInputStream(png) } }.message,
+        )
+    }
+
+    @Test
+    fun statusReadsTheJobAndRejectsBadIds() = runTest {
+        val transport = FakeTransport().apply {
+            on("/api/feedback/$jobId") {
+                """{"id":"$jobId","status":"submitted","issueNumber":42,"attachments":[
+                    {"name":"a.png","kind":"image","outcome":"attached"},{"name":"b.mp4","kind":"video","outcome":"SKIPPED"},
+                    {"name":"c","outcome":7},"junk"]}"""
+            }
+        }
+        val api = FestivalApi("https://fixture.test", transport)
+        assertEquals(FeedbackJob(jobId, FeedbackJobState.Submitted, 42, 1), api.feedbackStatus(jobId))
+        val request = transport.requests.single()
+        assertEquals("GET", request.method)
+        assertNull(request.body)
+        assertTrue(request.headers.keys.none { it.lowercase() == "x-api-key" || it.lowercase().startsWith("x-fst-") })
+
+        assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { api.feedbackStatus("../songs") } }
+        assertEquals(1, transport.requests.size)
+
+        // Unknown status keeps polling; a missing body is unreadable; an expired job is a 404.
+        transport.on("/api/feedback/$jobId") { """{"status":"later","issueNumber":"7"}""" }
+        assertEquals(FeedbackJob(jobId, FeedbackJobState.Processing), api.feedbackStatus(jobId))
+        transport.on("/api/feedback/$jobId") { "" }
+        assertThrows(FestivalApiException.InvalidResponse::class.java) { kotlinx.coroutines.runBlocking { api.feedbackStatus(jobId) } }
+        transport.on("/api/feedback/$jobId", status = 404) { """{"code":"not_found"}""" }
+        assertThrows(FestivalApiException::class.java) { kotlinx.coroutines.runBlocking { api.feedbackStatus(jobId) } }
+    }
+
+    @Test
+    fun featuresFlagIsOnOnlyForJsonTrue() = runTest {
+        val transport = FakeTransport()
+        val api = FestivalApi("https://fixture.test", transport)
+        mapOf(
+            """{"appManual":false,"feedback":true}""" to true,
+            """{"appManual":false}""" to false,
+            """{"feedback":"true"}""" to false,
+            """{"feedback":1}""" to false,
+            """{"feedback":false}""" to false,
+            "[true]" to false,
+            "not json" to false,
+        ).forEach { (body, expected) ->
+            transport.on("/api/features") { body }
+            assertEquals(body, expected, api.feedbackEnabled())
+        }
+        assertTrue(transport.requests.all { it.method == "GET" && it.url == "https://fixture.test/api/features" })
+        transport.on("/api/features", status = 500) { "{}" }
+        assertThrows(FestivalApiException::class.java) { kotlinx.coroutines.runBlocking { api.feedbackEnabled() } }
+        assertFalse(FeedbackWire.enabled(ByteArray(0)))
     }
 
     @Test
