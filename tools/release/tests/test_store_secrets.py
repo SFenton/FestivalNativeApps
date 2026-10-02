@@ -93,6 +93,15 @@ class StoreSecretsTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(gh.calls, [])
         self.assertIn("Apple Distribution", err)
+        gh = FakeGh()
+        code, _, _ = self.run_main(["ios-dev-p12", "--p12", p12, "--password-file", pw], gh,
+                                   subjects_fn=lambda d, p: ["CN = Apple Development: Created via API (ABC)"])
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(gh.secrets()), ["IOS_DEV_P12_BASE64", "IOS_DEV_P12_PASSWORD"])
+        gh = FakeGh()
+        code, _, _ = self.run_main(["ios-dev-p12", "--p12", p12, "--password-file", pw], gh,
+                                   subjects_fn=lambda d, p: ["CN = Apple Distribution: Example"])
+        self.assertEqual((code, gh.calls), (2, []))
         with self.assertRaises(ss.InputError):
             ss.validate_p12_subjects(["CN = Apple Distribution: A", "CN = Apple Development: B"])
 

@@ -41,7 +41,8 @@ Builds, signing, TestFlight uploads and store submissions run only in GitHub-hos
 | `ios status --json` | `{in_review,state,version,latest_build{version,build,sha,processing_state},released_sha,blocked}`; always the full shape (blocked ⇒ `in_review:false`, exit 4; ASC failure ⇒ `blocked:"asc_error"`, exit 5) |
 | `ios released-versions --json` | `{"released":[…]}`: App Store versions that reached `READY_FOR_SALE`/`READY_FOR_DISTRIBUTION` (or later released states), newest first; the build's What's New sections |
 | `ios next-version [--json]` | Legacy (pre-tag) suggestion; release builds take the version from the tag |
-| `ios prune-ci-certs [--dry-run]` | Revokes development certificates named "Created via API" (made by cloud-signed archives on hosted runners) so the account never hits Apple's certificate limit ("Your account has reached the maximum number of certificates"); personal Xcode certificates and all distribution certificates are kept. `ios-release-build` runs it before and after each cloud-signed archive, from the workflow commit, and continues on error |
+| `ios prune-ci-certs [--dry-run] [--keep-serial S]` | Revokes development certificates named "Created via API", except `--keep-serial` (the persistent CI identity), so the account never hits Apple's certificate limit; personal Xcode certificates and all distribution certificates are kept. `ios-release-build` runs it before and after each cloud-signed archive, from the workflow commit, and continues on error |
+| `ios create-certificate --csr-file F --out C [--type DEVELOPMENT]` | Creates a certificate from a CSR and writes the public DER certificate; the private key never leaves whoever made the CSR. Run by `ios-signing-cert.yml` |
 | `ios beta-notes --build N (--notes-file F\|--notes-stdin) [--wait S]` | Sets the build's en-US TestFlight "What to Test" (≤4000), waiting up to `S` seconds for the build to appear |
 | `ios submit --build N (--notes-file F\|--notes-stdin) [--whats-new-baseline V\|none] [--dry-run]` | Refuses (exit 3) when any version or review submission is in review, or with `refused:"stale_whats_new"` when a version newer than the baseline has been released since the build was made; requires a `VALID`, unexpired build; creates/reuses the editable version, sets en-US What's New, attaches the build, sets `releaseType` from `FST_APPSTORE_RELEASE_TYPE` (default `MANUAL`), creates/reuses a review submission, adds the item, `submitted=true`. `--dry-run` performs GETs only and prints the planned writes |
 | `ios record-build --build N --version V --sha S` | Writes `~/.local/state/fst-release/builds.json` (`FST_RELEASE_LEDGER` overrides) |
@@ -59,6 +60,15 @@ In review means version state `WAITING_FOR_REVIEW`, `IN_REVIEW`, `PENDING_APPLE_
 | Team | `3Q9X8JX23S` is passed on the `xcodebuild` command line and in `ExportOptions-appstore.plist`, never in `project.yml` |
 
 Check what is configured with `python3 tools/release/store_secrets.py status` (names only; values are never readable back). Missing credentials never fail the build job: status/submit report `missing_asc_credentials`, the build script reports `missing_signing`.
+
+**One CI signing identity.** Automatic signing on a fresh hosted runner otherwise asks App Store Connect for a new Apple Development certificate on every build. The prune steps then revoke it, and Apple emails each revocation, attributed to "null null" (the API key). Instead, one persistent development identity lives in `store-release` as `IOS_DEV_P12_BASE64`/`IOS_DEV_P12_PASSWORD`. `ios-release-build` imports it into the throwaway keychain and passes its serial to `prune-ci-certs --keep-serial`; the step fails if the serial can't be read. Setting it up or rotating it, on a trusted host:
+1. Generate an RSA key and CSR locally.
+2. Dispatch `ios-signing-cert.yml` with `csr_b64`.
+3. Download the `ios-signing-cert` artifact.
+4. Build a `.p12` with legacy 3DES/SHA1 encryption (`openssl pkcs12 -export -legacy`), which macOS `security import` reads.
+5. Upload it with `store_secrets.py ios-dev-p12`, then delete the key and `.p12` locally.
+
+The certificate expires after a year; repeat this to rotate.
 
 ## Versions, notes and What's New
 
