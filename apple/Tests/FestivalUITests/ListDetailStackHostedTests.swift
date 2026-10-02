@@ -74,6 +74,7 @@ private func hostListDetail(
                 Text("Fixture List Root")
                 Text(rootIsTop ? "Root On Top" : "Root Covered")
                 SelectModeProbe()
+                ColumnWidthProbe()
                 if let row {
                     ListDetailLink(value: row) { Text("Fixture Row") }
                 }
@@ -144,6 +145,34 @@ private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: 
         )
         #expect(recorder.path == [fixtureRival])
     }
+}
+
+/// `/duo` J3: in an inner-display split the list column's pages see a compact width
+/// class (one dashboard column), while a full-width overview keeps regular.
+@MainActor
+@Test func duoSplitColumnsSeeCompactWidth() async throws {
+    let portraitSize = CGSize(width: 669, height: 951)
+    let portrait = DeviceLayout.resolve(LayoutSignals(size: portraitSize, widthClass: .regular, hinge: .fullyOpen))
+    for (layout, size, name) in [
+        (portrait, portraitSize, "portrait"), (duoInner, CGSize(width: 951, height: 669), "landscape"),
+    ] {
+        let (host, window) = hostListDetail(
+            section: .rivals, path: [fixtureRival], layout: layout, size: size
+        )
+        defer { window.orderOut(nil) }
+        let image = try await nativeHostedSettle(
+            host, untilText: ["Fixture List Root", "Rows Select", "Width Compact", "No Player Selected"],
+            excluding: ["Width Regular"]
+        )
+        _ = try nativeHostedPNG(
+            image, filename: "duo-j3-split-\(name).png", environment: "FST_SHELL_RENDER_OUT"
+        )
+    }
+    let (host, window) = hostListDetail(
+        section: .leaderboards, path: [], layout: duoInner, size: CGSize(width: 951, height: 669)
+    )
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push", "Width Regular"])
 }
 
 /// Folded and iPhone: one stack whose rows push; nothing is auto-selected.
@@ -221,5 +250,11 @@ private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: 
 private struct SelectModeProbe: View {
     @Environment(\.listDetailSelect) private var select
     var body: some View { Text(select == nil ? "Rows Push" : "Rows Select") }
+}
+
+/// Shows the width class the page sees (`/duo` J3).
+private struct ColumnWidthProbe: View {
+    @Environment(\.deviceLayout) private var layout
+    var body: some View { Text(layout.widthClass == .regular ? "Width Regular" : "Width Compact") }
 }
 #endif

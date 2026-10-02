@@ -127,6 +127,14 @@ struct DeviceLayout: Sendable, Equatable {
     var size: CGSize = .zero
     /// Vertical size class (see ``LayoutSignals/heightClass``).
     var heightClass: WidthClass = .regular
+    /// The window's width class when ``column(width:)`` re-classified this layout for
+    /// one split column; nil for a whole-window layout.
+    var windowWidthClassOverride: WidthClass?
+
+    /// The window's own horizontal size class, even inside a re-classified split
+    /// column. Presentations size from it: a sheet opened from a ~350 pt detail column
+    /// still covers the window, so it keeps the regular-width form size.
+    var windowWidthClass: WidthClass { windowWidthClassOverride ?? widthClass }
 
     /// Regular width *and* regular height: the iPhone Duo inner display in either
     /// orientation, flat or partially folded (HIG Designing for iPhone Duo: "Use size
@@ -163,13 +171,15 @@ struct DeviceLayout: Sendable, Equatable {
     }
 
     /// Narrowest column that pages treat as regular width (two-column dashboards,
-    /// readable-width containers) inside the iPad sidebar shell.
+    /// readable-width containers) inside the iPad sidebar shell and the iPhone Duo
+    /// inner display's list/detail columns.
     static let regularColumnWidth: CGFloat = 600
 
-    /// This layout re-classified for one column of the iPad sidebar shell.
+    /// This layout re-classified for one column of the iPad sidebar shell or an
+    /// iPhone Duo list/detail split (`/duo` J3).
     ///
     /// The window's size class stays regular beside the sidebar and in a list/detail
-    /// detail column, but the column may be ~500 pt: pages that pick two card columns
+    /// detail column, but the column may be ~350–500 pt: pages that pick two card columns
     /// from ``widthClass`` (Leaderboards, Profile) would squeeze them. Each column
     /// instead gets a width class from its own width and never splits again.
     ///
@@ -181,7 +191,8 @@ struct DeviceLayout: Sendable, Equatable {
             widthClass: width >= Self.regularColumnWidth ? .regular : .compact,
             sectionChrome: sectionChrome, contentArrangement: .stack,
             overlayInsets: overlayInsets, foldFrame: foldFrame,
-            safeAreaInsets: safeAreaInsets, size: size, heightClass: heightClass
+            safeAreaInsets: safeAreaInsets, size: size, heightClass: heightClass,
+            windowWidthClassOverride: windowWidthClass
         )
     }
 

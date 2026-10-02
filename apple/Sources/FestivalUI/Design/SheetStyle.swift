@@ -61,7 +61,7 @@ struct FestivalSheetModifier: ViewModifier {
             .presentationDragIndicator(size.detents.count > 1 ? .visible : .hidden)
             .modifier(SheetBackground(opaque: reduceTransparency || lessTransparency || moreContrast))
             .modifier(FestivalSheetSizingModifier(
-                sizing: sizing, regularWidth: deviceLayout.widthClass == .regular
+                sizing: sizing, regularWidth: deviceLayout.windowWidthClass == .regular
             ))
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)

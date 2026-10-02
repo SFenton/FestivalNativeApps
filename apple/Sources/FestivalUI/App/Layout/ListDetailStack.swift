@@ -201,9 +201,9 @@ struct ListDetailStack<Root: View>: View {
         layout.sectionChrome == .sidebar ? shellContentWidth : nil
     }
 
-    /// The split's detail column width: the container minus the list column.
+    /// The split's detail column width (``ListDetailPolicy/detailColumnWidth(layout:containerWidth:)``).
     private var detailWidth: CGFloat? {
-        containerWidth.map { max(0, $0 - ListDetailPolicy.splitListColumnWidth) }
+        ListDetailPolicy.detailColumnWidth(layout: layout, containerWidth: containerWidth)
     }
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     /// The last detail root shown, restored when a list page splits again unselected.
@@ -452,15 +452,17 @@ struct ListDetailStack<Root: View>: View {
         }
     }
 
-    /// A column's layout in the iPad sidebar shell (``DeviceLayout/column(width:)``);
-    /// unchanged elsewhere (iPhone, Duo) and before the column is measured.
+    /// A split column's layout (``DeviceLayout/column(width:)``): the iPad sidebar
+    /// shell's columns and, since `/duo` J3, the iPhone Duo inner display's list and
+    /// detail columns. Unchanged without a width (one full-width stack on iPhone, a
+    /// folded Duo or the Duo inner display's single-page sections).
     ///
     /// - Parameters:
     ///   - layout: Inherited layout.
-    ///   - width: The column's measured width, if known.
+    ///   - width: The column's width, if known.
     /// - Returns: The layout the column's pages see.
     static func columnLayout(_ layout: DeviceLayout, width: CGFloat?) -> DeviceLayout {
-        guard layout.sectionChrome == .sidebar, let width else { return layout }
+        guard let width else { return layout }
         return layout.column(width: width)
     }
 

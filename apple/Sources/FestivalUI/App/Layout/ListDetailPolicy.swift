@@ -124,6 +124,34 @@ enum ListDetailPolicy {
     /// `.balanced` split's primary column, measured 320 pt on iPadOS 26.5).
     static let splitListColumnWidth: CGFloat = 320
 
+    /// The detail column's width while a section shows list and detail, for the
+    /// column's own width class (``DeviceLayout/column(width:)``).
+    ///
+    /// - iPad sidebar shell: the section's container minus the list column.
+    /// - iPhone Duo inner display (`/duo` J3, operator 2026-10-02): the window inside
+    ///   its horizontal safe area (the vertical bar in landscape) minus the list
+    ///   column; with a vertical fold (book pose) the system equalises the columns at
+    ///   the fold (HIG Designing for iPhone Duo: "split columns adjust width/margins
+    ///   for inner-display symmetry"), so the detail starts after the fold. About
+    ///   350 pt in portrait and 400–560 pt in landscape: compact, so a detail page
+    ///   never draws two dashboard columns in half the display.
+    ///
+    /// - Parameters:
+    ///   - layout: The section's inherited layout.
+    ///   - containerWidth: The sidebar shell's width for the section, if any.
+    /// - Returns: The detail width, or nil when the layout has no measured split.
+    static func detailColumnWidth(layout: DeviceLayout, containerWidth: CGFloat?) -> CGFloat? {
+        if layout.sectionChrome == .sidebar {
+            return containerWidth.map { max(0, $0 - splitListColumnWidth) }
+        }
+        guard layout.isRegularInBothDimensions, layout.size.width > 0 else { return nil }
+        let trailingEdge = layout.size.width - layout.safeAreaInsets.trailing
+        if let fold = layout.foldFrame, fold.height > fold.width {
+            return max(0, trailingEdge - fold.maxX)
+        }
+        return max(0, trailingEdge - layout.safeAreaInsets.leading - splitListColumnWidth)
+    }
+
     // MARK: Path split
 
     /// The list page a section's root screen is, if any.
