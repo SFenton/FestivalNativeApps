@@ -18,6 +18,7 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
     let identifier: String
     let animation: Animation?
     @State private var isExpanded: Bool
+    @Environment(\.settingsChoicesUsePopUpButtons) private var usesPopUpButton
 
     /// Create an inline single-choice accordion.
     ///
@@ -51,6 +52,36 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
     }
 
     var body: some View {
+        if usesPopUpButton {
+            popUpRow
+        } else {
+            disclosure
+        }
+    }
+
+    /// The Mac Settings window's pop-up button (HIG Pop-up buttons: "a flat list of
+    /// mutually exclusive options … the button can show the current selection").
+    private var popUpRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            SettingLabel(title, detail: detail)
+                .accessibilityHidden(true)
+            Spacer(minLength: 8)
+            Picker(title, selection: $selection) {
+                ForEach(options) { option in
+                    Text(label(option)).tag(option)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .fixedSize()
+            .accessibilityLabel(title)
+            .accessibilityHint(detail ?? "")
+            .accessibilityIdentifier(identifier)
+        }
+    }
+
+    /// The inline accordion (iPhone, iPad).
+    private var disclosure: some View {
         DisclosureGroup(isExpanded: $isExpanded.animation(animation)) {
             VStack(spacing: 0) {
                 ForEach(options) { option in
@@ -109,6 +140,14 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
         .accessibilityAddTraits(option == selection ? .isSelected : [])
         .accessibilityIdentifier("\(identifier).\(option.id)")
     }
+}
+
+// MARK: - Style
+
+extension EnvironmentValues {
+    /// Whether ``SettingsChoiceRow`` draws a pop-up button instead of the inline
+    /// accordion (set by the Mac Settings window).
+    @Entry var settingsChoicesUsePopUpButtons = false
 }
 
 // MARK: - Accessibility

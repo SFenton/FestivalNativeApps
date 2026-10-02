@@ -39,10 +39,12 @@ import com.festivalscoretracker.android.data.rankings.RankingsPayload
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.FullRankingsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.LoadSwap
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -71,14 +73,20 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     val current by viewModel.displayed.collectAsStateWithLifecycle()
-    val entries = current?.rankings?.entries.orEmpty()
     val totalPages = current?.rankings?.pageCount ?: 1
+    // Reloads (chart, Rank By, page) fade the rows out, show the spinner and stagger the new
+    // page in, like the web's PaginatedLeaderboard (issue #71).
+    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = Triple(instrument, metric, page))
+    val shown = swap.shown
+    val shownPage = (shown as? LoadState.Loaded)?.value
+    val entries = shownPage?.rankings?.entries.orEmpty()
     val revealsSelected = entries.any { RankingSpotlight.isSelected(selected, it.accountId) }
-    // Rows fade in (staggered, like the web) each time a page finishes loading.
-    val revealed = rememberRevealed(board !is LoadState.Loading && current != null)
 
     // A new page starts at the top, unless it holds the selected row (revealed instead).
-    LaunchedEffect(current) {
+    LaunchedEffect(swap.showsSpinner) {
+        if (swap.showsSpinner) listState.scrollToItem(0)
+    }
+    LaunchedEffect(shownPage) {
         if (!revealsSelected) listState.scrollToItem(0)
     }
 
@@ -102,15 +110,17 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             padding = padding,
             listState = listState,
             idPrefix = "fst.full-rankings",
-            loadingOverlay = board is LoadState.Loading && current != null,
-            controls = {
-                FullRankingsControls(current)
-                if (failed != null) ServiceStatusInline(failed.issue, "Rankings unavailable", failed.countdown, viewModel::retry)
-            },
-            footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, current != null, viewModel, navigate) },
+            controls = { FullRankingsControls(current) },
+            footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, shownPage != null, viewModel, navigate) },
             pager = { RankingsPager(page, totalPages, "fst.full-rankings", viewModel::goTo) },
         ) {
-            rankingRows(current == null, revealed, entries, metric, selected, navigate)
+            when {
+                swap.showsSpinner -> loadSwapSpinnerItem(swap, "Loading rankings", "fst.full-rankings.loading")
+                shown is LoadState.Failed -> item(key = "failed") {
+                    Box(swap.contentModifier) { ServiceStatusInline(shown.issue, "Rankings unavailable", shown.countdown, viewModel::retry) }
+                }
+                else -> rankingRows(swap, entries, metric, selected, navigate)
+            }
         }
         }
     }
@@ -134,31 +144,28 @@ private fun FullRankingsControls(current: RankingsPayload?) {
 }
 
 /**
- * Row items for one page of account rankings.
+ * Row items for one page of account rankings, faded out and staggered in by the load swap.
  *
- * @param loading Whether no page is available yet (skeleton).
- * @param revealed Whether the rows have finished loading ([festivalFadeIn]).
+ * @param swap Load swap for the page.
  * @param entries Page rows.
  * @param metric Selected metric.
  * @param selected Selected player.
  * @param navigate Push a route.
  */
 private fun LazyListScope.rankingRows(
-    loading: Boolean,
-    revealed: Boolean,
+    swap: LoadSwap<*>,
     entries: List<AccountRankingEntry>,
     metric: RankingMetric,
     selected: String?,
     navigate: (AppRoute) -> Unit,
 ) {
     item(key = "rows") {
-        GlassCard(Modifier.fillMaxWidth()) {
+        GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
             Column(Modifier.padding(8.dp)) {
                 when {
-                    loading -> RankingsSkeletonRows(10)
                     entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     else -> entries.forEachIndexed { index, entry ->
-                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                        Box(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
                             if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             AccountRankingRow(
                                 entry = entry,

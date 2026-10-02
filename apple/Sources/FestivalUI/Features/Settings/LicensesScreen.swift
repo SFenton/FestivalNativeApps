@@ -113,13 +113,15 @@ struct LicenseRowButtonStyle: ButtonStyle {
 
 // MARK: - License detail
 
-/// Full license text for one entry, presented as a dismissible sheet with a centred Close.
+/// Full license text for one entry, presented as a dismissible sheet with the shared
+/// ``FestivalModal``'s system Close top-right (issue #23).
 struct LicenseDetailSheet: View {
     let entry: SoftwareLicense
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        FestivalModal(
+            "\(entry.name) · \(entry.licenseType)", closeIdentifier: "fst.licenses.close"
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if let url = entry.url {
@@ -134,23 +136,6 @@ struct LicenseDetailSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                Button { dismiss() } label: {
-                    Text("Close")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(BrandTokens.accentBlue)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .accessibilityIdentifier("fst.licenses.close")
-            }
-            .navigationTitle("\(entry.name) · \(entry.licenseType)")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
         }
         .festivalSheet(.large)
     }

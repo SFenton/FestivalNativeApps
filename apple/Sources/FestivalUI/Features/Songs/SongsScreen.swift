@@ -72,6 +72,12 @@ struct SongsScreen: View {
         case loading
         case loaded(CatalogPayload)
         case failed(ServiceIssue)
+
+        /// Whether the catalogue is still loading (drives ``FestivalReloadGate``).
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
     }
 
     /// Restart a single catalogue task on publication or tab/route visibility changes.
@@ -288,12 +294,20 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.navigation-notice")
             }
 
-            Group {
+            // Sort, filter, instrument and search changes fade the list out, show the
+            // spinner (also while a search is typed ahead of its debounce) and stagger the
+            // new list in (web `SongsPage` `settingsKey`, issue #71).
+            FestivalReloadGate(
+                key: reloadKey, isLoading: state.isLoading || searchText != settledSearch,
+                spinnerLabel: "Loading songs",
+                onReveal: {
+                    fadeLoadedAt = .now
+                    scrollChrome.resetHeaders()
+                }
+            ) {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading songs")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Songs unavailable") {
                     Task { await reload() }
@@ -388,8 +402,15 @@ struct SongsScreen: View {
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
         // Inline filter of this list (HIG "search as an inline field", like Music's
-        // Library); global search is in the bottom dock / toolbar.
-        .searchable(text: $searchText, prompt: Text("Filter Songs"))
+        // Library); global search is in the toolbar. On iPhone it stays pinned under
+        // the bar while scrolled, beside the tools that rise into it (issue #13; HIG
+        // Search fields: "consider pinning it to the top toolbar while scrolling").
+        .searchable(
+            text: $searchText, placement: Self.filterFieldPlacement(
+                actionsInDock: actionsInDock, sidebarShell: deviceLayout.sectionChrome == .sidebar
+            ),
+            prompt: Text("Filter Songs")
+        )
         // iPhone: Filter and Sort sit in the bottom dock beside Search, like the web's
         // FAB dock (operator, 2026-09-28); toolbar items elsewhere (Duo rail, iPad, Mac).
         .modifier(SongsPageTools(
@@ -399,16 +420,13 @@ struct SongsScreen: View {
             placement: Self.pageActionPlacement,
             sortAction: sortAction, filterAction: filterAction
         ))
-        .sheet(isPresented: $sortPresented) {
-            SongsSortSheet(
-                mode: sortMode, ascending: sortAscending,
-                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
-                playerModes: playerSortModesOffered
-            ) { mode, order in
-                sortMode = mode
-                sortAscending = order
-            }
-        }
+        #if os(iOS)
+        .sheet(isPresented: $sortPresented) { sortSheet }
+        #else
+        // Mac: Sort is a popover from its toolbar button (HIG Popovers: "a little
+        // information or functionality"); View › Sort… opens it too.
+        .macPageCommands(macCommands)
+        #endif
         .sheet(isPresented: $filterPresented) {
             if let appliedPlayerScoreFilter {
                 SongsFilterSheet(
@@ -429,6 +447,7 @@ struct SongsScreen: View {
                     filterLeavingTomorrow = shop.leavingTomorrow
                     instrument = instrumentChoice
                 }
+                .macSheetFrame()
             } else {
                 Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
@@ -496,11 +515,6 @@ struct SongsScreen: View {
         // (`normalizeSongSettings`). The Songs instrument is not saved across launches,
         // so a saved player sort is normalized on appear too.
         .onChange(of: instrument) { _, _ in normalizePlayerSort() }
-        .onChange(of: session.selectedPlayer == nil) { _, anonymous in
-            if anonymous && scrollChrome.setToolsInBar(false) {
-                quickLinks.prefersToolbar = false
-            }
-        }
         .onAppear { normalizePlayerSort() }
         .task(id: searchText) {
             do {
@@ -524,6 +538,46 @@ struct SongsScreen: View {
         #endif
     }
 
+    /// Where the Filter Songs field sits.
+    ///
+    /// - Parameters:
+    ///   - actionsInDock: The page tools float above an iPhone tab bar at the top.
+    ///   - sidebarShell: The iPad sections sidebar shell.
+    /// - Returns: On iPhone, the navigation-bar drawer kept visible while scrolling, so the
+    ///   field stays with the tools that rise into the bar (issue #13). On iPad too: the
+    ///   system placement there collapses the field into a second magnifier beside global
+    ///   Search, two identical buttons with different scopes (HIG Searching: "Show current
+    ///   scope with descriptive placeholder"). The system placement elsewhere.
+    static func filterFieldPlacement(actionsInDock: Bool, sidebarShell: Bool = false) -> SearchFieldPlacement {
+        #if os(iOS)
+        actionsInDock || sidebarShell ? .navigationBarDrawer(displayMode: .always) : .automatic
+        #else
+        .automatic
+        #endif
+    }
+
+    #if os(macOS)
+    /// Sort and Filter for View › Sort… / Filter… (Filter disabled when unavailable).
+    private var macCommands: MacPageCommands {
+        var commands = MacPageCommands()
+        commands.sort = { sortPresented = true }
+        if canPresentFilter { commands.filter = { filterPresented = true } }
+        return commands
+    }
+    #endif
+
+    /// Sort options (a sheet on iPhone/iPad, a popover on the Mac).
+    private var sortSheet: some View {
+        SongsSortSheet(
+            mode: sortMode, ascending: sortAscending,
+            showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
+            playerModes: playerSortModesOffered
+        ) { mode, order in
+            sortMode = mode
+            sortAscending = order
+        }
+    }
+
     /// Open a native Sort sheet while retaining the current instrument selection.
     private var sortAction: some View {
         Button {
@@ -531,6 +585,17 @@ struct SongsScreen: View {
         } label: {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
+        #if os(macOS)
+        .popover(isPresented: $sortPresented, arrowEdge: .bottom) {
+            // The popover is its own chrome: no modal stack, title bar or Close (which
+            // would otherwise join the window toolbar); it closes on an outside click.
+            sortSheet
+                .environment(\.festivalModalPreview, true)
+                .formStyle(.grouped)
+                .frame(width: 340, height: 470)
+        }
+        .help("Sort Songs")
+        #endif
         .accessibilityValue(
             "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
                 + (sortPausedMessage == nil ? "" : ", paused; showing Title order")
@@ -577,6 +642,9 @@ struct SongsScreen: View {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Filter Songs")
+        #if os(macOS)
+        .help("Filter Songs")
+        #endif
         .accessibilityValue(filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
         .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true
@@ -979,11 +1047,14 @@ struct SongsScreen: View {
                 }
                 .modifier(ScrolledAwayTracker(
                     topInsetChanged: scrollChrome.setListTopInset
-                ) { scrolled in
+                ) { scrolled, style in
                     scrollChrome.setScrolled(scrolled)
-                    let moved = scrolled && actionsInDock && session.selectedPlayer != nil
+                    let moved = PageToolsHandOff.toolsInBar(
+                        scrolled: scrolled, actionsInDock: actionsInDock
+                    )
                     guard moved != scrollChrome.toolsInBar else { return }
-                    withAnimation(.snappy(duration: 0.3)) {
+                    // The floating dock animates its half with the same timing.
+                    withAnimation(PageToolsHandOff.animation(style)) {
                         scrollChrome.setToolsInBar(moved)
                         quickLinks.prefersToolbar = moved
                     }
@@ -997,7 +1068,7 @@ struct SongsScreen: View {
                 .safeAreaInset(edge: .trailing, spacing: 0) {
                     Color.clear.frame(width: showsIndex ? scrubberExtraInset : 0)
                 }
-                .refreshable { await reload() }
+                .festivalRefreshable { await reload() }
                 .quickLinks(
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
                     sections: showsIndex ? [] : (groups ?? []).compactMap(\.quickLink)
@@ -1080,6 +1151,26 @@ struct SongsScreen: View {
         guard let fadeLoadedAt else { return false }
         return Date.now.timeIntervalSince(fadeLoadedAt)
             < FestivalFadeIn.completionDelay(itemCount: FestivalFadeIn.maxStaggeredItems)
+    }
+
+    /// The list settings whose change replays the load sequence (web `settingsKey`):
+    /// sort, direction, filters, instrument and the settled search.
+    private struct ReloadKey: Equatable {
+        let sortMode: SongSortMode
+        let sortAscending: Bool
+        let filterInShop: Bool
+        let filterLeavingTomorrow: Bool
+        let playerScoreFilter: Data
+        let instrument: Instrument?
+        let search: String
+    }
+
+    private var reloadKey: ReloadKey {
+        ReloadKey(
+            sortMode: sortMode, sortAscending: sortAscending, filterInShop: filterInShop,
+            filterLeavingTomorrow: filterLeavingTomorrow, playerScoreFilter: playerScoreFilterData,
+            instrument: instrument, search: settledSearch
+        )
     }
 
     /// Changes whenever the list is re-sorted or re-filtered.
@@ -1253,6 +1344,11 @@ struct SongsScreen: View {
                 .opacity(0)
         }
         .contentShape(Rectangle())
+        #if os(macOS)
+        .contextMenu {
+            MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
+        }
+        #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
         .festivalFadeIn(isLoaded: true, index: fadeIndex ?? Int.max)
@@ -1389,12 +1485,15 @@ private extension SongShopSectionKind {
 /// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
 
 /// Reports whether a scroll view has moved away from its top (iOS 18+; always false
-/// before, so older systems keep the floating tools). ``ScrollAwayGate`` keeps the
-/// chrome this report moves from feeding back into it (issue #5).
+/// before, so older systems keep the floating tools), with the hand-off style the
+/// current Reduce Motion settings call for. ``ScrollAwayGate`` keeps the chrome this
+/// report moves from feeding back into it (issue #5).
 private struct ScrolledAwayTracker: ViewModifier {
     /// Receives the List's top content inset on every scroll geometry change.
     let topInsetChanged: (CGFloat) -> Void
-    let changed: (Bool) -> Void
+    let changed: (Bool, PageToolsHandOff.Style) -> Void
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
     @State private var reported: Bool?
@@ -1421,7 +1520,9 @@ private struct ScrolledAwayTracker: ViewModifier {
                 )
                 guard reported != gate.isScrolled else { return }
                 reported = gate.isScrolled
-                changed(gate.isScrolled)
+                changed(gate.isScrolled, PageToolsHandOff.style(
+                    systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
+                ))
             }
         } else {
             content
@@ -1561,10 +1662,9 @@ private struct RowMaskShape: Shape {
     }
 }
 
-/// Removes the inline navigation title while the Songs tools occupy the bar (iOS 18+).
 /// Songs' Filter/Sort/Quick Links placement: the iPhone bottom dock, or the navigation
-/// bar (elsewhere, and on iPhone once scrolled with a profile selected), plus the root
-/// trailing items and inline-title removal.
+/// bar (elsewhere, and on iPhone once scrolled), plus the root trailing items and, on
+/// iPhone, an empty inline title.
 ///
 /// Observes ``SongsScrollChrome/toolsInBar`` itself, so moving the tools re-renders only
 /// this toolbar and dock, never the List (issue #8).
@@ -1607,26 +1707,22 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
                 }
                 QuickLinksToolbarItem(quickLinks)
                 FestivalRootTrailingItems(session: session)
+                #if os(iOS)
+                if actionsInDock {
+                    // With Filter/Sort/Quick Links in the bar the inline title had no room
+                    // and read "…"; the section bar names the place instead (Back still
+                    // says "Songs"). A permanent empty title view, never a toggled
+                    // `toolbar(removing: .title)`: removing the title also removed the
+                    // large title, so the list jumped by its height on every hand-off and
+                    // the title reappeared late back at the top (issue #13).
+                    ToolbarItem(placement: .principal) {
+                        Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+                    }
+                }
+                #endif
             }
             .festivalProvidesRootTrailingItems()
             .festivalRootChrome(session: session, providesTrailingItems: true)
-            // With Filter/Sort/Quick Links in the bar the inline title had no room and
-            // read "…"; the section bar names the place instead (Back still says "Songs").
-            .modifier(InlineTitleRemoval(removed: toolsInBar))
-    }
-}
-
-private struct InlineTitleRemoval: ViewModifier {
-    let removed: Bool
-
-    func body(content: Content) -> some View {
-        // One branch per OS (never per state): switching branches would rebuild the
-        // List and lose its scroll position.
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content.toolbar(removing: removed ? .title : nil)
-        } else {
-            content
-        }
     }
 }
 

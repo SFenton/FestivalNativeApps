@@ -1,4 +1,5 @@
 using Festival.App.Controls;
+using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -15,6 +16,8 @@ public sealed partial class LeaderboardsPage : Page
     public LeaderboardsPage()
     {
         ViewModel = new LeaderboardsViewModel(App.Session);
+        ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
+        ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         InitializeComponent();
         _ = new QuickLinksHost(Root, Scroller, ViewModel.QuickLinks, QuickLinksMenu, Pane);
         ViewModel.PropertyChanged += (_, e) =>
@@ -97,5 +100,15 @@ public sealed partial class LeaderboardsPage : Page
         args.Handled = true;
         _ = ViewModel.LoadAsync();
     }
+
+    /// <summary>Replays the web card entrance after the shared load gate reveals refreshed cards.</summary>
+    /// <param name="sender">Swap.</param>
+    /// <param name="e">Unused.</param>
+    private void OnContentRevealed(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            FadeIn.StaggerRealized(InstrumentRepeater);
+            FadeIn.StaggerRealized(BandRepeater);
+        });
 }
 #endregion

@@ -121,8 +121,8 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     _ = try nativeHostedPNG(image, filename: "compete-loading.png", environment: "FST_COMPETE_RENDER_OUT")
     assertRendersContent(
         host, image: image,
-        containing: ["Leaderboards Overview", "Loading Lead leaderboard", "Loading Bass leaderboard"],
-        notContaining: ["Fixture Player 1"]
+        containing: ["Leaderboards", "Loading Lead leaderboard", "Loading Bass leaderboard"],
+        notContaining: ["Fixture Player 1", "Leaderboards Overview"]
     )
 }
 
@@ -143,13 +143,15 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1800))
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Leaderboards Overview", "Fixture Player 1", "Fixture Rival Golf"], excluding: ["Loading"]
+        host, untilText: ["View Full Leaderboard", "Fixture Player 1", "Fixture Rival Golf"],
+        excluding: ["Loading", "Leaderboards Overview"]
     )
     _ = try nativeHostedPNG(
         image, filename: "compete-leaderboards-and-rivals.png", environment: "FST_COMPETE_RENDER_OUT"
     )
     assertRendersContent(
-        host, image: image, containing: ["Leaderboards Overview", "Fixture Player 1", "Fixture Rival Golf"]
+        host, image: image, containing: ["View Full Leaderboard", "Fixture Player 1", "Fixture Rival Golf"],
+        notContaining: ["Leaderboards Overview"]
     )
 }
 

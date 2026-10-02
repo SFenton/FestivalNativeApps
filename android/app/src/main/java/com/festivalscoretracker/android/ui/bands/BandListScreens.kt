@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.ui.bands
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,11 +37,9 @@ import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.PlayerBandsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
-import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
-import com.festivalscoretracker.android.ui.common.fadeInStagger
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 
 // region Shared grid
 
@@ -132,9 +131,10 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
             BandEmptyState("Player not found", "This link doesn't name a valid player.", "fst.player-bands.invalid")
             return@FestivalScreen
         }
-        val loaded = (state as? LoadState.Loaded)?.value
-        // Each page load fades its cards in (web stagger); a return visit shows them at once.
-        val revealed = rememberRevealed(loaded != null)
+        // A group or page change fades the cards out, shows the spinner and staggers the new
+        // page in (web stagger, issue #71); a return visit with the page ready shows it at once.
+        val swap = rememberLoadSwap(state, state !is LoadState.Loading, key = group to page)
+        val loaded = (swap.shown as? LoadState.Loaded)?.value
         BandGrid(padding, "fst.player-bands.list") {
             fullRow("header") {
                 val subtitle = loaded?.let { "${group.label} · ${BandFormatting.count(it.totalCount.toLong())} ${if (it.totalCount == 1) "band" else "bands"}" }
@@ -150,23 +150,26 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
                     modifier = Modifier.testTag("fst.player-bands.group-picker"),
                 )
             }
-            when (val current = state) {
-                LoadState.Loading -> fullRow("loading") { LoadingView("Loading bands", Modifier.heightIn(min = 240.dp)) }
+            val current = swap.shown
+            if (swap.showsSpinner || current is LoadState.Loading) {
+                fullRow("loading") { LoadSwapSpinner(swap, "Loading bands", Modifier.fillMaxWidth().heightIn(min = 240.dp), "fst.player-bands.loading") }
+            } else when (current) {
+                LoadState.Loading -> Unit
                 is LoadState.Failed -> fullRow("error") {
-                    ServiceStatusView(current.issue, "Bands unavailable", current.countdown, viewModel::retry, Modifier.height(360.dp).testTag("fst.player-bands.error"))
+                    ServiceStatusView(current.issue, "Bands unavailable", current.countdown, viewModel::retry, Modifier.height(360.dp).then(swap.contentModifier).testTag("fst.player-bands.error"))
                 }
                 is LoadState.Loaded -> {
                     val list = current.value
                     if (list.entries.isEmpty()) {
                         fullRow("empty") {
                             val noun = if (group == PlayerBandGroup.All) "bands" else group.label.lowercase()
-                            BandEmptyState("No bands found", "No $noun have been recorded for this player yet.", "fst.player-bands.empty")
+                            Box(swap.contentModifier) { BandEmptyState("No bands found", "No $noun have been recorded for this player yet.", "fst.player-bands.empty") }
                         }
                     }
                     itemsIndexed(list.entries, key = { _, entry -> entry.key }) { index, entry ->
-                        PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }, Modifier.festivalFadeIn(revealed, fadeInStagger(index)))
+                        PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }, with(swap) { Modifier.staggered(index) })
                     }
-                    fullRow("pager") { BandPager(page, list.pageCount(viewModel.pageSize), "fst.player-bands", viewModel::goTo) }
+                    fullRow("pager") { Box(swap.contentModifier) { BandPager(page, list.pageCount(viewModel.pageSize), "fst.player-bands", viewModel::goTo) } }
                 }
             }
         }

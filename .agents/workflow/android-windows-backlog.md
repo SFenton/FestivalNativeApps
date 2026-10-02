@@ -1,6 +1,6 @@
 # Non-Apple backlog (shared items)
 
-> **What:** queued Android and Windows work, kept while the Windows host (`sfenton-primary`) is reserved for the operator. **Read when:** the operator frees the Windows host, planning Android/Windows lanes, or mirroring an Apple fix to the other platforms.
+> **What:** queued Android and Windows work, kept while the Windows host (`sfenton-music`) is reserved for the operator. **Read when:** the operator frees the Windows host, planning Android/Windows lanes, or mirroring an Apple fix to the other platforms.
 
 Status: the Windows host is **available again** (operator, 2026-09-28, batch 6); lanes take their items from these tables and tick them off in their reports; the orchestrator mirrors every operator bug cross-platform ([PROGRESS.md](../../PROGRESS.md) log has the per-batch triage). Rules that apply to every item: live-data media with SFentonX for the operator ([testing strategy](../testing/strategy.md)), fixture-only committed screenshots, [service safety](../platforms/service-safety.md), no `git reset --soft origin/master` ([windows-relay](windows-relay.md)).
 
@@ -33,7 +33,7 @@ Platform-specific queues: [backlog-android.md](backlog-android.md) · [backlog-w
 | 6.4 | App-wide pass: excess left inset on cards/rows (Search results, Leaderboards, etc.) | W | check | check | ✔ |
 | 6.5 | Cards with multiple entries need row separators | W | check | check | ✔ |
 | 6.6 | Chrome text (Back, hamburger, app title) white, not gray | W | check | check | ✔ |
-| 6.7 | First run: one-page guide shows only **Done** (no disabled Back, no Skip); **Next/Done before Back**; no extra left/right arrows on the modal; **white** pager dots; clicking outside dismisses and only the pages actually seen count as "don't show again" | W | ✔ | ✔ | ✔ |
+| 6.7 | First run: one-page guide shows only **Done** (no disabled Back, no Skip); **Next/Done before Back** (Windows `ContentDialog` order; Android uses M3 Back-then-Next/Done since issue #25); no extra left/right arrows on the modal; **white** pager dots; clicking outside dismisses and only the pages actually seen count as "don't show again" | W | ✔ | ✔ | ✔ |
 | 6.8 | Leaderboards: "Bands" header larger than the Duos/Trios/Quads headers | W | ✔ | ✔ | ✔ |
 | 6.9 | Item Shop: art not loading; songs currently in the shop not prioritised; cards don't look like web Item Shop cards | W | check | check | ✔ |
 | 6.10 | Switching List ↔ Grid view re-runs the fade/stagger correctly for the new layout | W | check | check | ✔ |
@@ -84,7 +84,7 @@ Take these **after** your batch-6 items, in your areas. Verify each on your plat
 | 7.6 | Chart paging: moving back/forth must not re-animate the line from scratch ("figuring out where to go"); keep stable x-positions |
 | 7.7 | One unified leaderboard design: individual row styling vs multi-row cards must be consistent (song boards, full boards, Leaderboards, Compete) |
 | 7.8 | Song instrument leaderboard page: album art/title/artist/instrument header scrolls into the top bar; no odd background behind it; no dead space above the first row |
-| 7.9 | Selected-player row: score, percentage, position and name aligned in the same columns as other rows (web) |
+| 7.9 | Selected-player row: score, percentage, position and name aligned in the same columns as other rows (web). Issue #37: one per-section column fitter per platform (Android `core/rankings/LeaderboardColumnLayout`, Windows `Festival.Core/Domain/LeaderboardColumnLayout`) decides which columns fit and their widths for every row and the pinned row |
 | 7.10 | "Reset" in filter/sort sheets is red (red text or red button) |
 | 7.11 | Full-combo notation and badge colours match the web exactly (not "FC 100%") |
 | 7.12 | Persistent profile/avatar button on every page (including pushed pages like View All Rivals); "Deselect" lives in the navigation drawer/flyout like the web, not a page header button |

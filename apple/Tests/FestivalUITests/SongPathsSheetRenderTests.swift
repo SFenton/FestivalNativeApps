@@ -174,6 +174,10 @@ private func pathContentPixels(_ image: CGImage) -> (
 }
 
 /// A real local text/image GET must paint activation marks or generated pixels.
+///
+/// Runs without animation: a windowless host never ticks SwiftUI animations, so the
+/// switch fades (issue #70) would leave the path at its starting opacity. The fade
+/// sequence itself is covered by `PathSwitchTransitionTests`.
 @MainActor
 @Test func pathSheetPaintsValidatedTextAndImageArtifacts() async throws {
     let song = try hostedPathSong()
@@ -195,11 +199,13 @@ private func pathContentPixels(_ image: CGImage) -> (
                 warnAboutKaraoke: false
             )
             .preferredColorScheme(.dark)
-            .tint(BrandTokens.accentBlue),
+            .tint(BrandTokens.accentBlue)
+            .transaction { $0.animation = nil },
             size: size
         )
         var painted: CGImage?
-        for _ in 0..<30 {
+        // The spinner stays up at least 400–500 ms before the path appears (issue #70).
+        for _ in 0..<60 {
             let image = try nativeHostedImage(host)
             let pixels = pathContentPixels(image)
             if (display == .text && pixels.green > 10 && pixels.red > 10)

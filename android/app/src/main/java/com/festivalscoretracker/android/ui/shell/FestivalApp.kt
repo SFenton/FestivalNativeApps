@@ -138,6 +138,7 @@ import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.compete.competeDestinations
+import com.festivalscoretracker.android.ui.firstrun.FirstRunDemoSongsSource
 import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
 import com.festivalscoretracker.android.ui.firstrun.firstRunPage
 import com.festivalscoretracker.android.ui.leaderboards.leaderboardsGraph
@@ -386,12 +387,15 @@ private fun FestivalShell(
     val floatingToolbar = remember { FloatingToolbarHost() }
     val usesFloatingToolbar = !AdaptiveLayoutPolicy.isRegularWidth(widthDp)
     // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
-    // when it scrolls back; never hidden under TalkBack; shown again on every navigation.
+    // when it scrolls back; never hidden under TalkBack or on pages that pin it (Songs and
+    // Suggestions keep Sort/Filter/Quick Links reachable while scrolled, issue #52); shown
+    // again on every navigation.
     val toolbarScroll = remember { FloatingToolbarScrollState() }
     val touchExploration = rememberScreenReaderOn()
+    val toolbarPinned = floatingToolbar.pinned
     toolbarScroll.hiddenOffsetPx = with(density) { (FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp.toPx() }
-    toolbarScroll.enabled = !touchExploration
-    LaunchedEffect(stack.lastOrNull()?.id, touchExploration) { toolbarScroll.reset() }
+    toolbarScroll.enabled = !touchExploration && !toolbarPinned
+    LaunchedEffect(stack.lastOrNull()?.id, touchExploration, toolbarPinned) { toolbarScroll.reset() }
     val bottomPadding = PaddingValues(
         end = safeEnd,
         bottom = when {
@@ -545,8 +549,17 @@ private fun FestivalShell(
             // Edge swipes belong to system back; the drawer opens from the menu button only.
             gesturesEnabled = drawerState.isOpen,
             // The drawerState overload adds M3's predictive back handling: system back closes
-            // the open drawer instead of leaving the app.
-            drawerContent = { ChromeColors { ModalDrawerSheet(drawerState = drawerState, drawerContainerColor = BrandTokens.cardBackground) { drawer(false) } } },
+            // the open drawer instead of leaving the app. Its corners follow the display corners
+            // (issue #55); without reported corners the shape is Material's default.
+            drawerContent = {
+                ChromeColors {
+                    ModalDrawerSheet(
+                        drawerState = drawerState,
+                        drawerShape = rememberConcentricDrawerShape(),
+                        drawerContainerColor = BrandTokens.cardBackground,
+                    ) { drawer(false) }
+                }
+            },
         ) { content() }
     }
     GlobalSearchHost(
@@ -578,12 +591,16 @@ private fun FestivalShell(
     }
     val firstRunActive by container.firstRun.active.collectAsStateWithLifecycle()
     val whatsNewShown by container.whatsNew.shown.collectAsStateWithLifecycle()
+    val firstRunDemoSongs = remember(container) {
+        FirstRunDemoSongsSource({ container.api.catalog() }, container.shop.state, container.api.publicationChanges, container.api::artworkUrl)
+    }
     FirstRunHost(
         center = container.firstRun,
         page = firstRunPage(stack.lastOrNull()),
         settings = settings,
         compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
         blocked = showProfile || showNotifications || whatsNewShown != null,
+        demoSongs = firstRunDemoSongs,
     )
     // After the launch page's carousel (web order); Settings replays it.
     WhatsNewHost(

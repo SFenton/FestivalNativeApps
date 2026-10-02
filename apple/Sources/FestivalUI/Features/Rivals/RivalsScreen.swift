@@ -189,7 +189,10 @@ struct RivalCommonSection: View {
         case let .loaded(result) where result.above.isEmpty && result.below.isEmpty:
             EmptyView()
         case let .loaded(result):
-            shell {
+            shell(viewAll: RivalsViewAllButton(
+                route: AppRoute.allRivals(scope: .song(instruments: instruments.map(\.rawValue))),
+                identifier: "fst.rivals.common.view-all"
+            )) {
                 ForEach(previewRows(result)) { row in
                     ListDetailLink(value: AppRoute.rivalDetail(
                         rivalId: row.rival.accountId, name: row.rival.displayName,
@@ -198,11 +201,6 @@ struct RivalCommonSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
-                }
-                NavigationLink(
-                    value: AppRoute.allRivals(scope: .song(instruments: instruments.map(\.rawValue)))
-                ) {
-                    RivalViewAllRow(title: "View All Rivals")
                 }
             }
             .quickLinkSection(id: "common", title: "Common Rivals", symbol: "person.2.fill")
@@ -221,9 +219,21 @@ struct RivalCommonSection: View {
             + result.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    @ViewBuilder private func shell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        FestivalGlassSection("Common Rivals") { content() }
-            .padding(.horizontal, 16)
+    /// The section's glass card, with its optional "View All Rivals" button below
+    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    ///
+    /// - Parameters:
+    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - content: The card's rows.
+    /// - Returns: The padded section.
+    @ViewBuilder private func shell<Content: View>(
+        viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FestivalGlassSection("Common Rivals") { content() }
+            viewAll
+        }
+        .padding(.horizontal, 16)
     }
 
     @MainActor
@@ -277,7 +287,12 @@ struct RivalComboSection: View {
         case let .loaded(response) where response.isEmpty:
             EmptyView()
         case let .loaded(response):
-            shell {
+            shell(viewAll: RivalsViewAllButton(
+                route: AppRoute.allRivals(
+                    scope: .combo(token: scope.token, instruments: scope.instruments.map(\.rawValue))
+                ),
+                identifier: "fst.rivals.combo.view-all"
+            )) {
                 ForEach(previewRows(response)) { row in
                     ListDetailLink(value: AppRoute.rivalDetail(
                         rivalId: row.rival.accountId, name: row.rival.displayName,
@@ -286,11 +301,6 @@ struct RivalComboSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
-                }
-                NavigationLink(value: AppRoute.allRivals(
-                    scope: .combo(token: scope.token, instruments: scope.instruments.map(\.rawValue))
-                )) {
-                    RivalViewAllRow(title: "View All Rivals")
                 }
             }
             .quickLinkSection(id: "combo", title: "\(scope.label) Rivals", symbol: "music.note")
@@ -309,9 +319,21 @@ struct RivalComboSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    @ViewBuilder private func shell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        FestivalGlassSection("\(scope.label) Rivals") { content() }
-            .padding(.horizontal, 16)
+    /// The section's glass card, with its optional "View All Rivals" button below
+    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    ///
+    /// - Parameters:
+    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - content: The card's rows.
+    /// - Returns: The padded section.
+    @ViewBuilder private func shell<Content: View>(
+        viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FestivalGlassSection("\(scope.label) Rivals") { content() }
+            viewAll
+        }
+        .padding(.horizontal, 16)
     }
 
     @MainActor
@@ -378,7 +400,10 @@ struct RivalInstrumentSongSection: View {
                 EmptyView()
             }
         case let .loaded(response):
-            taggedShell {
+            taggedShell(viewAll: RivalsViewAllButton(
+                route: AppRoute.allRivals(scope: .song(instruments: [instrument.rawValue])),
+                identifier: "fst.rivals.song.\(instrument.rawValue).view-all"
+            )) {
                 ForEach(previewRows(response)) { row in
                     ListDetailLink(
                         value: AppRoute.rivalDetail(
@@ -389,11 +414,6 @@ struct RivalInstrumentSongSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
-                }
-                NavigationLink(
-                    value: AppRoute.allRivals(scope: .song(instruments: [instrument.rawValue]))
-                ) {
-                    RivalViewAllRow(title: "View All Rivals")
                 }
             }
             .festivalFadeIn(isLoaded: true)
@@ -411,24 +431,36 @@ struct RivalInstrumentSongSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    @ViewBuilder private func shell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    /// The section's glass card, with its optional "View All Rivals" button below
+    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    ///
+    /// - Parameters:
+    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - content: The card's rows.
+    /// - Returns: The padded section.
+    @ViewBuilder private func shell<Content: View>(
+        viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
+    ) -> some View {
         // Web `InstrumentHeader` SM above the card, never inside it.
         VStack(alignment: .leading, spacing: 8) {
             InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
             FestivalGlassSection { content() }
+            viewAll
         }
         .padding(.horizontal, 16)
     }
 
     /// `shell(_:)`, additionally tagged as this instrument's own Quick Links
     /// section unless the enclosing page (`CompeteScreen`) opted out.
-    @ViewBuilder private func taggedShell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    @ViewBuilder private func taggedShell<Content: View>(
+        viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
+    ) -> some View {
         if registersQuickLink {
-            shell(content).quickLinkSection(QuickLinkSection(
+            shell(viewAll: viewAll, content).quickLinkSection(QuickLinkSection(
                 id: instrument.rawValue, title: "\(instrument.label) Rivals", icon: .instrument(instrument)
             ))
         } else {
-            shell(content)
+            shell(viewAll: viewAll, content)
         }
     }
 
@@ -470,7 +502,12 @@ struct RivalInstrumentLeaderboardSection: View {
         case let .loaded(response) where response.isEmpty:
             EmptyView()
         case let .loaded(response):
-            shell {
+            shell(viewAll: RivalsViewAllButton(
+                route: AppRoute.allRivals(
+                    scope: .leaderboard(instrument: instrument.rawValue, rankBy: rankBy)
+                ),
+                identifier: "fst.rivals.leaderboard.\(instrument.rawValue).view-all"
+            )) {
                 ForEach(previewRows(response)) { row in
                     ListDetailLink(
                         value: AppRoute.rivalDetail(
@@ -481,13 +518,6 @@ struct RivalInstrumentLeaderboardSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
-                }
-                NavigationLink(
-                    value: AppRoute.allRivals(
-                        scope: .leaderboard(instrument: instrument.rawValue, rankBy: rankBy)
-                    )
-                ) {
-                    RivalViewAllRow(title: "View All Rivals")
                 }
             }
             .quickLinkSection(QuickLinkSection(
@@ -513,11 +543,21 @@ struct RivalInstrumentLeaderboardSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    @ViewBuilder private func shell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    /// The section's glass card, with its optional "View All Rivals" button below
+    /// the card (not a row inside it), like "View Full Leaderboard" (#41).
+    ///
+    /// - Parameters:
+    ///   - viewAll: Button shown under the card once rivals loaded; nil while loading or failed.
+    ///   - content: The card's rows.
+    /// - Returns: The padded section.
+    @ViewBuilder private func shell<Content: View>(
+        viewAll: RivalsViewAllButton? = nil, @ViewBuilder _ content: () -> Content
+    ) -> some View {
         // Web `InstrumentHeader` SM above the card, never inside it.
         VStack(alignment: .leading, spacing: 8) {
             InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
             FestivalGlassSection { content() }
+            viewAll
         }
         .padding(.horizontal, 16)
     }

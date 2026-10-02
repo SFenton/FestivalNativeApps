@@ -155,6 +155,12 @@ public sealed partial class FirstRunCarouselViewModel : ObservableObject
     /// <summary>Primary button text.</summary>
     public string NextLabel => IsLast ? "Done" : "Next";
 
+    /// <summary>
+    /// Dialog Close button text: the standard Close (issue #23) whenever Next/Back page the carousel; a one-slide guide
+    /// shows only its full-width Done, which already closes it.
+    /// </summary>
+    public string CloseLabel => IsSingle ? "" : ModalCommands.Close;
+
     /// <summary>Selects a slide, clamped to range.</summary>
     /// <param name="value">Requested index.</param>
     public void GoTo(int value) => Index = Math.Clamp(value, 0, Slides.Count - 1);

@@ -33,6 +33,21 @@ import Testing
     #expect(unreadForAcc2 == ["a", "b"])
 }
 
+@Test func resetMakesEveryAccountsRowsUnreadAgain() throws {
+    let suite = "fst.tests.notifications.\(UUID().uuidString)"
+    let store = try #require(UserDefaults(suiteName: suite))
+    defer { store.removePersistentDomain(forName: suite) }
+
+    NotificationSeenStore.markSeen(["a", "b"], accountId: "acc-1", defaults: store)
+    NotificationSeenStore.markSeen(["c"], accountId: "acc-2", defaults: store)
+    NotificationSeenStore.reset(defaults: store)
+
+    #expect(NotificationSeenStore.seenIds(accountId: "acc-1", defaults: store).isEmpty)
+    #expect(NotificationSeenStore.unreadIds(
+        current: ["c"], accountId: "acc-2", defaults: store
+    ) == ["c"])
+}
+
 @Test func markSeenIsIdempotentAndCumulative() throws {
     let suite = "fst.tests.notifications.\(UUID().uuidString)"
     let store = try #require(UserDefaults(suiteName: suite))

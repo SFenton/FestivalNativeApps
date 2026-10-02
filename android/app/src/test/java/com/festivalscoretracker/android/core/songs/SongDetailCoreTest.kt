@@ -213,6 +213,28 @@ class SongDetailCoreTest {
         assertEquals(SongHistoryPaging(0, 4), SongHistoryPaging(0, 4).step(1))
     }
 
+    @Test
+    fun historySwapFadesInstantsAndSettles() {
+        assertEquals(SongHistorySwap.Plan.None, SongHistorySwap.plan(Instrument.Lead, null, reduceMotion = false))
+        assertEquals(SongHistorySwap.Plan.Instant, SongHistorySwap.plan(null, Instrument.Lead, reduceMotion = false))
+        assertEquals(SongHistorySwap.Plan.Settle, SongHistorySwap.plan(Instrument.Lead, Instrument.Lead, reduceMotion = false))
+        assertEquals(SongHistorySwap.Plan.Settle, SongHistorySwap.plan(Instrument.Lead, Instrument.Lead, reduceMotion = true))
+        assertEquals(SongHistorySwap.Plan.Fade, SongHistorySwap.plan(Instrument.Lead, Instrument.Bass, reduceMotion = false))
+        assertEquals(SongHistorySwap.Plan.Instant, SongHistorySwap.plan(Instrument.Lead, Instrument.Bass, reduceMotion = true))
+        assertTrue(SongHistorySwap.FADE_OUT_MILLIS < SongHistorySwap.FADE_IN_MILLIS)
+    }
+
+    @Test
+    fun historyReservesPagerWhenAnySelectableChartPages() {
+        val counts = mapOf(Instrument.Lead to 8, Instrument.Bass to 2, Instrument.Drums to 3)
+        val all = listOf(Instrument.Lead, Instrument.Bass, Instrument.Drums)
+        assertTrue(SongHistoryChart.reservesPager(counts, all, maxBars = 2))
+        assertFalse(SongHistoryChart.reservesPager(counts, all, maxBars = 8))
+        // A hidden chart's long history doesn't reserve space.
+        assertFalse(SongHistoryChart.reservesPager(counts, listOf(Instrument.Bass, Instrument.Drums), maxBars = 3))
+        assertFalse(SongHistoryChart.reservesPager(counts, listOf(Instrument.Vocals), maxBars = 1))
+    }
+
     // endregion
 
     // region Song history read

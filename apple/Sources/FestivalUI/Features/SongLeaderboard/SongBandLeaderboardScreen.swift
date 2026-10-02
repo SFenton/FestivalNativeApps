@@ -38,11 +38,12 @@ struct SongBandLeaderboardScreen: View {
     }
 
     var body: some View {
-        Group {
+        // Band size and page changes fade the rows out, show the spinner and fade the
+        // new page in (web usePageTransition, issue #71).
+        FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading band scores") {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading band scores")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Band scores unavailable") {
                     Task { await load() }

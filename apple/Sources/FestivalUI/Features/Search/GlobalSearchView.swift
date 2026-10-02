@@ -340,20 +340,12 @@ struct GlobalSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        FestivalModal("Search", closeIdentifier: "fst.global-search.close") {
             GlobalSearchResults(model: model, session: session) { route in
                 dismiss()
                 open(route)
             }
-            .navigationTitle("Search")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
             .task(id: model.runKey) { await model.search(session: session) }
-            .toolbar {
-                // Dismiss-only modal: trailing (modal standard, operator 2026-09-28).
-                FestivalSheetCloseItem(identifier: "fst.global-search.close") { dismiss() }
-            }
         }
     }
 }
@@ -451,19 +443,21 @@ struct GlobalSearchToolbarItem: ViewModifier {
     /// toolbar with `FestivalRootTrailingItems`, whose Search and avatar would otherwise
     /// appear twice.
     @State private var pageProvidesSearch = false
+    /// The macOS shell shows Search and the avatar once for the whole window.
+    @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
 
     func body(content: Content) -> some View {
         content
             .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { pageProvidesSearch = $0 }
             .toolbar {
-                if let openGlobalSearch, !pageProvidesSearch {
+                if let openGlobalSearch, !pageProvidesSearch, !shellOwnsGlobalToolbar {
                     ToolbarItem(placement: .primaryAction) {
                         GlobalSearchButton { openGlobalSearch() }
                     }
                 }
                 // The profile avatar stays top-right on every pushed page too (operator
                 // batch 7), after Search; root screens carry it in their own trailing items.
-                if let session, !pageProvidesSearch {
+                if let session, !pageProvidesSearch, !shellOwnsGlobalToolbar {
                     ToolbarItem(placement: .primaryAction) {
                         RootProfileButton(session: session) { openProfile() }
                     }

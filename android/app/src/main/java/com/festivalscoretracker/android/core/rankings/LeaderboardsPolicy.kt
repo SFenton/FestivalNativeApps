@@ -7,6 +7,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
+import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.profile.PlayerScore
 
@@ -27,6 +28,20 @@ object RankingNavigation {
         !ProfileSearchText.isValidAccountId(accountId) -> null
         RankingSpotlight.isSelected(selectedAccountId, accountId) -> StatisticsRoute
         else -> PlayerRoute(accountId, displayName?.takeIf { it.isNotBlank() })
+    }
+
+    /**
+     * TalkBack click label for a player row, named after where it actually leads (iOS
+     * `SongPreviewSpotlightPolicy.hint`, issue #63): the selected player's in-place row opens
+     * Statistics, their appended row past the preview opens their page of the full board.
+     *
+     * @param route Row destination from [playerRoute] or the spotlight row's board page.
+     * @return Action label.
+     */
+    fun actionLabel(route: AppRoute): String = when (route) {
+        StatisticsRoute -> "Open your statistics"
+        is SongLeaderboardRoute -> "Open your page of the full leaderboard"
+        else -> "Open profile"
     }
 
     /**

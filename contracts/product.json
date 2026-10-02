@@ -320,6 +320,7 @@
     "fst.song-leaderboard.pinned-title": "song-leaderboard",
     "fst.compete.leaderboard-card.*": "compete",
     "fst.stars": "star-rating",
+    "fst.score": "song-leaderboard",
     "fst.song-leaderboard.row.*": "song-leaderboard",
     "fst.song-leaderboard.page-first": "song-leaderboard",
     "fst.song-leaderboard.page-previous": "song-leaderboard",

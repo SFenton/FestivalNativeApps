@@ -1,0 +1,11 @@
+# Leaderboard row columns — iPhone notes
+
+> **What:** how the shared column fitting is built and wired on iPhone. **Read when:** adding a leaderboard section or changing `SongLeaderboardEntryRow` / `RankingRowLayout`. Behavior: [spec.md](spec.md).
+
+- **Core:** `LeaderboardRowColumns` (`apple/Sources/FestivalCore/LeaderboardRowColumns.swift`) — `fit(_:width:ranks:scores:ratings:)` for score sections, `rankings(_:metric:)` / `bandRankings(_:metric:)` for ranking sections. Season reuses `ScoreRowSeasonPolicy.breakpoint` (520). Tests: `LeaderboardRowColumnsTests` (narrow 320/390/402/430 and wide 520–1024 widths).
+- **UI:** a section applies `.leaderboardSectionColumns(_:)` once (environment value `leaderboardRowColumns`); rows wrap rank, score and rating in `LeaderboardColumnSlot` (`FestivalUI/Design/LeaderboardColumnSlot.swift`), a `ZStack` whose hidden, accessibility-hidden template `Text` is the widest label in the column font, **bold** and monospaced digits. No device-pixel heuristics: the slot scales with Dynamic Type and the locale's grouping. Nil environment (first-run demos) keeps natural widths and `RankingRowLayout`'s 40 pt rank minimum.
+- **Gotcha:** use `.fontWeight(.bold)` for the template, not `Text.bold()`: the latter measured 1.5 pt narrower than the bold selected-player row, which shifted that row's name.
+- **Wired sections:** `SongScorePreview` (top ten + spotlight, card width), `SoloLeaderboardScreen` (page rows + pinned footer, chart width via `onGeometryChange`), `LeaderboardsScreen` instrument cards (+ spotlight) and band cards, `FullRankingsScreen` (+ footer), `BandRankingsScreen`, `CompeteScreen`. Anonymous rows reserve the chevron's width so their trailing column aligns with linked rows.
+- **Accessibility sizes:** slots are skipped (rows stack, HIG Typography: reduce text columns as size increases); VoiceOver order and labels are unchanged (templates are hidden).
+- iPhone widths never reach 520 in portrait, so the Solo chart shows no season there; landscape (≥ 520 pt) does, like the web at that viewport.
+- Hosted test: `LeaderboardRowColumnsHostedTests` asserts names start and scores end on the same x at 390 and 820 pt (incl. a bold pinned `#1,234` row), a control that unfitted rows misalign, and the season column following the section width.

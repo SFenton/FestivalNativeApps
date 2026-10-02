@@ -4,7 +4,7 @@
 
 ## Sheet (`fst.profile.sheet`)
 
-- Opened from the top-bar avatar (`fst.nav.profile`) on every tab root; a `ModalBottomSheet` titled "Profiles".
+- Opened from the top-bar avatar (`fst.nav.profile`) on every tab root; the shared `FestivalModalSheet` titled "Profiles" with the standard Close icon button (`fst.profile.close`); Deselect confirms with the shared `FestivalAlertDialog`.
 - Selected summary (`fst.profile.selected`): avatar, name, **View Profile** (`fst.profile.view-selected`) and **Deselect** (`fst.profile.deselect`, confirmed by `fst.profile.deselect-confirm`).
 - "Find a Profile": a `SingleChoiceSegmentedButtonRow` Players/Bands (`fst.profile.scope.{players,bands}`) and a native M3 `DockedSearchBar` + `SearchBarDefaults.InputField` on a neutral container (no custom purple fill; `fst.profile.search`, clear button). Bands disables the field and explains that band search can change stored data (`fst.profile.bands-unavailable`); no band request is made ([service-safety](../../platforms/service-safety.md)).
 - Search: 250 ms debounce, 2-character minimum, centered hint text with no container (`fst.profile.hint`), results as `ListItem`s with initials (`fst.profile.result.<accountId>`), Retry after an error or an empty envelope (`fst.profile.retry`). IME Search opens the first result.
