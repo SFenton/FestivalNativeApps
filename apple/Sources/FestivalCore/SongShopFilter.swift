@@ -1,21 +1,35 @@
 import Foundation
 
-/// Applied Item Shop filters retained independently of a selected player's scores.
-public struct SongShopFilter: Sendable, Equatable {
-    public let inShop: Bool
-    public let leavingTomorrow: Bool
+/// The General section's Item Shop availability choice (web `shopAvailability`), kept
+/// independent of a selected player's scores.
+///
+/// Both categories default on. Turning one off hides that category; turning both off
+/// hides every song, even before Shop data loads (web `useFilteredSongs`).
+public struct SongShopFilter: Sendable, Equatable, Hashable {
+    /// Include songs in the validated public Item Shop.
+    public let available: Bool
+    /// Include songs not in the validated public Item Shop.
+    public let unavailable: Bool
 
-    /// Keep the two source toggles independent, including an inactive default.
+    /// Keep the two source toggles independent; the default includes every song.
     ///
     /// - Parameters:
-    ///   - inShop: Require validated current Shop membership.
-    ///   - leavingTomorrow: Require a validated offer leaving tomorrow.
-    public init(inShop: Bool = false, leavingTomorrow: Bool = false) {
-        self.inShop = inShop
-        self.leavingTomorrow = leavingTomorrow
+    ///   - available: Include songs available in the Item Shop.
+    ///   - unavailable: Include songs not available in the Item Shop.
+    public init(available: Bool = true, unavailable: Bool = true) {
+        self.available = available
+        self.unavailable = unavailable
     }
 
-    public var isActive: Bool { inShop || leavingTomorrow }
+    /// Only songs available in the Item Shop: the migration target of the older
+    /// In Shop / Leaving Tomorrow choices (web `loadSongSettings`).
+    public static let availableOnly = SongShopFilter(available: true, unavailable: false)
+
+    /// Whether this choice hides any song.
+    public var isActive: Bool { !(available && unavailable) }
+
+    /// Whether classifying songs needs a validated Shop feed (exactly one category on).
+    public var needsShopFeed: Bool { available != unavailable }
 
     /// Filter after catalogue search/chart selection without changing row order.
     ///
@@ -23,16 +37,14 @@ public struct SongShopFilter: Sendable, Equatable {
     ///   - songs: Validated catalogue rows in their current relative order.
     ///   - offersById: Only validated public Shop offers; nil means unavailable, not empty.
     /// - Returns: Matching rows, including an honest empty set for a validated empty Shop.
-    /// - Throws: `FestivalAPIError.invalidShop` when an active filter lacks a validated feed.
+    /// - Throws: `FestivalAPIError.invalidShop` when one category needs a missing feed.
     public func filtered(
         _ songs: [Song], offersById: [String: ShopSong]?
     ) throws -> [Song] {
         guard isActive else { return songs }
+        guard available || unavailable else { return [] }
         guard let offersById else { throw FestivalAPIError.invalidShop }
-        return songs.filter { song in
-            guard let offer = offersById[song.songId] else { return false }
-            return !leavingTomorrow || offer.leavingTomorrow
-        }
+        return songs.filter { (offersById[$0.songId] != nil) == available }
     }
 }
 

@@ -6,120 +6,122 @@ import SwiftUI
   import UIKit
 #endif
 
-/// Selected-player score/FC, instrument and public Item Shop filters. Changes apply as
-/// they are made (operator, 2026-09-28: no Cancel/Apply); the shared ``FestivalModal``'s
-/// system Close dismisses it.
+/// The web FilterModal: a General section (Year, Duration, Item Shop, Double Bass) that
+/// works without a selected player, then selected-player score/FC, instrument and
+/// per-instrument bucket filters. Changes apply as they are made (operator, 2026-09-28:
+/// no Cancel/Apply); the shared ``FestivalModal``'s system Close dismisses it.
 struct SongsFilterSheet: View {
-  @State private var draftInShop: Bool
-  @State private var draftLeavingTomorrow: Bool
+  @State private var draftGeneral: SongGeneralFilter
   @State private var draftPlayerFilter: SongPlayerScoreFilter
   @State private var draftInstrument: Instrument?
   @State private var scoreSectionsExpanded: Bool
+  @State private var yearExpanded: Bool
+  @State private var durationExpanded: Bool
+  @State private var shopExpanded: Bool
+  @State private var doubleBassExpanded: Bool
   @State private var seasonExpanded: Bool
   @State private var percentileExpanded: Bool
   @State private var starsExpanded: Bool
   @State private var intensityExpanded: Bool
   @State private var applyError: String?
-  let applied: SongShopFilter
+  let appliedGeneral: SongGeneralFilter
   let appliedPlayerFilter: SongPlayerScoreFilter
   let appliedInstrument: Instrument?
   let visibleInstruments: Set<Instrument>
   let showShop: Bool
   let shopAvailable: Bool
-  let profileAvailable: Bool
   let selectedPlayer: Bool
   let scoreAvailable: Bool
   let invalidScoreFilteringEnabled: Bool
+  /// Release decades in the catalogue (``SongGeneralFilter/decades(in:)``).
+  let availableDecades: [Int]
+  /// Duration buckets to offer (``SongGeneralFilter/durationBuckets(in:)``).
+  let availableDurations: [Int]
   /// Season keys to offer (seasons in the player's scores, then 0 for No Score).
   let availableSeasons: [Int]
-  let onApply: (SongShopFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
+  let onApply: (SongGeneralFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
 
   /// Start from the applied filters; every change is committed immediately.
   ///
   /// - Parameters:
-  ///   - applied: Saved native public Shop filters.
+  ///   - appliedGeneral: Saved General filters (Year, Duration, Item Shop, Double Bass).
+  ///   - showShop: Whether Settings exposes the Shop feature (shows the Item Shop group).
+  ///   - shopAvailable: Whether a validated Shop feed matches the current Songs.
+  ///   - availableDecades: Year options from the catalogue.
+  ///   - availableDurations: Duration options from the catalogue.
   ///   - appliedPlayerFilter: Saved typed selected-player chart predicates.
   ///   - appliedInstrument: Currently applied single-chart Songs filter, like web's
   ///     `instrumentFilter` field folded into the same Filter draft.
   ///   - visibleInstruments: Settings-enabled solo charts in source order.
-  ///   - showShop: Whether Settings exposes the Shop feature.
-  ///   - shopAvailable: Whether a validated Shop feed is retained.
-  ///   - profileAvailable: Whether a selected player's scores are available.
-  ///   - selectedPlayer: Whether a player identity can show score sections.
+  ///   - selectedPlayer: Whether a player identity is selected; without one only the
+  ///     General section is shown (web `hasSelectedProfile`).
   ///   - scoreAvailable: Whether validated scores match the current Songs catalogue.
   ///   - invalidScoreFilteringEnabled: Whether unsupported score substitution blocks raw filters.
   ///   - availableSeasons: Season filter keys (``SongSeasonBucket/keys(in:)``).
   ///   - onApply: Commit all current choices together; called on every change and may
   ///     throw (shown in the sheet).
   init(
-    applied: SongShopFilter, showShop: Bool, shopAvailable: Bool,
-    profileAvailable: Bool,
+    appliedGeneral: SongGeneralFilter = SongGeneralFilter(),
+    showShop: Bool, shopAvailable: Bool,
+    availableDecades: [Int] = [], availableDurations: [Int] = Array(0..<10),
     appliedPlayerFilter: SongPlayerScoreFilter = SongPlayerScoreFilter(),
     appliedInstrument: Instrument? = nil,
     visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
     selectedPlayer: Bool = false, scoreAvailable: Bool = false,
     invalidScoreFilteringEnabled: Bool = false,
     availableSeasons: [Int] = [0],
-    onApply: @escaping (SongShopFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
+    onApply: @escaping (SongGeneralFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
   ) {
-    self.applied = applied
+    self.appliedGeneral = appliedGeneral
     self.appliedPlayerFilter = appliedPlayerFilter.scoped(to: visibleInstruments)
     self.appliedInstrument = appliedInstrument
     self.visibleInstruments = visibleInstruments
     self.showShop = showShop
     self.shopAvailable = shopAvailable
-    self.profileAvailable = profileAvailable
     self.selectedPlayer = selectedPlayer
     self.scoreAvailable = scoreAvailable
     self.invalidScoreFilteringEnabled = invalidScoreFilteringEnabled
+    // A saved restriction on a bucket no longer in the catalogue stays toggleable.
+    self.availableDecades = Array(Set(availableDecades).union(appliedGeneral.excludedDecades)).sorted()
+    self.availableDurations = Array(Set(availableDurations).union(appliedGeneral.excludedDurations)).sorted()
     self.availableSeasons = availableSeasons
     self.onApply = onApply
-    _draftInShop = State(initialValue: applied.inShop)
-    _draftLeavingTomorrow = State(initialValue: applied.leavingTomorrow)
+    _draftGeneral = State(initialValue: appliedGeneral)
     _draftPlayerFilter = State(initialValue: appliedPlayerFilter.scoped(to: visibleInstruments))
     _draftInstrument = State(initialValue: appliedInstrument)
     _scoreSectionsExpanded = State(
       initialValue: appliedPlayerFilter.scoped(to: visibleInstruments).isActive
     )
+    _yearExpanded = State(initialValue: appliedGeneral.restrictsYear)
+    _durationExpanded = State(initialValue: appliedGeneral.restrictsDuration)
+    _shopExpanded = State(initialValue: appliedGeneral.shop.isActive)
+    _doubleBassExpanded = State(initialValue: appliedGeneral.restrictsDoubleBass)
     _seasonExpanded = State(initialValue: !appliedPlayerFilter.excluded(.season).isEmpty)
     _percentileExpanded = State(initialValue: !appliedPlayerFilter.excluded(.percentile).isEmpty)
     _starsExpanded = State(initialValue: !appliedPlayerFilter.excluded(.stars).isEmpty)
     _intensityExpanded = State(initialValue: !appliedPlayerFilter.excluded(.intensity).isEmpty)
   }
 
-  private var draft: SongShopFilter {
-    SongShopFilter(inShop: draftInShop, leavingTomorrow: draftLeavingTomorrow)
-  }
-
   /// Identity of the current choices, to commit on any change.
   private struct ChoiceKey: Equatable {
-    let shop: SongShopFilter
+    let general: SongGeneralFilter
     let player: SongPlayerScoreFilter
     let instrument: Instrument?
   }
 
   private var choiceKey: ChoiceKey {
-    ChoiceKey(shop: draft, player: draftPlayerFilter, instrument: draftInstrument)
-  }
-
-  private var canEnableShop: Bool {
-    showShop && shopAvailable && profileAvailable
+    ChoiceKey(general: draftGeneral, player: draftPlayerFilter, instrument: draftInstrument)
   }
 
   private var canEnableScores: Bool {
     selectedPlayer && scoreAvailable && !invalidScoreFilteringEnabled
   }
 
-  /// Choices the list can use right now (paused sources stay as saved, not applied).
-  private var isApplicable: Bool {
-    (!draft.isActive || canEnableShop)
-      && (!draftPlayerFilter.isActive || canEnableScores)
-  }
-
   var body: some View {
     FestivalModal("Filter Songs", closeIdentifier: "fst.songs.filter.done") {
       VStack(spacing: 0) {
         Form {
+          generalSections
           if selectedPlayer {
             Section {
               Button {
@@ -196,27 +198,7 @@ struct SongsFilterSheet: View {
               }
             }
           }
-          Section("Item Shop") {
-            Toggle("In Shop", isOn: $draftInShop)
-              .disabled(!canEnableShop)
-              .accessibilityHint("Show songs in the validated public Item Shop")
-              .accessibilityIdentifier("fst.songs.filter.in-shop")
-            Toggle("Leaving Tomorrow", isOn: $draftLeavingTomorrow)
-              .disabled(!canEnableShop)
-              .accessibilityHint("Show validated offers leaving tomorrow")
-              .accessibilityIdentifier("fst.songs.filter.leaving")
-            if !showShop {
-              Text("Item Shop is hidden in Settings. Saved filters can be reset.")
-                .foregroundStyle(FestivalText.primary)
-            } else if !profileAvailable {
-              Text("Select a player with available scores to edit song filters.")
-                .foregroundStyle(FestivalText.primary)
-            } else if !shopAvailable {
-              Text("Item Shop filters need matching public Songs and Shop data.")
-                .foregroundStyle(FestivalText.primary)
-            }
-          }
-          // Web order: score checks, Item Shop, then the Instrument selector with its
+          // Web order: General, score checks, then the Instrument selector with its
           // one-chart Season / Percentile / Stars / Intensity filters.
           if selectedPlayer {
             Section {
@@ -240,9 +222,9 @@ struct SongsFilterSheet: View {
             bucketSections
           }
           Section {
-            Button(selectedPlayer ? "Reset Filters" : "Reset Shop Filters", role: .destructive) {
-              draftInShop = false
-              draftLeavingTomorrow = false
+            // Also clears paused player choices hidden while no player is selected.
+            Button("Reset Filters", role: .destructive) {
+              draftGeneral = SongGeneralFilter()
               draftPlayerFilter = SongPlayerScoreFilter()
               draftInstrument = nil
             }
@@ -262,9 +244,127 @@ struct SongsFilterSheet: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onChange(of: choiceKey) { _, _ in commit() }
     }
-    // Many collapsible sections (instrument, score/FC, Shop): fixed large detent
+    // Many collapsible sections (General, score/FC, instrument): fixed large detent
     // rather than a partial height that would clip mid-section.
     .festivalSheet(.large)
+  }
+
+  // MARK: - General (any profile state)
+
+  /// The web's General section: Year, Duration, Item Shop (while the Shop is shown)
+  /// and Double Bass accordions. These read only public catalogue/Shop metadata, so
+  /// they are editable with or without a selected player.
+  @ViewBuilder private var generalSections: some View {
+    Section {
+      Text("General filters that apply to all songs.")
+        .font(.footnote)
+        .foregroundStyle(FestivalText.primary)
+    } header: {
+      Text("General")
+    }
+    generalBucketSection(
+      id: "year", title: "Year", hint: "Filter songs by their release decade.",
+      keys: availableDecades, expanded: $yearExpanded,
+      label: SongGeneralFilter.decadeLabel, excluded: \.excludedDecades
+    )
+    generalBucketSection(
+      id: "duration", title: "Duration", hint: "Filter songs by their duration.",
+      keys: availableDurations, expanded: $durationExpanded,
+      label: SongGeneralFilter.durationLabel, excluded: \.excludedDurations
+    )
+    if showShop {
+      Section {
+        DisclosureGroup(isExpanded: $shopExpanded) {
+          Toggle("Available in Item Shop", isOn: shopBinding(available: true))
+            .accessibilityIdentifier("fst.songs.filter.shop.available")
+          Toggle("Not Available in Item Shop", isOn: shopBinding(available: false))
+            .accessibilityIdentifier("fst.songs.filter.shop.unavailable")
+          if !shopAvailable && draftGeneral.shop.needsShopFeed {
+            Text("Item Shop filters need matching public Songs and Shop data.")
+              .font(.footnote)
+              .foregroundStyle(FestivalText.primary)
+          }
+        } label: {
+          bucketLabel(
+            "Item Shop",
+            hint: "Filter songs by whether they are available in the Item Shop."
+          )
+          .accessibilityIdentifier("fst.songs.filter.shop")
+        }
+      }
+    }
+    Section {
+      DisclosureGroup(isExpanded: $doubleBassExpanded) {
+        Toggle("Double Bass Support", isOn: $draftGeneral.doubleBassSupported)
+          .accessibilityIdentifier("fst.songs.filter.double-bass.supported")
+        Toggle("No Double Bass Support", isOn: $draftGeneral.doubleBassUnsupported)
+          .accessibilityIdentifier("fst.songs.filter.double-bass.unsupported")
+      } label: {
+        bucketLabel(
+          "Double Bass",
+          hint: "Filter songs that have or don't have double bass charts for Pro Drums."
+        )
+        .accessibilityIdentifier("fst.songs.filter.double-bass")
+      }
+    }
+  }
+
+  /// One General bucket accordion (Year or Duration) with Select All / Clear All in
+  /// the header, like the per-instrument bucket accordions.
+  ///
+  /// - Parameters:
+  ///   - id: Accessibility identifier suffix.
+  ///   - title: Accordion title.
+  ///   - hint: The web's hint line.
+  ///   - keys: Bucket keys in display order.
+  ///   - expanded: Disclosure state.
+  ///   - label: Visible and spoken label for a key.
+  ///   - excluded: The draft's excluded-key set for this accordion.
+  /// - Returns: A Form section.
+  private func generalBucketSection(
+    id: String, title: String, hint: String, keys: [Int], expanded: Binding<Bool>,
+    label: @escaping (Int) -> String,
+    excluded: WritableKeyPath<SongGeneralFilter, Set<Int>>
+  ) -> some View {
+    Section {
+      DisclosureGroup(isExpanded: expanded) {
+        ForEach(keys, id: \.self) { key in
+          Toggle(label(key), isOn: Binding(
+            get: { !draftGeneral[keyPath: excluded].contains(key) },
+            set: { included in
+              if included {
+                draftGeneral[keyPath: excluded].remove(key)
+              } else {
+                draftGeneral[keyPath: excluded].insert(key)
+              }
+            }
+          ))
+          .accessibilityIdentifier("fst.songs.filter.\(id).\(key)")
+        }
+      } label: {
+        bucketLabel(title, hint: hint)
+          .accessibilityIdentifier("fst.songs.filter.\(id)")
+      }
+    } header: {
+      if expanded.wrappedValue {
+        bulkActions(
+          id: id, enabled: true,
+          all: { draftGeneral[keyPath: excluded] = [] },
+          none: { draftGeneral[keyPath: excluded] = Set(keys) }
+        )
+      }
+    }
+  }
+
+  private func shopBinding(available: Bool) -> Binding<Bool> {
+    Binding(
+      get: { available ? draftGeneral.shop.available : draftGeneral.shop.unavailable },
+      set: { value in
+        draftGeneral.shop = available
+          ? SongShopFilter(available: value, unavailable: draftGeneral.shop.unavailable)
+          : SongShopFilter(available: draftGeneral.shop.available, unavailable: value)
+      }
+    )
   }
 
   // MARK: - Percentile and stars (one instrument)
@@ -339,7 +439,7 @@ struct SongsFilterSheet: View {
       // (operator batch 7), shown while the accordion is open.
       if expanded.wrappedValue {
         bulkActions(
-          id: kind.rawValue,
+          id: kind.rawValue, enabled: canEnableScores,
           all: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, []) },
           none: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, Set(keys)) }
         )
@@ -377,7 +477,9 @@ struct SongsFilterSheet: View {
   }
 
   /// The web's `BulkActions` row (Select All / Clear All).
-  private func bulkActions(id: String, all: @escaping () -> Void, none: @escaping () -> Void) -> some View {
+  private func bulkActions(
+    id: String, enabled: Bool, all: @escaping () -> Void, none: @escaping () -> Void
+  ) -> some View {
     HStack(spacing: 16) {
       Spacer()
       Button("Select All", action: all)
@@ -390,14 +492,14 @@ struct SongsFilterSheet: View {
     .font(.subheadline.weight(.semibold))
     .textCase(nil)
     .buttonStyle(.borderless)
-    .disabled(!canEnableScores)
+    .disabled(!enabled)
   }
 
-  /// Apply the current choices immediately when the list can use them.
+  /// Apply the current choices immediately. Choices the list cannot use yet (a Shop
+  /// feed or player scores still loading) are saved and paused by Songs, not dropped.
   private func commit() {
-    guard isApplicable else { return }
     do {
-      try onApply(draft, draftPlayerFilter, draftInstrument)
+      try onApply(draftGeneral, draftPlayerFilter, draftInstrument)
       applyError = nil
     } catch {
       applyError = error.localizedDescription

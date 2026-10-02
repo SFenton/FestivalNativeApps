@@ -141,7 +141,7 @@ private func preloadedNotificationsSession(
 private let fixtureSong = Song(
     songId: "fixture-song", title: "Fixture Anthem", artist: "The Fixtures", album: nil,
     year: 2024, durationSeconds: 180, albumArt: nil, difficulty: nil,
-    pathArtifactGenerationId: nil, sig: nil, maxScores: nil
+    pathArtifactGenerationId: nil, sig: nil, maxScores: nil, doubleBassSupported: nil
 )
 
 // MARK: - Player History

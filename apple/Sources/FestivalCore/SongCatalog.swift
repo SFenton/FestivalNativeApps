@@ -87,6 +87,9 @@ public struct Song: Decodable, Sendable, Identifiable, Equatable, Hashable {
     /// (observed: no `Solo_PeripheralVocals`/Karaoke entry). Exposed for a future
     /// "near max score" suggestion family; unused elsewhere in this lane.
     public let maxScores: [String: Int]?
+    /// Whether Pro Drums has a double bass chart; nil when the service has not
+    /// classified the song (matches neither General Double Bass category).
+    public let doubleBassSupported: Bool?
 
     public var id: String { songId }
 

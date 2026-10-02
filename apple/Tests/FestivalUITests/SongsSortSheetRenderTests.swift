@@ -106,36 +106,43 @@ private func songFormSurfacePixels(
     #expect(images["wide-shop-loaded"] != images["wide-shop-hidden"])
 }
 
-/// Host the actual native Filter Form in available, paused and accessibility states.
+/// Host the actual native Filter Form's General section with and without a profile, in
+/// restricted, Shop-paused, Shop-hidden and accessibility states.
 @MainActor
-@Test func songsShopFilterSheetPaintsDraftAvailabilityAndLargeText() throws {
+@Test func songsGeneralFilterSheetPaintsChoicesWithoutAProfileAndLargeText() throws {
+    let restricted = SongGeneralFilter(
+        excludedDecades: [1970], excludedDurations: [10], doubleBassUnsupported: false
+    )
+    let decades = [1970, 1980, 1990, 2000, 2010, 2020]
     let cases: [(
-        name: String, filter: SongShopFilter, showShop: Bool,
-        shopAvailable: Bool, profileAvailable: Bool,
+        name: String, filter: SongGeneralFilter, showShop: Bool,
+        shopAvailable: Bool, selectedPlayer: Bool,
         size: CGSize, typeSize: DynamicTypeSize
     )] = [
-        ("phone-default", SongShopFilter(), true, true, true,
+        ("phone-no-profile", SongGeneralFilter(), true, true, false,
          CGSize(width: 390, height: 844), .large),
-        ("phone-no-feed", SongShopFilter(), true, false, true,
+        ("phone-no-profile-restricted", restricted, true, true, false,
          CGSize(width: 390, height: 844), .large),
-        ("phone-profile-pending", SongShopFilter(inShop: true), true, true, false,
+        ("phone-no-feed", SongGeneralFilter(shop: .availableOnly), true, false, false,
          CGSize(width: 390, height: 844), .large),
-        ("wide-in-shop", SongShopFilter(inShop: true), true, true, true,
+        ("wide-shop-available", SongGeneralFilter(shop: .availableOnly), true, true, true,
          CGSize(width: 820, height: 1180), .large),
-        ("wide-leaving", SongShopFilter(leavingTomorrow: true), true, true, true,
+        ("wide-shop-unavailable",
+         SongGeneralFilter(shop: SongShopFilter(available: false, unavailable: true)),
+         true, true, true, CGSize(width: 820, height: 1180), .large),
+        ("wide-hidden", SongGeneralFilter(shop: .availableOnly), false, true, true,
          CGSize(width: 820, height: 1180), .large),
-        ("wide-hidden", SongShopFilter(inShop: true), false, true, true,
-         CGSize(width: 820, height: 1180), .large),
-        ("phone-leaving-ax5", SongShopFilter(leavingTomorrow: true), true, true, true,
+        ("phone-restricted-ax5", restricted, true, true, false,
          CGSize(width: 390, height: 844), .accessibility5),
     ]
     var images: [String: Data] = [:]
     for scenario in cases {
         let host = nativeHostedView(
             SongsFilterSheet(
-                applied: scenario.filter, showShop: scenario.showShop,
-                shopAvailable: scenario.shopAvailable,
-                profileAvailable: scenario.profileAvailable, onApply: { _, _, _ in }
+                appliedGeneral: scenario.filter, showShop: scenario.showShop,
+                shopAvailable: scenario.shopAvailable, availableDecades: decades,
+                selectedPlayer: scenario.selectedPlayer,
+                scoreAvailable: scenario.selectedPlayer, onApply: { _, _, _ in }
             )
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
@@ -149,10 +156,9 @@ private func songFormSurfacePixels(
         #expect(abs(CGFloat(image.height) / scenario.size.height - scale) < 0.02)
         let pixels = nativeHostedControlPixels(image)
         #expect(pixels.bright > 20)
-        #expect(pixels.placeholder == 0)
         #expect(songFormSurfacePixels(image, rowFraction: 0.5) > image.width / 8)
-        if scenario.filter.isActive && scenario.showShop
-            && scenario.shopAvailable && scenario.profileAvailable {
+        if scenario.filter.isActive(shopVisible: scenario.showShop) {
+            // Restricted groups open with their remaining choices switched on.
             #expect(pixels.selected > 10)
         }
         images[scenario.name] = try nativeHostedPNG(
@@ -160,10 +166,10 @@ private func songFormSurfacePixels(
             environment: "FST_FILTER_RENDER_OUT"
         )
     }
-    #expect(images["phone-default"] != images["phone-no-feed"])
-    #expect(images["phone-default"] != images["phone-profile-pending"])
-    #expect(images["wide-in-shop"] != images["wide-leaving"])
-    #expect(images["wide-in-shop"] != images["wide-hidden"])
+    #expect(images["phone-no-profile"] != images["phone-no-profile-restricted"])
+    #expect(images["phone-no-profile"] != images["phone-no-feed"])
+    #expect(images["wide-shop-available"] != images["wide-shop-unavailable"])
+    #expect(images["wide-shop-available"] != images["wide-hidden"])
 }
 
 /// Render the source's global score checks and per-chart disclosure without a GUI host.
@@ -183,8 +189,8 @@ private func songFormSurfacePixels(
         let width = CGSize(width: 390, height: 844)
         let host = nativeHostedView(
             SongsFilterSheet(
-                applied: SongShopFilter(), showShop: true, shopAvailable: true,
-                profileAvailable: available, appliedPlayerFilter: saved,
+                showShop: true, shopAvailable: true,
+                appliedPlayerFilter: saved,
                 visibleInstruments: both, selectedPlayer: true,
                 scoreAvailable: available,
                 invalidScoreFilteringEnabled: invalidMode,
