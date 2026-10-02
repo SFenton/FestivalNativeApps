@@ -176,6 +176,12 @@ struct SongDetailScreen: View {
         .toolbar { detailToolbar }
         #if os(macOS)
         .macSongCommands(macSongCommands)
+        #if DEBUG
+        // `tools/mac_app.py command song:paths` (the Song menu needs a key window).
+        .onReceive(NotificationCenter.default.publisher(for: MacDebugHooks.openPathsName)) { _ in
+            if !pathInstruments.isEmpty { pathsPresented = true }
+        }
+        #endif
         #endif
         .sheet(isPresented: $pathsPresented) {
             if let first = pathInstruments.first {

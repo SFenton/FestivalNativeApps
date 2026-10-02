@@ -20,6 +20,8 @@ public enum MacDebugHooks {
     static let commandName = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.command")
     /// In-process notification carrying a parsed ``MacDebugCommand`` to the window.
     static let localCommandName = Notification.Name("FSTMacDebugCommand")
+    /// In-process notification asking the shown Song Detail to open its Paths sheet.
+    static let openPathsName = Notification.Name("FSTMacDebugOpenPaths")
     /// Where the `menus` command writes the menu bar.
     static let menuDumpPath = "/tmp/fst-mac-menus.txt"
 
@@ -146,6 +148,9 @@ enum MacDebugCommand: Equatable {
     case back, refresh, search, profile, notifications, whatsNew, sort, filter, dismiss, settings
     /// `settings:<pane>`: open the Settings window on a pane.
     case settingsPane(SettingsPane)
+    /// `song:<leaderboard|history|paths>`: open the selected song's Lead leaderboard,
+    /// score history or Paths sheet.
+    case song(String)
     /// `menus`: write the menu bar (titles, shortcuts, enabled state) to
     /// ``MacDebugHooks/menuDumpPath`` for evidence without Accessibility permission.
     case menus
@@ -176,6 +181,9 @@ enum MacDebugCommand: Equatable {
         case ("dismiss", 1): self = .dismiss
         case ("settings", 1): self = .settings
         case ("menus", 1): self = .menus
+        case ("song", 2):
+            guard ["leaderboard", "history", "paths"].contains(parts[1]) else { return nil }
+            self = .song(parts[1])
         case ("settings", 2):
             guard let pane = SettingsPane(rawValue: parts[1]) else { return nil }
             self = .settingsPane(pane)

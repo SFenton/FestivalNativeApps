@@ -15,6 +15,14 @@ import FestivalDesign
 /// deregister themselves as their independent loads settle, so the menu rebuilds
 /// automatically on tab change with no explicit array to maintain.
 struct RivalsScreen: View {
+    /// Find Rival's toolbar symbol. The Mac's one unified toolbar also shows the global
+    /// Search magnifier, so Find Rival uses a distinct symbol there.
+    #if os(macOS)
+    static let findRivalSymbol = "person.crop.circle.badge.questionmark"
+    #else
+    static let findRivalSymbol = "magnifyingglass"
+    #endif
+
     let session: FestivalSession
     /// True where Rivals is a tab root (iPad, Duo unfolded): its toolbar then ends
     /// with the bell and avatar so the avatar stays rightmost. False when pushed.
@@ -63,8 +71,9 @@ struct RivalsScreen: View {
                 Button {
                     findRivalPresented = true
                 } label: {
-                    Label("Find Rival", systemImage: "magnifyingglass")
+                    Label("Find Rival", systemImage: Self.findRivalSymbol)
                 }
+                .help("Find Rival")
                 .accessibilityIdentifier("fst.rivals.findRival")
             }
             QuickLinksToolbarItem(quickLinks)
@@ -73,6 +82,9 @@ struct RivalsScreen: View {
             }
         }
         .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
+        #if os(macOS)
+        .macPageCommands(MacPageCommands(findRival: { findRivalPresented = true }))
+        #endif
         .sheet(isPresented: $findRivalPresented) {
             FindRivalSheet(session: session)
                 .festivalSheet()
