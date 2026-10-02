@@ -25,6 +25,11 @@ extension EnvironmentValues {
     /// The iPad sidebar shell's sidebar column and its visibility, handed to list/detail
     /// sections so they draw the whole shell split themselves; nil elsewhere.
     @Entry var sidebarShell: SidebarShellContext?
+    /// The row a rebuilt list page should scroll back to, set only after the section
+    /// switched between one stack and two columns (fold/unfold rebuilds its screens and
+    /// so drops their scroll position). Nil on iPhone, where that never happens. List
+    /// pages scroll to it once per value (``ListDetailScrollRestore``; `/duo` D6).
+    @Entry var listDetailScrollAnchor: AppRoute?
 }
 
 /// What a list/detail section needs to draw the iPad shell split itself: the sidebar
@@ -34,6 +39,42 @@ struct SidebarShellContext {
     let sidebar: AnyView
     /// Shared column visibility of the shell split.
     let visibility: Binding<NavigationSplitViewVisibility>
+}
+
+// MARK: - Scroll restore across a stack/split switch
+
+/// Which row a rebuilt list page scrolls to after a stack ↔ split switch (`/duo` D6,
+/// operator 2026-10-02: keep the swap, restore list scroll).
+///
+/// The anchor is the selection at the moment of the switch, so folding a split and
+/// going Back, or unfolding while a detail is open, shows the list at the song you were
+/// on instead of the top. A list unfolded with nothing open has no anchor (its first
+/// visible row is auto-selected).
+enum ListDetailScrollRestore {
+    /// The anchor to record when the arrangement switches.
+    ///
+    /// - Parameters:
+    ///   - selection: The detail root in the path at the switch, if any.
+    ///   - lastSelection: The last detail root shown in this section.
+    /// - Returns: The route to restore to.
+    static func anchor(selection: AppRoute?, lastSelection: AppRoute?) -> AppRoute? {
+        selection ?? lastSelection
+    }
+
+    /// The row id to scroll to, once per anchor value.
+    ///
+    /// - Parameters:
+    ///   - anchor: The section's current scroll anchor.
+    ///   - restored: The anchor this page instance already restored.
+    ///   - rowIDs: Ids of the rows the page currently lists.
+    ///   - rowID: Maps a route to the page's row id (nil for routes it doesn't list).
+    /// - Returns: The row id, or nil when there is nothing (new) to restore.
+    static func target<ID: Hashable>(
+        anchor: AppRoute?, restored: AppRoute?, rowIDs: Set<ID>, rowID: (AppRoute) -> ID?
+    ) -> ID? {
+        guard let anchor, anchor != restored, let id = rowID(anchor), rowIDs.contains(id) else { return nil }
+        return id
+    }
 }
 
 /// Reports a section's current arrangement to the root shell.
@@ -171,6 +212,8 @@ struct ListDetailStack<Root: View>: View {
     @State private var emptyLists: Set<[AppRoute]> = []
     /// Rows offered for auto-select while nothing is selected.
     @State private var autoSelectCollector = ListDetailAutoSelectCollector()
+    /// Row the rebuilt list should scroll back to after a stack ↔ split switch.
+    @State private var scrollAnchor: AppRoute?
 
     /// How long a split list may show no row before it collapses to full width.
     private static var emptyListTimeout: Duration { .milliseconds(2500) }
@@ -211,6 +254,12 @@ struct ListDetailStack<Root: View>: View {
         .onChange(of: isSplit, initial: true) { _, split in
             if isVisible { splitReporter?(section, isSplit: split) }
         }
+        .onChange(of: isSplit) { _, _ in
+            scrollAnchor = ListDetailScrollRestore.anchor(
+                selection: ListDetailPolicy.split(section: section, path: path)?.selection,
+                lastSelection: lastSelection
+            )
+        }
         .onChange(of: isVisible) { _, visible in
             if visible { splitReporter?(section, isSplit: isSplit) }
         }
@@ -234,6 +283,7 @@ struct ListDetailStack<Root: View>: View {
             path: $path, isVisible: isVisible
         ) {
             root(path.isEmpty)
+                .environment(\.listDetailScrollAnchor, scrollAnchor)
                 // A wide window's list that collapsed while empty: a row that
                 // appears later (or a tap) still opens the detail column.
                 .transformEnvironment(\.listDetailSelect) { value in
@@ -417,6 +467,7 @@ struct ListDetailStack<Root: View>: View {
     /// - Returns: The page with list/detail selection environment.
     private func listColumn(_ page: some View, split: ListDetailPolicy.Split) -> some View {
         page
+            .environment(\.listDetailScrollAnchor, scrollAnchor)
             .environment(\.listDetailSelection, split.selection)
             .environment(\.listDetailSelect, selectAction)
             .environment(\.listDetailAutoSelect, split.selection == nil ? autoSelectAction : nil)

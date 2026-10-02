@@ -47,6 +47,10 @@ struct SongsScreen: View {
     @State private var scrollChrome = SongsScrollChrome()
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
+    /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
+    @Environment(\.listDetailScrollAnchor) private var listScrollAnchor
+    /// The anchor this instance already scrolled to.
+    @State private var restoredScrollAnchor: AppRoute?
     /// True where Filter/Sort live above the iPhone tab bar instead of the toolbar.
     @Environment(\.isTabAccessoryAvailable) private var actionsInDock
     /// The tab-bar accessory (iOS 26.1+) or floating buttons (earlier); nil for toolbar items.
@@ -1152,6 +1156,11 @@ struct SongsScreen: View {
 
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
+            // iPhone Duo fold/unfold rebuilt this list: scroll back to the song that was
+            // open (`/duo` D6). The anchor is nil on iPhone, so this never runs there.
+            .onAppear { restoreListScroll(visible, proxy: scrollProxy) }
+            .onChange(of: visible.count) { _, _ in restoreListScroll(visible, proxy: scrollProxy) }
+            .onChange(of: listScrollAnchor) { _, _ in restoreListScroll(visible, proxy: scrollProxy) }
             .onChange(of: reorderKey) { _, _ in
                 scrollChrome.resetHeaders()
                 let top: AnyHashable? = groups?.first?.id ?? visible.first.map { AnyHashable($0.id) }
@@ -1176,6 +1185,26 @@ struct SongsScreen: View {
                 #endif
             }
         }
+    }
+
+    /// Scroll a rebuilt list back to the section's anchor song, once per anchor.
+    ///
+    /// - Parameters:
+    ///   - songs: Songs currently listed.
+    ///   - proxy: Reader proxy for the Songs List.
+    private func restoreListScroll(_ songs: [Song], proxy: ScrollViewProxy) {
+        guard let id = ListDetailScrollRestore.target(
+            anchor: listScrollAnchor, restored: restoredScrollAnchor,
+            rowIDs: Set(songs.map(\.id)),
+            rowID: { route in
+                if case let .songDetail(song) = route { return song.id }
+                return nil
+            }
+        ) else { return }
+        restoredScrollAnchor = listScrollAnchor
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { proxy.scrollTo(id, anchor: .center) }
     }
 
     /// Jump instantly to a section's title from the A–Z rail (like Contacts and the Quick

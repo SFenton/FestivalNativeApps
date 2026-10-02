@@ -33,6 +33,7 @@ struct DeviceLayoutPublisher: ViewModifier {
 
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     #endif
     @State private var geometry = WindowGeometry()
     @State private var verticalBarEdge: HorizontalEdge?
@@ -42,12 +43,15 @@ struct DeviceLayoutPublisher: ViewModifier {
     private var signals: LayoutSignals {
         #if os(iOS)
         let widthClass: WidthClass = sizeClass == .regular ? .regular : .compact
+        let heightClass: WidthClass = verticalSizeClass == .compact ? .compact : .regular
         #else
         // macOS has no size classes: each Mac column derives one from its width.
         let widthClass: WidthClass = MacLayoutPolicy.widthClass(forWidth: geometry.size.width)
+        let heightClass: WidthClass = .regular
         #endif
         let observed = LayoutSignals(
-            size: geometry.size, widthClass: widthClass, safeAreaInsets: geometry.safeAreaInsets,
+            size: geometry.size, widthClass: widthClass, heightClass: heightClass,
+            safeAreaInsets: geometry.safeAreaInsets,
             verticalBarEdge: verticalBarEdge, hinge: hinge,
             occlusions: geometry.occlusions, divisions: geometry.divisions,
             usesSidebarShell: usesSidebarShell

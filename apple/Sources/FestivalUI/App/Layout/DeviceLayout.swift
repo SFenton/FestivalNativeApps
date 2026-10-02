@@ -30,6 +30,10 @@ struct LayoutSignals: Sendable, Equatable {
     var size: CGSize
     /// Horizontal size class (`compact` outer display / iPhone, `regular` inner display / iPad).
     var widthClass: WidthClass
+    /// Vertical size class: `regular` on the iPhone Duo inner display (both orientations),
+    /// iPad and iPhone portrait; `compact` on iPhone landscape and the Duo outer display
+    /// in landscape. Defaults to `regular` for fixtures that only describe width.
+    var heightClass: WidthClass = .regular
     /// Window safe-area insets. On iPhone Duo these already include the system vertical bar.
     var safeAreaInsets: EdgeInsets = EdgeInsets()
     /// `EnvironmentValues.toolbarVerticalEdge` (iOS 27.1+): the edge where the system places
@@ -121,6 +125,16 @@ struct DeviceLayout: Sendable, Equatable {
     var safeAreaInsets = EdgeInsets()
     /// Window size in points (zero before the first geometry pass).
     var size: CGSize = .zero
+    /// Vertical size class (see ``LayoutSignals/heightClass``).
+    var heightClass: WidthClass = .regular
+
+    /// Regular width *and* regular height: the iPhone Duo inner display in either
+    /// orientation, flat or partially folded (HIG Designing for iPhone Duo: "Use size
+    /// classes: compact width outer, regular width inner"). A large iPhone in landscape
+    /// is regular width but compact height, so it keeps its portrait layout.
+    var isRegularInBothDimensions: Bool {
+        widthClass == .regular && heightClass == .regular
+    }
 
     /// The part of ``overlayInsets`` that the safe area does not already cover: only
     /// hardware occlusions (the outer camera). Use it for controls laid out *inside*
@@ -140,11 +154,12 @@ struct DeviceLayout: Sendable, Equatable {
     ///
     /// Only the sidebar shell (iPad/macOS) and an iPhone Duo inner display qualify
     /// (operator, 2026-09-28): a large iPhone in landscape is regular width too, but
-    /// keeps its portrait tabs (`pose == .standard`). Only the shelved dual-source
-    /// arrangement (``ContentArrangement/dualSource``) would keep the compact set.
+    /// keeps its portrait tabs (compact height). Decided by size classes, not the
+    /// hinge pose (`/duo` D2, 2026-10-02). Only the shelved dual-source arrangement
+    /// (``ContentArrangement/dualSource``) would keep the compact set.
     var usesRegularSectionSet: Bool {
         sectionChrome == .sidebar
-            || (pose != .standard && widthClass == .regular && contentArrangement != .dualSource)
+            || (isRegularInBothDimensions && contentArrangement != .dualSource)
     }
 
     /// Narrowest column that pages treat as regular width (two-column dashboards,
@@ -166,7 +181,7 @@ struct DeviceLayout: Sendable, Equatable {
             widthClass: width >= Self.regularColumnWidth ? .regular : .compact,
             sectionChrome: sectionChrome, contentArrangement: .stack,
             overlayInsets: overlayInsets, foldFrame: foldFrame,
-            safeAreaInsets: safeAreaInsets, size: size
+            safeAreaInsets: safeAreaInsets, size: size, heightClass: heightClass
         )
     }
 
@@ -200,7 +215,8 @@ struct DeviceLayout: Sendable, Equatable {
             ),
             foldFrame: fold,
             safeAreaInsets: signals.safeAreaInsets,
-            size: signals.size
+            size: signals.size,
+            heightClass: signals.heightClass
         )
     }
 

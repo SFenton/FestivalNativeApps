@@ -77,7 +77,8 @@ enum ListDetailPolicy {
     /// Two windows qualify:
     /// - An iPhone Duo inner display (unfolded or partially folded, either orientation;
     ///   the shelved dual-source arrangement would replace it in portrait,
-    ///   ``DualSourcePolicy/isEnabled``) at least ``minimumSplitWidth`` wide.
+    ///   ``DualSourcePolicy/isEnabled``): regular width and regular height (HIG Designing
+    ///   for iPhone Duo: "Split views expand to multiple panes inner and one pane outer").
     /// - The iPad sidebar shell (`sectionChrome == .sidebar`) at least
     ///   ``minimumSidebarSplitWidth`` wide: sidebar, list and detail side by side.
     ///   Decided by the window alone, never by the sidebar's own width: the system
@@ -86,8 +87,8 @@ enum ListDetailPolicy {
     ///   live (HIG Split views, iPadOS: "design for narrow, compact, and intermediate
     ///   fluid widths"). macOS keeps one stack until its own phase (``sidebarShellSplits``).
     ///
-    /// A large iPhone in landscape is regular width but keeps its iPhone layout
-    /// (`pose == .standard`, tab shell).
+    /// A large iPhone in landscape is regular width but compact height, so it keeps its
+    /// iPhone layout. No width breakpoint or hinge pose is involved (`/duo` D2).
     ///
     /// - Parameters:
     ///   - layout: Published window layout.
@@ -100,7 +101,8 @@ enum ListDetailPolicy {
         if layout.sectionChrome == .sidebar {
             return sidebarShellSplits && layout.size.width >= minimumSidebarSplitWidth
         }
-        return layout.pose != .standard && layout.size.width >= minimumSplitWidth
+        // `/duo` D1/D2 (operator, 2026-10-02): size classes decide, in both orientations.
+        return layout.isRegularInBothDimensions
     }
 
     /// Narrowest iPad window that shows sidebar, list and detail: three readable
@@ -121,11 +123,6 @@ enum ListDetailPolicy {
     /// Width the nested list column takes in the iPad sidebar shell (the system
     /// `.balanced` split's primary column, measured 320 pt on iPadOS 26.5).
     static let splitListColumnWidth: CGFloat = 320
-
-    /// Narrowest window that fits two comfortable columns (operator, 2026-09-28: "two
-    /// columns if width allows"). The Duo inner display in landscape (951 pt) splits;
-    /// in portrait (669 pt, two ~330 pt columns) it keeps the full-width list.
-    static let minimumSplitWidth: CGFloat = 760
 
     // MARK: Path split
 

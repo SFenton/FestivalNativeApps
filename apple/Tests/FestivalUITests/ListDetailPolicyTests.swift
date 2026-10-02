@@ -14,7 +14,7 @@ private enum ListDetailLayouts {
         safeAreaInsets: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
     ))
     static let largeIPhoneLandscape = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 956, height: 440), widthClass: .regular,
+        size: CGSize(width: 956, height: 440), widthClass: .regular, heightClass: .compact,
         safeAreaInsets: EdgeInsets(top: 0, leading: 62, bottom: 21, trailing: 62)
     ))
     static let iPad = DeviceLayout.resolve(LayoutSignals(
@@ -70,8 +70,8 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
     #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.duoFolded))
     #expect(!ListDetailPolicy.usesSplit(.standardPhone))
     #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfolded))
-    // Portrait inner display: too narrow for two comfortable columns.
-    #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfoldedPortrait))
+    // Portrait inner display: two columns too (`/duo` D1, operator 2026-10-02).
+    #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfoldedPortrait))
     #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoPartiallyFolded))
 }
 
@@ -244,7 +244,7 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
 
 /// Operator 2026-09-28: a wide window always shows two populated columns. An
 /// unselected list page splits (the stack auto-selects), unless its list produced no
-/// row, which collapses to one full-width stack. Narrow windows never await.
+/// row, which collapses to one full-width stack. Compact (folded) windows never await.
 @Test func unselectedListSplitsUnlessEmpty() throws {
     for (section, path) in [(FestivalSection.songs, [AppRoute]()), (.rivals, []), (.leaderboards, [rankings])] {
         let split = try #require(ListDetailPolicy.split(section: section, path: path))
@@ -254,7 +254,8 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
         ) == .stack)
         #expect(ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoUnfolded))
         #expect(!ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoFolded))
-        #expect(!ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoUnfoldedPortrait))
+        // Inner portrait is wide enough too (`/duo` D1, operator 2026-10-02).
+        #expect(ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoUnfoldedPortrait))
     }
     #expect(!ListDetailPolicy.awaitsSelection(section: .leaderboards, path: [], layout: ListDetailLayouts.duoUnfolded))
     let detail = try AppRoute.songDetail(song("a"))
@@ -299,4 +300,47 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
     ) == [])
     // A non-splittable section pops normally even if reported split.
     #expect(ListDetailPolicy.pathAfterBack(section: .settings, path: [.licenses], isSplit: true) == [])
+}
+
+/// `/duo` D2: size classes decide, not the hinge or a width breakpoint. A regular-width,
+/// compact-height window never splits even with a vertical bar; a regular × regular one
+/// splits with or without hinge data, in either orientation and with a horizontal fold.
+@Test func listDetailGateUsesSizeClassesOnly() {
+    let shortWide = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 951, height: 440), widthClass: .regular, heightClass: .compact,
+        verticalBarEdge: .trailing, hinge: .fullyOpen
+    ))
+    #expect(!ListDetailPolicy.usesSplit(shortWide))
+    #expect(!shortWide.usesRegularSectionSet)
+    let noHinge = DeviceLayout.resolve(LayoutSignals(size: CGSize(width: 669, height: 951), widthClass: .regular))
+    #expect(ListDetailPolicy.usesSplit(noHinge))
+    #expect(noHinge.usesRegularSectionSet)
+    let halfPortrait = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .partiallyOpen,
+        divisions: [CGRect(x: 0, y: 455, width: 669, height: 41)]
+    ))
+    #expect(ListDetailPolicy.usesSplit(halfPortrait))
+}
+
+/// `/duo` D6: after a stack ↔ split switch the rebuilt list scrolls back to the song
+/// that was open, once, and only when it still lists that song.
+@Test func listScrollRestoresToAnchorOnce() throws {
+    let current = try song("a")
+    let other = try song("b")
+    let anchor = AppRoute.songDetail(current)
+    let rowID: (AppRoute) -> String? = { route in
+        if case let .songDetail(song) = route { return song.id }
+        return nil
+    }
+    #expect(ListDetailScrollRestore.anchor(selection: anchor, lastSelection: .songDetail(other)) == anchor)
+    #expect(ListDetailScrollRestore.anchor(selection: nil, lastSelection: anchor) == anchor)
+    #expect(ListDetailScrollRestore.anchor(selection: nil, lastSelection: nil) == nil)
+    let ids: Set<String> = [current.id, other.id]
+    #expect(ListDetailScrollRestore.target(anchor: anchor, restored: nil, rowIDs: ids, rowID: rowID) == current.id)
+    #expect(ListDetailScrollRestore.target(anchor: anchor, restored: anchor, rowIDs: ids, rowID: rowID) == nil)
+    #expect(ListDetailScrollRestore.target(anchor: anchor, restored: nil, rowIDs: [other.id], rowID: rowID) == nil)
+    #expect(ListDetailScrollRestore.target(anchor: nil, restored: nil, rowIDs: ids, rowID: rowID) == nil)
+    #expect(ListDetailScrollRestore.target(
+        anchor: .player(accountId: "a", displayName: nil), restored: nil, rowIDs: ids, rowID: rowID
+    ) == nil)
 }

@@ -120,16 +120,37 @@ private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: 
     #expect(recorder.path.isEmpty)
 }
 
-/// Folded, iPhone and the inner display in portrait (too narrow for two columns):
-/// one stack whose rows push; nothing is auto-selected.
+/// Inner display in portrait, flat or half-open (`/duo` D1, operator 2026-10-02: HIG
+/// alignment): two columns side by side, the detail auto-selected and populated.
+@MainActor
+@Test func listDetailSplitsInInnerPortrait() async throws {
+    let size = CGSize(width: 669, height: 951)
+    let flat = DeviceLayout.resolve(LayoutSignals(size: size, widthClass: .regular, hinge: .fullyOpen))
+    let half = DeviceLayout.resolve(LayoutSignals(
+        size: size, widthClass: .regular, hinge: .partiallyOpen,
+        divisions: [CGRect(x: 0, y: 455, width: 669, height: 41)]
+    ))
+    for (layout, name) in [(flat, "flat"), (half, "half")] {
+        let recorder = PathRecorder()
+        let (host, window) = hostListDetail(
+            section: .rivals, path: [], layout: layout, size: size, row: fixtureRival, recorder: recorder
+        )
+        defer { window.orderOut(nil) }
+        let image = try await nativeHostedSettle(
+            host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], excluding: ["Select a Rival"]
+        )
+        _ = try nativeHostedPNG(
+            image, filename: "list-detail-inner-portrait-\(name).png", environment: "FST_SHELL_RENDER_OUT"
+        )
+        #expect(recorder.path == [fixtureRival])
+    }
+}
+
+/// Folded and iPhone: one stack whose rows push; nothing is auto-selected.
 @MainActor
 @Test func listDetailStackOnNarrowLayouts() async throws {
-    let innerPortrait = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
-    ))
     for (layout, size) in [
         (duoOuter, CGSize(width: 466, height: 678)), (DeviceLayout.standardPhone, CGSize(width: 466, height: 678)),
-        (innerPortrait, CGSize(width: 669, height: 951)),
     ] {
         let recorder = PathRecorder()
         let (host, window) = hostListDetail(

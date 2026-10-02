@@ -14,7 +14,7 @@ private enum Layouts {
     ))
     /// A large iPhone in landscape reports regular width but has no hinge or vertical bar.
     static let largeIPhoneLandscape = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 956, height: 440), widthClass: .regular,
+        size: CGSize(width: 956, height: 440), widthClass: .regular, heightClass: .compact,
         safeAreaInsets: EdgeInsets(top: 0, leading: 62, bottom: 21, trailing: 62)
     ))
     static let duoFoldedPortrait = DeviceLayout.resolve(LayoutSignals(
