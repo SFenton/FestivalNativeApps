@@ -17,7 +17,9 @@ targets:
     info:
       path: Apps/iOS/Info.plist
       properties:
-        CFBundleDisplayName: Festival Score Tracker
+        # Home Screen label: the full name truncates under the icon on iPhone/iPad, so
+        # use the PWA's short name (web manifest short_name "FST"). macOS keeps the full name.
+        CFBundleDisplayName: FST
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         FSTGitSHA: $(FST_GIT_SHA)
@@ -57,7 +59,9 @@ targets:
     info:
       path: Apps/iPadOS/Info.plist
       properties:
-        CFBundleDisplayName: Festival Score Tracker
+        # Home Screen label: the full name truncates under the icon on iPhone/iPad, so
+        # use the PWA's short name (web manifest short_name "FST"). macOS keeps the full name.
+        CFBundleDisplayName: FST
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         FSTGitSHA: $(FST_GIT_SHA)
@@ -136,6 +140,7 @@ targets:
       # Shared launch helper and the `ios_sim.py drive` step driver.
       - path: Apps/iOSUITests/FestivalApp.swift
       - path: Apps/iOSUITests/DriverTests.swift
+      - path: Apps/iOSUITests/HomeScreenNameJourneyTests.swift
     dependencies:
       - target: FestivalTablet
     settings:

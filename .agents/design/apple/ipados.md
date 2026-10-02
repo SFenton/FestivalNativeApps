@@ -4,6 +4,8 @@
 
 The iPadOS app is its own target, **FestivalTablet** (`com.sfenton.festivalscoretracker.ipad`, all orientations, no `UIRequiresFullScreen`); the App Store iPhone app stays iPhone-only and portrait-locked ([build-and-run](../../platforms/apple/build-and-run.md)). Both share `FestivalUI`, so every iPad decision below is a size-class or `sectionChrome == .sidebar` branch that leaves iPhone unchanged.
 
+The Home Screen name is **FST**, the same as the iPhone app ([iphone.md](iphone.md#home-screen-name)).
+
 ## Shell
 
 | Decision | Detail | HIG |
