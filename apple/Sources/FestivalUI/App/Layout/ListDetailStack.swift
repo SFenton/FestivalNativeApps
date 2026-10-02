@@ -13,9 +13,25 @@ extension EnvironmentValues {
     /// ``ListDetailLink`` uses it instead of pushing, so the list never pushes.
     @Entry var listDetailSelect: ListDetailSelectAction?
     /// Offered to list rows while a wide window's detail column has nothing to show:
-    /// every ``ListDetailLink`` reports its route on appear and the first one becomes
-    /// the detail (auto-select the first item).
-    @Entry var listDetailAutoSelect: ListDetailSelectAction?
+    /// every ``ListDetailLink`` on screen offers its route and position, and the
+    /// top-most one becomes the detail (auto-select the first item).
+    @Entry var listDetailAutoSelect: ListDetailAutoSelectAction?
+    /// Tells the root shell whether a section is currently shown as two columns (the
+    /// hardware-keyboard Back command pops per column); nil outside the root shell.
+    @Entry var listDetailSplitReporter: ListDetailSplitReporter?
+}
+
+/// Reports a section's current arrangement to the root shell.
+///
+/// Equatable as always-equal: the root re-creates the closure on each pass and it only
+/// writes root-owned state (same reasoning as `OpenProfileAction`).
+struct ListDetailSplitReporter: Equatable {
+    let report: @MainActor (FestivalSection, Bool) -> Void
+
+    /// Record whether `section` shows two columns.
+    @MainActor func callAsFunction(_ section: FestivalSection, isSplit: Bool) { report(section, isSplit) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 /// Replaces the detail column with a route pushed directly from the list page.
@@ -34,11 +50,68 @@ struct ListDetailSelectAction: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.section == rhs.section }
 }
 
+/// Collects the rows a list shows while nothing is selected and selects the top-most.
+///
+/// A lazy list builds (and calls `onAppear` for) its visible rows in no guaranteed
+/// order, so "the first row to appear" was sometimes the fourth row on screen. Rows
+/// offer their route with their vertical position instead; a short settle window picks
+/// the smallest. Equatable by section only (see ``ListDetailSelectAction``).
+struct ListDetailAutoSelectAction: Equatable {
+    let section: FestivalSection
+    let collector: ListDetailAutoSelectCollector
+
+    /// Offer a row.
+    ///
+    /// - Parameters:
+    ///   - route: The row's detail route.
+    ///   - minY: The row's top edge in global coordinates.
+    @MainActor func offer(_ route: AppRoute, minY: CGFloat) { collector.offer(route, minY: minY) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.section == rhs.section }
+}
+
+/// Reference box behind ``ListDetailAutoSelectAction`` (not observable: offers never
+/// redraw anything).
+@MainActor
+final class ListDetailAutoSelectCollector {
+    /// How long offers are collected before the top-most row is selected.
+    static let settle: Duration = .milliseconds(120)
+
+    private var best: (route: AppRoute, minY: CGFloat)?
+    private var pending: Task<Void, Never>?
+    /// Writes the chosen route; set by the owning stack on every body pass.
+    var select: (AppRoute) -> Void = { _ in }
+
+    /// Record a row and schedule the choice.
+    ///
+    /// - Parameters:
+    ///   - route: The row's detail route.
+    ///   - minY: The row's top edge in global coordinates.
+    func offer(_ route: AppRoute, minY: CGFloat) {
+        if best == nil || minY < best!.minY { best = (route, minY) }
+        guard pending == nil else { return }
+        pending = Task { [weak self] in
+            try? await Task.sleep(for: Self.settle)
+            guard let self, !Task.isCancelled, let chosen = self.best else { return }
+            self.reset()
+            self.select(chosen.route)
+        }
+    }
+
+    /// Forget collected offers (a new list page or a selection was made).
+    func reset() {
+        pending?.cancel()
+        pending = nil
+        best = nil
+    }
+}
+
 // MARK: - List/detail stack
 
 /// A section's navigation: one `FestivalTabStack` on iPhone and folded iPhone Duo,
 /// or a `NavigationSplitView` (list column + detail `NavigationStack`) on a regular
-/// width iPhone Duo inner display, as decided by ``ListDetailPolicy``.
+/// width iPhone Duo inner display or a wide enough iPad sidebar-shell detail column,
+/// as decided by ``ListDetailPolicy``.
 ///
 /// Both arrangements read and write the same section path, so fold/unfold keeps the
 /// selection. In the split, list rows that open a detail use ``ListDetailLink``, which
@@ -57,11 +130,17 @@ struct ListDetailStack<Root: View>: View {
     let root: (Bool) -> Root
 
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.listDetailSplitReporter) private var splitReporter
+    /// Width of this section's container (the detail column of the iPad sidebar shell),
+    /// measured so sidebar show/hide and window resizing re-decide stack or split.
+    @State private var containerWidth: CGFloat?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     /// The last detail root shown, restored when a list page splits again unselected.
     @State private var lastSelection: AppRoute?
     /// The list pages (by list-column path) that produced no row to auto-select.
     @State private var emptyLists: Set<[AppRoute]> = []
+    /// Rows offered for auto-select while nothing is selected.
+    @State private var autoSelectCollector = ListDetailAutoSelectCollector()
 
     /// How long a split list may show no row before it collapses to full width.
     private static var emptyListTimeout: Duration { .milliseconds(2500) }
@@ -110,20 +189,41 @@ struct ListDetailStack<Root: View>: View {
                     .task(id: split.list) { await populate(split) }
             }
         }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            // Only the sidebar shell measures; ignore sub-point jitter.
+            guard layout.sectionChrome == .sidebar, abs((containerWidth ?? 0) - width) >= 1 else { return }
+            containerWidth = width
+        }
         .onChange(of: ListDetailPolicy.split(section: section, path: path)?.selection) { _, selection in
             if let selection { lastSelection = selection }
+            autoSelectCollector.reset()
+        }
+        .onChange(of: isSplit, initial: true) { _, split in
+            if isVisible { splitReporter?(section, isSplit: split) }
+        }
+        .onChange(of: isVisible) { _, visible in
+            if visible { splitReporter?(section, isSplit: isSplit) }
         }
     }
 
     private var arrangement: ListDetailPolicy.Arrangement {
         let list = ListDetailPolicy.split(section: section, path: path)?.list ?? []
         return ListDetailPolicy.arrangement(
-            section: section, path: path, layout: layout, emptyListCollapsed: emptyLists.contains(list)
+            section: section, path: path, layout: layout, containerWidth: containerWidth,
+            emptyListCollapsed: emptyLists.contains(list)
         )
     }
 
+    /// Whether the section currently shows two columns.
+    private var isSplit: Bool {
+        if case .split = arrangement { return true }
+        return false
+    }
+
     private var awaiting: Bool {
-        ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout)
+        ListDetailPolicy.awaitsSelection(
+            section: section, path: path, layout: layout, containerWidth: containerWidth
+        )
     }
 
     /// Keep the detail column populated: restore the last selection this list page
@@ -142,17 +242,25 @@ struct ListDetailStack<Root: View>: View {
         emptyLists.insert(split.list)
     }
 
-    /// Auto-select: the first row to appear while nothing is selected becomes the detail.
-    private var autoSelectAction: ListDetailSelectAction {
-        ListDetailSelectAction(section: section) { route in
-            guard ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout) else { return }
+    /// Auto-select: the top-most row on screen while nothing is selected becomes the detail.
+    private var autoSelectAction: ListDetailAutoSelectAction {
+        autoSelectCollector.select = { route in
+            guard awaiting else { return }
             selectAction(route)
         }
+        return ListDetailAutoSelectAction(section: section, collector: autoSelectCollector)
     }
 
     // MARK: Split
 
     /// Two columns over the section path.
+    ///
+    /// In the iPad sidebar shell this split sits in the root split's detail column: the
+    /// result is the three-pane iPad layout (sidebar, list, detail; HIG Split views,
+    /// iPadOS: "two vertical panes (Mail) or three (Keynote)"), each column with its own
+    /// toolbar. Verified on iPadOS 26.5: the inner list column floats as its own glass
+    /// column with its own hide/show button; an `HStack` of two `NavigationStack`s
+    /// instead merged both toolbars (and the Filter Songs field) into one bar.
     ///
     /// - Parameter split: Current cut of the path.
     /// - Returns: The split view.
@@ -309,6 +417,29 @@ struct ListDetailLink<Label: View>: View {
             }
         }
         .listDetailSelectable(value)
-        .onAppear { autoSelect?(value) }
+        #if os(iOS)
+        // Pointer: the row's rounded card highlights (HIG Pointing devices: "hover for
+        // large ones"; no scale, rows sit edge to edge).
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .hoverEffect(.highlight)
+        #endif
+        .modifier(AutoSelectOffer(route: value, action: autoSelect))
+    }
+}
+
+/// Offers a row's route and top edge to auto-select while the detail is empty.
+///
+/// Always attached (a conditional modifier would change the row's identity and rebuild
+/// it when the selection lands); once something is selected (`action` nil) it reports
+/// a constant, so scrolling never calls back.
+private struct AutoSelectOffer: ViewModifier {
+    let route: AppRoute
+    let action: ListDetailAutoSelectAction?
+
+    func body(content: Content) -> some View {
+        let active = action != nil
+        content.onGeometryChange(for: CGFloat.self, of: { active ? $0.frame(in: .global).minY : 0 }) { minY in
+            action?.offer(route, minY: minY)
+        }
     }
 }

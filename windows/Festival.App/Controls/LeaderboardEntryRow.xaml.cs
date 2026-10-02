@@ -118,8 +118,9 @@ public sealed partial class LeaderboardEntryRow : UserControl
         }
         AutomationProperties.SetName(RowButton, row.Announcement);
         AutomationProperties.SetAutomationId(RowButton, row.AutomationId);
-        // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive.
-        RowButton.IsHitTestVisible = RowButton.IsTabStop = row.Route is not null;
+        // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
+        // UIA reads them as text rather than an invokable button.
+        RowButton.IsHitTestVisible = RowButton.IsTabStop = RowButton.IsActionable = row.Route is not null;
         Chevron.Visibility = row.Route is not null ? Visibility.Visible : Visibility.Collapsed;
         ApplyWeights(row);
         ApplySurface();

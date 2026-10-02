@@ -9,6 +9,12 @@ enum RankLoadState<Value> {
     case loading
     case loaded(Value)
     case failed(ServiceIssue)
+
+    /// Whether the value is still loading (drives ``FestivalReloadGate``).
+    var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
+    }
 }
 
 // MARK: - Account ranking row
@@ -49,6 +55,11 @@ struct AccountRankingRow: View {
                     rowContent
                 }
                 .buttonStyle(.plain)
+                #if os(macOS)
+                .contextMenu {
+                    MacPlayerRowMenu(accountId: entry.accountId, displayName: entry.displayName)
+                }
+                #endif
             } else {
                 // Anonymous production rows have no profile to open.
                 rowContent

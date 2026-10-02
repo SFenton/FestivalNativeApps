@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -34,7 +35,9 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         base.OnNavigatedTo(e);
         ViewModel = new SongBandLeaderboardViewModel(App.Session, (AppRoute.SongBandLeaderboard)e.Parameter);
+        ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.PageAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null,
             "Loading band leaderboard");
@@ -47,6 +50,8 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         headerArt.Cancel();
+        ViewModel.PropertyChanged -= OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
         base.OnNavigatedFrom(e);
     }
 
@@ -104,5 +109,11 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         var pixels = (int)Math.Ceiling(72 * (XamlRoot?.RasterizationScale ?? 1));
         HeaderArt.Source = await ArtworkImages.LoadAsync(song.AlbumArt, pixels, headerArt.Token);
     }
+
+    /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
+    /// <param name="sender">Swap.</param>
+    /// <param name="e">Unused.</param>
+    private void OnContentRevealed(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(Rows));
 }
 #endregion

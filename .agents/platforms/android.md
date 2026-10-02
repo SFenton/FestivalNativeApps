@@ -1,6 +1,6 @@
 # Android architecture and devices
 
-> **What:** Kotlin/Compose architecture, the emulator device matrix and `tools/android/device.py`. **Read when:** working on the Android app or running it on an emulator (built on `sfenton-primary` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
+> **What:** Kotlin/Compose architecture, the emulator device matrix and `tools/android/device.py`. **Read when:** working on the Android app or running it on an emulator (built on `sfenton-music` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
 
 - Kotlin + Jetpack Compose, single activity, domain/data/UI boundaries, lifecycle-aware state.
 - Observe fold/display features with Jetpack WindowManager, never product names or pixel checks.
@@ -8,13 +8,14 @@
 - Fixture mock server only; no production POSTs ([service safety](service-safety.md)).
 - Record API level, window size and pose with each device result (`device.py shot` writes a `.json` sidecar with all three plus the reported display features).
 
-## Android SDK on `sfenton-primary`
+## Android SDK on `sfenton-music`
 
-SDK root `C:/Users/sfent/AppData/Local/Android/Sdk`; JDK 17 (Temurin 17.0.17). Packages are installed side by side; never uninstall or downgrade one another lane may be using.
+SDK root `C:/Users/sfent/AppData/Local/Android/Sdk`; JDK 17 (Temurin 17.0.20). Packages are installed side by side; never uninstall or downgrade one another lane may be using.
 
 | Package | Version |
 |---|---|
 | Emulator | 37.1.11 |
+| Acceleration | Windows Hypervisor Platform, which needs CPU virtualization (AMD SVM) enabled in the UEFI. Until it is, `device.py boot` fails with "x86_64 emulation currently requires hardware acceleration" (`-accel-check`); builds and JVM unit tests are unaffected |
 | Platform-tools (adb) | 37.0.1 |
 | cmdline-tools | 23.0 (side by side with `latest` = 20.0). `sdkmanager` 23 prints a deprecation notice (replacement: `android sdk`) and exits 9 even on success, and its `.bat` splits `;`, so pass packages with `--package_file=` |
 | Platforms | android-36, android-37.0, **android-37.2** (latest stable) |
@@ -95,7 +96,7 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 - Emulator logs: `~/.fst-locks/emulator-<AVD>.log`.
 # Android architecture and devices
 
-> **What:** Kotlin/Compose architecture, build/run tooling and device rules for Android. **Read when:** working on the Android app (built on `sfenton-primary` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
+> **What:** Kotlin/Compose architecture, build/run tooling and device rules for Android. **Read when:** working on the Android app (built on `sfenton-music` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
 
 ## Layers (`android/app/src/main/java/com/festivalscoretracker/android/`)
 

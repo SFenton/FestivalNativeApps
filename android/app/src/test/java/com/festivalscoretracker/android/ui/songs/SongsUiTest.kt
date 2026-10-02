@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.ui.songs
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -19,6 +20,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -176,10 +178,14 @@ class SongsUiTest {
         // Web table: fret pills and the Overdrive bar, no path summary or max score (6.27).
         assertEquals(0, rule.onAllNodesWithText("Max score", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size)
         assertTrue(rule.onNodeWithTag("fst.paths.row.1").fetchSemanticsNode().config.toString().contains("Activation 1"))
+        assertTrue(rule.onNodeWithTag("fst.paths.status", useUnmergedTree = true).fetchSemanticsNode().config.toString().contains("Expert path loaded"))
         click("fst.paths.difficulty.open")
         waitForTag("fst.paths.difficulty.hard")
         click("fst.paths.difficulty.hard")
         waitForTag("fst.paths.not-generated")
+        // TalkBack: the polite live region announced loading, then what loaded (issue #70).
+        rule.onNodeWithTag("fst.paths.status", useUnmergedTree = true)
+            .assertContentDescriptionEquals("No Hard path has been generated for ${Instrument.Lead.label} yet.")
         click("fst.paths.instrument.open")
         waitForTag("fst.paths.instrument.Solo_Guitar")
         click("fst.paths.instrument.Solo_Guitar")

@@ -34,6 +34,13 @@ public enum FirstRunPageKey: String, CaseIterable, Sendable, Identifiable {
         case .shop: "Item Shop"
         }
     }
+
+    /// Title of the page's first-run guide: its navigation-bar title and the Settings "First
+    /// Run Guides" row label (issue #24). The web's nav titles, where Player History is titled
+    /// "Score History" (`history.title`); every title stays under 15 characters (HIG Toolbars).
+    public var guideTitle: String {
+        self == .playerHistory ? "Score History" : label
+    }
 }
 
 // MARK: - Catalog

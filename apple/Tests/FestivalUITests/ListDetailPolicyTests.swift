@@ -59,12 +59,14 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
 
 // MARK: - Layout gate
 
-/// Only the iPhone Duo inner display splits; iPhone (either orientation), folded Duo
-/// and (for now) iPad keep one stack.
+/// Among phones only the iPhone Duo inner display splits; iPhone (either orientation)
+/// and folded Duo keep one stack. The sidebar shell splits only where it is enabled
+/// (iPad, not yet macOS).
 @Test func listDetailSplitsOnlyOnDuoInnerDisplay() {
     #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.iPhonePortrait))
     #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.largeIPhoneLandscape))
-    #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.iPad))
+    #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.iPad, sidebarShellSplits: false))
+    #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.iPad, sidebarShellSplits: true))
     #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.duoFolded))
     #expect(!ListDetailPolicy.usesSplit(.standardPhone))
     #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfolded))
@@ -261,4 +263,46 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
     #expect(ListDetailPolicy.arrangement(
         section: .songs, path: [detail], layout: ListDetailLayouts.duoUnfolded, emptyListCollapsed: true
     ) == .split(.init(list: [], detail: [detail], page: .songs)))
+}
+
+
+// MARK: - iPad sidebar shell
+
+/// The iPad sidebar shell splits by the width left beside the sidebar, so hiding the
+/// sidebar or resizing a window re-decides it; narrow containers keep one stack.
+@Test func iPadSplitFollowsContainerWidth() {
+    let iPad = ListDetailLayouts.iPad
+    #expect(ListDetailPolicy.usesSplit(iPad, containerWidth: 874, sidebarShellSplits: true))
+    #expect(ListDetailPolicy.usesSplit(iPad, containerWidth: 760, sidebarShellSplits: true))
+    #expect(!ListDetailPolicy.usesSplit(iPad, containerWidth: 759, sidebarShellSplits: true))
+    #expect(!ListDetailPolicy.usesSplit(iPad, containerWidth: 504, sidebarShellSplits: true))
+    // Unmeasured: the window width decides.
+    #expect(ListDetailPolicy.usesSplit(iPad, containerWidth: nil, sidebarShellSplits: true))
+    // The Duo gate ignores the container width (it measures the window).
+    #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfolded, containerWidth: 300))
+}
+
+/// The list column takes 40 % of the container, kept between 320 and 420 pt.
+@Test func iPadListColumnWidth() {
+    #expect(ListDetailPolicy.listColumnWidth(containerWidth: 760) == 320)
+    #expect(ListDetailPolicy.listColumnWidth(containerWidth: 874) == 350)
+    #expect(ListDetailPolicy.listColumnWidth(containerWidth: 1194) == 420)
+}
+
+/// ⌘[ pops one stack's top page, or in a split the column that has a Back button.
+@Test func backCommandPopsTheFrontColumn() throws {
+    let detail = AppRoute.songDetail(try song("a"))
+    // Stack: plain pop.
+    #expect(ListDetailPolicy.pathAfterBack(section: .songs, path: [detail], isSplit: false) == [])
+    #expect(ListDetailPolicy.pathAfterBack(section: .songs, path: [], isSplit: false) == nil)
+    // Split: the detail root alone has no Back.
+    #expect(ListDetailPolicy.pathAfterBack(section: .songs, path: [detail], isSplit: true) == nil)
+    // Split: a page pushed in the detail column pops first.
+    #expect(ListDetailPolicy.pathAfterBack(section: .songs, path: [detail, .shop], isSplit: true) == [detail])
+    // Split: a pushed list page pops with its detail.
+    #expect(ListDetailPolicy.pathAfterBack(
+        section: .leaderboards, path: [rankings, player("p")], isSplit: true
+    ) == [])
+    // A non-splittable section pops normally even if reported split.
+    #expect(ListDetailPolicy.pathAfterBack(section: .settings, path: [.licenses], isSplit: true) == [])
 }

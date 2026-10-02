@@ -156,6 +156,124 @@ public class SongScoreHistoryDomainTests
         Assert.Equal(TimeSpan.FromMilliseconds(600), SongDetailReveal.Card(2, 1));
         Assert.Equal(TimeSpan.FromMilliseconds(300), SongDetailReveal.Card(-3, 0));
     }
+
+    [Fact]
+    public void Swap_PlansFadeInstantAndSettle()
+    {
+        Assert.Equal(ScoreHistorySwapPlan.None, ScoreHistorySwap.Plan(Instrument.Lead, null, false));
+        Assert.Equal(ScoreHistorySwapPlan.Instant, ScoreHistorySwap.Plan(null, Instrument.Lead, false));
+        Assert.Equal(ScoreHistorySwapPlan.Settle, ScoreHistorySwap.Plan(Instrument.Lead, Instrument.Lead, false));
+        Assert.Equal(ScoreHistorySwapPlan.Settle, ScoreHistorySwap.Plan(Instrument.Lead, Instrument.Lead, true));
+        Assert.Equal(ScoreHistorySwapPlan.Fade, ScoreHistorySwap.Plan(Instrument.Lead, Instrument.Bass, false));
+        Assert.Equal(ScoreHistorySwapPlan.Instant, ScoreHistorySwap.Plan(Instrument.Lead, Instrument.Bass, true));
+        Assert.True(ScoreHistorySwap.FadeOut < ScoreHistorySwap.FadeIn);
+    }
+
+    [Fact]
+    public void Swap_ReservesPagerWhenAnySelectableChartPages()
+    {
+        var counts = new Dictionary<Instrument, int> { [Instrument.Lead] = 8, [Instrument.Bass] = 2 };
+        Assert.True(ScoreHistorySwap.ReservesPager(counts, [Instrument.Lead, Instrument.Bass], 3));
+        Assert.False(ScoreHistorySwap.ReservesPager(counts, [Instrument.Lead, Instrument.Bass], 8));
+        Assert.False(ScoreHistorySwap.ReservesPager(counts, [Instrument.Bass], 1 + 1));
+        Assert.False(ScoreHistorySwap.ReservesPager(counts, [Instrument.Drums], 1));
+        Assert.False(ScoreHistorySwap.ReservesPager(counts, [Instrument.Lead], int.MaxValue));
+    }
+
+    /// <summary>A swapper over a fake view: fades wait on <see cref="Steps"/> until released.</summary>
+    private sealed class FakeSwapView
+    {
+        public Instrument? Shown = Instrument.Lead;
+        public double Opacity = 1;
+        public bool Held;
+        public List<string> Log = [];
+        public Queue<TaskCompletionSource> Steps = [];
+
+        public ScoreHistorySwapper Swapper()
+        {
+            // No test sync context: completing a step runs the swap's continuation inline, like the UI thread would next.
+            SynchronizationContext.SetSynchronizationContext(null);
+            return new(
+            () => Shown,
+            chart => { Shown = chart; Log.Add("show " + chart); },
+            async (to, duration, token) =>
+            {
+                Log.Add($"fade {to} {duration.TotalMilliseconds}");
+                if (duration > TimeSpan.Zero)
+                {
+                    var step = new TaskCompletionSource();
+                    Steps.Enqueue(step);
+                    using var cancel = token.Register(() => step.TrySetCanceled(token));
+                    await step.Task;
+                }
+                Opacity = to;
+            },
+            hold => { Held = hold; Log.Add(hold ? "hold" : "release"); });
+        }
+
+        public void Finish() => Steps.Dequeue().SetResult();
+    }
+
+    [Fact]
+    public async Task Swapper_FadesOutSwapsAndFadesInWhileHoldingTheCard()
+    {
+        var view = new FakeSwapView();
+        var swapper = view.Swapper();
+        var swap = swapper.RequestAsync(Instrument.Bass, reduceMotion: false);
+        Assert.True(view.Held);
+        Assert.True(swapper.IsRunning);
+        Assert.Equal(Instrument.Lead, view.Shown); // still fading the old chart out
+        view.Finish();
+        Assert.Equal(Instrument.Bass, view.Shown);
+        Assert.Equal(0, view.Opacity);
+        view.Finish();
+        Assert.Equal(ScoreHistorySwapPlan.Fade, await swap);
+        Assert.Equal(["hold", "fade 0 150", "show Bass", "fade 1 250", "release"], view.Log);
+        Assert.Equal(1, view.Opacity);
+        Assert.False(view.Held || swapper.IsRunning);
+    }
+
+    [Fact]
+    public async Task Swapper_NewerRequestCancelsAndEndsOnTheLastChoice()
+    {
+        var view = new FakeSwapView();
+        var swapper = view.Swapper();
+        var first = swapper.RequestAsync(Instrument.Bass, false);
+        var second = swapper.RequestAsync(Instrument.Drums, false); // cancels the Bass fade-out
+        Assert.Equal(ScoreHistorySwapPlan.Fade, await first);
+        Assert.DoesNotContain("show Bass", view.Log);
+        view.Steps.Dequeue(); // the cancelled fade's step
+        view.Finish();
+        view.Finish();
+        await second;
+        Assert.Equal(Instrument.Drums, view.Shown);
+        Assert.False(view.Held);
+
+        // Back to the shown chart mid-swap: it just fades back in.
+        view.Log.Clear();
+        var away = swapper.RequestAsync(Instrument.Bass, false);
+        var back = swapper.RequestAsync(Instrument.Drums, false);
+        await away;
+        view.Steps.Dequeue();
+        view.Finish();
+        Assert.Equal(ScoreHistorySwapPlan.Settle, await back);
+        Assert.Equal(Instrument.Drums, view.Shown);
+        Assert.Equal(["hold", "fade 0 150", "fade 1 250", "release"], view.Log);
+    }
+
+    [Fact]
+    public async Task Swapper_ReducedMotionSwapsAtOnce()
+    {
+        var view = new FakeSwapView();
+        var swapper = view.Swapper();
+        Assert.Equal(ScoreHistorySwapPlan.Instant, await swapper.RequestAsync(Instrument.Bass, reduceMotion: true));
+        Assert.Equal(["show Bass", "fade 1 0", "release"], view.Log);
+        Assert.Equal(ScoreHistorySwapPlan.Settle, await swapper.RequestAsync(Instrument.Bass, reduceMotion: true));
+        Assert.Equal(ScoreHistorySwapPlan.None, await swapper.RequestAsync(null, reduceMotion: false));
+        Assert.Empty(view.Steps);
+        Assert.Equal(1, view.Opacity);
+        Assert.False(view.Held);
+    }
 }
 
 public class SongDetailApiTests
@@ -352,6 +470,22 @@ public class SongScoreHistoryViewModelTests
     }
 
     [Fact]
+    public async Task PagerSlot_StaysReservedWhileAnyChartPages()
+    {
+        var (_, session, _, _) = Setup();
+        var vm = new SongScoreHistoryViewModel(session, "s1", null);
+        await vm.LoadAsync(Song(), [Instrument.Lead, Instrument.Bass]);
+        Assert.False(vm.ShowPagerSlot); // not measured yet: every bar fits
+        vm.SetPlotWidth(2 * 96 + 8 + 50); // two bars: six Lead rows page
+        Assert.True(vm.ShowPaging && vm.ShowPagerSlot);
+        vm.SelectInstrument(Instrument.Bass); // one row: no pager, but its row keeps its space
+        Assert.False(vm.ShowPaging);
+        Assert.True(vm.ShowPagerSlot);
+        vm.SetPlotWidth(10 * 104); // everything fits
+        Assert.False(vm.ShowPagerSlot);
+    }
+
+    [Fact]
     public async Task InvalidScoresAreFiltered_AndNoVisibleChartHides()
     {
         var (_, session, _, _) = Setup(settings: new AppSettings { FilterInvalidScores = true, Leeway = 0 });
@@ -468,7 +602,8 @@ public class SongDetailHistoryPageTests
         await vm.LoadAsync();
         Assert.True(vm.ShowContent);
         Assert.Empty(vm.Leaderboards);
-        Assert.Empty(vm.QuickLinkSections);
+        // Band previews don't depend on visible instruments: Intensity and the band sizes stay in Quick Links.
+        Assert.Equal(["intensity", "band-Band_Duets", "band-Band_Trios", "band-Band_Quad"], vm.QuickLinkSections.Select(s => s.Id));
         Assert.Empty(service.Handler.To("/api/leaderboard/s1/all"));
     }
 }

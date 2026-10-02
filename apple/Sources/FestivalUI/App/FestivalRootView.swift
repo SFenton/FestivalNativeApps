@@ -39,6 +39,15 @@ public struct FestivalRootView: View {
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.colorSchemeContrast) private var systemContrast
+    #if os(iOS)
+    /// The window's width class: a compact iPad window falls back to the phone shell.
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
+    /// Pull-to-refresh actions of the pages on screen, for ⌘R.
+    @State private var refreshCommands = RefreshCommandRegistry()
+    /// Sections currently shown as two columns (reported by `ListDetailStack`), so ⌘[
+    /// pops the right column.
+    @State private var splitSections: Set<FestivalSection> = []
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
@@ -81,8 +90,11 @@ public struct FestivalRootView: View {
         // first geometry pass has not published a layout yet; `shell(_:)`'s
         // `onChange(of: sections)` re-resolves once it has (e.g. Duo unfolded).
         let visible = ShellPresentation.resolve(
-            layout: .standardPhone, usesSidebarShell: !Self.isCompactPhone
-        ).sections(profile: session.selectedPlayer == nil ? .none : .player)
+            layout: .standardPhone, usesSidebarShell: Self.supportsSidebar
+        ).sections(
+            profile: session.selectedPlayer == nil ? .none : .player,
+            hideShop: UserDefaults.standard.bool(forKey: "fst.settings.hideShop")
+        )
         let resolved = FestivalTabPolicy.resolve(initialSection, in: visible)
         _selected = State(initialValue: resolved)
         if let initialRoute { _paths = State(initialValue: [resolved: [initialRoute]]) }
@@ -141,11 +153,12 @@ public struct FestivalRootView: View {
     /// `FestivalShellContent` sits inside `publishesDeviceLayout` so the shell can pick its
     /// section set from the published ``DeviceLayout`` (see ``ShellPresentation``).
     public var body: some View {
-        FestivalShellContent(usesSidebarShell: !usesDrawer) { presentation in
+        FestivalShellContent(usesSidebarShell: usesSidebarShell) { presentation, layout in
             ZStack {
                 FestivalBackgroundHost(session: session)
                     .ignoresSafeArea()
                 shell(presentation)
+                    .background { keyboardCommands(presentation, layout: layout) }
                 if drawerPresented && usesDrawer {
                     FestivalDrawer(
                         session: session, visibleSections: sections(for: presentation),
@@ -170,7 +183,7 @@ public struct FestivalRootView: View {
             }
             #endif
         }
-        .publishesDeviceLayout(usesSidebarShell: !usesDrawer)
+        .publishesDeviceLayout(usesSidebarShell: usesSidebarShell)
         // Debug only: lay the whole app out in a narrower canvas (e.g. 375 pt, iPhone
         // SE width) on a wider simulator, so small-width chrome (title truncation,
         // toolbar crowding) can be captured without an SE simulator.
@@ -194,15 +207,28 @@ public struct FestivalRootView: View {
 
     // MARK: - Platform shell
 
-    /// True on compact iPhone, where the hamburger drawer replaces the web sidebar.
-    private var usesDrawer: Bool { Self.isCompactPhone }
+    /// True wherever the hamburger drawer replaces the web sidebar: every phone, and
+    /// an iPad window at compact width (Slide Over, narrow Split View or window).
+    private var usesDrawer: Bool { !usesSidebarShell }
 
-    /// iPhone idiom (tabs + drawer) versus iPad/macOS (split view + sidebar).
-    private static var isCompactPhone: Bool {
+    /// The `NavigationSplitView` sidebar shell: macOS, and iPad at regular width.
+    private var usesSidebarShell: Bool {
         #if os(iOS)
-        UIDevice.current.userInterfaceIdiom != .pad
+        ShellPresentation.usesSidebarShell(
+            supportsSidebar: Self.supportsSidebar,
+            widthClass: horizontalSizeClass == .compact ? .compact : .regular
+        )
         #else
-        false
+        true
+        #endif
+    }
+
+    /// iPad and macOS can show the sidebar; the phone idiom never does.
+    private static var supportsSidebar: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        true
         #endif
     }
 
@@ -216,7 +242,7 @@ public struct FestivalRootView: View {
     /// - Parameter presentation: Presentation resolved for the current window.
     /// - Returns: Ordered sections for the selected profile.
     private func sections(for presentation: ShellPresentation) -> [FestivalSection] {
-        presentation.sections(profile: profileKind)
+        presentation.sections(profile: profileKind, hideShop: hideShop)
     }
 
     /// Platform navigation (tabs on iPhone, split view on iPad/macOS).
@@ -235,7 +261,13 @@ public struct FestivalRootView: View {
             #else
             if presentation.navigation == .sidebar {
                 NavigationSplitView {
-                    sidebar(visibleSections)
+                    FestivalSidebar(
+                        session: session,
+                        browse: SidebarMenu.browse(profile: profileKind, hideShop: hideShop),
+                        selected: selected, onSelect: select,
+                        onOpenPlayer: { paths[selected, default: []].append($0) },
+                        onChooseProfile: { rootProfilePresented = true }
+                    )
                 } detail: {
                     content(for: selected)
                 }
@@ -248,6 +280,14 @@ public struct FestivalRootView: View {
         .environment(\.festivalSession, session)
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { globalSearchPresented = true })
+        .environment(\.refreshCommandRegistry, refreshCommands)
+        .environment(\.listDetailSplitReporter, ListDetailSplitReporter { section, isSplit in
+            if isSplit { splitSections.insert(section) } else { splitSections.remove(section) }
+        })
+        // Notification rows open their page on the current tab, not inside the sheet (#75).
+        .environment(\.pushRoute, PushRouteAction { route in
+            paths[selected, default: []].append(route)
+        })
         // Player-page stat tiles (Lane AP3): push on this tab, or show Songs filtered.
         .environment(\.playerStatNavigator, PlayerStatNavigator(
             push: { route in paths[selected, default: []].append(route) },
@@ -268,19 +308,6 @@ public struct FestivalRootView: View {
                 paths[selected, default: []].append(route)
             }
             .festivalSheet()
-        }
-        .background {
-            // Hardware keyboards: ⌘F and ⌘K open global search from any page.
-            Button("Search") { globalSearchPresented = true }
-                .keyboardShortcut("f", modifiers: .command)
-                .opacity(0)
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
-            Button("Search") { globalSearchPresented = true }
-                .keyboardShortcut("k", modifiers: .command)
-                .opacity(0)
-                .frame(width: 0, height: 0)
-                .accessibilityHidden(true)
         }
         .sheet(isPresented: $globalSearchPresented, onDismiss: {
             // Push only once the sheet has finished closing.
@@ -403,6 +430,46 @@ public struct FestivalRootView: View {
         nonmutating set { paths[.songs] = newValue }
     }
 
+    // MARK: - Keyboard commands
+
+    /// Hardware-keyboard shortcuts, listed in the ⌘-hold overlay and the iPadOS menu
+    /// bar by their titles (HIG Keyboards; `.agents/design/apple/ipados.md`):
+    /// ⌘F and ⌘K global search (Find), ⌘1…⌘9 the visible destinations in sidebar (or
+    /// tab) order, ⌘[ Back, ⌘R Refresh the frontmost page.
+    ///
+    /// - Parameters:
+    ///   - presentation: Presentation resolved for the current window.
+    ///   - layout: Published window layout.
+    /// - Returns: Invisible, zero-size buttons carrying the shortcuts.
+    private func keyboardCommands(_ presentation: ShellPresentation, layout: DeviceLayout) -> some View {
+        let visible = sections(for: presentation)
+        return ZStack {
+            KeyCommandButton(title: "Search", key: "f") { globalSearchPresented = true }
+            KeyCommandButton(title: "Search", key: "k") { globalSearchPresented = true }
+            ForEach(Array(visible.prefix(9).enumerated()), id: \.element) { index, section in
+                KeyCommandButton(
+                    title: section.title, key: KeyEquivalent(Character(String(index + 1)))
+                ) {
+                    if selected == section { paths[section] = [] } else { select(section) }
+                }
+            }
+            KeyCommandButton(title: "Back", key: "[") { goBack() }
+            KeyCommandButton(title: "Refresh", key: "r") {
+                Task { await refreshCommands.refresh() }
+            }
+        }
+    }
+
+    /// Pop the frontmost column of the selected section (⌘[).
+    private func goBack() {
+        if let next = ListDetailPolicy.pathAfterBack(
+            section: selected, path: path(for: selected).wrappedValue,
+            isSplit: splitSections.contains(selected)
+        ) {
+            paths[selected] = next
+        }
+    }
+
     // MARK: - Drawer
 
     private func openDrawer() {
@@ -465,45 +532,20 @@ public struct FestivalRootView: View {
 
     // MARK: - Wide-layout sidebar
 
+    #if os(macOS)
     /// Keep visible root destinations as a native, Dynamic Type-aware sidebar.
     ///
     /// - Parameter visibleSections: Sections to list.
     /// - Returns: The sidebar column.
     private func sidebar(_ visibleSections: [FestivalSection]) -> some View {
-        Group {
-            #if os(macOS)
-            List(selection: Binding<FestivalSection?>(
-                get: { selected }, set: { if let next = $0 { select(next) } }
-            )) {
-                ForEach(visibleSections) { section in
-                    Label(section.title, systemImage: section.symbol)
-                        .tag(section)
-                        .accessibilityIdentifier("fst.nav.\(section.rawValue)")
-                }
+        List(selection: Binding<FestivalSection?>(
+            get: { selected }, set: { if let next = $0 { select(next) } }
+        )) {
+            ForEach(visibleSections) { section in
+                Label(section.title, systemImage: section.symbol)
+                    .tag(section)
+                    .accessibilityIdentifier("fst.nav.\(section.rawValue)")
             }
-            #else
-            List(visibleSections) { section in
-                Button {
-                    select(section)
-                } label: {
-                    HStack(spacing: 10) {
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .fill(selected == section ? BrandTokens.accentBlue : .clear)
-                            .frame(width: 3, height: 24)
-                            .accessibilityHidden(true)
-                        Label(section.title, systemImage: section.symbol)
-                            .fontWeight(selected == section ? .semibold : .regular)
-                            .foregroundStyle(BrandTokens.textPrimary)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(BrandTokens.cardBackground)
-                .accessibilityAddTraits(selected == section ? .isSelected : [])
-                .accessibilityIdentifier("fst.nav.\(section.rawValue)")
-            }
-            #endif
         }
         .navigationTitle("Festival")
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -542,6 +584,7 @@ public struct FestivalRootView: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
     }
+    #endif
 
     // MARK: - Section content
 
@@ -590,6 +633,12 @@ public struct FestivalRootView: View {
             tabStack(.settings) {
                 SettingsScreen(session: session, isVisible: selected == .settings)
             }
+        case .shop:
+            // Sidebar Item Shop row (iPad/macOS); phones push `.shop` instead.
+            tabStack(.shop) {
+                ShopScreen(session: session, isVisible: selected == .shop && (paths[.shop] ?? []).isEmpty)
+                    .firstRun(.shop, session: session)
+            }
         }
     }
 
@@ -630,7 +679,7 @@ public struct FestivalRootView: View {
         switch section {
         case .leaderboards, .compete, .settings, .suggestions, .rivals: true
         case .statistics: session.selectedPlayer != nil
-        case .songs: false
+        case .songs, .shop: false
         }
     }
 }

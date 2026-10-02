@@ -56,123 +56,171 @@ private func dto(
     #expect(NotificationDestinationResolver.destination(for: event) == nil)
 }
 
-// MARK: - Text
 
-@Test func formatsSongRankImprovedWithRanksAndSong() {
-    let event = dto(
-        eventKind: "player_song_rank_improved", songId: "song-1",
-        instrument: "Solo_Guitar", oldRank: 42, newRank: 10
-    )
-    let formatted = NotificationText.format(event, songTitle: "Fixture Song")
-    #expect(formatted.summary.contains("#42"))
-    #expect(formatted.summary.contains("#10"))
-    #expect(formatted.summary.contains("Fixture Song"))
-    #expect(formatted.title == "Fixture Song")
-    #expect(formatted.badge == "Rank Up")
+// MARK: - Web text parity
+
+/// One fixture row: a wire DTO, its catalogue facts and the web engine's output.
+private struct ParityCase: Decodable {
+    struct Song: Decodable { let title: String; let artist: String?; let albumArt: String? }
+    struct Part: Decodable { let text: String; let emphasis: Bool }
+    struct Group: Decodable { let instrument: String; let flags: [String] }
+    struct Expected: Decodable {
+        let title: String
+        let message: String
+        let parts: [Part]
+        let flags: [String]
+        let groups: [Group]
+    }
+
+    let name: String
+    let dto: ImprovementNotificationDto
+    let song: Song?
+    let playerName: String?
+    let expected: Expected
 }
 
-@Test func formatsUnknownEventKindWithGenericFallback() {
-    let event = dto(eventKind: "some_future_event_kind")
-    let formatted = NotificationText.format(event, songTitle: nil)
-    #expect(formatted.summary == "New improvement detected.")
+private struct ParityFixture: Decodable { let cases: [ParityCase] }
+
+private let enUS = Locale(identifier: "en_US")
+
+/// Format `dto` the way `NotificationsCenter.refresh` does, with a fixed locale.
+private func present(
+    _ dto: ImprovementNotificationDto, song: NotificationSongInfo? = nil, playerName: String? = nil
+) -> AppNotification {
+    NotificationText.format(dto, song: song, playerName: playerName, locale: enUS)
 }
 
-@Test func formatsShopSongWithoutInstrumentContext() {
-    let event = dto(eventKind: "service_new_shop_song", songId: "song-2", instrument: nil)
-    let formatted = NotificationText.format(event, songTitle: "New Track")
-    #expect(formatted.summary == "New in the Item Shop")
-    #expect(formatted.title == "New Track")
+private func decodeDto(_ json: String) throws -> ImprovementNotificationDto {
+    try JSONDecoder().decode(ImprovementNotificationDto.self, from: Data(json.utf8))
 }
 
-/// Every remaining `NotificationText.format` case, its badge and the shared
-/// `rank(_:)`/`formatted(_:)` helpers (unranked fallback, whole vs. fractional
-/// numeric formatting) — these branches previously had no direct test.
-@Test func formatsEveryRemainingEventKindWithItsBadgeAndNumericFormatting() {
-    let firstScore = NotificationText.format(
-        dto(eventKind: "player_first_score", songId: "song-1", newNumeric: 500_000),
-        songTitle: "Fixture Song"
-    )
-    #expect(firstScore.summary.contains("first"))
-    #expect(firstScore.summary.contains("500000 points"))
-    #expect(firstScore.badge == "First Score")
+private let fixtureSong = NotificationSongInfo(title: "Fixture Anthem", artist: "The Fixtures", albumArt: "fixture.jpg")
 
-    let pb = NotificationText.format(
-        dto(eventKind: "player_score_pb", songId: "song-1", newNumeric: 750_500.4),
-        songTitle: "Fixture Song"
-    )
-    #expect(pb.summary.contains("personal best"))
-    #expect(pb.summary.contains("750500.4 points"))
-    #expect(pb.badge == "PB")
+/// Every case in `notification-text-web-parity.json` was produced by running the
+/// web's `formatNotificationPresentation` over the same DTO (live SFentonX feed
+/// rows plus synthetic edge cases); the Swift port must match title, message,
+/// emphasis runs, flags and per-instrument flag groups exactly.
+@Test func notificationTextMatchesWebEngineForEveryFixtureCase() throws {
+    let url = try #require(Bundle.module.url(forResource: "notification-text-web-parity", withExtension: "json"))
+    let fixture = try JSONDecoder().decode(ParityFixture.self, from: Data(contentsOf: url))
+    #expect(fixture.cases.count >= 40)
+    for parity in fixture.cases {
+        let song = parity.song.map { NotificationSongInfo(title: $0.title, artist: $0.artist, albumArt: $0.albumArt) }
+        let result = present(parity.dto, song: song, playerName: parity.playerName)
+        let expected = parity.expected
+        #expect(result.title == expected.title, "\(parity.name) title")
+        #expect(result.message == expected.message, "\(parity.name) message")
+        #expect(result.messageParts.map(\.text) == expected.parts.map(\.text), "\(parity.name) parts")
+        #expect(result.messageParts.map(\.emphasis) == expected.parts.map(\.emphasis), "\(parity.name) emphasis")
+        #expect(result.flags.map(\.rawValue) == expected.flags, "\(parity.name) flags")
+        #expect(result.flagGroups.map(\.instrument.rawValue) == expected.groups.map(\.instrument), "\(parity.name) groups")
+        #expect(result.flagGroups.map { $0.flags.map(\.rawValue) } == expected.groups.map(\.flags), "\(parity.name) group flags")
+    }
+}
 
-    // No prior stars value: falls back to "an unranked position".
-    let stars = NotificationText.format(
-        dto(eventKind: "player_stars_improved", songId: "song-1"), songTitle: "Fixture Song"
-    )
-    #expect(stars.summary.contains("an unranked position"))
-    #expect(stars.badge == "Stars")
+// MARK: - Presentation model
 
-    let gold = NotificationText.format(
-        dto(eventKind: "player_gold_stars_achieved", songId: "song-1"), songTitle: "Fixture Song"
-    )
-    #expect(gold.summary == "You earned gold stars on Lead for Fixture Song")
-    #expect(gold.badge == "Gold Stars")
+@Test func liveFirstScoreRowEmphasisesValuesAndShowsAlbumArt() throws {
+    let row = try decodeDto("""
+    {"eventId":7,"notificationGuid":"g","eventKind":"player_first_score","songId":"s","instrument":"Solo_Guitar",
+     "newNumeric":596888,"newRank":18,"detectedAt":"2026-10-01T00:00:00Z","expiresAt":"2026-10-08T00:00:00Z",
+     "payload":{"newFullCombo":true,"newStars":6}}
+    """)
+    let result = present(row, song: NotificationSongInfo(title: "Night Terror", artist: "x", albumArt: "nt.jpg"))
+    #expect(result.title == "Night Terror · Lead")
+    #expect(result.message == "Your first Lead play on Night Terror scored 596,888 points, started at #18, got a Full Combo, and earned gold stars.")
+    #expect(result.messageParts.filter(\.emphasis).map(\.text) == ["Lead", "Night Terror", "596,888", "#18", "Full Combo", "gold stars"])
+    #expect(result.flags == [.firstPlay, .fullCombo, .goldStars])
+    #expect(result.flagGroups.isEmpty)
+    #expect(result.media == .song(albumArt: "nt.jpg"))
+    #expect(result.accessibilityLabel.hasPrefix("Night Terror · Lead"))
+    #expect(result.destination == .song(songId: "s", instrument: .lead))
+}
 
-    let fc = NotificationText.format(
-        dto(eventKind: "player_fc_achieved", songId: "song-1"), songTitle: "Fixture Song"
-    )
-    #expect(fc.summary == "You got a Full Combo on Lead for Fixture Song")
-    #expect(fc.badge == "Full Combo")
+@Test func multiChartRowShowsArtAboveInstrumentGridInCanonicalOrder() throws {
+    let row = try decodeDto("""
+    {"eventId":8,"notificationGuid":"g","eventKind":"player_score_pb","songId":"s","instrument":"Solo_Drums",
+     "detectedAt":"2026-10-01T00:00:00Z","expiresAt":"2026-10-08T00:00:00Z",
+     "payload":{"coalescedInstruments":["Solo_Drums","Solo_Guitar"],"coalescedEvents":[
+       {"eventKind":"player_score_pb","instrument":"Solo_Drums","newNumeric":1},
+       {"eventKind":"player_fc_achieved","instrument":"Solo_Guitar"}]}}
+    """)
+    let result = present(row, song: fixtureSong)
+    #expect(result.media == .songInstrumentGrid(albumArt: "fixture.jpg", instruments: [.lead, .drums]))
+    #expect(result.title == "Fixture Anthem")
+    #expect(result.flagGroups.map(\.instrument) == [.lead, .drums])
+    #expect(result.flagGroups.first?.accessibilityLabel == "Lead: Full Combo")
+}
 
-    let difficulty = NotificationText.format(
-        dto(eventKind: "player_difficulty_bumped", songId: "song-1", newNumeric: 4, oldNumeric: 3),
-        songTitle: "Fixture Song"
-    )
-    #expect(difficulty.summary.contains("from 3 to 4"))
-    #expect(difficulty.badge == "Difficulty")
+@Test func mediaFallsBackToInstrumentIconWithoutArtwork() {
+    let pb = dto(eventKind: "player_score_pb", songId: "unknown", instrument: "Solo_Bass", newNumeric: 1)
+    #expect(present(pb).media == .soloInstrument(.bass))
+    #expect(present(pb).title == "unknown · Bass")
 
-    let weighted = NotificationText.format(
-        dto(eventKind: "player_weighted_rank_improved", oldRank: 50, newRank: 20),
-        songTitle: nil
-    )
-    #expect(weighted.summary.contains("weighted by number of entries"))
-    #expect(weighted.badge == "Weighted Percentile Rank")
+    let noInstrument = dto(eventKind: "totally_unknown_kind", instrument: nil)
+    let unknown = present(noInstrument, playerName: "SFentonX")
+    #expect(unknown.media == .soloInstrument(.lead))
+    #expect(unknown.title == "SFentonX")
+    #expect(unknown.message == "New improvement detected.")
+    #expect(unknown.flags == [.improvement])
+    #expect(present(noInstrument).title == "Notification")
+}
 
-    let skill = NotificationText.format(
-        dto(eventKind: "player_skill_rank_improved", oldRank: 50, newRank: 20), songTitle: nil
-    )
-    #expect(skill.summary.contains("adjusted percentile rankings"))
-    #expect(skill.badge == "Adjusted Percentile Rank")
+@Test func shopSongRowPrefersCatalogueArtAndHasNoFlags() throws {
+    let row = try decodeDto("""
+    {"eventId":9,"notificationGuid":"g","eventKind":"service_new_shop_song","songId":"s",
+     "detectedAt":"2026-10-01T00:00:00Z","expiresAt":"2026-10-08T00:00:00Z",
+     "payload":{"songTitle":"Payload Title","artist":"Payload Artist","albumArt":"payload.jpg"}}
+    """)
+    let withCatalogue = present(row, song: fixtureSong)
+    #expect(withCatalogue.title == "New Song · Payload Title - Payload Artist")
+    #expect(withCatalogue.messageParts.filter(\.emphasis).map(\.text) == ["Payload Title", "Payload Artist"])
+    #expect(withCatalogue.flags.isEmpty)
+    #expect(withCatalogue.media == .song(albumArt: "fixture.jpg"))
+    #expect(present(row).media == .song(albumArt: "payload.jpg"))
 
-    let totalScoreRank = NotificationText.format(
-        dto(eventKind: "player_total_score_rank_improved", oldRank: 50, newRank: 20), songTitle: nil
-    )
-    #expect(totalScoreRank.summary.contains("total score rankings"))
-    #expect(totalScoreRank.badge == "Total Score Rank")
+    let bare = dto(eventKind: "service_new_shop_song", songId: nil, instrument: nil)
+    #expect(present(bare).title == "New Song · New Song - Unknown Artist")
+    #expect(present(bare).media == .soloInstrument(.lead))
+}
 
-    let fcRateRank = NotificationText.format(
-        dto(eventKind: "player_fc_rate_rank_improved", oldRank: 50, newRank: 20), songTitle: nil
-    )
-    #expect(fcRateRank.summary.contains("Full Combo rankings"))
-    #expect(fcRateRank.badge == "Full Combo Rank")
+@Test func lenientPayloadDecodingAcceptsStringNumbersAndBooleans() throws {
+    let row = try decodeDto("""
+    {"eventId":10,"notificationGuid":"g","eventKind":"player_score_pb","songId":"s","instrument":"Solo_Guitar",
+     "detectedAt":"2026-10-01T00:00:00Z","expiresAt":"2026-10-08T00:00:00Z",
+     "payload":{"oldStars":"5","newStars":6,"newFullCombo":"true","coalescedInstruments":["Solo_Guitar",7,"bogus"],
+       "coalescedEvents":[{"eventKind":"player_score_pb","newNumeric":"123456","oldRank":"10","newRank":9.0,"newLabel":42}]}}
+    """)
+    let payload = try #require(row.payload)
+    #expect(payload.oldStars == 5)
+    #expect(payload.newStars == 6)
+    #expect(payload.newFullCombo == true)
+    // Non-string elements and labels are dropped, as web `stringValue` does.
+    #expect(payload.coalescedInstruments == ["Solo_Guitar", "bogus"])
+    let event = try #require(payload.coalescedEvents?.first)
+    #expect(event.newNumeric == 123_456)
+    #expect(event.oldRank == 10)
+    #expect(event.newRank == 9)
+    #expect(event.newLabel == nil)
+    #expect(present(row, song: fixtureSong).media == .song(albumArt: "fixture.jpg"))
+}
 
-    let maxScoreRank = NotificationText.format(
-        dto(eventKind: "player_max_score_rank_improved", oldRank: 50, newRank: 20), songTitle: nil
-    )
-    #expect(maxScoreRank.summary.contains("max score rankings"))
-    #expect(maxScoreRank.badge == "Max Score Rank")
+@Test func flagKindsMapEventKindsAndUseWebLabels() {
+    #expect(NotificationFlagKind.forEventKind("player_first_score") == .firstPlay)
+    #expect(NotificationFlagKind.forEventKind("player_score_pb") == .newHighScore)
+    #expect(NotificationFlagKind.forEventKind("player_skill_rank_improved") == .rankUp)
+    #expect(NotificationFlagKind.forEventKind("player_fc_count_improved") == .progress)
+    #expect(NotificationFlagKind.forEventKind("future") == .improvement)
+    #expect(NotificationFlagKind.allCases.map(\.label) == [
+        "Improvement", "First Play", "New High Score", "Full Combo", "Rank Up",
+        "Gold Stars", "Stars Up", "Difficulty Up", "Progress",
+    ])
+}
 
-    let totalScore = NotificationText.format(
-        dto(eventKind: "player_total_score_improved", newNumeric: 1_000_000), songTitle: nil
-    )
-    #expect(totalScore.summary.contains("1000000 points"))
-    #expect(totalScore.badge == "Total Score")
-
-    let fcCount = NotificationText.format(
-        dto(eventKind: "player_fc_count_improved", newNumeric: 12), songTitle: nil
-    )
-    #expect(fcCount.summary.contains("increased to 12"))
-    #expect(fcCount.badge == "Full Combos")
-
-    // Unmapped kind: no badge.
-    #expect(NotificationText.format(dto(eventKind: "totally_unknown"), songTitle: nil).badge == nil)
+@Test func emphasisSplitsLongestTermsFirstAndIgnoresFallbacks() {
+    #expect(NotificationTextEngine.filterEmphasis(["#1", nil, " ", "this song", "#12", "#1"]) == ["#12", "#1"])
+    let parts = NotificationTextEngine.emphasize("From #1 to #12.", terms: ["#1", "#12"])
+    #expect(parts.map(\.text) == ["From ", "#1", " to ", "#12", "."])
+    #expect(parts.map(\.emphasis) == [false, true, false, true, false])
+    #expect(NotificationTextEngine.emphasize("Plain.", terms: []).map(\.text) == ["Plain."])
 }

@@ -9,6 +9,7 @@
 - Band size switcher: Fluent `SelectorBar` (Duos · Trios · Quads) switching in place and returning to page 1.
 - Rows (`ListView`, virtualized): rank, each member's instrument icons + name + per-song member score, team score, FC badge (gold outline), accuracy pill, star images (`StarRow`). A row opens `AppRoute.Band(bandId, bandType, teamKey)`.
 - Paging with the shared board pager (`LeaderboardsPager`, operator batch 7.4; floating over the rows); empty state `No band scores found` / `No <Size> scores have been recorded for this song yet.`; failure via `ServiceStatusView`. Late responses for an older size/page are discarded.
+- Load-swap gate (issue #71): first load, band-size changes and paging run the shared web sequence (300 ms content-out, centered ring, 500 ms ring-out, row stagger). New rows/empty/error state commits while hidden; rapid choices are latest-wins. Reduce Motion swaps immediately.
 
 ## Evidence
 

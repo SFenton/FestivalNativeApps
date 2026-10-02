@@ -41,6 +41,21 @@ public sealed class QuickLinksBinder
     private readonly QuickLinksViewModel model;
     private readonly Dictionary<string, FrameworkElement> anchors = [];
 
+    /// <summary>Jump target still being settled, or <see langword="null"/>.</summary>
+    private FrameworkElement? landing;
+
+    /// <summary>Section ID of <see cref="landing"/>.</summary>
+    private string? landingId;
+
+    /// <summary>Re-aims left for <see cref="landing"/>.</summary>
+    private int corrections;
+
+    /// <summary>Repeaters whose realization changes mark <see cref="anchors"/> stale.</summary>
+    private readonly HashSet<ItemsRepeater> watched = [];
+
+    /// <summary>Whether a repeater realized or recycled a section since the last <see cref="Collect"/>.</summary>
+    private bool stale;
+
     /// <summary>Attaches to a scroller.</summary>
     /// <param name="scroller">Page scroller.</param>
     /// <param name="model">Quick Links model.</param>
@@ -50,7 +65,7 @@ public sealed class QuickLinksBinder
         this.scroller = scroller;
         this.model = model;
         _ = reduceMotion;
-        scroller.ViewChanged += (_, e) => Report(!e.IsIntermediate);
+        scroller.ViewChanged += (_, e) => OnViewChanged(!e.IsIntermediate);
         scroller.SizeChanged += (_, _) => Report(false);
         scroller.Loaded += (_, _) =>
         {
@@ -75,6 +90,7 @@ public sealed class QuickLinksBinder
     public void Collect()
     {
         anchors.Clear();
+        stale = false;
         if (scroller.Content is DependencyObject root) Walk(root);
     }
 
@@ -89,11 +105,11 @@ public sealed class QuickLinksBinder
     /// <param name="isFinal">Whether scrolling came to rest.</param>
     private void Report(bool isFinal)
     {
-        if (anchors.Count == 0) Collect();
+        if (anchors.Count == 0 || stale) Collect();
         var frames = new Dictionary<string, QuickLinkFrame>();
         foreach (var (id, element) in anchors)
         {
-            if (element.Visibility != Visibility.Visible || element.ActualHeight <= 0) continue;
+            if (QuickLinkAnchor.GetId(element) != id || element.Visibility != Visibility.Visible || element.ActualHeight <= 0) continue;
             var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
             frames[id] = new QuickLinkFrame(top, top + element.ActualHeight);
         }
@@ -104,11 +120,15 @@ public sealed class QuickLinksBinder
     /// <param name="id">Section.</param>
     private void Jump(string id)
     {
-        if (anchors.Count == 0) Collect();
+        if (anchors.Count == 0 || stale) Collect();
+        landing = null;
+        landingId = id;
+        corrections = QuickLinks.MaxJumpCorrections;
         // Repeater-owned sections go through the repeater: a recycled element can still carry an old anchor ID, and a
         // just-realized one has no position until the repeater arranges it.
         if (Resolve?.Invoke(id) is { } realized)
         {
+            landing = realized;
             realized.StartBringIntoView(new BringIntoViewOptions
             {
                 VerticalAlignmentRatio = 0,
@@ -117,22 +137,75 @@ public sealed class QuickLinksBinder
                 AnimationDesired = false,
             });
             Land(realized, id);
+            // Settles the jump even when the section was already in place (no view change follows).
+            scroller.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, CheckLanding);
             return;
         }
         if (!anchors.TryGetValue(id, out var element)) return;
         Land(element, id);
-        var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
-        var target = QuickLinks.LandingTarget(scroller.VerticalOffset + top, scroller.ScrollableHeight);
-        if (Math.Abs(target - scroller.VerticalOffset) < 0.5)
+        landing = element;
+        if (!Aim(element))
         {
+            landing = null;
             Report(true);
-        }
-        else
-        {
-            scroller.ChangeView(null, target, null, disableAnimation: true);
         }
     }
 
+    /// <summary>Scrolls toward an anchor's current position.</summary>
+    /// <param name="element">Anchor.</param>
+    /// <returns><see langword="false"/> when already there (no view change will follow).</returns>
+    private bool Aim(FrameworkElement element)
+    {
+        var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
+        var target = QuickLinks.JumpOffset(scroller.VerticalOffset, top, scroller.ScrollableHeight, QuickLinks.LandingOffset);
+        if (QuickLinks.IsLanded(scroller.VerticalOffset, target)) return false;
+        return scroller.ChangeView(null, target, null, disableAnimation: true);
+    }
+
+    /// <summary>
+    /// Handles a view change. Section positions below or inside a virtualizing <c>ItemsRepeater</c> (profile
+    /// instruments and Bands) are first measured against the repeater's estimated card heights; once the jump settles,
+    /// the cards around the new viewport are realized and the page extent changes, moving the target (or clamping the
+    /// offset at the end). Until the target has landed, rest events report as intermediate so the jump is not settled
+    /// (and released) on a stale position.
+    /// </summary>
+    /// <param name="isFinal">Whether scrolling came to rest.</param>
+    private void OnViewChanged(bool isFinal)
+    {
+        if (landing is null || !isFinal)
+        {
+            Report(isFinal);
+            return;
+        }
+        Report(false);
+        scroller.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, CheckLanding);
+    }
+
+    /// <summary>
+    /// Lays the page out, re-measures the pending jump target and re-aims (bounded by
+    /// <see cref="QuickLinks.MaxJumpCorrections"/>); once it rests on the target, settles the jump.
+    /// </summary>
+    private void CheckLanding()
+    {
+        if (landing is not { } element) return;
+        scroller.UpdateLayout();
+        if (corrections-- > 0 && IsLive(element, landingId) && Aim(element)) return;
+        landing = null;
+        Report(true);
+    }
+
+    /// <summary>Whether an anchor element still shows the given section (not unloaded, pooled or recycled).</summary>
+    /// <param name="element">Anchor element.</param>
+    /// <param name="id">Section ID.</param>
+    /// <returns><see langword="true"/> while it can be measured for that section.</returns>
+    private static bool IsLive(FrameworkElement element, string? id) =>
+        element.IsLoaded && QuickLinkAnchor.GetId(element) == id && !IsPooled(element);
+
+    /// <summary>Whether an element is a repeater child kept for reuse rather than showing an item.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns><see langword="true"/> for a pooled repeater element.</returns>
+    private static bool IsPooled(FrameworkElement element) =>
+        VisualTreeHelper.GetParent(element) is ItemsRepeater owner && owner.GetElementIndex(element) < 0;
     /// <summary>
     /// Like a web skip link, a jump moves keyboard focus to the section's first focusable element and tells Narrator
     /// which section it reached (a scroll alone is silent and leaves focus on the menu or pane).
@@ -153,7 +226,18 @@ public sealed class QuickLinksBinder
     /// <param name="node">Node.</param>
     private void Walk(DependencyObject node)
     {
-        if (node is FrameworkElement element && QuickLinkAnchor.GetId(element) is { Length: > 0 } id) anchors[id] = element;
+        if (node is ItemsRepeater repeater && watched.Add(repeater))
+        {
+            // Sections realized or recycled after the first walk change which element carries which ID.
+            repeater.ElementPrepared += (_, _) => stale = true;
+            repeater.ElementClearing += (_, _) => stale = true;
+        }
+        if (node is FrameworkElement element)
+        {
+            // A pooled repeater element still carries the ID of the section it showed last.
+            if (IsPooled(element)) return;
+            if (QuickLinkAnchor.GetId(element) is { Length: > 0 } id) anchors[id] = element;
+        }
         var count = VisualTreeHelper.GetChildrenCount(node);
         for (var i = 0; i < count; i++) Walk(VisualTreeHelper.GetChild(node, i));
     }

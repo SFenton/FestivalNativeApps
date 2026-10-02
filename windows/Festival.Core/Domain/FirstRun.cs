@@ -62,6 +62,13 @@ public sealed record FirstRunSlide(
 {
     /// <summary>Text hashed to detect copy changes: <c>contentKey ?? title + description</c>.</summary>
     public string HashedContent => ContentKey ?? Title + Description;
+
+    /// <summary>
+    /// The slide's title. XAML names each <c>FlipViewItem</c> from its item's <c>ToString()</c>, so this is what
+    /// Narrator reads for the focused slide when a guide opens (issue #24); the record default would read every field.
+    /// </summary>
+    /// <returns><see cref="Title"/>.</returns>
+    public override string ToString() => Title;
 }
 #endregion
 

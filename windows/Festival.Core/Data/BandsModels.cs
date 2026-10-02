@@ -414,3 +414,88 @@ public sealed record SongBandLeaderboardResponse
     }
 }
 #endregion
+
+#region Song Detail band previews
+/// <summary>
+/// One band size's preview inside <c>GET /api/leaderboard/{songId}/bands/all</c> (service
+/// <c>BuildSongBandLeaderboardsPayload</c>): the top rows plus, when the request carried <c>accountId</c>, the selected
+/// player's best band row for that size.
+/// </summary>
+public sealed record SongBandPreview
+{
+    /// <summary>Band size service ID.</summary>
+    [JsonPropertyName("bandType")] public string BandType { get; init; } = "";
+    /// <summary>Rows in <see cref="Entries"/>.</summary>
+    [JsonPropertyName("count")] public int Count { get; init; }
+    /// <summary>Ranked bands of this size on the song.</summary>
+    [JsonPropertyName("totalEntries")] public int TotalEntries { get; init; }
+    /// <summary>Paging population.</summary>
+    [JsonPropertyName("localEntries")] public int? LocalEntries { get; init; }
+    /// <summary>Top rows.</summary>
+    [JsonPropertyName("entries")] public IReadOnlyList<SongBandLeaderboardEntry> Entries { get; init; } = [];
+    /// <summary>The selected player's best band on this song and size (<c>accountId</c> query).</summary>
+    [JsonPropertyName("selectedPlayerEntry")] public SongBandLeaderboardEntry? SelectedPlayerEntry { get; init; }
+    /// <summary>A selected band's own row (<c>selectedTeamKey</c> query, not sent by natives yet).</summary>
+    [JsonPropertyName("selectedBandEntry")] public SongBandLeaderboardEntry? SelectedBandEntry { get; init; }
+
+    /// <summary>The highlighted row: a selected band wins over the selected player's best band (web preview).</summary>
+    [JsonIgnore] public SongBandLeaderboardEntry? SelectedEntry => SelectedBandEntry ?? SelectedPlayerEntry;
+
+    /// <summary>Whether a top row is the highlighted row.</summary>
+    /// <param name="entry">Top row.</param>
+    /// <returns><see langword="true"/> when it is the same band as <see cref="SelectedEntry"/>.</returns>
+    public bool IsSelected(SongBandLeaderboardEntry entry) => SelectedEntry is { } selected && IsSameBand(entry, selected);
+
+    /// <summary>The highlighted row to append after the top rows when they don't already show it.</summary>
+    [JsonIgnore]
+    public SongBandLeaderboardEntry? FooterEntry =>
+        SelectedEntry is { } selected && !Entries.Any(e => IsSameBand(e, selected)) ? selected : null;
+
+    /// <summary>Web <c>isSameSongBandEntry</c>: equal non-empty band ID, or equal size and roster.</summary>
+    /// <param name="a">First row.</param>
+    /// <param name="b">Second row.</param>
+    /// <returns><see langword="true"/> for the same band.</returns>
+    public static bool IsSameBand(SongBandLeaderboardEntry a, SongBandLeaderboardEntry b) =>
+        (a.BandId.Length > 0 && a.BandId == b.BandId) || (a.BandType == b.BandType && a.TeamKey == b.TeamKey);
+}
+
+/// <summary>Response of <c>GET /api/leaderboard/{songId}/bands/all</c>: one preview per band size.</summary>
+public sealed record SongBandLeaderboardsResponse
+{
+    /// <summary>Echoed song.</summary>
+    [JsonPropertyName("songId")] public string SongId { get; init; } = "";
+    /// <summary>Whether totals may be shown.</summary>
+    [JsonPropertyName("showLeaderboardEntryTotals")] public bool? ShowLeaderboardEntryTotals { get; init; }
+    /// <summary>Previews by band size.</summary>
+    [JsonPropertyName("bands")] public IReadOnlyList<SongBandPreview> Bands { get; init; } = [];
+
+    /// <summary>The preview for one size; a size the service omitted reads as empty (web <c>createSongBandData</c>).</summary>
+    /// <param name="bandType">Band size.</param>
+    /// <returns>Preview.</returns>
+    public SongBandPreview For(BandType bandType) =>
+        Bands.FirstOrDefault(b => b.BandType == bandType.ServiceId()) ?? new SongBandPreview { BandType = bandType.ServiceId() };
+
+    /// <summary>
+    /// Rejects a response for another song, an unknown or repeated size, an impossible count or a row filed under the
+    /// wrong size.
+    /// </summary>
+    /// <param name="songId">Requested song.</param>
+    /// <param name="top">Requested rows per size.</param>
+    /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResponse"/>.</exception>
+    public void Validate(string songId, int top)
+    {
+        if (SongId != songId || Bands is null) throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var band in Bands)
+        {
+            if (band is null || !BandTypeInfo.TryParse(band.BandType, out _) || !seen.Add(band.BandType) || band.Entries is null ||
+                band.Count != band.Entries.Count || band.Count > top || band.TotalEntries < 0 || band.LocalEntries is < 0)
+                throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
+            IEnumerable<SongBandLeaderboardEntry?> rows = [.. band.Entries, band.SelectedPlayerEntry, band.SelectedBandEntry];
+            if (band.Entries.Any(e => e is null) ||
+                rows.OfType<SongBandLeaderboardEntry>().Any(e => e.BandType != band.BandType || e.Members is null))
+                throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
+        }
+    }
+}
+#endregion

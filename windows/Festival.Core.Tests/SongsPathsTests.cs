@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Festival.Core.ViewModels;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Festival.Core.Tests;
 
@@ -228,5 +229,136 @@ public class SongPathsViewModelTests
         await first;
         Assert.Equal(PathDifficulty.Hard, vm.Difficulty);
         Assert.True(vm.ShowImage);
+    }
+
+    /// <summary>Opens with motion: spinner holds the web minimum, fades out, then the chart fades in.</summary>
+    private static async Task<(SongPathsViewModel Vm, FakeTimeProvider Time, List<Announcement> Spoken)> OpenAnimated(FakeService service)
+    {
+        var time = new FakeTimeProvider();
+        var vm = new SongPathsViewModel(service.Session(time), Song(), [Instrument.Lead]) { AnimateSwaps = () => true };
+        var spoken = new List<Announcement>();
+        vm.Announced += (_, a) => spoken.Add(a);
+        var open = vm.LoadAsync();
+        Assert.Equal((PathSwapPhase.Spinner, true, 1d, 0d), (vm.Phase, vm.IsLoading, vm.SpinnerOpacity, vm.ContentOpacity));
+        await Async.Settle();
+        Assert.Equal(PathSwapPhase.Spinner, vm.Phase); // read finished; the spinner still holds
+        time.Advance(PathSwapTiming.MinImageSpinner);
+        await Async.Until(() => vm.Phase == PathSwapPhase.SpinnerOut);
+        Assert.Equal((false, 0d), (vm.ShowImage, vm.SpinnerOpacity));
+        time.Advance(PathSwapTiming.Fade);
+        await open;
+        Assert.Equal((PathSwapPhase.Content, true, false, 1d), (vm.Phase, vm.ShowImage, vm.IsLoading, vm.ContentOpacity));
+        Assert.Empty(spoken); // the opening read is announced by the dialog
+        return (vm, time, spoken);
+    }
+
+    [Fact]
+    public async Task Swap_FadesOutOldChart_HoldsSpinner_ThenFadesInNewChart()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var (vm, time, spoken) = await OpenAnimated(service);
+
+        vm.DifficultyIndex = (int)PathDifficulty.Hard;
+        // The old chart stays (fading out) under its own description while the picker already shows Hard.
+        Assert.Equal((PathSwapPhase.ContentOut, true, false, 0d), (vm.Phase, vm.ShowImage, vm.IsLoading, vm.ContentOpacity));
+        Assert.Equal("Lead Expert CHOpt path", vm.ImageDescription);
+        time.Advance(PathSwapTiming.Fade - TimeSpan.FromMilliseconds(1));
+        await Async.Settle();
+        Assert.Equal(PathSwapPhase.ContentOut, vm.Phase);
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        await Async.Until(() => vm.Phase == PathSwapPhase.Spinner);
+        Assert.False(vm.ShowImage);
+        Assert.Equal(new Announcement("Loading Lead Hard path", AnnouncementKind.Progress), spoken.Single());
+        await Async.Settle();
+        time.Advance(PathSwapTiming.MinImageSpinner);
+        await Async.Until(() => vm.Phase == PathSwapPhase.SpinnerOut);
+        time.Advance(PathSwapTiming.Fade);
+        await Async.Until(() => vm.Phase == PathSwapPhase.Content);
+        Assert.True(vm.ShowImage);
+        Assert.Equal("Lead Hard CHOpt path", vm.ImageDescription);
+        Assert.Equal(new Announcement("Lead Hard path image loaded", AnnouncementKind.Completed), spoken[^1]);
+
+        // Image → Text: same sequence, with the text minimum.
+        vm.DisplayIndex = 1;
+        Assert.Equal((PathSwapPhase.ContentOut, true, false), (vm.Phase, vm.ShowImage, vm.ShowTable));
+        time.Advance(PathSwapTiming.Fade);
+        await Async.Until(() => vm.Phase == PathSwapPhase.Spinner);
+        await Async.Settle();
+        time.Advance(PathSwapTiming.MinImageSpinner);
+        await Async.Settle();
+        Assert.Equal(PathSwapPhase.Spinner, vm.Phase);
+        time.Advance(PathSwapTiming.MinTextSpinner - PathSwapTiming.MinImageSpinner);
+        await Async.Until(() => vm.Phase == PathSwapPhase.SpinnerOut);
+        time.Advance(PathSwapTiming.Fade);
+        await Async.Until(() => vm.Phase == PathSwapPhase.Content);
+        Assert.Equal((true, false), (vm.ShowTable, vm.ShowImage));
+        Assert.StartsWith("Lead Hard path loaded, ", spoken[^1].Text);
+        vm.Close();
+    }
+
+    [Fact]
+    public async Task Swap_RapidSwitches_NeverPresentAStaleChart()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var inner = service.Override!;
+        var gate = new TaskCompletionSource();
+        service.Handler.Responder = async (request, _) =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/hard", StringComparison.Ordinal)) await gate.Task;
+            return inner(request) ?? Wire.Ok(Wire.Publication(7));
+        };
+        var (vm, time, _) = await OpenAnimated(service);
+        var presented = new List<string>();
+        vm.PropertyChanged += (_, _) =>
+        {
+            if (vm.ShowImage) presented.Add(vm.ImageDescription);
+            if (vm.ShowTable) presented.Add($"table {vm.Difficulty.Label()}");
+        };
+
+        vm.DifficultyIndex = (int)PathDifficulty.Hard; // slow
+        time.Advance(TimeSpan.FromMilliseconds(150));
+        await Async.Settle();
+        vm.DifficultyIndex = (int)PathDifficulty.Medium;
+        Assert.Equal(PathSwapPhase.ContentOut, vm.Phase);
+        time.Advance(PathSwapTiming.Fade);
+        await Async.Until(() => vm.Phase == PathSwapPhase.Spinner);
+        vm.DisplayIndex = 1; // switching under the spinner keeps the spinner
+        Assert.Equal(PathSwapPhase.Spinner, vm.Phase);
+        await Async.Settle();
+        time.Advance(PathSwapTiming.MinTextSpinner);
+        await Async.Until(() => vm.Phase == PathSwapPhase.SpinnerOut);
+        time.Advance(PathSwapTiming.Fade);
+        await Async.Until(() => vm.Phase == PathSwapPhase.Content);
+        gate.SetResult();
+        await Async.Settle();
+        Assert.Equal((true, false, PathDifficulty.Medium), (vm.ShowTable, vm.ShowImage, vm.Difficulty));
+        Assert.All(presented, p => Assert.True(p is "Lead Expert CHOpt path" or "table Medium", p));
+        Assert.Contains("table Medium", presented);
+        vm.Close();
+    }
+
+    [Fact]
+    public async Task Swap_WithoutMotion_IsInstant_AndAnnouncesLoadingThenResult()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var inner = service.Override!;
+        service.Override = r => r.RequestUri!.AbsolutePath.EndsWith("/easy", StringComparison.Ordinal)
+            ? Wire.Response(HttpStatusCode.NotFound, "{}", ("X-FST-Publication-Id", "7")) : inner(r);
+        var vm = new SongPathsViewModel(service.Session(), Song(), [Instrument.Lead]);
+        var spoken = new List<Announcement>();
+        var phases = new List<PathSwapPhase>();
+        vm.Announced += (_, a) => spoken.Add(a);
+        vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SongPathsViewModel.Phase)) phases.Add(vm.Phase); };
+        await vm.LoadAsync();
+        vm.DifficultyIndex = (int)PathDifficulty.Easy;
+        await Async.Until(() => vm.ShowNotGenerated && vm.Phase == PathSwapPhase.Content);
+        Assert.DoesNotContain(PathSwapPhase.ContentOut, phases);
+        Assert.DoesNotContain(PathSwapPhase.SpinnerOut, phases);
+        Assert.Equal(
+            [new Announcement("Loading Lead Easy path", AnnouncementKind.Progress), new Announcement(SongPathsViewModel.NotGeneratedText, AnnouncementKind.Completed)],
+            spoken);
     }
 }

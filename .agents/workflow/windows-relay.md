@@ -1,6 +1,6 @@
 # Remote build host relay
 
-> **What:** how Android/Windows work runs on `sfenton-primary` and moves to GitHub. **Read when:** running, collecting or integrating a Windows-host lane.
+> **What:** how Android/Windows work runs on `sfenton-music` and moves to GitHub. **Read when:** running, collecting or integrating a Windows-host lane.
 
 Since 2026-09-28 the Windows host **pushes to GitHub directly** (gh token in `%APPDATA%\GitHub CLI\hosts.yml`, `gh auth setup-git`; the main clone's `origin` is `https://github.com/SFenton/FestivalNativeApps.git`). Lanes there integrate themselves with `tools/git_integrate.py`; the Mac pulls as usual. The bundle relay below remains as a fallback if GitHub auth breaks.
 

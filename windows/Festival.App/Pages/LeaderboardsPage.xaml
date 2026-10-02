@@ -52,7 +52,7 @@
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
                            VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <StackPanel x:Name="HeaderActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <DropDownButton x:Name="RankByButton" VerticalAlignment="Center"
+                <DropDownButton x:Name="RankByButton" VerticalAlignment="Center" MinHeight="{StaticResource FSTMinTargetSize}"
                                 AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -70,10 +70,12 @@
             <!-- One ring until the first cards settle, then the cards stagger in (web page-ready gate, operator batch 6.41). -->
             <ProgressRing x:Name="ReadyRing" Width="48" Height="48" Margin="0,96,0,0" HorizontalAlignment="Center"
                           IsActive="{x:Bind pages:LeaderboardsPage.Not(ViewModel.IsReady), Mode=OneWay}"
+                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
                           Visibility="{x:Bind pages:LeaderboardsPage.Collapsed(ViewModel.IsReady), Mode=OneWay}"
                           AutomationProperties.Name="Loading leaderboards" />
             <ItemsRepeater x:Name="InstrumentRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}"
+                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="4" Spacing="16" />
@@ -127,12 +129,14 @@
             </ItemsRepeater>
 
             <!-- "Bands" heads the Duos/Trios/Quads cards, so it is a size up from their card headers (operator batch 6.8). -->
-            <Grid Margin="0,16,0,0" Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}">
+            <Grid Margin="0,16,0,0" Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}"
+                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content">
                 <TextBlock Text="Bands" Style="{StaticResource FSTSectionHeaderStyle}" FontSize="26" AutomationProperties.HeadingLevel="Level2"
                            AutomationProperties.AutomationId="fst.leaderboards.bands-header" />
             </Grid>
             <ItemsRepeater x:Name="BandRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}"
+                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="3" Spacing="16" />
