@@ -179,8 +179,9 @@
                                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.filter.title" />
                             <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
                                 <StackPanel Spacing="8" Padding="0,0,0,12">
-                                    <StackPanel Padding="0,8,0,0" AutomationProperties.AutomationId="fst.songs.filter.general">
-                                        <TextBlock Text="General" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3" />
+                                    <StackPanel Padding="0,8,0,0">
+                                        <TextBlock Text="General" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3"
+                                                   AutomationProperties.AutomationId="fst.songs.filter.general" />
                                         <TextBlock Text="General filters that apply to all songs."
                                                    Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
                                     </StackPanel>

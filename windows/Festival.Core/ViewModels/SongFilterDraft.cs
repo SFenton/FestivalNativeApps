@@ -24,16 +24,16 @@ public sealed partial class SongFilterDraft : ObservableObject
         this.session = session;
         ShopRows =
         [
-            new("Available in Item Shop", "Songs that are available in the Item Shop today.", "fst.songs.filter.shop-available",
+            new("Available in Item Shop", null, "fst.songs.filter.shop-available",
                 () => ShopAvailable, v => ShopAvailable = v),
-            new("Not Available in Item Shop", "Songs that are not in the current Item Shop rotation.", "fst.songs.filter.shop-unavailable",
+            new("Not Available in Item Shop", null, "fst.songs.filter.shop-unavailable",
                 () => ShopUnavailable, v => ShopUnavailable = v),
         ];
         DoubleBassRows =
         [
-            new("Double Bass Support", "Songs with double bass charts for Pro Drums.", "fst.songs.filter.double-bass.supported",
+            new("Double Bass Support", null, "fst.songs.filter.double-bass.supported",
                 () => DoubleBassSupported, v => DoubleBassSupported = v),
-            new("No Double Bass Support", "Songs without double bass charts for Pro Drums.", "fst.songs.filter.double-bass.unsupported",
+            new("No Double Bass Support", null, "fst.songs.filter.double-bass.unsupported",
                 () => DoubleBassUnsupported, v => DoubleBassUnsupported = v),
         ];
         GlobalRows = BuildGlobalRows();
