@@ -17,6 +17,8 @@ struct MacStack<Root: View>: View {
     /// or the detail column of two): toolbar items placed outside a `NavigationStack`
     /// disappear once a page is pushed, so every page of this column adds them.
     let providesGlobalToolbar: Bool
+    /// Widest root content (``MacLayoutPolicy/pageMaxWidth(for:isShopRoot:)``).
+    let rootMaxWidth: CGFloat
     let root: Root
 
     /// Create a column stack.
@@ -32,7 +34,8 @@ struct MacStack<Root: View>: View {
     init(
         session: FestivalSession, visibleInstruments: Set<Instrument>,
         stackPath: Binding<[AppRoute]>, fullPath: Binding<[AppRoute]>, isVisible: Bool,
-        providesGlobalToolbar: Bool = true, @ViewBuilder root: () -> Root
+        providesGlobalToolbar: Bool = true, rootMaxWidth: CGFloat = MacLayoutPolicy.pageMaxWidth(for: nil),
+        @ViewBuilder root: () -> Root
     ) {
         self.session = session
         self.visibleInstruments = visibleInstruments
@@ -40,24 +43,40 @@ struct MacStack<Root: View>: View {
         _fullPath = fullPath
         self.isVisible = isVisible
         self.providesGlobalToolbar = providesGlobalToolbar
+        self.rootMaxWidth = rootMaxWidth
         self.root = root()
     }
 
     var body: some View {
         NavigationStack(path: $stackPath) {
             root
+                .modifier(MacPageWidth(maxWidth: rootMaxWidth))
                 .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                 .navigationDestination(for: AppRoute.self) { route in
                     AppRouteDestination(
                         route: route, session: session, visibleInstruments: visibleInstruments,
                         path: $fullPath, isVisible: isVisible
                     )
+                    .modifier(MacPageWidth(maxWidth: MacLayoutPolicy.pageMaxWidth(for: route)))
                     .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                 }
         }
         // Each column publishes its own layout, so its pages pick one or two card
         // columns and readable widths from the column's width, not the window's.
         .publishesDeviceLayout(usesSidebarShell: true)
+    }
+}
+
+/// Centres a page at most `maxWidth` wide in its column (web page max width).
+struct MacPageWidth: ViewModifier {
+    let maxWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            content.frame(maxWidth: maxWidth)
+            Spacer(minLength: 0)
+        }
     }
 }
 

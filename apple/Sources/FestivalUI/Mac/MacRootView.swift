@@ -255,7 +255,8 @@ public struct MacRootView: View {
         let path = pathBinding(destination)
         return MacStack(
             session: session, visibleInstruments: visibleInstruments,
-            stackPath: path, fullPath: path, isVisible: true
+            stackPath: path, fullPath: path, isVisible: true,
+            rootMaxWidth: MacLayoutPolicy.pageMaxWidth(for: nil, isShopRoot: destination == .shop)
         ) { root() }
         .onAppear { navigation.splitDestinations.remove(destination) }
     }

@@ -104,6 +104,10 @@ private let player = AppRoute.player(accountId: "p1", displayName: "P")
     #expect(MacLayoutPolicy.listWidth(forContentWidth: 820) == 340)
     #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060) == 1060 * 0.38)
     #expect(MacLayoutPolicy.listWidth(forContentWidth: 3000) == 560)
+    #expect(MacLayoutPolicy.pageMaxWidth(for: nil) == 1400)
+    #expect(MacLayoutPolicy.pageMaxWidth(for: nil, isShopRoot: true) == 2170)
+    #expect(MacLayoutPolicy.pageMaxWidth(for: .shop) == 2170)
+    #expect(MacLayoutPolicy.pageMaxWidth(for: .licenses) == 1400)
 }
 
 // MARK: - Navigation model

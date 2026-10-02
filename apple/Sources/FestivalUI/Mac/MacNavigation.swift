@@ -193,6 +193,16 @@ enum MacLayoutPolicy {
     ///     Rankings, Rivals lists).
     ///   - emptyListCollapsed: The list produced no row to show beside it.
     /// - Returns: True for two columns.
+    /// Widest page content, centred in its column (web `MaxWidth.card`, 1400 px; the
+    /// Item Shop grid uses `MaxWidth.grid`, 2170 px).
+    ///
+    /// - Parameter route: The page's route, or nil for a destination root.
+    /// - Parameter isShopRoot: Whether a destination root is the Item Shop.
+    /// - Returns: The maximum content width in points.
+    static func pageMaxWidth(for route: AppRoute?, isShopRoot: Bool = false) -> CGFloat {
+        route == .shop || (route == nil && isShopRoot) ? 2170 : 1400
+    }
+
     /// List column width for a content width: 38% within ``listColumn`` bounds.
     ///
     /// - Parameter width: Content width in points.
