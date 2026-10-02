@@ -30,6 +30,11 @@ public enum PublicEndpoint: Sendable {
     case bandRankHistory(bandType: String, teamKey: String, combo: String?, days: Int)
     case bandSongExtremes(bandType: String, teamKey: String, combo: String?, limit: Int)
     case songBandLeaderboard(songId: String, bandType: String, top: Int, offset: Int, combo: String?)
+    /// Song Detail's band previews: every band size's top rows in one pure read
+    /// (`GET /api/leaderboard/{songId}/bands/all?top=[&accountId=]`). `accountId` is a
+    /// query parameter that only asks for the selected player's best band row; it is
+    /// never a selected-profile header.
+    case songBandLeaderboards(songId: String, top: Int, accountId: String?)
     case path(
         songId: String, instrument: Instrument, difficulty: PathDifficulty,
         display: PathDisplayMode, generationId: String? = nil
@@ -190,6 +195,14 @@ public enum PublicEndpoint: Sendable {
                 URLQueryItem(name: "offset", value: String(offset)),
             ]
             if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
+        case let .songBandLeaderboards(songId, top, accountId):
+            guard !songId.isEmpty, !songId.contains("/"), (1...50).contains(top),
+                  accountId.map(ProfileSearchText.isValidAccountId) ?? true else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "leaderboard", songId, "bands", "all"]
+            query = [URLQueryItem(name: "top", value: String(top))]
+            if let accountId { query.append(URLQueryItem(name: "accountId", value: accountId)) }
         case let .path(songId, instrument, difficulty, display, generationId):
             guard !songId.isEmpty, !songId.contains("/"), !songId.contains(".."),
                   instrument != .karaoke,
@@ -230,12 +243,15 @@ public enum PublicEndpoint: Sendable {
     /// Keep personal profile bytes out of the raw multi-resource cache.
     ///
     /// - Returns: False for account profiles, including HTTP 202 syncing envelopes,
-    ///   and for a player's own bands list (also account-scoped).
+    ///   for a player's own bands list (also account-scoped) and for band previews
+    ///   that carry a selected player's `accountId`.
     var allowsSnapshotCache: Bool {
         switch self {
         case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,
              .playerInstrumentRanking, .playerRankHistory:
             false
+        case let .songBandLeaderboards(_, _, accountId):
+            accountId == nil
         default: true
         }
     }

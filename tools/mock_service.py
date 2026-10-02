@@ -111,6 +111,7 @@ EMPTY_ETAG = '"fst-fixture-empty-v1"'
 SHOP_ETAG = '"fst-fixture-shop-v1"'
 LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)/([A-Za-z_]+)$")
 SONG_BAND_LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)/bands/([A-Za-z_]+)$")
+SONG_BAND_LEADERBOARDS_ALL = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)/bands/all$")
 PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
@@ -335,6 +336,42 @@ def _song_band_leaderboard_entry(rank: int, band_type: str) -> dict:
         "isFullCombo": rank == 1, "stars": 5, "season": 10, "difficulty": 4,
         "percentile": 0.1 * rank, "endTime": None,
     }
+
+
+def _song_band_leaderboards_all(song_id: str, top: int, account_id: str | None) -> dict:
+    """Song Detail's band previews for `GET /api/leaderboard/{songId}/bands/all`.
+
+    `fixture-pulse` has two Duos rows; every other size and song is empty. A
+    `fixture-player-*` `accountId` adds that player's rank-14 Duos band as the
+    `selectedPlayerEntry`, exercising the appended highlighted row.
+
+    Args:
+        song_id: Requested fixture song.
+        top: Rows per band size (1-50).
+        account_id: Optional selected player from the `accountId` query.
+
+    Returns:
+        A JSON-ready `{songId, showLeaderboardEntryTotals, bands}` object.
+    """
+    bands = []
+    for band_type in ("Band_Duets", "Band_Trios", "Band_Quad"):
+        rows = ([_song_band_leaderboard_entry(rank, band_type) for rank in (1, 2)]
+                if song_id == "fixture-pulse" and band_type == "Band_Duets" else [])
+        selected = None
+        if rows and account_id and account_id.startswith("fixture-player-"):
+            selected = _song_band_leaderboard_entry(14, band_type)
+            selected["members"][0]["accountId"] = account_id
+            selected["members"][0]["displayName"] = RIVAL_DISPLAY_NAMES.get(account_id, account_id)
+            selected["bandId"] = f"fixture-band-{account_id}"
+            selected["teamKey"] = f"fixture-team-{account_id}"
+        entries = rows[:top]
+        bands.append({
+            "bandType": band_type, "count": len(entries),
+            "totalEntries": 14 if selected else len(rows),
+            "localEntries": 14 if selected else len(rows),
+            "entries": entries, "selectedPlayerEntry": selected, "selectedBandEntry": None,
+        })
+    return {"songId": song_id, "showLeaderboardEntryTotals": False, "bands": bands}
 
 
 # Rivals/Compete: `RivalsEndpoints.cs`/`LeaderboardRivalsEndpoints.cs` reads
@@ -1552,6 +1589,20 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     }, etag=etag)
             else:
                 self._path_image(difficulty, etag)
+        elif match := SONG_BAND_LEADERBOARDS_ALL.fullmatch(path):
+            # Checked before the per-size route, whose pattern also matches `all`.
+            account_ids = query.get("accountId", [])
+            try:
+                top = int(query.get("top", ["10"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_query"})
+                return
+            if not 1 <= top <= 50 or len(account_ids) > 1:
+                self._json(400, {"status": "invalid_query"})
+                return
+            self._json(200, _song_band_leaderboards_all(
+                match.group(1), top, account_ids[0] if account_ids else None
+            ))
         elif match := SONG_BAND_LEADERBOARD.fullmatch(path):
             song_id, band_type = match.groups()
             if band_type not in BAND_TYPES:

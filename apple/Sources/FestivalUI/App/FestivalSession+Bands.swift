@@ -97,4 +97,17 @@ extension FestivalSession {
         try await observe(publicationId: payload.observedPublicationId)
         return payload
     }
+
+    /// Read Song Detail's Duos/Trios/Quads previews in one public request.
+    ///
+    /// - Parameters:
+    ///   - songId: Song shown on Song Detail.
+    ///   - accountId: Selected player for the `accountId` highlight query, if any.
+    /// - Returns: Validated previews and publication provenance.
+    /// - Throws: Client configuration, transport, decoding or validation failures.
+    func songBandLeaderboards(songId: String, accountId: String?) async throws -> SongBandLeaderboardsPayload {
+        let payload = try await client().songBandLeaderboards(songId: songId, accountId: accountId)
+        try await observe(publicationId: payload.observedPublicationId)
+        return payload
+    }
 }
