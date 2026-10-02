@@ -122,8 +122,10 @@ internal fun RivalPill(text: String, win: Boolean?, modifier: Modifier = Modifie
 // region Rival row
 
 /**
- * One rival (web `RivalRow`): tint bar (red when the rival is ahead), name, shared
- * songs and "songs ahead / songs behind" pills. Anonymous rows are not tappable.
+ * One rival (web `RivalRow`): tint bar (red when the rival is ahead), name and
+ * "songs ahead / songs behind" pills. Anonymous rows are not tappable. Unlike the web,
+ * there is no shared-song count (owner decision, issues #40/#67): it is always
+ * ahead + behind, so it only repeated the pills.
  *
  * @param entry Row data and side.
  * @param onClick Opens Rival Detail; ignored for anonymous rows.
@@ -137,8 +139,7 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
     val format = NumberFormat.getIntegerInstance()
     val ahead = "${format.format(rival.behindCount)} songs ahead"
     val behind = "${format.format(rival.aheadCount)} songs behind"
-    val shared = RivalText.sharedSongs(rival.sharedSongCount)
-    val description = "${rival.shownName}, ${if (winning) "you lead" else "ahead of you"}, $shared, $ahead, $behind"
+    val description = "${rival.shownName}, ${if (winning) "you lead" else "ahead of you"}, $ahead, $behind"
     GlassCard(
         modifier = modifier
             .fillMaxWidth()
@@ -157,24 +158,19 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
             Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val nameColor = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted
                 if (isLargeText()) {
-                    // Large text: the name wraps above the shared count instead of being squeezed out.
+                    // Large text: the name wraps instead of being squeezed to an ellipsis.
                     Text(rival.shownName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = nameColor)
-                    Text(shared, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // Web `RivalRow` truncates names with an ellipsis (operator 7.14: never marquee
-                        // every name on Compete/Rivals).
-                        Text(
-                            rival.shownName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = nameColor,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        Text(shared, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1)
-                    }
+                    // Web `RivalRow` truncates names with an ellipsis (operator 7.14: never marquee
+                    // every name on Compete/Rivals).
+                    Text(
+                        rival.shownName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = nameColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     RivalPill(ahead, win = true)

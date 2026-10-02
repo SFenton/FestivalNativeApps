@@ -39,7 +39,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Titles, artists and names ended in an ellipsis (marquee under Remove animations) | `FestivalMarqueeText` wraps at ≥ 1.3×; plain one-line texts use `oneLineUnlessLarge()` (Shop, top songs, licenses, drawer, Intensity, band tiles) |
 | Nav bar labels cut to "Song Sugg Com Stati Setti" | Bar and rail go icon-only at ≥ 1.3×; icons carry the names |
 | Stat tiles broke words ("PLAYE D") | `StatGridColumns.count(width, fontScale)`: tiles widen with the scale; narrow grids may drop to one column (exception to the two-column phone minimum) |
-| Rival names squeezed out beside "N shared songs"; tabs broke mid-word | Name above the count; Rivals tabs scroll |
+| Rival names squeezed out beside "N shared songs"; tabs broke mid-word | Name wraps at ≥ 1.3× (the shared count was later removed, issue #67); Rivals tabs scroll |
 | First-run Next/Done pushed off screen | Pager takes the remaining height; slides scroll |
 | Profile sheet "Deselect" one letter per line | Buttons wrap (`FlowRow`) |
 | Chart axis "100" clipped to "10" | Axis ticks keep their 100% size (`chartAxisTextStyle()`; decorative, values listed below each chart) |
