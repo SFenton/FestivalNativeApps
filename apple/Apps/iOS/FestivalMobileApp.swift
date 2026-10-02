@@ -9,6 +9,7 @@ struct FestivalMobileApp: App {
     /// Isolate visual fixture runs without changing production or other app settings.
     init() {
         #if DEBUG
+        MainThreadStallMonitor.startIfRequested()
         if ProcessInfo.processInfo.environment["FST_UI_TEST_RESET_VISUALS"] == "1" {
             for key in [
                 "fst.accessibility.reduceMotion",
