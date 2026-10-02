@@ -506,7 +506,9 @@ struct SongsScreen: View {
         }
         #if DEBUG
         .navigationDestination(item: $debugPushedSong) { song in
+            // Same pushed-page chrome (Search + avatar) as `FestivalTabStack` destinations.
             SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
+                .globalSearchToolbarItem()
         }
         .task(id: FestivalDebugLaunch.songTitleOrId) {
             guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId
