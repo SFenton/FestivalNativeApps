@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.core.whatsnew
 import java.io.InputStream
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -21,14 +22,62 @@ data class ChangelogSection(val title: String, val items: List<String>) {
 }
 
 /**
+ * One page-category group of notes, as `versioning.py groups_json` writes it (category prefix already
+ * stripped, groups already in the web changelog's page order).
+ *
+ * @property category Page category ("Songs", "Item Shop", …), or null for uncategorized notes.
+ * @property items Bullet sentences, word for word.
+ */
+data class ChangelogGroup(val category: String?, val items: List<String>) {
+    /** Heading shown above the bullets: the category, or "Other" for uncategorized notes. */
+    val displayTitle: String get() = category ?: OTHER
+
+    companion object {
+        /** Heading of uncategorized notes (TestFlight "What to Test" wording). */
+        const val OTHER = "Other"
+    }
+}
+
+/**
+ * The tester notes of the unreleased built version (`testflight` block): every note since the store's
+ * latest release, grouped like TestFlight "What to Test".
+ *
+ * @property release Newest released version the list compares with; null before the first release.
+ * @property groups Category groups in display order.
+ */
+data class TesterNotes(val release: String?, val groups: List<ChangelogGroup>) {
+    /** Block heading, matching TestFlight's "Changes since release X" / "Changes so far". */
+    val title: String get() = release?.let { "Changes Since Release $it" } ?: "Changes So Far"
+}
+
+/**
  * One app version's worth of changelog sections.
  *
- * @property sections Sections in display order.
+ * @property sections Sections in display order (one "Version X" section; drives the show-once hash).
  * @property version App version (`YYMM.DD.NN`) the notes belong to; null for ad-hoc entries.
  * @property released Whether that version was already released when this build was made (the built
  *   version itself is listed unreleased).
+ * @property groups The same notes grouped by page category (`groups`); empty for documents without it.
+ * @property tester Tester notes for the unreleased built version (`testflight`), or null.
  */
-data class ChangelogEntry(val sections: List<ChangelogSection>, val version: String? = null, val released: Boolean = true)
+data class ChangelogEntry(
+    val sections: List<ChangelogSection>,
+    val version: String? = null,
+    val released: Boolean = true,
+    val groups: List<ChangelogGroup> = emptyList(),
+    val tester: TesterNotes? = null,
+)
+
+/**
+ * One headed block of the What's New list: a version (or the tester list) and its category groups.
+ *
+ * @property title Block heading ("Version 2610.02.01", "Changes Since Release 2610.01.03").
+ * @property groups Non-empty groups in display order.
+ */
+data class WhatsNewBlock(val title: String, val groups: List<ChangelogGroup>) {
+    /** Whether groups get category headings: only when at least one note has a category (TestFlight rule). */
+    val headed: Boolean get() = groups.any { it.category != null }
+}
 
 // endregion
 
@@ -57,6 +106,18 @@ object Changelog {
     /** Longest bullet kept, in characters. */
     internal const val MAX_ITEM_LENGTH = 600
 
+    /** Most category groups kept per list (17 categories plus "Other", with headroom). */
+    internal const val MAX_GROUPS = 24
+
+    /** Longest category name kept. */
+    internal const val MAX_CATEGORY_LENGTH = 32
+
+    /**
+     * Most bullets kept in the tester list. It holds every note since the latest release, which can exceed a
+     * single version's [MAX_ITEMS]; TestFlight's own 4000-character text fits far fewer.
+     */
+    internal const val MAX_TESTER_ITEMS = 120
+
     /** Entries bundled with the app (empty when the resource is missing or invalid). */
     val entries: List<ChangelogEntry> by lazy { load() }
 
@@ -77,7 +138,11 @@ object Changelog {
 
     /**
      * Decode a `versioning.py whats-new` document (`{schema, platform, version, baseline, entries: [{version,
-     * released, items}]}`).
+     * released, items, groups?, testflight?}]}`).
+     *
+     * `groups` (`[{category, items}]`) and `testflight.groups` are used as written: `versioning.py` owns the
+     * categories, so the app never re-classifies notes. Without `groups`, the flat `items` (or
+     * `testflight.vs_release`) become one uncategorized group.
      *
      * @param text JSON document.
      * @return One entry per version with a single "Version <v>" section, bounded in size; versions without
@@ -92,16 +157,82 @@ object Changelog {
             val version = (entry["version"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.take(32)
                 ?: throw IllegalArgumentException("entry without version")
             val released = (entry["released"] as? JsonPrimitive)?.booleanOrNull ?: true
-            val items = (entry["items"] as? JsonArray).orEmpty()
-                .mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.trim()?.take(MAX_ITEM_LENGTH) }
-                .filter { it.isNotEmpty() }
-                .take(MAX_ITEMS)
-            if (version.isEmpty() || items.isEmpty()) null
-            else ChangelogEntry(listOf(ChangelogSection("Version $version", items)), version, released)
+            val items = strings(entry["items"]).take(MAX_ITEMS)
+            if (version.isEmpty() || items.isEmpty()) return@mapNotNull null
+            val groups = decodeGroups(entry["groups"], MAX_ITEMS).ifEmpty { listOf(ChangelogGroup(null, items)) }
+            val tester = (entry["testflight"] as? JsonObject)?.let(::decodeTester)
+            ChangelogEntry(listOf(ChangelogSection("Version $version", items)), version, released, groups, tester)
         }
     }
 
+    /**
+     * Bounded, trimmed, non-empty strings of a JSON array (non-strings are skipped).
+     *
+     * @param element JSON array, or anything else for none.
+     * @return Strings of at most [MAX_ITEM_LENGTH] characters.
+     */
+    private fun strings(element: JsonElement?): List<String> = (element as? JsonArray).orEmpty()
+        .mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.trim()?.take(MAX_ITEM_LENGTH) }
+        .filter { it.isNotEmpty() }
+
+    /**
+     * Decode a `groups` array (`[{category: string | null, items: [string]}]`), keeping its order. Malformed
+     * groups are skipped rather than failing the document.
+     *
+     * @param element JSON array, or anything else for none.
+     * @param limit Most bullets kept across all groups.
+     * @return Non-empty groups, bounded by [MAX_GROUPS] and [limit].
+     */
+    internal fun decodeGroups(element: JsonElement?, limit: Int): List<ChangelogGroup> {
+        var budget = limit
+        return (element as? JsonArray).orEmpty().asSequence()
+            .mapNotNull { it as? JsonObject }
+            .mapNotNull { group ->
+                if (budget <= 0) return@mapNotNull null
+                val category = (group["category"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()
+                    ?.take(MAX_CATEGORY_LENGTH)?.takeIf { it.isNotEmpty() }
+                val items = strings(group["items"]).take(budget)
+                budget -= items.size
+                items.takeIf { it.isNotEmpty() }?.let { ChangelogGroup(category, it) }
+            }
+            .take(MAX_GROUPS)
+            .toList()
+    }
+
+    /**
+     * Decode the `testflight` block (`{since, new, release, vs_release, groups}`).
+     *
+     * @param block The block.
+     * @return Tester notes, or null when it lists nothing.
+     */
+    private fun decodeTester(block: JsonObject): TesterNotes? {
+        val release = (block["release"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.take(32)?.takeIf { it.isNotEmpty() }
+        val groups = decodeGroups(block["groups"], MAX_TESTER_ITEMS).ifEmpty {
+            strings(block["vs_release"]).take(MAX_TESTER_ITEMS).takeIf { it.isNotEmpty() }?.let { listOf(ChangelogGroup(null, it)) }.orEmpty()
+        }
+        return groups.takeIf { it.isNotEmpty() }?.let { TesterNotes(release, it) }
+    }
+
     // region Display
+
+    /**
+     * The What's New list for an install channel: one block per entry, newest first. Tester installs see the
+     * built version's tester list (every note since the latest release, like TestFlight "What to Test") in
+     * place of its release block; store installs never do. Manual mentions are dropped (see [displayEntries]).
+     *
+     * @param source Bundled entries.
+     * @param channel How this copy was installed.
+     * @return Non-empty blocks.
+     */
+    fun displayBlocks(source: List<ChangelogEntry> = entries, channel: InstallChannel): List<WhatsNewBlock> =
+        source.mapNotNull { entry ->
+            val tester = entry.tester?.takeIf { channel == InstallChannel.Tester }
+            val title = tester?.title ?: entry.sections.firstOrNull()?.displayTitle ?: return@mapNotNull null
+            if (tester == null && entry.sections.all { mentionsManual(it.title) }) return@mapNotNull null
+            val groups = (tester?.groups ?: entry.groups.ifEmpty { entry.sections.map { ChangelogGroup(null, it.items) } })
+                .mapNotNull { group -> group.items.filterNot(::mentionsManual).takeIf { it.isNotEmpty() }?.let { group.copy(items = it) } }
+            groups.takeIf { it.isNotEmpty() }?.let { WhatsNewBlock(title, it) }
+        }
 
     /**
      * Entries as natives display them: the deprecated Manual feature is never advertised, so a

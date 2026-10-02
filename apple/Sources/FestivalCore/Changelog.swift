@@ -2,9 +2,10 @@ import Foundation
 
 // MARK: - Model
 
-/// One titled group of changelog bullets: a released app version and its notes.
+/// One titled group of changelog bullets: a page category's notes ("Songs", "Other"), or an
+/// unheaded list when none of an entry's notes has a category.
 public struct ChangelogSection: Sendable, Equatable, Identifiable {
-    /// Heading, e.g. "Version 2610.01.01".
+    /// Heading, e.g. "Song Details"; empty for an unheaded list.
     public let title: String
     /// Bullet sentences, in release-note order.
     public let items: [String]
@@ -32,10 +33,15 @@ public struct ChangelogEntry: Sendable, Equatable {
     /// Whether that version had reached the App Store when this build was made (the built
     /// version itself is listed unreleased).
     public let released: Bool
-    /// Sections in display order.
+    /// Heading above the sections ("Version 2610.01.01"); nil for none.
+    public let heading: String?
+    /// Category sections in display order (`versioning.py` page order, "Other" last).
     public let sections: [ChangelogSection]
-    /// TestFlight sections for the unreleased built version ("New since …", "In this build vs.
-    /// release …"); empty otherwise. Shown instead of `sections` to testers only.
+    /// Heading of the tester list ("Changes since release 2610.01.03"); nil without one.
+    public let testerHeading: String?
+    /// TestFlight category sections for the unreleased built version: every change since the
+    /// latest release, the same list as TestFlight's "What to Test". Empty otherwise. Shown
+    /// instead of `sections` to testers only.
     public let testerSections: [ChangelogSection]
 
     /// Create an entry.
@@ -43,22 +49,30 @@ public struct ChangelogEntry: Sendable, Equatable {
     /// - Parameters:
     ///   - version: App version the notes belong to.
     ///   - released: Whether that version was already released at build time.
+    ///   - heading: Heading above the sections.
     ///   - sections: Sections in display order.
+    ///   - testerHeading: Heading of the tester list.
     ///   - testerSections: Tester-only replacement sections.
     public init(
-        version: String? = nil, released: Bool = true, sections: [ChangelogSection],
-        testerSections: [ChangelogSection] = []
+        version: String? = nil, released: Bool = true, heading: String? = nil, sections: [ChangelogSection],
+        testerHeading: String? = nil, testerSections: [ChangelogSection] = []
     ) {
         self.version = version
         self.released = released
+        self.heading = heading
         self.sections = sections
+        self.testerHeading = testerHeading
         self.testerSections = testerSections
     }
+
+    /// Native Title Case heading, or nil.
+    public var displayHeading: String? { heading.map(Changelog.titleCase) }
 }
 
 // MARK: - Catalog
 
-/// The "What's New" changelog: one section per released app version, newest first.
+/// The "What's New" changelog: one entry per released app version, newest first, its notes in
+/// page-category sections.
 ///
 /// Release builds generate `WhatsNew.json` (bundled from `apple/Apps/<platform>/`) with
 /// `tools/release/versioning.py whats-new` from the platform's `Release-Note` commit trailers
@@ -73,6 +87,10 @@ public enum Changelog {
     static let maxEntries = 20
     /// Most bullets kept per entry.
     static let maxItems = 40
+    /// Most bullets kept in the tester list (every change since the latest release).
+    static let maxTesterItems = 120
+    /// Most category groups kept per list.
+    static let maxGroups = 24
     /// Longest bullet kept, in characters.
     static let maxItemLength = 600
 
@@ -97,56 +115,91 @@ public enum Changelog {
     }
 
     /// Decode a `versioning.py whats-new` document
-    /// (`{schema, platform, version, baseline, entries: [{version, released, items, testflight?}]}`).
+    /// (`{schema, platform, version, baseline, entries: [{version, released, items, groups?, testflight?}]}`).
     ///
     /// - Parameter data: JSON document.
-    /// - Returns: One entry per version with a single "Version <v>" section, bounded in size;
-    ///   versions without notes are skipped. The unreleased built version's optional
-    ///   `testflight: {since, new, release, vs_release}` becomes its `testerSections`.
+    /// - Returns: One entry per version headed "Version <v>", its notes as category sections from
+    ///   `groups` (`[{category, items}]`, already in page order with prefixes stripped; the apps never
+    ///   re-classify), bounded in size; versions without notes are skipped. The unreleased built
+    ///   version's optional `testflight.groups` becomes its `testerSections`.
     /// - Throws: `DecodingError` for malformed JSON.
     public static func decode(_ data: Data) throws -> [ChangelogEntry] {
         let document = try JSONDecoder().decode(WhatsNewDocument.self, from: data)
         return document.entries.prefix(maxEntries).compactMap { entry in
             let version = String(entry.version.prefix(32))
-            let items = clean(entry.items)
-            guard !version.isEmpty, !items.isEmpty else { return nil }
+            let sections = categorySections(entry.groups, fallback: entry.items)
+            guard !version.isEmpty, !sections.isEmpty else { return nil }
+            let tester = entry.testflight.map { notes in
+                categorySections(notes.groups, fallback: notes.vsRelease ?? [], limit: maxTesterItems)
+            } ?? []
             return ChangelogEntry(
                 version: version,
                 released: entry.released ?? true,
-                sections: [ChangelogSection(title: "Version \(version)", items: items)],
-                testerSections: entry.testflight.map(testerSections) ?? []
+                heading: "Version \(version)",
+                sections: sections,
+                testerHeading: tester.isEmpty ? nil : entry.testflight.map(testerHeading),
+                testerSections: tester
             )
         }
     }
 
-    /// Tester sections in `versioning.py tester_headings` wording.
+    /// Heading of the tester list, in `versioning.py testflight_notes` wording without the colon.
     ///
     /// - Parameter notes: Decoded `testflight` block.
-    /// - Returns: "New since …" (when it has items) then "In this build vs. release …"; empty when the
-    ///   comparison with the release has no items.
-    static func testerSections(_ notes: WhatsNewDocument.Tester) -> [ChangelogSection] {
-        let vsRelease = clean(notes.vsRelease ?? [])
-        guard !vsRelease.isEmpty else { return [] }
-        var sections: [ChangelogSection] = []
-        let new = clean(notes.new ?? [])
-        if !new.isEmpty {
-            let since = notes.since.map { String($0.prefix(32)) }.flatMap { $0.isEmpty ? nil : $0 }
-            sections.append(ChangelogSection(
-                title: since.map { "New since \($0)" } ?? "New since the last build", items: new))
-        }
+    /// - Returns: "Changes since release <v>", or "Changes so far (no release yet)".
+    static func testerHeading(_ notes: WhatsNewDocument.Tester) -> String {
         let release = notes.release.map { String($0.prefix(32)) }.flatMap { $0.isEmpty ? nil : $0 }
-        sections.append(ChangelogSection(
-            title: release.map { "In this build vs. release \($0)" } ?? "In this build vs. release (no release yet)",
-            items: vsRelease))
+        return release.map { "Changes since release \($0)" } ?? "Changes so far (no release yet)"
+    }
+
+    /// Headed sections for `groups`, the way TestFlight's "What to Test" lays them out.
+    ///
+    /// A null category is "Other". When no group has a category the notes form one unheaded
+    /// section (TestFlight shows no headings then). Older documents without `groups` show `fallback`
+    /// as one unheaded section. At most `limit` bullets in total and ``maxGroups`` groups.
+    ///
+    /// - Parameters:
+    ///   - groups: Decoded `groups`, or nil when absent.
+    ///   - fallback: Flat notes for documents without `groups`.
+    ///   - limit: Most bullets kept in total.
+    /// - Returns: Non-empty sections in document order.
+    static func categorySections(
+        _ groups: [WhatsNewDocument.Group]?, fallback: [String], limit: Int = maxItems
+    ) -> [ChangelogSection] {
+        guard let all = groups, !all.isEmpty else {
+            let items = clean(fallback, limit: limit)
+            return items.isEmpty ? [] : [ChangelogSection(title: "", items: items)]
+        }
+        let groups = all.prefix(maxGroups)
+        let headed = groups.contains { !($0.category ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+        var budget = limit
+        var sections: [ChangelogSection] = []
+        for group in groups where budget > 0 {
+            let items = clean(group.items, limit: budget)
+            guard !items.isEmpty else { continue }
+            budget -= items.count
+            let category = String((group.category ?? "").trimmingCharacters(in: .whitespaces).prefix(32))
+            let title = headed ? (category.isEmpty ? "Other" : category) : ""
+            if let index = sections.firstIndex(where: { $0.title == title }) {
+                sections[index] = ChangelogSection(title: title, items: sections[index].items + items)
+            } else {
+                sections.append(ChangelogSection(title: title, items: items))
+            }
+        }
         return sections
     }
 
     /// Trim, drop empty and bound bullet text.
-    private static func clean(_ items: [String]) -> [String] {
+    ///
+    /// - Parameters:
+    ///   - items: Raw bullets.
+    ///   - limit: Most bullets kept.
+    /// - Returns: At most `limit` non-empty bullets of at most ``maxItemLength`` characters.
+    private static func clean(_ items: [String], limit: Int) -> [String] {
         Array(items
             .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxItemLength)) }
             .filter { !$0.isEmpty }
-            .prefix(maxItems))
+            .prefix(limit))
     }
 
     /// Wire shape of the generated document (unknown keys ignored).
@@ -155,18 +208,26 @@ public enum Changelog {
             let version: String
             let released: Bool?
             let items: [String]
+            let groups: [Group]?
             let testflight: Tester?
         }
 
-        /// The `testflight` block: notes new since `since` and since the store release `release`.
+        /// One `versioning.py groups_json` group: a page category (null = uncategorized) and its
+        /// notes without the prefix.
+        struct Group: Decodable {
+            let category: String?
+            let items: [String]
+        }
+
+        /// The `testflight` block: every note since the store release `release` (`vs_release`) and the
+        /// same notes grouped by category (`groups`).
         struct Tester: Decodable {
-            let since: String?
-            let new: [String]?
             let release: String?
             let vsRelease: [String]?
+            let groups: [Group]?
 
             enum CodingKeys: String, CodingKey {
-                case since, new, release
+                case release, groups
                 case vsRelease = "vs_release"
             }
         }
@@ -178,8 +239,8 @@ public enum Changelog {
 
     /// Entries as natives display them: the deprecated Manual feature is never advertised, so
     /// any section titled Manual or bullet naming it is dropped, and empty sections removed.
-    /// TestFlight and development installs see an entry's tester sections in place of its
-    /// release section.
+    /// TestFlight and development installs see an entry's tester list (heading and sections) in
+    /// place of its release notes.
     ///
     /// - Parameters:
     ///   - entries: Bundled entries.
@@ -189,16 +250,17 @@ public enum Changelog {
         _ entries: [ChangelogEntry] = entries, distribution: AppDistribution = .appStore
     ) -> [ChangelogEntry] {
         entries.compactMap { entry in
-            let source = distribution.showsTesterNotes && !entry.testerSections.isEmpty
-                ? entry.testerSections : entry.sections
+            let tester = distribution.showsTesterNotes && !entry.testerSections.isEmpty
+            let source = tester ? entry.testerSections : entry.sections
             let sections = source.compactMap { section -> ChangelogSection? in
                 guard !mentionsManual(section.title) else { return nil }
                 let items = section.items.filter { !mentionsManual($0) }
                 return items.isEmpty ? nil : ChangelogSection(title: section.title, items: items)
             }
             return sections.isEmpty
-                ? nil : ChangelogEntry(version: entry.version, released: entry.released, sections: sections,
-                                       testerSections: entry.testerSections)
+                ? nil : ChangelogEntry(version: entry.version, released: entry.released,
+                                       heading: tester ? entry.testerHeading : entry.heading, sections: sections,
+                                       testerHeading: entry.testerHeading, testerSections: entry.testerSections)
         }
     }
 
@@ -240,8 +302,8 @@ public enum Changelog {
 
     /// Content hash in the web's `calculateChangelogHash` form: a 32-bit
     /// `((h << 5) - h) + code` over the UTF-16 code units of `JSON.stringify(entries)`'s
-    /// section shape, printed in base 36 with a sign. Section titles carry the version, so
-    /// a newly released version always changes it.
+    /// section shape, printed in base 36 with a sign. Entry headings carry the version, so
+    /// a newly released version always changes it. Tester sections are not hashed.
     ///
     /// - Parameter entries: Entries to hash.
     /// - Returns: Short hash string.
@@ -254,7 +316,7 @@ public enum Changelog {
     }
 
     /// Reproduce `JSON.stringify` for the entry array (no whitespace, key order
-    /// `sections` → `title`, `items`).
+    /// `title` (only when the entry has a heading) → `sections` → `title`, `items`).
     ///
     /// - Parameter entries: Entries to serialize.
     /// - Returns: Compact JSON text.
@@ -264,7 +326,8 @@ public enum Changelog {
                 let items = section.items.map(jsonString).joined(separator: ",")
                 return "{\"title\":\(jsonString(section.title)),\"items\":[\(items)]}"
             }
-            return "{\"sections\":[\(sections.joined(separator: ","))]}"
+            let heading = entry.heading.map { "\"title\":\(jsonString($0))," } ?? ""
+            return "{\(heading)\"sections\":[\(sections.joined(separator: ","))]}"
         }
         return "[\(body.joined(separator: ","))]"
     }

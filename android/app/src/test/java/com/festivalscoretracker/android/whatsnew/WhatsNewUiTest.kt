@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -19,11 +20,14 @@ import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.core.whatsnew.Changelog
+import com.festivalscoretracker.android.core.whatsnew.ChangelogGroup
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenStore
+import com.festivalscoretracker.android.core.whatsnew.WhatsNewBlock
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
+import com.festivalscoretracker.android.ui.whatsnew.WhatsNewSheet
 import java.time.Duration
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
@@ -95,6 +99,27 @@ class WhatsNewUiTest {
         rule.onNodeWithTag("fst.whats-new.close").performSemanticsAction(SemanticsActions.OnClick)
         waitGone("fst.whats-new.sheet")
         assertEquals(Changelog.currentHash, ChangelogSeenStore.decode(seen)!!.hash)
+    }
+
+    @Test
+    fun groupedBlocksShowCategoryHeadingsInOrder() {
+        val blocks = listOf(
+            WhatsNewBlock("Changes Since Release 2610.01.03", listOf(ChangelogGroup("Songs", listOf("Rows load faster.")), ChangelogGroup(null, listOf("A loose note.")))),
+            WhatsNewBlock("Version 2610.01.03", listOf(ChangelogGroup(null, listOf("The first release.")))),
+        )
+        var dismissed = 0
+        rule.setContent { WhatsNewSheet("What's New · 2610.02.02", blocks, compact = false) { dismissed++ } }
+        settle()
+        rule.onNodeWithText("Changes Since Release 2610.01.03").assertIsDisplayed()
+        rule.onNodeWithTag("fst.whats-new.group.0.0").assertIsDisplayed()
+        rule.onNodeWithText("Songs").assertIsDisplayed()
+        rule.onNodeWithText("Other").assertIsDisplayed()
+        rule.onNodeWithText("Rows load faster.").assertIsDisplayed()
+        // A block without categories has no headings.
+        assertEquals(1, rule.onAllNodesWithText("Other").fetchSemanticsNodes().size)
+        rule.onNodeWithText("The first release.").assertIsDisplayed()
+        rule.onNodeWithTag("fst.whats-new.dismiss").performClick()
+        assertEquals(1, dismissed)
     }
 }
 

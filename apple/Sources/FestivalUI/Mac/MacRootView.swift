@@ -97,10 +97,7 @@ public struct MacRootView: View {
                 .festivalSheet(.large)
         }
         .whatsNewPresentation(isPresented: $navigation.whatsNewPresented) {
-            WhatsNewSheet(
-                version: WhatsNewGate.appVersion(),
-                entries: Changelog.displayEntries(distribution: AppDistribution.resolved ?? .appStore)
-            ) {
+            WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {
                 ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
                 navigation.whatsNewPresented = false
             }
