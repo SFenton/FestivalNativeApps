@@ -47,6 +47,7 @@ import argparse
 import fcntl
 import signal
 import hashlib
+import json
 import os
 import shutil
 import signal
@@ -1266,7 +1267,8 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
             print(f"result bundle: {result_bundle}", file=sys.stderr)
         else:
-            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s))", file=sys.stderr)
+            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(result_bundle)}",
+                  file=sys.stderr)
             log_path.unlink(missing_ok=True)
             shutil.rmtree(result_bundle, ignore_errors=True)
 
@@ -1283,6 +1285,30 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     print(f"uitest OK in {overall_elapsed:.1f}s total ({len(args.only)} selector(s), {len(batches)} batch(es))",
           file=sys.stderr)
     return 0
+
+
+def _result_counts(result_bundle: Path) -> str:
+    """Summarize a result bundle's passed/skipped/failed counts (``-quiet`` hides them).
+
+    A green batch can still be all skips (e.g. iPad-only journeys on an iPhone), so print
+    the counts before the bundle is deleted.
+
+    Args:
+        result_bundle: The batch's ``.xcresult`` path.
+
+    Returns:
+        ``": N passed, N skipped, N failed"``, or an empty string when unavailable.
+    """
+    try:
+        out = subprocess.run(
+            ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
+            env=_env(), capture_output=True, text=True, check=True, timeout=60,
+        ).stdout
+        summary = json.loads(out)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return ""
+    return (f": {summary.get('passedTests', 0)} passed, {summary.get('skippedTests', 0)} skipped, "
+            f"{summary.get('failedTests', 0)} failed")
 
 
 def _run_uitest_batch(
