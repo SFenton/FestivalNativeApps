@@ -14,7 +14,7 @@ import SwiftUI
 /// the result as before.
 ///
 /// ```swift
-/// FestivalModal("Notifications", closeIdentifier: "fst.notifications.close", path: $path) {
+/// FestivalModal("Find Rival", closeIdentifier: "fst.rivals.findRival.close", path: $path) {
 ///     list.navigationDestination(for: AppRoute.self) { … }
 /// }
 /// .festivalSheet(.large)

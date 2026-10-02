@@ -7,7 +7,7 @@ import XCTest
 /// Hosted (macOS) snapshot coverage for the sheet's loaded/empty/no-profile
 /// states lives in `PlayerHistoryNotificationsRenderTests.swift`; this file
 /// covers the bell's live unread badge, sheet presentation, seen-state after
-/// dismissal, and a row's real push navigation.
+/// dismissal, and a row opening its page in the main app (issue #75).
 final class NotificationsJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp() -> XCUIApplication {
@@ -18,10 +18,11 @@ final class NotificationsJourneyTests: XCTestCase {
         ])
     }
 
-    /// The bell shows the unread count, opens the sheet with both fixture rows, and
-    /// a row with a song destination pushes to Song Detail inside the sheet.
+    /// The bell shows the unread count and opens the sheet; a row with a song destination
+    /// dismisses the sheet and opens Song Detail on the main app's current tab (issue #75),
+    /// and Back returns to the page that was showing before the sheet opened.
     @MainActor
-    func testBellOpensSheetAndRowNavigatesToSongDetail() throws {
+    func testBellOpensSheetAndRowOpensSongDetailInMainApp() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
@@ -31,8 +32,11 @@ final class NotificationsJourneyTests: XCTestCase {
             bell.label, "Notifications, 2 unread",
             "Two unseen fixture notifications must be announced with their count"
         )
+        let songsRow = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(songsRow.waitForExistence(timeout: 15), "Songs is the page under the sheet")
         bell.tap()
-        XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
+        let sheetBar = app.navigationBars["Notifications"]
+        XCTAssertTrue(sheetBar.waitForExistence(timeout: 15))
         let rankRow = app.buttons["fst.notifications.row.fixture-notif-1"]
         XCTAssertTrue(rankRow.waitForExistence(timeout: 15))
         rankRow.tap()
@@ -41,6 +45,16 @@ final class NotificationsJourneyTests: XCTestCase {
                 .matching(identifier: "fst.song-detail.intensity").firstMatch
                 .waitForExistence(timeout: 15)
         )
+        XCTAssertTrue(sheetBar.waitForNonExistence(timeout: 10), "The sheet closes before Song Detail shows")
+        XCTAssertFalse(app.buttons["fst.notifications.close"].exists, "Song Detail is not inside the sheet")
+
+        let system = app.buttons["BackButton"]
+        let back = system.waitForExistence(timeout: 5) ? system : app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "Song Detail sits on the tab's own stack")
+        back.tap()
+        XCTAssertTrue(songsRow.waitForExistence(timeout: 10), "Back returns to Songs")
+        XCTAssertFalse(app.navigationBars["Notifications"].exists, "Back does not reopen the sheet")
+        XCTAssertEqual(bell.label, "Notifications", "Opening a row and closing the sheet marks rows seen")
     }
 
     /// Opening and dismissing the sheet marks both rows seen, clearing the bell's count badge.

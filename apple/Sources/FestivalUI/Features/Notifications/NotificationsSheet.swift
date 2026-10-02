@@ -7,28 +7,30 @@ import FestivalDesign
 /// Native port of the web's `MobileNotificationsModal`
 /// (`FortniteFestivalWeb/src/components/notifications/MobileNotificationsModal.tsx`).
 ///
-/// Owns a small internal `NavigationStack` so rows can push straight to Song Detail
-/// or Full Rankings without the sheet needing access to the presenting tab's own
-/// navigation path. Band grouping, multi-event coalescing and the media-cycle
-/// animation are not ported natively this wave — see
-/// `.agents/controls/notifications/spec.md`.
+/// **Navigation — dismiss the sheet, then show the page in the app** (web
+/// `App.tsx` `handleNotificationOpen`, issue #75): a row with a destination places its
+/// page on the presenting tab's stack through ``openRoute`` and dismisses the sheet.
+/// The sheet has no stack of its own to push into (HIG Modality: avoid "an app within
+/// the app"). Band grouping, multi-event coalescing and the media-cycle animation are
+/// not ported natively this wave — see `.agents/controls/notifications/spec.md`.
 struct NotificationsSheet: View {
     let session: FestivalSession
-    @State private var path: [AppRoute] = []
+    /// Pushes a route on the presenting tab's stack. A plain closure parameter, **not**
+    /// an environment action: a custom `@Entry` value set by the presenter does not
+    /// reliably reach a sheet's content (see `ProfileSelectionSheet.openRoute`).
+    /// Defaults to a no-op for hosted tests.
+    var openRoute: (AppRoute) -> Void = { _ in }
+    @Environment(\.dismiss) private var dismiss
+    /// A tapped row is resolving its destination; further taps wait for it.
+    @State private var opening = false
     /// The first reveal's stagger has finished; rows rebuilt later (List recycling while
     /// scrolling back up) appear without fading again (operator batch 7).
     @State private var fadeSettled = false
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
-        FestivalModal("Notifications", closeIdentifier: "fst.notifications.close", path: $path) {
+        FestivalModal("Notifications", closeIdentifier: "fst.notifications.close") {
             content
-                .navigationDestination(for: AppRoute.self) { route in
-                    AppRouteDestination(
-                        route: route, session: session,
-                        visibleInstruments: Set(Instrument.allCases), path: $path, isVisible: true
-                    )
-                }
         }
         .task { await center.refresh(session: session) }
         .onDisappear {
@@ -107,22 +109,57 @@ struct NotificationsSheet: View {
         }
     }
 
-    /// Resolve the tapped row's destination and push it inside the sheet's own stack.
+    /// Mark the tapped row seen; when it has a destination, show that page in the app
+    /// and dismiss the sheet.
+    ///
+    /// The page is placed on the presenting tab's stack without a push animation, under
+    /// the sheet, and the sheet's own dismissal reveals it: one system transition (the
+    /// same choice as `ProfileSelectionSheet.openPlayer`). A row without a destination,
+    /// or whose song is no longer in the catalogue, keeps the sheet open.
     ///
     /// - Parameter notification: Row that was tapped.
     private func open(_ notification: AppNotification) async {
         center.markSeen([notification.id])
-        guard let destination = notification.destination else { return }
+        guard !opening else { return }
+        opening = true
+        defer { opening = false }
+        guard let route = await NotificationRoute.resolve(
+            notification.destination, song: { try await session.song(songId: $0) }
+        ) else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { openRoute(route) }
+        dismiss()
+    }
+}
+
+// MARK: - Route resolution
+
+/// Maps a notification's destination to the app route the main navigation shows
+/// (web `notificationDestination.ts` → `App.tsx` `handleNotificationOpen`).
+enum NotificationRoute {
+    /// Resolve the route for a tapped row.
+    ///
+    /// - Parameters:
+    ///   - destination: The row's destination; nil for rows that do not navigate.
+    ///   - song: Looks a song up in the current catalogue by ID.
+    /// - Returns: Song Detail for a song row, Full Rankings for a rank row with an
+    ///   instrument, the Leaderboards hub for one without, or nil when the row does not
+    ///   navigate or its song cannot be found.
+    @MainActor static func resolve(
+        _ destination: AppNotificationDestination?,
+        song: (String) async throws -> Song?
+    ) async -> AppRoute? {
         switch destination {
+        case nil:
+            return nil
         case let .song(songId, _):
-            guard let song = try? await session.song(songId: songId) else { return }
-            path.append(.songDetail(song))
-        case let .rankings(instrument, metric):
-            if let instrument {
-                path.append(.fullRankings(instrument: instrument, rankBy: metric.rawValue))
-            } else {
-                path.append(.leaderboards)
-            }
+            guard let found = try? await song(songId) else { return nil }
+            return .songDetail(found)
+        case let .rankings(instrument?, metric):
+            return .fullRankings(instrument: instrument, rankBy: metric.rawValue)
+        case .rankings(nil, _):
+            return .leaderboards
         }
     }
 }

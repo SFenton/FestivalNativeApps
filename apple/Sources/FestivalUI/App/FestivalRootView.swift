@@ -248,6 +248,10 @@ public struct FestivalRootView: View {
         .environment(\.festivalSession, session)
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { globalSearchPresented = true })
+        // Notification rows open their page on the current tab, not inside the sheet (#75).
+        .environment(\.pushRoute, PushRouteAction { route in
+            paths[selected, default: []].append(route)
+        })
         // Player-page stat tiles (Lane AP3): push on this tab, or show Songs filtered.
         .environment(\.playerStatNavigator, PlayerStatNavigator(
             push: { route in paths[selected, default: []].append(route) },
