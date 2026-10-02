@@ -104,6 +104,20 @@ private let player = AppRoute.player(accountId: "p1", displayName: "P")
     #expect(MacLayoutPolicy.listWidth(forContentWidth: 820) == 340)
     #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060) == 1060 * 0.38)
     #expect(MacLayoutPolicy.listWidth(forContentWidth: 3000) == 560)
+}
+
+/// A dragged divider width is remembered but clamped: never narrower than the list
+/// minimum, never wider than the drag maximum or than leaves the detail its minimum.
+@Test func macDraggedListWidthIsClampedSoTheDividerStaysVisible() {
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: nil) == 1060 * 0.38)
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 0) == 1060 * 0.38)
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 450) == 450)
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 100) == 340)
+    // 1060 − 480 − 1 leaves the detail its minimum.
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 900) == 579)
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 3000, preferred: 900) == 680)
+    // At the narrowest split the list never drops below its minimum.
+    #expect(MacLayoutPolicy.listWidth(forContentWidth: 820, preferred: 600) == 340)
     #expect(MacLayoutPolicy.pageMaxWidth(for: nil) == 1400)
     #expect(MacLayoutPolicy.pageMaxWidth(for: nil, isShopRoot: true) == 2170)
     #expect(MacLayoutPolicy.pageMaxWidth(for: .shop) == 2170)
