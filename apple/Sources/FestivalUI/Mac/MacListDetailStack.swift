@@ -59,8 +59,8 @@ struct MacStack<Root: View>: View {
 /// detail) when the window is wide enough, as decided by ``MacLayoutPolicy`` over the
 /// shared ``ListDetailPolicy`` path cut.
 ///
-/// The detail column is never empty: it restores the last selection, else the first
-/// list row to appear selects itself (`listDetailAutoSelect`, the same contract
+/// The detail column is never empty: it restores the last selection, else the top-most
+/// list row on screen selects itself (`listDetailAutoSelect`, the same contract
 /// `ListDetailLink` rows use on iPhone Duo). A list that shows no row within 2.5 s
 /// collapses to one column, and its first row to appear later splits it again. Columns are an `HSplitView` with the system thin divider.
 struct MacListDetailStack<Root: View>: View {
@@ -77,6 +77,9 @@ struct MacListDetailStack<Root: View>: View {
     @State private var width: CGFloat = 0
     @State private var lastSelection: AppRoute?
     @State private var emptyLists: Set<[AppRoute]> = []
+    /// Rows offered for auto-select (the top-most one on screen wins).
+    @State private var autoSelectCollector = ListDetailAutoSelectCollector()
+    @State private var collapsedCollector = ListDetailAutoSelectCollector()
 
     private var cut: ListDetailPolicy.Split? { ListDetailPolicy.split(section: section, path: path) }
 
@@ -180,23 +183,25 @@ struct MacListDetailStack<Root: View>: View {
         }
     }
 
-    private var autoSelectAction: ListDetailSelectAction {
-        ListDetailSelectAction(section: section) { route in
+    private var autoSelectAction: ListDetailAutoSelectAction {
+        autoSelectCollector.select = { route in
             guard split != nil, cut?.selection == nil else { return }
             selectAction(route)
         }
+        return ListDetailAutoSelectAction(section: section, collector: autoSelectCollector)
     }
 
     /// Offered to the one-column root only while its list collapsed for lack of rows.
-    private var collapsedAutoSelect: ListDetailSelectAction? {
+    private var collapsedAutoSelect: ListDetailAutoSelectAction? {
         guard let cut, cut.selection == nil, emptyLists.contains(cut.list),
               MacLayoutPolicy.showsSplit(width: width, hasListPage: true, emptyListCollapsed: false)
         else { return nil }
-        return ListDetailSelectAction(section: section) { route in
+        collapsedCollector.select = { route in
             guard let current = self.cut, current.selection == nil else { return }
             emptyLists.remove(current.list)
             selectAction(route)
         }
+        return ListDetailAutoSelectAction(section: section, collector: collapsedCollector)
     }
 
     private var listPath: Binding<[AppRoute]> {

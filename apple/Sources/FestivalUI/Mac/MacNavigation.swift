@@ -127,6 +127,7 @@ enum MacSidebarPolicy {
         case .compete: .compete
         case .rivals: .rivals
         case .statistics: .statistics
+        case .shop: .shop
         case .settings: nil
         }
     }

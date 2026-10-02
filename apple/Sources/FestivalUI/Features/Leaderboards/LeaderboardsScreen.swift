@@ -178,7 +178,7 @@ struct LeaderboardsScreen: View {
             .festivalFadeInScope()
         }
         .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
-        .refreshable { await loadAll() }
+        .festivalRefreshable { await loadAll() }
     }
 
     // MARK: Instrument cards

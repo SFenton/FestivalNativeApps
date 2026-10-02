@@ -55,9 +55,11 @@ import Testing
 /// Shared sections and root routes map onto sidebar rows; Settings is its own window.
 @Test func macSidebarSectionAndRouteMapping() {
     #expect(MacSidebarPolicy.destination(for: FestivalSection.settings) == nil)
-    for section in FestivalSection.allCases where section != .settings {
+    for section in FestivalSection.allCases where section != .settings && section != .shop {
         #expect(MacSidebarPolicy.destination(for: section)?.section == section)
     }
+    // The shared sidebar-only Item Shop section (iPad) selects the Mac Item Shop row.
+    #expect(MacSidebarPolicy.destination(for: FestivalSection.shop) == .shop)
     #expect(MacSidebarPolicy.destination(for: AppRoute.shop) == .shop)
     #expect(MacSidebarPolicy.destination(for: AppRoute.statistics) == .statistics)
     #expect(MacSidebarPolicy.destination(for: AppRoute.licenses) == nil)

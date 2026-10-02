@@ -119,7 +119,7 @@ struct BandDetailScreen: View {
                 .padding(16)
             }
             .quickLinks(quickLinks, title: "Quick Links")
-            .refreshable {
+            .festivalRefreshable {
                 await loadDetail(force: true)
                 await loadHistory()
                 await loadSongs()
