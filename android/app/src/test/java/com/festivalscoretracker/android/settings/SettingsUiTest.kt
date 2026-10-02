@@ -9,6 +9,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import com.festivalscoretracker.android.ui.notifications.NotificationMediaKind
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
@@ -183,7 +184,10 @@ class SettingsUiTest {
         waitForTag("fst.settings.service-info")
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.settings.service-info.phase").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Scraping Leaderboard Scores · Fetching Leaderboards", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("42.5%", useUnmergedTree = true).assertExists()
+        // Percent and units are spoken on the phase, not printed (web parity).
+        val phase = rule.onNodeWithTag("fst.settings.service-info.phase").fetchSemanticsNode()
+        assertTrue(phase.config[SemanticsProperties.StateDescription].startsWith("42.5%"))
+        rule.onNodeWithText("42.5%", useUnmergedTree = true).assertDoesNotExist()
         rule.onNodeWithText("Updating").assertExists()
         rule.onNodeWithTag("fst.settings.service-info.last-published").assertExists()
         // Keyless, and the version row filled from /api/version.
@@ -197,6 +201,28 @@ class SettingsUiTest {
         rule.onNodeWithTag("fst.quick-links.item.reset").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.settings.reset")
         rule.onNodeWithTag("fst.settings.reset").assertIsDisplayed()
+    }
+
+    @Test
+    fun quickLinksLandSectionTitles32DpBelowTheTopBar() {
+        launch(settingsTab)
+        listOf("show-instruments", "accessibility").forEach { id ->
+            waitForTag("fst.quick-links.open")
+            rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
+            waitForTag("fst.quick-links.item.$id")
+            rule.onNodeWithTag("fst.quick-links.item.$id").performSemanticsAction(SemanticsActions.OnClick)
+            waitGone("fst.quick-links.sheet")
+            settle()
+            // #51: the section lands 32 dp below the visible top (the top bar's bottom edge), not flush with it.
+            val listTop = rule.onNodeWithTag("fst.settings.list").getUnclippedBoundsInRoot().top
+            val sectionTop = rule.onNodeWithTag("fst.settings.section.$id").getUnclippedBoundsInRoot().top
+            assertEquals(32f, (sectionTop - listTop).value, 1f)
+            // The activation line matches the landing line, so the landed section is the current one.
+            val title = if (id == "show-instruments") "Show Instruments" else "Accessibility"
+            rule.onNodeWithTag("fst.quick-links.open").assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Quick Links, current section $title")),
+            )
+        }
     }
 
     @Test

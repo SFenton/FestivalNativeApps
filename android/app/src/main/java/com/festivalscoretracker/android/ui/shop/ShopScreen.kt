@@ -16,7 +16,6 @@ import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ShoppingCart
-import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -28,6 +27,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import com.festivalscoretracker.android.core.shop.ShopPulse
 import com.festivalscoretracker.android.ui.songs.SongsTokens
+import com.festivalscoretracker.android.ui.songs.SongRowCard
 import com.festivalscoretracker.android.ui.songs.pulseOutline
 import com.festivalscoretracker.android.ui.songs.rememberShopBreathe
 import com.festivalscoretracker.android.ui.songs.rememberShopPulse
@@ -52,6 +52,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
@@ -149,6 +150,7 @@ fun ShopScreen(
     onRetry: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showFilter by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val compact = maxWidth < COMPACT_WIDTH
         val effective = if (compact) ShopViewMode.List else viewMode
@@ -156,6 +158,15 @@ fun ShopScreen(
             title = "Item Shop",
             isRoot = false,
             actions = {
+                if (!state.hidden) {
+                    IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.shop.filter.open")) {
+                        Icon(
+                            Icons.Filled.FilterList,
+                            contentDescription = "Filter Item Shop",
+                            tint = if (state.filter.isActive) BrandTokens.gold else BrandTokens.textPrimary,
+                        )
+                    }
+                }
                 if (!compact && !state.hidden) {
                     val next = if (effective == ShopViewMode.Grid) ShopViewMode.List else ShopViewMode.Grid
                     IconButton(onClick = { onViewMode(next) }, modifier = Modifier.testTag("fst.shop.view-toggle")) {
@@ -179,11 +190,14 @@ fun ShopScreen(
                     // fade/stagger again (web `useViewTransition`, operator 6.10).
                     is LoadState.Loaded -> key(effective) {
                         val switched = rememberViewSwitch(effective)
-                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, padding, loadedRevealed && switched)
+                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched)
                     }
                 }
             }
         }
+    }
+    if (showFilter && !state.hidden) {
+        ShopFilterSheet(state.filter, onChange = viewModel::setFilter, onDismiss = { showFilter = false })
     }
 }
 
@@ -242,6 +256,7 @@ private fun ShopContent(
     mode: ShopViewMode,
     artworkUrl: (String?) -> String?,
     onRetryCatalog: () -> Unit,
+    onResetFilter: () -> Unit,
     padding: PaddingValues,
     revealed: Boolean,
 ) {
@@ -259,7 +274,7 @@ private fun ShopContent(
     if (state.offers.isEmpty()) {
         Column(Modifier.fillMaxSize().padding(contentPadding)) {
             header()
-            EmptyShop(Modifier.weight(1f))
+            if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
         }
         return
     }
@@ -305,6 +320,24 @@ private fun EmptyShop(modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Every offer is hidden by the page filter: distinct from the genuine empty Shop, with a way back.
+ *
+ * @param onReset Clear the filter.
+ */
+@Composable
+private fun NoMatchingOffers(onReset: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.fillMaxSize().padding(24.dp).testTag("fst.shop.filter.empty"),
+    ) {
+        Text("No Matching Songs", style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
+        Text("No Item Shop songs match your filters.", color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
+        OutlinedButton(onClick = onReset, modifier = Modifier.testTag("fst.shop.filter.empty-reset")) { Text("Reset Filters") }
+    }
+}
+
 @Composable
 private fun DetailsUnavailable(onRetry: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth().testTag("fst.shop.song-details-error")) {
@@ -343,18 +376,27 @@ fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier 
 }
 
 /**
- * Shop card outline pulse (web `ShopCard`: red Leaving Tomorrow, gold New; every
+ * Shop card outline pulse color (web `ShopCard`: red Leaving Tomorrow, gold New; every
  * card is in the Shop, so there is no green).
+ *
+ * @param highlight Accent.
+ * @return Outline color, or null without a highlight.
+ */
+private fun shopOutline(highlight: ShopHighlight?): Color? = when (highlight) {
+    ShopHighlight.LeavingTomorrow -> SongsTokens.pulse(ShopPulse.LeavingTomorrow)
+    ShopHighlight.New -> SongsTokens.pulse(ShopPulse.New)
+    null -> null
+}
+
+/**
+ * Shop card outline pulse modifier ([shopOutline]).
  *
  * @param highlight Accent.
  * @param pulse Shared alpha.
  * @return Modifier.
  */
-private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): Modifier = when (highlight) {
-    ShopHighlight.LeavingTomorrow -> pulseOutline(SongsTokens.pulse(ShopPulse.LeavingTomorrow), pulse)
-    ShopHighlight.New -> pulseOutline(SongsTokens.pulse(ShopPulse.New), pulse)
-    null -> this
-}
+private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): Modifier =
+    shopOutline(highlight)?.let { pulseOutline(it, pulse) } ?: this
 
 /**
  * Web `ShopCard`: square artwork filling the card, title and artist on a bottom scrim,
@@ -404,46 +446,38 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
     }
 }
 
+/**
+ * Item Shop list row: the shared Songs [SongRowCard] (glass surface, art, marquee title
+ * and subtitle, red/gold outline pulse) with the New / Leaving Tomorrow badge under
+ * the subtitle and the official Shop link (cart + chevron) as its own button. The row
+ * opens Song Details when matched, else the official link; TalkBack reads its texts.
+ */
 @Composable
 private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
     val offer = item.offer
-    GlassCard(
+    SongRowCard(
+        title = offer.title,
+        subtitle = offer.subtitle,
+        artUrl = artUrl,
         onClick = if (item.detailSongId != null) onDetail else onOfficial,
-        modifier = Modifier
-            .fillMaxWidth()
-            .shopPulse(item.highlight, pulse)
-            // TalkBack reads the title, subtitle and badge texts themselves (a description repeated them).
-            .testTag("fst.shop.song.${offer.songId}"),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
-        ) {
-            AsyncImage(
-                model = artUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                FestivalMarqueeText(offer.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
-                FestivalMarqueeText(offer.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-                item.highlight?.let { ShopBadgeLabel(it, offer.songId) }
-            }
+        modifier = Modifier.testTag("fst.shop.song.${offer.songId}"),
+        outline = shopOutline(item.highlight),
+        pulse = pulse,
+        details = { item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.padding(top = 4.dp)) } },
+        end = {
             if (item.officialUrl != null) {
                 IconButton(
                     onClick = onOfficial,
                     modifier = Modifier.heightIn(min = 48.dp).testTag("fst.shop.external.${offer.songId}"),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.ShoppingCart, contentDescription = "Open ${offer.title} in the Fortnite Item Shop", modifier = Modifier.size(20.dp))
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.ShoppingCart, contentDescription = "Open ${offer.title} in the Fortnite Item Shop", tint = BrandTokens.textPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.size(18.dp))
                     }
                 }
             }
-        }
-    }
+        },
+    )
 }
 
 // endregion

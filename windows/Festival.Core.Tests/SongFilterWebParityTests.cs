@@ -160,7 +160,30 @@ public class SongFilterMigrationTests : IDisposable
         var text = File.ReadAllText(path);
         Assert.DoesNotContain("MinDifficulty", text);
         Assert.DoesNotContain("songScoreBandFilter", text);
-        Assert.Contains("\"version\": 2", text);
+        Assert.Contains("\"version\": 3", text);
+        Assert.Equal(settings, new JsonFileSettingsStore(path).Load());
+    }
+
+    [Fact]
+    public void Version2_GeneralAndShopAvailabilityMigrateAndRoundTrip()
+    {
+        var settings = Load("""
+            {"version":2,
+             "songGeneralFilter":{"excludedDecades":[1980],"excludedDurationBuckets":[0,10],"doubleBassSupported":true,"doubleBassUnsupported":false},
+             "songShopFilter":{"inShop":true,"leavingTomorrow":true}}
+            """, out var path);
+        Assert.Equal(AppSettings.CurrentVersion, settings.Version);
+        Assert.Equal([1980], settings.GeneralFilter.ExcludedDecades);
+        Assert.Equal([0, 10], settings.GeneralFilter.ExcludedDurationBuckets);
+        Assert.False(settings.GeneralFilter.DoubleBassUnsupported);
+        Assert.True(settings.ShopFilter.Available);
+        Assert.False(settings.ShopFilter.Unavailable);
+        new JsonFileSettingsStore(path).Save(settings);
+        var text = File.ReadAllText(path);
+        Assert.Contains("\"available\": true", text);
+        Assert.Contains("\"unavailable\": false", text);
+        Assert.DoesNotContain("inShop", text);
+        Assert.DoesNotContain("leavingTomorrow", text);
         Assert.Equal(settings, new JsonFileSettingsStore(path).Load());
     }
 
@@ -181,12 +204,16 @@ public class SongFilterMigrationTests : IDisposable
     [Theory]
     [InlineData("""{"songFilter":{"Instrument":"Lead","excludedIntensities":[3,3]}}""")]
     [InlineData("""{"songFilter":{"Instrument":"Lead","excludedIntensities":null}}""")]
+    [InlineData("""{"songGeneralFilter":{"excludedDecades":[1980,1980]}}""")]
+    [InlineData("""{"songGeneralFilter":{"excludedDecades":[1985]}}""")]
+    [InlineData("""{"songGeneralFilter":{"excludedDurationBuckets":[11]}}""")]
+    [InlineData("""{"songGeneralFilter":{"excludedDurationBuckets":null}}""")]
     [InlineData("""{"songPlayerScoreFilter":{"missingScores":[],"hasScores":[],"missingFCs":[],"hasFCs":[],"excludedStars":[9]}}""")]
     [InlineData("""{"songPlayerScoreFilter":{"missingScores":[],"hasScores":[],"missingFCs":[],"hasFCs":[],"excludedSeasons":null}}""")]
     public async Task CorruptBuckets_BlockSongsUntilReset(string json)
     {
         var settings = Load(json, out _);
-        Assert.False(settings.SongFilter.IsValid && settings.PlayerScoreFilter.IsValid);
+        Assert.False(settings.GeneralFilter.IsValid && settings.SongFilter.IsValid && settings.PlayerScoreFilter.IsValid);
         var session = new FakeService().Session(settings: settings);
         var vm = new SongsViewModel(session);
         await vm.AppearCommand.ExecuteAsync(null);
@@ -208,6 +235,8 @@ public class SongFilterDraftWebTests
         var (session, vm) = await SongsScoreBandTests.Loaded();
         var draft = vm.FilterDraft;
         draft.Begin();
+        Assert.Equal(["Year", "Duration"], draft.GeneralSections.Select(s => s.Title));
+        Assert.Equal(["Double Bass Support", "No Double Bass Support"], draft.DoubleBassRows.Select(r => r.Label));
         Assert.Equal(SongBuckets.All, draft.BucketSections.Select(s => s.Kind));
         var season = draft.BucketSections[0];
         Assert.Equal(["Season 9", "No Score"], season.Rows.Select(r => r.Label));
@@ -215,8 +244,19 @@ public class SongFilterDraftWebTests
         var stars = draft.BucketSections[2];
         Assert.Equal([6, 5, 4, 3, 2, 1, 0], stars.Rows.Select(r => r.Stars));
         Assert.True(stars.Rows[0].ShowStars && !stars.Rows[0].ShowText);
-        Assert.Equal(["In the Shop", "Leaving Tomorrow"], draft.ShopRows.Select(r => r.Label));
+        Assert.Equal(["Available in Item Shop", "Not Available in Item Shop"], draft.ShopRows.Select(r => r.Label));
         Assert.True(draft.ShopRows.All(r => r.IsEnabled));
+
+        var duration = draft.GeneralSections.Single(s => s.Kind == GeneralFilterSectionKind.Duration);
+        duration.ClearAllCommand.Execute(null);
+        Assert.Equal(duration.Keys, session.Settings.GeneralFilter.ExcludedDurationBuckets);
+        duration.Rows[0].IsOn = true;
+        Assert.DoesNotContain(0, session.Settings.GeneralFilter.ExcludedDurationBuckets);
+        duration.SelectAllCommand.Execute(null);
+        Assert.Empty(session.Settings.GeneralFilter.ExcludedDurationBuckets);
+        draft.DoubleBassRows[1].IsOn = false;
+        Assert.False(session.Settings.GeneralFilter.DoubleBassUnsupported);
+        draft.DoubleBassRows[1].IsOn = true;
 
         draft.SelectedInstrument = Instrument.Lead;
         var percentile = draft.BucketSections[1];
@@ -230,8 +270,11 @@ public class SongFilterDraftWebTests
         Assert.False(season.Rows[0].IsOn);
         Assert.Equal([9], session.Settings.PlayerScoreFilter.ExcludedSeasons);
         draft.ShopRows[0].IsOn = true;
-        Assert.True(session.Settings.ShopFilter.InShop);
+        draft.ShopRows[1].IsOn = false;
+        Assert.True(session.Settings.ShopFilter.Available);
+        Assert.False(session.Settings.ShopFilter.Unavailable);
         draft.ResetCommand.Execute(null);
+        Assert.False(session.Settings.GeneralFilter.IsActive);
         Assert.False(session.Settings.PlayerScoreFilter.IsActive);
         Assert.False(session.Settings.ShopFilter.IsActive);
         Assert.Null(session.Settings.SongFilter.Instrument);
@@ -240,9 +283,9 @@ public class SongFilterDraftWebTests
     [Fact]
     public async Task HiddenShop_DisablesShopSwitches()
     {
-        var (_, vm) = await SongsScoreBandTests.Loaded(settings: new AppSettings { HideShop = true, ShopFilter = new SongShopFilter(InShop: true) });
+        var (_, vm) = await SongsScoreBandTests.Loaded(settings: new AppSettings { HideShop = true, ShopFilter = new SongShopFilter(available: true, unavailable: false) });
         vm.FilterDraft.Begin();
-        Assert.False(vm.FilterDraft.ShopEnabled);
+        Assert.False(vm.FilterDraft.ShowShopFilter);
         Assert.True(vm.FilterDraft.ShopRows.All(r => !r.IsEnabled));
         Assert.True(vm.FilterDraft.ShopRows[0].IsOn);
     }
@@ -256,7 +299,7 @@ public class SongFilterDraftWebTests
         vm.FilterDraft.Begin();
         Assert.True(vm.FilterDraft.HasHiddenScoreChecks);
         Assert.False(vm.FilterDraft.CanApply);
-        vm.FilterDraft.ShopRows[1].IsOn = true;
+        vm.FilterDraft.ShopRows[1].IsOn = false;
         Assert.False(session.Settings.PlayerScoreFilter.IsActive);
         Assert.False(vm.FilterDraft.HasHiddenScoreChecks);
         Assert.False(vm.FilterDraft.CanApply);

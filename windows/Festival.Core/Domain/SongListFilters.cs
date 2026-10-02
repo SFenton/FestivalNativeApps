@@ -4,20 +4,53 @@ namespace Festival.Core.Domain;
 
 #region Shop filter
 /// <summary>
-/// Applied public Item Shop filter: two independent toggles. Leaving Tomorrow implies membership;
-/// both on keep leaving offers. Independent of any selected player's scores.
+/// Applied public Item Shop availability filter: two independent toggles. Leaving Tomorrow offers count as available.
+/// Independent of any selected player's scores and inert while the Item Shop is hidden.
 /// </summary>
-/// <param name="InShop">Require current Shop membership.</param>
-/// <param name="LeavingTomorrow">Require an offer leaving tomorrow.</param>
-public sealed record SongShopFilter(
-    [property: JsonPropertyName("inShop")] bool InShop = false,
-    [property: JsonPropertyName("leavingTomorrow")] bool LeavingTomorrow = false)
+public sealed record SongShopFilter
 {
     /// <summary>The inactive default.</summary>
-    public static SongShopFilter None { get; } = new();
+    public static SongShopFilter None { get; } = new(available: true, unavailable: true);
 
-    /// <summary>Whether either toggle is on.</summary>
-    [JsonIgnore] public bool IsActive => InShop || LeavingTomorrow;
+    /// <summary>Creates a normalized filter.</summary>
+    /// <param name="available">Whether songs with a same-publication Shop offer are shown.</param>
+    /// <param name="unavailable">Whether songs without a same-publication Shop offer are shown.</param>
+    public SongShopFilter(bool available = true, bool unavailable = true)
+    {
+        AvailableValue = available;
+        UnavailableValue = unavailable;
+    }
+
+    /// <summary>Creates the serializer entry point. Missing availability fields are repaired by <see cref="Normalized"/>.</summary>
+    public SongShopFilter()
+    {
+    }
+
+    /// <summary>Saved "Available in Item Shop" toggle. Null means the key was absent in an older settings file.</summary>
+    [JsonPropertyName("available")] public bool? AvailableValue { get; set; }
+
+    /// <summary>Saved "Not Available in Item Shop" toggle. Null means the key was absent in an older settings file.</summary>
+    [JsonPropertyName("unavailable")] public bool? UnavailableValue { get; set; }
+
+    /// <summary>Settings v2 legacy "In Shop" toggle, read only for migration.</summary>
+    [JsonPropertyName("inShop")] public bool? LegacyInShop { get; set; }
+
+    /// <summary>Settings v2 legacy "Leaving Tomorrow" toggle, read only for migration.</summary>
+    [JsonPropertyName("leavingTomorrow")] public bool? LegacyLeavingTomorrow { get; set; }
+
+    /// <summary>Whether songs with a same-publication Shop offer are shown.</summary>
+    [JsonIgnore] public bool Available => AvailableValue ?? true;
+
+    /// <summary>Whether songs without a same-publication Shop offer are shown.</summary>
+    [JsonIgnore] public bool Unavailable =>
+        UnavailableValue ?? (AvailableValue is null && (LegacyInShop == true || LegacyLeavingTomorrow == true) ? false : true);
+
+    /// <summary>Whether either availability toggle hides rows.</summary>
+    [JsonIgnore] public bool IsActive => !Available || !Unavailable;
+
+    /// <summary>Returns a v3-only shape, migrating v2 In Shop/Leaving Tomorrow to "available only".</summary>
+    /// <returns>Normalized filter.</returns>
+    public SongShopFilter Normalized() => new(Available, Unavailable);
 
     /// <summary>Filters rows without changing their order.</summary>
     /// <param name="songs">Rows in their current order.</param>
@@ -28,8 +61,147 @@ public sealed record SongShopFilter(
     {
         if (!IsActive) return songs;
         if (offers is null) throw new InvalidOperationException("Shop filter requires a validated feed.");
-        return [.. songs.Where(s => offers.TryGetValue(s.SongId, out var offer) && (!LeavingTomorrow || offer.LeavingTomorrow))];
+        if (!Available && !Unavailable) return [];
+        return [.. songs.Where(s => offers.ContainsKey(s.SongId) ? Available : Unavailable)];
     }
+
+    /// <summary>Content equality over the effective v3 toggles only.</summary>
+    /// <param name="other">Other filter.</param>
+    /// <returns><see langword="true"/> when equivalent.</returns>
+    public bool Equals(SongShopFilter? other) => other is not null && Available == other.Available && Unavailable == other.Unavailable;
+
+    /// <summary>Hash consistent with <see cref="Equals(SongShopFilter?)"/>.</summary>
+    /// <returns>Hash code.</returns>
+    public override int GetHashCode() => HashCode.Combine(Available, Unavailable);
+}
+#endregion
+
+#region General filter
+/// <summary>Year, duration and Double Bass filters that apply with or without a selected profile.</summary>
+public sealed record SongGeneralFilter
+{
+    /// <summary>The inactive default.</summary>
+    public static SongGeneralFilter None { get; } = new();
+
+    /// <summary>Hidden release decades (e.g. 1980). Missing/invalid years are excluded while any decade is hidden.</summary>
+    [JsonPropertyName("excludedDecades")] public IReadOnlyList<int> ExcludedDecades { get; set; } = [];
+
+    /// <summary>Hidden duration minute buckets 0…10. Missing/invalid durations are excluded while any bucket is hidden.</summary>
+    [JsonPropertyName("excludedDurationBuckets")] public IReadOnlyList<int> ExcludedDurationBuckets { get; set; } = [];
+
+    /// <summary>Whether songs with Double Bass support are shown.</summary>
+    [JsonPropertyName("doubleBassSupported")] public bool DoubleBassSupported { get; set; } = true;
+
+    /// <summary>Whether songs without Double Bass support are shown.</summary>
+    [JsonPropertyName("doubleBassUnsupported")] public bool DoubleBassUnsupported { get; set; } = true;
+
+    /// <summary>Whether this filter changes the list.</summary>
+    [JsonIgnore] public bool IsActive =>
+        ExcludedDecades.Count > 0 || ExcludedDurationBuckets.Count > 0 || !DoubleBassSupported || !DoubleBassUnsupported;
+
+    /// <summary>Whether saved keys are bounded, known and duplicate-free.</summary>
+    [JsonIgnore] public bool IsValid =>
+        AreValidDecades(ExcludedDecades) && AreValidDurationBuckets(ExcludedDurationBuckets);
+
+    /// <summary>Repairs nullable lists from hand-edited JSON while preserving corruption for the Reset prompt.</summary>
+    /// <param name="saved">Saved filter.</param>
+    /// <returns>Filter with non-null lists.</returns>
+    public static SongGeneralFilter Repaired(SongGeneralFilter? saved) => saved is null ? None : saved with
+    {
+        ExcludedDecades = saved.ExcludedDecades ?? [-1],
+        ExcludedDurationBuckets = saved.ExcludedDurationBuckets ?? [-1],
+    };
+
+    /// <summary>Normalizes key order for stable persistence.</summary>
+    /// <returns>Normalized filter.</returns>
+    public SongGeneralFilter Normalized() => this with
+    {
+        ExcludedDecades = [.. ExcludedDecades.Distinct().Order()],
+        ExcludedDurationBuckets = [.. ExcludedDurationBuckets.Distinct().Order()],
+    };
+
+    /// <summary>Whether a song passes the selected General filters.</summary>
+    /// <param name="song">Catalogue row.</param>
+    /// <returns><see langword="true"/> when kept.</returns>
+    public bool Matches(Song song)
+    {
+        if (ExcludedDecades.Count > 0)
+        {
+            if (SongGeneralBuckets.DecadeOf(song.Year) is not { } decade || ExcludedDecades.Contains(decade)) return false;
+        }
+        if (ExcludedDurationBuckets.Count > 0)
+        {
+            if (SongGeneralBuckets.DurationBucketOf(song.DurationSeconds) is not { } bucket || ExcludedDurationBuckets.Contains(bucket)) return false;
+        }
+        if (!DoubleBassSupported || !DoubleBassUnsupported)
+        {
+            if (!DoubleBassSupported && !DoubleBassUnsupported) return false;
+            if (song.DoubleBassSupported is not { } supported) return false;
+            if (supported && !DoubleBassSupported) return false;
+            if (!supported && !DoubleBassUnsupported) return false;
+        }
+        return true;
+    }
+
+    private static bool AreValidDecades(IReadOnlyList<int>? keys) =>
+        keys is not null && keys.Count <= 1000 && keys.All(k => k > 0 && k < 10000 && k % 10 == 0) &&
+        keys.Distinct().Count() == keys.Count;
+
+    private static bool AreValidDurationBuckets(IReadOnlyList<int>? keys) =>
+        keys is not null && keys.Count <= 11 && keys.All(k => k is >= 0 and <= 10) && keys.Distinct().Count() == keys.Count;
+
+    /// <summary>Content equality for saved key lists and toggles.</summary>
+    /// <param name="other">Other filter.</param>
+    /// <returns><see langword="true"/> when equivalent.</returns>
+    public bool Equals(SongGeneralFilter? other) =>
+        other is not null && ExcludedDecades.SequenceEqual(other.ExcludedDecades) &&
+        ExcludedDurationBuckets.SequenceEqual(other.ExcludedDurationBuckets) &&
+        DoubleBassSupported == other.DoubleBassSupported && DoubleBassUnsupported == other.DoubleBassUnsupported;
+
+    /// <summary>Hash consistent with <see cref="Equals(SongGeneralFilter?)"/>.</summary>
+    /// <returns>Hash code.</returns>
+    public override int GetHashCode() => HashCode.Combine(
+        ExcludedDecades.Count, ExcludedDurationBuckets.Count, DoubleBassSupported, DoubleBassUnsupported);
+}
+
+/// <summary>Catalogue-derived keys and labels for the Songs filter's General section.</summary>
+public static class SongGeneralBuckets
+{
+    /// <summary>Release decade for a positive year.</summary>
+    /// <param name="year">Release year.</param>
+    /// <returns>Decade key, or <see langword="null"/>.</returns>
+    public static int? DecadeOf(int? year) => year is > 0 and { } y ? y / 10 * 10 : null;
+
+    /// <summary>Duration minute bucket for a positive duration.</summary>
+    /// <param name="seconds">Duration in seconds.</param>
+    /// <returns>Bucket 0…10, or <see langword="null"/>.</returns>
+    public static int? DurationBucketOf(int? seconds) => seconds is > 0 and { } s ? Math.Min(10, s / 60) : null;
+
+    /// <summary>Decade options present in the catalogue.</summary>
+    /// <param name="songs">Catalogue rows.</param>
+    /// <returns>Sorted decade keys.</returns>
+    public static IReadOnlyList<int> Decades(IEnumerable<Song> songs) => [.. songs.Select(s => DecadeOf(s.Year)).OfType<int>().Distinct().Order()];
+
+    /// <summary>Duration options: 0…9 always, plus 10 only when a song is at least ten minutes.</summary>
+    /// <param name="songs">Catalogue rows.</param>
+    /// <returns>Bucket keys.</returns>
+    public static IReadOnlyList<int> DurationBuckets(IEnumerable<Song> songs) =>
+        songs.Select(s => DurationBucketOf(s.DurationSeconds)).Any(b => b == 10) ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+    /// <summary>User-facing decade label.</summary>
+    /// <param name="decade">Decade key.</param>
+    /// <returns>Label.</returns>
+    public static string DecadeLabel(int decade) => $"{decade}s";
+
+    /// <summary>User-facing duration label.</summary>
+    /// <param name="bucket">Minute bucket.</param>
+    /// <returns>Label.</returns>
+    public static string DurationLabel(int bucket) => bucket switch
+    {
+        0 => "Under 1 Minute",
+        10 => "10+ Minutes",
+        _ => $"{bucket}-{bucket + 1} Minutes",
+    };
 }
 #endregion
 

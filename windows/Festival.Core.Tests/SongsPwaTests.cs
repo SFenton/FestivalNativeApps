@@ -159,12 +159,17 @@ public class SongsFilterButtonTests
     }
 
     [Fact]
-    public async Task Filter_HiddenAnonymousUnlessASavedFilterNeedsClearing()
+    public async Task Filter_AlwaysAvailableWithGeneralAnonymous()
     {
         var (session, vm) = await Loaded(new AppSettings());
-        Assert.False(vm.ShowFilterButton);
+        Assert.True(vm.ShowFilterButton);
+        Assert.False(vm.IsFilterActive);
+        session.UpdateSettings(s => s with { GeneralFilter = new SongGeneralFilter { ExcludedDurationBuckets = [0] } });
+        Assert.True(vm.ShowFilterButton);
+        Assert.True(vm.IsFilterActive);
         session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Bass) });
         Assert.True(vm.ShowFilterButton);
+        Assert.True(vm.IsFilterActive);
         session.UpdateSettings(s => s with { SongFilter = SongFilter.None, SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
         Assert.True(vm.ShowFilterButton);
     }

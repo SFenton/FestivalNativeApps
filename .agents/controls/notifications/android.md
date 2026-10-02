@@ -32,5 +32,5 @@
 
 ## Open
 
-- Band feeds, multi-event coalescing copy and flag groups (as on iPhone/Windows); scroll-visibility seen marking.
+- Band feeds, multi-event coalescing copy and flag groups (Windows lacks them too; Apple ports them, issue #76); scroll-visibility seen marking.
 - `service-safety.md`'s endpoint table has no notifications row yet (TODO(orchestrator)).

@@ -45,6 +45,8 @@ struct SongDetailScreen: View {
     @State private var pageWidth: CGFloat = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
+    @Environment(\.deviceLayout) private var deviceLayout
 
     /// What the page's first-appearance reads depend on.
     private struct GateKey: Hashable {
@@ -174,6 +176,15 @@ struct SongDetailScreen: View {
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar { detailToolbar }
+        #if os(macOS)
+        .macSongCommands(macSongCommands)
+        #if DEBUG
+        // `tools/mac_app.py command song:paths` (the Song menu needs a key window).
+        .onReceive(NotificationCenter.default.publisher(for: MacDebugHooks.openPathsName)) { _ in
+            if !pathInstruments.isEmpty { pathsPresented = true }
+        }
+        #endif
+        #endif
         .sheet(isPresented: $pathsPresented) {
             if let first = pathInstruments.first {
                 SongPathsSheet(
@@ -203,6 +214,18 @@ struct SongDetailScreen: View {
             }
         }
     }
+
+    #if os(macOS)
+    /// The toolbar's Paths and Item Shop tools for the Mac Song menu.
+    private var macSongCommands: MacSongCommands {
+        let presented: Binding<Bool> = $pathsPresented
+        var commands = MacSongCommands(songId: song.songId, paths: nil, shopURL: shopOffer?.shopUrl)
+        if !pathInstruments.isEmpty {
+            commands.paths = { presented.wrappedValue = true }
+        }
+        return commands
+    }
+    #endif
 
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
@@ -436,7 +459,8 @@ extension SongDetailScreen {
     /// - Returns: Toolbar link with a spoken status.
     @ViewBuilder
     private func shopAction(_ offer: ShopSong) -> some View {
-        if let tone = shopTone {
+        switch SongDetailShopActionStyle.resolve(tone: shopTone, chrome: deviceLayout.sectionChrome) {
+        case let .breathing(tone):
             Link(destination: offer.shopUrl) {
                 Image(systemName: "bag")
                     .font(.body.weight(.semibold))
@@ -446,10 +470,11 @@ extension SongDetailScreen {
             }
             .accessibilityLabel("Item Shop, \(tone.spokenStatus)")
             .accessibilityIdentifier("fst.song-detail.shop")
-        } else {
+        case let .titled(spokenLabel):
             Link(destination: offer.shopUrl) {
                 Label("Item Shop", systemImage: "bag")
             }
+            .accessibilityLabel(spokenLabel)
             .accessibilityIdentifier("fst.song-detail.shop")
         }
     }
@@ -476,6 +501,32 @@ extension SongDetailScreen {
         .accessibilityAddTraits(.isHeader)
         .accessibilityHidden(!heroTitleHidden)
         .accessibilityIdentifier("fst.song-detail.pinned-title")
+    }
+}
+
+/// How Song Detail draws its official Item Shop toolbar action.
+///
+/// The breathing status fill is a custom image view. The iPhone Duo vertical bar keeps
+/// custom-view items horizontal and dropped this one from both the rail and its
+/// overflow menu, so the action was unreachable folded (HIG Designing for iPhone Duo:
+/// "Give every non-text-only item a title and symbol so the system can choose its
+/// representation"). In a vertical bar it is a titled `bag` symbol; the status stays in
+/// the spoken label.
+enum SongDetailShopActionStyle: Equatable, Sendable {
+    /// Image-only action whose fill breathes in the status colour (horizontal bars).
+    case breathing(ShopStatusTone)
+    /// Standard `Label` item with this VoiceOver label.
+    case titled(spokenLabel: String)
+
+    /// Choose the style for the current chrome.
+    ///
+    /// - Parameters:
+    ///   - tone: Shop status tone, or nil when highlighting is off.
+    ///   - chrome: Current section chrome.
+    /// - Returns: Breathing only with a tone outside the vertical bar; titled otherwise.
+    static func resolve(tone: ShopStatusTone?, chrome: DeviceLayout.SectionChrome) -> Self {
+        if let tone, !chrome.isVerticalBar { return .breathing(tone) }
+        return .titled(spokenLabel: tone.map { "Item Shop, \($0.spokenStatus)" } ?? "Item Shop")
     }
 }
 

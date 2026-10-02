@@ -46,11 +46,25 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
         open.tap()
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.itemPrefix))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 10), "The menu did not open", file: file, line: line)
-        let actual = rows.allElementsBoundByIndex
-            .map { (id: String($0.identifier.dropFirst(Self.itemPrefix.count)), top: $0.frame.minY) }
-            .sorted { $0.top < $1.top }
-            .map(\.id)
+        func visible() -> [String] {
+            rows.allElementsBoundByIndex
+                .map { (id: String($0.identifier.dropFirst(Self.itemPrefix.count)), top: $0.frame.minY) }
+                .sorted { $0.top < $1.top }
+                .map(\.id)
+        }
+        // The iOS 26.1+ tab-bar accessory opens Quick Links as a sheet whose List builds
+        // only the rows on screen (issue #42): scroll it to collect the rest in order.
+        var actual = visible()
         SongsUITestSupport.record(app, name: name)
+        // Swipe the list, not a row: a swipe that does not scroll lands as a tap and jumps.
+        let list = app.collectionViews.containing(.button, identifier: Self.itemPrefix + (actual.first ?? ""))
+            .firstMatch
+        for _ in 0..<4 where list.exists && actual.count < expected.count {
+            list.swipeUp(velocity: .slow)
+            let before = actual.count
+            for id in visible() where !actual.contains(id) { actual.append(id) }
+            if actual.count == before { break }
+        }
         XCTAssertEqual(actual, expected, "Quick Links rows top to bottom", file: file, line: line)
     }
 

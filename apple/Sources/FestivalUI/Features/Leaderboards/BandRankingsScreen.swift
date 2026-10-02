@@ -71,8 +71,10 @@ struct BandRankingsScreen: View {
                         }
                         ForEach(payload.rankings.entries) { entry in
                             BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, glassSurface: true)
+                                .macKeyboardRow(entry.teamKey)
                         }
                     }
+                    .macKeyboardRows(BandRankingRow.keyRows(payload.rankings.entries, bandType: bandType))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     // Each loaded page fades in once (web load-in), not per row on scroll.
@@ -95,6 +97,8 @@ struct BandRankingsScreen: View {
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("\(bandType.label) Rankings")
+        // Mac: View › Rank By mirrors the toolbar menu.
+        .macRankByCommands($rankBy)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 4) {

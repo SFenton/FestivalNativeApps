@@ -213,4 +213,73 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
         notContaining: ["Fixture Rival Golf", "Loading"]
     )
 }
+
+// MARK: - Back from a pushed page (#39)
+
+/// Counts the rankings reads Compete's leaderboard previews make, forwarding every
+/// request to the real loopback fixture.
+private actor CountingTransport: HTTPTransport {
+    private let inner = URLSessionHTTPTransport()
+    private(set) var rankingsReads = 0
+
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        if request.url?.path.hasPrefix("/api/rankings/") == true { rankingsReads += 1 }
+        return try await inner.send(request)
+    }
+}
+
+/// Back from View Full Leaderboard used to restart every section's `.task(id:)`, which
+/// reset it to a spinner and read the rankings again: the cards collapsed, then
+/// re-expanded and re-faded under the pop, shifting the page (#39). A reappearance with
+/// the same instrument, account and publication must keep the loaded rows.
+///
+/// On iOS a `NavigationStack` push makes the root disappear and Back makes it appear
+/// again. A hosted macOS stack keeps its root appeared, so the test takes the host out
+/// of its window and back, which runs the same disappear/appear cycle (without the fix
+/// it reads the rankings a second time).
+@MainActor
+@Test func competeKeepsLoadedLeaderboardsWhenItReappears() async throws {
+    let baseURL = try await RivalsMockService.shared.baseURL()
+    let transport = CountingTransport()
+    let client = try FestivalAPI(baseURL: baseURL, transport: transport)
+    let suite = "fst.tests.compete.\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suite))
+    defer { storage.removePersistentDomain(forName: suite) }
+    let identity: [String: String] = ["accountId": "fixture-riv", "displayName": "Fixture Viewer"]
+    storage.set(try JSONSerialization.data(withJSONObject: identity), forKey: SelectedPlayerIdentity.storageKey)
+    for key in allInstrumentKeys { storage.set(key == "fst.settings.showLead", forKey: key) }
+    let session = FestivalSession(factory: { client }, selectionStorage: storage)
+    let host = nativeHostedView(
+        NavigationStack { CompeteScreen(session: session) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 1000)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
+    defer { window.orderOut(nil) }
+
+    try await nativeHostedSettle(
+        host, untilText: ["Fixture Player 1", "Fixture Rival Golf"], excluding: ["Loading"]
+    )
+    let readsBeforeLeaving = await transport.rankingsReads
+    #expect(readsBeforeLeaving == 1)
+
+    window.contentView = NSView()
+    try await Task.sleep(for: .milliseconds(200))
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    try await Task.sleep(for: .milliseconds(300))
+    host.layoutSubtreeIfNeeded()
+    let afterReturn = nativeHostedAccessibility(host)
+    #expect(afterReturn.contains("Fixture Player 1"))
+    #expect(afterReturn.contains("Fixture Rival Golf"))
+    #expect(!afterReturn.contains("Loading"))
+    #expect(await transport.rankingsReads == readsBeforeLeaving)
+
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture Player 1", "Fixture Rival Golf"], excluding: ["Loading"]
+    )
+    _ = try nativeHostedPNG(image, filename: "compete-after-back.png", environment: "FST_COMPETE_RENDER_OUT")
+    #expect(await transport.rankingsReads == readsBeforeLeaving)
+}
 #endif

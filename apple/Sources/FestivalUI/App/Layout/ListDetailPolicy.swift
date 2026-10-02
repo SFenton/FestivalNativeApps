@@ -74,19 +74,53 @@ enum ListDetailPolicy {
 
     /// Whether a window shows list/detail pages as two columns.
     ///
-    /// Only an iPhone Duo inner display qualifies for now (unfolded or partially
-    /// folded, either orientation; the shelved dual-source arrangement would replace it
-    /// in portrait, ``DualSourcePolicy/isEnabled``). A large iPhone in landscape is
-    /// regular width but keeps its iPhone layout (`pose == .standard`); iPad
-    /// (`.standard`, sidebar shell) joins in the iPadOS phase, which must first decide
-    /// how this nests in its sections sidebar.
+    /// Two windows qualify:
+    /// - An iPhone Duo inner display (unfolded or partially folded, either orientation;
+    ///   the shelved dual-source arrangement would replace it in portrait,
+    ///   ``DualSourcePolicy/isEnabled``) at least ``minimumSplitWidth`` wide.
+    /// - The iPad sidebar shell (`sectionChrome == .sidebar`) at least
+    ///   ``minimumSidebarSplitWidth`` wide: sidebar, list and detail side by side.
+    ///   Decided by the window alone, never by the sidebar's own width: the system
+    ///   tiles or overlays the sidebar per width, and following it would flip the
+    ///   layout while someone opens the sidebar. Rotation and window resizing reflow
+    ///   live (HIG Split views, iPadOS: "design for narrow, compact, and intermediate
+    ///   fluid widths"). macOS keeps one stack until its own phase (``sidebarShellSplits``).
     ///
-    /// - Parameter layout: Published window layout.
+    /// A large iPhone in landscape is regular width but keeps its iPhone layout
+    /// (`pose == .standard`, tab shell).
+    ///
+    /// - Parameters:
+    ///   - layout: Published window layout.
+    ///   - sidebarShellSplits: Whether the sidebar shell splits (iPad: true).
     /// - Returns: True when list/detail sections should split.
-    static func usesSplit(_ layout: DeviceLayout) -> Bool {
-        layout.contentArrangement == .listDetail && layout.pose != .standard
-            && layout.size.width >= minimumSplitWidth
+    static func usesSplit(
+        _ layout: DeviceLayout, sidebarShellSplits: Bool = ListDetailPolicy.sidebarShellSplits
+    ) -> Bool {
+        guard layout.contentArrangement == .listDetail else { return false }
+        if layout.sectionChrome == .sidebar {
+            return sidebarShellSplits && layout.size.width >= minimumSidebarSplitWidth
+        }
+        return layout.pose != .standard && layout.size.width >= minimumSplitWidth
     }
+
+    /// Narrowest iPad window that shows sidebar, list and detail: three readable
+    /// columns (320 + 320 + ~400 pt). An 11-inch iPad in landscape (1194 pt) splits;
+    /// in portrait (834 pt) it shows the sidebar beside a full-width list.
+    static let minimumSidebarSplitWidth: CGFloat = 1000
+
+    /// Whether the sidebar shell splits list/detail pages: iPad yes; macOS not yet
+    /// (Lane MAC decides its own columns).
+    static var sidebarShellSplits: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
+        #endif
+    }
+
+    /// Width the nested list column takes in the iPad sidebar shell (the system
+    /// `.balanced` split's primary column, measured 320 pt on iPadOS 26.5).
+    static let splitListColumnWidth: CGFloat = 320
 
     /// Narrowest window that fits two comfortable columns (operator, 2026-09-28: "two
     /// columns if width allows"). The Duo inner display in landscape (951 pt) splits;
@@ -176,6 +210,30 @@ enum ListDetailPolicy {
     static func awaitsSelection(section: FestivalSection, path: [AppRoute], layout: DeviceLayout) -> Bool {
         guard usesSplit(layout), let split = split(section: section, path: path) else { return false }
         return split.selection == nil
+    }
+
+    // MARK: Back (⌘[)
+
+    /// The section path after the hardware-keyboard Back command (⌘[).
+    ///
+    /// In one stack it pops the top page. In a split it pops the column that has a
+    /// Back button: the detail column's pushed page first, else the list column's
+    /// pushed list page (with its detail); a split showing only its root list and the
+    /// detail root has nothing to go back to.
+    ///
+    /// - Parameters:
+    ///   - section: Section owning the path.
+    ///   - path: The section's navigation path.
+    ///   - isSplit: Whether the section is currently shown as two columns.
+    /// - Returns: The new path, or nil when there is nothing to go back to.
+    static func pathAfterBack(section: FestivalSection, path: [AppRoute], isSplit: Bool) -> [AppRoute]? {
+        guard !path.isEmpty else { return nil }
+        guard isSplit, let split = split(section: section, path: path) else {
+            return Array(path.dropLast())
+        }
+        if split.detail.count > 1 { return Array(path.dropLast()) }
+        if !split.list.isEmpty { return Array(split.list.dropLast()) }
+        return nil
     }
 
     // MARK: Column writes

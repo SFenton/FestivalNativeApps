@@ -7,6 +7,7 @@
 - Pin Xcode per command: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (never change the global developer dir). Observed 2026-09-24: Xcode 27.1 (27A9269).
 - Package: `swift build --build-tests --package-path apple`; tests `swift test --package-path apple --filter <name>` (run only new/changed tests while iterating).
 - App: `python3 tools/ios_sim.py build` (Debug, this worktree); screenshots via `shot` ([lanes](../../workflow/lanes.md)).
+- Two iOS app targets: **FestivalMobile** (App Store iPhone app, iPhone-only, portrait) and **FestivalTablet** (iPadOS app, `com.sfenton.festivalscoretracker.ipad`, every orientation, multitasking; shares `Apps/iOS` sources/assets, Info.plist generated at `Apps/iPadOS/Info.plist`). `ios_sim.py build --app ipad`; `shot`/`drive`/`uitest --device ipad` select FestivalTablet and its `FestivalTabletUITests` bundle (`Apps/iPadOSUITests` + the shared `FestivalApp.swift`/`DriverTests.swift`) automatically (`--app` overrides).
 
 ## Service origin
 

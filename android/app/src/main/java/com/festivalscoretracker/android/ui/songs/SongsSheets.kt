@@ -19,6 +19,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import com.festivalscoretracker.android.core.songs.SongBucketKind
+import com.festivalscoretracker.android.core.songs.SongCatalogBuckets
+import com.festivalscoretracker.android.core.songs.SongGeneralBucketKind
 import com.festivalscoretracker.android.core.songs.SongIntensityBucket
 import com.festivalscoretracker.android.core.songs.SongPercentileBucket
 import com.festivalscoretracker.android.core.songs.SongSeasonBucket
@@ -92,7 +94,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun LiveSheet(
+internal fun LiveSheet(
     title: String,
     tag: String,
     onReset: () -> Unit,
@@ -233,21 +235,24 @@ private fun RadioRow(label: String, selected: Boolean, tag: String, leading: (@C
 // region Filter
 
 /**
- * Filter Songs, structured like the web `FilterModal` (operator 6.32): Global Score &
- * FC Toggles, Individual Score & FC Toggles per instrument, Item Shop, then Selected
- * Instrument Filters — the shared Instrument Selector (deferred selection) revealing
- * Season, Percentile, Stars and Song Intensity bucket toggles with Select All /
- * Clear All. Every section is a collapsible group (web `Accordion`); toggles are
- * switches with the web's descriptions. Every change applies immediately.
+ * Filter Songs, structured like the web `FilterModal`: General (Year, Duration, Item Shop
+ * while shown, Double Bass) always; with a selected player also Global Score & FC
+ * Toggles, Individual Score & FC Toggles per instrument and Selected Instrument
+ * Filters — the shared Instrument Selector (deferred selection) revealing Season,
+ * Percentile, Stars and Song Intensity bucket toggles with Select All / Clear All.
+ * Every section is a collapsible group (web `Accordion`); toggles are switches with the
+ * web's descriptions. Every change applies immediately.
  *
  * @param initial Draft seeded from saved values.
- * @param hasPlayer Show the player score sections.
- * @param hideShop Shop toggles disabled (still clearable by Reset).
+ * @param hasPlayer Show the player score and Selected Instrument sections.
+ * @param hideShop Item Shop availability removed (a saved choice stays until Reset).
  * @param onApply Persist the filters.
  * @param onDismiss Close.
  * @param filterInvalidScores Offer Over CHOpt Threshold checks.
  * @param availableSeasons Seasons in the selected player's scores (Season buckets).
  * @param keyboard Keys artwork for Lead/Pro Lead in the selector.
+ * @param decades Catalogue release decades (Year toggles).
+ * @param durations Catalogue duration buckets (Duration toggles).
  */
 @Composable
 fun FilterSheet(
@@ -259,6 +264,8 @@ fun FilterSheet(
     filterInvalidScores: Boolean = false,
     availableSeasons: List<Int> = emptyList(),
     keyboard: Boolean = false,
+    decades: List<Int> = emptyList(),
+    durations: List<Int> = emptyList(),
 ) {
     var filters by remember { mutableStateOf(initial) }
     val draft = filters
@@ -269,6 +276,7 @@ fun FilterSheet(
     val kinds = SongScoreFilterKind.offered(filterInvalidScores)
     val visible = Instrument.entries.filter { it in draft.visible }
     LiveSheet(title = "Filter Songs", tag = "fst.songs.filter", onReset = { change(draft.reset()) }, onDismiss = onDismiss) {
+        GeneralFilters(draft, decades, durations, hideShop, ::change)
         if (hasPlayer) {
             Column(Modifier.testTag("fst.songs.filter.score-sections")) {
                 Accordion(
@@ -308,54 +316,114 @@ fun FilterSheet(
                     }
                 }
             }
-        }
-        Accordion(
-            title = "Item Shop",
-            hint = "Toggles that impact visibility of songs based on the current Item Shop rotation.",
-            tag = "fst.songs.filter.shop",
-            initiallyOpen = draft.shopFilter.isActive,
-        ) {
-            if (hideShop) Hint("The Item Shop is hidden in Settings. Saved choices stay until you reset them.")
-            ToggleRow("In the Shop", "Songs that are available in the Item Shop today.", draft.shopFilter.inShop, enabled = !hideShop, tag = "fst.songs.filter.in-shop") {
-                change(draft.copy(shopFilter = draft.shopFilter.copy(inShop = it)))
-            }
-            ToggleRow("Leaving Tomorrow", "Songs that are leaving the Item Shop tomorrow.", draft.shopFilter.leavingTomorrow, enabled = !hideShop, tag = "fst.songs.filter.leaving") {
-                change(draft.copy(shopFilter = draft.shopFilter.copy(leavingTomorrow = it)))
-            }
-        }
-        SectionHeader("Selected Instrument Filters")
-        Hint("Select an instrument to only show its metadata on each song row. When none is selected, all instruments are shown.")
-        InstrumentSelector(
-            instruments = visible,
-            selected = draft.filter.instrument,
-            onSelect = { change(draft.withInstrument(it)) },
-            deferSelection = true,
-            keyboard = keyboard,
-            tag = "fst.songs.filter.instrument",
-            modifier = Modifier.padding(vertical = 8.dp),
-        ) {
-            Column {
-                val sections = if (hasPlayer) SongBucketKind.entries else listOf(SongBucketKind.Intensity)
-                sections.forEach { kind ->
-                    val keys = when (kind) {
-                        SongBucketKind.Season -> SongSeasonBucket.keys(availableSeasons)
-                        SongBucketKind.Percentile -> SongPercentileBucket.KEYS
-                        SongBucketKind.Stars -> SongStarsBucket.KEYS
-                        SongBucketKind.Intensity -> SongIntensityBucket.KEYS
-                    }
-                    val hidden = draft.excluded(kind)
-                    Accordion(kind.title, kind.hint, "fst.songs.filter.${kind.name.lowercase()}", initiallyOpen = hidden.isNotEmpty()) {
-                        BulkActions(
-                            tag = "fst.songs.filter.${kind.name.lowercase()}",
-                            onSelectAll = { change(draft.withAllBuckets(kind, keys, shown = true)) },
-                            onClearAll = { change(draft.withAllBuckets(kind, keys, shown = false)) },
-                        )
-                        keys.forEach { key ->
-                            BucketRow(kind, key, key !in hidden, "fst.songs.filter.${kind.name.lowercase()}.$key") { change(draft.withBucket(kind, key, it)) }
+            SectionHeader("Selected Instrument Filters")
+            Hint("Select an instrument to only show its metadata on each song row. When none is selected, all instruments are shown.")
+            InstrumentSelector(
+                instruments = visible,
+                selected = draft.filter.instrument,
+                onSelect = { change(draft.withInstrument(it)) },
+                deferSelection = true,
+                keyboard = keyboard,
+                tag = "fst.songs.filter.instrument",
+                modifier = Modifier.padding(vertical = 8.dp),
+            ) {
+                Column {
+                    SongBucketKind.entries.forEach { kind ->
+                        val keys = when (kind) {
+                            SongBucketKind.Season -> SongSeasonBucket.keys(availableSeasons)
+                            SongBucketKind.Percentile -> SongPercentileBucket.KEYS
+                            SongBucketKind.Stars -> SongStarsBucket.KEYS
+                            SongBucketKind.Intensity -> SongIntensityBucket.KEYS
+                        }
+                        val hidden = draft.excluded(kind)
+                        Accordion(kind.title, kind.hint, "fst.songs.filter.${kind.name.lowercase()}", initiallyOpen = hidden.isNotEmpty()) {
+                            BulkActions(
+                                tag = "fst.songs.filter.${kind.name.lowercase()}",
+                                onSelectAll = { change(draft.withAllBuckets(kind, keys, shown = true)) },
+                                onClearAll = { change(draft.withAllBuckets(kind, keys, shown = false)) },
+                            )
+                            keys.forEach { key ->
+                                BucketRow(kind, key, key !in hidden, "fst.songs.filter.${kind.name.lowercase()}.$key") { change(draft.withBucket(kind, key, it)) }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Web `FilterModal` General section: Year and Duration bucket toggles (Select All /
+ * Clear All), Item Shop availability (only while the Shop is shown) and Double Bass.
+ *
+ * @param draft Current draft.
+ * @param decades Year keys.
+ * @param durations Duration keys.
+ * @param hideShop Item Shop hidden in Settings.
+ * @param change Apply a new draft.
+ */
+@Composable
+private fun GeneralFilters(draft: SongFilterDraft, decades: List<Int>, durations: List<Int>, hideShop: Boolean, change: (SongFilterDraft) -> Unit) {
+    val general = draft.general
+    Column(Modifier.testTag("fst.songs.filter.general")) {
+        SectionHeader("General")
+        Hint("General filters that apply to all songs.")
+        GeneralBuckets(draft, SongGeneralBucketKind.Year, decades, "Year", "Filter songs by their release decade.", "fst.songs.filter.year", change)
+        GeneralBuckets(draft, SongGeneralBucketKind.Duration, durations, "Duration", "Filter songs by their duration.", "fst.songs.filter.duration", change)
+        if (!hideShop) {
+            Accordion(
+                title = "Item Shop",
+                hint = "Filter songs by whether they are available in the Item Shop.",
+                tag = "fst.songs.filter.shop",
+                initiallyOpen = general.shopActive,
+            ) {
+                ToggleRow("Available in Item Shop", null, general.shopAvailable, enabled = true, tag = "fst.songs.filter.shop-available") {
+                    change(draft.copy(general = general.copy(shopAvailable = it)))
+                }
+                ToggleRow("Not Available in Item Shop", null, general.shopUnavailable, enabled = true, tag = "fst.songs.filter.shop-unavailable") {
+                    change(draft.copy(general = general.copy(shopUnavailable = it)))
+                }
+            }
+        }
+        Accordion(
+            title = "Double Bass",
+            hint = "Filter songs that have or don't have double bass charts for Pro Drums.",
+            tag = "fst.songs.filter.double-bass",
+            initiallyOpen = !general.doubleBassSupported || !general.doubleBassUnsupported,
+        ) {
+            ToggleRow("Double Bass Support", null, general.doubleBassSupported, enabled = true, tag = "fst.songs.filter.double-bass.supported") {
+                change(draft.copy(general = general.copy(doubleBassSupported = it)))
+            }
+            ToggleRow("No Double Bass Support", null, general.doubleBassUnsupported, enabled = true, tag = "fst.songs.filter.double-bass.unsupported") {
+                change(draft.copy(general = general.copy(doubleBassUnsupported = it)))
+            }
+        }
+    }
+}
+
+/** One Year/Duration group (web `CatalogBucketToggles`); omitted until the catalogue lists keys. */
+@Composable
+private fun GeneralBuckets(
+    draft: SongFilterDraft,
+    kind: SongGeneralBucketKind,
+    keys: List<Int>,
+    title: String,
+    hint: String,
+    tag: String,
+    change: (SongFilterDraft) -> Unit,
+) {
+    if (keys.isEmpty()) return
+    val hidden = draft.general.excluded(kind)
+    Accordion(title, hint, tag, initiallyOpen = hidden.isNotEmpty()) {
+        BulkActions(
+            tag = tag,
+            onSelectAll = { change(draft.withAllGeneralBuckets(kind, keys, shown = true)) },
+            onClearAll = { change(draft.withAllGeneralBuckets(kind, keys, shown = false)) },
+        )
+        keys.forEach { key ->
+            val label = if (kind == SongGeneralBucketKind.Year) SongCatalogBuckets.decadeLabel(key) else SongCatalogBuckets.durationLabel(key)
+            ToggleRow(label, null, key !in hidden, enabled = true, tag = "$tag.$key") { change(draft.withGeneralBucket(kind, key, it)) }
         }
     }
 }
@@ -432,8 +500,9 @@ private fun Accordion(
     }
 }
 
+/** Secondary hint text under a filter section (also used by the Item Shop filter sheet). */
 @Composable
-private fun Hint(text: String, modifier: Modifier = Modifier) {
+internal fun Hint(text: String, modifier: Modifier = Modifier) {
     Text(text, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, modifier = modifier.padding(vertical = 4.dp))
 }
 
@@ -491,7 +560,7 @@ internal fun bucketLabel(kind: SongBucketKind, key: Int): String = when {
 
 /** Web `ToggleRow`: label, description and a switch; the whole row toggles. */
 @Composable
-private fun ToggleRow(label: String, description: String?, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+internal fun ToggleRow(label: String, description: String?, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

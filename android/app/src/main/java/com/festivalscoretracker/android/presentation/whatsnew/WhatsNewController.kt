@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.presentation.whatsnew
 
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenStore
+import com.festivalscoretracker.android.core.whatsnew.InstallChannel
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewGate
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewMode
 import com.festivalscoretracker.android.presentation.firstrun.FirstRunCenter
@@ -29,12 +30,15 @@ data class WhatsNewPresentation(val isReplay: Boolean)
  * @property center Shared first-run slot arbiter.
  * @property mode Launch mode (debug defaults to [WhatsNewMode.Off]).
  * @property version App version shown in the title and stored on dismissal.
+ * @property channel How the app was installed: tester installs see the tester notes (resolved
+ *   synchronously at startup, so the sheet never shows the store view while detection is pending).
  */
 class WhatsNewController(
     private val store: ChangelogSeenStore,
     private val center: FirstRunCenter,
     val mode: WhatsNewMode,
     val version: String,
+    val channel: InstallChannel = InstallChannel.Store,
 ) {
     private val mutex = Mutex()
     private val shownFlow = MutableStateFlow<WhatsNewPresentation?>(null)

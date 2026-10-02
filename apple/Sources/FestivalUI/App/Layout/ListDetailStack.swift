@@ -13,9 +13,40 @@ extension EnvironmentValues {
     /// ``ListDetailLink`` uses it instead of pushing, so the list never pushes.
     @Entry var listDetailSelect: ListDetailSelectAction?
     /// Offered to list rows while a wide window's detail column has nothing to show:
-    /// every ``ListDetailLink`` reports its route on appear and the first one becomes
-    /// the detail (auto-select the first item).
-    @Entry var listDetailAutoSelect: ListDetailSelectAction?
+    /// every ``ListDetailLink`` on screen offers its route and position, and the
+    /// top-most one becomes the detail (auto-select the first item).
+    @Entry var listDetailAutoSelect: ListDetailAutoSelectAction?
+    /// Tells the root shell whether a section is currently shown as two columns (the
+    /// hardware-keyboard Back command pops per column); nil outside the root shell.
+    @Entry var listDetailSplitReporter: ListDetailSplitReporter?
+    /// Width the iPad sidebar shell leaves for the selected section (window width minus
+    /// the sidebar's trailing edge); nil outside the sidebar shell.
+    @Entry var sidebarShellContentWidth: CGFloat?
+    /// The iPad sidebar shell's sidebar column and its visibility, handed to list/detail
+    /// sections so they draw the whole shell split themselves; nil elsewhere.
+    @Entry var sidebarShell: SidebarShellContext?
+}
+
+/// What a list/detail section needs to draw the iPad shell split itself: the sidebar
+/// column and the shared column visibility (sidebar hidden stays hidden).
+struct SidebarShellContext {
+    /// The sections sidebar (primary column).
+    let sidebar: AnyView
+    /// Shared column visibility of the shell split.
+    let visibility: Binding<NavigationSplitViewVisibility>
+}
+
+/// Reports a section's current arrangement to the root shell.
+///
+/// Equatable as always-equal: the root re-creates the closure on each pass and it only
+/// writes root-owned state (same reasoning as `OpenProfileAction`).
+struct ListDetailSplitReporter: Equatable {
+    let report: @MainActor (FestivalSection, Bool) -> Void
+
+    /// Record whether `section` shows two columns.
+    @MainActor func callAsFunction(_ section: FestivalSection, isSplit: Bool) { report(section, isSplit) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 /// Replaces the detail column with a route pushed directly from the list page.
@@ -34,11 +65,68 @@ struct ListDetailSelectAction: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.section == rhs.section }
 }
 
+/// Collects the rows a list shows while nothing is selected and selects the top-most.
+///
+/// A lazy list builds (and calls `onAppear` for) its visible rows in no guaranteed
+/// order, so "the first row to appear" was sometimes the fourth row on screen. Rows
+/// offer their route with their vertical position instead; a short settle window picks
+/// the smallest. Equatable by section only (see ``ListDetailSelectAction``).
+struct ListDetailAutoSelectAction: Equatable {
+    let section: FestivalSection
+    let collector: ListDetailAutoSelectCollector
+
+    /// Offer a row.
+    ///
+    /// - Parameters:
+    ///   - route: The row's detail route.
+    ///   - minY: The row's top edge in global coordinates.
+    @MainActor func offer(_ route: AppRoute, minY: CGFloat) { collector.offer(route, minY: minY) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.section == rhs.section }
+}
+
+/// Reference box behind ``ListDetailAutoSelectAction`` (not observable: offers never
+/// redraw anything).
+@MainActor
+final class ListDetailAutoSelectCollector {
+    /// How long offers are collected before the top-most row is selected.
+    static let settle: Duration = .milliseconds(120)
+
+    private var best: (route: AppRoute, minY: CGFloat)?
+    private var pending: Task<Void, Never>?
+    /// Writes the chosen route; set by the owning stack on every body pass.
+    var select: (AppRoute) -> Void = { _ in }
+
+    /// Record a row and schedule the choice.
+    ///
+    /// - Parameters:
+    ///   - route: The row's detail route.
+    ///   - minY: The row's top edge in global coordinates.
+    func offer(_ route: AppRoute, minY: CGFloat) {
+        if best == nil || minY < best!.minY { best = (route, minY) }
+        guard pending == nil else { return }
+        pending = Task { [weak self] in
+            try? await Task.sleep(for: Self.settle)
+            guard let self, !Task.isCancelled, let chosen = self.best else { return }
+            self.reset()
+            self.select(chosen.route)
+        }
+    }
+
+    /// Forget collected offers (a new list page or a selection was made).
+    func reset() {
+        pending?.cancel()
+        pending = nil
+        best = nil
+    }
+}
+
 // MARK: - List/detail stack
 
 /// A section's navigation: one `FestivalTabStack` on iPhone and folded iPhone Duo,
 /// or a `NavigationSplitView` (list column + detail `NavigationStack`) on a regular
-/// width iPhone Duo inner display, as decided by ``ListDetailPolicy``.
+/// width iPhone Duo inner display or a wide enough iPad sidebar-shell detail column,
+/// as decided by ``ListDetailPolicy``.
 ///
 /// Both arrangements read and write the same section path, so fold/unfold keeps the
 /// selection. In the split, list rows that open a detail use ``ListDetailLink``, which
@@ -57,11 +145,32 @@ struct ListDetailStack<Root: View>: View {
     let root: (Bool) -> Root
 
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.listDetailSplitReporter) private var splitReporter
+    @Environment(\.sidebarShell) private var sidebarShell
+    /// Width the iPad sidebar shell leaves for this section (window minus the
+    /// sidebar), for the column layouts its pages see; nil elsewhere.
+    @Environment(\.sidebarShellContentWidth) private var shellContentWidth
+
+    /// This section's container width in the iPad sidebar shell, else nil.
+    ///
+    /// Not measured here: a `NavigationStack` in a split column is hoisted into the
+    /// column's navigation controller, and on iPadOS 26.5 geometry modifiers around it
+    /// stopped updating. The root derives it from the window and the sidebar instead.
+    private var containerWidth: CGFloat? {
+        layout.sectionChrome == .sidebar ? shellContentWidth : nil
+    }
+
+    /// The split's detail column width: the container minus the list column.
+    private var detailWidth: CGFloat? {
+        containerWidth.map { max(0, $0 - ListDetailPolicy.splitListColumnWidth) }
+    }
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     /// The last detail root shown, restored when a list page splits again unselected.
     @State private var lastSelection: AppRoute?
     /// The list pages (by list-column path) that produced no row to auto-select.
     @State private var emptyLists: Set<[AppRoute]> = []
+    /// Rows offered for auto-select while nothing is selected.
+    @State private var autoSelectCollector = ListDetailAutoSelectCollector()
 
     /// How long a split list may show no row before it collapses to full width.
     private static var emptyListTimeout: Duration { .milliseconds(2500) }
@@ -89,29 +198,92 @@ struct ListDetailStack<Root: View>: View {
 
     var body: some View {
         Group {
-            switch arrangement {
-            case .stack:
-                FestivalTabStack(
-                    session: session, visibleInstruments: visibleInstruments,
-                    path: $path, isVisible: isVisible
-                ) {
-                    root(path.isEmpty)
-                        // A wide window's list that collapsed while empty: a row that
-                        // appears later (or a tap) still opens the detail column.
-                        .transformEnvironment(\.listDetailSelect) { value in
-                            if awaiting { value = selectAction }
-                        }
-                        .transformEnvironment(\.listDetailAutoSelect) { value in
-                            if awaiting { value = autoSelectAction }
-                        }
-                }
-            case let .split(split):
-                splitView(split)
-                    .task(id: split.list) { await populate(split) }
+            if let sidebarShell {
+                shellSplit(sidebarShell)
+            } else {
+                content
             }
         }
         .onChange(of: ListDetailPolicy.split(section: section, path: path)?.selection) { _, selection in
             if let selection { lastSelection = selection }
+            autoSelectCollector.reset()
+        }
+        .onChange(of: isSplit, initial: true) { _, split in
+            if isVisible { splitReporter?(section, isSplit: split) }
+        }
+        .onChange(of: isVisible) { _, visible in
+            if visible { splitReporter?(section, isSplit: isSplit) }
+        }
+    }
+
+    /// iPhone and iPhone Duo: one stack, or a list/detail `NavigationSplitView`.
+    @ViewBuilder private var content: some View {
+        switch arrangement {
+        case .stack:
+            stack
+        case let .split(split):
+            splitView(split)
+                .task(id: split.list) { await populate(split) }
+        }
+    }
+
+    /// The section as one `FestivalTabStack`.
+    private var stack: some View {
+        FestivalTabStack(
+            session: session, visibleInstruments: visibleInstruments,
+            path: $path, isVisible: isVisible
+        ) {
+            root(path.isEmpty)
+                // A wide window's list that collapsed while empty: a row that
+                // appears later (or a tap) still opens the detail column.
+                .transformEnvironment(\.listDetailSelect) { value in
+                    if awaiting { value = selectAction }
+                }
+                .transformEnvironment(\.listDetailAutoSelect) { value in
+                    if awaiting { value = autoSelectAction }
+                }
+        }
+        .transformEnvironment(\.deviceLayout) { value in
+            value = Self.columnLayout(value, width: containerWidth)
+        }
+    }
+
+    // MARK: Shell split (iPad)
+
+    /// The iPad shell split drawn by this section: sidebar | stack (two columns), or
+    /// sidebar | list | detail (three columns; HIG Split views, iPadOS: "two vertical
+    /// panes (Mail) or three (Keynote)").
+    ///
+    /// The two arrangements are distinct `NavigationSplitView`s, so changing between
+    /// them (rotation, sidebar hide, window resize, a list page pushed) replaces the
+    /// whole split. Verified on iPadOS 26.5: a list/detail split nested in the root
+    /// split's detail column never reappeared after one stack had been shown there
+    /// (the column's navigation controller kept the stack's pushed pages).
+    ///
+    /// - Parameter shell: Sidebar column and visibility from the root.
+    /// - Returns: The shell split.
+    @ViewBuilder private func shellSplit(_ shell: SidebarShellContext) -> some View {
+        switch arrangement {
+        case .stack:
+            NavigationSplitView(columnVisibility: shell.visibility) {
+                shell.sidebar
+            } detail: {
+                stack
+            }
+        case let .split(split):
+            NavigationSplitView(columnVisibility: shell.visibility) {
+                shell.sidebar
+            } content: {
+                listStack(split)
+            } detail: {
+                detailStack(split)
+            }
+            .navigationSplitViewStyle(.balanced)
+            // A container element first: an identifier on the split itself
+            // propagates to (and replaces) every row's identifier.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("fst.nav.list-detail")
+            .task(id: split.list) { await populate(split) }
         }
     }
 
@@ -120,6 +292,12 @@ struct ListDetailStack<Root: View>: View {
         return ListDetailPolicy.arrangement(
             section: section, path: path, layout: layout, emptyListCollapsed: emptyLists.contains(list)
         )
+    }
+
+    /// Whether the section currently shows two columns.
+    private var isSplit: Bool {
+        if case .split = arrangement { return true }
+        return false
     }
 
     private var awaiting: Bool {
@@ -142,46 +320,81 @@ struct ListDetailStack<Root: View>: View {
         emptyLists.insert(split.list)
     }
 
-    /// Auto-select: the first row to appear while nothing is selected becomes the detail.
-    private var autoSelectAction: ListDetailSelectAction {
-        ListDetailSelectAction(section: section) { route in
-            guard ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout) else { return }
+    /// Auto-select: the top-most row on screen while nothing is selected becomes the detail.
+    private var autoSelectAction: ListDetailAutoSelectAction {
+        autoSelectCollector.select = { route in
+            guard awaiting else { return }
             selectAction(route)
         }
+        return ListDetailAutoSelectAction(section: section, collector: autoSelectCollector)
     }
 
     // MARK: Split
 
-    /// Two columns over the section path.
+    /// Two columns over the section path (iPhone Duo inner display).
     ///
     /// - Parameter split: Current cut of the path.
     /// - Returns: The split view.
     private func splitView(_ split: ListDetailPolicy.Split) -> some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            NavigationStack(path: listPath) {
-                listColumn(root(split.list.isEmpty), split: split)
-                    .navigationDestination(for: AppRoute.self) { route in
-                        listColumn(destination(route), split: split)
-                    }
-            }
+            listStack(split)
         } detail: {
-            NavigationStack(path: detailTail) {
-                // Populated by restore/auto-select within a frame of the first row
-                // appearing; a quiet spinner covers the moment before (never a
-                // "Select a …" prompt).
-                Group {
-                    if let selection = split.selection {
-                        destination(selection).id(selection)
-                    } else {
-                        FestivalLoadingView(accessibilityLabel: "Loading")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
-                .navigationDestination(for: AppRoute.self, destination: destination)
-            }
+            detailStack(split)
         }
         .navigationSplitViewStyle(.balanced)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.nav.list-detail")
+    }
+
+    /// The list column's stack (list page root plus pushed list pages).
+    ///
+    /// - Parameter split: Current cut of the path.
+    /// - Returns: The list column.
+    private func listStack(_ split: ListDetailPolicy.Split) -> some View {
+        NavigationStack(path: listPath) {
+            listColumn(root(split.list.isEmpty), split: split)
+                .navigationDestination(for: AppRoute.self) { route in
+                    listColumn(destination(route), split: split)
+                }
+        }
+        // The list column is always narrow.
+        .transformEnvironment(\.deviceLayout) { value in
+            value = Self.columnLayout(value, width: 0)
+        }
+    }
+
+    /// The detail column's stack: the selection (or a quiet spinner for the frame
+    /// before restore/auto-select fills it; never a "Select a …" prompt).
+    ///
+    /// - Parameter split: Current cut of the path.
+    /// - Returns: The detail column.
+    private func detailStack(_ split: ListDetailPolicy.Split) -> some View {
+        NavigationStack(path: detailTail) {
+            Group {
+                if let selection = split.selection {
+                    destination(selection).id(selection)
+                } else {
+                    FestivalLoadingView(accessibilityLabel: "Loading")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .navigationDestination(for: AppRoute.self, destination: destination)
+        }
+        .transformEnvironment(\.deviceLayout) { value in
+            value = Self.columnLayout(value, width: detailWidth)
+        }
+    }
+
+    /// A column's layout in the iPad sidebar shell (``DeviceLayout/column(width:)``);
+    /// unchanged elsewhere (iPhone, Duo) and before the column is measured.
+    ///
+    /// - Parameters:
+    ///   - layout: Inherited layout.
+    ///   - width: The column's measured width, if known.
+    /// - Returns: The layout the column's pages see.
+    static func columnLayout(_ layout: DeviceLayout, width: CGFloat?) -> DeviceLayout {
+        guard layout.sectionChrome == .sidebar, let width else { return layout }
+        return layout.column(width: width)
     }
 
     /// Writes a detail route after the current list (the list/detail row contract).
@@ -258,6 +471,9 @@ extension View {
 private struct ListDetailSelectableRow: ViewModifier {
     let route: AppRoute
     @Environment(\.listDetailSelection) private var selection
+    #if os(macOS)
+    @Environment(\.macKeyboardNavigator) private var keyboard
+    #endif
 
     func body(content: Content) -> some View {
         let selected = selection == route
@@ -265,6 +481,13 @@ private struct ListDetailSelectableRow: ViewModifier {
             // An overlay, not a background: Song rows are opaque glass cards. The
             // translucent fill keeps the row's own Shop highlight stroke readable.
             .overlay {
+                #if os(macOS)
+                // Accent while the list column has keyboard focus, gray otherwise
+                // (HIG Focus and selection, `NSTableView`).
+                if selected {
+                    MacSelectionHighlight(cornerRadius: 12, focused: keyboard?.hasFocus ?? true)
+                }
+                #else
                 if selected {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(BrandTokens.accentBlue.opacity(0.22))
@@ -274,6 +497,7 @@ private struct ListDetailSelectableRow: ViewModifier {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
+                #endif
             }
             .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -289,6 +513,9 @@ struct ListDetailLink<Label: View>: View {
     let label: Label
     @Environment(\.listDetailSelect) private var select
     @Environment(\.listDetailAutoSelect) private var autoSelect
+    #if os(macOS)
+    @Environment(\.macKeyboardNavigator) private var keyboard
+    #endif
 
     /// Create a link.
     ///
@@ -300,15 +527,61 @@ struct ListDetailLink<Label: View>: View {
         self.label = label()
     }
 
+    /// The row content, with the Mac's hover tint and keyboard focus ring on its card.
+    @ViewBuilder private var decoratedLabel: some View {
+        #if os(macOS)
+        label.modifier(MacRowInteractionEffect(cornerRadius: 12))
+        #else
+        label
+        #endif
+    }
+
     var body: some View {
         Group {
             if let select {
-                Button { select(value) } label: { label }
+                Button {
+                    select(value)
+                    #if os(macOS)
+                    // A clicked row gives its list column keyboard focus, so ↑/↓ continue
+                    // from it (`MacKeyboardNavigation`).
+                    keyboard?.requestFocus()
+                    #endif
+                } label: { decoratedLabel }
+                    #if os(macOS)
+                    // Return opens a keyboard-focused row, as Space does.
+                    .onKeyPress(.return) {
+                        select(value)
+                        return .handled
+                    }
+                    #endif
             } else {
-                NavigationLink(value: value) { label }
+                NavigationLink(value: value) { decoratedLabel }
             }
         }
         .listDetailSelectable(value)
-        .onAppear { autoSelect?(value) }
+        #if os(iOS)
+        // Pointer: the row's rounded card highlights (HIG Pointing devices: "hover for
+        // large ones"; no scale, rows sit edge to edge).
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .hoverEffect(.highlight)
+        #endif
+        .modifier(AutoSelectOffer(route: value, action: autoSelect))
+    }
+}
+
+/// Offers a row's route and top edge to auto-select while the detail is empty.
+///
+/// Always attached (a conditional modifier would change the row's identity and rebuild
+/// it when the selection lands); once something is selected (`action` nil) it reports
+/// a constant, so scrolling never calls back.
+private struct AutoSelectOffer: ViewModifier {
+    let route: AppRoute
+    let action: ListDetailAutoSelectAction?
+
+    func body(content: Content) -> some View {
+        let active = action != nil
+        content.onGeometryChange(for: CGFloat.self, of: { active ? $0.frame(in: .global).minY : 0 }) { minY in
+            action?.offer(route, minY: minY)
+        }
     }
 }

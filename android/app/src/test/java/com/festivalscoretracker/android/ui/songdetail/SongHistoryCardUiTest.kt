@@ -138,6 +138,26 @@ class SongHistoryCardUiTest {
         )
     }
 
+    private fun description(tag: String) =
+        rule.onNodeWithTag(tag).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString()
+
+    @Test
+    fun narrowListRowsHideTheSeasonButTheTappedBarDetailShowsIt() {
+        // Issue #62: a 411 dp phone is narrower than the web's 520 breakpoint.
+        show(rows("Solo_Guitar", 3))
+        (0 until 3).forEach { assertFalse(description("fst.song-detail.history.top.$it").contains("Season")) }
+        rule.onNodeWithTag("fst.song-detail.history.chart").performTouchInput { click(centerRight.copy(x = width - 60.dp.toPx())) }
+        rule.waitForIdle()
+        assertTrue(description("fst.song-detail.history.detail").contains("Season 9"))
+    }
+
+    @Test
+    @Config(qualifiers = "w700dp-h900dp-xxhdpi")
+    fun wideListRowsShowTheSeason() {
+        show(rows("Solo_Guitar", 3))
+        (0 until 3).forEach { assertTrue(description("fst.song-detail.history.top.$it").contains("Season 9")) }
+    }
+
     /** Advance the paused clock until the selector shows [wireId] selected (the click has landed). */
     private fun untilSelected(wireId: String) = rule.mainClock.advanceTimeUntil(timeoutMillis = 2_000) {
         rule.onNodeWithTag("fst.song-detail.history.instrument.$wireId").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected) == true

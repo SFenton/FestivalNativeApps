@@ -42,8 +42,9 @@ struct FestivalMobileApp: App {
                 "fst.settings.metadataDifficulty",
                 "fst.settings.metadataStars",
                 "fst.settings.metadataLastPlayed",
-                "fst.songs.filterInShop",
-                "fst.songs.filterLeavingTomorrow",
+                SongGeneralFilter.legacyInShopKey,
+                SongGeneralFilter.legacyLeavingTomorrowKey,
+                SongGeneralFilter.storageKey,
                 SongPlayerScoreFilter.storageKey,
             ] {
                 UserDefaults.standard.removeObject(forKey: key)

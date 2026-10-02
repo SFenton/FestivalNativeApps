@@ -2,6 +2,7 @@ using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.UI.ViewManagement;
 
 namespace Festival.App.Pages;
 
@@ -17,7 +18,7 @@ public sealed partial class SettingsPage : Page
 #else
         const bool debugBuild = false;
 #endif
-        ViewModel = new SettingsViewModel(App.Session, Festival.Core.Domain.AppVersionInfo.Display(typeof(App).Assembly), debugBuild);
+        ViewModel = new SettingsViewModel(App.Session, Festival.Core.Domain.AppVersionInfo.SettingsText(typeof(App).Assembly), debugBuild);
         InitializeComponent();
         QuickLinksMenu.Model = ViewModel.QuickLinks;
         _ = new QuickLinksBinder(Scroller, ViewModel.QuickLinks, () => QuickLinksBinder.ReducedMotion(App.Session.Settings.ReduceMotion));
@@ -25,6 +26,9 @@ public sealed partial class SettingsPage : Page
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
+
+    /// <summary>Text-size source for the Service Info state row.</summary>
+    private readonly UISettings uiSettings = new();
 
     /// <summary>Page model.</summary>
     public SettingsViewModel ViewModel { get; }
@@ -40,7 +44,28 @@ public sealed partial class SettingsPage : Page
         Motion.Changed -= OnMotionChanged;
         Motion.Changed += OnMotionChanged;
         ViewModel.ServiceInfo.Background = Motion.Paused;
+        uiSettings.TextScaleFactorChanged -= OnTextScaleChanged;
+        uiSettings.TextScaleFactorChanged += OnTextScaleChanged;
+        ApplyServiceStateLayout();
         ViewModel.Activate();
+    }
+
+    /// <summary>Windows text size changed (raised off the UI thread).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="args">Unused.</param>
+    private void OnTextScaleChanged(UISettings sender, object args) => DispatcherQueue.TryEnqueue(ApplyServiceStateLayout);
+
+    /// <summary>
+    /// At 150%+ text the Service Info process state moves under "Leaderboard Service State" (row 1, column 0) so the label
+    /// and description keep the full width; otherwise it sits trailing in column 1.
+    /// </summary>
+    private void ApplyServiceStateLayout()
+    {
+        var stacked = Festival.Core.Domain.ServiceInfoText.StacksStateRow(uiSettings.TextScaleFactor);
+        Grid.SetRow(ServiceProcessPanel, stacked ? 1 : 0);
+        Grid.SetColumn(ServiceProcessPanel, stacked ? 0 : 1);
+        ServiceProcessPanel.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        ServiceStateGrid.RowSpacing = stacked ? 4 : 0;
     }
 
     /// <summary>Out of the tree (another section, or Licenses pushed): stop polling.</summary>
@@ -49,6 +74,7 @@ public sealed partial class SettingsPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Motion.Changed -= OnMotionChanged;
+        uiSettings.TextScaleFactorChanged -= OnTextScaleChanged;
         ViewModel.Deactivate();
     }
 

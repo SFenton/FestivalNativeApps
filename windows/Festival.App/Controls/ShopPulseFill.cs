@@ -1,4 +1,3 @@
-using System.Numerics;
 using Festival.App.Services;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
@@ -15,8 +14,10 @@ namespace Festival.App.Controls;
 /// <summary>
 /// The Item Shop button's status fill (web <c>shopBreathe</c>, <c>shopBreatheGold</c>, <c>shopBreatheRed</c>): a
 /// status-coloured layer behind the label that breathes from transparent (the button's opaque surface shows) to full and
-/// back every 3 s with ease-in-out, on the compositor. It holds the status colour when highlighting is off, motion is
-/// off (<see cref="Motion.Allowed"/>) or the window is hidden (<see cref="Motion.Paused"/>), so nothing loops unseen.
+/// back every 3 s with ease-in-out, on the compositor, sampled at <see cref="ShopPulse.StepsPerSecond"/> held keyframes so
+/// it redraws on each step rather than at display refresh. It holds the status colour when highlighting is off, motion
+/// is off (<see cref="Motion.Allowed"/>), the window is hidden (<see cref="Motion.Paused"/>) or its first-run slide is
+/// not the visible one (<see cref="Live"/>), so nothing loops unseen.
 /// Decorative for UI Automation: the button's name carries the status.
 /// </summary>
 public sealed partial class ShopPulseFill : Grid
@@ -24,6 +25,7 @@ public sealed partial class ShopPulseFill : Grid
     private ShopHighlight? highlight;
     private bool pulses;
     private bool running;
+    private bool live = true;
 
     /// <summary>Creates the fill (hidden from UI Automation, not hit-testable).</summary>
     public ShopPulseFill()
@@ -49,6 +51,21 @@ public sealed partial class ShopPulseFill : Grid
         Update();
     }
 
+    /// <summary>
+    /// Whether the fill may breathe (default <see langword="true"/>). First-run demos clear it on slides that are not
+    /// the visible one, so realized neighbours hold the status colour instead of animating unseen.
+    /// </summary>
+    public bool Live
+    {
+        get => live;
+        set
+        {
+            if (live == value) return;
+            live = value;
+            Update();
+        }
+    }
+
     /// <summary>Re-evaluates when motion settings or window visibility change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
@@ -57,7 +74,7 @@ public sealed partial class ShopPulseFill : Grid
     /// <summary>Starts or stops the breathe for the current state.</summary>
     private void Update()
     {
-        var animate = IsLoaded && pulses && Motion.Allowed && !Motion.Paused;
+        var animate = IsLoaded && pulses && live && Motion.Allowed && !Motion.Paused;
         if (animate == running) return;
         if (!animate)
         {
@@ -66,11 +83,9 @@ public sealed partial class ShopPulseFill : Grid
         }
         var visual = ElementCompositionPreview.GetElementVisual(this);
         var compositor = visual.Compositor;
-        var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.42f, 0f), new Vector2(0.58f, 1f));
+        var hold = compositor.CreateStepEasingFunction(1);
         var breathe = compositor.CreateScalarKeyFrameAnimation();
-        breathe.InsertKeyFrame(0f, 0f);
-        breathe.InsertKeyFrame(0.5f, 1f, ease);
-        breathe.InsertKeyFrame(1f, 0f, ease);
+        foreach (var (progress, level) in ShopPulse.BreatheSteps()) breathe.InsertKeyFrame(progress, level, hold);
         breathe.Duration = ShopPulse.Cycle;
         breathe.IterationBehavior = AnimationIterationBehavior.Forever;
         visual.StartAnimation("Opacity", breathe);

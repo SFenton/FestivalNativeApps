@@ -18,7 +18,7 @@ private struct HostedSongsScenario {
     let filter: Instrument?
     let stale: Bool
     let size: CGSize
-    var shopFilter = SongShopFilter()
+    var generalFilter = SongGeneralFilter()
     var playerScoreFilter = SongPlayerScoreFilter()
     var selectPlayer = false
     var restorePlayerLoading = false
@@ -85,11 +85,7 @@ private func hostedSongsState(
     storage.set(scenario.mode.rawValue, forKey: "fst.songs.sortMode")
     storage.set(true, forKey: "fst.songs.sortAscending")
     storage.set(scenario.hideShop, forKey: "fst.settings.hideShop")
-    storage.set(scenario.shopFilter.inShop, forKey: "fst.songs.filterInShop")
-    storage.set(
-        scenario.shopFilter.leavingTomorrow,
-        forKey: "fst.songs.filterLeavingTomorrow"
-    )
+    storage.set(try scenario.generalFilter.encoded(), forKey: SongGeneralFilter.storageKey)
     storage.set(try scenario.playerScoreFilter.encoded(),
                 forKey: SongPlayerScoreFilter.storageKey)
     storage.set(scenario.invalidScoreFiltering, forKey: "fst.settings.filterInvalidScores")
@@ -171,14 +167,15 @@ private func hostedSongsState(
     assertRendersContent(
         host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.001
     )
-    if scenario.restorePlayerLoading && scenario.shopFilter.leavingTomorrow {
+    if scenario.restorePlayerLoading && scenario.generalFilter.shop.isActive {
         // Removing Songs' own inline search bar for native `.searchable` moved
         // every row up, invalidating the previous narrow band. The gold "Loading
         // public scores" freshness banner now sits above the row within the
-        // first ~9% of the frame; skip it and keep only the red-bordered card.
+        // first ~9% of the frame; skip it and keep only the first, red-bordered card
+        // (Available in Item Shop keeps the gold New row below it).
         let rowBand = try #require(image.cropping(to: CGRect(
-            x: 0, y: CGFloat(image.height) * 0.1,
-            width: CGFloat(image.width), height: CGFloat(image.height) * 0.3
+            x: 0, y: CGFloat(image.height) * 0.085,
+            width: CGFloat(image.width), height: CGFloat(image.height) * 0.07
         ).integral))
         let accents = nativeHostedStatusPixels(rowBand)
         #expect(accents.red > 10 && accents.gold == 0)
@@ -241,41 +238,54 @@ private func hostedSongsState(
             size: CGSize(width: 390, height: 844), selectPlayer: true
         ),
         HostedSongsScenario(
-            name: "filter-leaving", shop: .populated, mode: .title,
+            name: "filter-available", shop: .populated, mode: .title,
             hideShop: false, search: "", filter: nil, stale: false,
             size: CGSize(width: 390, height: 844),
-            shopFilter: SongShopFilter(leavingTomorrow: true), selectPlayer: true
+            generalFilter: SongGeneralFilter(shop: .availableOnly), selectPlayer: true
         ),
         HostedSongsScenario(
             name: "filter-restored-loading", shop: .populated, mode: .title,
             hideShop: false, search: "", filter: nil, stale: false,
             size: CGSize(width: 390, height: 844),
-            shopFilter: SongShopFilter(leavingTomorrow: true),
+            generalFilter: SongGeneralFilter(shop: .availableOnly),
             restorePlayerLoading: true
         ),
         HostedSongsScenario(
-            name: "filter-anonymous-paused", shop: .populated, mode: .title,
+            name: "filter-anonymous-unavailable", shop: .populated, mode: .title,
             hideShop: false, search: "", filter: nil, stale: false,
             size: CGSize(width: 390, height: 844),
-            shopFilter: SongShopFilter(inShop: true)
+            generalFilter: SongGeneralFilter(
+                shop: SongShopFilter(available: false, unavailable: true)
+            )
+        ),
+        HostedSongsScenario(
+            name: "filter-anonymous-double-bass", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            generalFilter: SongGeneralFilter(doubleBassUnsupported: false)
+        ),
+        HostedSongsScenario(
+            name: "filter-anonymous-default", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844)
         ),
         HostedSongsScenario(
             name: "filter-hidden-paused", shop: .populated, mode: .title,
             hideShop: true, search: "", filter: nil, stale: false,
             size: CGSize(width: 390, height: 844),
-            shopFilter: SongShopFilter(inShop: true), selectPlayer: true
+            generalFilter: SongGeneralFilter(shop: .availableOnly), selectPlayer: true
         ),
         HostedSongsScenario(
             name: "filter-unavailable-paused", shop: .unavailable, mode: .title,
             hideShop: false, search: "", filter: nil, stale: false,
             size: CGSize(width: 390, height: 844),
-            shopFilter: SongShopFilter(inShop: true), selectPlayer: true
+            generalFilter: SongGeneralFilter(shop: .availableOnly), selectPlayer: true
         ),
         HostedSongsScenario(
             name: "filter-empty", shop: .empty, mode: .title,
             hideShop: false, search: "", filter: nil, stale: false,
             size: CGSize(width: 390, height: 844),
-            shopFilter: SongShopFilter(inShop: true), selectPlayer: true
+            generalFilter: SongGeneralFilter(shop: .availableOnly), selectPlayer: true
         ),
         HostedSongsScenario(
             name: "score-has-drums", shop: .populated, mode: .title,
@@ -329,9 +339,10 @@ private func hostedSongsState(
     #expect(images["grouped-shop"] != images["no-results"])
     #expect(images["grouped-shop"] != images["bass-chart"])
     #expect(images["grouped-shop"] != images["last-seen-unverified"])
-    #expect(images["filter-leaving"] != images["filter-selected-default"])
-    #expect(images["filter-restored-loading"] != images["filter-anonymous-paused"])
-    #expect(images["filter-anonymous-paused"] != images["filter-leaving"])
+    // Item Shop and Double Bass filters apply without a selected player.
+    #expect(images["filter-anonymous-unavailable"] != images["filter-anonymous-default"])
+    #expect(images["filter-anonymous-double-bass"] != images["filter-anonymous-default"])
+    #expect(images["filter-restored-loading"] != images["filter-anonymous-unavailable"])
     #expect(images["filter-hidden-paused"] != images["filter-selected-default"])
     #expect(images["filter-empty"] != images["filter-unavailable-paused"])
     #expect(images["score-has-drums"] != images["score-missing-pro-lead"])
@@ -402,7 +413,8 @@ private func hostedSongsState(
     // Real Liquid Glass rows do not reproduce through NSHostingView.cacheDisplay;
     // force the same deterministic fallback a person can pick in Settings.
     storage.set(true, forKey: "fst.accessibility.moreContrast")
-    storage.set(true, forKey: "fst.songs.filterInShop")
+    storage.set(try SongGeneralFilter(shop: .availableOnly).encoded(),
+                forKey: SongGeneralFilter.storageKey)
     let scoreFilter = SongPlayerScoreFilter(hasScores: [.drums])
     storage.set(try scoreFilter.encoded(), forKey: SongPlayerScoreFilter.storageKey)
     storage.set(SongSortMode.shop.rawValue, forKey: "fst.songs.sortMode")

@@ -66,6 +66,8 @@ struct SettingsScreen: View {
 
     let session: FestivalSession
     let isVisible: Bool
+    /// One Mac Settings pane's subset, or nil for the whole page (iPhone, iPad, web).
+    let pane: SettingsPane?
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotionEnvironment
 
@@ -74,9 +76,11 @@ struct SettingsScreen: View {
     /// - Parameters:
     ///   - session: Shared service and artwork connection.
     ///   - isVisible: True only while the Settings destination is selected.
-    init(session: FestivalSession, isVisible: Bool = true) {
+    ///   - pane: A Mac Settings pane to show alone, or nil for the whole page.
+    init(session: FestivalSession, isVisible: Bool = true, pane: SettingsPane? = nil) {
         self.session = session
         self.isVisible = isVisible
+        self.pane = pane
     }
 
     var body: some View {
@@ -84,6 +88,64 @@ struct SettingsScreen: View {
             // A plain VStack (not Lazy): the page is short, and a lazily recycled card would
             // replay its load-in fade when scrolled back into view.
             VStack(alignment: .leading, spacing: 28) {
+                if let pane {
+                    paneContent(pane)
+                } else {
+                    fullPage
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, pane == nil ? 8 : 20)
+            .padding(.bottom, 32)
+            .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
+        }
+        .scrollDisabled(reorderDragging)
+        .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
+        .modifier(SettingsQuickLinks(controller: quickLinks, isEnabled: pane == nil))
+        .scrollDismissesKeyboard(.interactively)
+        .festivalBackground(.carousel, session: session, visible: isVisible)
+        .navigationTitle(pane?.title ?? "Settings")
+        .toolbar {
+            if pane == nil {
+                QuickLinksToolbarItem(quickLinks)
+                FestivalRootTrailingItems(session: session)
+            }
+        }
+        .festivalProvidesRootTrailingItems()
+        .confirmationDialog(
+            "Reset Settings",
+            isPresented: $resetPending,
+            titleVisibility: .visible
+        ) {
+            Button("Reset App Settings", role: .destructive) { resetAppSettings() }
+        } message: {
+            Text(
+                "Are you sure you want to restore all settings to their default values? "
+                    + "Your profile, song filters and navigation history will remain."
+            )
+        }
+        .sheet(item: $feedbackForm, onDismiss: FeedbackFormModel.purgeStagedMedia) { kind in
+            FeedbackFormSheet(kind: kind, session: session)
+                .festivalSheet(.large)
+        }
+        .whatsNewPresentation(isPresented: $showingWhatsNew) {
+            WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {
+                ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
+                showingWhatsNew = false
+            }
+        }
+        .task(id: isVisible) {
+            guard isVisible else { return }
+            async let features: Void = loadFeedbackAvailability()
+            if serviceVersion == nil { await loadServiceVersion() }
+            await features
+        }
+    }
+
+    // MARK: - Page and panes
+
+    /// The whole page in the web's order (iPhone, iPad).
+    @ViewBuilder private var fullPage: some View {
                 appSettings.festivalFadeIn(isLoaded: true, index: 0)
                 diagnostics.festivalFadeIn(isLoaded: true, index: 1)
                 accessibility
@@ -121,53 +183,62 @@ struct SettingsScreen: View {
                     .festivalFadeIn(isLoaded: true, index: 9)
                 reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
                     .festivalFadeIn(isLoaded: true, index: 10)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
-            .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
-        }
-        .scrollDisabled(reorderDragging)
-        .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
-        .quickLinks(quickLinks, title: "Quick Links")
-        .scrollDismissesKeyboard(.interactively)
-        .festivalBackground(.carousel, session: session, visible: isVisible)
-        .navigationTitle("Settings")
-        .toolbar {
-            QuickLinksToolbarItem(quickLinks)
-            FestivalRootTrailingItems(session: session)
-        }
-        .festivalProvidesRootTrailingItems()
-        .confirmationDialog(
-            "Reset Settings",
-            isPresented: $resetPending,
-            titleVisibility: .visible
-        ) {
-            Button("Reset App Settings", role: .destructive) { resetAppSettings() }
-        } message: {
-            Text(
-                "Are you sure you want to restore all settings to their default values? "
-                    + "Your profile, song filters and navigation history will remain."
-            )
-        }
-        .sheet(item: $feedbackForm, onDismiss: FeedbackFormModel.purgeStagedMedia) { kind in
-            FeedbackFormSheet(kind: kind, session: session)
-                .festivalSheet(.large)
-        }
-        .whatsNewPresentation(isPresented: $showingWhatsNew) {
-            WhatsNewSheet(
-                version: WhatsNewGate.appVersion(),
-                entries: Changelog.displayEntries(distribution: AppDistribution.resolved ?? .appStore)
+    }
+
+    /// One Mac Settings pane: the same sections and rows (same storage keys and
+    /// identifiers), grouped by topic.
+    ///
+    /// - Parameter pane: The selected pane.
+    @ViewBuilder private func paneContent(_ pane: SettingsPane) -> some View {
+        switch pane {
+        case .general:
+            accessibility
+            itemShop
+            FestivalGlassSection(
+                "Leaderboards", subtitle: "Ranking options for the Leaderboards pages."
             ) {
-                ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
-                showingWhatsNew = false
+                experimentalRanksRow
             }
-        }
-        .task(id: isVisible) {
-            guard isVisible else { return }
-            async let features: Void = loadFeedbackAvailability()
-            if serviceVersion == nil { await loadServiceVersion() }
-            await features
+            if feedbackEnabled {
+                FestivalGlassSection(
+                    "Feedback", subtitle: "Report an issue or request a feature on GitHub."
+                ) {
+                    feedbackRows
+                }
+            }
+            diagnostics
+            reset
+        case .songs:
+            FestivalGlassSection(
+                "Song Rows", subtitle: "How each song appears in the Songs list."
+            ) {
+                instrumentIconsRow
+                visualOrderRows
+            }
+            instruments
+            metadata
+        case .paths:
+            FestivalGlassSection(
+                "CHOpt Paths", subtitle: "How optimal Overdrive paths open on a song's Paths page."
+            ) {
+                pathRows
+            }
+            FestivalGlassSection(
+                "Invalid Scores",
+                subtitle: "Uses the maximum score derived from each CHOpt path."
+            ) {
+                invalidScoreRows
+            }
+        case .guides:
+            FirstRunSettingsSection(session: session)
+        case .service:
+            SettingsServiceInfoSection(session: session, isVisible: isVisible)
+            if SettingsFixtureTools.isEnabled() {
+                SettingsFixtureToolsSection(session: session)
+            }
+        case .about:
+            version
+            licensesRow
         }
     }
 
@@ -177,122 +248,147 @@ struct SettingsScreen: View {
         FestivalGlassSection(
             "App Settings", subtitle: "General Festival Score Tracker app settings."
         ) {
-            Toggle(isOn: $showInstrumentIcons) {
-                SettingLabel(
-                    "Show Instrument Icons",
-                    detail: "Star: full combo · Check: scored · Minus: no score · "
-                        + "Slash: not charted · Exclamation: inconsistent score"
-                )
-            }
-            .accessibilityHint(
-                "Shows score and full combo status for each enabled chart on "
-                    + "unfiltered Songs cards when a player is selected"
-            )
-            .accessibilityIdentifier("fst.settings.show-instrument-icons")
-            Toggle(isOn: $enableVisualOrder.animation(reduceMotionAnimation)) {
-                SettingLabel(
-                    "Enable Independent Song Row Visual Order",
-                    detail: "When enabled, the metadata display order on song rows is controlled "
-                        + "separately from sort priority. When disabled, metadata follows sort "
-                        + "priority order."
-                )
-            }
-            .accessibilityIdentifier("fst.settings.enable-visual-order")
-            if enableVisualOrder {
-                // Shown directly under its switch, like the web's collapse (no disclosure).
-                reorderBlock(
-                    "Song Row Visual Order",
-                    detail: "When filtering to a single instrument in the song list, extra "
-                        + "metadata is displayed. Choose the order it appears in on the bottom row."
-                ) {
-                    if visibleVisualOrder.isEmpty {
-                        Text("No metadata fields are currently visible.")
-                            .font(.subheadline)
-                            .foregroundStyle(FestivalText.primary)
-                    } else {
-                        SettingsReorderList(
-                            items: visibleVisualOrder,
-                            identifier: "fst.settings.song-row-order",
-                            label: \.reorderLabel, key: \.rawValue
-                        ) { reordered in
-                            songRowVisualOrder.wrappedValue = SettingsReorder.merging(
-                                visible: reordered, into: songRowVisualOrder.wrappedValue
-                            )
-                        }
-                    }
-                }
-            }
-            SettingsChoiceRow(
-                title: "CHOpt Path Default View",
-                detail: "Choose whether CHOpt paths open as an image or text table by default.",
-                options: PathDisplayMode.allCases,
-                label: \.label,
-                selection: $pathDefaultView,
-                identifier: "fst.settings.path-default-view",
-                animation: reduceMotionAnimation
-            )
-            reorderBlock(
-                "CHOpt Text Path Column Order",
-                detail: "Choose the order columns appear in the CHOpt text path view."
-            ) {
-                SettingsReorderList(
-                    items: pathColumnOrder.wrappedValue,
-                    identifier: "fst.settings.path-column-order",
-                    label: \.label, key: \.rawValue
-                ) { pathColumnOrder.wrappedValue = $0 }
-            }
-            Toggle(isOn: $filterInvalidScores.animation(reduceMotionAnimation)) {
-                SettingLabel(
-                    "Filter Invalid Scores",
-                    detail: "When enabled, the app will attempt to filter out invalid leaderboard "
-                        + "values based on the maximum score derived from the CHOpt path."
-                )
-            }
-            .accessibilityIdentifier("fst.settings.filter-invalid-scores")
-            if filterInvalidScores {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Maximum Score Leeway: \(ScoreFormatting.leeway(leeway))")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(FestivalText.primary)
-                    Text(
-                        "A CHOpt path with a max score of 100k and "
-                            + "\(ScoreFormatting.leeway(leeway)) leeway accepts scores up to "
-                            + "\(maxEffectiveScore) as valid."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(FestivalText.primary)
-                    Slider(
-                        value: Binding(
-                            get: { leeway },
-                            set: { leeway = InvalidScoreFilter.normalized($0) }
-                        ),
-                        in: InvalidScoreFilter.range, step: InvalidScoreFilter.step
-                    )
-                    .accessibilityLabel("Max Score Leeway")
-                    .accessibilityValue(ScoreFormatting.leeway(leeway))
-                    .accessibilityIdentifier("fst.settings.leeway")
-                }
-            }
-            Toggle(isOn: $experimentalRanks) {
-                SettingLabel(
-                    "Experimental Ranks",
-                    detail: "More ranking mechanisms for Leaderboards. Not yet available."
-                )
-            }
-            .disabled(true)
-            .accessibilityHint("Experimental ranks are not yet available")
+            instrumentIconsRow
+            visualOrderRows
+            pathRows
+            invalidScoreRows
+            experimentalRanksRow
             if feedbackEnabled {
-                feedbackRow(
-                    .bug, detail: "Tell us about something that isn't working.",
-                    action: "Report", identifier: "fst.settings.feedback.bug"
-                )
-                feedbackRow(
-                    .feature, detail: "Suggest something new for Festival Score Tracker.",
-                    action: "Request", identifier: "fst.settings.feedback.feature"
-                )
+                feedbackRows
             }
         }
         .quickLinkSection(id: "app-settings", title: "App Settings", symbol: "gearshape.fill")
+    }
+
+    private var instrumentIconsRow: some View {
+        Toggle(isOn: $showInstrumentIcons) {
+            SettingLabel(
+                "Show Instrument Icons",
+                detail: "Star: full combo · Check: scored · Minus: no score · "
+                    + "Slash: not charted · Exclamation: inconsistent score"
+            )
+        }
+        .accessibilityHint(
+            "Shows score and full combo status for each enabled chart on "
+                + "unfiltered Songs cards when a player is selected"
+        )
+        .accessibilityIdentifier("fst.settings.show-instrument-icons")
+    }
+
+    @ViewBuilder private var visualOrderRows: some View {
+        Toggle(isOn: $enableVisualOrder.animation(reduceMotionAnimation)) {
+            SettingLabel(
+                "Enable Independent Song Row Visual Order",
+                detail: "When enabled, the metadata display order on song rows is controlled "
+                    + "separately from sort priority. When disabled, metadata follows sort "
+                    + "priority order."
+            )
+        }
+        .accessibilityIdentifier("fst.settings.enable-visual-order")
+        if enableVisualOrder {
+            // Shown directly under its switch, like the web's collapse (no disclosure).
+            reorderBlock(
+                "Song Row Visual Order",
+                detail: "When filtering to a single instrument in the song list, extra "
+                    + "metadata is displayed. Choose the order it appears in on the bottom row."
+            ) {
+                if visibleVisualOrder.isEmpty {
+                    Text("No metadata fields are currently visible.")
+                        .font(.subheadline)
+                        .foregroundStyle(FestivalText.primary)
+                } else {
+                    SettingsReorderList(
+                        items: visibleVisualOrder,
+                        identifier: "fst.settings.song-row-order",
+                        label: \.reorderLabel, key: \.rawValue
+                    ) { reordered in
+                        songRowVisualOrder.wrappedValue = SettingsReorder.merging(
+                            visible: reordered, into: songRowVisualOrder.wrappedValue
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var pathRows: some View {
+        SettingsChoiceRow(
+            title: "CHOpt Path Default View",
+            detail: "Choose whether CHOpt paths open as an image or text table by default.",
+            options: PathDisplayMode.allCases,
+            label: \.label,
+            selection: $pathDefaultView,
+            identifier: "fst.settings.path-default-view",
+            animation: reduceMotionAnimation
+        )
+        reorderBlock(
+            "CHOpt Text Path Column Order",
+            detail: "Choose the order columns appear in the CHOpt text path view."
+        ) {
+            SettingsReorderList(
+                items: pathColumnOrder.wrappedValue,
+                identifier: "fst.settings.path-column-order",
+                label: \.label, key: \.rawValue
+            ) { pathColumnOrder.wrappedValue = $0 }
+        }
+    }
+
+    @ViewBuilder private var invalidScoreRows: some View {
+        Toggle(isOn: $filterInvalidScores.animation(reduceMotionAnimation)) {
+            SettingLabel(
+                "Filter Invalid Scores",
+                detail: "When enabled, the app will attempt to filter out invalid leaderboard "
+                    + "values based on the maximum score derived from the CHOpt path."
+            )
+        }
+        .accessibilityIdentifier("fst.settings.filter-invalid-scores")
+        if filterInvalidScores {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Maximum Score Leeway: \(ScoreFormatting.leeway(leeway))")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(FestivalText.primary)
+                Text(
+                    "A CHOpt path with a max score of 100k and "
+                        + "\(ScoreFormatting.leeway(leeway)) leeway accepts scores up to "
+                        + "\(maxEffectiveScore) as valid."
+                )
+                .font(.footnote)
+                .foregroundStyle(FestivalText.primary)
+                Slider(
+                    value: Binding(
+                        get: { leeway },
+                        set: { leeway = InvalidScoreFilter.normalized($0) }
+                    ),
+                    in: InvalidScoreFilter.range, step: InvalidScoreFilter.step
+                )
+                .accessibilityLabel("Max Score Leeway")
+                .accessibilityValue(ScoreFormatting.leeway(leeway))
+                .accessibilityIdentifier("fst.settings.leeway")
+            }
+        }
+    }
+
+    private var experimentalRanksRow: some View {
+        Toggle(isOn: $experimentalRanks) {
+            SettingLabel(
+                "Experimental Ranks",
+                detail: "More ranking mechanisms for Leaderboards. Not yet available."
+            )
+        }
+        .disabled(true)
+        .accessibilityHint("Experimental ranks are not yet available")
+    }
+
+    /// The Report an Issue and Request a Feature rows (issue #78).
+    @ViewBuilder private var feedbackRows: some View {
+        feedbackRow(
+            .bug, detail: "Tell us about something that isn't working.",
+            action: "Report", identifier: "fst.settings.feedback.bug"
+        )
+        feedbackRow(
+            .feature, detail: "Suggest something new for Festival Score Tracker.",
+            action: "Request", identifier: "fst.settings.feedback.feature"
+        )
     }
 
     /// A row that opens the bug or feature form, styled like What's New's "Show" row.
@@ -314,11 +410,20 @@ struct SettingsScreen: View {
         .accessibilityHint("Opens a form that files it on GitHub")
     }
 
+    /// Where system accessibility options live on this platform.
+    private static var systemSettingsName: String {
+        #if os(macOS)
+        "System Settings"
+        #else
+        "device Settings"
+        #endif
+    }
+
     private var accessibility: some View {
         FestivalGlassSection(
             "Accessibility",
             subtitle: "Off follows your device; On adds an app override. "
-                + "VoiceOver and text size are managed in device Settings."
+                + "VoiceOver and text size are managed in \(Self.systemSettingsName)."
         ) {
             Toggle(isOn: $reduceMotion) { SettingLabel("Reduce Motion") }
                 .accessibilityIdentifier("fst.settings.reduce-motion")
@@ -726,6 +831,23 @@ struct SettingsScreen: View {
         moreContrast = false
         lessTransparency = false
         suggestionFilterData = Data()
+    }
+}
+
+// MARK: - Quick links
+
+/// The page's Quick Links container, only for the whole page: a Mac Settings pane is
+/// short and titled by its toolbar button, so it has no Quick Links menu.
+private struct SettingsQuickLinks: ViewModifier {
+    let controller: QuickLinksController
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.quickLinks(controller, title: "Quick Links")
+        } else {
+            content
+        }
     }
 }
 

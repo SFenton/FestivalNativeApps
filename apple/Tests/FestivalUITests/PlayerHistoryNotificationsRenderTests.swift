@@ -25,7 +25,13 @@ actor HostedHistoryTransport: HTTPTransport {
        {"eventId":2,"notificationGuid":"guid-2","accountId":"fixture-1",
         "eventKind":"player_fc_achieved","songId":"fixture-song",
         "instrument":"Solo_Bass",
-        "detectedAt":"2024-01-04T00:00:00Z","expiresAt":"2024-02-04T00:00:00Z"}
+        "detectedAt":"2024-01-04T00:00:00Z","expiresAt":"2024-02-04T00:00:00Z"},
+       {"eventId":3,"notificationGuid":"guid-3","accountId":"fixture-1",
+        "eventKind":"player_first_score","songId":"fixture-song","instrument":"Solo_Drums",
+        "detectedAt":"2024-01-03T00:00:00Z","expiresAt":"2024-02-03T00:00:00Z",
+        "payload":{"coalescedInstruments":["Solo_Drums","Solo_Vocals"],"coalescedEvents":[
+          {"eventKind":"player_first_score","instrument":"Solo_Drums","newNumeric":250000},
+          {"eventKind":"player_stars_improved","instrument":"Solo_Vocals","oldNumeric":4,"newNumeric":5}]}}
     ]}
     """.utf8)
 
@@ -141,7 +147,7 @@ private func preloadedNotificationsSession(
 private let fixtureSong = Song(
     songId: "fixture-song", title: "Fixture Anthem", artist: "The Fixtures", album: nil,
     year: 2024, durationSeconds: 180, albumArt: nil, difficulty: nil,
-    pathArtifactGenerationId: nil, sig: nil, maxScores: nil
+    pathArtifactGenerationId: nil, sig: nil, maxScores: nil, doubleBassSupported: nil
 )
 
 // MARK: - Player History
@@ -262,11 +268,11 @@ func songScoreHistoryRowsShowTheSeasonOnlyOnWidePages(width: Double, shows: Bool
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass"]
+        host, untilText: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass", "Drums: First Play"]
     )
     _ = try nativeHostedPNG(image, filename: "notifications.png", environment: "FST_HISTORY_RENDER_OUT")
     assertRendersContent(
-        host, image: image, containing: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass"]
+        host, image: image, containing: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass", "Drums: First Play"]
     )
 }
 

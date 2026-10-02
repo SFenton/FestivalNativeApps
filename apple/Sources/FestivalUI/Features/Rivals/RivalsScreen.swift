@@ -15,6 +15,14 @@ import FestivalDesign
 /// deregister themselves as their independent loads settle, so the menu rebuilds
 /// automatically on tab change with no explicit array to maintain.
 struct RivalsScreen: View {
+    /// Find Rival's toolbar symbol. The Mac's one unified toolbar also shows the global
+    /// Search magnifier, so Find Rival uses a distinct symbol there.
+    #if os(macOS)
+    static let findRivalSymbol = "person.crop.circle.badge.questionmark"
+    #else
+    static let findRivalSymbol = "magnifyingglass"
+    #endif
+
     let session: FestivalSession
     /// True where Rivals is a tab root (iPad, Duo unfolded): its toolbar then ends
     /// with the bell and avatar so the avatar stays rightmost. False when pushed.
@@ -63,8 +71,9 @@ struct RivalsScreen: View {
                 Button {
                     findRivalPresented = true
                 } label: {
-                    Label("Find Rival", systemImage: "magnifyingglass")
+                    Label("Find Rival", systemImage: Self.findRivalSymbol)
                 }
+                .help("Find Rival")
                 .accessibilityIdentifier("fst.rivals.findRival")
             }
             QuickLinksToolbarItem(quickLinks)
@@ -73,6 +82,9 @@ struct RivalsScreen: View {
             }
         }
         .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
+        #if os(macOS)
+        .macPageCommands(MacPageCommands(findRival: { findRivalPresented = true }))
+        #endif
         .sheet(isPresented: $findRivalPresented) {
             FindRivalSheet(session: session)
                 .festivalSheet()
@@ -201,8 +213,18 @@ struct RivalCommonSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("common|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 0, previewRows(result).map { row in
+                MacKeyRow(
+                    id: "common|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .song(instruments: instruments.map(\.rawValue))
+                    ))
+                )
+            })
             .quickLinkSection(id: "common", title: "Common Rivals", symbol: "person.2.fill")
             .festivalFadeIn(isLoaded: true)
         }
@@ -301,8 +323,18 @@ struct RivalComboSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("combo|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 1, previewRows(response).map { row in
+                MacKeyRow(
+                    id: "combo|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .combo(token: scope.token, instruments: scope.instruments.map(\.rawValue))
+                    ))
+                )
+            })
             .quickLinkSection(id: "combo", title: "\(scope.label) Rivals", symbol: "music.note")
             .festivalFadeIn(isLoaded: true)
         }
@@ -370,11 +402,21 @@ struct RivalInstrumentSongSection: View {
     /// empty (`CompeteInstrumentLeaderboardSection`).
     var emptyMessage: String? = nil
     @State private var state: RivalsLoadState<RivalsListResponse> = .loading
+    /// Skips the reload `.task(id:)` starts on every reappearance (Back from a pushed
+    /// page), which flashed the rows to a spinner and shifted Compete (#39).
+    @State private var gate = ReappearanceLoadGate<CompeteSectionLoadKey>()
 
     private let previewCount = 3
 
+    private var loadKey: CompeteSectionLoadKey {
+        CompeteSectionLoadKey(instrument: instrument, session: session)
+    }
+
     var body: some View {
-        content.task(id: instrument) { await load() }
+        content.task(id: loadKey) {
+            guard gate.needsLoad(for: loadKey) else { return }
+            await load()
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -404,8 +446,18 @@ struct RivalInstrumentSongSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("song.\(instrument.rawValue)|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 10 + (Instrument.allCases.firstIndex(of: instrument) ?? 0), previewRows(response).map { row in
+                MacKeyRow(
+                    id: "song.\(instrument.rawValue)|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .song(instruments: [instrument.rawValue])
+                    ))
+                )
+            })
             .festivalFadeIn(isLoaded: true)
         }
     }
@@ -456,9 +508,11 @@ struct RivalInstrumentSongSection: View {
 
     @MainActor
     private func load() async {
+        let key = loadKey
         state = .loading
         do {
             state = .loaded(try await session.rivalsList(instrument: instrument))
+            gate.markLoaded(key)
         } catch is CancellationError {
         } catch {
             state = .failed(ServiceIssue(error))
@@ -506,8 +560,18 @@ struct RivalInstrumentLeaderboardSection: View {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
                     .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
+                    .macKeyboardRow("leaderboard.\(instrument.rawValue)|\(row.rival.accountId)")
                 }
             }
+            .macKeyboardRows(order: 10 + (Instrument.allCases.firstIndex(of: instrument) ?? 0), previewRows(response).map { row in
+                MacKeyRow(
+                    id: "leaderboard.\(instrument.rawValue)|\(row.rival.accountId)",
+                    action: .route(.rivalDetail(
+                        rivalId: row.rival.accountId, name: row.rival.displayName,
+                        scope: .leaderboard(instrument: instrument.rawValue, rankBy: rankBy)
+                    ))
+                )
+            })
             .quickLinkSection(QuickLinkSection(
                 id: instrument.rawValue, title: "\(instrument.label) Rivals", icon: .instrument(instrument)
             ))

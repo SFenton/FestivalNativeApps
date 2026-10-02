@@ -74,6 +74,22 @@ public sealed class MotionPolicyTests
         Assert.Equal("Open in Item Shop, New", ShopPulse.ButtonName(ShopHighlight.New));
         Assert.Equal("Open in Item Shop", ShopPulse.ButtonName(null));
     }
+
+    [Fact]
+    public void ShopPulse_BreatheIsSteppedAtThirtyPerSecond()
+    {
+        var steps = ShopPulse.BreatheSteps();
+        Assert.Equal(30, ShopPulse.StepsPerSecond);
+        Assert.Equal(91, steps.Count);
+        Assert.Equal(0f, steps[0].Progress);
+        Assert.Equal(0f, steps[0].Level, 3);
+        Assert.Equal(1f, steps[^1].Progress);
+        Assert.Equal(0f, steps[^1].Level, 3);
+        Assert.Equal(1f, steps.MaxBy(s => s.Level).Level, 3);
+        Assert.Equal(0.5f, steps.MaxBy(s => s.Level).Progress, 3);
+        Assert.All(steps.Zip(steps.Skip(1)), pair => Assert.True(pair.Second.Progress > pair.First.Progress));
+        Assert.All(steps, s => Assert.InRange(s.Level, 0f, 1f));
+    }
 }
 
 /// <summary>Song Detail layout rules (Intensity columns) and the accuracy badge value.</summary>

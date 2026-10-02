@@ -17,7 +17,11 @@ let package = Package(
             dependencies: ["FestivalCore", "FestivalDesign"],
             resources: [.process("Resources")]
         ),
-        .testTarget(name: "FestivalCoreTests", dependencies: ["FestivalCore"]),
+        .testTarget(
+            name: "FestivalCoreTests",
+            dependencies: ["FestivalCore"],
+            resources: [.process("Fixtures")]
+        ),
         .testTarget(name: "FestivalDesignTests", dependencies: ["FestivalDesign"]),
         .testTarget(
             name: "FestivalUITests",

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.shop.ShopHighlight
+import com.festivalscoretracker.android.core.shop.ShopOfferFilter
 import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.core.shop.ShopPresentationPolicy
 import com.festivalscoretracker.android.core.shop.ShopResponse
@@ -14,6 +15,7 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.RetryingLoader
 import com.festivalscoretracker.android.presentation.valueOrNull
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -39,16 +41,23 @@ data class ShopOfferItem(val offer: ShopSong, val highlight: ShopHighlight?, val
  * Item Shop page state.
  *
  * @property shop Shop load state.
- * @property offers Title-ordered offers.
+ * @property offers Title-ordered offers that pass [filter].
  * @property hidden Hide Item Shop is on.
  * @property detailsUnavailable The catalogue read failed (offers stay usable).
+ * @property filter Page filter (New / Available / Leaving Tomorrow).
+ * @property totalOffers Offers in the feed before filtering (a genuine empty Shop has none).
  */
 data class ShopUiState(
     val shop: LoadState<ShopPayload> = LoadState.Loading,
     val offers: List<ShopOfferItem> = emptyList(),
     val hidden: Boolean = false,
     val detailsUnavailable: Boolean = false,
-)
+    val filter: ShopOfferFilter = ShopOfferFilter(),
+    val totalOffers: Int = 0,
+) {
+    /** The feed has offers but the filter hides them all ("No Matching Songs", not the empty Shop). */
+    val filteredEmpty: Boolean get() = offers.isEmpty() && totalOffers > 0
+}
 
 // endregion
 
@@ -71,10 +80,14 @@ class ShopViewModel(
 ) : ViewModel() {
     private val catalog = RetryingLoader(viewModelScope, "shop-catalog", backoff, loadCatalog)
 
+    // Page-scoped: kept while the Shop stays on the back stack, so a reopened sheet shows it (not persisted).
+    private val filter = MutableStateFlow(ShopOfferFilter())
+
     /** Derived state. */
-    val uiState: StateFlow<ShopUiState> = combine(shop, catalog.state, settings.filterNotNull()) { shopState, catalogState, app ->
+    val uiState: StateFlow<ShopUiState> = combine(shop, catalog.state, settings.filterNotNull(), filter) { shopState, catalogState, app, offerFilter ->
         val songIds = catalogState.valueOrNull?.catalog?.songs?.mapTo(HashSet()) { it.songId }
-        val offers = shopState.valueOrNull?.sortedSongs.orEmpty().map { offer ->
+        val all = shopState.valueOrNull?.sortedSongs.orEmpty()
+        val offers = offerFilter.apply(all).map { offer ->
             ShopOfferItem(
                 offer = offer,
                 highlight = ShopPresentationPolicy.highlight(offer, app.hideShop, app.disableShopHighlighting),
@@ -82,7 +95,7 @@ class ShopViewModel(
                 officialUrl = offer.shopUrl.takeIf(ShopResponse::isOfficialShopUrl),
             )
         }
-        ShopUiState(shopState, offers, app.hideShop, catalogState is LoadState.Failed)
+        ShopUiState(shopState, offers, app.hideShop, catalogState is LoadState.Failed, offerFilter, all.size)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ShopUiState())
 
     init {
@@ -91,6 +104,18 @@ class ShopViewModel(
 
     /** Retry the catalogue for Details links. */
     fun retryCatalog() = catalog.retry()
+
+    /**
+     * Apply a filter at once (the sheet is live, like Songs).
+     *
+     * @param next New filter.
+     */
+    fun setFilter(next: ShopOfferFilter) {
+        filter.value = next
+    }
+
+    /** Show every offer again (Reset). */
+    fun resetFilter() = setFilter(ShopOfferFilter())
 }
 
 // endregion

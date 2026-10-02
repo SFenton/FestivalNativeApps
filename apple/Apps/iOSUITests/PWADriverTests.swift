@@ -185,29 +185,8 @@ final class PWADriverTests: XCTestCase {
         case .home:
             XCUIDevice.shared.press(.home)
         case let .launchIcon(label):
-            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-            let icons = springboard.icons.matching(identifier: label)
-            guard icons.firstMatch.waitForExistence(timeout: 10) else {
-                throw DriverTests.DriverError.elementNotFound(label)
-            }
-            // A new web clip lands on the first page with room, often not the first page.
-            // iPhone Duo's SpringBoard reports visible icons as not hittable, so pick the
-            // match whose frame is on screen and tap its centre by coordinate.
-            let screen = springboard.windows.firstMatch.frame
-            func visibleIcon() -> XCUIElement? {
-                icons.allElementsBoundByIndex.first { icon in
-                    let frame = icon.frame
-                    return !frame.isEmpty && screen.contains(CGPoint(x: frame.midX, y: frame.midY))
-                }
-            }
-            let settle = Date().addingTimeInterval(3)
-            while visibleIcon() == nil && Date() < settle { Thread.sleep(forTimeInterval: 0.25) }
-            var pages = 0
-            while visibleIcon() == nil && pages < 3 {
-                springboard.swipeLeft()
-                pages += 1
-            }
-            guard let icon = visibleIcon() else { throw DriverTests.DriverError.elementNotFound(label) }
+            // Tap by coordinate: iPhone Duo's SpringBoard reports visible icons as not hittable.
+            let icon = try DriverTests.visibleHomeScreenIcon(label)
             icon.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()
             app = XCUIApplication(bundleIdentifier: "com.apple.webapp")
         case let .tapContains(text):

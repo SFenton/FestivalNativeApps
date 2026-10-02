@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from tools import ios_sim
 from tools.ios_sim import (
     accessibility_instructions,
     app_bundle_for,
@@ -83,7 +84,33 @@ class OutputPathsTests(unittest.TestCase):
         )
 
     def test_ignores_other_verbs_and_missing_arguments(self):
-        self.assertEqual(output_paths(["wait:1", "back", "tap:x"]), [])
+        self.assertEqual(output_paths(["wait:1", "back", "tap:x", "fill", "resize:0.5"]), [])
+
+    def test_collects_system_tree_paths(self):
+        self.assertEqual(output_paths(["systemTree:/tmp/sb.txt", "systemTap:window-controls"]), ["/tmp/sb.txt"])
+
+
+class SelectProductTests(unittest.TestCase):
+    """The iPad alias runs the iPadOS app; everything else the iPhone app."""
+
+    def tearDown(self):
+        ios_sim.select_product(None, None)
+
+    def test_ipad_alias_selects_tablet_app(self):
+        product = ios_sim.select_product(None, "ipad")
+        self.assertEqual(product.scheme, "FestivalTablet")
+        self.assertEqual(product.uitest_target, "FestivalTabletUITests")
+        self.assertEqual(ios_sim.product().bundle_id, "com.sfenton.festivalscoretracker.ipad")
+        self.assertTrue(str(ios_sim.driver_derived_data()).endswith("lane-driver-ipad"))
+
+    def test_default_and_other_devices_select_phone_app(self):
+        for device in (None, "iphone", "duo", "4E9F2A49-127D-40BC-A909-08AF3D4BE6A5"):
+            self.assertEqual(ios_sim.select_product(None, device).scheme, "FestivalMobile")
+        self.assertEqual(ios_sim.product().bundle_id, ios_sim.BUNDLE_ID)
+
+    def test_explicit_app_overrides_device(self):
+        self.assertEqual(ios_sim.select_product("phone", "ipad").scheme, "FestivalMobile")
+        self.assertEqual(ios_sim.select_product("ipad", "iphone").scheme, "FestivalTablet")
 
 
 class ResolveDeviceTests(unittest.TestCase):

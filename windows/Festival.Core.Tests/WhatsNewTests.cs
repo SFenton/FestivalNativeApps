@@ -157,6 +157,100 @@ public class WhatsNewTests
         Assert.EndsWith("whats-new.json", ChangelogSeenStore.DefaultPath);
     }
 
+    private const string GroupedDocument = """
+        {"schema": 1, "platform": "windows", "version": "2610.02.02", "baseline": "2610.01.03",
+         "entries": [
+          {"version": "2610.02.02", "released": false,
+           "items": ["Songs: Rows load faster.", "Rivals: Lists refresh.", "A loose note."],
+           "groups": [{"category": "Songs", "items": ["Rows load faster."]},
+                      {"category": "Rivals", "items": ["Lists refresh.", "See the Manual."]},
+                      {"category": null, "items": ["A loose note."]}, 5, {"category": "Bands", "items": []}],
+           "testflight": {"since": "2610.02.01", "new": ["Songs: Rows load faster."], "release": "2610.01.03",
+                          "vs_release": ["Songs: Rows load faster.", "Songs: Filter fixed.", "General: Polish."],
+                          "groups": [{"category": "Songs", "items": ["Rows load faster.", "Filter fixed."]},
+                                     {"category": "General", "items": ["Polish."]}]}},
+          {"version": "2610.01.03", "released": true, "items": ["The first release."]}
+         ]}
+        """;
+
+    [Fact]
+    public void Decode_KeepsGroupsAndTesterNotesVerbatim()
+    {
+        var entries = Changelog.Decode(GroupedDocument);
+        Assert.Equal(
+            [new ChangelogGroup("Songs", ["Rows load faster."]), new ChangelogGroup("Rivals", ["Lists refresh.", "See the Manual."]), new ChangelogGroup(null, ["A loose note."])],
+            entries[0].Groups);
+        Assert.Equal("2610.01.03", entries[0].Tester!.Release);
+        Assert.Equal([new ChangelogGroup("Songs", ["Rows load faster.", "Filter fixed."]), new ChangelogGroup("General", ["Polish."])], entries[0].Tester!.Groups);
+        // No groups in the document: the flat items become one uncategorized group (never re-classified).
+        Assert.Equal([new ChangelogGroup(null, ["The first release."])], entries[1].Groups);
+        Assert.Null(entries[1].Tester);
+        // The show-once hash still follows the release items only.
+        Assert.Equal(Changelog.Hash([.. entries.Select(e => e with { Groups = [], Tester = null })]), Changelog.Hash(entries));
+    }
+
+    [Fact]
+    public void Decode_TesterFallsBackToVsReleaseAndIsBounded()
+    {
+        var fallback = Changelog.Decode("""{"entries":[{"version":"1","items":["a"],"testflight":{"release":null,"vs_release":["Songs: x"," "]}}]}""")[0].Tester!;
+        Assert.Null(fallback.Release);
+        Assert.Equal([new ChangelogGroup(null, ["Songs: x"])], fallback.Groups);
+        Assert.Equal("Changes So Far", fallback.Title);
+        Assert.Null(Changelog.Decode("""{"entries":[{"version":"1","items":["a"],"testflight":{"vs_release":[]}}]}""")[0].Tester);
+        Assert.Null(Changelog.Decode("""{"entries":[{"version":"1","items":["a"],"testflight":5}]}""")[0].Tester);
+        var many = string.Join(',', Enumerable.Range(0, 30).Select(i =>
+            $$"""{"category":"{{new string('C', 50)}}{{i}}","items":[{{string.Join(',', Enumerable.Repeat("\"n\"", 10))}}]}"""));
+        var tester = Changelog.Decode($$$"""{"entries":[{"version":"1","items":["a"],"testflight":{"release":"{{{new string('9', 40)}}}","groups":[{{{many}}}]}}]}""")[0].Tester!;
+        Assert.Equal(Changelog.MaxTesterItems, tester.Groups.Sum(g => g.Items.Count));
+        Assert.True(tester.Groups.Count <= Changelog.MaxGroups);
+        Assert.Equal(Changelog.MaxCategoryLength, tester.Groups[0].Category!.Length);
+        Assert.Equal(32, tester.Release!.Length);
+        using var document = JsonDocument.Parse("""{"groups":[{"category":"","items":["x"]},{"items":["y"]}]}""");
+        Assert.Equal([new ChangelogGroup(null, ["x"])], Changelog.DecodeGroups(document.RootElement, 1));
+    }
+
+    [Fact]
+    public void DisplayBlocks_PickTheChannelsNotesWithCategoryHeadings()
+    {
+        var entries = Changelog.Decode(GroupedDocument);
+        var store = Changelog.DisplayBlocks(InstallChannel.Store, entries);
+        Assert.Equal(["Version 2610.02.02", "Version 2610.01.03"], store.Select(b => b.Title));
+        // Manual bullets are dropped; empty groups vanish; uncategorized notes come last under "Other".
+        Assert.Equal(["Songs", "Rivals", "Other"], store[0].Groups.Select(g => g.DisplayTitle));
+        Assert.Equal(["Lists refresh."], store[0].Groups[1].Items);
+        Assert.True(store[0].Headed);
+        Assert.False(store[1].Headed);
+        var tester = Changelog.DisplayBlocks(InstallChannel.Tester, entries);
+        Assert.Equal(["Changes Since Release 2610.01.03", "Version 2610.01.03"], tester.Select(b => b.Title));
+        Assert.Equal(["Rows load faster.", "Filter fixed.", "Polish."], tester[0].Groups.SelectMany(g => g.Items));
+        // Entries without groups (older documents, the placeholder) keep their release bullets for both channels.
+        var placeholder = Assert.Single(Changelog.DisplayBlocks(InstallChannel.Tester));
+        Assert.Equal("Version 2610.01.01", placeholder.Title);
+        Assert.Equal([new ChangelogGroup(null, ["The first release of Festival Score Tracker for Windows."])], placeholder.Groups);
+        ChangelogEntry[] manual = [new([new ChangelogSection("MANUAL", ["x"])]), new([new ChangelogSection("Version 1", ["Manual only."])])];
+        Assert.Empty(Changelog.DisplayBlocks(InstallChannel.Store, manual));
+    }
+
+    [Fact]
+    public void InstallChannel_StoreSignatureOnlyWithADebugOverride()
+    {
+        Assert.Equal(InstallChannel.Store, InstallChannels.FromSignatureKind("Store"));
+        foreach (var other in new[] { null, "", "None", "Developer", "Enterprise", "System" })
+        {
+            Assert.Equal(InstallChannel.Tester, InstallChannels.FromSignatureKind(other));
+        }
+        string? NoEnvironment(string _) => null;
+        Assert.Equal(InstallChannel.Store, InstallChannels.Resolve([], NoEnvironment, false, () => "Store"));
+        // Unpackaged builds have no package identity: Package.Current throws.
+        Assert.Equal(InstallChannel.Tester, InstallChannels.Resolve([], NoEnvironment, false, () => throw new InvalidOperationException("no identity")));
+        Assert.Equal(InstallChannel.Tester, InstallChannels.Resolve(["--distribution", "tester"], NoEnvironment, true, () => "Store"));
+        Assert.Equal(InstallChannel.Store, InstallChannels.Resolve(["--distribution=STORE"], NoEnvironment, true, () => null));
+        Assert.Equal(InstallChannel.Store, InstallChannels.Resolve([], name => name == "FST_DEBUG_DISTRIBUTION" ? "store" : null, true, () => null));
+        // Overrides are ignored outside Debug/automation launches; unknown values fall back to the signature.
+        Assert.Equal(InstallChannel.Store, InstallChannels.Resolve(["--distribution", "tester"], NoEnvironment, false, () => "Store"));
+        Assert.Equal(InstallChannel.Tester, InstallChannels.Resolve(["--distribution", "bogus"], NoEnvironment, true, () => "Developer"));
+    }
+
     private sealed class EntryComparer : IEqualityComparer<ChangelogEntry>
     {
         public bool Equals(ChangelogEntry? x, ChangelogEntry? y) =>

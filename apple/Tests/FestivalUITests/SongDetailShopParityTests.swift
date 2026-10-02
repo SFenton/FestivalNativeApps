@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import SwiftUI
 import Testing
 @testable import FestivalCore
 @testable import FestivalUI
@@ -93,6 +94,58 @@ private func offers(_ art: [String?]) throws -> [ShopSong] {
         == ShopRowMetrics.rowInset + ShopRowMetrics.chevronWidth + ShopRowMetrics.spacing - overhang)
     #expect(ShopRowMetrics.bagTrailingInset(navigable: false) == ShopRowMetrics.rowInset - overhang)
     #expect(ShopRowMetrics.bagTrailingInset(navigable: false) >= 0)
+}
+
+// MARK: - Item Shop rows reuse the Song row (issue #18)
+
+/// An unmatched offer still draws the shared row from its own fields only.
+@Test func shopOfferSongCarriesOnlyOfferFields() throws {
+    let offer = try offers(["/art.jpg"])[0]
+    let song = Song(shopOffer: offer)
+    #expect(song.songId == "fixture-0" && song.title == "Song 0" && song.artist == "Artist")
+    #expect(song.year == 2020 && song.albumArt == "/art.jpg")
+    #expect(song.durationSeconds == nil && song.difficulty == nil && song.maxScores == nil)
+    #expect(song.album == nil && song.pathArtifactGenerationId == nil && song.sig == nil)
+}
+
+/// A catalogue match draws the catalogue song and opens Detail; a miss is bag-only.
+@Test func shopRowPolicyNavigatesOnlyToCatalogueMatches() throws {
+    let offer = try offers(["/art.jpg"])[0]
+    let catalogueSong = Song(shopOffer: offer)
+    let matched = ShopRowPolicy.row(
+        for: offer, catalogue: [offer.songId: catalogueSong],
+        hidden: false, highlightingDisabled: false, reservesBag: true
+    )
+    #expect(matched.detailSong == catalogueSong && matched.song == catalogueSong)
+    #expect(matched.decoration.navigable && matched.decoration.reservesBag)
+    let missing = ShopRowPolicy.row(
+        for: offer, catalogue: [:],
+        hidden: false, highlightingDisabled: false, reservesBag: false
+    )
+    #expect(missing.detailSong == nil && missing.song.songId == offer.songId)
+    #expect(!missing.decoration.navigable && !missing.decoration.reservesBag)
+}
+
+/// Shop rows keep New / Leaving badges and their red/gold pulse; a plain offer and
+/// hidden or disabled highlighting show neither (web passes only red/gold flags).
+@Test func shopRowDecorationKeepsShopOnlyBadges() throws {
+    func decoration(_ offer: ShopSong, hidden: Bool = false, disabled: Bool = false)
+        -> SongRowShopOffer {
+        ShopRowPolicy.row(
+            for: offer, catalogue: [:], hidden: hidden,
+            highlightingDisabled: disabled, reservesBag: true
+        ).decoration
+    }
+    let fresh = decoration(try offer(isNew: true, leaving: false))
+    #expect(fresh.highlight == .new && fresh.pulseTone == .new)
+    let leaving = decoration(try offer(isNew: true, leaving: true))
+    #expect(leaving.highlight == .leavingTomorrow && leaving.pulseTone == .leaving)
+    let plain = decoration(try offer(isNew: false, leaving: false))
+    #expect(plain.highlight == nil && plain.pulseTone == nil)
+    let disabled = decoration(try offer(isNew: true, leaving: false), disabled: true)
+    #expect(disabled.highlight == nil && disabled.pulseTone == nil)
+    let hidden = decoration(try offer(isNew: false, leaving: true), hidden: true)
+    #expect(hidden.highlight == nil && hidden.pulseTone == nil)
 }
 
 // MARK: - Song Detail Shop action tone (operator report)
@@ -240,4 +293,31 @@ private func playerScore(rank: Int?, score: Int = 500) throws -> PlayerScore {
     #expect(!ShopStatusBreathe.animates(reduceMotion: true, sceneActive: true, still: false))
     #expect(!ShopStatusBreathe.animates(reduceMotion: false, sceneActive: false, still: false))
     #expect(!ShopStatusBreathe.animates(reduceMotion: false, sceneActive: true, still: true))
+}
+
+// MARK: - Shop action in the iPhone Duo vertical bar
+
+/// The breathing Shop fill is a custom view, which the Duo vertical bar dropped from
+/// both the rail and its overflow; the rail gets a titled symbol instead.
+@Suite("Song Detail Shop action style")
+struct SongDetailShopActionStyleTests {
+    @Test("Horizontal bars keep the breathing status fill")
+    func horizontalBarsBreathe() {
+        for chrome in [DeviceLayout.SectionChrome.tabBar, .sidebar] {
+            #expect(SongDetailShopActionStyle.resolve(tone: .new, chrome: chrome) == .breathing(.new))
+            #expect(SongDetailShopActionStyle.resolve(tone: nil, chrome: chrome)
+                == .titled(spokenLabel: "Item Shop"))
+        }
+    }
+
+    @Test("The vertical bar always uses a titled symbol and keeps the spoken status")
+    func verticalBarIsTitled() {
+        for edge in [HorizontalEdge.leading, .trailing] {
+            let chrome = DeviceLayout.SectionChrome.verticalBar(edge)
+            #expect(SongDetailShopActionStyle.resolve(tone: .leaving, chrome: chrome)
+                == .titled(spokenLabel: "Item Shop, Leaving the Item Shop tomorrow"))
+            #expect(SongDetailShopActionStyle.resolve(tone: nil, chrome: chrome)
+                == .titled(spokenLabel: "Item Shop"))
+        }
+    }
 }

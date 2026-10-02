@@ -5,4 +5,5 @@
 - Split navigation recreates Songs on a section switch, so its initial `.loading` task recovers independently of the iPhone retained-error fix; the instrument filter is scene-owned and survives section switches.
 - The detail pane wraps nine status chips 5+4; the 820px web tablet shows one row. Explicit platform-layout gap, not a match.
 - Sort sheet is centered; Reset may need a Form scroll above the pinned footer.
+- Open (seen during #77, 2026-10-02, also with anonymous Sort before #77): in a compact Stage Manager window the floating Filter/Sort dock sits at tab-bar height, so a tap on Filter can land on the Settings tab; scrolling moves the tools into the navigation bar and they work there.
 - Open: full `.all` audits report unnamed "Potentially inaccessible text"; grouped Shop headers report full-window accessibility frames (focus bounds unverified) — see [accessibility](../../testing/apple/accessibility.md). Always test Hide/Show Sidebar with Detail visible.

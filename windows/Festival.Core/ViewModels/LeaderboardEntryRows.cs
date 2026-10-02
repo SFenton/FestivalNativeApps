@@ -62,6 +62,12 @@ public interface ILeaderboardScoreRow : ILeaderboardEntryRow
 
     /// <summary>Stars, or 0 when the board does not show them.</summary>
     int StarCount { get; }
+
+    /// <summary>
+    /// Whether the season shows at any row width (the Score History tapped-bar detail row, web <c>renderDetailCard</c>).
+    /// Other score rows show it from a 520 epx row (<see cref="LeaderboardColumnLayout.SeasonBreakpoint"/>).
+    /// </summary>
+    bool PinsSeason => false;
 }
 
 /// <summary>A rankings row (web <c>RankingEntry</c>): songs label, then the rating with an optional Bayesian value.</summary>

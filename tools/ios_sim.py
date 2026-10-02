@@ -57,6 +57,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Iterable, Iterator
 
 # region Configuration
@@ -85,7 +86,69 @@ CLEAN_STATUS_BAR = (
 )
 
 #: Source trees that, if changed, require rebuilding the driver's UI-test bundle.
-DRIVER_HASH_ROOTS = ("Sources", "Apps/iOS", "Apps/iOSUITests", "project.yml")
+DRIVER_HASH_ROOTS = ("Sources", "Apps/iOS", "Apps/iOSUITests", "Apps/iPadOSUITests", "project.yml")
+
+
+@dataclass(frozen=True)
+class AppProduct:
+    """One installable iOS app target and its UI-test bundle.
+
+    Attributes:
+        scheme: Xcode scheme building the app and its UI tests.
+        app_name: Built ``.app`` name (without the extension).
+        bundle_id: Bundle identifier used by ``simctl launch``/``terminate``.
+        uitest_target: UI-test target name for ``-only-testing:``.
+        driver_dir: DerivedData folder (under ``apple/DerivedData``) for the UI-test build.
+    """
+
+    scheme: str
+    app_name: str
+    bundle_id: str
+    uitest_target: str
+    driver_dir: str
+
+
+#: The iPhone app (App Store, iPhone-only) and the iPadOS app (its own app).
+PRODUCTS = {
+    "phone": AppProduct(
+        "FestivalMobile", "FestivalMobile", BUNDLE_ID, "FestivalMobileUITests", "lane-driver"
+    ),
+    "ipad": AppProduct(
+        "FestivalTablet", "FestivalTablet", "com.sfenton.festivalscoretracker.ipad",
+        "FestivalTabletUITests", "lane-driver-ipad",
+    ),
+}
+
+#: Device aliases that run the iPadOS app by default (``--app`` overrides).
+DEVICE_PRODUCTS = {"ipad": "ipad"}
+
+#: Product the current command targets; set once by ``main()``.
+_product = PRODUCTS["phone"]
+
+
+def product() -> AppProduct:
+    """Return the app product the current command targets.
+
+    Returns:
+        The selected ``AppProduct`` (the iPhone app unless ``--app``/``--device`` chose iPad).
+    """
+    return _product
+
+
+def select_product(app: str | None, device: str | None) -> AppProduct:
+    """Choose the app product for a command.
+
+    Args:
+        app: Explicit ``--app`` value (``phone``/``ipad``), if given.
+        device: ``--device`` alias or UDID, if the command takes one.
+
+    Returns:
+        The explicit product, else the device alias's default, else the iPhone app.
+    """
+    global _product
+    key = app or DEVICE_PRODUCTS.get(device or "", "phone")
+    _product = PRODUCTS[key]
+    return _product
 
 # endregion
 
@@ -160,12 +223,12 @@ def app_path() -> Path:
     """Locate the built simulator app for this worktree.
 
     Returns:
-        Path to ``FestivalMobile.app``.
+        Path to the selected product's ``.app`` (``FestivalMobile.app`` by default).
 
     Raises:
         SystemExit: If the app has not been built yet.
     """
-    path = derived_data() / "Build/Products/Debug-iphonesimulator/FestivalMobile.app"
+    path = derived_data() / f"Build/Products/Debug-iphonesimulator/{product().app_name}.app"
     if not path.exists():
         sys.exit(f"No build at {path}; run `python3 tools/ios_sim.py build` first.")
     return path
@@ -228,7 +291,7 @@ def output_paths(steps: list[str]) -> list[str]:
     paths = []
     for step in steps:
         verb, _, arg = step.partition(":")
-        if verb in ("shot", "tree") and arg:
+        if verb in ("shot", "tree", "systemTree") and arg:
             paths.append(arg)
     return paths
 
@@ -239,7 +302,7 @@ def driver_derived_data() -> Path:
     Returns:
         ``apple/DerivedData/lane-driver`` inside the current worktree.
     """
-    return APPLE_DIR / "DerivedData" / "lane-driver"
+    return APPLE_DIR / "DerivedData" / product().driver_dir
 
 
 def _iter_source_files(roots: Iterable[Path]) -> Iterator[Path]:
@@ -296,7 +359,7 @@ def driver_build_stale(derived: Path, current_hash: str) -> bool:
     """
     runner = (
         derived / "Build/Products/Debug-iphonesimulator"
-        / "FestivalMobileUITests-Runner.app"
+        / f"{product().uitest_target}-Runner.app"
     )
     marker = derived / ".driver-source-hash"
     if not runner.exists() or not marker.exists():
@@ -937,7 +1000,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
     with build_lock():
         result = _run([
-            "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
+            "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
             "-configuration", args.configuration,
             "-destination", "generic/platform=iOS Simulator",
             "-derivedDataPath", str(derived_data()), "build", "-quiet",
@@ -981,7 +1044,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
                 return error.code
         display = screenshot_display(args, udid)
         _run(["xcrun", "simctl", "install", udid, str(app)])
-        _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False, capture_output=True)
+        _run(["xcrun", "simctl", "terminate", udid, product().bundle_id], check=False, capture_output=True)
         launch_env = _env()
         if args.tab:
             launch_env["SIMCTL_CHILD_FST_DEBUG_TAB"] = args.tab
@@ -991,7 +1054,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
             key, _, value = pair.partition("=")
             launch_env[f"SIMCTL_CHILD_{key}"] = value
         with ScreenRecording(udid, args.record, args.display if args.display in DUO_PANELS else None):
-            _run(["xcrun", "simctl", "launch", udid, BUNDLE_ID, *(args.launch_arg or [])], env=launch_env)
+            _run(["xcrun", "simctl", "launch", udid, product().bundle_id, *(args.launch_arg or [])], env=launch_env)
             for index, out in enumerate(args.out):
                 time.sleep(args.wait if index == 0 else args.interval)
                 Path(out).parent.mkdir(parents=True, exist_ok=True)
@@ -1001,7 +1064,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
             if args.record and args.record_tail:
                 time.sleep(args.record_tail)
         if not args.keep:
-            _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False, capture_output=True)
+            _run(["xcrun", "simctl", "terminate", udid, product().bundle_id], check=False, capture_output=True)
     return 0
 
 
@@ -1036,7 +1099,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
         _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
         with build_lock():
             build = _run([
-                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
+                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
                 "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
                 "-derivedDataPath", str(derived), "build-for-testing", "-quiet",
             ], cwd=APPLE_DIR, check=False)
@@ -1087,10 +1150,10 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 print(problem, file=sys.stderr)
                 return EXIT_POSE_MISMATCH
             cmd = [
-                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
+                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
                 "-destination", f"platform=iOS Simulator,id={udid}",
                 "-derivedDataPath", str(derived), "-resultBundlePath", str(result_bundle),
-                "-only-testing:FestivalMobileUITests/DriverTests/testDrive",
+                f"-only-testing:{product().uitest_target}/DriverTests/testDrive",
                 "test-without-building", "-quiet",
             ]
             print("+", " ".join(cmd), file=sys.stderr)
@@ -1103,7 +1166,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
                     )
                 except subprocess.TimeoutExpired:
                     # Never let a hung run hold the shared simulator lock.
-                    _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
+                    _run(["xcrun", "simctl", "terminate", udid, product().bundle_id],
                          check=False, capture_output=True)
                     process = subprocess.CompletedProcess(cmd, 124)
                     log.write(f"\nTIMEOUT after {args.timeout}s; killed.\n")
@@ -1168,7 +1231,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
         _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
         with build_lock():
             build = _run([
-                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
+                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
                 "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
                 "-derivedDataPath", str(derived), "build-for-testing", "-quiet",
             ], cwd=APPLE_DIR, check=False)
@@ -1258,12 +1321,12 @@ def _run_uitest_batch(
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         cmd = [
-            "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
+            "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
             "-destination", f"platform=iOS Simulator,id={udid}",
             "-derivedDataPath", str(derived), "-resultBundlePath", str(result_bundle),
         ]
         for selector in selectors:
-            cmd.append(f"-only-testing:FestivalMobileUITests/{selector}")
+            cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
         cmd += ["test-without-building", "-quiet"]
         print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log:
@@ -1277,7 +1340,7 @@ def _run_uitest_batch(
                 # Never let a hung run hold the shared simulator lock past `timeout`:
                 # `subprocess.run` already killed the xcodebuild process tree: this
                 # also stops the app under test so nothing lingers on the simulator.
-                _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
+                _run(["xcrun", "simctl", "terminate", udid, product().bundle_id],
                      check=False, capture_output=True)
                 process = subprocess.CompletedProcess(cmd, 124)
                 log.write(f"\nTIMEOUT after {timeout}s; killed.\n")
@@ -1380,6 +1443,8 @@ def main(argv: list[str] | None = None) -> int:
 
     build = sub.add_parser("build", help="build the iOS app for this worktree")
     build.add_argument("--configuration", default="Debug")
+    build.add_argument("--app", choices=sorted(PRODUCTS), default=None,
+                       help="app to build: phone (FestivalMobile, default) or ipad (FestivalTablet)")
     build.set_defaults(func=cmd_build)
 
     shot = sub.add_parser("shot", help="install, launch, screenshot (serialized)")
@@ -1407,6 +1472,8 @@ def main(argv: list[str] | None = None) -> int:
                       help="iPhone Duo: rotate via Device Hub after the pose check (repeatable; UI scripting)")
     shot.add_argument("--display", choices=[*sorted(DUO_PANELS), "auto"],
                       help="iPhone Duo panel to capture; auto = the lit panel (default: simctl's first display)")
+    shot.add_argument("--app", choices=sorted(PRODUCTS), default=None,
+                       help="app product (default: ipad for the ipad alias, else phone)")
     shot.set_defaults(func=cmd_shot)
 
     drive = sub.add_parser(
@@ -1435,6 +1502,8 @@ def main(argv: list[str] | None = None) -> int:
     drive.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
+    drive.add_argument("--app", choices=sorted(PRODUCTS), default=None,
+                       help="app product (default: ipad for the ipad alias, else phone)")
     drive.set_defaults(func=cmd_drive)
 
     uitest = sub.add_parser(
@@ -1454,6 +1523,8 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
+    uitest.add_argument("--app", choices=sorted(PRODUCTS), default=None,
+                       help="app product (default: ipad for the ipad alias, else phone)")
     uitest.set_defaults(func=cmd_uitest)
 
     pose = sub.add_parser("pose", help="print, set (Device Hub UI scripting) or calibrate the iPhone Duo pose")
@@ -1469,6 +1540,7 @@ def main(argv: list[str] | None = None) -> int:
     shutdown.set_defaults(func=cmd_shutdown)
 
     args = parser.parse_args(argv)
+    select_product(getattr(args, "app", None), getattr(args, "device", None))
     return args.func(args)
 
 

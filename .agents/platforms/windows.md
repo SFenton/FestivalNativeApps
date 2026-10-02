@@ -1,6 +1,6 @@
 # Windows architecture and performance
 
-> **What:** WinUI 3 stack, the C#-vs-C++/WinRT decision and its evidence, build/perf tooling, host tooling and `tools/windows/uiwin.py`. **Read when:** working on or driving the Windows app (host `sfenton-primary`, reached via [windows-relay](../workflow/windows-relay.md)). Design: [design/windows.md](../design/windows.md); tests: [testing/windows.md](../testing/windows.md).
+> **What:** WinUI 3 stack, the C#-vs-C++/WinRT decision and its evidence, build/perf tooling, host tooling and `tools/windows/uiwin.py`. **Read when:** working on or driving the Windows app (host `sfenton-music`, reached via [windows-relay](../workflow/windows-relay.md)). Design: [design/windows.md](../design/windows.md); tests: [testing/windows.md](../testing/windows.md).
 
 ## Stack
 
@@ -70,18 +70,18 @@ App launch flags, all builds (environment equivalents in parentheses are read in
 - Handling `ContainerContentChanging` with `args.Handled = true` suppresses x:Bind template updates.
 - Native `PackageReference` in a `.vcxproj` needs `ResolveNuGetPackages=false`.
 
-## Host tooling on `sfenton-primary`
+## Host tooling on `sfenton-music`
 
 | Tool | Version / location |
 |---|---|
 | Windows SDK | 10.0.22621, 10.0.26100 |
-| Visual Studio | 2022 + 2019 Community (use VS 2022 MSBuild for WinUI packaging tasks) |
-| .NET SDK | 8.0.417, 9.0.304 |
+| Visual Studio | 2022 Community with the Windows App SDK C# and C++ desktop workloads (MSVC 14.44) |
+| .NET SDK | 8.0.425, 9.0.318 |
 | FlaUI (UIA3) | NuGet `FlaUI.UIA3` 5.0.0, used by the lab driver `tools/windows/FstUia` (net8.0-windows) |
 | Axe.Windows | `AxeWindowsCLI` 2.4.2 at `~/.fst-tools/axe-windows/2.4.2/AxeWindowsCLI.exe`; NuGet `Axe.Windows` 2.4.2 for in-test scans |
 | Accessibility Insights for Windows | 1.1.2924.01 (MSI) at `C:/Program Files (x86)/AccessibilityInsights/1.1/`; interactive tool |
 | PresentMon | 2.6.0 console at `~/.fst-tools/presentmon/PresentMon-2.6.0-x64.exe`; `perf.ps1` also downloads it to `%LOCALAPPDATA%\FestivalTools` (ETW; needs admin or Performance Log Users, which `sfent` has) |
-| Other | MSVC 14.44 (C++/WinRT builds), Python 3.13, WPR/xperf, `dotnet-counters` (global tool); host CPU Ryzen 7 9800X3D, GPU RTX 5090, display 240 Hz |
+| Other | MSVC 14.44 (C++/WinRT builds), Python 3.12, WPR/xperf, `dotnet-counters` (global tool); host CPU Ryzen 9 5900X (24 threads, 32 GB), GPU Radeon RX 7800 XT |
 | WinAppDriver | Not installed: unmaintained since 1.2.1 and requires Developer Mode; FlaUI covers UIA |
 
 The console session has a 3840×2160 primary monitor at 150% scale (a 2560×1440 effective desktop), plus a second monitor. No GitHub credentials over SSH; history moves via `tools/win_relay.py`.
@@ -120,6 +120,8 @@ Targets: `--pid`, `--process <name>`, or the pid last launched from this worktre
 Tablet posture: Windows 11 has no tablet mode. The touch-optimized taskbar only appears on real 2-in-1 hardware when the keyboard detaches, so it can't be emulated here. Approximate a tablet with `portrait-tablet`, `full-screen` or `maximized` plus touch-sized targets; a true tablet pass needs real touch hardware (TODO(orchestrator)).
 
 Drive steps: `click:`/`rightclick:`/`hover:`/`invoke:`/`toggle:`/`select:`/`expand:`/`collapse:`/`focus:`/`waitfor:<sel>[@secs]` with `sel` = `id=<AutomationId>`, `name=`, `class=` (clicks and `hover` also accept window-relative `x,y`; `hover` moves the cursor only, but WinUI did not show pointer-over visuals for the synthetic move in testing, so hover states still need a manual check); `type:<text>`; `key:ctrl+shift+tab` (also `comma`, `period`, `minus`, `plus`); `scroll:[<sel>,]up|down|<clicks>`; `wait:<s>`; `shot:<png>[@screen]`; `tree:<txt>`; `resize:<preset>`; accessibility: `assertfocus:<sel>[@secs]` (fails unless focus matches), `tabwalk:<n>[,shift]` (records each focused element in the result's `focus`), `scan:<dir>/<id>` (Axe.Windows, result in `scans`). Tree lines also carry `heading=`, `landmark=`, `live=`, `accel=`, `access=`, `status=` and `desc=` when set.
+
+While the Windows session is locked, `shot:` returns a black frame (title-bar glyphs only) and `shot:@screen` captures the lock screen; neither is evidence. UIA still works, so `tree` reads control text (e.g. `fst.settings.app-version`) even for offscreen rows; capture pixels only once the desktop is unlocked.
 
 The driver's `sysset` request (used only by `a11y_matrix.py`, inside its lock hold) switches contrast themes (`aquatic`, `desert`, `dusk`, `night-sky` via `SPI_SETHIGHCONTRAST` with the legacy scheme display names; the registry's `@themeui.dll,-85x` names are ignored), Animation effects (`SPI_SETCLIENTAREAANIMATION`), transparency (`EnableTransparency` + `ImmersiveColorSet` broadcast) and text size (`HKCU\Software\Microsoft\Accessibility\TextScaleFactor`, read by apps at launch), and returns the previous values so the runner restores them before releasing the lock. The `SystemParametersInfo` import must be the `W` entry point: the ANSI one silently garbles the scheme name and Windows applies the last-used contrast theme instead.
 ## Desktop lock

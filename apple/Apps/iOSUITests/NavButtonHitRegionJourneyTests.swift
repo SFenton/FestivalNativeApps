@@ -34,7 +34,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     // MARK: - Journeys
 
-    /// Floating Filter, Sort and Quick Links above the tab bar (Year sort adds Quick Links).
+    /// Filter, Sort and Quick Links above the tab bar, floating or in the iOS 26.1+ tab-bar
+    /// accessory (issue #42; Year sort adds Quick Links).
     @MainActor
     func testFloatingToolsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -44,7 +45,6 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let sort = app.buttons["fst.songs.sort"]
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
         try chooseYearSort(in: app)
-        let quickLinks = app.buttons["fst.quick-links.open"]
         let ids = ["fst.songs.filter", "fst.songs.sort", "fst.quick-links.open"]
         let frames = ids.map { app.buttons[$0].frame }
         for (id, frame) in zip(ids, frames) {
@@ -62,7 +62,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
             app.buttons["fst.songs.sort.done"].tap()
         }
         assertNearMissesOpen(app, "fst.quick-links.open", opens: quickLinksRow(in: app)) {
-            Self.dismissMenu(in: app)
+            Self.closeQuickLinks(in: app)
         }
     }
 
@@ -116,6 +116,9 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         app.launch()
         defer { resetSort(in: app) }
         XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
+        if app.buttons["fst.songs.search.open"].waitForExistence(timeout: 3) {
+            throw XCTSkip("iOS 26.1+: the tools stay in the tab-bar accessory while scrolled (issue #42).")
+        }
         try chooseYearSort(in: app)
         app.swipeUp()
         let inBar = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
@@ -134,7 +137,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
             app.buttons["fst.songs.filter.done"].tap()
         }
         assertNearMissesOpen(app, "fst.quick-links.open", opens: quickLinksRow(in: app)) {
-            Self.dismissMenu(in: app)
+            Self.closeQuickLinks(in: app)
         }
     }
 
@@ -175,10 +178,16 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.quick-links.item.'")).firstMatch
     }
 
-    /// Close an open menu by tapping away from it (the dismissing tap is consumed).
+    /// Close Quick Links: the accessory's sheet (issue #42) with its close button, the
+    /// floating or in-bar menu by tapping away from it (the dismissing tap is consumed).
     @MainActor
-    private static func dismissMenu(in app: XCUIApplication) {
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+    private static func closeQuickLinks(in app: XCUIApplication) {
+        let close = app.buttons["fst.quick-links.close"]
+        if close.exists {
+            close.tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+        }
     }
 
     /// Switch Songs to the Year sort, whose sections bring Quick Links.

@@ -34,6 +34,8 @@ struct SongsScreen: View {
     @State private var shopRetryRevision = 0
     @State private var sortPresented = false
     @State private var filterPresented = false
+    /// The accessory's search bar is open above the keyboard (iOS 26.1+ iPhone, issue #42).
+    @State private var searchBarPresented = false
     @State private var debugPushedSong: Song?
     /// When the catalogue first arrived; rows fade in only shortly after it.
     @State private var fadeLoadedAt: Date?
@@ -45,13 +47,17 @@ struct SongsScreen: View {
     @State private var scrollChrome = SongsScrollChrome()
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
-    /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
+    /// True where Filter/Sort live above the iPhone tab bar instead of the toolbar.
     @Environment(\.isTabAccessoryAvailable) private var actionsInDock
+    /// The tab-bar accessory (iOS 26.1+) or floating buttons (earlier); nil for toolbar items.
+    @Environment(\.pageToolsPresentation) private var toolsPresentation
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
-    @AppStorage("fst.songs.filterInShop") private var filterInShop = false
-    @AppStorage("fst.songs.filterLeavingTomorrow")
-    private var filterLeavingTomorrow = false
+    @AppStorage(SongGeneralFilter.storageKey) private var generalFilterData = Data()
+    /// Older Item Shop toggles, read only to migrate into ``SongGeneralFilter``.
+    @AppStorage(SongGeneralFilter.legacyInShopKey) private var legacyFilterInShop = false
+    @AppStorage(SongGeneralFilter.legacyLeavingTomorrowKey)
+    private var legacyFilterLeavingTomorrow = false
     @AppStorage(SongPlayerScoreFilter.storageKey)
     private var playerScoreFilterData = Data()
     @AppStorage("fst.settings.hideShop") private var hideShop = false
@@ -116,8 +122,50 @@ struct SongsScreen: View {
         )
     }
 
+    private var generalFilterResult: Result<SongGeneralFilter, Error> {
+        Result {
+            try SongGeneralFilter.decodeSaved(
+                generalFilterData, legacyInShop: legacyFilterInShop,
+                legacyLeavingTomorrow: legacyFilterLeavingTomorrow
+            )
+        }
+    }
+
+    private var appliedGeneralFilter: SongGeneralFilter? {
+        if case let .success(filter) = generalFilterResult { return filter }
+        return nil
+    }
+
+    /// The first corrupt saved filter, which blocks the list until an explicit Reset.
+    private var savedFilterError: Error? {
+        if case let .failure(error) = generalFilterResult { return error }
+        return playerScoreFilterError
+    }
+
     private var appliedShopFilter: SongShopFilter {
-        SongShopFilter(inShop: filterInShop, leavingTomorrow: filterLeavingTomorrow)
+        appliedGeneralFilter?.shop ?? SongShopFilter()
+    }
+
+    /// Loaded catalogue rows (the General filter's Year and Duration options).
+    private var catalogueSongs: [Song] {
+        if case let .loaded(payload) = state { return payload.catalog.songs }
+        return []
+    }
+
+    /// Whether any saved General choice hides songs (Item Shop only while Shop is shown).
+    private var generalFilterActive: Bool {
+        appliedGeneralFilter?.isActive(shopVisible: !hideShop) == true
+    }
+
+    /// Store General choices and retire the migrated legacy Item Shop toggles.
+    ///
+    /// - Parameter filter: Validated General choices.
+    /// - Throws: Encoder failure, leaving saved choices unchanged.
+    private func saveGeneralFilter(_ filter: SongGeneralFilter) throws {
+        let data = try filter.encoded()
+        generalFilterData = data
+        legacyFilterInShop = false
+        legacyFilterLeavingTomorrow = false
     }
 
     private var playerScoreFilterResult: Result<SongPlayerScoreFilter, Error> {
@@ -175,10 +223,8 @@ struct SongsScreen: View {
             return "Item Shop filters paused while Shop is hidden. Showing all songs; "
                 + "your choices are saved."
         }
-        if session.selectedPlayer == nil {
-            return "Item Shop filters paused until a selected player is available. "
-                + "Showing all songs; your choices are saved."
-        }
+        // Both categories off hides every song without classifying (web parity).
+        guard appliedShopFilter.needsShopFeed else { return nil }
         if shopPublicationMismatch {
             return "Item Shop filters paused while songs and Shop publications differ. "
                 + "Showing songs without Shop filters; your choices are saved."
@@ -234,11 +280,10 @@ struct SongsScreen: View {
         EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
     }
 
+    /// General filters need no player, so Filter is offered whenever saved filters
+    /// decode (web: the Filter button is always shown on Songs).
     private var canPresentFilter: Bool {
-        playerScoreFilterError == nil
-            && ((session.selectedPlayer != nil && session.playerLoadState == .available)
-                || appliedShopFilter.isActive
-                || appliedPlayerScoreFilter?.isActive == true)
+        savedFilterError == nil
     }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
@@ -313,12 +358,14 @@ struct SongsScreen: View {
                     Task { await reload() }
                 }
             case let .loaded(payload):
-                if let error = playerScoreFilterError {
+                if let error = savedFilterError {
                     invalidPlayerFilterView(error.localizedDescription)
                 } else {
+                let general = appliedGeneralFilter ?? SongGeneralFilter()
                 let matching = payload.catalog.songs.filter { song in
                     SongSearch.matches(song, query: settledSearch)
                         && (instrument.map(song.supports) ?? true)
+                        && general.matchesMetadata(song)
                 }
                 let effectiveMode = effectiveSortMode
                 let membership = shopOffersForCurrentSongs.map { offers in
@@ -354,6 +401,7 @@ struct SongsScreen: View {
                 case let .success(visible):
                 if visible.isEmpty {
                     let filtersApplied = instrument != nil || effectiveShopFilter.isActive
+                        || general.restrictsMetadata
                         || effectivePlayerScoreFilter.isActive
                     VStack(spacing: 8) {
                         if hasDisclosure(for: payload) {
@@ -381,6 +429,7 @@ struct SongsScreen: View {
                                         ? "No songs match your filters."
                                         : "No songs are available yet.")
                                     : (effectiveShopFilter.isActive
+                                        || general.restrictsMetadata
                                         || effectivePlayerScoreFilter.isActive
                                         ? "Try a different search or filter."
                                         : "Try a different search.")
@@ -401,40 +450,42 @@ struct SongsScreen: View {
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
-        // Inline filter of this list (HIG "search as an inline field", like Music's
-        // Library); global search is in the toolbar. On iPhone it stays pinned under
-        // the bar while scrolled, beside the tools that rise into it (issue #13; HIG
-        // Search fields: "consider pinning it to the top toolbar while scrolling").
-        .searchable(
-            text: $searchText, placement: Self.filterFieldPlacement(actionsInDock: actionsInDock),
-            prompt: Text("Filter Songs")
-        )
-        // iPhone: Filter and Sort sit in the bottom dock beside Search, like the web's
-        // FAB dock (operator, 2026-09-28); toolbar items elsewhere (Duo rail, iPad, Mac).
+        // Search this list: in the iOS 26.1+ iPhone tab-bar accessory beside Filter and
+        // Sort (issue #42; HIG Search fields: "Place search at the bottom if there's
+        // room"), else the inline `.searchable` field (HIG "search as an inline field",
+        // like Music's Library). Global search stays a header button.
+        .modifier(SongsListSearch(
+            text: $searchText, presentation: toolsPresentation,
+            sidebarShell: deviceLayout.sectionChrome == .sidebar,
+            barPresented: $searchBarPresented
+        ))
+        // iPhone: search, Filter, Sort and Quick Links sit above the tab bar, like the
+        // web's Songs dock (issue #42); toolbar items elsewhere (Duo rail, iPad, Mac).
         .modifier(SongsPageTools(
             chrome: scrollChrome, session: session, quickLinks: quickLinks,
             filterDockToken: filterDockToken, sortDockToken: sortDockToken,
             canPresentFilter: canPresentFilter, actionsInDock: actionsInDock,
+            presentation: toolsPresentation,
             placement: Self.pageActionPlacement,
-            sortAction: sortAction, filterAction: filterAction
+            sortAction: sortAction, filterAction: filterAction,
+            searchQuery: searchText,
+            openSearch: { searchBarPresented = true },
+            clearSearch: { searchText = "" }
         ))
-        .sheet(isPresented: $sortPresented) {
-            SongsSortSheet(
-                mode: sortMode, ascending: sortAscending,
-                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
-                playerModes: playerSortModesOffered
-            ) { mode, order in
-                sortMode = mode
-                sortAscending = order
-            }
-        }
+        #if os(iOS)
+        .sheet(isPresented: $sortPresented) { sortSheet }
+        #else
+        // Mac: Sort is a popover from its toolbar button (HIG Popovers: "a little
+        // information or functionality"); View › Sort… opens it too.
+        .macPageCommands(macCommands)
+        #endif
         .sheet(isPresented: $filterPresented) {
-            if let appliedPlayerScoreFilter {
+            if let appliedPlayerScoreFilter, let appliedGeneralFilter {
                 SongsFilterSheet(
-                    applied: appliedShopFilter, showShop: !hideShop,
+                    appliedGeneral: appliedGeneralFilter, showShop: !hideShop,
                     shopAvailable: shopOffersForCurrentSongs != nil,
-                    profileAvailable: session.selectedPlayer != nil
-                        && session.playerLoadState == .available,
+                    availableDecades: SongGeneralFilter.decades(in: catalogueSongs),
+                    availableDurations: SongGeneralFilter.durationBuckets(in: catalogueSongs),
                     appliedPlayerFilter: appliedPlayerScoreFilter,
                     appliedInstrument: instrument,
                     visibleInstruments: visibleInstruments,
@@ -442,12 +493,13 @@ struct SongsScreen: View {
                     scoreAvailable: scoreFilterAvailable,
                     invalidScoreFilteringEnabled: filterInvalidScores,
                     availableSeasons: SongSeasonBucket.keys(in: session.selectedPlayerScores)
-                ) { shop, player, instrumentChoice in
-                    playerScoreFilterData = try player.encoded()
-                    filterInShop = shop.inShop
-                    filterLeavingTomorrow = shop.leavingTomorrow
+                ) { general, player, instrumentChoice in
+                    let playerData = try player.encoded()
+                    try saveGeneralFilter(general)
+                    playerScoreFilterData = playerData
                     instrument = instrumentChoice
                 }
+                .macSheetFrame()
             } else {
                 Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
@@ -538,18 +590,47 @@ struct SongsScreen: View {
         #endif
     }
 
-    /// Where the Filter Songs field sits.
+    /// Where the `.searchable` Filter Songs field sits (unused in the tab-bar accessory).
     ///
-    /// - Parameter actionsInDock: The page tools float above an iPhone tab bar at the top.
-    /// - Returns: On iPhone, the navigation-bar drawer kept visible while scrolling, so the
-    ///   field stays with the tools that rise into the bar (issue #13); the system
+    /// - Parameters:
+    ///   - presentation: Where the page tools sit above an iPhone tab bar.
+    ///   - sidebarShell: The iPad sections sidebar shell.
+    /// - Returns: With floating tools (iOS 17–26.0 iPhone), the navigation-bar drawer kept
+    ///   visible while scrolling, so the field stays with the tools that rise into the bar
+    ///   (issue #13). On iPad too: the system placement there collapses the field into a
+    ///   second magnifier beside global Search, two identical buttons with different scopes
+    ///   (HIG Searching: "Show current scope with descriptive placeholder"). The system
     ///   placement elsewhere.
-    static func filterFieldPlacement(actionsInDock: Bool) -> SearchFieldPlacement {
+    static func filterFieldPlacement(
+        presentation: PageToolsPresentation?, sidebarShell: Bool = false
+    ) -> SearchFieldPlacement {
         #if os(iOS)
-        actionsInDock ? .navigationBarDrawer(displayMode: .always) : .automatic
+        presentation == .floating || sidebarShell ? .navigationBarDrawer(displayMode: .always) : .automatic
         #else
         .automatic
         #endif
+    }
+
+    #if os(macOS)
+    /// Sort and Filter for View › Sort… / Filter… (Filter disabled when unavailable).
+    private var macCommands: MacPageCommands {
+        var commands = MacPageCommands()
+        commands.sort = { sortPresented = true }
+        if canPresentFilter { commands.filter = { filterPresented = true } }
+        return commands
+    }
+    #endif
+
+    /// Sort options (a sheet on iPhone/iPad, a popover on the Mac).
+    private var sortSheet: some View {
+        SongsSortSheet(
+            mode: sortMode, ascending: sortAscending,
+            showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
+            playerModes: playerSortModesOffered
+        ) { mode, order in
+            sortMode = mode
+            sortAscending = order
+        }
     }
 
     /// Open a native Sort sheet while retaining the current instrument selection.
@@ -559,6 +640,17 @@ struct SongsScreen: View {
         } label: {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
+        #if os(macOS)
+        .popover(isPresented: $sortPresented, arrowEdge: .bottom) {
+            // The popover is its own chrome: no modal stack, title bar or Close (which
+            // would otherwise join the window toolbar); it closes on an outside click.
+            sortSheet
+                .environment(\.festivalModalPreview, true)
+                .formStyle(.grouped)
+                .frame(width: 340, height: 470)
+        }
+        .help("Sort Songs")
+        #endif
         .accessibilityValue(
             "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
                 + (sortPausedMessage == nil ? "" : ", paused; showing Title order")
@@ -569,9 +661,12 @@ struct SongsScreen: View {
     }
 
     private var filterAccessibilityValue: String {
+        let general = appliedGeneralFilter ?? SongGeneralFilter()
         let labels = [
-            filterInShop ? "In Shop" : nil,
-            filterLeavingTomorrow ? "Leaving Tomorrow" : nil,
+            general.restrictsYear ? "Year filter" : nil,
+            general.restrictsDuration ? "Duration filter" : nil,
+            !hideShop && general.shop.isActive ? "Item Shop filter" : nil,
+            general.restrictsDoubleBass ? "Double Bass filter" : nil,
         ].compactMap { $0 }
         let scoreCount = appliedPlayerScoreFilter.map { filter in
             SongScoreFilterKind.allCases.reduce(0) { count, kind in
@@ -591,7 +686,7 @@ struct SongsScreen: View {
             .joined(separator: ", ")
         let status = selected.isEmpty ? "No filters" : selected
         if shopFilterPausedMessage != nil {
-            return status + (effectivePlayerScoreFilter.isActive
+            return status + (effectivePlayerScoreFilter.isActive || general.restrictsMetadata
                 ? ", Item Shop filters paused" : ", paused; showing all songs")
         }
         return status + (playerScoreFilterPausedMessage == nil
@@ -605,9 +700,12 @@ struct SongsScreen: View {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Filter Songs")
+        #if os(macOS)
+        .help("Filter Songs")
+        #endif
         .accessibilityValue(filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
-        .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true
+        .tint(generalFilterActive || appliedPlayerScoreFilter?.isActive == true
             ? BrandTokens.gold : BrandTokens.accentBlue)
     }
 
@@ -618,7 +716,7 @@ struct SongsScreen: View {
 
     /// Everything the dock's Filter button shows; a change re-registers it.
     private var filterDockToken: [String] {
-        [filterAccessibilityValue, String(appliedShopFilter.isActive),
+        [filterAccessibilityValue, String(generalFilterActive),
          String(appliedPlayerScoreFilter?.isActive == true)]
     }
 
@@ -843,7 +941,7 @@ struct SongsScreen: View {
     /// Block corrupt saved filters with an explicit reset, never show unfiltered success.
     ///
     /// - Parameter message: Validated local-preference decode failure.
-    /// - Returns: Accessible error and user-controlled reset of only score filters.
+    /// - Returns: Accessible error and user-controlled reset of only the corrupt filters.
     private func invalidPlayerFilterView(_ message: String) -> some View {
         ScrollView {
             VStack(spacing: 16) {
@@ -855,9 +953,12 @@ struct SongsScreen: View {
                     .font(.body)
                     .foregroundStyle(FestivalText.primary)
                 Button {
-                    playerScoreFilterData = Data()
+                    if case .failure = generalFilterResult {
+                        try? saveGeneralFilter(SongGeneralFilter())
+                    }
+                    if playerScoreFilterError != nil { playerScoreFilterData = Data() }
                 } label: {
-                    Text("Reset saved score filters")
+                    Text("Reset saved filters")
                         .font(.body)
                         .foregroundStyle(FestivalText.primary)
                         .frame(minHeight: 44)
@@ -983,6 +1084,10 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
+                // Mac: ↑/↓ walk every song in list order, built or not.
+                .macKeyboardRows((groups?.flatMap(\.songs) ?? visible).map {
+                    MacKeyRow(id: $0.id, action: .route(.songDetail($0)))
+                })
                 // Before the section bar overlay: applied after it, this identifier
                 // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
                 .accessibilityIdentifier("fst.songs.list")
@@ -1010,7 +1115,7 @@ struct SongsScreen: View {
                 ) { scrolled, style in
                     scrollChrome.setScrolled(scrolled)
                     let moved = PageToolsHandOff.toolsInBar(
-                        scrolled: scrolled, actionsInDock: actionsInDock
+                        scrolled: scrolled, presentation: toolsPresentation
                     )
                     guard moved != scrollChrome.toolsInBar else { return }
                     // The floating dock animates its half with the same timing.
@@ -1028,7 +1133,7 @@ struct SongsScreen: View {
                 .safeAreaInset(edge: .trailing, spacing: 0) {
                     Color.clear.frame(width: showsIndex ? scrubberExtraInset : 0)
                 }
-                .refreshable { await reload() }
+                .festivalRefreshable { await reload() }
                 .quickLinks(
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
                     sections: showsIndex ? [] : (groups ?? []).compactMap(\.quickLink)
@@ -1118,8 +1223,8 @@ struct SongsScreen: View {
     private struct ReloadKey: Equatable {
         let sortMode: SongSortMode
         let sortAscending: Bool
-        let filterInShop: Bool
-        let filterLeavingTomorrow: Bool
+        let generalFilter: Data
+        let legacyShopFilter: [Bool]
         let playerScoreFilter: Data
         let instrument: Instrument?
         let search: String
@@ -1127,8 +1232,9 @@ struct SongsScreen: View {
 
     private var reloadKey: ReloadKey {
         ReloadKey(
-            sortMode: sortMode, sortAscending: sortAscending, filterInShop: filterInShop,
-            filterLeavingTomorrow: filterLeavingTomorrow, playerScoreFilter: playerScoreFilterData,
+            sortMode: sortMode, sortAscending: sortAscending, generalFilter: generalFilterData,
+            legacyShopFilter: [legacyFilterInShop, legacyFilterLeavingTomorrow],
+            playerScoreFilter: playerScoreFilterData,
             instrument: instrument, search: settledSearch
         )
     }
@@ -1284,26 +1390,40 @@ struct SongsScreen: View {
         // accessible, combined VoiceOver stop with the standard Link action.
         // `ListDetailLink` is that link, or a button filling the detail column in an
         // iPhone Duo list/detail split.
-        return ZStack {
-            SongRowView(
-                song: song, instrument: instrument,
-                session: session, highContrast: highContrast,
-                shopHighlight: highlight,
-                inShop: !hideShop && !disableShopHighlighting
-                    && shopOffersForCurrentSongs?[song.songId] != nil,
-                profileChart: chart,
-                catalogueObservation: catalogueObservation,
-                metadata: metadataVisibility,
-                filterInvalidScores: filterInvalidScores,
-                showInstrumentIcons: showInstrumentIcons,
-                visibleInstruments: visibleInstruments,
-                currentSeason: currentSeason
-            )
+        let row = SongRowView(
+            song: song, instrument: instrument,
+            session: session, highContrast: highContrast,
+            shopHighlight: highlight,
+            inShop: !hideShop && !disableShopHighlighting
+                && shopOffersForCurrentSongs?[song.songId] != nil,
+            profileChart: chart,
+            catalogueObservation: catalogueObservation,
+            metadata: metadataVisibility,
+            filterInvalidScores: filterInvalidScores,
+            showInstrumentIcons: showInstrumentIcons,
+            visibleInstruments: visibleInstruments,
+            currentSeason: currentSeason
+        )
+        #if os(macOS)
+        // On the Mac the row is the link's label, so its row button style draws the
+        // hover tint and the keyboard focus ring on the card (an invisible link's
+        // focus ring would be invisible too).
+        let link = ListDetailLink(value: AppRoute.songDetail(song)) { row }
+        #else
+        let link = ZStack {
+            row
             ListDetailLink(value: AppRoute.songDetail(song)) { EmptyView() }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .opacity(0)
         }
+        #endif
+        return link
         .contentShape(Rectangle())
+        #if os(macOS)
+        .contextMenu {
+            MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
+        }
+        #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
         .festivalFadeIn(isLoaded: true, index: fadeIndex ?? Int.max)
@@ -1314,11 +1434,15 @@ struct SongsScreen: View {
         // .buttons[...]` queries. Restore it explicitly rather than relying on the
         // link's own traits surviving the combine.
         .accessibilityAddTraits(.isButton)
+        #if !os(macOS)
+        // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
+        #endif
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(songRowInsets)
         .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+        .macKeyboardRow(song.id)
     }
 
     /// Rows primed before the very first reveal, and how long priming may block it.
@@ -1617,9 +1741,48 @@ private struct RowMaskShape: Shape {
     }
 }
 
-/// Songs' Filter/Sort/Quick Links placement: the iPhone bottom dock, or the navigation
-/// bar (elsewhere, and on iPhone once scrolled), plus the root trailing items and, on
-/// iPhone, an empty inline title.
+/// Where Songs' list search lives: an accessory button plus ``SongsSearchBar`` above the
+/// keyboard (iOS 26.1+ iPhone, issue #42), or the `.searchable` Filter Songs field.
+///
+/// The presentation changes only with the device layout (an iPhone Duo pose), so the
+/// branch never flips while scrolling and never rebuilds the List.
+private struct SongsListSearch: ViewModifier {
+    @Binding var text: String
+    let presentation: PageToolsPresentation?
+    let sidebarShell: Bool
+    @Binding var barPresented: Bool
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+
+    func body(content: Content) -> some View {
+        if presentation == .accessory {
+            let style = PageToolsHandOff.style(
+                systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
+            )
+            content
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if barPresented {
+                        SongsSearchBar(text: $text) { barPresented = false }
+                            .transition(style == .motion
+                                ? .move(edge: .bottom).combined(with: .opacity) : .opacity)
+                    }
+                }
+                .animation(PageToolsHandOff.animation(style), value: barPresented)
+        } else {
+            content.searchable(
+                text: $text, placement: SongsScreen.filterFieldPlacement(
+                    presentation: presentation, sidebarShell: sidebarShell
+                ),
+                prompt: Text("Filter Songs")
+            )
+        }
+    }
+}
+
+/// Songs' search/Filter/Sort/Quick Links placement: the iOS 26.1+ iPhone tab-bar
+/// accessory (issue #42), the earlier iPhone floating dock (handed to the navigation bar
+/// once scrolled, issue #13), or the navigation bar (Duo rail, iPad, Mac), plus the root
+/// trailing items and, with the floating dock, an empty inline title.
 ///
 /// Observes ``SongsScrollChrome/toolsInBar`` itself, so moving the tools re-renders only
 /// this toolbar and dock, never the List (issue #8).
@@ -1631,13 +1794,26 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
     let sortDockToken: [String]
     let canPresentFilter: Bool
     let actionsInDock: Bool
+    let presentation: PageToolsPresentation?
     let placement: ToolbarItemPlacement
     let sortAction: SortAction
     let filterAction: FilterAction
+    /// The Songs search text shown by the accessory's field-shaped button.
+    let searchQuery: String
+    let openSearch: () -> Void
+    let clearSearch: () -> Void
 
     func body(content: Content) -> some View {
         let toolsInBar = chrome.toolsInBar
         content
+            .festivalTabAccessory(
+                token: searchQuery, order: DockOrder.search, kind: .field,
+                isEnabled: presentation == .accessory
+            ) {
+                SongsSearchAccessoryButton(
+                    query: searchQuery, open: openSearch, clear: clearSearch
+                )
+            }
             .festivalTabAccessory(
                 token: filterDockToken, order: DockOrder.filter,
                 accessibilityID: "fst.songs.filter",
@@ -1663,7 +1839,7 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
                 QuickLinksToolbarItem(quickLinks)
                 FestivalRootTrailingItems(session: session)
                 #if os(iOS)
-                if actionsInDock {
+                if presentation == .floating {
                     // With Filter/Sort/Quick Links in the bar the inline title had no room
                     // and read "…"; the section bar names the place instead (Back still
                     // says "Songs"). A permanent empty title view, never a toggled

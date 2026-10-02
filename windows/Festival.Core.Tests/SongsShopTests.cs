@@ -294,6 +294,85 @@ public class ShopViewModelTests
     }
 
     [Fact]
+    public async Task Filter_SelectsDisjointGroupsLiveAndResetRestoresEveryOffer()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service, () => SongsWire.Shop(
+            SongsWire.Offer("a", "Alpha", isNew: true), SongsWire.Offer("b", "Bravo"),
+            SongsWire.Offer("c", "Charlie", leaving: true), SongsWire.Offer("d", "Delta")));
+        var session = service.Session();
+        var vm = new ShopViewModel(session);
+        await vm.LoadAsync();
+        string[] Ids() => [.. vm.Offers.Select(o => o.Offer.SongId)];
+        Assert.Equal(["a", "b", "c", "d"], Ids());
+        Assert.False(vm.IsFilterActive);
+        Assert.Equal(["fst.shop.filter.new", "fst.shop.filter.available", "fst.shop.filter.leaving"], vm.FilterRows.Select(r => r.AutomationId));
+        Assert.Equal(["New", "Available", "Leaving Tomorrow"], vm.FilterRows.Select(r => r.Label));
+
+        vm.FilterRows[0].IsOn = true;
+        Assert.Equal(["a"], Ids());
+        Assert.True(vm.IsFilterActive);
+        Assert.Equal("1 of 4 songs", vm.CountText);
+        vm.FilterRows[0].IsOn = false;
+        vm.FilterRows[1].IsOn = true;
+        Assert.Equal(["b", "d"], Ids());
+        vm.FilterRows[1].IsOn = false;
+        vm.FilterRows[2].IsOn = true;
+        Assert.Equal(["c"], Ids());
+        vm.FilterRows[0].IsOn = true;
+        Assert.Equal(["a", "c"], Ids());
+
+        // Wire flags, not badges: filtering still works while Shop highlighting is off.
+        session.UpdateSettings(s => s with { DisableShopHighlighting = true });
+        Assert.Equal(["a", "c"], Ids());
+        Assert.True(vm.FilterRows[0].IsOn);
+
+        vm.ResetFilterCommand.Execute(null);
+        Assert.Equal(["a", "b", "c", "d"], Ids());
+        Assert.False(vm.IsFilterActive);
+        Assert.All(vm.FilterRows, r => Assert.False(r.IsOn));
+        Assert.Equal("4 songs", vm.CountText);
+    }
+
+    [Fact]
+    public async Task Filter_HidingEveryOfferIsNotTheEmptyShop()
+    {
+        var service = new FakeService();
+        var body = SongsWire.Shop(SongsWire.Offer("b", "Bravo"));
+        SongsWire.Install(service, () => body);
+        var vm = new ShopViewModel(service.Session());
+        await vm.LoadAsync();
+        vm.FilterRows[2].IsOn = true;
+        Assert.Empty(vm.Offers);
+        Assert.True(vm.ShowNoMatches);
+        Assert.False(vm.ShowEmpty);
+        Assert.True(vm.ShowOffers);
+        Assert.Equal("0 of 1 song", vm.CountText);
+
+        body = SongsWire.Shop();
+        await vm.LoadAsync(force: true);
+        Assert.True(vm.ShowEmpty);
+        Assert.False(vm.ShowNoMatches);
+        // The filter survives a feed change, so the reopened flyout shows it.
+        Assert.True(vm.FilterRows[2].IsOn);
+    }
+
+    [Fact]
+    public void ShopOfferFilter_MatchesAnySelectedGroup()
+    {
+        ShopSong Offer(bool isNew, bool leaving) => new() { SongId = "x", IsNew = isNew, LeavingTomorrow = leaving };
+        var fresh = Offer(true, false);
+        var plain = Offer(false, false);
+        var leaving = Offer(false, true);
+        var both = Offer(true, true);
+        Assert.All([fresh, plain, leaving, both], o => Assert.True(new ShopOfferFilter().Matches(o)));
+        Assert.Equal([true, false, false, true], new[] { fresh, plain, leaving, both }.Select(new ShopOfferFilter(New: true).Matches));
+        Assert.Equal([false, true, false, false], new[] { fresh, plain, leaving, both }.Select(new ShopOfferFilter(Available: true).Matches));
+        Assert.Equal([false, false, true, true], new[] { fresh, plain, leaving, both }.Select(new ShopOfferFilter(LeavingTomorrow: true).Matches));
+        Assert.False(new ShopOfferFilter().IsActive);
+    }
+
+    [Fact]
     public async Task PublicationAdvance_Reloads()
     {
         var service = new FakeService();

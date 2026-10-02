@@ -35,6 +35,15 @@ import UIKit
 ///   hierarchy — the fastest way for an agent to discover identifiers) to
 ///   an absolute host path.
 /// - `rotate:<portrait|portraitUpsideDown|landscapeLeft|landscapeRight|faceUp|faceDown>`.
+/// - `home[:<icon label>]` — press Home; with a label, page the Home Screen until an
+///   icon with that label is on screen (Home Screen captures of the just-installed app).
+/// - `resize:<fraction>` — iPad windowed multitasking: drag the app window's resize
+///   corner so it spans that fraction of the screen width (e.g. `0.5`, `0.33`).
+/// - `systemTree:<path>` — like `tree`, for SpringBoard (window controls, multitasking).
+/// - `systemTap:<identifier-prefix-or-label>` — tap a SpringBoard element (e.g.
+///   `window-controls`, then a window-controls menu item by label).
+/// - `fill` — iPad windowed multitasking: make the window fill the screen again
+///   (always end a script that resized with it: iPadOS remembers window sizes).
 enum DriverStep {
     case tap(String)
     case tapText(String)
@@ -49,6 +58,11 @@ enum DriverStep {
     case shot(String)
     case tree(String)
     case rotate(UIDeviceOrientation)
+    case home(String?)
+    case resize(Double)
+    case fill
+    case systemTree(String)
+    case systemTap(String)
 
     /// A cardinal swipe direction.
     enum Direction: String {
@@ -120,9 +134,22 @@ enum DriverStep {
         case "tree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tree(arg)
+        case "fill":
+            return .fill
+        case "systemTap":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .systemTap(arg)
+        case "systemTree":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .systemTree(arg)
+        case "resize":
+            guard let fraction = Double(arg), (0.2...1).contains(fraction) else { throw ParseError.malformed(raw) }
+            return .resize(fraction)
         case "rotate":
             guard let orientation = orientation(named: arg) else { throw ParseError.malformed(raw) }
             return .rotate(orientation)
+        case "home":
+            return .home(arg.isEmpty ? nil : arg)
         default:
             throw ParseError.unknownVerb(verb)
         }
@@ -155,10 +182,13 @@ enum DriverStep {
 /// docstring), never directly with plain `xcodebuild test` — the driver
 /// script builds this target once with `build-for-testing`, then repeatedly
 /// re-runs `testDrive` with `test-without-building` under the shared
-/// simulator lock.
+/// simulator lock. `FST_DRIVER_CONTENT_SIZE` (a `UIContentSizeCategory` raw
+/// value) launches the app at that Dynamic Type size.
 final class DriverTests: XCTestCase {
     /// Environment keys the driver itself consumes rather than forwarding to the app.
-    private static let controlKeys: Set<String> = ["FST_DRIVER_STEPS", "FST_DRIVER_STEPS_FILE"]
+    private static let controlKeys: Set<String> = [
+        "FST_DRIVER_STEPS", "FST_DRIVER_STEPS_FILE", "FST_DRIVER_CONTENT_SIZE",
+    ]
 
     /// A step script was neither inline nor found at the given file path.
     enum DriverError: Error, CustomStringConvertible {
@@ -199,7 +229,13 @@ final class DriverTests: XCTestCase {
         if launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] == nil {
             launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "0"
         }
-        let app = FestivalApp.launch(launchEnvironment)
+        let app = FestivalApp.makeApp(launchEnvironment)
+        // `--env FST_DRIVER_CONTENT_SIZE=UICTContentSizeCategoryAccessibilityXL` launches at that
+        // Dynamic Type size (a `UIContentSizeCategory` raw value) without touching device settings.
+        if let contentSize = environment["FST_DRIVER_CONTENT_SIZE"], !contentSize.isEmpty {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
+        }
+        app.launch()
 
         for (offset, raw) in steps.enumerated() {
             let index = offset + 1
@@ -329,9 +365,61 @@ final class DriverTests: XCTestCase {
             try writeScreenshot(to: path)
         case let .tree(path):
             try app.debugDescription.write(toFile: path, atomically: true, encoding: .utf8)
+        case let .systemTap(identifier):
+            let target = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+                .descendants(matching: .any).matching(
+                    NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
+                ).firstMatch
+            guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
+            target.tap()
+        case let .systemTree(path):
+            try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
+                .write(toFile: path, atomically: true, encoding: .utf8)
         case let .rotate(orientation):
             XCUIDevice.shared.orientation = orientation
+        case let .home(label):
+            XCUIDevice.shared.press(.home)
+            if let label { _ = try visibleHomeScreenIcon(label) }
+        case let .resize(fraction):
+            WindowResize.resize(app, toScreenFraction: CGFloat(fraction))
+        case .fill:
+            WindowResize.fill(app)
         }
+    }
+
+    /// Page the Home Screen until an icon with this label is on screen.
+    ///
+    /// A newly installed app or web clip lands on the first page with room, often not the
+    /// first page. iPhone Duo's SpringBoard reports visible icons as not hittable, so an
+    /// icon counts as visible when its frame's centre lies inside the SpringBoard window.
+    ///
+    /// - Parameter label: The icon's Home Screen label (its `CFBundleDisplayName`).
+    /// - Returns: The first on-screen icon with that label.
+    /// - Throws: ``DriverError/elementNotFound(_:)`` when no such icon exists or none is
+    ///   on screen within three page swipes.
+    @MainActor
+    static func visibleHomeScreenIcon(_ label: String) throws -> XCUIElement {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let icons = springboard.icons.matching(identifier: label)
+        guard icons.firstMatch.waitForExistence(timeout: 10) else {
+            throw DriverError.elementNotFound(label)
+        }
+        let screen = springboard.windows.firstMatch.frame
+        func visibleIcon() -> XCUIElement? {
+            icons.allElementsBoundByIndex.first { icon in
+                let frame = icon.frame
+                return !frame.isEmpty && screen.contains(CGPoint(x: frame.midX, y: frame.midY))
+            }
+        }
+        let settle = Date().addingTimeInterval(3)
+        while visibleIcon() == nil && Date() < settle { Thread.sleep(forTimeInterval: 0.25) }
+        var pages = 0
+        while visibleIcon() == nil && pages < 3 {
+            springboard.swipeLeft()
+            pages += 1
+        }
+        guard let icon = visibleIcon() else { throw DriverError.elementNotFound(label) }
+        return icon
     }
 
     /// Resolve `tap:`'s target: try an accessibility-identifier match first,

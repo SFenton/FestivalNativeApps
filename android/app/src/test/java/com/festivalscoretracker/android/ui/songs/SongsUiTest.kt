@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -124,6 +126,55 @@ class SongsUiTest {
         click("fst.songs.filter.open")
         settle()
         // Changes apply live: Reset restores every row immediately, Done just closes.
+        click("fst.songs.filter.reset")
+        waitForTag("fst.songs.row.s-beta")
+        click("fst.songs.filter.done")
+        settle()
+    }
+
+    @Test
+    fun anonymousFilterOffersOnlyGeneralFilters() {
+        val transport = transport().apply {
+            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) {
+                Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null")
+                    .replace("\"sig\":\"Guitar\"", "\"sig\":\"Guitar\",\"doubleBassSupported\":true")
+                    .replace("\"sig\":\"Keyboard\"", "\"sig\":\"Keyboard\",\"doubleBassSupported\":false")
+            }
+        }
+        launch(DebugLaunch(stillBackground = true), transport = transport)
+        waitForTag("fst.songs.row.s-gamma")
+        click("fst.songs.filter.open")
+        waitForTag("fst.songs.filter.general")
+        // No profile: only General (web 6415d3e3); score and Selected Instrument filters are hidden.
+        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.score-sections").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.instrument", useUnmergedTree = true).fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.songs.filter.shop").assertExists()
+        // Double Bass Support only: the unsupported song and the unknown one (null) drop.
+        click("fst.songs.filter.double-bass")
+        settle()
+        click("fst.songs.filter.double-bass.unsupported")
+        rule.waitUntil(5_000) {
+            settle(100)
+            rule.onAllNodesWithTag("fst.songs.row.s-beta").fetchSemanticsNodes().isEmpty() &&
+                rule.onAllNodesWithTag("fst.songs.row.s-gamma").fetchSemanticsNodes().isEmpty()
+        }
+        waitForTag("fst.songs.row.s-alpha")
+        // Year: catalogue decades with web labels; hiding the 2020s leaves nothing.
+        rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.year"))
+        click("fst.songs.filter.year")
+        settle()
+        rule.onNodeWithText("2010s").assertExists()
+        click("fst.songs.filter.year.2020")
+        waitForTag("fst.songs.empty")
+        click("fst.songs.filter.year.select-all")
+        waitForTag("fst.songs.row.s-alpha")
+        // Duration buckets: 0-9 minutes (no song reaches 10).
+        click("fst.songs.filter.duration")
+        settle()
+        rule.onNodeWithText("Under 1 Minute").assertExists()
+        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.duration.10").fetchSemanticsNodes().size)
+        click("fst.songs.filter.duration.clear-all")
+        waitForTag("fst.songs.empty")
         click("fst.songs.filter.reset")
         waitForTag("fst.songs.row.s-beta")
         click("fst.songs.filter.done")
@@ -253,6 +304,48 @@ class SongsUiTest {
         val failing = transport().apply { on("/api/shop", status = 500) { "{}" } }
         launch(DebugLaunch(route = ShopRoute, stillBackground = true), transport = failing)
         waitForTag("fst.shop.error")
+    }
+
+    @Test
+    fun shopFilterSheetFiltersListAndKeepsStateWhenReopened() {
+        launch(DebugLaunch(route = ShopRoute, stillBackground = true))
+        waitForTag("fst.shop.song.s-alpha")
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.new")
+        click("fst.shop.filter.new")
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.shop.song.s-alpha").fetchSemanticsNodes().isEmpty() }
+        assertTrue(rule.onAllNodesWithTag("fst.shop.song.s-x").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.shop.song.s-beta").assertExists()
+        click("fst.shop.filter.done")
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.shop.filter.new").fetchSemanticsNodes().isEmpty() }
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.new")
+        rule.onNodeWithTag("fst.shop.filter.new").assertIsOn()
+        rule.onNodeWithTag("fst.shop.filter.available").assertIsOff()
+        click("fst.shop.filter.available")
+        waitForTag("fst.shop.song.s-x")
+        click("fst.shop.filter.reset")
+        waitForTag("fst.shop.song.s-alpha")
+        rule.onNodeWithTag("fst.shop.filter.new").assertIsOff()
+    }
+
+    @Test
+    fun shopFilterWithNoMatchesOffersReset() {
+        val plain = transport().apply {
+            on("/api/shop", headers = mapOf("X-FST-Publication-Id" to "7")) {
+                """{"count":1,"songs":[{"songId":"s-alpha","title":"Alpha Tune","artist":"Band One","shopUrl":"https://www.fortnite.com/item-shop/jam-tracks/alpha"}]}"""
+            }
+        }
+        launch(DebugLaunch(route = ShopRoute, stillBackground = true), transport = plain)
+        waitForTag("fst.shop.song.s-alpha")
+        click("fst.shop.filter.open")
+        waitForTag("fst.shop.filter.leaving")
+        click("fst.shop.filter.leaving")
+        click("fst.shop.filter.done")
+        waitForTag("fst.shop.filter.empty")
+        assertTrue(rule.onAllNodesWithTag("fst.shop.empty").fetchSemanticsNodes().isEmpty())
+        click("fst.shop.filter.empty-reset")
+        waitForTag("fst.shop.song.s-alpha")
     }
 
     @Test

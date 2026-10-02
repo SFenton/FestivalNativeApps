@@ -32,10 +32,8 @@ extension EnvironmentValues {
 enum SongsPresetStore {
     static let sortModeKey = "fst.songs.sortMode"
     static let sortAscendingKey = "fst.songs.sortAscending"
-    static let filterInShopKey = "fst.songs.filterInShop"
-    static let filterLeavingTomorrowKey = "fst.songs.filterLeavingTomorrow"
 
-    /// Read the saved Songs state; a corrupt saved player filter reads as empty.
+    /// Read the saved Songs state; a corrupt saved player or General filter reads as empty.
     ///
     /// - Parameters:
     ///   - defaults: Store the Songs tab's `@AppStorage` uses.
@@ -47,8 +45,11 @@ enum SongsPresetStore {
             instrument: instrument,
             sortMode: defaults.string(forKey: sortModeKey).flatMap(SongSortMode.init(rawValue:)) ?? .title,
             sortAscending: defaults.object(forKey: sortAscendingKey) as? Bool ?? true,
-            filterInShop: defaults.bool(forKey: filterInShopKey),
-            filterLeavingTomorrow: defaults.bool(forKey: filterLeavingTomorrowKey),
+            generalFilter: (try? SongGeneralFilter.decodeSaved(
+                defaults.data(forKey: SongGeneralFilter.storageKey) ?? Data(),
+                legacyInShop: defaults.bool(forKey: SongGeneralFilter.legacyInShopKey),
+                legacyLeavingTomorrow: defaults.bool(forKey: SongGeneralFilter.legacyLeavingTomorrowKey)
+            )) ?? SongGeneralFilter(),
             playerFilter: (try? SongPlayerScoreFilter.decodeSaved(filterData)) ?? SongPlayerScoreFilter()
         )
     }
@@ -61,8 +62,9 @@ enum SongsPresetStore {
     static func save(_ state: SongsSavedState, to defaults: UserDefaults) {
         defaults.set(state.sortMode.rawValue, forKey: sortModeKey)
         defaults.set(state.sortAscending, forKey: sortAscendingKey)
-        defaults.set(state.filterInShop, forKey: filterInShopKey)
-        defaults.set(state.filterLeavingTomorrow, forKey: filterLeavingTomorrowKey)
+        defaults.set((try? state.generalFilter.encoded()) ?? Data(), forKey: SongGeneralFilter.storageKey)
+        defaults.removeObject(forKey: SongGeneralFilter.legacyInShopKey)
+        defaults.removeObject(forKey: SongGeneralFilter.legacyLeavingTomorrowKey)
         defaults.set((try? state.playerFilter.encoded()) ?? Data(), forKey: SongPlayerScoreFilter.storageKey)
     }
 

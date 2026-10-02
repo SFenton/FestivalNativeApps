@@ -16,9 +16,8 @@ namespace Festival.App.Controls;
 #region First-run demo
 /// <summary>
 /// Live mini-demo for a first-run slide (<see cref="FirstRunDemos"/>): sample rows, chips, bars or tiles built from the
-/// app's own brushes, advancing one step every <see cref="FirstRunDemos.Cycle"/> (a row fades out and back with new
-/// content, a highlight moves, an order flips). Only the carousel's visible slide runs (<see cref="Active"/>); it holds
-/// still when motion is off or the window is hidden, and stops when unloaded. Decorative for UI Automation: the slide's
+/// app's own brushes, advancing rotating web demos every <see cref="FirstRunDemoTiming.Interval"/>. Motion effects off
+/// keeps data rotation but swaps instantly; hidden or inactive windows pause. Decorative for UI Automation: the slide's
 /// title and description carry the meaning.
 /// </summary>
 public sealed partial class FirstRunDemo : UserControl
@@ -37,8 +36,21 @@ public sealed partial class FirstRunDemo : UserControl
     private DispatcherQueueTimer? timer;
     private CancellationTokenSource? artLoads;
     private Action<int>? advance;
+    private readonly List<ActiveSwap> activeSwaps = [];
+    private readonly List<ShopPulseRing> pulseRings = [];
+    private readonly List<ShopPulseFill> pulseFills = [];
+    private TimeSpan activeInterval = FirstRunDemoTiming.Interval;
     private int step;
     private bool active;
+
+    /// <summary>One in-flight data swap that must complete if the slide deactivates mid-fade.</summary>
+    private sealed class ActiveSwap
+    {
+        public FrameworkElement Element { get; init; } = null!;
+        public Action? Change { get; init; }
+        public bool Changed { get; set; }
+        public List<DispatcherQueueTimer> Timers { get; } = [];
+    }
 
     /// <summary>Creates the demo.</summary>
     public FirstRunDemo()
@@ -57,8 +69,235 @@ public sealed partial class FirstRunDemo : UserControl
             Motion.Changed -= OnMotionChanged;
             App.Session.PropertyChanged -= OnSessionChanged;
             timer?.Stop();
+            CompleteSwaps();
             artLoads?.Cancel();
         };
+    }
+
+    /// <summary>Statistics Top Songs: four catalogue rows with rotating percentile pills.</summary>
+    private void BuildTopSongs()
+    {
+        const int count = 4;
+        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(songs, count);
+        for (var i = 0; i < count; i++)
+        {
+            var row = SongRow(out var setter);
+            var trailing = (StackPanel)((Grid)row.Child).Children[2];
+            var slot = i;
+            Action<int> set = poolIndex =>
+            {
+                setter(poolIndex);
+                trailing.Children.Clear();
+                trailing.Children.Add(Pill($"Top {FirstRunDemos.TopSongPercentiles[(poolIndex + slot) % FirstRunDemos.TopSongPercentiles.Count]:0.#}%"));
+            };
+            set(i);
+            AddSlot(row, set);
+        }
+        advance = _ =>
+        {
+            var indices = rotation.NextSwap();
+            if (indices.Count == 0) return;
+            rotation.Replace(indices);
+            foreach (var rowIndex in indices) FadeSwap(rowIndex, SongPoolIndex(rotation.Rows[rowIndex]));
+        };
+    }
+
+    /// <summary>Song Info bar-select demo with a 2.5-second selection clock.</summary>
+    private void BuildBarSelect()
+    {
+        activeInterval = FirstRunDemoTiming.BarSelect;
+        var grid = new Grid { Height = 120, ColumnSpacing = 10 };
+        var bars = new List<Border>();
+        for (var i = 0; i < FirstRunDemos.BarSelectBars.Count; i++)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var sample = FirstRunDemos.BarSelectBars[i];
+            var bar = new Border { CornerRadius = new CornerRadius(8), VerticalAlignment = VerticalAlignment.Bottom, Height = Math.Max(24, sample.Accuracy), Background = new SolidColorBrush(sample.FullCombo ? Color.FromArgb(0xFF, 0xFF, 0xD7, 0x00) : Color.FromArgb(0xFF, 0x7C, 0x3A, 0xED)) };
+            Grid.SetColumn(bar, i);
+            grid.Children.Add(bar);
+            bars.Add(bar);
+        }
+        root.Children.Add(grid);
+        var detail = TextRow(out var setDetail);
+        root.Children.Add(detail);
+        var selected = 0;
+        void Select(int index)
+        {
+            selected = index % FirstRunDemos.BarSelectBars.Count;
+            for (var i = 0; i < bars.Count; i++)
+            {
+                bars[i].BorderThickness = i == selected ? new Thickness(2) : new Thickness(0);
+                bars[i].BorderBrush = new SolidColorBrush(i == selected ? Color.FromArgb(0xFF, 0xA7, 0x78, 0xFF) : Colors.Transparent);
+            }
+            var sample = FirstRunDemos.BarSelectBars[selected];
+            setDetail(new FirstRunDemoRow(sample.FullCombo ? "100% FC" : $"{sample.Accuracy}% accuracy", sample.When, sample.Score.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)));
+        }
+        Select(0);
+        slots.Add(detail);
+        advance = _ => Fade(detail, () => Select(selected + 1), FirstRunDemoTiming.BarSelectFade);
+    }
+
+    /// <summary>Suggestions category card cycling the web templates.</summary>
+    private void BuildSuggestionCard()
+    {
+        var card = new StackPanel { Spacing = 6 };
+        var title = Text("", 15, true);
+        var desc = Text("", 12, false);
+        card.Children.Add(title);
+        card.Children.Add(desc);
+        var rows = new StackPanel { Spacing = 4 };
+        card.Children.Add(rows);
+        var host = RowCard(card);
+        void Apply(int templateIndex)
+        {
+            var template = FirstRunDemos.SuggestionTemplates[templateIndex % FirstRunDemos.SuggestionTemplates.Count];
+            title.Text = template.Title;
+            desc.Text = template.Description;
+            rows.Children.Clear();
+            var instruments = new[] { "Lead", "Bass", "Drums", "Vocals" };
+            for (var i = 0; i < Math.Min(5, songs.Count); i++)
+            {
+                var song = songs[(templateIndex * 5 + i) % songs.Count];
+                var value = template.Key switch
+                {
+                    "unfc_guitar" => $"{100 - (2 * i)}%",
+                    "pct_push_bass" => $"Top {3 + i}%",
+                    "near_fc_any" => instruments[i % instruments.Length],
+                    _ => template.Instrument,
+                };
+                rows.Children.Add(new TextBlock { Text = $"{song.Row.Title} · {value}", FontSize = 12, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
+            }
+        }
+        Apply(0);
+        root.Children.Add(host);
+        slots.Add(host);
+        advance = s => Fade(host, () => Apply((s + 1) % FirstRunDemos.SuggestionTemplates.Count), FirstRunDemoTiming.FadeOut, 8);
+    }
+
+    /// <summary>Experimental metric radio list: selection advances with no fade.</summary>
+    private void BuildExperimentalMetrics()
+    {
+        var setters = new List<Action<FirstRunDemoRow>>();
+        for (var i = 0; i < FirstRunDemos.ExperimentalMetrics.Count; i++)
+        {
+            var row = TextRow(out var setter);
+            root.Children.Add(row);
+            setters.Add(setter);
+        }
+        void Select(int selected)
+        {
+            for (var i = 0; i < setters.Count; i++)
+            {
+                var metric = FirstRunDemos.ExperimentalMetrics[i];
+                setters[i](new FirstRunDemoRow(i == selected ? $"● {metric.Title}" : $"○ {metric.Title}", metric.Description));
+            }
+        }
+        Select(0);
+        advance = s => Select((s + 1) % FirstRunDemos.ExperimentalMetrics.Count);
+    }
+
+    /// <summary>Compete hub alternates leaderboard and rival summary layouts.</summary>
+    private void BuildCompeteHub()
+    {
+        var host = new StackPanel { Spacing = 5 };
+        var border = RowCard(host);
+        void Apply(int mode)
+        {
+            host.Children.Clear();
+            if (mode % 2 == 0)
+            {
+                foreach (var ranking in FirstRunDemos.Rankings.Take(3))
+                    host.Children.Add(Text($"#{ranking.Rank} {ranking.DisplayName} · {ranking.RatingLabel}", 13, true));
+                host.Children.Add(Text($"#{FirstRunDemos.PlayerRanking.Rank} {FirstRunDemos.PlayerRanking.DisplayName} · {FirstRunDemos.PlayerRanking.RatingLabel}", 13, true));
+            }
+            else
+            {
+                foreach (var rival in FirstRunDemos.RivalsAbove.Take(2).Concat(FirstRunDemos.RivalsBelow.Take(2)))
+                    host.Children.Add(Text($"{rival.DisplayName} · {Math.Abs(rival.AvgSignedDelta)} pts", 13, true));
+            }
+        }
+        Apply(0);
+        root.Children.Add(border);
+        slots.Add(border);
+        advance = s => Fade(border, () => Apply(s + 1), FirstRunDemoTiming.FadeOut, -6);
+    }
+
+    /// <summary>Rivals groups page through above and below windows.</summary>
+    private void BuildRivalWindows()
+    {
+        var aboveRotation = new FirstRunWindowRotation<FirstRunDemoRival>(FirstRunDemos.RivalsAbove, 3);
+        var belowRotation = new FirstRunWindowRotation<FirstRunDemoRival>(FirstRunDemos.RivalsBelow, 3);
+        var above = RivalGroup("Above", aboveRotation.Rows);
+        var below = RivalGroup("Below", belowRotation.Rows);
+        root.Children.Add(above.Group);
+        root.Children.Add(below.Group);
+        slots.Add(above.Group);
+        slots.Add(below.Group);
+        slotSetters.Add(_ => above.Set(aboveRotation.Rows));
+        slotSetters.Add(_ => below.Set(belowRotation.Rows));
+        advance = s =>
+        {
+            if (s % 2 == 0)
+            {
+                aboveRotation.Advance();
+                Fade(above.Group, () => above.Set(aboveRotation.Rows), FirstRunDemoTiming.FadeOut, 4);
+            }
+            else
+            {
+                belowRotation.Advance();
+                Fade(below.Group, () => below.Set(belowRotation.Rows), FirstRunDemoTiming.FadeOut, 4);
+            }
+        };
+    }
+
+    /// <summary>Rivals instruments swaps two instrument-side slots per tick.</summary>
+    private void BuildInstrumentRivals()
+    {
+        var pool = FirstRunDemos.InstrumentRivals.SelectMany(pair => new[]
+        {
+            new FirstRunDemoRival($"{pair.Key}-above", $"{pair.Key} ↑ {pair.Value.Above[0].DisplayName}", pair.Value.Above[0].RivalScore, pair.Value.Above[0].SharedSongCount, pair.Value.Above[0].AheadCount, pair.Value.Above[0].BehindCount, pair.Value.Above[0].AvgSignedDelta),
+            new FirstRunDemoRival($"{pair.Key}-below", $"{pair.Key} ↓ {pair.Value.Below[0].DisplayName}", pair.Value.Below[0].RivalScore, pair.Value.Below[0].SharedSongCount, pair.Value.Below[0].AheadCount, pair.Value.Below[0].BehindCount, pair.Value.Below[0].AvgSignedDelta),
+        }).ToList();
+        var rotation = new FirstRunRowRotation<FirstRunDemoRival>(pool.Concat(FirstRunDemos.InstrumentRivals.SelectMany(p => p.Value.Above.Skip(1).Concat(p.Value.Below.Skip(1)))).ToList(), 6);
+        for (var i = 0; i < rotation.Rows.Count; i++)
+        {
+            var row = TextRow(out var setter);
+            var slot = i;
+            Action<int> set = _ => setter(RivalRow(rotation.Rows[slot]));
+            set(0);
+            AddSlot(row, set);
+        }
+        advance = _ =>
+        {
+            var indices = rotation.NextSwap();
+            if (indices.Count == 0) return;
+            rotation.Replace(indices);
+            foreach (var index in indices) FadeSwap(index, 0);
+        };
+    }
+
+    /// <summary>Rival detail cycles through category rank-data groups.</summary>
+    private void BuildRivalDetail()
+    {
+        var host = new StackPanel { Spacing = 5 };
+        var border = RowCard(host);
+        var categories = FirstRunDemos.RivalDetailCategories.ToList();
+        void Apply(int index)
+        {
+            var category = categories[index % categories.Count];
+            host.Children.Clear();
+            host.Children.Add(Text($"{category.Key} · KeyDrifter", 14, true));
+            for (var i = 0; i < category.Value.Count; i++)
+            {
+                var data = category.Value[i];
+                var song = songs[(index + i) % songs.Count];
+                host.Children.Add(Text($"{song.Row.Title}: #{data.UserRank} vs #{data.RivalRank}", 12, false));
+            }
+        }
+        Apply(0);
+        root.Children.Add(border);
+        slots.Add(border);
+        advance = s => Fade(border, () => Apply(s + 1));
     }
 
     /// <summary>Slide ID.</summary>
@@ -120,13 +359,21 @@ public sealed partial class FirstRunDemo : UserControl
         root.Children.Clear();
         slots.Clear();
         slotSetters.Clear();
+        pulseRings.Clear();
+        pulseFills.Clear();
         advance = null;
+        activeInterval = FirstRunDemoTiming.Interval;
         step = 0;
         kind = FirstRunDemos.KindFor(SlideId);
         if (kind is not { } k) return;
         songs = SongPoolFor(k);
         artLoads?.Cancel();
         artLoads = new CancellationTokenSource();
+        if (FirstRunDemos.RotationKindFor(SlideId) is { } rotating)
+        {
+            BuildRotating(rotating);
+            return;
+        }
         switch (k)
         {
             case FirstRunDemoKind.SongRows:
@@ -166,13 +413,60 @@ public sealed partial class FirstRunDemo : UserControl
                 BuildShopTiles();
                 break;
         }
+        advance = null;
     }
 
-    /// <summary>Song rows; swaps one row per step. Chips, metadata pills or a Shop pulse decorate them by kind.</summary>
-    /// <param name="k">Kind.</param>
-    private void BuildSongRows(FirstRunDemoKind k)
+    /// <summary>Builds one of the twelve web-rotating demos.</summary>
+    /// <param name="rotating">Rotating demo kind.</param>
+    private void BuildRotating(FirstRunDemoRotationKind rotating)
     {
-        for (var i = 0; i < FirstRunDemos.RowCount; i++)
+        switch (rotating)
+        {
+            case FirstRunDemoRotationKind.SongsSongList:
+                BuildSongRows(FirstRunDemoKind.SongRows, rotate: true);
+                break;
+            case FirstRunDemoRotationKind.SongsIcons:
+                BuildSongRows(FirstRunDemoKind.Chips, rotate: true);
+                break;
+            case FirstRunDemoRotationKind.SongsMetadata:
+                BuildSongRows(FirstRunDemoKind.Metadata, rotate: true);
+                break;
+            case FirstRunDemoRotationKind.StatisticsTopSongs:
+                BuildTopSongs();
+                break;
+            case FirstRunDemoRotationKind.SongInfoBarSelect:
+                BuildBarSelect();
+                break;
+            case FirstRunDemoRotationKind.SuggestionsCategoryCard:
+                BuildSuggestionCard();
+                break;
+            case FirstRunDemoRotationKind.LeaderboardsExperimentalMetrics:
+                BuildExperimentalMetrics();
+                break;
+            case FirstRunDemoRotationKind.CompeteHub:
+                BuildCompeteHub();
+                break;
+            case FirstRunDemoRotationKind.CompeteRivals:
+            case FirstRunDemoRotationKind.RivalsOverview:
+                BuildRivalWindows();
+                break;
+            case FirstRunDemoRotationKind.RivalsInstruments:
+                BuildInstrumentRivals();
+                break;
+            default:
+                BuildRivalDetail();
+                break;
+        }
+    }
+
+    /// <summary>Song rows; rotating variants use web swap selection. Chips, metadata pills or a Shop pulse decorate them by kind.</summary>
+    /// <param name="k">Kind.</param>
+    /// <param name="rotate">Whether the web rotates this slide's data.</param>
+    /// <param name="rowCount">Visible row count.</param>
+    private void BuildSongRows(FirstRunDemoKind k, bool rotate = false, int rowCount = FirstRunDemos.RowCount)
+    {
+        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(songs, rowCount);
+        for (var i = 0; i < rowCount; i++)
         {
             var row = SongRow(out var setter);
             var pulse = k switch
@@ -185,18 +479,35 @@ public sealed partial class FirstRunDemo : UserControl
             var trailing = (StackPanel)((Grid)row.Child).Children[2];
             if (k == FirstRunDemoKind.Chips)
             {
-                var statuses = new[] { SongInstrumentStatus.FullCombo, SongInstrumentStatus.Scored, SongInstrumentStatus.NoScore };
                 foreach (var (instrument, n) in new[] { Instrument.Lead, Instrument.Bass, Instrument.Drums }.Select((x, n) => (x, n)))
-                    trailing.Children.Add(Chip(instrument, statuses[(n + i) % statuses.Length]));
+                    trailing.Children.Add(Chip(instrument, SongInstrumentStatus.NoScore));
             }
             var index = i;
             Action<int> set = poolIndex =>
             {
                 setter(poolIndex);
+                var song = songs[poolIndex % songs.Count];
+                if (k == FirstRunDemoKind.Chips)
+                {
+                    trailing.Children.Clear();
+                    var states = FirstRunDemoScorePattern.States(song.Row.Title, 3);
+                    foreach (var (instrument, n) in new[] { Instrument.Lead, Instrument.Bass, Instrument.Drums }.Select((x, n) => (x, n)))
+                    {
+                        var status = states[n] switch
+                        {
+                            FirstRunDemoScorePattern.State.FullCombo => SongInstrumentStatus.FullCombo,
+                            FirstRunDemoScorePattern.State.Scored => SongInstrumentStatus.Scored,
+                            _ => SongInstrumentStatus.NoScore,
+                        };
+                        trailing.Children.Add(Chip(instrument, status));
+                    }
+                }
                 if (k == FirstRunDemoKind.Metadata)
                 {
                     trailing.Children.Clear();
-                    trailing.Children.Add(Pill(FirstRunDemos.MetadataPills[(poolIndex + index) % FirstRunDemos.MetadataPills.Count]));
+                    var metadata = FirstRunDemos.MetaData[poolIndex % FirstRunDemos.MetaData.Count];
+                    var layout = FirstRunDemos.MetadataLayouts[(poolIndex + index) % FirstRunDemos.MetadataLayouts.Count];
+                    foreach (var pill in FirstRunDemos.MetadataPillsFor(metadata, layout)) trailing.Children.Add(Pill(pill));
                 }
             };
             set(i);
@@ -204,17 +515,25 @@ public sealed partial class FirstRunDemo : UserControl
             host.Children.Add(row);
             if (pulse is not null && i == 1)
             {
-                var ring = new ShopPulseRing();
+                var ring = new ShopPulseRing { Live = active };
+                pulseRings.Add(ring);
                 ring.Apply(pulse);
                 host.Children.Add(ring);
                 if (k == FirstRunDemoKind.LeavingPulse) trailing.Children.Add(LeavingPill());
             }
             AddSlot(host, set);
         }
-        advance = s =>
+        if (!rotate) return;
+        advance = _ =>
         {
-            var (rowIndex, poolIndex) = FirstRunDemos.Swap(s, slots.Count, songs.Count);
-            FadeSwap(rowIndex, poolIndex);
+            var indices = rotation.NextSwap();
+            if (indices.Count == 0) return;
+            rotation.Replace(indices);
+            foreach (var rowIndex in indices)
+            {
+                var poolIndex = SongPoolIndex(rotation.Rows[rowIndex]);
+                FadeSwap(rowIndex, poolIndex);
+            }
         };
     }
 
@@ -250,12 +569,6 @@ public sealed partial class FirstRunDemo : UserControl
         var chip = Pill(FirstRunDemos.FilterChips[0]);
         root.Children.Add(chip);
         BuildSongRows(FirstRunDemoKind.SongRows);
-        var swapRows = advance!;
-        advance = s =>
-        {
-            ((TextBlock)chip.Child).Text = FirstRunDemos.FilterChips[(s + 1) % FirstRunDemos.FilterChips.Count];
-            swapRows(s);
-        };
     }
 
     /// <summary>Navigation: a letter strip whose highlight moves, over song rows.</summary>
@@ -270,18 +583,12 @@ public sealed partial class FirstRunDemo : UserControl
         }).ToList();
         root.Children.Add(strip);
         BuildSongRows(FirstRunDemoKind.SongRows);
-        var swapRows = advance!;
         void Highlight(int index)
         {
             for (var i = 0; i < cells.Count; i++)
                 cells[i].Background = i == index ? Resource("FSTAccentPurpleBrush", Color.FromArgb(0xFF, 0x7C, 0x3A, 0xED)) : Card();
         }
         Highlight(1);
-        advance = s =>
-        {
-            Highlight(1 + ((s + 1) % (cells.Count - 1)));
-            swapRows(s);
-        };
     }
 
     /// <summary>Chart: score-history bars whose selection moves right each step.</summary>
@@ -343,7 +650,8 @@ public sealed partial class FirstRunDemo : UserControl
         var button = new Grid { Height = 44, MinWidth = 200, CornerRadius = new CornerRadius(22), HorizontalAlignment = HorizontalAlignment.Center };
         if (!paths)
         {
-            var fill = new ShopPulseFill();
+            var fill = new ShopPulseFill { Live = active };
+            pulseFills.Add(fill);
             fill.Apply(id.Contains("leaving", StringComparison.Ordinal) ? ShopHighlight.LeavingTomorrow
                 : id.Contains("new", StringComparison.Ordinal) ? ShopHighlight.New : null, breathe: true);
             button.Children.Add(fill);
@@ -432,7 +740,8 @@ public sealed partial class FirstRunDemo : UserControl
                 VerticalAlignment = VerticalAlignment.Bottom, Padding = new Thickness(8, 6, 8, 6), Child = new Grid { Children = { title, titleBar } },
                 Background = new SolidColorBrush(Color.FromArgb(0xB3, 0, 0, 0)),
             });
-            var ring = new ShopPulseRing();
+            var ring = new ShopPulseRing { Live = active };
+            pulseRings.Add(ring);
             ring.Apply(i == 0 ? SongRowShopPulse.New : i == 2 ? SongRowShopPulse.Leaving : null);
             tile.Children.Add(ring);
             Grid.SetColumn(tile, i);
@@ -643,6 +952,40 @@ public sealed partial class FirstRunDemo : UserControl
         slots.Add(element);
         slotSetters.Add(setter);
     }
+
+    /// <summary>Finds a song's current pool index.</summary>
+    /// <param name="song">Song item.</param>
+    /// <returns>Pool index, or 0 if missing.</returns>
+    private int SongPoolIndex(FirstRunDemoSong song)
+    {
+        for (var i = 0; i < songs.Count; i++)
+            if (string.Equals(songs[i].Id, song.Id, StringComparison.Ordinal)) return i;
+        return 0;
+    }
+
+    /// <summary>Builds a rival row projection.</summary>
+    /// <param name="rival">Rival.</param>
+    /// <returns>Text row.</returns>
+    private static FirstRunDemoRow RivalRow(FirstRunDemoRival rival) =>
+        new(rival.DisplayName, $"{rival.SharedSongCount} shared · {rival.AheadCount}/{rival.BehindCount}", rival.AvgSignedDelta >= 0 ? $"▲ {rival.AvgSignedDelta}" : $"▼ {Math.Abs(rival.AvgSignedDelta)}");
+
+    /// <summary>Builds a titled rival group with a setter.</summary>
+    /// <param name="title">Group title.</param>
+    /// <param name="initial">Initial rivals.</param>
+    /// <returns>Group and setter.</returns>
+    private static (Border Group, Action<IReadOnlyList<FirstRunDemoRival>> Set) RivalGroup(string title, IReadOnlyList<FirstRunDemoRival> initial)
+    {
+        var stack = new StackPanel { Spacing = 4 };
+        var border = RowCard(stack);
+        void Set(IReadOnlyList<FirstRunDemoRival> rows)
+        {
+            stack.Children.Clear();
+            stack.Children.Add(Text(title, 13, true));
+            foreach (var rival in rows) stack.Children.Add(Text($"{rival.DisplayName} · {rival.SharedSongCount} songs", 12, false));
+        }
+        Set(initial);
+        return (border, Set);
+    }
     #endregion
 
     #region Motion
@@ -651,13 +994,17 @@ public sealed partial class FirstRunDemo : UserControl
     /// <param name="e">Unused.</param>
     private void OnMotionChanged(object? sender, EventArgs e) => UpdateTimer();
 
-    /// <summary>Runs the step timer only for the visible slide while motion is allowed.</summary>
+    /// <summary>Runs the step timer only for the visible foreground slide; motion-off swaps are instant.</summary>
     private void UpdateTimer()
     {
-        var run = active && IsLoaded && advance is not null && Motion.Allowed && !Motion.Paused;
+        // Shop pulses breathe only on the visible slide (iOS #28): FlipView keeps neighbours realized off-screen.
+        foreach (var ring in pulseRings) ring.Live = active;
+        foreach (var fill in pulseFills) fill.Live = active;
+        var run = active && IsLoaded && advance is not null && !Motion.Paused;
         if (!run)
         {
             timer?.Stop();
+            CompleteSwaps();
             return;
         }
         if (timer is null)
@@ -666,6 +1013,7 @@ public sealed partial class FirstRunDemo : UserControl
             timer.Interval = FirstRunDemos.Cycle;
             timer.Tick += (_, _) => advance?.Invoke(step++);
         }
+        timer.Interval = activeInterval;
         if (!timer.IsRunning) timer.Start();
     }
 
@@ -685,25 +1033,92 @@ public sealed partial class FirstRunDemo : UserControl
         for (var i = 0; i < slots.Count; i++) Fade(slots[i], i == 0 ? change : null);
     }
 
-    /// <summary>Compositor opacity dip over <see cref="FirstRunDemos.Fade"/>, running the change at the bottom.</summary>
+    /// <summary>Compositor fade-out, content swap, fade-in matching the web timing.</summary>
     /// <param name="element">Element.</param>
     /// <param name="change">Change at the midpoint, if any.</param>
-    private void Fade(FrameworkElement element, Action? change)
+    /// <param name="duration">One fade duration.</param>
+    /// <param name="translateY">Optional offset while hidden.</param>
+    private void Fade(FrameworkElement element, Action? change, TimeSpan? duration = null, float translateY = 0)
     {
+        if (!Motion.Allowed)
+        {
+            change?.Invoke();
+            var instant = ElementCompositionPreview.GetElementVisual(element);
+            instant.Opacity = 1;
+            instant.Offset = new Vector3(0, 0, 0);
+            return;
+        }
+        var fade = duration ?? FirstRunDemoTiming.FadeOut;
         var visual = ElementCompositionPreview.GetElementVisual(element);
-        var dip = visual.Compositor.CreateScalarKeyFrameAnimation();
         var ease = visual.Compositor.CreateCubicBezierEasingFunction(new Vector2(0.25f, 0.1f), new Vector2(0.25f, 1f));
-        dip.InsertKeyFrame(0f, 1f);
-        dip.InsertKeyFrame(0.5f, 0f, ease);
-        dip.InsertKeyFrame(1f, 1f, ease);
-        dip.Duration = FirstRunDemos.Fade;
-        visual.StartAnimation("Opacity", dip);
-        if (change is null) return;
+        var swap = new ActiveSwap { Element = element, Change = change };
+        activeSwaps.Add(swap);
+
+        void AnimateOpacity(float from, float to)
+        {
+            var animation = visual.Compositor.CreateScalarKeyFrameAnimation();
+            animation.InsertKeyFrame(0f, from);
+            animation.InsertKeyFrame(1f, to, ease);
+            animation.Duration = fade;
+            visual.StartAnimation("Opacity", animation);
+        }
+
+        void AnimateOffset(float from, float to)
+        {
+            if (translateY == 0) return;
+            var animation = visual.Compositor.CreateVector3KeyFrameAnimation();
+            animation.InsertKeyFrame(0f, new Vector3(0, from, 0));
+            animation.InsertKeyFrame(1f, new Vector3(0, to, 0), ease);
+            animation.Duration = fade;
+            visual.StartAnimation("Offset", animation);
+        }
+
+        AnimateOpacity(1, 0);
+        AnimateOffset(0, translateY);
         var midpoint = DispatcherQueue.CreateTimer();
-        midpoint.Interval = FirstRunDemos.Fade / 2;
+        midpoint.Interval = fade;
         midpoint.IsRepeating = false;
-        midpoint.Tick += (_, _) => change();
+        midpoint.Tick += (_, _) =>
+        {
+            swap.Changed = true;
+            change?.Invoke();
+            visual.Opacity = 0;
+            AnimateOpacity(0, 1);
+            AnimateOffset(translateY, 0);
+            var done = DispatcherQueue.CreateTimer();
+            done.Interval = fade;
+            done.IsRepeating = false;
+            done.Tick += (_, _) =>
+            {
+                visual.Opacity = 1;
+                visual.Offset = new Vector3(0, 0, 0);
+                activeSwaps.Remove(swap);
+            };
+            swap.Timers.Add(done);
+            done.Start();
+        };
+        swap.Timers.Add(midpoint);
         midpoint.Start();
+    }
+
+    /// <summary>Completes any hidden swaps before stopping the timer.</summary>
+    private void CompleteSwaps()
+    {
+        foreach (var swap in activeSwaps.ToList())
+        {
+            foreach (var timerToStop in swap.Timers) timerToStop.Stop();
+            if (!swap.Changed)
+            {
+                swap.Change?.Invoke();
+                swap.Changed = true;
+            }
+            var visual = ElementCompositionPreview.GetElementVisual(swap.Element);
+            visual.StopAnimation("Opacity");
+            visual.StopAnimation("Offset");
+            visual.Opacity = 1;
+            visual.Offset = new Vector3(0, 0, 0);
+            activeSwaps.Remove(swap);
+        }
     }
     #endregion
 }
