@@ -40,7 +40,7 @@ struct SuggestionCategoryCardView: View {
                             visibleInstruments: visibleInstruments
                         )
                     }
-                    .buttonStyle(.plain)
+                    .festivalRowButtonStyle(cornerRadius: 8)
                     .accessibilityIdentifier("fst.suggestions.row.\(item.id)")
                 }
             }

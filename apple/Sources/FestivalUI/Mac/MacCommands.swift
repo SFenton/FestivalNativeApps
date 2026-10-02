@@ -67,8 +67,14 @@ public struct MacCommands: Commands {
     public var body: some Commands {
         SidebarCommands()
         ToolbarCommands()
-        // One primary window: no File › New Window.
+        // One primary window: no File › New Window (HIG Windows: "avoid it as default
+        // behavior unless it makes sense for your app"). Close keeps ⌘W for the main
+        // and Settings windows (HIG The menu bar › File menu: "Close").
         CommandGroup(replacing: .newItem) {}
+        CommandGroup(replacing: .saveItem) {
+            Button("Close") { NSApp.keyWindow?.performClose(nil) }
+                .keyboardShortcut("w", modifiers: .command)
+        }
         CommandGroup(after: .textEditing) {
             Divider()
             Button("Search Festival…") { navigation.searchPresented = true }
@@ -79,6 +85,14 @@ public struct MacCommands: Commands {
             Button("Refresh") { model.refresh() }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(sheetOpen)
+            Divider()
+            // The system full-screen experience (HIG Going full screen › macOS: "Use
+            // the system full-screen experience … Prefer the window's Enter Full Screen
+            // button, View menu item or Control-Command-F"); the title follows state.
+            Button(model.isFullScreen ? "Exit Full Screen" : "Enter Full Screen") {
+                NSApp.sendAction(#selector(NSWindow.toggleFullScreen(_:)), to: nil, from: nil)
+            }
+            .keyboardShortcut("f", modifiers: [.control, .command])
             Divider()
             Button("Sort…") { pageCommands?.sort?() }
                 .disabled(pageCommands?.sort == nil || sheetOpen)

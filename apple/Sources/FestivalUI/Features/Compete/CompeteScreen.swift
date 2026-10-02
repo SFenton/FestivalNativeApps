@@ -214,7 +214,7 @@ struct CompeteInstrumentLeaderboardSection: View {
                 ) {
                     PurpleActionLabel(title: "View Full Leaderboard")
                 }
-                .buttonStyle(.plain)
+                .festivalRowButtonStyle()
                 .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).view-all")
                 .festivalFadeIn(isLoaded: true)
             }

@@ -20,6 +20,36 @@ public enum MacDebugHooks {
     static let commandName = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.command")
     /// In-process notification carrying a parsed ``MacDebugCommand`` to the window.
     static let localCommandName = Notification.Name("FSTMacDebugCommand")
+    /// Where the `menus` command writes the menu bar.
+    static let menuDumpPath = "/tmp/fst-mac-menus.txt"
+
+    /// Text outline of a menu: one line per item with its shortcut and state.
+    ///
+    /// - Parameters:
+    ///   - menu: The menu to describe.
+    ///   - depth: Indent level.
+    /// - Returns: Lines such as `  Copy ⌘C` or `  Paste (disabled)`.
+    @MainActor static func describe(_ menu: NSMenu, depth: Int = 0) -> [String] {
+        menu.update()
+        return menu.items.flatMap { item -> [String] in
+            if item.isSeparatorItem { return [String(repeating: "  ", count: depth) + "—"] }
+            var line = String(repeating: "  ", count: depth) + item.title
+            if !item.keyEquivalent.isEmpty {
+                let flags = item.keyEquivalentModifierMask
+                var keys = ""
+                if flags.contains(.control) { keys += "⌃" }
+                if flags.contains(.option) { keys += "⌥" }
+                if flags.contains(.shift) || item.keyEquivalent != item.keyEquivalent.lowercased() { keys += "⇧" }
+                if flags.contains(.command) { keys += "⌘" }
+                line += " \(keys)\(item.keyEquivalent.uppercased())"
+            }
+            if !item.isEnabled { line += " (disabled)" }
+            if item.isHidden { line += " (hidden)" }
+            let children = depth < 1 ? (item.submenu.map { describe($0, depth: depth + 1) } ?? []) : []
+            return [line] + children
+        }
+    }
+
     /// Notification posted by `tools/mac_window.swift resize`.
     static let resizeName = Notification.Name("com.sfenton.festivalscoretracker.mac.debug.resize")
 
@@ -116,6 +146,9 @@ enum MacDebugCommand: Equatable {
     case back, refresh, search, profile, notifications, whatsNew, sort, filter, dismiss, settings
     /// `settings:<pane>`: open the Settings window on a pane.
     case settingsPane(SettingsPane)
+    /// `menus`: write the menu bar (titles, shortcuts, enabled state) to
+    /// ``MacDebugHooks/menuDumpPath`` for evidence without Accessibility permission.
+    case menus
 
     /// Parse command text.
     ///
@@ -142,6 +175,7 @@ enum MacDebugCommand: Equatable {
         case ("filter", 1): self = .filter
         case ("dismiss", 1): self = .dismiss
         case ("settings", 1): self = .settings
+        case ("menus", 1): self = .menus
         case ("settings", 2):
             guard let pane = SettingsPane(rawValue: parts[1]) else { return nil }
             self = .settingsPane(pane)

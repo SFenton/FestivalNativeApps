@@ -1324,25 +1324,34 @@ struct SongsScreen: View {
         // accessible, combined VoiceOver stop with the standard Link action.
         // `ListDetailLink` is that link, or a button filling the detail column in an
         // iPhone Duo list/detail split.
-        return ZStack {
-            SongRowView(
-                song: song, instrument: instrument,
-                session: session, highContrast: highContrast,
-                shopHighlight: highlight,
-                inShop: !hideShop && !disableShopHighlighting
-                    && shopOffersForCurrentSongs?[song.songId] != nil,
-                profileChart: chart,
-                catalogueObservation: catalogueObservation,
-                metadata: metadataVisibility,
-                filterInvalidScores: filterInvalidScores,
-                showInstrumentIcons: showInstrumentIcons,
-                visibleInstruments: visibleInstruments,
-                currentSeason: currentSeason
-            )
+        let row = SongRowView(
+            song: song, instrument: instrument,
+            session: session, highContrast: highContrast,
+            shopHighlight: highlight,
+            inShop: !hideShop && !disableShopHighlighting
+                && shopOffersForCurrentSongs?[song.songId] != nil,
+            profileChart: chart,
+            catalogueObservation: catalogueObservation,
+            metadata: metadataVisibility,
+            filterInvalidScores: filterInvalidScores,
+            showInstrumentIcons: showInstrumentIcons,
+            visibleInstruments: visibleInstruments,
+            currentSeason: currentSeason
+        )
+        #if os(macOS)
+        // On the Mac the row is the link's label, so its row button style draws the
+        // hover tint and the keyboard focus ring on the card (an invisible link's
+        // focus ring would be invisible too).
+        let link = ListDetailLink(value: AppRoute.songDetail(song)) { row }
+        #else
+        let link = ZStack {
+            row
             ListDetailLink(value: AppRoute.songDetail(song)) { EmptyView() }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .opacity(0)
         }
+        #endif
+        return link
         .contentShape(Rectangle())
         #if os(macOS)
         .contextMenu {
@@ -1359,7 +1368,10 @@ struct SongsScreen: View {
         // .buttons[...]` queries. Restore it explicitly rather than relying on the
         // link's own traits surviving the combine.
         .accessibilityAddTraits(.isButton)
+        #if !os(macOS)
+        // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
+        #endif
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(songRowInsets)

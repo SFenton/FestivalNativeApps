@@ -308,6 +308,14 @@ final class MacNavigationModel {
     /// Path of the selected destination.
     var currentPath: [AppRoute] { paths[selected] ?? [] }
 
+    /// What Edit › Copy copies when no text is focused: the selected row's (or shown
+    /// page's) song title or player name (``MacCopyPolicy``).
+    var selectionCopyText: String? {
+        MacCopyPolicy.selectedRoute(
+            path: currentPath, section: selected.section, split: splitDestinations.contains(selected)
+        ).flatMap(MacCopyPolicy.text(for:))
+    }
+
     /// Whether Go › Back (⌘[) can act.
     var canGoBack: Bool { backPath != nil }
 

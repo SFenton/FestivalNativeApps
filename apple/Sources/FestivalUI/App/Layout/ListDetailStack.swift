@@ -416,6 +416,11 @@ struct ListDetailLink<Label: View>: View {
                 NavigationLink(value: value) { label }
             }
         }
+        #if os(macOS)
+        // Hover tint, keyboard focus ring and Return on the row's card; set inside the caller's
+        // `.buttonStyle(.plain)`, so it wins.
+        .buttonStyle(FestivalRowPrimitiveButtonStyle())
+        #endif
         .listDetailSelectable(value)
         #if os(iOS)
         // Pointer: the row's rounded card highlights (HIG Pointing devices: "hover for
