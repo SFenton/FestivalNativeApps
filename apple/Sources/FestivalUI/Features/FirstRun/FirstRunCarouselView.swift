@@ -287,7 +287,7 @@ private struct FirstRunSlideView: View {
                     .font(.title2.bold())
                     .foregroundStyle(FestivalText.primary)
                     .multilineTextAlignment(.center)
-                Text(slide.description)
+                Text(description)
                     .font(.subheadline)
                     .foregroundStyle(FestivalText.primary)
                     .multilineTextAlignment(.center)
@@ -299,6 +299,33 @@ private struct FirstRunSlideView: View {
         .padding(.top, 36)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(slide.title). \(slide.description)")
+        .accessibilityLabel("\(slide.title). \(description)")
+    }
+
+    /// The slide's description in this platform's words (``FirstRunCopy``).
+    private var description: String {
+        #if os(macOS)
+        FirstRunCopy.mac(slide.description)
+        #else
+        slide.description
+        #endif
+    }
+}
+
+// MARK: - Platform copy
+
+/// First-run copy comes from the web catalogue, written for touch. On the Mac it says
+/// "click" and names the sidebar (HIG Writing: "make sure you describe gestures
+/// correctly ("tap", not "click", on iPhone or iPad)").
+enum FirstRunCopy {
+    /// The Mac wording of a slide description.
+    ///
+    /// - Parameter text: Catalogue text.
+    /// - Returns: "Tap"/"tap" as "Click"/"click", and the bottom tabs as the sidebar.
+    static func mac(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "Use the bottom tabs", with: "Use the sidebar")
+            .replacingOccurrences(of: "Tap ", with: "Click ")
+            .replacingOccurrences(of: " tap ", with: " click ")
     }
 }

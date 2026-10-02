@@ -288,3 +288,13 @@ private func sendKey(_ name: String, to window: NSWindow) {
     withExtendedLifetime(window) {}
 }
 #endif
+
+// MARK: - First-run copy
+
+/// The Mac first-run carousel says "click" and names the sidebar.
+@Test func firstRunCopyUsesMacWords() {
+    #expect(FirstRunCopy.mac("Tap any bar on the chart, then tap to explore.")
+        == "Click any bar on the chart, then click to explore.")
+    #expect(FirstRunCopy.mac("Use the bottom tabs to navigate the app.") == "Use the sidebar to navigate the app.")
+    #expect(FirstRunCopy.mac("Taptic") == "Taptic")
+}
