@@ -18,7 +18,7 @@ final class NotificationsJourneyTests: XCTestCase {
         ])
     }
 
-    /// The bell shows an unread badge, opens the sheet with both fixture rows, and
+    /// The bell shows the unread count, opens the sheet with both fixture rows, and
     /// a row with a song destination pushes to Song Detail inside the sheet.
     @MainActor
     func testBellOpensSheetAndRowNavigatesToSongDetail() throws {
@@ -27,9 +27,9 @@ final class NotificationsJourneyTests: XCTestCase {
         app.launch()
         let bell = app.buttons["fst.shell.notifications"]
         XCTAssertTrue(bell.waitForExistence(timeout: 15))
-        XCTAssertTrue(
-            (bell.label).contains("unread"),
-            "Two unseen fixture notifications must be announced as unread"
+        XCTAssertEqual(
+            bell.label, "Notifications, 2 unread",
+            "Two unseen fixture notifications must be announced with their count"
         )
         bell.tap()
         XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
@@ -43,7 +43,7 @@ final class NotificationsJourneyTests: XCTestCase {
         )
     }
 
-    /// Opening and dismissing the sheet marks both rows seen, clearing the bell badge.
+    /// Opening and dismissing the sheet marks both rows seen, clearing the bell's count badge.
     @MainActor
     func testDismissingSheetClearsUnreadBadge() throws {
         continueAfterFailure = false
@@ -51,11 +51,19 @@ final class NotificationsJourneyTests: XCTestCase {
         app.launch()
         let bell = app.buttons["fst.shell.notifications"]
         XCTAssertTrue(bell.waitForExistence(timeout: 15))
-        XCTAssertTrue(bell.label.contains("unread"))
+        XCTAssertEqual(bell.label, "Notifications, 2 unread")
+        XCTAssertEqual(
+            bell.value as? String ?? "", "",
+            "The system badge's count must not be read twice (label already has it)"
+        )
         bell.tap()
         XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
         app.buttons["fst.notifications.close"].tap()
         XCTAssertTrue(bell.waitForExistence(timeout: 10))
-        XCTAssertFalse(bell.label.contains("unread"), "Viewing the sheet must mark rows seen")
+        XCTAssertEqual(bell.label, "Notifications", "Viewing the sheet must mark rows seen")
+        XCTAssertEqual(
+            bell.value as? String ?? "", "",
+            "A cleared badge must not leave a stale count for VoiceOver"
+        )
     }
 }

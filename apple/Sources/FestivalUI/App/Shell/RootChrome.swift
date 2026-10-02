@@ -376,7 +376,34 @@ struct DrawerButton: View {
     }
 }
 
-/// Notifications bell (web `HeaderActions` bell): unread badge, opens the native sheet.
+/// Bell badge copy for the unread-notification count (web `HeaderActions.tsx:68`).
+enum NotificationBadge {
+    /// Largest count shown verbatim; higher counts read "9+" like the web bell.
+    static let cap = 9
+
+    /// Badge text for the bell.
+    ///
+    /// - Parameter unreadCount: Rows in the sheet's "New" section.
+    /// - Returns: The count, "9+" above ``cap``, or nil (no badge) when nothing is unread.
+    static func text(unreadCount: Int) -> String? {
+        guard unreadCount > 0 else { return nil }
+        return unreadCount > cap ? "\(cap)+" : String(unreadCount)
+    }
+
+    /// VoiceOver label for the bell; it carries the exact count, not the capped badge.
+    ///
+    /// - Parameter unreadCount: Rows in the sheet's "New" section.
+    /// - Returns: "Notifications, N unread", or "Notifications" when nothing is unread.
+    static func accessibilityLabel(unreadCount: Int) -> String {
+        unreadCount > 0 ? "Notifications, \(unreadCount) unread" : "Notifications"
+    }
+}
+
+/// Notifications bell (web `HeaderActions` bell): unread-count badge, opens the native sheet.
+///
+/// iOS 26+ uses the system toolbar-item badge, so the bar lays it out without clipping
+/// (HIG Notifications: "Avoid custom images or components that mimic a badge"). Older
+/// iOS has no toolbar badge API, so it falls back to a small numeric capsule.
 ///
 /// Owned by the Notifications feature lane; see `Features/Notifications/NotificationsSheet.swift`.
 struct NotificationsButton: View {
@@ -385,28 +412,52 @@ struct NotificationsButton: View {
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
+        let badge = NotificationBadge.text(unreadCount: center.unreadCount)
         Button {
             presented = true
         } label: {
             Label("Notifications", systemImage: "bell")
         }
         .tint(BrandTokens.textPrimary)
-        .accessibilityLabel(center.unreadCount > 0
-            ? "Notifications, \(center.unreadCount) unread" : "Notifications")
+        .modifier(NotificationBadgeModifier(text: badge))
+        .accessibilityLabel(NotificationBadge.accessibilityLabel(unreadCount: center.unreadCount))
+        // The system badge also publishes its count as the accessibility value, which stays
+        // stale after the badge clears; the label alone announces "N unread".
+        .accessibilityValue(Text(""))
         .accessibilityIdentifier("fst.shell.notifications")
-        .overlay(alignment: .topTrailing) {
-            if center.unreadCount > 0 {
-                Circle()
-                    .fill(BrandTokens.gold)
-                    .frame(width: 9, height: 9)
-                    .offset(x: 2, y: -1)
-                    .accessibilityHidden(true)
-            }
-        }
         .task(id: session.selectionRevision) { await center.refresh(session: session) }
         .sheet(isPresented: $presented) {
             NotificationsSheet(session: session)
                 .festivalSheet(.large)
+        }
+    }
+}
+
+/// Puts the bell's unread count on the system toolbar-item badge (iOS 26+).
+///
+/// Before iOS 26 SwiftUI ignores `badge` outside lists and tab bars, so a small numeric
+/// capsule stands in. Both are hidden from VoiceOver: the bell's label carries the count.
+private struct NotificationBadgeModifier: ViewModifier {
+    /// Badge text, or nil for no badge.
+    let text: String?
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            content.badge(text.map { Text($0) })
+        } else {
+            content.overlay(alignment: .topTrailing) {
+                if let text {
+                    Text(text)
+                        .font(.caption2.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 16, minHeight: 16)
+                        .background(Capsule().fill(.red))
+                        .fixedSize()
+                        .offset(x: 8, y: -6)
+                        .accessibilityHidden(true)
+                }
+            }
         }
     }
 }
