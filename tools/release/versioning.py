@@ -27,7 +27,7 @@ notes between the previously released version's tag and its own tag, so intermed
 and TestFlight builds fold into the next release. A platform's first release says ``initial_note``.
 The unreleased built version's entry also carries ``testflight: {since, new, release, vs_release}`` for
 beta builds: notes new since the previous version, and every note since the latest release. TestFlight
-"What to Test" is What's New for testers: every note since the latest release, under page-category headings.
+"What to Test" lists this version's changes, then "Other Changes" since the latest release under page headings.
 
 Commands (JSON on stdout, standard library only, Python 3.9+)::
 
@@ -37,6 +37,7 @@ Commands (JSON on stdout, standard library only, Python 3.9+)::
     versioning.py whats-new --tag ios/v2610.03.01 --released 2610.01.01,2610.02.01 --out WhatsNew.json
                             [--store-notes-out notes.txt]
     versioning.py check-notes --base <sha> --head <sha> [--body-file pr.md]
+    versioning.py pending-notes --platform ios [--released 2610.01.01] [--head HEAD]
     versioning.py testflight-notes --tag ios/v2610.03.01 --build 57 [--rebuild-reason r]
                                    [--released 2610.01.01] --out notes.txt
 
@@ -95,6 +96,12 @@ TESTFLIGHT_LIMIT = 4000
 STORE_NOTES_LIMIT = 4000
 VERSION_RE = re.compile(r"^(\d{4})\.(\d{2})\.(\d{2})$")
 TRAILER_RE = re.compile(r"^\s*Release[- ]Notes?(?:-([A-Za-z]+))?\s*:\s*(.*?)\s*$", re.IGNORECASE)
+#: ``Release-Note-Replaces: <earlier note>`` drops an earlier note in the same range (the change supersedes or
+#: undoes it); ``Release-Note-Tester: <text>`` is a note for testers only (a fix to a change no release has had),
+#: shown in TestFlight's list for its build but never in What's New, store text or "Other Changes". Either may
+#: take a platform suffix (``Release-Note-Tester-iOS``).
+REVISION_RE = re.compile(r"^\s*Release[- ]Notes?-(Replaces|Tester)(?:-([A-Za-z]+))?\s*:\s*(.*?)\s*$", re.IGNORECASE)
+REVERT_RE = re.compile(r"\bThis reverts commit ([0-9a-f]{7,40})\b")
 NONE_NOTES = frozenset({"", "none", "n/a", "na", "-", "skip", "no", "internal"})
 MERGE_SUBJECT_RE = re.compile(r"^Merge (pull request|branch|remote-tracking branch) ")
 PULL_REQUEST_RE = re.compile(r"^Merge pull request #\d+ ")
@@ -387,6 +394,23 @@ def parse_trailers(message: str) -> Dict[str, List[str]]:
     return found
 
 
+def parse_revisions(message: str) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+    """``(replaces, tester)`` trailers by key (``"*"`` generic, else the platform id); see :data:`REVISION_RE`."""
+    replaces: Dict[str, List[str]] = {}
+    tester: Dict[str, List[str]] = {}
+    for line in message.splitlines():
+        hit = REVISION_RE.match(line)
+        if not hit:
+            continue
+        value = " ".join(hit.group(3).split())
+        suffix = (hit.group(2) or "").lower()
+        key = "*" if not suffix else TRAILER_PLATFORMS.get(suffix)
+        if key is None or value.lower() in NONE_NOTES:
+            continue
+        (replaces if hit.group(1).lower() == "replaces" else tester).setdefault(key, []).append(value)
+    return replaces, tester
+
+
 def subject(message: str) -> str:
     """Commit subject; for ``Merge pull request`` commits the PR title from the body."""
     lines = [line.strip() for line in message.splitlines()]
@@ -401,7 +425,8 @@ class Change:
     """One first-parent commit with what it means for a platform."""
 
     def __init__(self, sha: str, subject_line: str, app: bool, notes: List[str], opted_out: bool = False,
-                 pull_request: bool = False) -> None:
+                 pull_request: bool = False, replaces: Optional[List[str]] = None,
+                 tester: Optional[List[str]] = None, reverts: Optional[List[str]] = None) -> None:
         self.sha = sha
         self.subject = subject_line
         self.app = app
@@ -410,6 +435,12 @@ class Change:
         self.pull_request = pull_request
         #: The commit's applicable trailer was explicitly ``none`` (nothing user-facing).
         self.opted_out = opted_out
+        #: Earlier notes this change supersedes or undoes (``Release-Note-Replaces``).
+        self.replaces = replaces or []
+        #: Tester-only notes (``Release-Note-Tester``).
+        self.tester = tester or []
+        #: Commits this change reverts (``This reverts commit <sha>``).
+        self.reverts = reverts or []
 
 
 def changes(git: Git, platform: str, base: Optional[str], head: str) -> List[Change]:
@@ -422,10 +453,15 @@ def changes(git: Git, platform: str, base: Optional[str], head: str) -> List[Cha
     out = []
     for sha in git.first_parent(base, head):
         message = git.message(sha)
-        trailers = parse_trailers(message)
-        for side in git.side_messages(sha):
-            for key, values in parse_trailers(side).items():
-                trailers.setdefault(key, []).extend(values)
+        messages = [message] + list(git.side_messages(sha))
+        trailers: Dict[str, List[str]] = {}
+        replaces: Dict[str, List[str]] = {}
+        tester: Dict[str, List[str]] = {}
+        for text in messages:
+            for target, found in zip((trailers, replaces, tester), (parse_trailers(text),) + parse_revisions(text)):
+                for key, values in found.items():
+                    target.setdefault(key, []).extend(values)
+        reverts = [m for text in messages for m in REVERT_RE.findall(text)]
         app = relevant(platform, git.changed_files(sha))
         if platform in trailers:
             notes, opted_out = trailers[platform], not trailers[platform]
@@ -433,9 +469,11 @@ def changes(git: Git, platform: str, base: Optional[str], head: str) -> List[Cha
             notes, opted_out = trailers.get("*", []), "*" in trailers and not trailers["*"]
         else:
             notes, opted_out = [], False
-        if app or notes:
+        mine_tester = tester.get(platform) or (tester.get("*", []) if app else [])
+        mine_replaces = replaces.get(platform, []) + replaces.get("*", [])
+        if app or notes or mine_tester or mine_replaces or reverts:
             out.append(Change(sha, subject(message), app, notes, opted_out,
-                              bool(PULL_REQUEST_RE.match(message.lstrip()))))
+                              bool(PULL_REQUEST_RE.match(message.lstrip())), mine_replaces, mine_tester, reverts))
     return out
 
 
@@ -502,18 +540,30 @@ def groups_json(notes: Iterable[str]) -> List[Dict[str, object]]:
 
 
 def category_bullets(notes: Iterable[str], limit: int) -> str:
-    """``notes`` as bullets under category headings (uncategorized under "Other") within ``limit`` characters.
+    """``notes`` as bullets under category headings, each heading followed by a blank line, within ``limit``.
 
-    Without any categorized note there are no headings. When the budget runs out, the last line says how many
-    notes were left out.
+    Uncategorized notes join "General". Without any categorized note there are no headings. When the budget
+    runs out, the last line says how many notes were left out.
     """
-    groups = grouped(notes)
-    headed = any(category for category, _items in groups)
+    merged: List[Tuple[str, List[str]]] = []
+    for category, items in grouped(notes):
+        heading = category or "General"
+        if merged and merged[-1][0] == heading:
+            merged[-1][1].extend(items)
+        else:
+            merged.append((heading, list(items)))
+    headed = any(category for category, _items in grouped(notes))
     lines: List[str] = []
-    for category, items in groups:
+    for heading, items in merged:
         if headed:
-            lines += ([""] if lines else []) + [category or "Other"]
+            lines += ([""] if lines else []) + [heading, ""]
         lines += ["• " + item for item in items]
+    return fit_lines(lines, limit)
+
+
+def fit_lines(lines: List[str], limit: int) -> str:
+    """Join ``lines`` within ``limit`` characters; when they don't fit, end with "• …and N more." (N bullets
+    left out), never on a heading or blank line."""
     if len("\n".join(lines)) <= limit:
         return "\n".join(lines)
     total = sum(1 for line in lines if line.startswith("• "))
@@ -527,9 +577,14 @@ def category_bullets(notes: Iterable[str], limit: int) -> str:
         kept.append(line)
         shown += bullet
     while kept and not kept[-1].startswith("• "):
-        kept.pop()  # never end on a heading or blank line
+        kept.pop()
     shown = sum(1 for line in kept if line.startswith("• "))
     return "\n".join(kept + ["• …and %d more." % (total - shown)])[:limit]
+
+
+def _note_key(note: str) -> str:
+    """Identity of a note for de-duplication and ``Release-Note-Replaces`` matching (category prefix ignored)."""
+    return _dedupe_key(strip_category(note))
 
 
 def _dedupe_key(note: str) -> str:
@@ -539,27 +594,46 @@ def _dedupe_key(note: str) -> str:
     return " ".join(note.lower().split())
 
 
-def user_notes(git: Git, platform: str, base: Optional[str], head: str) -> List[str]:
-    """User-facing notes in ``(base, head]``, oldest first, de-duplicated case-insensitively.
+def user_notes(git: Git, platform: str, base: Optional[str], head: str, tester: bool = False) -> List[str]:
+    """User-facing notes in ``(base, head]``: the net difference between ``base`` and ``head``.
 
     Notes are grouped by category (:func:`by_category`), oldest first within a category. One check-in (a merged
-    pull request) is one entry: its ``Release-Note`` trailers, or, when it has none, its
-    cleaned PR title (:func:`clean_title`); ``Release-Note: none`` contributes nothing. Commits pushed straight
-    to master without a trailer contribute nothing, so individual code commits never become bullets. The
-    ``check-notes`` PR check keeps untrailered pull requests rare.
+    pull request) is one entry: its ``Release-Note`` trailers, or, when it has none, its cleaned PR title
+    (:func:`clean_title`); ``Release-Note: none`` contributes nothing. Commits pushed straight to master without a
+    trailer contribute nothing, so individual code commits never become bullets. The ``check-notes`` PR check
+    keeps untrailered pull requests rare.
+
+    Later changes revise earlier ones in the range: ``Release-Note-Replaces: <note>`` removes that earlier note
+    (a superseding change brings its own ``Release-Note``; an undo says ``Release-Note: none``), and a revert
+    (``This reverts commit <sha>``) removes the reverted change's notes. Notes differing only in case, quotes,
+    spacing or category prefix appear once. ``tester`` adds ``Release-Note-Tester`` notes (TestFlight's list
+    for one build).
     """
-    seen = set()
-    out = []
+    kept: Dict[str, str] = {}
+    added: Dict[str, List[str]] = {}
     for change in reversed(changes(git, platform, base, head)):
-        notes = change.notes
-        if not notes and change.app and change.pull_request and not change.opted_out and change.subject:
+        for reverted in change.reverts:
+            for sha, keys in added.items():
+                if sha.startswith(reverted):
+                    for key in keys:
+                        kept.pop(key, None)
+        for text in change.replaces:
+            target = _note_key(text)
+            for key in [k for k in kept if k == target or (len(target) >= 20 and k.startswith(target))]:
+                kept.pop(key)
+        notes = list(change.notes)
+        if (not notes and change.app and change.pull_request and not change.opted_out and change.subject
+                and not change.tester and not change.reverts and not change.replaces):
             notes = [clean_title(change.subject)]
+        if tester:
+            notes += change.tester
+        added[change.sha] = []
         for note in notes:
-            key = _dedupe_key(note)
-            if note and key not in seen:
-                seen.add(key)
-                out.append(note)
-    return by_category(out)
+            key = _note_key(note)
+            if note and key not in kept:
+                kept[key] = note
+                added[change.sha].append(key)
+    return by_category(list(kept.values()))
 
 
 def bullets(items: Iterable[str], limit: int) -> str:
@@ -666,16 +740,17 @@ def tester_notes(git: Git, platform: str, version: str, released: Iterable[str],
     shipped = sorted({v for v in released if is_version(v) and v in tags and parse_version(v) < key},
                      key=parse_version)
 
-    def notes_between(base: Optional[str], empty: str) -> List[str]:
+    def notes_between(base: Optional[str], empty: str, tester: bool = False) -> List[str]:
         found = [c for c in changes(git, platform, base, current) if c.app or c.notes]
-        return user_notes(git, platform, base, current) or ([NO_USER_FACING] if found else [empty])
+        return user_notes(git, platform, base, current, tester) or ([NO_USER_FACING] if found else [empty])
 
     if rebuild_reason:
         since, new = None, ["Rebuild with no %s app changes; only the build number changed (%s)." % (
             display, rebuild_reason)]
     elif older:
         since = older[-1]
-        new = notes_between(tags[since], "No %s app changes; only the version and build number changed." % display)
+        new = notes_between(tags[since], "No %s app changes; only the version and build number changed." % display,
+                            tester=True)
     else:
         since, new = None, []
     release = shipped[-1] if shipped else None
@@ -702,21 +777,54 @@ def testflight_notes(git: Git, platform: str, version: str, build: str,
                      rebuild_reason: Optional[str] = None, released: Iterable[str] = ()) -> str:
     """TestFlight "What to Test" for one build (platform-specific, at most 4000 characters).
 
-    What's New for testers: every user-facing note (``Release-Note`` trailers or PR titles, never commit
-    subjects) in this build that the store's latest release doesn't have, grouped under page-category headings
-    in web changelog order (:func:`category_bullets`). Before the first release it lists everything so far. A
-    rebuild adds one line saying only the build number changed. See :func:`tester_notes`.
+    Plain text (TestFlight renders no formatting)::
+
+        Festival Score Tracker iOS 2610.02.36
+
+        • What changed in this version (since the previous one), tester-only notes included.
+
+        Other Changes:
+
+        Songs
+
+        • The rest of what differs from the store's latest release, by page category.
+
+    The first list is flat; "Other Changes" (just "Changes" when there is no first list) holds every note in
+    ``vs_release`` that the first list doesn't repeat, under :func:`category_bullets` headings, and is left out
+    when empty. A rebuild's first list is the rebuild line. ``build`` is accepted for the caller's record only.
+    See :func:`tester_notes` and :func:`user_notes` (net changes only).
     """
+    del build
     display = str(PLATFORMS[platform]["display"])
     notes = tester_notes(git, platform, version, released, rebuild_reason)
-    release = notes.get("release")
-    heading = ("Changes since release %s:" % release) if release else "Changes so far (no release yet):"
-    text = "Festival Score Tracker %s %s (build %s)" % (display, version, build)
-    if rebuild_reason:
-        text += "\n" + str(notes["new"][0])  # type: ignore[index]
-    text += "\n\n" + heading + "\n"
-    budget = TESTFLIGHT_LIMIT - len(text)
-    return (text + category_bullets(notes["vs_release"], budget))[:TESTFLIGHT_LIMIT]  # type: ignore[arg-type]
+    new = [str(n) for n in notes["new"]]  # type: ignore[union-attr]
+    shown = {_note_key(n) for n in new}
+    other = [str(n) for n in notes["vs_release"] if _note_key(str(n)) not in shown]  # type: ignore[union-attr]
+    text = "Festival Score Tracker %s %s" % (display, version)
+    if new:
+        text += "\n\n" + fit_lines(["• " + n for n in new], TESTFLIGHT_LIMIT // 2)
+    if other:
+        text += "\n\n%s\n\n" % ("Other Changes:" if new else "Changes:")
+        text += category_bullets(other, TESTFLIGHT_LIMIT - len(text))
+    return text[:TESTFLIGHT_LIMIT]
+
+
+def pending_notes(git: Git, platform: str, head: str = "HEAD", released: Iterable[str] = ()) -> Dict[str, object]:
+    """Notes users will get that the latest release lacks: what a change may ``Release-Note-Replaces``.
+
+    The release is the newest of ``released`` and ``<platform>/released/<v>`` tags that has a version tag
+    (``None``: everything so far). Returns ``{platform, release, notes, tester}``; ``tester`` adds the
+    ``Release-Note-Tester`` notes of the range.
+    """
+    tags = dict(git.version_tags(platform))
+    shipped = sorted({v for v in list(released) + git.released_from_tags(platform) if is_version(v) and v in tags},
+                     key=parse_version)
+    base = tags[shipped[-1]] if shipped else None
+    notes = user_notes(git, platform, base, head)
+    everything = user_notes(git, platform, base, head, tester=True)
+    keys = {_note_key(n) for n in notes}
+    return {"platform": platform, "release": shipped[-1] if shipped else None, "notes": notes,
+            "tester": [n for n in everything if _note_key(n) not in keys]}
 
 
 def notes_check(git: Git, base: str, head: str, body: str = "") -> Dict[str, object]:
@@ -871,6 +979,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--base", required=True)
     p.add_argument("--head", required=True)
     p.add_argument("--body-file")
+    p = sub.add_parser("pending-notes", help="notes since the latest release, for Release-Note-Replaces")
+    p.add_argument("--platform", required=True, choices=sorted(PLATFORMS))
+    p.add_argument("--head", default="HEAD")
+    p.add_argument("--released", default="", help="comma-separated released versions (plus release tags)")
     p = sub.add_parser("testflight-notes")
     p.add_argument("--tag", required=True)
     p.add_argument("--build", required=True)
@@ -925,6 +1037,9 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
                       % ", ".join(doc["platforms"]), file=sys.stderr)
                 return 1
             return 0
+        elif args.command == "pending-notes":
+            doc = pending_notes(git, args.platform, args.head,
+                                [v.strip() for v in args.released.split(",") if v.strip()])
         else:
             platform, version = parse_tag(args.tag)
             released = [v.strip() for v in args.released.split(",") if v.strip()]
