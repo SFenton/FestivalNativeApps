@@ -358,6 +358,43 @@ RIVAL_DISPLAY_NAMES = {
 }
 
 
+
+def _multi_instrument_history(account_id: str) -> dict:
+    """Build `fixture-pulse` history on three instruments for `fixture-history-multi`.
+
+    Lead has eight rows (more than one chart page on a phone), Bass two and Drums
+    three ending in a 100% full combo, so switching instruments changes whether the
+    pager and the gold legend are needed. Accuracy uses the wire's ten-thousandths of
+    a percent scale.
+
+    Args:
+        account_id: The requested fixture account.
+
+    Returns:
+        A `GET /api/player/{accountId}/history` body.
+    """
+    plan = {
+        "Solo_Guitar": [(610000, 921000), (655000, 934000), (700000, 948000), (742000, 955500),
+                        (768000, 962000), (801000, 971000), (826000, 979500), (850000, 991200)],
+        "Solo_Bass": [(540000, 902000), (612000, 937500)],
+        "Solo_Drums": [(580000, 915000), (690000, 958000), (781000, 1000000)],
+    }
+    rows = []
+    for instrument, scores in plan.items():
+        previous = None
+        for day, (score, accuracy) in enumerate(scores, start=1):
+            stamp = f"2024-02-{day:02d}T00:00:00Z"
+            rows.append({
+                "songId": "fixture-pulse", "instrument": instrument,
+                "oldScore": previous, "newScore": score,
+                "oldRank": None, "newRank": 20 - day, "accuracy": accuracy,
+                "isFullCombo": accuracy == 1000000, "stars": 5 if accuracy >= 950000 else 4,
+                "season": 40, "scoreAchievedAt": stamp, "changedAt": stamp,
+            })
+            previous = score
+    rows.reverse()
+    return {"accountId": account_id, "count": len(rows), "history": rows}
+
 def _rivals_scenario(account_id: str) -> str:
     """Select a Rivals/Compete fixture scenario from the viewing player's own id.
 
@@ -987,6 +1024,10 @@ class FixtureHandler(BaseHTTPRequestHandler):
                         },
                     ],
                 })
+            elif account_id == "fixture-history-multi":
+                # Score History instrument switching (issue #31): Lead pages (eight
+                # rows), Bass fits one page (two rows), Drums has a gold full combo.
+                self._json(200, _multi_instrument_history(account_id))
             else:
                 # Every other fixture account is "unregistered" (never tracked for
                 # history): the real service 404s and `FestivalAPI.playerHistory`
