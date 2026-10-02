@@ -13,7 +13,7 @@ Source: the service contract `docs/components/in-app-feedback.md` and `FSTServic
 | `GET /api/feedback/{id}` | `id` is 32 lowercase hex characters (validated before the call). `{id, status: queued\|processing\|submitted\|failed, issueNumber?, attachments[{outcome: pending\|attached\|transcoded\|skipped}]}`. Kept in memory for 60 minutes, then 404. No issue URL |
 | Errors | 400 `{error, code}` (validation codes), 404 `feedback_disabled`, 413 `payload_too_large`, 429 (5 per 10 minutes per IP, `Retry-After`), 503 `feedback_busy` (`Retry-After: 60`) |
 
-The service transcodes oversized media, labels the issue with the platform and files it. Clients never talk to GitHub.
+The service transcodes oversized media, labels the issue with the plain platform name (`web`→`Web`, `ios`→`iOS`, `iphone-duo`→`iPhone Duo`, `ipados`→`iPadOS`, `macos`→`macOS`, `android`→`Android`, `windows`→`Windows`) plus `From App`, and files it. Clients never talk to GitHub.
 
 ## Client contract (all platforms)
 
