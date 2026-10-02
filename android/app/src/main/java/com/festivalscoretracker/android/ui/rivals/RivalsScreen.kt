@@ -55,7 +55,9 @@ import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.common.FestivalScreen
-import com.festivalscoretracker.android.ui.common.LoadingView
+import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -177,12 +179,33 @@ private fun HubBody(
     bottomPadding: androidx.compose.ui.unit.Dp,
     navigate: (AppRoute) -> Unit,
 ) {
-    val issue = content.fullPageIssue
-    // Stays composed through the full-page spinner, so a first load fades in while a
-    // return visit (already settled) shows at once.
-    val pageRevealed = rememberRevealed(content.settled && issue == null)
+    // First loads and tab switches run the shared load swap (issue #71): the old tab fades out,
+    // the spinner shows until the new tab settles, then its cards stagger in. A return visit
+    // (already settled) shows at once.
+    val swap = rememberLoadSwap(tab to content, content.settled || content.fullPageIssue != null, key = tab)
+    val (shownTab, shown) = swap.shown
+    val issue = shown.fullPageIssue
+    val pageRevealed = swap.revealed
+    if (swap.showsSpinner) {
+        LoadSwapSpinner(swap, "Loading rivals", Modifier.fillMaxSize(), "fst.rivals.loading")
+        return
+    }
+    Box(Modifier.fillMaxSize().then(swap.contentModifier)) { HubContent(viewModel, shownTab, shown, issue, pageRevealed, visibleCount, gridState, bottomPadding, navigate) }
+}
+
+@Composable
+private fun HubContent(
+    viewModel: RivalsHubViewModel,
+    tab: RivalsHubTab,
+    content: RivalsHubContent,
+    issue: ServiceIssue?,
+    pageRevealed: Boolean,
+    visibleCount: Int,
+    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    navigate: (AppRoute) -> Unit,
+) {
     when {
-        !content.settled && issue == null -> LoadingView("Loading rivals", Modifier.testTag("fst.rivals.loading"))
         issue != null -> ServiceStatusView(issue, "Rivals unavailable", content.countdown, viewModel::retryFailed)
         content.empty -> if (tab == RivalsHubTab.Song) {
             RivalsMessage(RivalText.NO_RIVALS, RivalText.noRivalsSubtitle(visibleCount), "fst.rivals.empty")

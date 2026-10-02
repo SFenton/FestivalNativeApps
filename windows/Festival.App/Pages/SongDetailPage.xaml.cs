@@ -35,7 +35,9 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         // Cards far below the viewport are not realized yet (virtualizing grid): realize one on demand for a jump.
         host.Binder.Resolve = id => ViewModel?.Leaderboards.FindIndex(c => c.QuickLinkId == id) is >= 0 and var index
             ? Boards.GetOrCreateElement(index) as FrameworkElement
-            : null;
+            : ViewModel?.BandPreviews.FindIndex(b => b.QuickLinkId == id) is >= 0 and var band
+                ? BandBoards.GetOrCreateElement(band) as FrameworkElement
+                : null;
         historySwap = new ScoreHistorySwapper(
             () => ViewModel?.History.Selected,
             chart => ViewModel?.History.SelectInstrument(chart),
@@ -210,7 +212,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
 
     /// <summary>The sections that fade up, in reveal order with their delays.</summary>
     /// <returns>Sections.</returns>
-    private UIElement[] Sections() => [FullHeader, IntensitySection, HistorySection, LeaderboardsSection];
+    private UIElement[] Sections() => [FullHeader, IntensitySection, HistorySection, LeaderboardsSection, BandBoards];
 
     /// <summary>Fades the spinner out on the compositor, then staggers the content in.</summary>
     private void FadeOutSpinner()
@@ -233,6 +235,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
             FadeIn.Play(LeaderboardsSection, SongDetailReveal.Leaderboards);
             for (var i = 0; i < (ViewModel?.Leaderboards.Count ?? 0); i++)
                 if (Boards.TryGetElement(i) is UIElement card) FadeIn.Play(card, SongDetailReveal.Card(i, BoardColumns()));
+            // Band previews come last, after the final instrument card's slot.
+            FadeIn.Play(BandBoards, SongDetailReveal.Card(ViewModel?.Leaderboards.Count ?? 0, BoardColumns()));
             AfterReveal();
         });
     }
@@ -294,12 +298,12 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
             FadeIn.Reset(args.Element);
     }
 
-    /// <summary>Opens a band-size leaderboard for this song.</summary>
-    /// <param name="sender">Hyperlink.</param>
+    /// <summary>Opens this song's full band leaderboard for a preview's band size.</summary>
+    /// <param name="sender">View Full Leaderboard button.</param>
     /// <param name="e">Unused.</param>
-    private void OnBandLink(object sender, RoutedEventArgs e)
+    private void OnBandViewFull(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { Tag: AppRoute route }) MainWindow.Instance?.Navigate(route);
+        if (sender is FrameworkElement { Tag: SongBandPreviewViewModel band }) MainWindow.Instance?.Navigate(band.FullRoute);
     }
 
     /// <summary>Checks the current mode and direction when the history sort menu opens.</summary>

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices.WindowsRuntime;
+using Festival.App.Services;
 using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -44,6 +45,8 @@ public sealed partial class SongPathsView : UserControl
 
     private bool applyingZoom;
     private bool stacked;
+    private Festival.Core.Data.PathImage? preparedFor;
+    private BitmapImage? prepared;
 
     /// <summary>Creates the view for a Paths session.</summary>
     /// <param name="viewModel">Paths model.</param>
@@ -60,6 +63,19 @@ public sealed partial class SongPathsView : UserControl
         SyncInstrument();
         BuildHeader();
         viewModel.PropertyChanged += OnViewModelChanged;
+        viewModel.AnimateSwaps = () => Motion.Allowed;
+        viewModel.PrepareImageAsync = PrepareImageAsync;
+        viewModel.Announced += (_, announcement) =>
+        {
+            if (IsLoaded) ScreenReader.Announce(this, announcement);
+        };
+        ApplySwapTransitions();
+        Loaded += (_, _) =>
+        {
+            Motion.Changed += OnMotionChanged;
+            ApplySwapTransitions();
+        };
+        Unloaded += (_, _) => Motion.Changed -= OnMotionChanged;
     }
 
     /// <summary>Paths model.</summary>
@@ -103,8 +119,54 @@ public sealed partial class SongPathsView : UserControl
     }
     #endregion
 
+    #region Swap
+    /// <summary>300 ms opacity fades for the chart and spinner (web <c>FADE_MS</c>); none without motion.</summary>
+    private void ApplySwapTransitions()
+    {
+        var allowed = Motion.Allowed;
+        ChartContent.OpacityTransition = allowed ? new ScalarTransition { Duration = PathSwapTiming.Fade } : null;
+        PathSpinner.OpacityTransition = allowed ? new ScalarTransition { Duration = PathSwapTiming.Fade } : null;
+    }
+
+    /// <summary>Follows a Reduce Motion / animation-setting change.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnMotionChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(ApplySwapTransitions);
+
+    /// <summary>Decodes a loaded image while the spinner is up so the new chart is ready when it fades in.</summary>
+    /// <param name="picture">Loaded PNG.</param>
+    /// <param name="token">Cancelled by a newer selection.</param>
+    /// <returns>Completes when decoded (or undecodable: the view decodes again on presentation).</returns>
+    private async Task PrepareImageAsync(Festival.Core.Data.PathImage picture, CancellationToken token)
+    {
+        try
+        {
+            var bitmap = await DecodeAsync(picture);
+            token.ThrowIfCancellationRequested();
+            (preparedFor, prepared) = (picture, bitmap);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            (preparedFor, prepared) = (null, null);
+        }
+    }
+
+    /// <summary>Decodes a PNG to a bounded bitmap.</summary>
+    /// <param name="picture">PNG.</param>
+    /// <returns>Bitmap.</returns>
+    private static async Task<BitmapImage> DecodeAsync(Festival.Core.Data.PathImage picture)
+    {
+        var bitmap = new BitmapImage { DecodePixelWidth = Math.Min(picture.Width, 4096), DecodePixelType = DecodePixelType.Physical };
+        using var stream = new InMemoryRandomAccessStream();
+        await stream.WriteAsync(picture.Bytes.AsBuffer());
+        stream.Seek(0);
+        await bitmap.SetSourceAsync(stream);
+        return bitmap;
+    }
+    #endregion
+
     #region Selectors
-    /// <summary>Decodes a new image, applies zoom changes and mirrors the selected instrument.</summary>
+    /// <summary>Shows a new image, applies zoom changes and mirrors the selected instrument.</summary>
     /// <param name="sender">View model.</param>
     /// <param name="e">Changed property.</param>
     private async void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -112,13 +174,9 @@ public sealed partial class SongPathsView : UserControl
         switch (e.PropertyName)
         {
             case nameof(SongPathsViewModel.Image) when ViewModel.Image is { } picture:
-                var bitmap = new BitmapImage { DecodePixelWidth = Math.Min(picture.Width, 4096), DecodePixelType = DecodePixelType.Physical };
-                using (var stream = new InMemoryRandomAccessStream())
-                {
-                    await stream.WriteAsync(picture.Bytes.AsBuffer());
-                    stream.Seek(0);
-                    await bitmap.SetSourceAsync(stream);
-                }
+                // Prepared during the spinner: assign synchronously so the old chart never shows under the new one.
+                var bitmap = ReferenceEquals(picture, preparedFor) && prepared is not null ? prepared : await DecodeAsync(picture);
+                (preparedFor, prepared) = (null, null);
                 if (!ReferenceEquals(picture, ViewModel.Image)) return;
                 PathImage.Source = bitmap;
                 FitImage();

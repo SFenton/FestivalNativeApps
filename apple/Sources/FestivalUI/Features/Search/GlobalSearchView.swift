@@ -443,19 +443,21 @@ struct GlobalSearchToolbarItem: ViewModifier {
     /// toolbar with `FestivalRootTrailingItems`, whose Search and avatar would otherwise
     /// appear twice.
     @State private var pageProvidesSearch = false
+    /// The macOS shell shows Search and the avatar once for the whole window.
+    @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
 
     func body(content: Content) -> some View {
         content
             .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { pageProvidesSearch = $0 }
             .toolbar {
-                if let openGlobalSearch, !pageProvidesSearch {
+                if let openGlobalSearch, !pageProvidesSearch, !shellOwnsGlobalToolbar {
                     ToolbarItem(placement: .primaryAction) {
                         GlobalSearchButton { openGlobalSearch() }
                     }
                 }
                 // The profile avatar stays top-right on every pushed page too (operator
                 // batch 7), after Search; root screens carry it in their own trailing items.
-                if let session, !pageProvidesSearch {
+                if let session, !pageProvidesSearch, !shellOwnsGlobalToolbar {
                     ToolbarItem(placement: .primaryAction) {
                         RootProfileButton(session: session) { openProfile() }
                     }

@@ -602,7 +602,8 @@ public class SongDetailHistoryPageTests
         await vm.LoadAsync();
         Assert.True(vm.ShowContent);
         Assert.Empty(vm.Leaderboards);
-        Assert.Empty(vm.QuickLinkSections);
+        // Band previews don't depend on visible instruments: Intensity and the band sizes stay in Quick Links.
+        Assert.Equal(["intensity", "band-Band_Duets", "band-Band_Trios", "band-Band_Quad"], vm.QuickLinkSections.Select(s => s.Id));
         Assert.Empty(service.Handler.To("/api/leaderboard/s1/all"));
     }
 }

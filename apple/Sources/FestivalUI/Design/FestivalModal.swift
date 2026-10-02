@@ -14,7 +14,7 @@ import SwiftUI
 /// the result as before.
 ///
 /// ```swift
-/// FestivalModal("Notifications", closeIdentifier: "fst.notifications.close", path: $path) {
+/// FestivalModal("Find Rival", closeIdentifier: "fst.rivals.findRival.close", path: $path) {
 ///     list.navigationDestination(for: AppRoute.self) { … }
 /// }
 /// .festivalSheet(.large)
@@ -30,8 +30,9 @@ struct FestivalModal<Content: View>: View {
     /// Create a modal.
     ///
     /// - Parameters:
-    ///   - title: Inline navigation title; `nil` for a modal whose content carries its own
-    ///     heading (the first-run guide).
+    ///   - title: Inline navigation title, which VoiceOver announces first; `nil` only for a
+    ///     modal whose content carries its own heading (every current modal, the first-run
+    ///     guide included since issue #24, passes one).
     ///   - closeIdentifier: Accessibility identifier of the Close button (existing modals
     ///     keep theirs so UI tests stay stable).
     ///   - path: Navigation path for modals that push routes inside themselves; `nil` for a
@@ -50,8 +51,12 @@ struct FestivalModal<Content: View>: View {
         self.content = content()
     }
 
+    @Environment(\.festivalModalPreview) private var isPreview
+
     var body: some View {
-        if let path {
+        if isPreview {
+            content
+        } else if let path {
             NavigationStack(path: path) { chrome }
         } else {
             NavigationStack { chrome }
@@ -73,6 +78,17 @@ struct FestivalModal<Content: View>: View {
             dismiss()
         }
     }
+}
+
+// MARK: - Preview
+
+extension EnvironmentValues {
+    /// Whether a ``FestivalModal`` shows only its content, with no navigation stack, title or
+    /// Close: a real sheet embedded as a picture inside another modal, such as a first-run
+    /// demo (issue #25). SwiftUI merges a nested `NavigationStack`'s title and toolbar into
+    /// the enclosing one, so a live modal there would replace the outer title and add a
+    /// second, working Close to the outer navigation bar.
+    @Entry var festivalModalPreview = false
 }
 
 /// Inline title (iOS) when the modal has one.

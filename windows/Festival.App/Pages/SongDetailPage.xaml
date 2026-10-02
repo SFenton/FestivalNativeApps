@@ -32,8 +32,10 @@
                                    AutomationProperties.AutomationId="fst.song-detail.title" />
                         <TextBlock Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" Style="{StaticResource BodyLargeTextBlockStyle}"
                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
+                        <!-- Paths, Item Shop and Quick Links share Fluent's 40 epx touch-target height (FSTMinTargetSize). -->
                         <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="8" Margin="0,8,0,0">
                             <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
+                                    MinHeight="{StaticResource FSTMinTargetSize}"
                                     AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.paths">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <FontIcon Glyph="&#xE707;" FontSize="14" />
@@ -43,13 +45,14 @@
                             <!-- Item Shop: the status (gold New, green in the Shop, red Leaving Tomorrow) breathes in the button's
                                  fill (web shopBreathe*, 3 s); the UIA name carries it ("Open in Item Shop, Leaving Tomorrow"). -->
                             <Button Click="OnShopClick" Visibility="{x:Bind ViewModel.HasShopLink, Mode=OneWay}" Padding="0"
+                                    MinHeight="{StaticResource FSTMinTargetSize}" VerticalContentAlignment="Stretch"
                                     Background="#F5121826" Foreground="White"
                                     AutomationProperties.Name="{x:Bind ViewModel.ShopButtonName, Mode=OneWay}"
                                     AutomationProperties.AutomationId="fst.song-detail.shop"
                                     ToolTipService.ToolTip="Open the official Item Shop page">
                                 <Grid>
                                     <controls:ShopPulseFill x:Name="ShopFill" CornerRadius="{StaticResource ControlCornerRadius}" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8" Padding="11,5,11,6">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Padding="11,5,11,6" VerticalAlignment="Center">
                                         <FontIcon Glyph="&#xE719;" FontSize="14" />
                                         <TextBlock Text="Item Shop" />
                                     </StackPanel>
@@ -165,6 +168,7 @@
                     </Border>
                     <!-- Sort applies to the list (Fluent command menu; web list order is Score, descending). -->
                     <DropDownButton HorizontalAlignment="Right" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
+                                    MinHeight="{StaticResource FSTMinTargetSize}"
                                     AutomationProperties.Name="{x:Bind ViewModel.History.SortAnnouncement, Mode=OneWay}"
                                     AutomationProperties.AutomationId="fst.history.sort.open">
                         <StackPanel Orientation="Horizontal" Spacing="8">
@@ -200,20 +204,6 @@
 
                 <StackPanel x:Name="LeaderboardsSection">
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-                    <TextBlock Text="Band Leaderboards:" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
-                               AutomationProperties.AutomationId="fst.song-detail.band-leaderboards" />
-                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandLinks, Mode=OneWay}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Orientation="Horizontal" Spacing="4" />
-                        </ItemsRepeater.Layout>
-                        <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="vm:BandLeaderboardLink">
-                                <HyperlinkButton Content="{x:Bind Label}" Tag="{x:Bind Route}" Click="OnBandLink" />
-                            </DataTemplate>
-                        </ItemsRepeater.ItemTemplate>
-                    </ItemsRepeater>
-                </StackPanel>
                 </StackPanel>
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="Boards" ItemsSource="{x:Bind ViewModel.Leaderboards, Mode=OneWay}"
                                ElementPrepared="OnBoardPrepared">
@@ -263,6 +253,62 @@
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
                                         <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </controls:AccessibleGroup>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+
+                <!-- Band previews (web SongBandLeaderboardPreview, iOS SongBandPreviewSection, issue #34/#64): one section per band
+                     size after the instrument cards, all from one keyless /bands/all read that never holds the page spinner.
+                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten. -->
+                <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="BandBoards" Margin="0,16,0,0"
+                               ItemsSource="{x:Bind ViewModel.BandPreviews, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout MinItemWidth="320" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
+                                           MaximumRowsOrColumns="2" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SongBandPreviewViewModel">
+                            <controls:AccessibleGroup AutomationProperties.Name="{x:Bind HeaderName, Mode=OneWay}"
+                                                      controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
+                                <StackPanel Spacing="8">
+                                    <controls:CardHeader Title="{x:Bind Title}" HeadingLevel="Level3" MinHeight="44"
+                                                         Subtitle="{x:Bind Subtitle, Mode=OneWay}"
+                                                         TitleAutomationId="{x:Bind HeaderAutomationId}" />
+                                    <StackPanel Spacing="4">
+                                        <Border Style="{StaticResource FSTCardStyle}" MinHeight="96" Visibility="{x:Bind ShowPlaceholder, Mode=OneWay}">
+                                            <StackPanel Spacing="8">
+                                                <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
+                                                              Visibility="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading band scores" />
+                                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
+                                                           Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                                                           AutomationProperties.AutomationId="{x:Bind EmptyAutomationId}" />
+                                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                                            AutomationProperties.AutomationId="fst.service-status.inline">
+                                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}"
+                                                            AutomationProperties.AutomationId="{x:Bind RetryAutomationId}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
+                                                       Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="96">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Spacing="4" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SongBandPreviewRow">
+                                                    <controls:SongBandPreviewRowView Row="{x:Bind}" />
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                        <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
                                                 Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>

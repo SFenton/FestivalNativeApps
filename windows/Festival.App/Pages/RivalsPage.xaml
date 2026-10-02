@@ -120,12 +120,13 @@
                                 </Grid>
                                 <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
                                     <StackPanel Spacing="4">
-                                        <StackPanel Visibility="{x:Bind IsLoading, Mode=OneWay}" Spacing="8" Padding="8,4">
-                                            <ProgressBar IsIndeterminate="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading rivals" />
-                                            <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
-                                            <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
-                                            <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
-                                        </StackPanel>
+                                        <!-- Fluent in-card loading: an indeterminate ProgressRing, replaced by rows or the inline status (#65). -->
+                                        <Grid Visibility="{x:Bind IsLoading, Mode=OneWay}" MinHeight="120">
+                                            <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" Width="32" Height="32"
+                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          AutomationProperties.Name="{x:Bind LoadingName}"
+                                                          AutomationProperties.AutomationId="{x:Bind LoadingAutomationId}" />
+                                        </Grid>
                                         <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="8,4">
                                             <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"
                                                        AutomationProperties.AutomationId="fst.service-status.inline" />

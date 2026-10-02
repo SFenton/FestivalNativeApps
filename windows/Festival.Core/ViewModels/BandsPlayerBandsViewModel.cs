@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Festival.Core.Domain;
 
 namespace Festival.Core.ViewModels;
 
@@ -26,6 +27,14 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
         Pager = new BandsPagerViewModel(GoToPageAsync);
         Status = new ServiceStatusViewModel("player-bands:" + route.AccountId, "Failed to load bands", LoadAsync, session.Time);
         if (session.SelectedPlayer is { } player && player.AccountId == AccountId) PlayerName = player.DisplayName;
+        LoadSwap = new LoadSwap(session.Time);
+        LoadSwap.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(IsLoading));
+            OnPropertyChanged(nameof(ShowRows));
+            OnPropertyChanged(nameof(ShowEmpty));
+            OnPropertyChanged(nameof(ShowError));
+        };
     }
 
     /// <summary>Player whose bands are listed.</summary>
@@ -36,6 +45,12 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
 
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
+
+    /// <summary>Cards/content load-swap gate.</summary>
+    public LoadSwap LoadSwap { get; }
+
+    /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
+    public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
     /// <summary>Group options in segmented-control order.</summary>
     public List<PlayerBandGroup> Groups { get; } = [.. PlayerBandGroupInfo.All];
@@ -85,16 +100,16 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
     }
 
     /// <summary>Whether the first read of a selection is in flight.</summary>
-    public bool IsLoading => State is LoadState.Loading or LoadState.Idle;
+    public bool IsLoading => LoadSwap.IsLoading;
 
     /// <summary>Whether cards are shown.</summary>
-    public bool ShowRows => State == LoadState.Loaded;
+    public bool ShowRows => State == LoadState.Loaded && LoadSwap.ContentVisible;
 
     /// <summary>Whether the empty state is shown.</summary>
-    public bool ShowEmpty => State == LoadState.Empty;
+    public bool ShowEmpty => State == LoadState.Empty && LoadSwap.ContentVisible;
 
     /// <summary>Whether the status view is shown.</summary>
-    public bool ShowError => State == LoadState.Failed;
+    public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
     /// <summary>Changing the group returns to page one.</summary>
     /// <param name="value">New group.</param>
@@ -111,7 +126,8 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
     {
         var requested = ++version;
         var (group, page) = (Group, Pager.Page);
-        State = LoadState.Loading;
+        var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
+        if (State is LoadState.Idle) State = LoadState.Loading;
         try
         {
             var list = await session.Api.GetPlayerBandsAsync(AccountId, group, page, PageSize);
@@ -124,19 +140,27 @@ public sealed partial class PlayerBandsViewModel : ObservableObject
                 await LoadAsync();
                 return;
             }
-            Status.Clear();
-            TotalCount = list.TotalCount;
-            Pager.PageCount = pages;
-            PlayerName ??= list.Entries.SelectMany(e => e.Members)
-                .FirstOrDefault(m => m.AccountId == AccountId && !string.IsNullOrWhiteSpace(m.DisplayName))?.ResolvedName;
-            Entries = [.. list.Entries.Select(e => new PlayerBandCardViewModel(e))];
-            State = Entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                Status.Clear();
+                TotalCount = list.TotalCount;
+                Pager.PageCount = pages;
+                PlayerName ??= list.Entries.SelectMany(e => e.Members)
+                    .FirstOrDefault(m => m.AccountId == AccountId && !string.IsNullOrWhiteSpace(m.DisplayName))?.ResolvedName;
+                Entries = [.. list.Entries.Select(e => new PlayerBandCardViewModel(e))];
+                State = Entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+            }, AnimateLoadSwaps());
         }
         catch (FestivalApiException error)
         {
             if (requested != version) return;
-            Status.Report(error);
-            State = LoadState.Failed;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                Status.Report(error);
+                State = LoadState.Failed;
+            }, AnimateLoadSwaps());
         }
     }
 
