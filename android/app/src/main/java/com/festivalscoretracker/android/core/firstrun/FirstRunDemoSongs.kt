@@ -56,6 +56,26 @@ object FirstRunDemoSongs {
     fun forDemo(catalog: List<Song>?, count: Int, preferring: List<String> = emptyList()): List<Song?> =
         pick(catalog.orEmpty(), count, preferring).ifEmpty { List(count.coerceAtLeast(0)) { null } }
 
+    /** Most songs a rotating demo walks through (issue #58). */
+    const val ROTATION_POOL = 40
+
+    /** Placeholder rows a rotating demo draws while it has no songs (its largest visible count). */
+    const val ROTATION_PLACEHOLDERS = 4
+
+    /**
+     * The pool a rotating demo walks through (issue #58): [pick]ed catalogue songs in the same
+     * order as the still demos, or [ROTATION_PLACEHOLDERS] placeholders (which never rotate)
+     * while the catalogue is loading, unavailable or has no song with artwork.
+     *
+     * @param catalog Loaded catalogue, or null.
+     * @param artworkUrl Resolves a raw `albumArt` to a loadable URL.
+     * @return Real songs, or placeholders.
+     */
+    fun rotationPool(catalog: List<Song>?, artworkUrl: (String?) -> String?): List<FirstRunDemoSong> =
+        pick(catalog.orEmpty(), ROTATION_POOL)
+            .map { FirstRunDemoSong(it.songId, it.title, it.artist, it.year?.takeIf { year -> year != 0 }, artworkUrl(it.albumArt)) }
+            .ifEmpty { FirstRunDemoSong.placeholders(ROTATION_PLACEHOLDERS) }
+
     /**
      * Shop song IDs Shop demos may prefer: only when the already-loaded feed, the catalogue and
      * the app observed one publication (never a cross-publication Shop decoration). Demos never
