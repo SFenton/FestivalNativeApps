@@ -32,7 +32,7 @@ States: no player (Choose Profile opens the profile sheet), loading, syncing (20
 | Medium/expanded | `max(1, ⌊(width + 16) / (400 + 16)⌋)` columns (book fold unfolded: 1; tablet/tri-fold unfolded: 2) |
 | Separating vertical hinge (book fold half-open) | `HingeSplitCells`: two unequal columns whose gap is the hinge (≥ 16 dp), so no card straddles the fold; computed from `currentWindowAdaptiveInfo().windowPosture.hingeList` and the grid's window position |
 
-Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade and Reset Filters applies and persists at once (`SuggestionsViewModel.applyFilter`), so the grid and the toolbar's "filters on" state update behind the sheet. The header is the title plus a single **Done**; back, swipe or Done just closes. No Cancel/Apply and no discard prompt.
+Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade and Reset Filters applies and persists at once (`SuggestionsViewModel.applyFilter`), so the grid and the toolbar's "filters on" state update behind the sheet. The shared sheet header is the title plus the standard Close icon button (issue #23; it replaced Done and keeps `fst.suggestions.filter.done`); back, swipe or Close just closes. No Cancel/Apply and no discard prompt.
 
 ## Card (web `CategoryCard`, operator 2026-09-28)
 
