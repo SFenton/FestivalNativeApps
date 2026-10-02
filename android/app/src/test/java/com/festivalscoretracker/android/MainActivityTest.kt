@@ -54,6 +54,18 @@ class MainActivityTest {
     }
 
     @Test
+    fun launcherLabelIsShortWhileTheAppKeepsItsFullName() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val pm = context.packageManager
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(context.packageName)
+        val entry = pm.queryIntentActivities(launcher, 0).single()
+        // Home screens label the icon with the launcher activity's label (issue #79).
+        assertEquals("FST", entry.loadLabel(pm).toString())
+        // App info and in-app branding keep the full name.
+        assertEquals("Festival Score Tracker", context.applicationInfo.loadLabel(pm).toString())
+    }
+
+    @Test
     fun ctrlKOpensGlobalSearchAndShortcutsAreListed() {
         ActivityScenario.launch<MainActivity>(intent()).use { scenario ->
             rule.waitUntil(10_000) { settle(); exists("fst.nav.top-bar") }

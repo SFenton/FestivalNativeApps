@@ -29,7 +29,9 @@ import Foundation
 /// accuracy is always shown on Apple rows (operator batch 7.8 kept the pills on
 /// iPhone, unlike the web's 420/520 px gates), and the rating column uses the
 /// section's widest rating rather than reserving `1,000,000,000`, so phone names keep
-/// their room.
+/// their room. Sections that opt in (Compete, issue #38) also drop the songs
+/// played/total column for every row when it would truncate a name
+/// (``fittingSongs(availableWidth:requiredWidth:)``); the web always shows it.
 public struct LeaderboardRowColumns: Sendable, Equatable {
     // MARK: - Surface
 
@@ -79,6 +81,11 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
     public var scoreLabel: String?
     /// The section's widest rating label (rankings), or nil.
     public var ratingLabel: String?
+    /// The section's widest songs played/total label (rankings), or nil.
+    public var songsLabel: String? = nil
+    /// Show the songs played/total column (rankings). A section decides this once
+    /// for every row, so the rank, songs and rating columns stay aligned (#38).
+    public var showsSongs: Bool = true
 
     /// Columns with no shared widths and no optional columns except accuracy: rows
     /// size themselves (first-run demos, previews).
@@ -110,13 +117,15 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
     ///   - ranks: Every rank shown in the section, including pinned/spotlight rows.
     ///   - scores: Every score shown in the section, including pinned rows.
     ///   - ratings: Every formatted rating label (rankings sections).
+    ///   - songs: Every songs played/total label (rankings sections).
     /// - Returns: The visible columns and the widest label per shared column.
     public static func fit(
         _ surface: Surface,
         width: Double,
         ranks: [Int] = [],
         scores: [Int] = [],
-        ratings: [String] = []
+        ratings: [String] = [],
+        songs: [String] = []
     ) -> LeaderboardRowColumns {
         let measured = width.isFinite && width > 0 ? width : 0
         let medium = measured >= mediumBreakpoint
@@ -141,7 +150,8 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
             showsStars: showsStars,
             rankLabel: widest(ranks.filter { $0 > 0 }.map(rankLabel(_:))),
             scoreLabel: widest(scores.filter { $0 >= 0 }.map(scoreLabel(_:))),
-            ratingLabel: widest(ratings)
+            ratingLabel: widest(ratings),
+            songsLabel: widest(songs)
         )
     }
 
@@ -157,7 +167,8 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
         fit(
             .rankings, width: 0,
             ranks: entries.map { $0.rank(for: metric) },
-            ratings: entries.map { RankingFormatting.rating($0.ratingValue(for: metric), metric: metric) }
+            ratings: entries.map { RankingFormatting.rating($0.ratingValue(for: metric), metric: metric) },
+            songs: entries.map { $0.songsLabel(for: metric) }
         )
     }
 
@@ -175,8 +186,48 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
             ranks: entries.map { $0.rank(for: metric) },
             ratings: entries.map {
                 RankingFormatting.rating($0.ratingValue(for: metric), metric: metric.asRankingMetric)
-            }
+            },
+            songs: entries.map { $0.songsLabel(for: metric) }
         )
+    }
+
+    // MARK: - Songs column
+
+    /// Decide once for the whole section whether the songs played/total column fits
+    /// (issue #38).
+    ///
+    /// The UI measures `requiredWidth` as one row laid out at its ideal size with the
+    /// section's widest rank, its longest name (in the weight it is drawn in), the
+    /// widest songs and rating labels, the chevron, spacing and padding, all in the
+    /// row's own Dynamic Type fonts. If that row fits `availableWidth`, no name in the
+    /// section truncates and songs stay; otherwise every row hides them, so the
+    /// columns keep lining up and names get the space back.
+    ///
+    /// - Parameters:
+    ///   - availableWidth: The section's measured row width in points.
+    ///   - requiredWidth: The ideal width of the widest row with songs shown.
+    /// - Returns: A copy with ``showsSongs`` decided. Unmeasured (zero, negative or
+    ///   non-finite) widths and sections without a songs label keep songs shown.
+    public func fittingSongs(availableWidth: Double, requiredWidth: Double) -> LeaderboardRowColumns {
+        var columns = self
+        columns.showsSongs = Self.songsFit(availableWidth: availableWidth, requiredWidth: requiredWidth)
+            || songsLabel == nil
+        return columns
+    }
+
+    /// Whether a row of `requiredWidth` fits in `availableWidth` without truncating.
+    ///
+    /// - Parameters:
+    ///   - availableWidth: The section's measured row width in points.
+    ///   - requiredWidth: The ideal width of the widest row with songs shown.
+    /// - Returns: True when it fits, or when either width is not measured yet (keep
+    ///   the web's default rather than guessing).
+    public static func songsFit(availableWidth: Double, requiredWidth: Double) -> Bool {
+        guard availableWidth.isFinite, availableWidth > 0,
+              requiredWidth.isFinite, requiredWidth > 0 else { return true }
+        // Text truncates as soon as its proposed width is below its ideal width, so
+        // no tolerance in the generous direction.
+        return requiredWidth <= availableWidth
     }
 
     // MARK: - Labels

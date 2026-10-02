@@ -138,6 +138,40 @@ class LeaderboardColumnLayoutTest {
         assertFalse(LeaderboardColumnLayout.fit(rankings.copy(hasStars = true, hasAccuracy = true), 900f).showStars)
     }
 
+    @Test
+    fun songsYieldToNamesOnlyWhenTheyWouldTruncateOne() {
+        val compete = rankings.copy(nameWidth = 120f)
+        // 16 + 44 + 120 + 64 + 60 + 20 + 4 × 12 = 372: every name fits beside the songs label.
+        val fits = LeaderboardColumnLayout.fit(compete, 372f)
+        assertTrue(fits.showMeta)
+        assertEquals(64f, fits.metaWidth)
+        // One dp narrower would truncate the widest name, so the whole section hides songs.
+        val tight = LeaderboardColumnLayout.fit(compete, 371f)
+        assertFalse(tight.showMeta)
+        assertEquals(0f, tight.metaWidth)
+        // Rank and rating keep their widths so every row stays aligned.
+        assertEquals(fits.rankWidth, tight.rankWidth)
+        assertEquals(fits.valueWidth, tight.valueWidth)
+    }
+
+    @Test
+    fun songsYieldingToNamesWaitForTheFirstLayout() {
+        val compete = rankings.copy(nameWidth = 40f)
+        assertFalse(LeaderboardColumnLayout.fit(compete, Float.NaN).showMeta)
+        assertFalse(LeaderboardColumnLayout.fit(compete, 0f).showMeta)
+        assertTrue(LeaderboardColumnLayout.fit(compete, 900f).showMeta)
+    }
+
+    @Test
+    fun songsYieldingToNamesNeedSongs() {
+        assertFalse(LeaderboardColumnLayout.fit(rankings.copy(metaWidth = 0f, nameWidth = 40f), 900f).showMeta)
+    }
+
+    @Test
+    fun scoreSectionsIgnoreNameWidth() {
+        assertEquals(LeaderboardColumnLayout.fit(scores, 600f), LeaderboardColumnLayout.fit(scores.copy(nameWidth = 400f), 600f))
+    }
+
     // endregion
 
     // region Section texts

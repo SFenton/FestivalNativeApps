@@ -42,7 +42,13 @@ struct AccountRankingRow: View {
     /// the row already sits inside a glass card (Compete previews): no glass on glass.
     var glassSurface: Bool = false
 
-    private var displayName: String {
+    private var displayName: String { Self.displayName(entry) }
+
+    /// The name a row shows for `entry` ("Unknown User" without one).
+    ///
+    /// - Parameter entry: A rankings row.
+    /// - Returns: The display name as drawn.
+    static func displayName(_ entry: AccountRankingEntry) -> String {
         entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
     }
 
@@ -100,6 +106,10 @@ struct AccountRankingRow: View {
 /// value (the web's compact two-row percentile layout). At accessibility Dynamic Type
 /// sizes the row stacks (rank + name, then songs + value) instead of truncating the
 /// name to nothing.
+///
+/// Inside a fitted section the songs column shares the section's widest songs label,
+/// and the section may hide it on every row to give names their room (#38,
+/// `leaderboardSectionColumns(_:hidingCrowdedSongsFor:)`); VoiceOver still reads it.
 struct RankingRowLayout: View {
     let rank: Int
     let name: String
@@ -133,37 +143,74 @@ struct RankingRowLayout: View {
                     }
                 }
             } else {
-                HStack(spacing: 10) {
+                HStack(spacing: Self.columnSpacing) {
                     LeaderboardColumnSlot(template: columns?.rankLabel) { rankText }
                         .frame(minWidth: columns == nil ? rankWidth : nil, alignment: .leading)
                     nameText
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    songsText
+                    if !hidesSongs {
+                        LeaderboardColumnSlot(
+                            template: columns?.songsLabel, alignment: .trailing, font: Self.songsFont
+                        ) {
+                            songsText
+                        }
+                    }
                     LeaderboardColumnSlot(template: columns?.ratingLabel, alignment: .trailing) {
                         ratingColumn
                     }
                     if showsChevron {
-                        chevron
+                        Self.chevron
                     } else if columns != nil {
                         // Keep the rating column aligned with linked rows in the section.
-                        chevron.hidden()
+                        Self.chevron.hidden()
                     }
                 }
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, Self.horizontalPadding)
         .padding(.vertical, 8)
         .frame(minHeight: 44)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .modifier(HiddenSongsAccessibility(spokenSongs: hidesSongs ? spokenSongs : nil))
     }
 
-    private var chevron: some View {
+    /// The section hid the songs column (#38); stacked accessibility-size rows keep it.
+    private var hidesSongs: Bool {
+        columns?.showsSongs == false && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    // MARK: Shared metrics
+
+    /// Spacing between the row's columns.
+    static let columnSpacing: CGFloat = 10
+    /// Horizontal padding inside the row card.
+    static let horizontalPadding: CGFloat = 14
+    /// The songs played/total column's font.
+    static let songsFont: Font = .subheadline
+
+    /// The trailing disclosure chevron (operator batch 7.12).
+    static var chevron: some View {
         Image(systemName: "chevron.right")
             .font(.footnote.weight(.semibold))
             .foregroundStyle(FestivalText.deemphasized)
             .accessibilityHidden(true)
+    }
+
+    /// A row name as drawn: body text, bold for the selected player's row.
+    ///
+    /// - Parameters:
+    ///   - name: Display name.
+    ///   - emphasized: The selected player's own row.
+    /// - Returns: A one-line, tail-truncating name.
+    static func nameText(_ name: String, emphasized: Bool) -> some View {
+        Text(name)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .font(.body)
+            .fontWeight(emphasized ? .bold : .regular)
+            .foregroundStyle(FestivalText.primary)
     }
 
     private var rankText: some View {
@@ -177,17 +224,12 @@ struct RankingRowLayout: View {
     /// Truncates like the web's `colName` (`truncate`): leaderboard names never marquee
     /// (operator batch 7.7).
     private var nameText: some View {
-        Text(name)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .font(.body)
-            .fontWeight(emphasized ? .bold : .regular)
-            .foregroundStyle(FestivalText.primary)
+        Self.nameText(name, emphasized: emphasized)
     }
 
     private var songsText: some View {
         Text(songs)
-            .font(.subheadline)
+            .font(Self.songsFont)
             .fontWeight(emphasized ? .bold : .regular)
             .monospacedDigit()
             .foregroundStyle(FestivalText.primary)
@@ -210,6 +252,98 @@ struct RankingRowLayout: View {
             }
         }
         .fixedSize()
+    }
+}
+
+// MARK: - Songs column fitting (#38)
+
+/// Keeps a hidden songs played/total value in the row's combined VoiceOver element.
+private struct HiddenSongsAccessibility: ViewModifier {
+    /// The spoken songs value when the column is hidden, else nil.
+    let spokenSongs: String?
+
+    func body(content: Content) -> some View {
+        if let spokenSongs {
+            content.accessibilityValue(spokenSongs)
+        } else {
+            content
+        }
+    }
+}
+
+/// One rankings row's name as its section draws it, for the songs-column fit.
+struct RankingRowName: Hashable {
+    /// Display name as the row shows it.
+    let name: String
+    /// Drawn bold (the selected player's row).
+    var emphasized: Bool = false
+}
+
+extension View {
+    /// Share `columns` with the section's rows like `leaderboardSectionColumns(_:)`,
+    /// and hide the songs played/total column on **every** row when showing it would
+    /// truncate any of `names` at the section's measured width (issue #38).
+    ///
+    /// The decision re-runs whenever the section width (orientation, split view,
+    /// window size) or the text size changes, because both measurements are live.
+    ///
+    /// - Parameters:
+    ///   - columns: The section's fitted rankings columns (`LeaderboardRowColumns.rankings`).
+    ///   - names: Every row's name in the section, including a pinned/spotlight row.
+    /// - Returns: This view with the decided columns in its environment.
+    func leaderboardSectionColumns(
+        _ columns: LeaderboardRowColumns, hidingCrowdedSongsFor names: [RankingRowName]
+    ) -> some View {
+        modifier(RankingSongsFit(columns: columns, names: names))
+    }
+}
+
+/// Measures a rankings section and its widest possible row, then hides the songs
+/// column when that row would not fit (`LeaderboardRowColumns.fittingSongs`).
+private struct RankingSongsFit: ViewModifier {
+    let columns: LeaderboardRowColumns
+    let names: [RankingRowName]
+    @State private var availableWidth: CGFloat = 0
+    @State private var requiredWidth: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .leaderboardSectionColumns(columns.fittingSongs(
+                availableWidth: Double(availableWidth), requiredWidth: Double(requiredWidth)
+            ))
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
+            .background(alignment: .topLeading) {
+                RankingRowWidthProbe(columns: columns, names: names)
+                    .fixedSize()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { requiredWidth = $0 }
+                    .hidden()
+                    .accessibilityHidden(true)
+            }
+    }
+}
+
+/// A hidden template of the section's widest row with songs shown: the same columns,
+/// fonts, spacing and padding as `RankingRowLayout`, with every name stacked so the
+/// longest one sets the name column's ideal width.
+struct RankingRowWidthProbe: View {
+    let columns: LeaderboardRowColumns
+    let names: [RankingRowName]
+
+    var body: some View {
+        HStack(spacing: RankingRowLayout.columnSpacing) {
+            LeaderboardColumnSlot(template: columns.rankLabel) { EmptyView() }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(names.enumerated()), id: \.offset) { _, row in
+                    RankingRowLayout.nameText(row.name, emphasized: row.emphasized)
+                }
+            }
+            LeaderboardColumnSlot(
+                template: columns.songsLabel, alignment: .trailing, font: RankingRowLayout.songsFont
+            ) { EmptyView() }
+            LeaderboardColumnSlot(template: columns.ratingLabel, alignment: .trailing) { EmptyView() }
+            RankingRowLayout.chevron
+        }
+        .padding(.horizontal, RankingRowLayout.horizontalPadding)
     }
 }
 

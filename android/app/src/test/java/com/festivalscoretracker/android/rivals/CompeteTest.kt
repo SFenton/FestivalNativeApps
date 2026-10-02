@@ -283,6 +283,16 @@ class CompeteUiTest {
     }
 
     @Test
+    fun rowsKeepTheSongsCountInTheirDescription() {
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        waitForTag("fst.compete.leaderboard-card.Solo_Guitar")
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.spotlight.Solo_Guitar"))
+        // Narrow cards may hide the songs column (issue #38); TalkBack still hears the count.
+        val spoken = rule.onNodeWithTag("fst.compete.spotlight.Solo_Guitar").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
+        assertTrue(spoken, spoken.contains("160 / 250 songs"))
+    }
+
+    @Test
     fun sectionsShowProgressIndicatorsUntilRowsOrErrorsArrive() {
         val gate = CompletableDeferred<Unit>()
         // Holds every Compete read until released; Bass's board then fails so its spinner gives way to the inline error.
