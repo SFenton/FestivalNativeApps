@@ -27,7 +27,9 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.semantics.Role
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
@@ -252,18 +254,22 @@ class GlobalSearchUiTest {
     @Test
     fun findInPageFocusesTheSongsFilter() {
         h.launch()
-        h.waitForTag("fst.songs.search")
+        h.waitForTag("fst.songs.search.open")
         rule.onNodeWithTag("fst.songs.list").performScrollToIndex(2)
         h.settle()
         rule.runOnIdle { assertTrue(h.shortcuts.dispatch(ShellShortcut.FindInPage)) }
+        h.settle()
+        // Phone: Ctrl+F opens the toolbar search field, focused (issue #84).
         h.waitForTag("fst.songs.search")
         rule.onNodeWithTag("fst.songs.search").assertIsFocused()
         assertTrue(rule.onAllNodesWithTag(GlobalSearchTags.SURFACE).fetchSemanticsNodes().isEmpty())
     }
 
     @Test
-    fun songsSearchAndToolbarStayOnScreenWhileScrolled() {
-        // Issue #52: Search, Sort and Quick Links must not scroll or slide away on a phone.
+    fun songsSearchSortAndFilterLiveInTheBottomToolbarAndSearchMinimizesWhileScrolled() {
+        // Issue #52: nothing scrolls or slides away on a phone. Issue #84: search sits in the bottom
+        // floating toolbar with Sort (and Quick Links/Filter when present), not under the top app bar,
+        // and minimizes to an icon while the list scrolls down.
         val songs = (1..40).joinToString(",") { i ->
             """{"songId":"s-$i","title":"${'A' + (i - 1) / 2} Song ${"%02d".format(i)}","artist":"${'A' + (i - 1) / 2} Band $i","year":2020,"durationSeconds":120,"difficulty":{"guitar":1}}"""
         }
@@ -271,23 +277,65 @@ class GlobalSearchUiTest {
         h.launch()
         h.waitForTag("fst.songs.row.s-1")
         val inToolbar = hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar"))
+        val inTopBar = hasAnyAncestor(hasTestTag("fst.nav.top-bar"))
         fun bounds(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        val dp48 = 48 * 3f // xxhdpi
+        rule.onNode(hasTestTag("fst.songs.search.open") and inToolbar).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.search.open") and inTopBar).fetchSemanticsNodes().size)
+        // No search field pinned under the top app bar on a phone.
+        assertTrue(rule.onAllNodesWithTag("fst.songs.search").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.songs.search.open")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search songs")))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
         val toolbarAtTop = bounds("fst.nav.floating-toolbar")
-        val searchAtTop = bounds("fst.songs.search")
+        val searchAtTop = bounds("fst.songs.search.open")
+        assertTrue("field-shaped search $searchAtTop", searchAtTop.width > 3 * dp48)
+        assertTrue(searchAtTop.height >= dp48 - 1f)
+        // The toolbar floats at the bottom of the page, below the list's first rows.
+        assertTrue(toolbarAtTop.top > bounds("fst.songs.row.s-1").bottom)
+
         repeat(3) {
             rule.onNodeWithTag("fst.songs.list").performTouchInput { swipeUp() }
             h.settle()
         }
         assertTrue(rule.onAllNodesWithTag("fst.songs.row.s-1").fetchSemanticsNodes().isEmpty())
-        // Pinned, not merely present: neither moved (a hidden toolbar slides down behind the bar).
-        assertEquals(toolbarAtTop, bounds("fst.nav.floating-toolbar"))
-        assertEquals(searchAtTop, bounds("fst.songs.search"))
-        rule.onNodeWithTag("fst.songs.search").assertIsDisplayed()
-        // The toolbar (Sort here; Quick Links too on sorts with section headers) stays shown.
-        rule.onNodeWithTag("fst.nav.floating-toolbar").assertIsDisplayed()
+        // Pinned, not merely present: same bottom and end edge (a hidden toolbar slides down behind
+        // the bar); search minimized to an icon with a 48 dp target, so the pill is narrower.
+        val toolbarScrolled = bounds("fst.nav.floating-toolbar")
+        assertEquals(toolbarAtTop.bottom, toolbarScrolled.bottom, 0.5f)
+        assertEquals(toolbarAtTop.right, toolbarScrolled.right, 0.5f)
+        assertTrue("$toolbarScrolled vs $toolbarAtTop", toolbarScrolled.width < toolbarAtTop.width)
+        val searchScrolled = bounds("fst.songs.search.open")
+        assertTrue("minimized search $searchScrolled", searchScrolled.width <= dp48 + 1f)
+        val target = rule.onNodeWithTag("fst.songs.search.open").fetchSemanticsNode().touchBoundsInRoot
+        assertTrue(target.width >= dp48 - 1f && target.height >= dp48 - 1f)
+        rule.onNode(hasTestTag("fst.songs.search.open") and inToolbar).assertIsDisplayed()
         rule.onNode(hasTestTag("fst.songs.sort.open") and inToolbar).assertIsDisplayed()
+
+        // Scrolling back up expands it again.
+        rule.onNodeWithTag("fst.songs.list").performTouchInput { swipeDown() }
+        h.settle()
+        assertTrue(bounds("fst.songs.search.open").width > 3 * dp48)
+
+        // Opening search gives a focused field in the toolbar; the tools step aside while typing.
+        rule.onNodeWithTag("fst.songs.search.open").performClick()
+        h.waitForTag("fst.songs.search")
+        rule.onNode(hasTestTag("fst.songs.search") and inToolbar).assertIsDisplayed()
+        rule.onNodeWithTag("fst.songs.search").assertIsFocused()
+        assertTrue(rule.onAllNodesWithTag("fst.songs.sort.open").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.songs.search").performTextInput("Song 40")
         h.waitForTag("fst.songs.row.s-40")
+        // Back closes the field and keeps the query (spoken as the button's state).
+        rule.runOnIdle { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        h.waitForGone("fst.songs.search")
+        rule.onNodeWithTag("fst.songs.search.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Song 40"))
+        rule.onNodeWithTag("fst.songs.row.s-40").assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.sort.open") and inToolbar).assertIsDisplayed()
+        // Inline Clear empties the query without opening the field.
+        rule.onNodeWithTag("fst.songs.search.clear").performClick()
+        h.waitForTag("fst.songs.row.s-39")
+        rule.onNodeWithTag("fst.songs.search.open").assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+        assertTrue(rule.onAllNodesWithTag("fst.songs.search").fetchSemanticsNodes().isEmpty())
     }
 
     @Test

@@ -6,7 +6,7 @@
 
 | Size | Presentation | Why |
 |---|---|---|
-| Compact window (< 600 dp) | `Toc` action ("Quick Links, current section X") in the shell's **floating toolbar** opens a **modal bottom sheet** of `NavigationDrawerItem`s; the current section is the selected item | M3: bottom sheets hold supplementary lists on phones, are thumb-reachable, scroll for long lists (Songs buckets) and support predictive back. Replaces the web FAB and modal |
+| Compact window (< 600 dp) | `Toc` action ("Quick Links, current section X") in the shell's **floating toolbar** opens a **modal bottom sheet** of `NavigationDrawerItem`s; the current section is the selected item. On Songs it shares the pinned toolbar with search, Sort and Filter (issue #84); on other pages the toolbar follows M3 "exit always" hide-on-scroll and returns on scroll up | M3: bottom sheets hold supplementary lists on phones, are thumb-reachable, scroll for long lists (Songs buckets) and support predictive back. Replaces the web FAB and modal. The bottom floating toolbar is already the M3 Expressive equivalent of the iOS #42 accessory, so no other page changed for #84 |
 | Medium and wider windows (tablet, unfolded foldables) | Top-app-bar action opens an anchored **dropdown menu**; the current item is bold with "Current" | M3 menus pick one of a short set of destinations without covering the page. **No side pane** (operator 2026-09-28: the right-side sheet on foldables is dropped) |
 | Separating vertical hinge in the page (book posture, half-open) | The page list stays on the start side of the hinge (`QuickLinks.hingeSplit`, `ui/settings/HingeSplit.kt`); the menu anchors to the button in that pane | No row straddles the fold |
 
