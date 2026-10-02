@@ -75,7 +75,15 @@ struct SuggestionsScreen: View {
                 // iPhone Duo inner display, portrait: suggestions on top, the ones in
                 // today's Item Shop below (`SuggestionsDualSource.swift`).
                 DualSourceLayout {
-                    content
+                    // A player change fades the old suggestions out, shows the spinner and
+                    // fades the new ones in (web `usePageTransition` keyed on the
+                    // account, issue #71). Filter changes and new pages do not reload.
+                    FestivalReloadGate(
+                        key: session.selectedPlayer?.accountId, isLoading: isFirstPageLoading,
+                        spinnerLabel: "Loading Suggestions", spinnerIdentifier: "fst.suggestions.loading"
+                    ) {
+                        content
+                    }
                 } secondary: {
                     SuggestionsCarouselPane(session: session, source: .itemShop, seeAll: .shop)
                 }
@@ -147,14 +155,18 @@ struct SuggestionsScreen: View {
         .accessibilityIdentifier("fst.suggestions.syncing")
     }
 
+    /// Whether the first page is still loading (the gate shows its spinner).
+    private var isFirstPageLoading: Bool {
+        switch viewModel.loadState {
+        case .idle, .loading: viewModel.categories.isEmpty
+        case .failed, .loaded: false
+        }
+    }
+
     @ViewBuilder private var content: some View {
         switch viewModel.loadState {
         case .idle, .loading:
-            if viewModel.categories.isEmpty {
-                FestivalLoadingView(accessibilityLabel: "Loading Suggestions")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("fst.suggestions.loading")
-            } else {
+            if !viewModel.categories.isEmpty {
                 list
             }
         case let .failed(issue):

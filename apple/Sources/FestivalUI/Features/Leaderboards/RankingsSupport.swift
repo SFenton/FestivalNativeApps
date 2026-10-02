@@ -9,6 +9,12 @@ enum RankLoadState<Value> {
     case loading
     case loaded(Value)
     case failed(ServiceIssue)
+
+    /// Whether the value is still loading (drives ``FestivalReloadGate``).
+    var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
+    }
 }
 
 // MARK: - Account ranking row
