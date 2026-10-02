@@ -136,3 +136,12 @@ dependencies {
     // Compose ui-test pulls Espresso 3.5, whose InputManager reflection fails on API 35+ images.
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }
+
+// CI prints each failed test's message and stack, not just the exception class and line,
+// so a Robolectric timeout says which step it was waiting for.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
