@@ -359,31 +359,51 @@ class MockServiceTests(unittest.TestCase):
             urlopen(tracking)
         self.assertEqual(error.exception.code, 405)
 
-    def test_feedback_fixture_accepts_only_keyless_multipart(self):
-        """The feedback fixture answers 201, 503 on request, and refuses keys (issue #78)."""
-        def post(title: str, headers: dict) -> Request:
-            body = (
-                "--B\r\nContent-Disposition: form-data; name=\"submission\"\r\n"
-                "Content-Type: application/json\r\n\r\n"
-                + json.dumps({"kind": "bug", "title": title}) + "\r\n--B--\r\n"
-            ).encode()
+    def test_feedback_fixture_follows_the_service_contract(self):
+        """The feedback fixture queues jobs, reports their status and refuses keys (issue #78)."""
+        def post(title: str, headers: dict, fields=("kind", "platform", "description")) -> Request:
+            values = {"kind": "bug", "platform": "ios", "description": "d", "title": title}
+            parts = "".join(
+                f"--B\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{values[name]}\r\n"
+                for name in (*fields, "title")
+            )
             return Request(
-                self.base + "/api/feedback", data=body, method="POST",
+                self.base + "/api/feedback", data=(parts + "--B--\r\n").encode(), method="POST",
                 headers={"Content-Type": "multipart/form-data; boundary=B", **headers},
             )
 
-        with urlopen(post("[Bug] ok", {"Idempotency-Key": "k"})) as response:
-            self.assertEqual(response.status, 201)
-            self.assertEqual(json.load(response)["issueNumber"], 1)
-        for title, headers, code in [
-            ("[Bug] fixture-unavailable", {"Idempotency-Key": "k"}, 503),
-            ("[Bug] ok", {}, 400),
-            ("[Bug] ok", {"Idempotency-Key": "k", "X-API-Key": "x"}, 400),
-            ("[Bug] ok", {"Idempotency-Key": "k", "X-FST-Selected-Player": "p"}, 400),
+        with urlopen(self.base + "/api/features") as response:
+            self.assertTrue(json.load(response)["feedback"])
+        with urlopen(post("[Bug] ok", {})) as response:
+            self.assertEqual(response.status, 202)
+            accepted = json.load(response)
+        self.assertEqual(accepted["status"], "queued")
+        self.assertRegex(accepted["id"], r"^[0-9a-f]{32}$")
+        with urlopen(self.base + "/api/feedback/" + accepted["id"]) as response:
+            status = json.load(response)
+        self.assertEqual((status["status"], status["issueNumber"]), ("submitted", 1))
+
+        with urlopen(post("[Bug] fixture-failed", {})) as response:
+            failed_id = json.load(response)["id"]
+        with urlopen(self.base + "/api/feedback/" + failed_id) as response:
+            self.assertEqual(json.load(response)["status"], "failed")
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/feedback/" + "a" * 32)
+        self.assertEqual(error.exception.code, 404)
+
+        for title, headers, fields, code, error_code in [
+            ("[Bug] fixture-unavailable", {}, ("kind", "platform", "description"), 503, "feedback_busy"),
+            ("[Bug] ok", {}, ("kind", "platform"), 400, "description_required"),
+            ("[Bug] ok", {"X-API-Key": "x"}, ("kind", "platform", "description"), 400, "invalid_form"),
+            ("[Bug] ok", {"X-FST-Selected-Player": "p"}, ("kind", "platform", "description"), 400, "invalid_form"),
         ]:
-            with self.assertRaises(HTTPError) as error:
-                urlopen(post(title, headers))
-            self.assertEqual(error.exception.code, code)
+            with self.subTest(title=title, headers=headers):
+                with self.assertRaises(HTTPError) as error:
+                    urlopen(post(title, headers, fields))
+                self.assertEqual(error.exception.code, code)
+                self.assertEqual(json.load(error.exception)["code"], error_code)
+                if code == 503:
+                    self.assertEqual(error.exception.headers["Retry-After"], "60")
 
     def test_shared_player_rows_match_both_song_leaderboards(self):
         """Never prove selection with a profile that contradicts the chart fixture."""
