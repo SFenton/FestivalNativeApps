@@ -54,28 +54,10 @@ public sealed partial class LicensesPage : Page
             MaxHeight = 420,
             Content = new TextBlock { Text = row.Text, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas"), FontSize = 12 },
         });
-        // Close is centred under the text (operator batch 6.17), so it lives in the content rather than the
-        // dialog's right-aligned command row; Esc still dismisses.
-        var close = new Button { Content = "Close", HorizontalAlignment = HorizontalAlignment.Center, MinWidth = 120, Margin = new Thickness(0, 4, 0, 0) };
-        AutomationProperties.SetAutomationId(close, "fst.licenses.detail.close");
-        body.Children.Add(close);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = $"{row.Name} · {row.License}",
-            Content = body,
-            RequestedTheme = ElementTheme.Dark,
-        };
-        close.Click += (_, _) => dialog.Hide();
-        dialog.KeyDown += (_, args) =>
-        {
-            if (args.Key != Windows.System.VirtualKey.Escape) return;
-            args.Handled = true;
-            dialog.Hide();
-        };
-        dialog.Opened += (_, _) => close.Focus(FocusState.Programmatic);
-        AutomationProperties.SetAutomationId(dialog, "fst.licenses.detail");
-        await MainWindow.ShowDialogAsync(dialog);
+        // The standard Close button spans the command row, centred under the text (operator batch 6.17; issue #23
+        // replaced the in-content Close button with the dialog's own).
+        var dialog = Controls.FestivalDialog.Create(XamlRoot, $"{row.Name} · {row.License}", body, "fst.licenses.detail", closeAutomationId: "fst.licenses.detail.close");
+        await Controls.FestivalDialog.ShowAsync(dialog);
         if (sender is Control origin) origin.Focus(FocusState.Programmatic);
     }
 }

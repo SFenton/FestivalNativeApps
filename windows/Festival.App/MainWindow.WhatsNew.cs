@@ -78,19 +78,14 @@ public sealed partial class MainWindow
         whatsNewOpen = true;
         try
         {
-            var dialog = new ContentDialog
-            {
-                XamlRoot = RootGrid.XamlRoot,
-                Title = WhatsNewGate.Title(AppVersion),
-                Content = WhatsNewContent(Changelog.DisplayEntries()),
-                CloseButtonText = "Dismiss",
-                DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
-            };
-            AutomationProperties.SetAutomationId(dialog, "fst.whats-new.dialog");
             // Dismiss spans the command row, centred like the web's full-width button (operator batch 6.14).
-            Controls.DialogChrome.FullWidthSingleButton(dialog);
-            await ShowDialogAsync(dialog);
+            var dialog = Controls.FestivalDialog.Create(
+                RootGrid.XamlRoot,
+                WhatsNewGate.Title(AppVersion),
+                WhatsNewContent(Changelog.DisplayEntries()),
+                "fst.whats-new.dialog",
+                closeText: "Dismiss");
+            await Controls.FestivalDialog.ShowAsync(dialog);
             whatsNewStore?.MarkSeen(AppVersion, Changelog.CurrentHash);
         }
         catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException)
