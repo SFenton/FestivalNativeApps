@@ -59,6 +59,7 @@ public sealed partial class ShopPage : Page
     {
         base.OnNavigatedTo(e);
         UpdateToggleGlyph();
+        UpdateFilterTint();
         await ViewModel.AppearCommand.ExecuteAsync(null);
     }
 
@@ -68,9 +69,31 @@ public sealed partial class ShopPage : Page
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ShopViewModel.ToggleLabel)) UpdateToggleGlyph();
+        if (e.PropertyName == nameof(ShopViewModel.IsFilterActive)) UpdateFilterTint();
         if (e.PropertyName == nameof(ShopViewModel.Offers)) PerfLog.Mark("shop-rendered");
         // Offers are projected before the state turns Loaded; a re-projection while loaded (settings) reveals again.
         if (e.PropertyName is nameof(ShopViewModel.Offers) or nameof(ShopViewModel.State) && ViewModel.ShowOffers) _ = RevealAsync();
+    }
+
+    /// <summary>Tints the Filter button gold while a switch is on, like the Songs Filter button.</summary>
+    private void UpdateFilterTint()
+    {
+        FilterButton.ClearValue(ForegroundProperty);
+        if (ViewModel.IsFilterActive) FilterButton.Foreground = Brush("FSTEmphasisBrush");
+    }
+
+    /// <summary>Fits the filter flyout to the window and re-reads the switches.</summary>
+    /// <param name="sender">Flyout.</param>
+    /// <param name="e">Unused.</param>
+    private void OnFilterOpening(object sender, object e)
+    {
+        foreach (var row in ViewModel.FilterRows) row.Refresh();
+        if (XamlRoot is { } root)
+        {
+            var below = root.Size.Height - FilterButton.TransformToVisual(null).TransformPoint(new(0, FilterButton.ActualHeight)).Y;
+            FilterForm.MaxHeight = Math.Clamp(below - 24, 240, 680);
+            FilterForm.Width = Math.Clamp(root.Size.Width - 32, 280, 400);
+        }
     }
 
     /// <summary>List icon when the grid shows, grid icon when the list shows.</summary>

@@ -27,4 +27,4 @@ Source: `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41-190`, `src/pages/sho
 
 ## Open gaps (all platforms)
 
-WebSocket rotation updates, Shop filters beyond In Shop / Leaving Tomorrow, quick-link rail, profile-dependent sorts, wide sidebar Shop entry, performance with many real images.
+WebSocket rotation updates, Shop filters beyond In Shop / Leaving Tomorrow (Android and Windows now have a page-local New / Available / Leaving Tomorrow Filters sheet, issue #19; see their notes), quick-link rail, profile-dependent sorts, wide sidebar Shop entry, performance with many real images.

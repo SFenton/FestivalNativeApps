@@ -6,6 +6,25 @@
     xmlns:vm="using:Festival.Core.ViewModels"
     NavigationCacheMode="Required"
     Background="Transparent">
+    <Page.Resources>
+        <!-- The Songs filter flyout's ToggleRow (SongsPage FilterToggleTemplate, text rows): label, description, trailing switch. -->
+        <DataTemplate x:Key="ShopFilterToggleTemplate" x:DataType="vm:FilterToggleRow">
+            <Grid ColumnSpacing="12" MinHeight="40" Padding="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="{x:Bind Label}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap"
+                               Visibility="{x:Bind HasDescription}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                              OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center"
+                              AutomationProperties.Name="{x:Bind Label}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
 
     <Grid x:Name="Root" Padding="24,12,12,0" RowSpacing="12">
         <Grid.RowDefinitions>
@@ -24,7 +43,64 @@
             <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.CountText, Mode=OneWay}" VerticalAlignment="Bottom" Margin="0,0,0,4"
                        Style="{StaticResource FSTSecondaryTextStyle}" Visibility="{x:Bind ViewModel.ShowOffers, Mode=OneWay}"
                        AutomationProperties.AutomationId="fst.shop.count" />
-            <Button Grid.Column="2" Click="OnToggleView" Visibility="{x:Bind ViewModel.CanToggleView, Mode=OneWay}"
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+            <!-- Issue #19: New / Available / Leaving Tomorrow in the Songs filter flyout's layout (title, switch rows, red Reset).
+                 Changes apply live; light dismiss / Esc closes. Gold while a switch is on, like Songs. -->
+            <DropDownButton x:Name="FilterButton" AutomationProperties.Name="Filter Item Shop" MinHeight="{StaticResource FSTMinTargetSize}"
+                            Visibility="{x:Bind ViewModel.ShowOffers, Mode=OneWay}"
+                            AutomationProperties.AutomationId="fst.shop.filter">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE71C;" FontSize="14" />
+                    <TextBlock Text="Filter" />
+                </StackPanel>
+                <DropDownButton.Flyout>
+                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" Opening="OnFilterOpening">
+                        <Flyout.FlyoutPresenterStyle>
+                            <Style TargetType="FlyoutPresenter">
+                                <Setter Property="MaxWidth" Value="520" />
+                                <Setter Property="Padding" Value="0" />
+                            </Style>
+                        </Flyout.FlyoutPresenterStyle>
+                        <Grid x:Name="FilterForm" Width="400" RowSpacing="0" AutomationProperties.AutomationId="fst.shop.filter.form">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Filter Item Shop" Style="{StaticResource FSTSectionHeaderStyle}" Margin="16,16,16,8"
+                                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.filter.title" />
+                            <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
+                                <StackPanel Spacing="4" Padding="0,0,0,12">
+                                    <TextBlock Text="Show only the Item Shop songs that match any switch you turn on. With every switch off, all songs show."
+                                               Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                    <ItemsControl ItemsSource="{x:Bind ViewModel.FilterRows}" ItemTemplate="{StaticResource ShopFilterToggleTemplate}" IsTabStop="False" />
+                                </StackPanel>
+                            </ScrollViewer>
+                            <Grid Grid.Row="2" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                                <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.ResetFilterCommand}"
+                                        AutomationProperties.Name="Reset Item Shop Filters" AutomationProperties.AutomationId="fst.shop.filter.reset">
+                                    <Button.Resources>
+                                        <!-- Web Modal reset: a full-width red (btnDanger #C62828) button, as in the Songs filter flyout. -->
+                                        <StaticResource x:Key="ButtonBackground" ResourceKey="FSTDangerBackgroundBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="FSTDangerBackgroundDisabledBrush" />
+                                        <StaticResource x:Key="ButtonForeground" ResourceKey="FSTDangerForegroundBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="FSTDangerForegroundDisabledBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrush" ResourceKey="FSTDangerBorderBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+                                    </Button.Resources>
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </Flyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+            <Button Click="OnToggleView" Visibility="{x:Bind ViewModel.CanToggleView, Mode=OneWay}"
                     AutomationProperties.Name="{x:Bind ViewModel.ToggleLabel, Mode=OneWay}"
                     AutomationProperties.AutomationId="fst.shop.view-toggle">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -32,6 +108,7 @@
                     <TextBlock Text="{x:Bind ViewModel.ToggleLabel, Mode=OneWay}" />
                 </StackPanel>
             </Button>
+            </StackPanel>
         </Grid>
 
         <InfoBar Grid.Row="1" IsOpen="{x:Bind ViewModel.HasSongDetailsIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
@@ -139,6 +216,16 @@
                     <TextBlock Text="Check back later. The shop updates regularly." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
+
+            <!-- Every offer is hidden by the page filter: distinct from the genuine empty Shop, with a way back. -->
+            <StackPanel Visibility="{x:Bind ViewModel.ShowNoMatches, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Spacing="12" MaxWidth="440">
+                <TextBlock Text="No Matching Songs" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" TextWrapping="Wrap"
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.filter.empty" />
+                <TextBlock Text="No Item Shop songs match your filters." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                <Button Content="Reset Filters" HorizontalAlignment="Center" Command="{x:Bind ViewModel.ResetFilterCommand}"
+                        AutomationProperties.AutomationId="fst.shop.filter.empty-reset" />
+            </StackPanel>
 
             <StackPanel Visibility="{x:Bind ViewModel.IsHidden, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"
                         Spacing="12" MaxWidth="440">
