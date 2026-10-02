@@ -144,10 +144,11 @@ func serviceInfoIdleSnapshot() throws -> SettingsServiceInfoModel.Phase {
     #expect(loading.processState == .loading)
     #expect(loading.phaseTitle == nil)
     #expect(loading.barPercent == nil)
+    #expect(loading.lastPublished == nil)
     let failed = ServiceInfoRows.make(.failed)
     #expect(failed.processState == .stopped)
     #expect(failed.stateDescription == "Failed to load")
-    #expect(failed.lastPublished == "Unavailable")
+    #expect(failed.lastPublished == nil)
 }
 
 @Test func serviceInfoRowsForIdle() throws {
@@ -158,7 +159,8 @@ func serviceInfoIdleSnapshot() throws -> SettingsServiceInfoModel.Phase {
     #expect(rows.barPercent == nil)
     #expect(rows.progressText == nil)
     #expect(rows.freezeNotice == nil)
-    #expect(rows.lastPublished.contains("Jan 1, 2026"))
+    #expect(rows.lastPublished?.contains("Jan 1, 2026") == true)
+    #expect(rows.attemptText == nil)
 }
 
 @Test func serviceInfoRowsForUpdatingWithExactProgress() throws {
@@ -170,6 +172,30 @@ func serviceInfoIdleSnapshot() throws -> SettingsServiceInfoModel.Phase {
     #expect(rows.progressText == "42.0%")
     #expect(rows.unitsText == "420 of 1,000 leaderboards completed")
     #expect(rows.freezeNotice?.contains("new scores") == true)
+    #expect(rows.attemptText == nil)
+}
+
+func serviceInfoDiscoverySnapshot() throws -> SettingsServiceInfoModel.Phase {
+    let body = try info("""
+    {"contractVersion":2,"lastCompletedUpdate":{"publishedAt":"2026-01-01T12:00:00Z"},
+     "currentUpdate":{"status":"updating","scrapeId":3,"startedAt":"2026-01-01T13:00:00Z",
+      "phase":"Post","subOperation":null,"operationId":"op",
+      "phaseId":"post.registered_player_band_discovery","subphaseId":null,"phaseOrdinal":5,
+      "phaseAttempt":1,"unitsKind":"accounts","unitsCompleted":1240,"unitsTotal":5000,
+      "unitsTotalFinal":true,"phasePercent":24.8,
+      "attemptProgress":{"schemaVersion":1,"attemptedThisPass":1310,"retryableUnavailableThisPass":70}},
+     "workerStatus":{"status":"online"},"nextScheduledUpdateAt":null}
+    """)
+    let display = ServiceProgressReducer.reduce(nil, body).display
+    return .loaded(ServiceInfoSnapshot(info: body, freezeReasonHeader: nil), display)
+}
+
+@Test func serviceInfoRowsShowDiscoveryAttemptsUnderTheBar() throws {
+    let rows = ServiceInfoRows.make(try serviceInfoDiscoverySnapshot(), timeZone: utc, locale: enUS)
+    #expect(rows.phaseTitle == "Registered Player Band Discovery")
+    #expect(rows.barPercent == .some(24.8))
+    #expect(rows.attemptText
+        == "1,310 attempted this pass · 70 temporarily unavailable · 1,240 of 5,000 completed")
 }
 
 @Test func serviceInfoRowsForIndeterminateAndNotApplicableBars() throws {
@@ -301,6 +327,47 @@ private let sampleWhatsNewEntries = [
     let image = try await nativeHostedSettle(host, untilText: expected)
     _ = try nativeHostedPNG(image, filename: "service-info-updating.png", environment: "FST_SETTINGS_RENDER_OUT")
     assertRendersContent(host, image: image, containing: expected)
+}
+
+@MainActor
+@Test func serviceInfoSectionRendersDiscoveryAttemptsAndLoadingStateOnly() async throws {
+    let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+    let size = CGSize(width: 402, height: 520)
+    let host = nativeHostedView(
+        SettingsServiceInfoSection(
+            session: session, isVisible: false, initialPhase: try serviceInfoDiscoverySnapshot()
+        )
+            .padding(16)
+            .frame(width: size.width, height: size.height, alignment: .top)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    // The attempt line is the phase element's value, which the hosted macOS tree does not
+    // expose; `serviceInfoRowsShowDiscoveryAttemptsUnderTheBar` pins its text.
+    let expected = ["Registered Player Band Discovery", "Last Successful Publication"]
+    let image = try await nativeHostedSettle(host, untilText: expected)
+    _ = try nativeHostedPNG(image, filename: "service-info-discovery.png", environment: "FST_SETTINGS_RENDER_OUT")
+    assertRendersContent(host, image: image, containing: expected)
+
+    let loadingHost = nativeHostedView(
+        SettingsServiceInfoSection(session: session, isVisible: false, initialPhase: .loading)
+            .padding(16)
+            .frame(width: size.width, height: size.height, alignment: .top)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let loadingWindow = nativeHostedWindow(loadingHost, size: size)
+    defer { loadingWindow.orderOut(nil) }
+    let loadingExpected = ["Leaderboard Service State", "Loading"]
+    let loadingImage = try await nativeHostedSettle(
+        loadingHost, untilText: loadingExpected, excluding: ["Last Successful Publication"]
+    )
+    assertRendersContent(loadingHost, image: loadingImage, containing: loadingExpected)
+    #expect(!nativeHostedAccessibility(loadingHost).contains("Last Successful Publication"))
 }
 @MainActor
 @Test func settingsChoiceRowRendersInlineOptions() async throws {

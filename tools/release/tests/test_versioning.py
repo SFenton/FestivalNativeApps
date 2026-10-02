@@ -363,6 +363,26 @@ class GitFlowTests(unittest.TestCase):
                                      "--body-file", str(body)]), 1)
             self.assertEqual(v.main(["--repo", str(r.root), "check-notes", "--base", base, "--head", "HEAD"]), 0)
 
+    def test_notes_are_grouped_by_category(self):
+        notes = ["Settings: CHOpt view is inline.", "Fixed a crash.", "Songs: Rows fade in once.",
+                 "item shop: Rows reuse the song row.", "Songs: Index rail lands on the right letter.",
+                 "Note: not a category."]
+        self.assertEqual(v.by_category(notes), [
+            "Songs: Rows fade in once.", "Songs: Index rail lands on the right letter.",
+            "item shop: Rows reuse the song row.", "Settings: CHOpt view is inline.",
+            "Fixed a crash.", "Note: not a category."])
+        self.assertEqual(v.note_category("Song Details: Bands show."), "Song Details")
+        self.assertIsNone(v.note_category("Songs:no space"))
+        r = self.repo
+        r.tag("ios/v2610.01.01")
+        r.commit("a\n\nRelease-Note: Settings: Reset asks first.", "apple/Sources/FestivalUI/A.swift")
+        r.commit("b\n\nRelease-Note: Songs: Faster rows.", "apple/Sources/FestivalUI/B.swift")
+        r.tag("ios/v2610.01.02")
+        text = v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"])
+        self.assertIn("New since 2610.01.01:\n• Songs: Faster rows.\n• Settings: Reset asks first.", text)
+        doc = v.whats_new(r.git, "ios", "2610.01.02", ["2610.01.01"])
+        self.assertEqual(doc["entries"][0]["items"], ["Songs: Faster rows.", "Settings: Reset asks first."])
+
     def test_released_from_tags(self):
         self.repo.tag("windows/v2610.01.01")
         self.repo.tag("windows/released/2610.01.01")

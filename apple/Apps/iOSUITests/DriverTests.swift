@@ -155,10 +155,13 @@ enum DriverStep {
 /// docstring), never directly with plain `xcodebuild test` — the driver
 /// script builds this target once with `build-for-testing`, then repeatedly
 /// re-runs `testDrive` with `test-without-building` under the shared
-/// simulator lock.
+/// simulator lock. `FST_DRIVER_CONTENT_SIZE` (a `UIContentSizeCategory` raw
+/// value) launches the app at that Dynamic Type size.
 final class DriverTests: XCTestCase {
     /// Environment keys the driver itself consumes rather than forwarding to the app.
-    private static let controlKeys: Set<String> = ["FST_DRIVER_STEPS", "FST_DRIVER_STEPS_FILE"]
+    private static let controlKeys: Set<String> = [
+        "FST_DRIVER_STEPS", "FST_DRIVER_STEPS_FILE", "FST_DRIVER_CONTENT_SIZE",
+    ]
 
     /// A step script was neither inline nor found at the given file path.
     enum DriverError: Error, CustomStringConvertible {
@@ -199,7 +202,13 @@ final class DriverTests: XCTestCase {
         if launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] == nil {
             launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "0"
         }
-        let app = FestivalApp.launch(launchEnvironment)
+        let app = FestivalApp.makeApp(launchEnvironment)
+        // `--env FST_DRIVER_CONTENT_SIZE=UICTContentSizeCategoryAccessibilityXL` launches at that
+        // Dynamic Type size (a `UIContentSizeCategory` raw value) without touching device settings.
+        if let contentSize = environment["FST_DRIVER_CONTENT_SIZE"], !contentSize.isEmpty {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
+        }
+        app.launch()
 
         for (offset, raw) in steps.enumerated() {
             let index = offset + 1

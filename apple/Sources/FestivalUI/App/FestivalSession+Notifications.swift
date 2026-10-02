@@ -58,11 +58,16 @@ final class NotificationsCenter {
             )
             try await session.observe(publicationId: payload.observedPublicationId)
             let catalogSongs = (try? await session.catalog())?.catalog.songs ?? []
-            let songTitles = Dictionary(
-                catalogSongs.map { ($0.songId, $0.title) }, uniquingKeysWith: { a, _ in a }
+            let songs = Dictionary(
+                catalogSongs.map {
+                    ($0.songId, NotificationSongInfo(title: $0.title, artist: $0.artist, albumArt: $0.albumArt))
+                },
+                uniquingKeysWith: { a, _ in a }
             )
             notifications = payload.envelope.items.map {
-                NotificationText.format($0, songTitle: $0.songId.flatMap { songTitles[$0] })
+                NotificationText.format(
+                    $0, song: $0.songId.flatMap { songs[$0] }, playerName: identity.displayName
+                )
             }
             isGenerated = payload.envelope.isGenerated
             unreadIds = NotificationSeenStore.unreadIds(

@@ -340,3 +340,82 @@ private func subProgress(
     #expect(ServiceProgressReducer.operationIdentity(active) == "12:legacy:v9")
     #expect(ServiceProgressReducer.format(1.5) == "1.5")
 }
+
+// MARK: - Registered-band discovery attempts
+
+/// A registered-band discovery body with lookup counts (web commit 66556eaa).
+private func discovery(
+    attempted: String = "1310", unavailable: String = "70", schema: String = "1",
+    completed: String = "1240", total: String = "5000", attempt: Int = 1,
+    phaseId: String = "post.registered_player_band_discovery",
+    lastProgressAt: String = "2026-01-01T12:00:10Z"
+) throws -> ServiceInfo {
+    try decode("""
+    {"contractVersion":2,"lastCompletedUpdate":null,
+     "currentUpdate":{"status":"updating","scrapeId":9,"startedAt":"2026-01-01T12:00:00Z",
+      "phase":"Post","subOperation":null,"operationId":"op","phaseId":"\(phaseId)",
+      "subphaseId":null,"phaseOrdinal":5,"phaseAttempt":\(attempt),"unitsKind":"accounts",
+      "unitsCompleted":\(completed),"unitsTotal":\(total),"unitsTotalFinal":true,"phasePercent":24.8,
+      "attemptProgress":{"schemaVersion":\(schema),"attemptedThisPass":\(attempted),
+        "retryableUnavailableThisPass":\(unavailable)},
+      "lastProgressAt":"\(lastProgressAt)"},
+     "workerStatus":{"workerKey":"w","status":"online"},"nextScheduledUpdateAt":null}
+    """)
+}
+
+@Test func discoveryAttemptTextMatchesWebCopyWithAndWithoutTotal() throws {
+    let display = ServiceProgressReducer.reduce(nil, try discovery()).display
+    #expect(display.attemptProgress == ServiceAttemptProgress(attemptedThisPass: 1310, retryableUnavailableThisPass: 70))
+    #expect(display.unitsCompleted == 1240)
+    #expect(display.unitsTotal == 5000)
+    #expect(ServiceInfoText.discoveryAttemptText(display)
+        == "1,310 attempted this pass · 70 temporarily unavailable · 1,240 of 5,000 completed")
+    let noTotal = ServiceProgressReducer.reduce(nil, try discovery(completed: "null", total: "null")).display
+    #expect(ServiceInfoText.discoveryAttemptText(noTotal)
+        == "1,310 attempted this pass · 70 temporarily unavailable · 0 completed")
+}
+
+@Test func discoveryAttemptTextOnlyForTheDiscoveryPhase() throws {
+    let other = ServiceProgressReducer.reduce(nil, try discovery(phaseId: "post.other")).display
+    #expect(other.attemptProgress != nil)
+    #expect(ServiceInfoText.discoveryAttemptText(other) == nil)
+    let missing = ServiceProgressReducer.reduce(nil, try updating(phaseId: "post.registered_player_band_discovery"))
+    #expect(missing.display.attemptProgress == nil)
+    #expect(ServiceInfoText.discoveryAttemptText(missing.display) == nil)
+}
+
+@Test func discoveryAttemptProgressRejectsUntrustedCounts() throws {
+    let invalid: [(attempted: String, unavailable: String, schema: String)] = [
+        ("10", "1", "2"), ("10", "11", "1"), ("-1", "0", "1"), ("10", "-1", "1"),
+        ("10.5", "1", "1"), ("10", "1.5", "1"), ("null", "1", "1"), ("10", "null", "1"),
+        ("10", "1", "null"),
+    ]
+    for value in invalid {
+        let display = ServiceProgressReducer.reduce(
+            nil, try discovery(attempted: value.attempted, unavailable: value.unavailable, schema: value.schema)
+        ).display
+        #expect(display.attemptProgress == nil, "\(value)")
+        #expect(ServiceInfoText.discoveryAttemptText(display) == nil)
+    }
+    let zero = ServiceProgressReducer.reduce(nil, try discovery(attempted: "0", unavailable: "0")).display
+    #expect(zero.attemptProgress == ServiceAttemptProgress(attemptedThisPass: 0, retryableUnavailableThisPass: 0))
+}
+
+@Test func discoveryAttemptProgressIsMonotonicAndResetsOnRestart() throws {
+    let first = ServiceProgressReducer.reduce(nil, try discovery(attempted: "100", unavailable: "10"))
+    let lower = ServiceProgressReducer.reduce(
+        first.memory, try discovery(attempted: "90", unavailable: "5", lastProgressAt: "2026-01-01T12:00:20Z")
+    )
+    #expect(lower.display.attemptProgress == ServiceAttemptProgress(attemptedThisPass: 100, retryableUnavailableThisPass: 10))
+    let restarted = ServiceProgressReducer.reduce(
+        lower.memory,
+        try discovery(attempted: "3", unavailable: "1", attempt: 2, lastProgressAt: "2026-01-01T12:00:30Z")
+    )
+    #expect(restarted.display.restarted)
+    #expect(restarted.display.attemptProgress == ServiceAttemptProgress(attemptedThisPass: 3, retryableUnavailableThisPass: 1))
+    let hidden = ServiceProgressReducer.reduce(
+        restarted.memory,
+        try discovery(attempted: "1", unavailable: "2", attempt: 2, lastProgressAt: "2026-01-01T12:00:40Z")
+    )
+    #expect(hidden.display.attemptProgress == nil)
+}

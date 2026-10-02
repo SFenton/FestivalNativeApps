@@ -65,6 +65,7 @@ struct FestivalSheetModifier: ViewModifier {
             ))
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
+            .pausesFestivalBackdrop()
     }
 
 }

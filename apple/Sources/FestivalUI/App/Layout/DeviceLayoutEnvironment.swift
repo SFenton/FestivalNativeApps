@@ -43,7 +43,8 @@ struct DeviceLayoutPublisher: ViewModifier {
         #if os(iOS)
         let widthClass: WidthClass = sizeClass == .regular ? .regular : .compact
         #else
-        let widthClass: WidthClass = .regular
+        // macOS has no size classes: each Mac column derives one from its width.
+        let widthClass: WidthClass = MacLayoutPolicy.widthClass(forWidth: geometry.size.width)
         #endif
         let observed = LayoutSignals(
             size: geometry.size, widthClass: widthClass, safeAreaInsets: geometry.safeAreaInsets,
