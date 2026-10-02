@@ -1,11 +1,13 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Numerics;
 using Festival.App.Services;
 using Festival.App.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Festival.App.Pages;
@@ -22,6 +24,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private long navigatedAt;
     private long revealedAt;
     private bool revealing;
+    private readonly ScoreHistorySwapper historySwap;
+    private Storyboard? historyRelease;
 
     /// <summary>Creates the page; its Quick Links menu shows on compact windows only.</summary>
     public SongDetailPage()
@@ -32,10 +36,13 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         host.Binder.Resolve = id => ViewModel?.Leaderboards.FindIndex(c => c.QuickLinkId == id) is >= 0 and var index
             ? Boards.GetOrCreateElement(index) as FrameworkElement
             : null;
-        HistorySelector.SelectionChanged += (_, instrument) =>
-        {
-            if (instrument is { } chart) ViewModel?.History.SelectInstrument(chart);
-        };
+        historySwap = new ScoreHistorySwapper(
+            () => ViewModel?.History.Selected,
+            chart => ViewModel?.History.SelectInstrument(chart),
+            FadeHistoryAsync,
+            HoldHistoryCard);
+        // The selector shows the new chart at once; the graph fades over to it (issue #61).
+        HistorySelector.SelectionChanged += (_, instrument) => _ = historySwap.RequestAsync(instrument, !Motion.Allowed);
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -101,6 +108,73 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         if (e.PropertyName is nameof(SongScoreHistoryViewModel.Instruments) or nameof(SongScoreHistoryViewModel.Selected))
             HistorySelector.Selected = history.Selected;
     }
+
+    #region Score history swap
+    /// <summary>The parts of Score History that fade when the chart changes: graph, detail row, pager row and list.</summary>
+    /// <returns>Elements.</returns>
+    private UIElement[] HistorySwapTargets() => [HistoryChart, HistoryDetail, HistoryPagerSlot, HistoryRows, HistoryViewAll];
+
+    /// <summary>Fades the score-history graph and list to <paramref name="opacity"/> on their composition visuals.</summary>
+    /// <param name="opacity">Target opacity.</param>
+    /// <param name="duration">Duration; zero sets it at once.</param>
+    /// <param name="token">Cancelled by a newer swap (which restarts the fade from the current opacity).</param>
+    /// <returns>Completes when the fade ends.</returns>
+    private Task FadeHistoryAsync(double opacity, TimeSpan duration, CancellationToken token)
+    {
+        var instant = duration <= TimeSpan.Zero;
+        foreach (var element in HistorySwapTargets())
+        {
+            var visual = ElementCompositionPreview.GetElementVisual(element);
+            if (instant)
+            {
+                visual.StopAnimation("Opacity");
+                visual.Opacity = (float)opacity;
+                continue;
+            }
+            var compositor = visual.Compositor;
+            // Material/Fluent standard curves: accelerate out, decelerate in.
+            var ease = opacity < 1
+                ? compositor.CreateCubicBezierEasingFunction(new Vector2(0.4f, 0f), new Vector2(1f, 1f))
+                : compositor.CreateCubicBezierEasingFunction(new Vector2(0f, 0f), new Vector2(0.2f, 1f));
+            var fade = compositor.CreateScalarKeyFrameAnimation();
+            fade.InsertKeyFrame(1f, (float)opacity, ease);
+            fade.Duration = duration;
+            visual.StartAnimation("Opacity", fade);
+        }
+        return instant ? Task.CompletedTask : Task.Delay(duration, token);
+    }
+
+    /// <summary>
+    /// Holds the Score History card at its current height while the chart swaps, or releases it (easing down to the new
+    /// content height when motion is allowed), so the card and the content below don't jump.
+    /// </summary>
+    /// <param name="hold">Hold or release.</param>
+    private void HoldHistoryCard(bool hold)
+    {
+        historyRelease?.Stop();
+        historyRelease = null;
+        if (hold)
+        {
+            HistoryCard.MinHeight = Math.Max(HistoryCard.MinHeight, HistoryCard.ActualHeight);
+            return;
+        }
+        var held = HistoryCard.MinHeight;
+        HistoryCard.MinHeight = 0;
+        if (held <= 0 || !Motion.Allowed) return;
+        var release = new DoubleAnimation
+        {
+            From = held,
+            To = 0,
+            Duration = new Duration(ScoreHistorySwap.FadeIn),
+            EnableDependentAnimation = true,
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        };
+        Storyboard.SetTarget(release, HistoryCard);
+        Storyboard.SetTargetProperty(release, nameof(FrameworkElement.MinHeight));
+        historyRelease = new Storyboard { Children = { release } };
+        historyRelease.Begin();
+    }
+    #endregion
 
     #region Reveal
     /// <summary>
