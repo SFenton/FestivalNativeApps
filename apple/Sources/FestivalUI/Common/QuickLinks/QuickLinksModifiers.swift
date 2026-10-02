@@ -126,16 +126,33 @@ struct QuickLinksContainerModifier: ViewModifier {
         .onAppear { configure() }
         .onChange(of: title) { configure() }
         .onChange(of: sections) { configure() }
-        // iPhone: the Quick Links menu lives in the bottom dock (operator, 2026-09-28);
-        // `QuickLinksToolbarItem` steps aside there (`.agents/design/apple/nav-accessories.md`).
+        // iPhone: the Quick Links menu lives above the tab bar (the iOS 26.1+ tab-bar
+        // accessory, issue #42; floating before); `QuickLinksToolbarItem` steps aside there
+        // (`.agents/design/apple/nav-accessories.md`).
         .festivalTabAccessory(
             token: controller.isAvailable, order: DockOrder.quickLinks,
             accessibilityID: "fst.quick-links.open",
             isEnabled: controller.isAvailable && !controller.prefersToolbar
         ) {
-            QuickLinksMenu(controller: controller)
-                .frame(minWidth: 44, minHeight: 44)
+            if presentation == .accessory {
+                QuickLinksSheetButton(controller: controller)
+            } else {
+                QuickLinksMenu(controller: controller)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
         }
+        .sheet(isPresented: sheetPresented) {
+            QuickLinksSheet(controller: controller)
+        }
+    }
+
+    @Environment(\.pageToolsPresentation) private var presentation
+
+    private var sheetPresented: Binding<Bool> {
+        Binding(
+            get: { controller.sheetPresented },
+            set: { controller.sheetPresented = $0 }
+        )
     }
 
     private func configure() {
