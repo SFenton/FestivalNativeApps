@@ -42,7 +42,9 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         base.OnNavigatedTo(e);
         ViewModel = LeaderboardsPageState<FullRankingsViewModel>.GetOrCreate(e.Parameter,
             () => new FullRankingsViewModel(App.Session, (AppRoute.FullRankings)e.Parameter), out var created);
+        ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         shownPage = ViewModel.Page;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title}, no entries" : null,
@@ -56,6 +58,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         ViewModel.PropertyChanged -= OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
         base.OnNavigatedFrom(e);
     }
 
@@ -79,6 +82,12 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
                 row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
         });
     }
+
+    /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
+    /// <param name="sender">Swap.</param>
+    /// <param name="e">Unused.</param>
+    private void OnContentRevealed(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
 
     #region Split layout
     /// <summary>

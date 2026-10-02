@@ -70,6 +70,9 @@ import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
+import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
+import com.festivalscoretracker.android.core.rankings.LeaderboardRowKind
+import com.festivalscoretracker.android.core.rankings.LeaderboardSection
 import com.festivalscoretracker.android.core.rankings.BandRankingEntry
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
@@ -103,7 +106,8 @@ data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp)
 val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
 
 /**
- * Measure the widest rank, songs and rating text (bold, as the selected row draws them).
+ * Measure the widest rank, songs and rating text (bold, as the selected row draws them)
+ * and size the columns with the shared [LeaderboardColumnLayout] (issue #37).
  *
  * @param ranks Rank labels.
  * @param songs Songs labels.
@@ -116,15 +120,16 @@ fun rememberRankingColumns(ranks: List<String>, songs: List<String>, ratings: Li
     val density = LocalDensity.current
     val typography = MaterialTheme.typography
     return remember(ranks, songs, ratings, density, typography) {
-        fun widest(texts: List<String>, style: TextStyle, minimum: Dp): Dp = with(density) {
-            val px = texts.maxOfOrNull { measurer.measure(it, style.copy(fontWeight = FontWeight.Bold), maxLines = 1).size.width } ?: 0
-            maxOf(px.toDp() + 2.dp, minimum)
+        fun widest(texts: List<String>, style: TextStyle): Float = with(density) {
+            val px = texts.maxOfOrNull { measurer.measure(it, style.copy(fontWeight = FontWeight.Bold), maxLines = 1).size.width } ?: return@with 0f
+            (px.toDp() + TEXT_SLACK).value
         }
-        RankingColumns(
-            rank = widest(ranks, typography.bodyMedium, 44.dp),
-            songs = widest(songs, typography.bodyMedium, 0.dp),
-            rating = widest(ratings, typography.bodyLarge, 0.dp),
+        // The shared section fitter (issue #37): rankings keep every column at any width, so no row width is needed.
+        val plan = LeaderboardColumnLayout.fit(
+            LeaderboardSection(LeaderboardRowKind.Ranking, widest(ranks, typography.bodyMedium), widest(songs, typography.bodyMedium), widest(ratings, typography.bodyLarge)),
+            rowWidth = Float.NaN,
         )
+        RankingColumns(rank = plan.rankWidth.dp, songs = plan.metaWidth.dp, rating = plan.valueWidth.dp)
     }
 }
 

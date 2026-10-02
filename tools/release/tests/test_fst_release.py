@@ -419,10 +419,10 @@ class SubmitTests(TempHome):
         self.assertEqual(len(client.planned), 6)
         self.assertFalse(result["submitted"])
 
-    def test_empty_notes_use_default_and_long_notes_are_capped(self):
-        fake, _c, _r = self.run_submit(self.routes(self.released), notes="  \n")
-        loc = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("POST", "/v1/appStoreVersionLocalizations")][0]
-        self.assertEqual(loc["data"]["attributes"]["whatsNew"], fr.DEFAULT_NOTES)
+    def test_empty_notes_are_refused_and_long_notes_are_capped(self):
+        fake, _c, result = self.run_submit(self.routes(self.released), notes="  \n")
+        self.assertEqual(result["refused"], "no_user_facing_changes")
+        self.assertEqual(fake.writes(), [])
         fake, _c, _r = self.run_submit(self.routes(self.released), notes="x" * 5000)
         loc = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("POST", "/v1/appStoreVersionLocalizations")][0]
         self.assertEqual(len(loc["data"]["attributes"]["whatsNew"]), fr.WHATS_NEW_LIMIT)
@@ -603,10 +603,11 @@ class PruneCiCertsTests(TempHome):
     def routes(self):
         return {("GET", "/v1/certificates"): {"data": [
             {"id": "C1", "attributes": {"name": "Apple Development: Created via API", "displayName": "Created via API",
-                                        "certificateType": "DEVELOPMENT"}},
+                                        "certificateType": "DEVELOPMENT", "serialNumber": "0ABC"}},
             {"id": "C2", "attributes": {"name": "Apple Development: Stephen Fenton (AB12CD34EF)",
                                         "certificateType": "DEVELOPMENT"}},
-            {"id": "C3", "attributes": {"name": "Apple Development: Created via API", "certificateType": "DEVELOPMENT"}},
+            {"id": "C3", "attributes": {"name": "Apple Development: Created via API", "certificateType": "DEVELOPMENT",
+                                        "serialNumber": "5D1"}},
             {"id": "C4", "attributes": {"name": "Apple Distribution: Created via API", "certificateType": "DISTRIBUTION"}},
         ]}, ("DELETE", "/v1/certificates/C1"): (204, None), ("DELETE", "/v1/certificates/C3"): (204, None)}
 
@@ -630,3 +631,35 @@ class PruneCiCertsTests(TempHome):
         code, doc, transport = self.run_prune("--dry-run")
         self.assertEqual((code, doc["dry_run"], doc["revoked"]), (0, True, ["C1", "C3"]))
         self.assertEqual(transport.writes(), [])
+
+
+class PersistentCertTests(TempHome):
+    def test_keep_serial_spares_the_persistent_identity(self):
+        routes = PruneCiCertsTests.routes(self)
+        transport = FakeAsc(routes)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "prune-ci-certs", "--keep-serial", "serial=00:5d:1"], env=self.env(),
+                           transport=transport)
+        doc = json.loads(out.getvalue())
+        self.assertEqual((code, doc["revoked"], doc["kept"]), (0, ["C1"], ["5D1"]))
+
+    def test_create_certificate_sends_csr_body_and_writes_der(self):
+        der = b"\x30\x82\x01\x02cert"
+        transport = FakeAsc({("POST", "/v1/certificates"): (201, {"data": {"id": "NEW1", "attributes": {
+            "name": "Apple Development: Created via API", "serialNumber": "00ABCDEF", "expirationDate": "2027-10-01",
+            "certificateType": "DEVELOPMENT", "certificateContent": base64.b64encode(der).decode()}}})})
+        csr = Path(self.tmp) / "ci.csr"
+        csr.write_text("-----BEGIN CERTIFICATE REQUEST-----\nTUlJQw==\nQUJD\n-----END CERTIFICATE REQUEST-----\n",
+                       encoding="utf-8")
+        cer = Path(self.tmp) / "ci.cer"
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "create-certificate", "--csr-file", str(csr), "--out", str(cer)], env=self.env(),
+                           transport=transport)
+        doc = json.loads(out.getvalue())
+        self.assertEqual((code, doc["id"], doc["serial"]), (0, "NEW1", "ABCDEF"))
+        self.assertNotIn("der_base64", doc)
+        self.assertEqual(cer.read_bytes(), der)
+        body = transport.calls[0][3]
+        self.assertEqual(body["data"]["attributes"], {"certificateType": "DEVELOPMENT", "csrContent": "TUlJQw==QUJD"})

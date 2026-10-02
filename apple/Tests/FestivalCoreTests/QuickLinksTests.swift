@@ -37,6 +37,18 @@ private func frames(_ entries: [(String, Double, Double)]) -> [String: QuickLink
     #expect(ordered[0].title == "First")
 }
 
+@Test func containingSectionPrecedesItsNestedSectionsInTreeOrder() {
+    let lead = QuickLinkSection(id: "instrument:Solo_Guitar", title: "Lead")
+    let nested = [
+        QuickLinkSection(id: "rank-history:Solo_Guitar", title: "Rank History", depth: 1),
+        QuickLinkSection(id: "percentiles:Solo_Guitar", title: "Percentiles", depth: 1),
+    ]
+    #expect(QuickLinks.nesting(lead, descendants: nested).map(\.id) == [
+        "instrument:Solo_Guitar", "rank-history:Solo_Guitar", "percentiles:Solo_Guitar",
+    ])
+    #expect(QuickLinks.nesting(lead, descendants: []).map(\.id) == ["instrument:Solo_Guitar"])
+}
+
 @Test func negativeDepthClampsToZero() {
     #expect(QuickLinkSection(id: "a", title: "A", depth: -3).depth == 0)
     #expect(QuickLinkSection(id: "a", title: "A", depth: 2).depth == 2)
@@ -150,5 +162,43 @@ private func frames(_ entries: [(String, Double, Double)]) -> [String: QuickLink
     // Activation offset 0 with a target that landed exactly on its anchor.
     tracker.settle(sections: sections, frames: frames([("a", -600, 400), ("b", 0, 900)]), viewportHeight: 600, activationOffset: 0)
     tracker.update(sections: sections, frames: frames([("b", 4, 900)]), viewportHeight: 600, activationOffset: 0)
+    #expect(tracker.activeID == "b")
+}
+
+// MARK: - Landing (#12)
+
+/// Where `scrollTo(_:anchor:)` puts a section's top for a unit-point anchor `y`.
+private func landedTop(anchorY: Double, viewportHeight: Double, sectionHeight: Double) -> Double {
+    anchorY * viewportHeight - anchorY * sectionHeight
+}
+
+@Test func jumpsLandBelowTheNavigationBarScrollEdgeEffect() {
+    #expect(QuickLinks.defaultActivationOffset == 32)
+}
+
+@Test func landingAnchorPutsTheSectionTopOnTheLandingLine() throws {
+    // Short, tall (negative anchor) and viewport-sized-but-one sections.
+    for height in [180.0, 640.0, 1_800.0, 699.0] {
+        let y = try #require(QuickLinks.landingAnchorY(inset: 32, viewportHeight: 700, sectionHeight: height))
+        #expect(abs(landedTop(anchorY: y, viewportHeight: 700, sectionHeight: height) - 32) < 0.000_1)
+    }
+    #expect(try #require(QuickLinks.landingAnchorY(inset: 32, viewportHeight: 700, sectionHeight: 1_800)) < 0)
+}
+
+@Test func landingAnchorFallsBackToTopWhenItCannotOffset() {
+    #expect(QuickLinks.landingAnchorY(inset: 0, viewportHeight: 700, sectionHeight: 200) == nil)
+    #expect(QuickLinks.landingAnchorY(inset: 32, viewportHeight: 0, sectionHeight: 200) == nil)
+    #expect(QuickLinks.landingAnchorY(inset: 32, viewportHeight: 700, sectionHeight: 700.5) == nil)
+    #expect(QuickLinks.landingAnchorY(inset: 32, viewportHeight: 700, sectionHeight: -1) == nil)
+}
+
+@Test func targetLandedOnTheLineIsOwnedAndNaturallyActive() {
+    var tracker = QuickLinkTracker()
+    tracker.beginJump(to: "b")
+    let landed = frames([("a", -268, 300), ("b", 32, 300), ("c", 332, 300)])
+    #expect(QuickLinks.naturalActive(sections: sections, frames: landed) == "b")
+    tracker.settle(sections: sections, frames: landed, viewportHeight: 600)
+    #expect(tracker.phase == .owned(target: "b", anchorMinY: 32, lockWhileVisible: false))
+    tracker.update(sections: sections, frames: landed, viewportHeight: 600)
     #expect(tracker.activeID == "b")
 }

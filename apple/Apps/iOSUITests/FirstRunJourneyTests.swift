@@ -1,8 +1,10 @@
 import XCTest
 
-/// First-run carousel journeys (operator batch 6 item 6.7, batch 7): Next first, Skip while
-/// pages remain, no disabled Back, Back only after the first page, dismissal by swiping down or tapping
-/// outside, and "only pages actually seen count" across a relaunch.
+/// First-run carousel journeys (operator batch 6 item 6.7, batch 7; Apple's onboarding layout
+/// since issue #25): Next/Done at the bottom with Skip beneath it while pages remain, Back in
+/// the navigation bar only after the first page (never disabled), 44 pt hit regions,
+/// dismissal by swiping down or tapping outside, and "only pages actually seen count" across
+/// a relaunch.
 ///
 /// Hosted (macOS) snapshot coverage for individual carousel states lives in
 /// `FirstRunHostedTests.swift`; the viewed-page bookkeeping is unit-tested in
@@ -51,8 +53,26 @@ final class FirstRunJourneyTests: XCTestCase {
         XCTAssertTrue(songsRow(app, "fixture-pulse").waitForExistence(timeout: 15), file: file, line: line)
     }
 
-    /// The first page offers Next and Skip but no Back; after Next, Back appears beneath
-    /// Next and returns to the first page; Skip closes the guide.
+    /// The page dots' "n of m" value.
+    @MainActor
+    private func pageValue(_ app: XCUIApplication) -> String {
+        app.descendants(matching: .any).matching(identifier: "fst.first-run.dots").firstMatch.value as? String ?? ""
+    }
+
+    /// Wait until the page dots read `value`.
+    @MainActor
+    private func waitForPage(
+        _ app: XCUIApplication, _ value: String, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let dots = app.descendants(matching: .any).matching(identifier: "fst.first-run.dots").firstMatch
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: dots)
+        XCTAssertEqual(XCTWaiter.wait(for: [shown], timeout: 5), .completed,
+                       "Expected page \(value), saw \(pageValue(app))", file: file, line: line)
+    }
+
+    /// Issue #25 (Apple's onboarding layout): the first page offers Next with Skip beneath it
+    /// and no Back; from page two Back sits at the leading edge of the guide's navigation
+    /// bar, before the title and Close, and returns to the first page; Skip closes the guide.
     @MainActor
     func testNextFirstThenBackAppears() throws {
         continueAfterFailure = false
@@ -60,17 +80,28 @@ final class FirstRunJourneyTests: XCTestCase {
         app.launch()
         let next = app.buttons["fst.first-run.next"]
         XCTAssertTrue(next.waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["fst.first-run.skip"].exists, "Skip while pages remain")
+        let skip = app.buttons["fst.first-run.skip"]
+        XCTAssertTrue(skip.exists, "Skip while pages remain")
+        XCTAssertGreaterThan(skip.frame.minY, next.frame.maxY - 1, "Skip sits beneath Next")
         XCTAssertFalse(app.buttons["fst.first-run.back"].exists, "No Back on the first page")
         XCTAssertTrue(app.otherElements["fst.first-run.dots"].exists || app.descendants(matching: .any)
             .matching(identifier: "fst.first-run.dots").firstMatch.exists)
         SongsUITestSupport.record(app, name: "first-run-first-page")
+        let nextFrame = next.frame
 
         next.tap()
-        let back = app.buttons["fst.first-run.back"]
-        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        let back = app.navigationBars.buttons["fst.first-run.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), "Back lives in the guide's navigation bar")
         XCTAssertTrue(back.isHittable)
-        XCTAssertLessThan(next.frame.minY, back.frame.minY, "Next/Done sits before Back")
+        XCTAssertEqual(back.label, "Back")
+        let close = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertLessThan(back.frame.maxX, close.frame.minX, "Back leads, Close trails")
+        let bar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        let title = bar.staticTexts["Songs"]
+        XCTAssertTrue(title.exists)
+        XCTAssertLessThan(back.frame.maxX, title.frame.minX, "Back comes before the title")
+        XCTAssertEqual(app.buttons["fst.first-run.next"].frame.minY, nextFrame.minY, accuracy: 1,
+                       "Next stays in place when Back appears")
         SongsUITestSupport.record(app, name: "first-run-second-page")
         back.tap()
         let backGone = XCTNSPredicateExpectation(
@@ -78,6 +109,129 @@ final class FirstRunJourneyTests: XCTestCase {
         )
         XCTAssertEqual(XCTWaiter.wait(for: [backGone], timeout: 10), .completed)
         app.buttons["fst.first-run.skip"].tap()
+        assertCarouselClosed(app)
+    }
+
+    /// Issue #25: on the last page Done replaces Next in the same place and Skip goes away
+    /// (its row keeps its space); Done closes the guide.
+    @MainActor
+    func testLastPageShowsDoneInPlaceOfNext() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        let nextFrame = next.frame
+        while app.buttons["fst.first-run.next"].exists {
+            app.buttons["fst.first-run.next"].tap()
+            _ = app.buttons["fst.first-run.done"].waitForExistence(timeout: 1)
+        }
+        let done = app.buttons["fst.first-run.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertEqual(done.frame.minY, nextFrame.minY, accuracy: 1, "Done takes Next's place")
+        XCTAssertFalse(app.buttons["fst.first-run.skip"].exists, "No Skip on the last page")
+        XCTAssertTrue(app.navigationBars.buttons["fst.first-run.back"].exists, "Back on the last page")
+        SongsUITestSupport.record(app, name: "first-run-last-page")
+        done.tap()
+        assertCarouselClosed(app)
+    }
+
+    /// Issue #25: every control answers taps within a 44 × 44 pt square centred on it (HIG
+    /// Buttons: "the hit region is at least 44x44 pt") and VoiceOver reads it as a button
+    /// with its name. Next/Back are probed by the page they reach, Skip/Close by closing the
+    /// guide (reopened from Settings between probes).
+    @MainActor
+    func testControlsAcceptNearMissesAndReadAsButtons() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let next = app.buttons["fst.first-run.next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 15))
+        XCTAssertEqual(next.label, "Next")
+        XCTAssertGreaterThanOrEqual(next.frame.height, 44, "Next \(next.frame)")
+        let skip = app.buttons["fst.first-run.skip"]
+        XCTAssertEqual(skip.label, "Skip")
+        XCTAssertGreaterThanOrEqual(skip.frame.height, 44, "Skip \(skip.frame)")
+        XCTAssertGreaterThanOrEqual(skip.frame.width, 44, "Skip \(skip.frame)")
+        XCTAssertEqual(app.navigationBars.buttons["fst.first-run.close"].label, "Close")
+
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        func tapNear(_ element: XCUIElement, _ offset: CGVector) {
+            let frame = element.frame
+            origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
+        }
+        waitForPage(app, "1 of 6")
+        for offset in Self.nearMisses {
+            tapNear(app.buttons["fst.first-run.next"], offset)
+            waitForPage(app, "2 of 6")
+            let back = app.navigationBars.buttons["fst.first-run.back"]
+            XCTAssertTrue(back.waitForExistence(timeout: 5))
+            XCTAssertEqual(back.label, "Back")
+            tapNear(back, offset)
+            waitForPage(app, "1 of 6")
+        }
+
+        // Skip and Close: each probe closes the guide; Settings reopens it.
+        let probes: [(String, CGVector)] = Self.nearMisses.map { ("fst.first-run.skip", $0) }
+            + Self.nearMisses.map { ("fst.first-run.close", $0) }
+        for (index, probe) in probes.enumerated() {
+            if index > 0 { reopenSongsGuide(app) }
+            let control = app.buttons[probe.0]
+            XCTAssertTrue(control.waitForExistence(timeout: 10), probe.0)
+            tapNear(control, probe.1)
+            let gone = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "exists == false"), object: app.buttons["fst.first-run.close"]
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 5), .completed,
+                           "\(probe.0) ignored a tap at (\(Int(probe.1.dx)), \(Int(probe.1.dy))) pt from its centre")
+        }
+    }
+
+    /// Offsets from a control's centre, all inside a 44 × 44 pt square (as in
+    /// `NavButtonHitRegionJourneyTests`).
+    private static let nearMisses: [CGVector] = [
+        CGVector(dx: -20, dy: 0), CGVector(dx: 20, dy: 0),
+        CGVector(dx: 0, dy: -20), CGVector(dx: 0, dy: 20),
+        CGVector(dx: -15, dy: -15), CGVector(dx: 15, dy: 15),
+    ]
+
+    /// Open the Songs guide again from Settings → First Run Guides.
+    @MainActor
+    private func reopenSongsGuide(_ app: XCUIApplication) {
+        let replay = app.buttons["fst.settings.first-run.songs"]
+        if !replay.exists {
+            SongsUITestSupport.rootControl("Settings", app: app).tap()
+        }
+        SongsUITestSupport.reveal(replay, in: app, scrollingUp: true)
+        replay.tap()
+    }
+
+    /// Issue #25: slides that show a real sheet (Sort Songs, Filter Songs) draw its header
+    /// inside the demo. The guide's bar keeps its own title and its single Close on every
+    /// page, and VoiceOver finds no second Close.
+    @MainActor
+    func testEmbeddedSheetDemosKeepOneCloseAndTheGuideTitle() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.first-run.next"].waitForExistence(timeout: 15))
+        var page = 1
+        while true {
+            let bar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+            XCTAssertTrue(bar.staticTexts["Songs"].exists, "Page \(page) keeps the guide title")
+            XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == 'Close'")).count, 1,
+                           "Page \(page) has exactly one Close")
+            XCTAssertFalse(app.buttons["fst.songs.sort.done"].exists, "Page \(page): no Sort sheet Close")
+            XCTAssertFalse(app.buttons["fst.songs.filter.done"].exists, "Page \(page): no Filter sheet Close")
+            if page == 2 { SongsUITestSupport.record(app, name: "first-run-sort-demo") }
+            let next = app.buttons["fst.first-run.next"]
+            guard next.exists else { break }
+            next.tap()
+            page += 1
+            waitForPage(app, "\(page) of 6")
+        }
+        XCTAssertEqual(page, 6)
+        app.buttons["fst.first-run.done"].tap()
         assertCarouselClosed(app)
     }
 
@@ -96,6 +250,36 @@ final class FirstRunJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "first-run-native-close")
         close.tap()
         assertCarouselClosed(app)
+    }
+
+    /// Issue #24: like the app's other modals, each guide names its page in an inline
+    /// navigation title beside Close: the launch Songs guide and a Settings replay alike.
+    @MainActor
+    func testGuideShowsPageTitleInNavigationBar() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let close = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 15))
+        let sheetBar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        XCTAssertTrue(sheetBar.staticTexts["Songs"].exists, "The Songs guide is titled Songs")
+        close.tap()
+        assertCarouselClosed(app)
+
+        SongsUITestSupport.rootControl("Settings", app: app).tap()
+        let replay = app.buttons["fst.settings.first-run.playerhistory"]
+        SongsUITestSupport.reveal(replay, in: app, scrollingUp: true)
+        replay.tap()
+        let replayClose = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertTrue(replayClose.waitForExistence(timeout: 10))
+        let replayBar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        let title = replayBar.staticTexts["Score History"]
+        XCTAssertTrue(title.exists, "A Settings replay is titled with its page")
+        XCTAssertTrue(replayClose.isHittable, "The title leaves Close reachable")
+        XCTAssertFalse(title.frame.intersects(replayClose.frame), "The title does not overlap Close")
+        XCTAssertTrue(app.buttons["fst.first-run.next"].isHittable)
+        SongsUITestSupport.record(app, name: "first-run-replay-title")
+        replayClose.tap()
     }
 
     /// Swiping the carousel down dismisses it, like any sheet.

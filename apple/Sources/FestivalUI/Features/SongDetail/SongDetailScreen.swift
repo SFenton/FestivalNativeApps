@@ -27,6 +27,10 @@ struct SongDetailScreen: View {
     @State private var historyInstrument: Instrument?
     @State private var historyExpanded = false
     @State private var loadedGate: GateKey?
+    /// Duos/Trios/Quads previews from the one `/bands/all` read.
+    @State private var bandPreviews: SongBandPreviewState = .loading
+    /// Publication and player the band previews were read for.
+    @State private var bandKey: BandKey?
     @AppStorage("fst.settings.pathDefaultView") private var pathDefaultView = PathDisplayMode.image
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting")
@@ -37,6 +41,8 @@ struct SongDetailScreen: View {
     /// Whether the hero title has scrolled under the navigation bar (gap #6). Only
     /// the Bool changes while scrolling, so the page body is not re-evaluated every frame.
     @State private var heroTitleHidden = false
+    /// The page's width (the web viewport), for Score History's season column (issue #32).
+    @State private var pageWidth: CGFloat = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -45,6 +51,12 @@ struct SongDetailScreen: View {
         let publicationRevision: Int
         let accountId: String?
         let leeway: Double?
+    }
+
+    /// What the band previews depend on (not leeway: band scores are unfiltered).
+    private struct BandKey: Hashable {
+        let publicationRevision: Int
+        let accountId: String?
     }
 
     private var gateKey: GateKey {
@@ -56,6 +68,9 @@ struct SongDetailScreen: View {
     }
 
     private var previewInstruments: [Instrument] { charted.filter(visibleInstruments.contains) }
+
+    /// Whether the Score History section is drawn (a selected player with rows).
+    private var showsScoreHistory: Bool { session.selectedPlayer != nil && !historyEntries.isEmpty }
 
     private struct ShopDetailTaskKey: Equatable {
         let publicationRevision: Int
@@ -83,20 +98,35 @@ struct SongDetailScreen: View {
         )
     }
 
-    /// Intensity, then one entry per visible leaderboard card, in source order
-    /// (`.agents/controls/quick-links/ios.md`; band/score-history sections are
-    /// not built yet).
+    /// Intensity, Score History (when shown), one entry per visible leaderboard card,
+    /// then Duos/Trios/Quads (web `band-<bandType>`): the page's top-to-bottom order
+    /// (`.agents/controls/quick-links/ios.md`). Uses the same predicates as the body so
+    /// the menu cannot list a section the page does not draw.
     private var quickLinkSections: [QuickLinkSection] {
         [QuickLinkSection(id: "intensity", title: "Intensity", icon: .system("chart.bar.fill"))]
-            + (historyEntries.isEmpty ? [] : [
+            + (showsScoreHistory ? [
                 QuickLinkSection(id: "score-history", title: "Score History", icon: .system("chart.line.uptrend.xyaxis")),
-            ])
-            + charted.filter(visibleInstruments.contains).map { instrument in
+            ] : [])
+            + previewInstruments.map { instrument in
                 QuickLinkSection(
                     id: "instrument-\(instrument.rawValue)", title: instrument.label,
                     icon: .instrument(instrument)
                 )
             }
+            + BandType.allCases.map(Self.bandQuickLink)
+    }
+
+    /// Quick Links entry for one band-size preview section.
+    ///
+    /// - Parameter bandType: Band size.
+    /// - Returns: The section's menu entry (web id `band-<bandType>`).
+    private static func bandQuickLink(_ bandType: BandType) -> QuickLinkSection {
+        let symbol = switch bandType {
+        case .duets: "person.2.fill"
+        case .trios: "person.3.fill"
+        case .quad: "person.3.sequence.fill"
+        }
+        return QuickLinkSection(id: "band-\(bandType.rawValue)", title: bandType.label, icon: .system(symbol))
     }
 
     /// Supply enabled chart links without hiding the PWA's full Intensity grid.
@@ -265,11 +295,12 @@ struct SongDetailScreen: View {
                 .festivalFadeIn(isLoaded: true, index: 1)
                 .quickLinkSection(id: "intensity", title: "Intensity", symbol: "chart.bar.fill")
 
-                if session.selectedPlayer != nil, !historyEntries.isEmpty {
+                if showsScoreHistory {
                     SongScoreHistorySection(
                         entries: historyEntries, pool: previewInstruments,
                         keyboardIcon: song.usesKeyboardIcon,
-                        instrument: $historyInstrument, expanded: $historyExpanded
+                        instrument: $historyInstrument, expanded: $historyExpanded,
+                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason
                     )
                     .festivalFadeIn(isLoaded: true, index: 2)
                     .id(SongScoreHistorySection.anchor)
@@ -296,8 +327,23 @@ struct SongDetailScreen: View {
                         }
                     }
                 }
+
+                ForEach(Array(BandType.allCases.enumerated()), id: \.element) { index, bandType in
+                    SongBandPreviewSection(
+                        song: song, bandType: bandType, state: bandPreviews,
+                        onRetry: { Task { await reloadBands() } }
+                    )
+                    .festivalFadeIn(isLoaded: true, index: previewInstruments.count + index + 3)
+                    .quickLinkSection(Self.bandQuickLink(bandType))
+                }
             }
             .padding(16)
+            // Only what is on screen at load fades; lazily built cards scrolled into
+            // view afterwards appear without a fade (issue #30).
+            .festivalFadeInScope()
+        }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
+            pageWidth = width
         }
         .onAppear {
             // Deep link (`/history`): land on the Score History section.
@@ -320,19 +366,45 @@ struct SongDetailScreen: View {
         let key = gateKey
         guard loadedGate != key else { return }
         if ready {
+            async let bands: Void = loadBandsIfNeeded()
             await loadHistory()
+            await bands
             if !Task.isCancelled { loadedGate = key }
             return
         }
         async let history: Void = loadHistory()
+        async let bands: Void = loadBandsIfNeeded()
         let previews = await SongDetailPreloader.previews(
             session: session, song: song, instruments: previewInstruments, leeway: key.leeway
         )
         await history
+        await bands
         guard !Task.isCancelled else { return }
         previewPreloads = previews
         loadedGate = key
         ready = true
+    }
+
+    /// Read the band previews when the publication or selected player changed since the
+    /// last read. Rows already shown stay until the new read settles.
+    private func loadBandsIfNeeded() async {
+        let key = BandKey(
+            publicationRevision: session.publicationRevision,
+            accountId: session.selectedPlayer?.accountId
+        )
+        guard bandKey != key else { return }
+        guard let state = await SongBandPreviewLoader.load(
+            session: session, songId: song.songId, accountId: key.accountId
+        ) else { return }
+        bandPreviews = state
+        bandKey = key
+    }
+
+    /// Retry: show the spinner and read the band previews again.
+    private func reloadBands() async {
+        bandPreviews = .loading
+        bandKey = nil
+        await loadBandsIfNeeded()
     }
 
     /// Read the selected player's history for this song (every instrument). Anything

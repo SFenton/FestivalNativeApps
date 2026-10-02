@@ -70,13 +70,13 @@ struct FirstRunSettingsSection: View {
         .leaderboards, .compete, .rivals, .shop,
     ]
 
-    /// Row label: the web's nav titles, where Player History is titled "Score History"
-    /// (`history.title`).
+    /// Row label: the page's ``FirstRunPageKey/guideTitle``, the same title its replayed guide
+    /// shows in the navigation bar.
     ///
     /// - Parameter page: Registered page.
     /// - Returns: Title Case row label.
     static func rowLabel(_ page: FirstRunPageKey) -> String {
-        page == .playerHistory ? "Score History" : page.label
+        page.guideTitle
     }
 
     /// Reset the page's seen-state (matching the web's `open()` calling `resetPage` first) and

@@ -4,28 +4,10 @@ import FestivalCore
 // MARK: - Shared static sample data
 
 /// Static sample data shared by the non-Songs first-run demos, mirroring the shape of the web's
-/// `firstRun/demoData.ts` (hand-picked rankings and rivals so demos never touch the network or a
-/// live session — see `.agents/controls/first-run/ios.md`).
+/// `firstRun/demoData.ts` (hand-picked player names, ranks and scores). Song titles and artwork
+/// never come from here: song demos use real catalogue songs via `FirstRunCatalogueSongs` — see
+/// `.agents/controls/first-run/ios.md`.
 enum FirstRunDemoPool {
-    // MARK: Songs
-
-    /// One demo song row, independent of any live `Song`/`FestivalSession`.
-    struct DemoSong: Identifiable {
-        let id = UUID()
-        let title: String
-        let artist: String
-        let year: Int
-    }
-
-    static let songs: [DemoSong] = [
-        DemoSong(title: "Neon Skyline", artist: "The Voltage", year: 2023),
-        DemoSong(title: "Midnight Runners", artist: "Echo Parade", year: 2021),
-        DemoSong(title: "Static Bloom", artist: "Halcyon Drift", year: 2024),
-        DemoSong(title: "Paper Heart", artist: "Glass Parade", year: 2020),
-        DemoSong(title: "Voltage Kids", artist: "The Voltage", year: 2022),
-        DemoSong(title: "Afterglow", artist: "Halcyon Drift", year: 2019),
-    ]
-
     // MARK: Rankings
 
     /// One leaderboard row, matching the web's `DemoRankingEntry`.
@@ -80,31 +62,65 @@ enum FirstRunDemoPool {
         var aheadCount: Int { behind }
     }
 
+    /// Rivals above the player, matching the web's `DEMO_RIVALS_ABOVE` pool; demos page
+    /// through it with ``FirstRunWindowRotation``.
     static let rivalsAbove: [RivalEntry] = [
         .init(name: "KeyDrifter", shared: 148, ahead: 82, behind: 66),
         .init(name: "DeepGroove", shared: 135, ahead: 75, behind: 60),
         .init(name: "SonicRush", shared: 120, ahead: 68, behind: 52),
+        .init(name: "FretPhenom", shared: 155, ahead: 88, behind: 67),
+        .init(name: "NeonPick", shared: 122, ahead: 70, behind: 52),
+        .init(name: "BeatForge", shared: 118, ahead: 65, behind: 53),
     ]
 
+    /// Rivals below the player, matching the web's `DEMO_RIVALS_BELOW` pool.
     static let rivalsBelow: [RivalEntry] = [
         .init(name: "DrumSurge", shared: 142, ahead: 58, behind: 84),
         .init(name: "ShredLord", shared: 130, ahead: 50, behind: 80),
         .init(name: "NoteCrush", shared: 118, ahead: 44, behind: 74),
+        .init(name: "AxelStrike", shared: 138, ahead: 54, behind: 84),
+        .init(name: "LowTide", shared: 126, ahead: 46, behind: 80),
+        .init(name: "OffBeat", shared: 112, ahead: 40, behind: 72),
     ]
 
-    /// Per-instrument rival pairs, matching the web's `DEMO_INSTRUMENT_RIVALS`.
-    static let instrumentRivals: [Instrument: (above: RivalEntry, below: RivalEntry)] = [
+    /// Per-instrument rival pools (first shown first), matching the web's
+    /// `DEMO_INSTRUMENT_RIVALS` and `RivalsInstrumentsDemo` swap pools.
+    static let instrumentRivals: [Instrument: (above: [RivalEntry], below: [RivalEntry])] = [
         .lead: (
-            .init(name: "StageKnight", shared: 140, ahead: 78, behind: 62),
-            .init(name: "FretBlaze", shared: 125, ahead: 48, behind: 77)
+            [
+                .init(name: "StageKnight", shared: 140, ahead: 78, behind: 62),
+                .init(name: "FretPhenom", shared: 145, ahead: 82, behind: 63),
+                .init(name: "NeonPick", shared: 130, ahead: 72, behind: 58),
+            ],
+            [
+                .init(name: "FretBlaze", shared: 125, ahead: 48, behind: 77),
+                .init(name: "AxelStrike", shared: 118, ahead: 42, behind: 76),
+                .init(name: "LowTide", shared: 110, ahead: 38, behind: 72),
+            ]
         ),
         .drums: (
-            .init(name: "BeatLegend", shared: 132, ahead: 80, behind: 52),
-            .init(name: "RhythmEdge", shared: 115, ahead: 40, behind: 75)
+            [
+                .init(name: "BeatLegend", shared: 132, ahead: 80, behind: 52),
+                .init(name: "BeatForge", shared: 128, ahead: 74, behind: 54),
+                .init(name: "DoubleSnare", shared: 120, ahead: 70, behind: 50),
+            ],
+            [
+                .init(name: "RhythmEdge", shared: 115, ahead: 40, behind: 75),
+                .init(name: "OffBeat", shared: 108, ahead: 36, behind: 72),
+                .init(name: "DrumSurge", shared: 100, ahead: 32, behind: 68),
+            ]
         ),
         .vocals: (
-            .init(name: "VocalStorm", shared: 128, ahead: 74, behind: 54),
-            .init(name: "TopClutch", shared: 110, ahead: 42, behind: 68)
+            [
+                .init(name: "VocalStorm", shared: 128, ahead: 74, behind: 54),
+                .init(name: "SonicRush", shared: 122, ahead: 70, behind: 52),
+                .init(name: "NoteHunter", shared: 116, ahead: 66, behind: 50),
+            ],
+            [
+                .init(name: "TopClutch", shared: 110, ahead: 42, behind: 68),
+                .init(name: "NoteCrush", shared: 104, ahead: 38, behind: 66),
+                .init(name: "KeyDrifter", shared: 98, ahead: 34, behind: 64),
+            ]
         ),
     ]
 
@@ -166,29 +182,54 @@ enum FirstRunDemoPool {
 
     // MARK: Rival song comparisons (Rivals detail)
 
-    /// One head-to-head song row, matching the web's `RivalsDetailDemo`.
+    /// One head-to-head rank pair, matching the web's `RivalsDetailDemo` `CATEGORY_RANK_DATA`.
+    /// Song titles come from the live catalogue, never this pool.
     struct RivalComparison: Identifiable {
-        let id = UUID()
-        let title: String
-        let artist: String
         let userRank: Int
         let rivalRank: Int
         let userScore: Int
         let rivalScore: Int
+        var id: Int { userRank }
     }
 
-    static let closestBattles: [RivalComparison] = [
-        .init(
-            title: "Neon Skyline", artist: "The Voltage", userRank: 14, rivalRank: 15,
-            userScore: 988_000, rivalScore: 987_500
-        ),
-        .init(
-            title: "Midnight Runners", artist: "Echo Parade", userRank: 23, rivalRank: 22,
-            userScore: 965_000, rivalScore: 965_800
-        ),
-        .init(
-            title: "Static Bloom", artist: "Halcyon Drift", userRank: 8, rivalRank: 9,
-            userScore: 995_200, rivalScore: 994_900
-        ),
+    /// The Rivals detail demo's categories in display order, each with its four rank rows
+    /// (web `CATEGORIES` / `CATEGORY_RANK_DATA`).
+    static let rivalDetailCategories: [(title: String, ranks: [RivalComparison])] = [
+        ("Closest Battles", [
+            .init(userRank: 14, rivalRank: 15, userScore: 988_000, rivalScore: 987_500),
+            .init(userRank: 23, rivalRank: 22, userScore: 965_000, rivalScore: 965_800),
+            .init(userRank: 8, rivalRank: 9, userScore: 995_200, rivalScore: 994_900),
+            .init(userRank: 31, rivalRank: 30, userScore: 942_000, rivalScore: 942_600),
+        ]),
+        ("Almost Passed", [
+            .init(userRank: 18, rivalRank: 15, userScore: 971_000, rivalScore: 978_000),
+            .init(userRank: 12, rivalRank: 9, userScore: 986_000, rivalScore: 992_000),
+            .init(userRank: 26, rivalRank: 22, userScore: 950_000, rivalScore: 958_000),
+            .init(userRank: 35, rivalRank: 31, userScore: 930_000, rivalScore: 938_000),
+        ]),
+        ("Slipping Away", [
+            .init(userRank: 28, rivalRank: 12, userScore: 945_000, rivalScore: 985_000),
+            .init(userRank: 40, rivalRank: 18, userScore: 910_000, rivalScore: 970_000),
+            .init(userRank: 35, rivalRank: 15, userScore: 930_000, rivalScore: 978_000),
+            .init(userRank: 48, rivalRank: 22, userScore: 890_000, rivalScore: 960_000),
+        ]),
+        ("Barely Winning", [
+            .init(userRank: 15, rivalRank: 18, userScore: 978_000, rivalScore: 971_000),
+            .init(userRank: 9, rivalRank: 12, userScore: 992_000, rivalScore: 986_000),
+            .init(userRank: 22, rivalRank: 26, userScore: 958_000, rivalScore: 950_000),
+            .init(userRank: 31, rivalRank: 35, userScore: 938_000, rivalScore: 930_000),
+        ]),
+        ("Pulling Forward", [
+            .init(userRank: 8, rivalRank: 22, userScore: 994_000, rivalScore: 960_000),
+            .init(userRank: 5, rivalRank: 18, userScore: 998_000, rivalScore: 970_000),
+            .init(userRank: 12, rivalRank: 30, userScore: 986_000, rivalScore: 940_000),
+            .init(userRank: 10, rivalRank: 26, userScore: 990_000, rivalScore: 952_000),
+        ]),
+        ("Dominating Them", [
+            .init(userRank: 3, rivalRank: 45, userScore: 999_000, rivalScore: 895_000),
+            .init(userRank: 2, rivalRank: 38, userScore: 999_500, rivalScore: 915_000),
+            .init(userRank: 5, rivalRank: 52, userScore: 998_000, rivalScore: 880_000),
+            .init(userRank: 4, rivalRank: 60, userScore: 998_500, rivalScore: 860_000),
+        ]),
     ]
 }

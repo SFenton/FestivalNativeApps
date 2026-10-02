@@ -130,17 +130,26 @@ final class SongDetailJourneyTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(setting.waitForExistence(timeout: 10))
         SongsUITestSupport.reveal(setting, in: app, scrollingUp: false)
-        let original = try XCTUnwrap(setting.value as? String)
+        // Inline accordion: the header speaks "<choice>, Collapsed|Expanded" and expands
+        // in place; options stay on Settings and mark the current one Selected.
+        let collapsedValue = try XCTUnwrap(setting.value as? String)
+        let original = try XCTUnwrap(collapsedValue.components(separatedBy: ", ").first)
         XCTAssertTrue(
-            ["Image", "Text"].contains(original),
-            "Unexpected path picker value \(original); label: \(setting.label)"
+            ["Image", "Text"].contains(original) && collapsedValue.hasSuffix(", Collapsed"),
+            "Unexpected path setting value \(collapsedValue); label: \(setting.label)"
         )
         let changed = original == "Image" ? "Text" : "Image"
         setting.tap()
-        let option = app.buttons[changed]
-        XCTAssertTrue(option.waitForExistence(timeout: 10))
+        XCTAssertEqual(setting.value as? String, "\(original), Expanded")
+        let current = app.buttons["fst.settings.path-default-view.\(original.lowercased())"]
+        XCTAssertTrue(current.waitForExistence(timeout: 10))
+        XCTAssertTrue(current.isSelected)
+        let option = app.buttons["fst.settings.path-default-view.\(changed.lowercased())"]
+        XCTAssertFalse(option.isSelected)
         option.tap()
-        XCTAssertEqual(setting.value as? String, changed)
+        XCTAssertEqual(setting.value as? String, "\(changed), Expanded")
+        XCTAssertTrue(option.isSelected)
+        XCTAssertTrue(app.navigationBars["Settings"].exists, "Choosing must not navigate away")
 
         SongsUITestSupport.rootControl("Songs", app: app).tap()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
@@ -175,9 +184,9 @@ final class SongDetailJourneyTests: XCTestCase {
         }
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         SongsUITestSupport.reveal(setting, in: app, scrollingUp: false)
-        setting.tap()
-        app.buttons[original].tap()
-        XCTAssertEqual(setting.value as? String, original)
+        if (setting.value as? String)?.hasSuffix(", Collapsed") == true { setting.tap() }
+        app.buttons["fst.settings.path-default-view.\(original.lowercased())"].tap()
+        XCTAssertEqual(setting.value as? String, "\(original), Expanded")
     }
 
     /// Warn once per Paths opening until the explicit persistent choice survives cold launch.
@@ -290,61 +299,55 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.collapseSidebarOnPad(app)
         let viewFull = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
         XCTAssertTrue(viewFull.waitForExistence(timeout: 15))
-        let first = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
+        let first = previewText("fixture-player-1", "#1", in: app)
         XCTAssertTrue(first.waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Fixture Player 1"].exists)
-        let previewNonFC = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "Accuracy 98%")).firstMatch
-        let previewFC = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-2"
-        ).matching(NSPredicate(
-            format: "label == %@", "Full combo, accuracy 98%"
-        )).firstMatch
+        let previewNonFC = previewText("fixture-player-1", "Accuracy 98%", in: app)
+        let previewFC = previewText("fixture-player-2", "Full combo, accuracy 98%", in: app)
         XCTAssertTrue(previewNonFC.waitForExistence(timeout: 10))
         XCTAssertEqual(previewNonFC.label, "Accuracy 98%")
         XCTAssertTrue(previewFC.exists)
         XCTAssertEqual(previewFC.label, "Full combo, accuracy 98%")
         try SongsUITestSupport.assertScoreAccuracyAccent(previewNonFC, fullCombo: false)
         try SongsUITestSupport.assertScoreAccuracyAccent(previewFC, fullCombo: true)
-        let previewScoreOne = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "99,900")).firstMatch
-        let previewScoreTwo = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-2"
-        ).matching(NSPredicate(format: "label == %@", "99,800")).firstMatch
+        let previewScoreOne = previewText("fixture-player-1", "99,900", in: app)
+        let previewScoreTwo = previewText("fixture-player-2", "99,800", in: app)
         SongsUITestSupport.assertAlignedScoreColumn(
             firstScore: previewScoreOne, secondScore: previewScoreTwo,
             firstBadge: previewNonFC, secondBadge: previewFC
         )
-        let previewRowThree = "fst.song-detail.preview-row.Solo_Guitar.fixture-player-3"
-        let previewRowFour = "fst.song-detail.preview-row.Solo_Guitar.fixture-player-4"
-        let previewScoreThree = app.staticTexts.matching(identifier: previewRowThree)
-            .matching(NSPredicate(format: "label == %@", "99,700")).firstMatch
-        let previewScoreFour = app.staticTexts.matching(identifier: previewRowFour)
-            .matching(NSPredicate(format: "label == %@", "99,600")).firstMatch
+        let previewScoreThree = previewText("fixture-player-3", "99,700", in: app)
+        let previewScoreFour = previewText("fixture-player-4", "99,600", in: app)
         SongsUITestSupport.assertAlignedScoreEnds(previewScoreOne, previewScoreThree)
         SongsUITestSupport.assertAlignedScoreEnds(previewScoreOne, previewScoreFour)
-        XCTAssertFalse(app.staticTexts.matching(identifier: previewRowThree)
-            .matching(NSPredicate(
-                format: "label CONTAINS[c] %@", "accuracy"
-            )).firstMatch.exists)
-        let previewFCWithoutAccuracy = app.staticTexts.matching(identifier: previewRowFour)
-            .matching(NSPredicate(
-                format: "label == %@", "Full combo; accuracy unavailable"
-            )).firstMatch
+        XCTAssertFalse(previewRow("fixture-player-3", in: app)
+            .descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label CONTAINS[c] %@", "accuracy")).firstMatch.exists)
+        let previewFCWithoutAccuracy = previewText(
+            "fixture-player-4", "Full combo; accuracy unavailable", in: app
+        )
         XCTAssertTrue(previewFCWithoutAccuracy.exists)
         let previewQuery = try await SongsUITestSupport.latestFixtureScoreQuery()
         XCTAssertEqual(previewQuery.top, 10)
         XCTAssertEqual(previewQuery.offset, 0)
         XCTAssertNil(previewQuery.leeway)
-        XCTAssertFalse(app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-11"
-        ).matching(NSPredicate(format: "label == %@", "#11")).firstMatch.exists)
+        XCTAssertFalse(previewRow("fixture-player-11", in: app).exists)
         SongsUITestSupport.record(app, name: "song-detail-real-top-scores")
         try SongsUITestSupport.assertHeaderContrast(app.staticTexts["Fixture Player 1"], in: app)
+
+        // Issue #33: a top-ten row is one button that opens that player's profile.
+        let secondRow = previewRow("fixture-player-2", in: app)
+        XCTAssertEqual(secondRow.elementType, .button)
+        XCTAssertEqual(
+            secondRow.label, "#2, Fixture Player 2, 99,800, Full combo, accuracy 98%"
+        )
+        secondRow.tap()
+        let profileName = app.staticTexts["fst.player.name"]
+        XCTAssertTrue(profileName.waitForExistence(timeout: 10), "Row did not open the profile")
+        XCTAssertEqual(profileName.label, "Fixture Player 2")
+        SongsUITestSupport.record(app, name: "song-detail-preview-row-opens-profile")
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
 
         viewFull.tap()
         XCTAssertTrue(app.buttons["fst.song-leaderboard.page-next"].waitForExistence(timeout: 10))
@@ -437,9 +440,7 @@ final class SongDetailJourneyTests: XCTestCase {
         )
         SongsUITestSupport.record(app, name: "song-detail-pinned-title-hidden")
 
-        let tenth = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-10"
-        ).matching(NSPredicate(format: "label == %@", "#10")).firstMatch
+        let tenth = previewText("fixture-player-10", "#10", in: app)
         XCTAssertTrue(tenth.waitForExistence(timeout: 15))
         app.swipeUp()
         XCTAssertEqual(
@@ -475,9 +476,10 @@ final class SongDetailJourneyTests: XCTestCase {
         )
     }
 
-    /// Probe system accessibility scrolling to the last score in a populated preview.
+    /// Probe system accessibility scrolling to the last score in a populated preview,
+    /// then confirm the row is a button that opens another page (issue #33).
     ///
-    /// - Throws: A stalled offscreen score target or missing painted preview row.
+    /// - Throws: A stalled offscreen score target, missing preview row or profile.
     @MainActor
     func testOffscreenDetailScoreRemainsReachable() throws {
         continueAfterFailure = false
@@ -489,20 +491,30 @@ final class SongDetailJourneyTests: XCTestCase {
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
         song.tap()
-        let first = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
+        let first = previewText("fixture-player-1", "#1", in: app)
         XCTAssertTrue(first.waitForExistence(timeout: 15))
-        let tenth = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-10"
-        ).matching(NSPredicate(format: "label == %@", "#10")).firstMatch
-        XCTAssertTrue(tenth.waitForExistence(timeout: 10))
+        let tenthRow = previewRow("fixture-player-10", in: app)
+        XCTAssertTrue(tenthRow.waitForExistence(timeout: 10))
         if UIDevice.current.userInterfaceIdiom == .phone {
-            XCTAssertFalse(tenth.isHittable, "The last score did not start offscreen")
+            XCTAssertFalse(tenthRow.isHittable, "The last score did not start offscreen")
         }
-        tenth.tap()
-        XCTAssertTrue(tenth.isHittable, "Offscreen score could not be brought into view")
-        SongsUITestSupport.record(app, name: "song-detail-offscreen-score-revealed")
+        // Each row is one button (issue #33): VoiceOver hears it as a button, and
+        // activating the offscreen row scrolls it into view and opens the profile.
+        XCTAssertEqual(
+            tenthRow.label, "#10, Fixture Player 10, 99,000, Full combo, accuracy 98%"
+        )
+        // This listener closes after its first score read, so only the push itself
+        // is asserted here; the profile content is covered on the 8765 service.
+        tenthRow.tap()
+        XCTAssertTrue(
+            app.buttons["BackButton"].waitForExistence(timeout: 10) && !tenthRow.isHittable,
+            "Activating the revealed preview row did not open another page"
+        )
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(
+            tenthRow.waitForExistence(timeout: 10) && tenthRow.isHittable,
+            "Back did not return to the revealed preview row"
+        )
     }
 
     /// A chart with no scores says so in its header and offers no View full action
@@ -542,6 +554,105 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "song-detail-empty-bass-header")
     }
 
+    /// Band leaderboard previews (issue #34): Duos, Trios and Quads follow the solo
+    /// cards; each band row is one drill-down button to Band Detail, the selected
+    /// player's band outside the top rows is appended, an empty size explains itself
+    /// and View full opens that size's song band leaderboard.
+    ///
+    /// Needs a fixture service started from this revision (the shared `:8765`
+    /// listener may predate the `/bands/all` route):
+    ///
+    ///     python3 tools/mock_service.py --port 18934
+    ///
+    /// - Throws: A missing section, row, appended band or destination.
+    @MainActor
+    func testSongBandPreviewsLinkToBandsAndFullBandLeaderboard() throws {
+        continueAfterFailure = false
+        let origin = "http://127.0.0.1:18934"
+        let probe = expectation(description: "band fixture probe")
+        var reachable = false
+        URLSession.shared.dataTask(with: URL(string: "\(origin)/api/leaderboard/fixture-pulse/bands/all")!) { _, response, _ in
+            reachable = (response as? HTTPURLResponse)?.statusCode == 200
+            probe.fulfill()
+        }.resume()
+        wait(for: [probe], timeout: 5)
+        try XCTSkipUnless(reachable, "Start `mock_service.py --port 18934` from this revision")
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_API_BASE_URL": origin,
+        ])
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        func any(_ identifier: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        }
+        XCTAssertTrue(any("fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let first = app.buttons["fst.song-detail.band-row.Band_Duets.0"]
+        for _ in 0..<12 where !(first.exists && first.isHittable) { app.swipeUp() }
+        XCTAssertTrue(first.isHittable, "No Duos band preview row")
+        XCTAssertEqual(
+            first.label,
+            "Rank 1, Band 1 Member A + Band 1 Member B, score 94,500, 5 stars, full combo, accuracy 96.5%"
+        )
+        let selected = app.buttons["fst.song-detail.band-selected.Band_Duets"]
+        XCTAssertTrue(selected.exists, "The selected player's rank-14 band was not appended")
+        XCTAssertTrue(selected.label.hasPrefix("Your band, Rank 14, "), selected.label)
+        let viewFull = app.buttons["fst.song-detail.band-leaderboard.Band_Duets"]
+        for _ in 0..<4 where !viewFull.isHittable { app.swipeUp() }
+        XCTAssertEqual(viewFull.label, "View full Duos leaderboard")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            // Text scrolled under a bar's scroll-edge fade is intentionally dimmed. The
+            // auditor also flags wrapped text on translucent glass cards that renders
+            // well above 4.5:1, so measure the composited pixels instead for those.
+            let barBottom = app.navigationBars.firstMatch.frame.maxY
+            let tabTop = app.tabBars.firstMatch.exists
+                ? app.tabBars.firstMatch.frame.minY : app.windows.firstMatch.frame.maxY
+            try app.performAccessibilityAudit(for: .all) { issue in
+                // The shared toolbar (profile avatar) and text under its scroll-edge
+                // fade are outside this feature and covered by their own journeys.
+                if let frame = issue.element?.frame, frame.minY < barBottom { return true }
+                if issue.auditType == .contrast, let element = issue.element {
+                    let frame = element.frame
+                    if frame.maxY > tabTop { return true }
+                    try SongsUITestSupport.assertHeaderContrast(element, in: app)
+                    return true
+                }
+                XCTFail(
+                    "Band preview audit: \(issue.compactDescription); "
+                        + "element=\(issue.element?.identifier ?? "unidentified"), "
+                        + "label=\(issue.element?.label ?? "unidentified"), "
+                        + "frame=\(String(describing: issue.element?.frame))"
+                )
+                return false
+            }
+        }
+        SongsUITestSupport.record(app, name: "song-detail-band-previews")
+
+        viewFull.tap()
+        XCTAssertTrue(
+            any("fst.song-band-leaderboard.band-type-menu").waitForExistence(timeout: 15),
+            "View full did not open the song band leaderboard"
+        )
+        app.buttons["BackButton"].tap()
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        for _ in 0..<4 where !first.isHittable { app.swipeDown() }
+        first.tap()
+        XCTAssertTrue(
+            app.buttons["BackButton"].waitForExistence(timeout: 10) && !first.isHittable,
+            "A band preview row did not open Band Detail"
+        )
+        app.buttons["BackButton"].tap()
+
+        let quads = any("fst.song-detail.band-empty.Band_Quad")
+        for _ in 0..<8 where !(quads.exists && quads.isHittable) { app.swipeUp() }
+        XCTAssertTrue(quads.exists, "Quads has no rows and must show its empty state")
+        XCTAssertFalse(app.buttons["fst.song-detail.band-leaderboard.Band_Quad"].exists)
+    }
+
     /// Score history lives on the song page (operator batch 6.39): with a selected
     /// player the Score History section appears after Intensity with the shared
     /// instrument selector, the chart and the best scores; there is no per-card history
@@ -576,6 +687,70 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertFalse(app.buttons["fst.song-detail.history.Solo_Guitar"].exists, "The old per-card history link is back")
         XCTAssertTrue(any("fst.song-detail.intensity").exists, "Score history navigated away from the song page")
         SongsUITestSupport.record(app, name: "song-detail-score-history")
+    }
+
+    /// Switching the Score History instrument (issue #31) swaps the graph inside a card of
+    /// one size: Lead pages and Bass fits one page, yet the best-scores list under the card
+    /// does not move, and the space kept for the pager is not exposed to VoiceOver.
+    /// Needs `tools/mock_service.py --port 18831` (its `fixture-history-multi` account).
+    ///
+    /// - Throws: A missing section, a swap that never lands or a card that resizes.
+    @MainActor
+    func testScoreHistoryInstrumentSwitchKeepsTheCardSize() throws {
+        try assertScoreHistorySwitchKeepsTheCardSize(reduceMotion: false)
+    }
+
+    /// The same switch with the app's Reduce Motion setting on: the swap is instant and the
+    /// card still keeps its size (issue #31).
+    ///
+    /// - Throws: A missing section, a swap that never lands or a card that resizes.
+    @MainActor
+    func testScoreHistoryInstrumentSwitchUnderReduceMotion() throws {
+        try assertScoreHistorySwitchKeepsTheCardSize(reduceMotion: true)
+    }
+
+    /// Open `fixture-pulse` as `fixture-history-multi`, then switch Lead → Bass → Lead.
+    ///
+    /// - Parameter reduceMotion: Launch with the app's Reduce Motion setting on.
+    /// - Throws: An XCTest failure for a missing element, swap or a moved list.
+    @MainActor
+    private func assertScoreHistorySwitchKeepsTheCardSize(reduceMotion: Bool) throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_PROFILE": "fixture-history-multi:Multi History",
+            "FST_API_BASE_URL": "http://127.0.0.1:18831",
+        ])
+        app.launchArguments += ["-fst.accessibility.reduceMotion", reduceMotion ? "YES" : "NO"]
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        func any(_ identifier: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        }
+        XCTAssertTrue(any("fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let chart = any("fst.song-detail.history.chart")
+        for _ in 0..<6 where !chart.exists { app.swipeUp() }
+        XCTAssertTrue(chart.waitForExistence(timeout: 10), "No Score History chart (is the 18831 fixture running?)")
+        let row = any("fst.song-detail.history.row.0")
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(chart.label.hasPrefix("Lead"), chart.label)
+        XCTAssertTrue(app.buttons["Back one page"].exists, "Lead's eight scores should page")
+        let listTop = row.frame.minY
+
+        func choose(_ instrument: String, label: String) {
+            app.buttons["fst.song-detail.history.instrument.\(instrument)"].tap()
+            let landed = expectation(for: NSPredicate(format: "label BEGINSWITH %@", label), evaluatedWith: chart)
+            wait(for: [landed], timeout: 5)
+            XCTAssertEqual(row.frame.minY, listTop, accuracy: 0.5, "The Score History card changed size")
+        }
+        choose("Solo_Bass", label: "Bass")
+        XCTAssertFalse(app.buttons["Back one page"].exists, "The reserved pager space is exposed for Bass")
+        SongsUITestSupport.record(app, name: reduceMotion ? "song-detail-history-switch-reduced" : "song-detail-history-switch")
+        choose("Solo_Guitar", label: "Lead")
+        XCTAssertTrue(app.buttons["Back one page"].exists, "Lead lost its pager")
     }
 
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.
@@ -689,6 +864,30 @@ final class SongDetailJourneyTests: XCTestCase {
 
 
     // MARK: - Paths menu helpers
+
+    /// One Lead top-ten preview row: a single navigation button (issue #33).
+    ///
+    /// - Parameters:
+    ///   - player: Fixture account ID.
+    ///   - app: Running app on Song Detail.
+    /// - Returns: The row's button element.
+    @MainActor
+    private func previewRow(_ player: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons["fst.song-detail.preview-row.Solo_Guitar.\(player)"]
+    }
+
+    /// One text inside a Lead preview row button.
+    ///
+    /// - Parameters:
+    ///   - player: Fixture account ID.
+    ///   - label: Exact text label (rank, score or accuracy).
+    ///   - app: Running app on Song Detail.
+    /// - Returns: The matching static text.
+    @MainActor
+    private func previewText(_ player: String, _ label: String, in app: XCUIApplication) -> XCUIElement {
+        previewRow(player, in: app).descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label == %@", label)).firstMatch
+    }
 
     /// The Paths sheet's bottom-row menu picker with this identifier.
     ///

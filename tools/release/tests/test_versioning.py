@@ -7,7 +7,7 @@ import re
 import subprocess
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from tools.release import versioning as v
@@ -222,12 +222,32 @@ class GitFlowTests(unittest.TestCase):
         r = self.repo
         released = []
         for n in range(1, 14):
-            r.commit("change %d" % n, "apple/Sources/FestivalCore/A.swift")
+            self.merge_pr(n, "[Bug] change %d (#%d)" % (n, n), "apple/Sources/FestivalCore/A%d.swift" % n)
             r.tag("ios/v2610.01.%02d" % n)
             released.append("2610.01.%02d" % n)
         doc = v.whats_new(r.git, "ios", "2610.01.13", released)
         self.assertEqual(len(doc["entries"]), v.HISTORY_LIMIT)
-        self.assertEqual(doc["entries"][0]["items"], [v.DEFAULT_NOTE])
+        # A merged PR without a trailer contributes its cleaned title, never a generic line.
+        self.assertEqual(doc["entries"][0]["items"], ["Change 13"])
+
+    def merge_pr(self, number, title, path, trailer=""):
+        """Merge a one-commit branch the way GitHub does (PR title on the merge commit's second line)."""
+        r = self.repo
+        r.run("checkout", "-q", "-b", "pr%d" % number)
+        r.commit("wip %d" % number, path)
+        r.run("checkout", "-q", "master")
+        message = "Merge pull request #%d from x/pr%d\n\n%s%s" % (number, number, title, trailer)
+        r.run("merge", "-q", "--no-ff", "pr%d" % number, "-m", message)
+
+    def test_nothing_user_facing_skips_the_section_and_store_text(self):
+        r = self.repo
+        r.tag("ios/v2610.01.01")
+        r.commit("Internal\n\nRelease-Note: none", "apple/Sources/FestivalCore/A.swift")
+        r.tag("ios/v2610.01.02")
+        doc = v.whats_new(r.git, "ios", "2610.01.02", ["2610.01.01"])
+        self.assertEqual([e["version"] for e in doc["entries"]], ["2610.01.01"])
+        self.assertEqual(v.store_notes(doc), "")
+        self.assertEqual(v.clean_title("[Bug] quick Links order (#6)"), "Quick Links order")
 
     def test_testflight_notes(self):
         self._history()
@@ -245,8 +265,10 @@ class GitFlowTests(unittest.TestCase):
             self.assertNotIn(absent, older)
         unreleased = v.testflight_notes(git, "ios", "2610.01.03", "40")
         self.assertIn("New since 2610.01.02:\n• The Item Shop badge is back.", unreleased)
-        self.assertIn("In this build vs. release (no release yet):\n• Songs load faster.\n• The Item Shop badge is back.",
-                      unreleased)
+        self.assertIn("In this build vs. release (no release yet):\n• Songs load faster.\n"
+                      "• The Item Shop badge is back.", unreleased)
+        # Commits pushed without a trailer (the fixture's "Initial app") never become bullets.
+        self.assertNotIn("Initial app", unreleased)
         first = v.testflight_notes(git, "ios", "2610.01.01", "39")
         self.assertNotIn("New since", first)
         self.assertIn("In this build vs. release (no release yet):", first)
@@ -263,16 +285,20 @@ class GitFlowTests(unittest.TestCase):
     def test_testflight_notes_untrailered_changes_and_limit(self):
         r = self.repo
         r.tag("ios/v2610.01.01")
-        r.commit("Refactor", "apple/Sources/FestivalCore/A.swift")
+        r.commit("Refactor the cache", "apple/Sources/FestivalCore/A.swift")
+        self.merge_pr(5, "[Feature] iOS: rows show ranks (#5)", "apple/Sources/FestivalUI/Rows.swift")
         r.tag("ios/v2610.01.02")
         text = v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"])
-        self.assertIn("New since 2610.01.01:\n• %s" % v.DEFAULT_NOTE, text)
+        # One bullet per check-in: the untrailered PR by its title, never the direct code commit.
+        self.assertIn("New since 2610.01.01:\n• iOS: rows show ranks\n\n", text)
         self.assertNotIn("Refactor", text)
+        self.assertNotIn("wip", text)
+        self.assertNotIn("Bug fixes and improvements", text)
         r.commit("Internal\n\nRelease-Note: none", "apple/Sources/FestivalCore/B.swift")
         r.tag("ios/v2610.01.04")
         quiet = v.testflight_notes(r.git, "ios", "2610.01.04", "4", released=["2610.01.01"])
         self.assertIn("New since 2610.01.02:\n• No user-facing changes.", quiet)
-        self.assertIn("In this build vs. release 2610.01.01:\n• %s" % v.DEFAULT_NOTE, quiet)
+        self.assertIn("In this build vs. release 2610.01.01:\n• iOS: rows show ranks", quiet)
         for n in range(60):
             r.commit("c\n\nRelease-Note: Note number %d with a reasonably long sentence about it." % n,
                      "apple/Sources/FestivalCore/A.swift")
@@ -318,6 +344,24 @@ class GitFlowTests(unittest.TestCase):
             v.main(["--repo", str(root), "whats-new", "--tag", "ios/v2610.01.04", "--released", "2610.01.01",
                     "--out", str(root / "wn.json"), "--store-notes-out", str(root / "notes.txt")])
         self.assertTrue((root / "notes.txt").read_bytes().startswith("•".encode("utf-8")))
+
+    def test_check_notes_requires_a_trailer_for_app_changes(self):
+        r = self.repo
+        base = r.git.rev("HEAD")
+        r.commit("Docs", "docs/a.md")
+        self.assertEqual(v.notes_check(r.git, base, "HEAD"), {"platforms": [], "has_release_note": False, "ok": True})
+        r.commit("Tweak rows", "apple/Sources/FestivalUI/Row.swift", "windows/Festival.App/Row.cs")
+        missing = v.notes_check(r.git, base, "HEAD")
+        self.assertEqual((missing["platforms"], missing["ok"]), (["ios", "macos", "windows"], False))
+        self.assertTrue(v.notes_check(r.git, base, "HEAD", "Fix\n\nRelease-Note: none")["ok"])
+        r.commit("More\n\nRelease-Note-iOS: Rows are taller.", "apple/Sources/FestivalUI/Row2.swift")
+        self.assertTrue(v.notes_check(r.git, base, "HEAD")["ok"])
+        body = r.root / "body.md"
+        body.write_text("no trailer", encoding="utf-8")
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(v.main(["--repo", str(r.root), "check-notes", "--base", base, "--head", "HEAD~1",
+                                     "--body-file", str(body)]), 1)
+            self.assertEqual(v.main(["--repo", str(r.root), "check-notes", "--base", base, "--head", "HEAD"]), 0)
 
     def test_released_from_tags(self):
         self.repo.tag("windows/v2610.01.01")

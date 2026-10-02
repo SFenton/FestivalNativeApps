@@ -65,35 +65,34 @@ struct CompeteScreen: View {
 
     private var stackedHub: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                leaderboardsSection
-                rivalsSection
+            if layout.widthClass == .regular && !DualSourcePolicy.isActive(layout) {
+                // Regular-width columns (Mac, iPad): Leaderboards beside Rivals, the two
+                // halves of Compete side by side instead of one very long column.
+                HStack(alignment: .top, spacing: 8) {
+                    leaderboardsSection.frame(maxWidth: .infinity, alignment: .top)
+                    rivalsSection.frame(maxWidth: .infinity, alignment: .top)
+                }
+                .padding(.vertical, 12)
+            } else {
+                VStack(alignment: .leading, spacing: 24) {
+                    leaderboardsSection
+                    rivalsSection
+                }
+                .padding(.vertical, 12)
             }
-            .padding(.vertical, 12)
         }
         .quickLinks(quickLinks, title: "Quick Links")
     }
 
     // MARK: Leaderboards
 
+    /// Like the web's `CompetePage`, there is no Leaderboards overview link here (#36):
+    /// each instrument's preview links to its own full leaderboard, and the overview
+    /// stays in the drawer.
     private var leaderboardsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             FestivalSectionHeader("Leaderboards")
                 .padding(.horizontal, 16)
-            NavigationLink(value: AppRoute.leaderboards) {
-                HStack {
-                    Label("Leaderboards Overview", systemImage: "list.number")
-                        .foregroundStyle(BrandTokens.textPrimary)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(FestivalText.deemphasized)
-                }
-                .contentShape(Rectangle())
-                .padding(16)
-                .festivalGlass(.card)
-            }
-            .padding(.horizontal, 16)
             if visible.instruments.isEmpty {
                 FestivalFootnote("Enable at least one instrument in Settings to see leaderboards.")
                     .padding(.horizontal, 16)
@@ -131,8 +130,9 @@ struct CompeteScreen: View {
 // MARK: - Per-instrument leaderboard preview
 
 /// One instrument's Top-5 ranking preview, reusing Lane L's `RankLoadState`/
-/// `AccountRankingRow`/`RankingsSkeletonRows` (`Features/Leaderboards/RankingsSupport.swift`)
-/// so Compete's cards match `LeaderboardsScreen`'s own overview cards exactly.
+/// `AccountRankingRow` (`Features/Leaderboards/RankingsSupport.swift`) so Compete's
+/// rows match `LeaderboardsScreen`'s own overview cards. While loading it shows a
+/// system spinner card, like the Rivals sections below it.
 struct CompeteInstrumentLeaderboardSection: View {
     let session: FestivalSession
     let instrument: Instrument
@@ -158,7 +158,15 @@ struct CompeteInstrumentLeaderboardSection: View {
         VStack(alignment: .leading, spacing: 6) {
             switch state {
             case .loading:
-                RankingsSkeletonRows(count: previewCount, glassRows: true)
+                // A system spinner, not `RankingsSkeletonRows`: the redacted bars read
+                // as content, so the first screen showed no loading indicator (#35).
+                // Same place as the Rivals sections' spinners and this card's own
+                // empty/error states.
+                FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) leaderboard")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 26)
+                    .festivalGlass(.card, cornerRadius: 12)
+                    .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).loading")
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "compete.\(instrument.rawValue)") { Task { await load() } }
                     .padding(14)
@@ -178,6 +186,8 @@ struct CompeteInstrumentLeaderboardSection: View {
                         )
                     }
                 }
+                // One rank and score width for the card (issue #37).
+                .leaderboardSectionColumns(.rankings(payload.rankings.entries, metric: .totalscore))
                 .festivalFadeIn(isLoaded: true)
                 NavigationLink(
                     value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")

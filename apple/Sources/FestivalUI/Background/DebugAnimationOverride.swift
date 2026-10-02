@@ -18,6 +18,17 @@ enum DebugAnimationOverride {
         #endif
     }()
 
+    /// True when `FST_DEBUG_KEEP_FADES=1` (Debug only): keep the finite load-in fades
+    /// on while the background is still, so a `drive --record` can show which content
+    /// fades (issue #30) without `--animate`'s never-idle carousel. Release: false.
+    static let keepFades: Bool = {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FST_DEBUG_KEEP_FADES"] == "1"
+        #else
+        false
+        #endif
+    }()
+
     /// True when `FST_DEBUG_NO_BACKDROP=1` (Debug only): pages draw the plain brand
     /// surface instead of mirroring the shared backdrop, to bisect frame-pacing costs.
     static let noBackdrop: Bool = {

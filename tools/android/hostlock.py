@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """FIFO, crash-safe, time-bounded host locks shared by every lane on one machine.
 
-Several lanes run in parallel worktrees on the Windows host ``sfenton-primary``.
+Several lanes run in parallel worktrees on the Windows host ``sfenton-music``.
 Two resources must be used by only one lane at a time:
 
 * ``emulator``: the single running Android product emulator (``tools/android/device.py``);

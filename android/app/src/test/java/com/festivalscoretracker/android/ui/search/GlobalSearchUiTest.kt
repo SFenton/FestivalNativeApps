@@ -26,6 +26,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
@@ -251,12 +253,41 @@ class GlobalSearchUiTest {
     fun findInPageFocusesTheSongsFilter() {
         h.launch()
         h.waitForTag("fst.songs.search")
-        rule.onNodeWithTag("fst.songs.list").performScrollToIndex(3)
+        rule.onNodeWithTag("fst.songs.list").performScrollToIndex(2)
         h.settle()
         rule.runOnIdle { assertTrue(h.shortcuts.dispatch(ShellShortcut.FindInPage)) }
         h.waitForTag("fst.songs.search")
         rule.onNodeWithTag("fst.songs.search").assertIsFocused()
         assertTrue(rule.onAllNodesWithTag(GlobalSearchTags.SURFACE).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun songsSearchAndToolbarStayOnScreenWhileScrolled() {
+        // Issue #52: Search, Sort and Quick Links must not scroll or slide away on a phone.
+        val songs = (1..40).joinToString(",") { i ->
+            """{"songId":"s-$i","title":"${'A' + (i - 1) / 2} Song ${"%02d".format(i)}","artist":"${'A' + (i - 1) / 2} Band $i","year":2020,"durationSeconds":120,"difficulty":{"guitar":1}}"""
+        }
+        h.transport.on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { """{"count":40,"currentSeason":15,"songs":[$songs]}""" }
+        h.launch()
+        h.waitForTag("fst.songs.row.s-1")
+        val inToolbar = hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar"))
+        fun bounds(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        val toolbarAtTop = bounds("fst.nav.floating-toolbar")
+        val searchAtTop = bounds("fst.songs.search")
+        repeat(3) {
+            rule.onNodeWithTag("fst.songs.list").performTouchInput { swipeUp() }
+            h.settle()
+        }
+        assertTrue(rule.onAllNodesWithTag("fst.songs.row.s-1").fetchSemanticsNodes().isEmpty())
+        // Pinned, not merely present: neither moved (a hidden toolbar slides down behind the bar).
+        assertEquals(toolbarAtTop, bounds("fst.nav.floating-toolbar"))
+        assertEquals(searchAtTop, bounds("fst.songs.search"))
+        rule.onNodeWithTag("fst.songs.search").assertIsDisplayed()
+        // The toolbar (Sort here; Quick Links too on sorts with section headers) stays shown.
+        rule.onNodeWithTag("fst.nav.floating-toolbar").assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.sort.open") and inToolbar).assertIsDisplayed()
+        rule.onNodeWithTag("fst.songs.search").performTextInput("Song 40")
+        h.waitForTag("fst.songs.row.s-40")
     }
 
     @Test

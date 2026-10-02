@@ -370,23 +370,21 @@ private let sampleWhatsNewEntries = [
     #expect(!nativeHostedAccessibility(loadingHost).contains("Last Successful Publication"))
 }
 @MainActor
-@Test func settingsChoiceRowAndListRenderCurrentValue() async throws {
+@Test func settingsChoiceRowRendersInlineOptions() async throws {
     let size = CGSize(width: 402, height: 300)
     var mode = PathDisplayMode.text
     let binding = Binding(get: { mode }, set: { mode = $0 })
     let host = nativeHostedView(
-        NavigationStack {
-            VStack {
-                SettingsChoiceRow(
-                    title: "CHOpt Path Default View", options: PathDisplayMode.allCases,
-                    label: \.label, selection: binding, identifier: "fst.settings.path-default-view"
-                )
-                SettingsChoiceList(
-                    title: "CHOpt Path Default View", options: PathDisplayMode.allCases,
-                    label: \.label, selection: binding, identifier: "fst.settings.path-default-view"
-                )
-            }
+        VStack {
+            SettingsChoiceRow(
+                title: "CHOpt Path Default View",
+                detail: "Choose whether CHOpt paths open as an image or text table by default.",
+                options: PathDisplayMode.allCases, label: \.label, selection: binding,
+                identifier: "fst.settings.path-default-view", initiallyExpanded: true
+            )
+            Spacer(minLength: 0)
         }
+        .padding(16)
         .frame(width: size.width, height: size.height)
         .background(BrandTokens.cardBackground)
         .preferredColorScheme(.dark),
@@ -394,9 +392,14 @@ private let sampleWhatsNewEntries = [
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let expected = ["CHOpt Path Default View", "Image"]
+    let expected = ["CHOpt Path Default View", "Image", "Text"]
     let image = try await nativeHostedSettle(host, untilText: expected)
     assertRendersContent(host, image: image, containing: expected)
+}
+
+@Test func settingsChoiceAccessibilityValueSpeaksSelectionAndState() {
+    #expect(SettingsChoiceAccessibility.value(selected: "Image", isExpanded: false) == "Image, Collapsed")
+    #expect(SettingsChoiceAccessibility.value(selected: "Text", isExpanded: true) == "Text, Expanded")
 }
 
 @MainActor

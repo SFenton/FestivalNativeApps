@@ -5,36 +5,128 @@ import FestivalDesign
 // MARK: - Session plumbing
 
 extension EnvironmentValues {
-    /// The app session a first-run carousel was opened from, so Songs demos can show the
-    /// real Songs rows (live catalogue songs and their artwork). Nil in hosted tests and
-    /// previews, where demos fall back to ``Song/firstRunFallback``.
+    /// The app session a first-run carousel was opened from, so song demos can show real
+    /// catalogue songs and their artwork. Nil in hosted tests and previews, where demos show
+    /// redacted ``FirstRunDemoSongs/placeholders(count:)``.
     @Entry var firstRunSession: FestivalSession?
 }
 
-/// Supplies up to three real catalogue songs (the web demos switch to catalogue songs once
-/// loaded), falling back to offline stand-ins. The catalogue read is the app's cached,
-/// keyless `/api/songs`; nothing new is requested when Songs already loaded it.
+/// Supplies real catalogue songs to a first-run demo, as the web's `useDemoSongs` /
+/// `useItemShopDemoSongs` do (selection rules: ``FirstRunDemoSongs/pick(from:count:preferring:)``).
+///
+/// Until the catalogue answers, or when it can't, the content receives redacted placeholders
+/// and a nil session so no real-row view is driven by a stand-in; demos never invent titles.
+/// The catalogue read is the app's cached, keyless `/api/songs`; the Item Shop source only
+/// reuses an already-loaded Shop feed from the same observed publication and never fetches one.
+///
+/// With `rotates`, the rows rotate through a larger pool on the web's `useDemoSongs` cycle
+/// (``FirstRunRowRotation``): every 5 s one row (two for 4-6 rows) fades out for 400 ms, takes
+/// a song not already shown and fades back in, while the slide is visible. Content marks each
+/// row with ``SwiftUI/View/firstRunSwapRow(_:key:rise:)`` and positional `ForEach` identity.
 struct FirstRunCatalogueSongs<Content: View>: View {
+    /// Where preferred songs come from.
+    enum Source {
+        /// Catalogue songs with artwork, Epic Games songs first.
+        case catalogue
+        /// Current Item Shop songs first, then `catalogue` songs.
+        case itemShop
+    }
+
+    /// Songs a rotating demo cycles through; bounded so artwork stays within the shared caches.
+    static var rotationPoolSize: Int { 24 }
+
     @Environment(\.firstRunSession) private var session
-    @State private var songs = Song.firstRunFallback
-    @ViewBuilder let content: ([Song], FestivalSession?) -> Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var live: FirstRunRowRotation<Song>?
+    @State private var fading: Set<Int> = []
+    @State private var swapTick = 0
+    private let count: Int
+    private let source: Source
+    private let rotates: Bool
+    private let swapsWhole: Bool
+    private let content: ([Song], FestivalSession?) -> Content
+
+    /// - Parameters:
+    ///   - count: Maximum rows the demo shows.
+    ///   - source: Song preference order.
+    ///   - rotates: Rotate rows through a pool of songs on the web demos' swap cycle.
+    ///   - swapsWhole: Fade the whole demo (slot 0) for each swap instead of only the
+    ///     swapped rows, as the web's Rivals detail demo does.
+    ///   - content: Builds the demo from songs (placeholders while not live) and the session
+    ///     (nil while not live).
+    init(
+        count: Int = 3, source: Source = .catalogue, rotates: Bool = false, swapsWhole: Bool = false,
+        @ViewBuilder content: @escaping ([Song], FestivalSession?) -> Content
+    ) {
+        self.count = count
+        self.source = source
+        self.rotates = rotates
+        self.swapsWhole = swapsWhole
+        self.content = content
+    }
 
     var body: some View {
-        content(songs, session)
-            .task {
-                guard let session,
-                      let payload = try? await session.catalog() else { return }
-                let live = payload.catalog.songs.filter { $0.albumArt != nil }.prefix(3)
-                if live.count == 3 { songs = Array(live) }
+        content(live?.rows ?? FirstRunDemoSongs.placeholders(count: count), live == nil ? nil : session)
+            .environment(\.firstRunFadingRows, fading)
+            .environment(\.firstRunSwapTick, swapTick)
+            .task { await load() }
+            .firstRunDemoTicker(enabled: rotates && live?.canRotate == true, usesArtwork: true) {
+                await swap()
             }
+    }
+
+    private func load() async {
+        guard live == nil, let session, let payload = try? await session.catalog() else { return }
+        var preferred: [String] = []
+        if source == .itemShop, let shop = session.currentShop,
+           shop.observedPublicationId == payload.observedPublicationId {
+            preferred = shop.sortedSongs.map(\.songId)
+        }
+        let poolSize = rotates ? max(count, Self.rotationPoolSize) : count
+        let picked = FirstRunDemoSongs.pick(from: payload.catalog.songs, count: poolSize, preferring: preferred)
+        guard !picked.isEmpty else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+            live = FirstRunRowRotation(pool: picked, visible: count)
+        }
+    }
+
+    private func swap() async {
+        guard var next = live else { return }
+        let indices = next.nextSwap()
+        guard !indices.isEmpty else { return }
+        live = next
+        prefetchArtwork(after: next, replacing: indices)
+        await FirstRunDemoSwap.run(
+            reduceMotion: reduceMotion,
+            fadeOut: { fading = swapsWhole ? [0] : Set(indices) },
+            update: {
+                live?.replace(indices)
+                swapTick += 1
+            },
+            fadeIn: { fading = [] }
+        )
+    }
+
+    /// Warm the shared artwork cache for the songs about to swap in while the old rows fade
+    /// out, so new rows rarely show a loading tile.
+    private func prefetchArtwork(after rotation: FirstRunRowRotation<Song>, replacing indices: [Int]) {
+        guard let session else { return }
+        var preview = rotation
+        preview.replace(indices)
+        for index in indices where preview.rows.indices.contains(index) {
+            guard let raw = preview.rows[index].albumArt, !raw.isEmpty else { continue }
+            Task { _ = try? await session.preparedArtwork(raw: raw, maxPixels: 132) }
+        }
     }
 }
 
 /// A read-only preview of real app UI: no hit testing and hidden from VoiceOver (the slide's
-/// combined title/description is its accessible content).
+/// combined title/description is its accessible content). An embedded sheet shows only its
+/// content, so it never adds its title and Close to the guide's own bar (issue #25).
 private struct FirstRunInertPreview: ViewModifier {
     func body(content: Content) -> some View {
         content
+            .environment(\.festivalModalPreview, true)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -56,18 +148,14 @@ private struct FirstRunRowChrome<Detail: View, Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let session {
-                ArtworkTile(raw: song.albumArt, session: session, size: 44)
-            } else {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(BrandTokens.surfaceMuted)
-                    .frame(width: 44, height: 44)
-            }
+            FirstRunSongArt(song: song, session: session)
             VStack(alignment: .leading, spacing: 4) {
-                MarqueeText(song.title, font: .headline)
-                    .foregroundStyle(FestivalText.primary)
-                MarqueeText(subtitle, font: .subheadline)
-                    .foregroundStyle(FestivalText.primary)
+                Group {
+                    MarqueeText(song.title, font: .headline)
+                    MarqueeText(subtitle, font: .subheadline)
+                }
+                .foregroundStyle(FestivalText.primary)
+                .firstRunRedacted(song)
                 detail()
             }
             .marqueeSync()
@@ -118,9 +206,12 @@ private struct FirstRunSongRow: View {
 /// `SongRowDemo.tsx`, with the app's real Songs rows over live catalogue songs.
 struct FirstRunNativeSongListDemo: View {
     var body: some View {
-        FirstRunCatalogueSongs { songs, session in
+        FirstRunCatalogueSongs(rotates: true) { songs, session in
             VStack(spacing: 8) {
-                ForEach(songs) { FirstRunSongRow(song: $0, session: session) }
+                ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
+                    FirstRunSongRow(song: song, session: session)
+                        .firstRunSwapRow(index, key: song.id)
+                }
             }
         }
         .firstRunInert()
@@ -194,61 +285,93 @@ struct FirstRunNativeNavigationDemo: View {
 
 // MARK: - songs-icons
 
-/// `SongIconsDemo.tsx`: a real Songs row with the app's instrument status chips (full combo,
-/// scored, no score, not charted).
+/// `SongIconsDemo.tsx`: real Songs rows with the app's instrument status chips (full combo,
+/// scored, no score). Rows rotate like the web's, and each song's chips follow the web's
+/// per-title pattern (``SongInstrumentBadge/demoPattern(title:instruments:)``).
 struct FirstRunNativeIconsDemo: View {
     var body: some View {
-        FirstRunCatalogueSongs { songs, session in
+        FirstRunCatalogueSongs(count: 2, rotates: true) { songs, session in
             VStack(spacing: 8) {
-                ForEach(Array(songs.prefix(2).enumerated()), id: \.element.id) { index, song in
+                ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                     FirstRunRowChrome(song: song, session: session) {
                         SongInstrumentStatusChips(
                             songId: song.songId,
-                            badges: index == 0 ? Self.firstRow : Self.secondRow,
+                            badges: SongInstrumentBadge.demoPattern(title: song.title, instruments: Self.instruments),
                             keyboard: song.usesKeyboardIcon
                         )
                     } trailing: { EmptyView() }
+                    .firstRunSwapRow(index, key: song.id)
                 }
             }
         }
         .firstRunInert()
     }
 
-    private static let firstRow: [SongInstrumentBadge] = [
-        .demo(.lead, .fullCombo), .demo(.bass, .scored), .demo(.drums, .noScore),
-        .demo(.vocals, .scored),
-    ]
-    private static let secondRow: [SongInstrumentBadge] = [
-        .demo(.lead, .scored), .demo(.bass, .unavailable), .demo(.drums, .fullCombo),
-        .demo(.vocals, .noScore),
-    ]
+    private static let instruments: [Instrument] = [.lead, .bass, .drums, .vocals]
 }
 
 // MARK: - songs-metadata
 
-/// `MetadataDemo.tsx`: a real Songs score card with the app's metadata field and pills.
+/// `MetadataDemo.tsx`: a real Songs score card with the app's metadata field and pills. The
+/// song rotates like the web's, and each song shows one of the web's `META_DATA` score
+/// records, picked by its title so a new song brings new values.
 struct FirstRunNativeMetadataDemo: View {
     var body: some View {
-        FirstRunCatalogueSongs { songs, session in
+        FirstRunCatalogueSongs(count: 1, rotates: true) { songs, session in
             if let song = songs.first {
+                let meta = Self.meta(for: song)
                 FirstRunRowChrome(song: song, session: session) {
-                    SongProfileMetadataPills(fields: Self.pills, songId: song.songId)
+                    SongProfileMetadataPills(fields: meta.pills, songId: song.songId)
                 } trailing: {
-                    SongMetadataFieldView(field: .score(248_192), songId: song.songId)
+                    SongMetadataFieldView(field: .score(meta.score), songId: song.songId)
                 }
+                .firstRunSwapRow(0, key: song.id)
             }
         }
         .firstRunInert()
     }
 
-    private static let pills: [SongMetadataField] = [
-        // Service accuracy is in ten-thousandths of a percent: 984,000 = 98.4 %.
-        .accuracy(984_000, fullCombo: false, percentageVisible: true,
-                  tint: try? ScoreFormatting.accuracyTint(984_000)),
-        .percentile("Top 3%", tier: .topFive),
-        .stars(count: 5, gold: false),
-        .season(5, current: false),
+    /// One of the web demo's `META_DATA` records.
+    struct Meta {
+        let score: Int
+        /// Service units: ten-thousandths of a percent (1,000,000 = 100 %).
+        let accuracy: Double
+        let fullCombo: Bool
+        let stars: Int
+        let percentile: String
+        let season: Int
+        let difficulty: Int
+
+        @MainActor var pills: [SongMetadataField] {
+            [
+                .accuracy(accuracy, fullCombo: fullCombo, percentageVisible: true,
+                          tint: try? ScoreFormatting.accuracyTint(accuracy)),
+                .stars(count: min(stars, 5), gold: stars >= 6),
+                .percentile(percentile, tier: SuggestionSongRowView.tier(percentile)),
+                .season(season, current: false),
+                .difficulty(difficulty),
+            ]
+        }
+    }
+
+    /// The web's `META_DATA`.
+    static let records: [Meta] = [
+        .init(score: 198_942, accuracy: 1_000_000, fullCombo: true, stars: 6, percentile: "Top 1%", season: 12, difficulty: 4),
+        .init(score: 157_320, accuracy: 980_000, fullCombo: false, stars: 5, percentile: "Top 5%", season: 10, difficulty: 3),
+        .init(score: 142_800, accuracy: 960_000, fullCombo: false, stars: 5, percentile: "Top 8%", season: 11, difficulty: 5),
+        .init(score: 185_600, accuracy: 1_000_000, fullCombo: true, stars: 6, percentile: "Top 2%", season: 9, difficulty: 2),
+        .init(score: 123_400, accuracy: 940_000, fullCombo: false, stars: 4, percentile: "Top 15%", season: 8, difficulty: 4),
+        .init(score: 176_100, accuracy: 1_000_000, fullCombo: true, stars: 6, percentile: "Top 3%", season: 12, difficulty: 3),
+        .init(score: 110_250, accuracy: 910_000, fullCombo: false, stars: 4, percentile: "Top 20%", season: 7, difficulty: 5),
+        .init(score: 168_900, accuracy: 970_000, fullCombo: false, stars: 5, percentile: "Top 6%", season: 11, difficulty: 2),
+        .init(score: 191_200, accuracy: 1_000_000, fullCombo: true, stars: 6, percentile: "Top 1%", season: 10, difficulty: 4),
+        .init(score: 135_700, accuracy: 950_000, fullCombo: false, stars: 5, percentile: "Top 10%", season: 9, difficulty: 3),
     ]
+
+    /// The record a song shows, chosen by its title's web hash.
+    static func meta(for song: Song) -> Meta {
+        records[Int(Int64(FirstRunDemoScorePattern.hash(song.title)).magnitude % UInt64(records.count))]
+    }
 }
 
 // MARK: - Item Shop rows

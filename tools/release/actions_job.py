@@ -133,8 +133,10 @@ def run_job(platform: str, command: str, build: Optional[str], notes: str, dry_r
             result["marker"] = {k: marker.get(k) for k in ("version", "version_tag", "sha", "whats_new_baseline")}
             if "whats_new_baseline" in marker:
                 baseline = marker.get("whats_new_baseline")
-            if str(marker.get("store_notes") or "").strip():
-                notes = str(marker["store_notes"])
+            if "store_notes" in marker:
+                # The build's generated notes are authoritative, even when empty (nothing user-facing:
+                # the store client refuses with no_user_facing_changes instead of shipping generic text).
+                notes = str(marker.get("store_notes") or "")
     argv = tool_argv(platform, command, build, dry_run, baseline)
     out = io.StringIO()
     with redirect_stdout(out):

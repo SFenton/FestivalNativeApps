@@ -9,7 +9,15 @@ struct SongLeaderboardEntryRow: View {
     /// The selected player's own row: rank and name bold (web `LeaderboardEntry`
     /// `isPlayer`, operator batch 6.42).
     var isPlayer = false
+    /// Force the season column before the score. Sections normally decide it through
+    /// their fitted `leaderboardRowColumns` (`showsSeason`: Song Detail cards and the
+    /// Solo chart from 520 pt, `ScoreRowSeasonPolicy`, issues #32 and #37).
+    var seasonColumn = false
+    /// The catalogue's current season, whose pill is inverted like the web's.
+    var currentSeason: Int?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// The section's shared rank/score widths and visible columns (issue #37).
+    @Environment(\.leaderboardRowColumns) private var columns
     @ScaledMetric(relativeTo: .body) private var accuracyTextWidth: CGFloat = 56
     @ScaledMetric(relativeTo: .body) private var accuracyPillHeight: CGFloat = 24
 
@@ -37,11 +45,17 @@ struct SongLeaderboardEntryRow: View {
             : AnyLayout(HStackLayout(spacing: 8))
         return layout {
             HStack(spacing: 8) {
-                rank
+                LeaderboardColumnSlot(template: columns?.rankLabel) { rank }
                 name.frame(maxWidth: .infinity, alignment: .leading)
             }
             valuesLayout {
-                score
+                if seasonColumn || columns?.showsSeason == true {
+                    let season = entry.season.flatMap { $0 > 0 ? $0 : nil }
+                    ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
+                }
+                LeaderboardColumnSlot(template: columns?.scoreLabel, alignment: .trailing) {
+                    score
+                }
                 if let value = entry.accuracy {
                     let color: Result<ScoreAccuracyTint, Error> = Result {
                         try ScoreFormatting.accuracyTint(value)

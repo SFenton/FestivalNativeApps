@@ -25,9 +25,25 @@ struct SongScoreHistorySection: View {
     let keyboardIcon: Bool
     @Binding var instrument: Instrument?
     @Binding var expanded: Bool
+    /// The page (viewport) width: list rows show the season from 520 pt, like the web's
+    /// `QUERY_SHOW_SEASON` media query (`ScoreRowSeasonPolicy`, issue #32).
+    var viewportWidth: CGFloat = 0
+    /// The catalogue's current season, whose pill is inverted.
+    var currentSeason: Int?
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+
+    /// Instrument the graph and list show; trails the selector while a swap fades (#31).
+    @State private var displayed: Instrument?
+    /// Opacity of the graph and best-scores list during an instrument swap.
+    @State private var contentOpacity: Double = 1
+    /// The running fade-out → swap → fade-in sequence, cancelled by a newer choice.
+    @State private var swap: Task<Void, Never>?
+    /// The card's measured content size (natural, before any pin).
+    @State private var cardSize: CGSize = .zero
+    /// The card height held while a swap runs, so the card keeps its size.
+    @State private var pinnedHeight: CGFloat?
 
     /// Scroll target id for deep links.
     static let anchor = "fst.song-detail.history"
@@ -38,9 +54,12 @@ struct SongScoreHistorySection: View {
         SongScoreHistoryModel.resolvedInstrument(preferred: instrument, available: available)
     }
 
+    private var reduceMotion: Bool { systemReduceMotion || appReduceMotion }
+
     var body: some View {
         if let shown {
-            let rows = SongScoreHistoryModel.chronological(entries, instrument: shown)
+            let current = displayed.flatMap { available.contains($0) ? $0 : nil } ?? shown
+            let rows = SongScoreHistoryModel.chronological(entries, instrument: current)
             let list = SongScoreHistoryModel.bestFirst(rows, limit: expanded ? nil : SongScoreHistoryModel.listLimit)
             VStack(alignment: .leading, spacing: 8) {
                 FestivalSectionHeader("Score History", subtitle: "Select a bar to see more score details.")
@@ -53,34 +72,121 @@ struct SongScoreHistorySection: View {
                         identifier: "fst.song-detail.history.instrument"
                     )
                     ScoreHistoryChart(
-                        rows: rows, instrument: shown,
-                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
+                        rows: rows, instrument: current, chartWidth: cardSize.width,
+                        reservesPager: SongScoreHistoryModel.reservesPager(
+                            entries, instruments: available, chartWidth: Double(cardSize.width)
+                        ),
+                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion),
+                        currentSeason: currentSeason
                     )
-                    .id(shown)
+                    .id(current)
+                    .opacity(contentOpacity)
                 }
+                .onGeometryChange(for: CGSize.self, of: { CGSize(width: $0.size.width.rounded(), height: $0.size.height.rounded()) }) { size in
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { cardSize = size }
+                }
+                .frame(minHeight: pinnedHeight, alignment: .top)
                 .padding(14)
                 .festivalGlass(.card, cornerRadius: 16)
-                VStack(spacing: 6) {
-                    ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
-                        ScoreHistoryListRow(entry: entry, isBest: index == 0)
-                            .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
-                    }
-                }
-                if rows.count > SongScoreHistoryModel.listLimit {
-                    Button {
-                        withAnimation(systemReduceMotion || appReduceMotion ? nil : .easeOut(duration: 0.25)) {
-                            expanded.toggle()
+                Group {
+                    VStack(spacing: 6) {
+                        ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
+                            ScoreHistoryListRow(
+                                entry: entry, isBest: index == 0,
+                                seasonColumn: ScoreRowSeasonPolicy.showsColumn(
+                                    .historyList, width: Double(viewportWidth)
+                                ),
+                                currentSeason: currentSeason
+                            )
+                                .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                         }
-                    } label: {
-                        PurpleActionLabel(title: expanded ? "Show top scores" : "View all scores")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    if rows.count > SongScoreHistoryModel.listLimit {
+                        Button {
+                            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+                                expanded.toggle()
+                            }
+                        } label: {
+                            PurpleActionLabel(title: expanded ? "Show top scores" : "View all scores")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    }
                 }
+                .opacity(contentOpacity)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.anchor)
+            .onAppear {
+                if displayed == nil { displayed = shown }
+            }
+            .onChange(of: shown) { old, new in
+                switchInstrument(to: new, from: displayed ?? old)
+            }
+            .onDisappear {
+                swap?.cancel()
+                swap = nil
+            }
         }
+    }
+
+    // MARK: - Instrument swap
+
+    /// Fade the graph and list out, swap to `target`, then fade them back in, keeping the
+    /// card's height for the whole swap; a newer choice cancels the running swap (HIG
+    /// Motion: let people cancel animations rather than wait). Instant under Reduce Motion.
+    ///
+    /// - Parameters:
+    ///   - target: The selector's new instrument.
+    ///   - from: The instrument the graph shows now.
+    private func switchInstrument(to target: Instrument, from: Instrument) {
+        let still = Transaction(animation: nil).disablingAnimations()
+        switch ScoreHistorySwap.plan(displayed: from, target: target, reduceMotion: reduceMotion) {
+        case .none:
+            return
+        case .settle:
+            swap?.cancel()
+            swap = nil
+            withAnimation(.easeOut(duration: ScoreHistorySwap.fadeInSeconds)) { contentOpacity = 1 }
+            withTransaction(still) { pinnedHeight = nil }
+        case .instant:
+            swap?.cancel()
+            swap = nil
+            withTransaction(still) {
+                displayed = target
+                contentOpacity = 1
+                pinnedHeight = nil
+            }
+        case .fade:
+            swap?.cancel()
+            if pinnedHeight == nil, cardSize.height > 0 { pinnedHeight = cardSize.height }
+            swap = Task { @MainActor in
+                withAnimation(.easeIn(duration: ScoreHistorySwap.fadeOutSeconds)) { contentOpacity = 0 }
+                try? await Task.sleep(for: .seconds(ScoreHistorySwap.fadeOutSeconds))
+                guard !Task.isCancelled else { return }
+                withTransaction(still) { displayed = target }
+                // Every instrument's rows are already in memory: fade in once the new
+                // graph has had a pass to lay out.
+                await Task.yield()
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: ScoreHistorySwap.fadeInSeconds)) { contentOpacity = 1 }
+                try? await Task.sleep(for: .seconds(ScoreHistorySwap.fadeInSeconds))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: ScoreHistorySwap.fadeInSeconds)) { pinnedHeight = nil }
+                swap = nil
+            }
+        }
+    }
+}
+
+private extension Transaction {
+    /// This transaction with implicit animations (`.animation(_:value:)`) disabled too.
+    func disablingAnimations() -> Transaction {
+        var copy = self
+        copy.disablesAnimations = true
+        return copy
     }
 }
 
@@ -90,9 +196,15 @@ struct SongScoreHistorySection: View {
 private struct ScoreHistoryChart: View {
     let rows: [ScoreHistoryEntry]
     let instrument: Instrument
+    /// The card's measured width, shared across instruments so a new graph opens on its
+    /// final page size (and pager) instead of resizing on its first frame.
+    let chartWidth: CGFloat
+    /// Keep the pager row's space even when this instrument fits one page.
+    let reservesPager: Bool
     let motion: ChartMotion
+    /// The catalogue's current season, for the tapped bar's season pill.
+    let currentSeason: Int?
 
-    @State private var chartWidth: CGFloat = 0
     /// Index of the oldest visible row; nil shows the newest page.
     @State private var start: Int?
     @State private var selectedIndex: Int?
@@ -118,10 +230,7 @@ private struct ScoreHistoryChart: View {
     }
 
     private var paging: RankHistoryPaging {
-        let plot = Double(max(0, chartWidth - 96))
-        return RankHistoryPaging(
-            count: rows.count, pageSize: chartWidth > 0 ? RankHistoryPaging.pageSize(forPlotWidth: plot) : rows.count
-        )
+        SongScoreHistoryModel.paging(count: rows.count, chartWidth: Double(chartWidth))
     }
 
     private var first: Int { paging.clamp(start ?? paging.latestStart) }
@@ -135,16 +244,20 @@ private struct ScoreHistoryChart: View {
         let visible = Array(all[range])
         VStack(spacing: 10) {
             chart(all, range: range)
-                .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) { chartWidth = width }
-                }
             legend(visible)
-            if paging.needsPagination { pager }
+            if paging.needsPagination {
+                pager
+            } else if reservesPager {
+                pager.hidden().accessibilityHidden(true)
+            }
             if let selectedIndex, all.indices.contains(selectedIndex) {
                 let selected = all[selectedIndex]
-                ScoreHistoryListRow(entry: selected.entry, isBest: false)
+                // The tapped bar's row always carries the season (web `renderDetailCard`).
+                ScoreHistoryListRow(
+                    entry: selected.entry, isBest: false,
+                    seasonColumn: ScoreRowSeasonPolicy.showsColumn(.historyDetail, width: 0),
+                    currentSeason: currentSeason
+                )
                     .transition(.opacity)
                     .accessibilityIdentifier("fst.song-detail.history.detail")
             }
@@ -323,29 +436,48 @@ private struct ScoreHistoryChart: View {
 // MARK: - List row
 
 /// One score beneath the chart (web score list card with `LeaderboardEntry`): date,
-/// season, score and the shared accuracy badge; the best score purple and bold.
+/// optional season pill, score and the shared accuracy badge; the best score purple
+/// and bold.
 struct ScoreHistoryListRow: View {
     let entry: ScoreHistoryEntry
     let isBest: Bool
+    /// Show the season pill before the score; callers decide with
+    /// `ScoreRowSeasonPolicy` (issue #32: the web hides it below 520 px).
+    var seasonColumn = false
+    /// The catalogue's current season, whose pill is inverted.
+    var currentSeason: Int?
+
+    private var season: Int? {
+        guard seasonColumn, let season = entry.season, season > 0 else { return nil }
+        return season
+    }
 
     private var dateText: String {
         guard let date = entry.displayDate else { return "\u{2014}" }
         return date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        // Accessibility sizes stack the season under the date (HIG layout: horizontal
+        // views may stack); standard sizes keep the web's single-line label.
+        let stacked = dynamicTypeSize.isAccessibilitySize
         HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(dateText)
                     .font(.body.weight(isBest ? .bold : .regular))
                     .foregroundStyle(FestivalText.primary)
-                if let season = entry.season {
-                    Text("Season \(season)")
-                        .font(.caption)
-                        .foregroundStyle(FestivalText.primary)
+                    .lineLimit(stacked ? nil : 1)
+                    .minimumScaleFactor(stacked ? 1 : 0.75)
+                if stacked, let season {
+                    ScoreSeasonPill(season: season, current: season == currentSeason)
                 }
             }
             Spacer(minLength: 8)
+            if seasonColumn, !stacked {
+                ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
+            }
             Text(entry.newScore.formatted())
                 .font(.body.weight(.semibold).monospacedDigit())
                 .foregroundStyle(FestivalText.primary)
@@ -375,7 +507,9 @@ struct ScoreHistoryListRow: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(dateText), score \(entry.newScore.formatted())"
+            "\(dateText)"
+                + (season.map { ", " + ScoreSeasonPill.spokenLabel(season: $0, current: $0 == currentSeason).lowercased() } ?? "")
+                + ", score \(entry.newScore.formatted())"
                 + (entry.accuracy.map { ", accuracy \(ScoreFormatting.accuracy($0)) percent" } ?? "")
                 + (entry.isFullCombo == true ? ", full combo" : "")
                 + (isBest ? ", best score" : "")

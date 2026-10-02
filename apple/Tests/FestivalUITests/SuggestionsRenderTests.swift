@@ -59,7 +59,7 @@ private func cardHost(_ category: SuggestionCategory) -> NSHostingView<some View
     let ahead = try sampleSong(id: "fixture-pulse", title: "Fixture Pulse")
     let behind = try sampleSong(id: "fixture-orbit", title: "Fixture Orbit")
     let category = SuggestionCategory(
-        key: "song_rival_gap_lead", title: "Close the Gap", description: "Catch up to a rival.",
+        key: "song_rival_battleground", title: "Battleground Songs", description: "Rivals cluster here.",
         type: .songRivals, instrument: .lead,
         songs: [
             SuggestionSongItem(
@@ -80,6 +80,33 @@ private func cardHost(_ category: SuggestionCategory) -> NSHostingView<some View
     host.layoutSubtreeIfNeeded()
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "suggestion-card-rival.png", environment: "FST_SUGGESTIONS_RENDER_OUT")
+    #expect(image.width > 0 && image.height > 0)
+}
+
+@MainActor
+@Test func rivalSpotlightCardRendersRankDeltaWithoutRepeatingTheRivalName() throws {
+    let ahead = try sampleSong(id: "fixture-pulse", title: "Fixture Pulse")
+    let behind = try sampleSong(id: "fixture-orbit", title: "Fixture Orbit")
+    let category = SuggestionCategory(
+        key: "song_rival_spotlight_fixture-rival-1", title: "Rival Spotlight: Fixture Rival",
+        description: "A curated mix of your rivalry with Fixture Rival.",
+        type: .songRivals, instrument: nil,
+        songs: [ahead, behind].enumerated().map { index, song in
+            SuggestionSongItem(
+                song: song, instrument: .lead, rivalName: "Fixture Rival",
+                rivalAccountId: "fixture-rival-1", rivalRankDelta: index == 0 ? 3 : -1
+            )
+        }
+    )
+    #expect(!SuggestionRowLayout.showsRivalName(categoryKey: category.key))
+    let host = cardHost(category)
+    let window = nativeHostedWindow(host, size: CGSize(width: 380, height: 500))
+    defer { window.orderOut(nil) }
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "suggestion-card-rival-spotlight.png", environment: "FST_SUGGESTIONS_RENDER_OUT"
+    )
     #expect(image.width > 0 && image.height > 0)
 }
 

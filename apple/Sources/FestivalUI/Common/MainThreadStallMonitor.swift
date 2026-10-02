@@ -1,0 +1,178 @@
+import Foundation
+import QuartzCore
+
+// MARK: - Main-thread stall monitor (Debug)
+
+/// Debug-only main run loop stall recorder for UI stress tests (issue #8).
+///
+/// Started at launch when `FST_DEBUG_STALL_LOG=<absolute path>` is set (Debug builds
+/// only; Release never compiles it in). A run loop observer timestamps every main run
+/// loop activity; the time between two consecutive activities, other than the sleep
+/// between `beforeWaiting` and `afterWaiting`, is one uninterrupted unit of main-thread
+/// work during which touches and frames cannot be processed. Apple's Instruments counts
+/// such a unit longer than 250 ms as a hang.
+///
+/// The awake span (from wake-up to the next sleep) is also tracked: a feedback loop that
+/// keeps re-scheduling short work (issue #5's toolbar loop) never sleeps even though each
+/// unit is short.
+///
+/// Each update rewrites the log file with one JSON object
+/// (``MainThreadStallReport``), so a UI test can read the worst stall after a stress pass.
+/// The simulator shares the host file system, so the test runner can read the same path.
+public enum MainThreadStallMonitor {
+    /// Environment key naming the report file.
+    public static let environmentKey = "FST_DEBUG_STALL_LOG"
+
+    /// Units of work at least this long are listed individually in the report.
+    static let reportThreshold: CFTimeInterval = 0.1
+
+    /// Start observing the main run loop when the environment asks for it.
+    ///
+    /// Call once from the app's initializer; later calls do nothing.
+    @MainActor
+    public static func startIfRequested() {
+        #if DEBUG
+        guard observer == nil,
+              let path = ProcessInfo.processInfo.environment[environmentKey],
+              path.hasPrefix("/") else { return }
+        let recorder = MainThreadStallRecorder(url: URL(fileURLWithPath: path))
+        recorder.write()
+        let created = CFRunLoopObserverCreateWithHandler(
+            kCFAllocatorDefault, CFRunLoopActivity.allActivities.rawValue, true, 0
+        ) { _, activity in
+            recorder.record(activity, at: CACurrentMediaTime())
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), created, .commonModes)
+        observer = created
+        self.recorder = recorder
+        #endif
+    }
+
+    /// Count one occurrence of a named event (for example a view body evaluation)
+    /// while monitoring; does nothing otherwise and in Release builds.
+    ///
+    /// - Parameter name: The counter key in ``MainThreadStallReport/counters``.
+    @MainActor
+    public static func count(_ name: String) {
+        #if DEBUG
+        recorder?.count(name)
+        #endif
+    }
+
+    #if DEBUG
+    @MainActor private static var observer: CFRunLoopObserver?
+    @MainActor private static var recorder: MainThreadStallRecorder?
+    #endif
+}
+
+/// The JSON written by ``MainThreadStallMonitor``.
+public struct MainThreadStallReport: Codable, Equatable, Sendable {
+    /// Longest uninterrupted unit of main-thread work, in milliseconds.
+    public var maxStallMs: Double = 0
+    /// Longest span the main run loop stayed awake without sleeping, in milliseconds.
+    public var maxAwakeMs: Double = 0
+    /// Every unit of work of at least 100 ms, oldest first (at most 200).
+    public var stalls: [Stall] = []
+    /// Named event counts from ``MainThreadStallMonitor/count(_:)``.
+    public var counters: [String: Int] = [:]
+
+    /// One long unit of main-thread work.
+    public struct Stall: Codable, Equatable, Sendable {
+        /// Seconds since monitoring started when the unit ended.
+        public var at: Double
+        /// The unit's length in milliseconds.
+        public var ms: Double
+    }
+
+    /// An empty report.
+    public init() {}
+}
+
+#if DEBUG
+/// Folds run loop activity timestamps into a ``MainThreadStallReport``.
+///
+/// Only touched from the main run loop's observer callback.
+final class MainThreadStallRecorder: @unchecked Sendable {
+    private let url: URL
+    private let startedAt: CFTimeInterval
+    private let clock: () -> CFTimeInterval
+    private(set) var report = MainThreadStallReport()
+    private var lastActivityAt: CFTimeInterval?
+    private var awakeSince: CFTimeInterval?
+    private var sleeping = false
+    private var countersDirty = false
+    private var lastWriteAt: CFTimeInterval = 0
+
+    /// - Parameters:
+    ///   - url: The report file, rewritten on every change.
+    ///   - startedAt: Origin for ``MainThreadStallReport/Stall/at``.
+    ///   - clock: Times the recorder's own file writes (tests pass a fixed clock).
+    init(
+        url: URL, startedAt: CFTimeInterval = CACurrentMediaTime(),
+        clock: @escaping () -> CFTimeInterval = CACurrentMediaTime
+    ) {
+        self.url = url
+        self.startedAt = startedAt
+        self.clock = clock
+    }
+
+    /// Fold one run loop activity into the report.
+    ///
+    /// - Parameters:
+    ///   - activity: The run loop activity being entered.
+    ///   - now: Its timestamp (`CACurrentMediaTime`).
+    /// - Returns: True when the report changed.
+    @discardableResult
+    func record(_ activity: CFRunLoopActivity, at now: CFTimeInterval) -> Bool {
+        var changed = false
+        if let last = lastActivityAt, !sleeping {
+            let unit = now - last
+            if unit * 1000 > report.maxStallMs {
+                report.maxStallMs = (unit * 1000).rounded()
+                changed = true
+            }
+            if unit >= MainThreadStallMonitor.reportThreshold, report.stalls.count < 200 {
+                report.stalls.append(.init(
+                    at: ((now - startedAt) * 10).rounded() / 10, ms: (unit * 1000).rounded()
+                ))
+                changed = true
+            }
+        }
+        switch activity {
+        case .beforeWaiting:
+            if let awakeSince, (now - awakeSince) * 1000 > report.maxAwakeMs {
+                report.maxAwakeMs = ((now - awakeSince) * 1000).rounded()
+                changed = true
+            }
+            awakeSince = nil
+            sleeping = true
+            if countersDirty, now - lastWriteAt >= 0.5 { changed = true }
+        default:
+            awakeSince = awakeSince ?? now
+            sleeping = false
+        }
+        lastActivityAt = now
+        if changed {
+            // Writing is main-thread work too; never charge it to the next unit.
+            let writeStart = clock()
+            write()
+            lastActivityAt = now + (clock() - writeStart)
+        }
+        return changed
+    }
+
+    /// Count one named event; flushed to disk at the next idle, at most twice a second.
+    func count(_ name: String) {
+        report.counters[name, default: 0] += 1
+        countersDirty = true
+    }
+
+    /// Rewrite the report file (best effort; a failed write keeps the old report).
+    func write() {
+        guard let data = try? JSONEncoder().encode(report) else { return }
+        try? data.write(to: url, options: .atomic)
+        countersDirty = false
+        lastWriteAt = clock()
+    }
+}
+#endif

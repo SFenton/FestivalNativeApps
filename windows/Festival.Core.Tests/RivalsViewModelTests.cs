@@ -145,6 +145,37 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public async Task Hub_SectionsShowProgressUntilRowsOrInlineStatus()
+    {
+        var fake = new RivalsFakeService { Fallback = path => path.EndsWith("/Solo_Bass", StringComparison.Ordinal) ? RivalsFakeService.Frozen() : null };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, ct) =>
+        {
+            await gate.Task;
+            return await respond(request, ct);
+        };
+        var hub = new RivalsHubViewModel(fake.Session(RivalsFakeService.Settings(Instrument.Lead, Instrument.Bass)));
+        hub.Activate();
+
+        // Every card starts with its own named progress ring, never blank.
+        Assert.Equal(RivalsHubState.Loading, hub.State);
+        Assert.All(hub.Sections, s => Assert.True(s.IsLoading && !s.ShowRows && !s.ShowError));
+        var lead = hub.Sections.Single(s => s.Id == "Solo_Guitar");
+        var bass = hub.Sections.Single(s => s.Id == "Solo_Bass");
+        Assert.Equal("Loading Lead Rivals", lead.LoadingName);
+        Assert.Equal("fst.rivals.section.Solo_Guitar.loading", lead.LoadingAutomationId);
+
+        gate.SetResult();
+        await Async.Until(() => lead.State == LoadState.Loaded && bass.State == LoadState.Failed);
+        Assert.False(lead.IsLoading);
+        Assert.True(lead.ShowRows);
+        Assert.False(bass.IsLoading);
+        Assert.True(bass.ShowError);
+        hub.Deactivate();
+    }
+
+    [Fact]
     public async Task Hub_CommonReportsFailureWhenFewerThanTwoListsLoad()
     {
         var fake = new RivalsFakeService { Fallback = path => path.EndsWith("/Solo_Bass", StringComparison.Ordinal) ? RivalsFakeService.Frozen() : null };
@@ -287,6 +318,22 @@ public class RivalsViewModelTests
         Assert.Contains("behind you", row.AccessibleName);
         Assert.Equal("fst.rivals.row.a1", row.AutomationId);
         Assert.Contains("ahead of you", (row with { Direction = RivalDirection.Above }).AccessibleName);
+    }
+
+    [Fact]
+    public void RivalRow_ReadsAheadAndBehindWithoutSharedCount()
+    {
+        // Issue #67 (port of #40): the shared count is always ahead + behind, so rows and Narrator omit it.
+        var song = RivalRowItem.From(new RivalSummary("a1", "Alpha", 1, 1234, 7, 3, 0), RivalDirection.Below, null);
+        Assert.Equal("Alpha, behind you, 3 songs ahead, 7 songs behind", song.AccessibleName);
+        var board = RivalRowItem.From(new LeaderboardRivalSummary("b2", "Beta", 40, 25, 15, 0, 12, 14), RivalDirection.Above,
+            new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore));
+        Assert.Equal("Beta, rank 12, ahead of you, 15 songs ahead, 25 songs behind", board.AccessibleName);
+        foreach (var row in new[] { song, board })
+        {
+            Assert.DoesNotContain("shared", row.AccessibleName, StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.DoesNotContain(typeof(RivalRowItem).GetProperties(), p => p.Name.Contains("Shared", StringComparison.Ordinal));
     }
 
     [Fact]

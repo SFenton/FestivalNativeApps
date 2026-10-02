@@ -10,4 +10,4 @@
 | [duo.md](duo.md) | iPhone Duo simulator/posture facts |
 | [macos.md](macos.md) | macOS signing and GUI-automation limits on this host |
 
-Design decisions: [design/apple/](../../design/apple/README.md). Tests: [testing/apple/](../../testing/apple/README.md).
+Design decisions: [design/apple/](../../design/apple/README.md); HIG lookups go through the installed `apple-hig` skill (route with `python3 ~/.claude/skills/apple-hig/scripts/hig_route.py --request-file <req.txt>`), Duo adaptation through its `/duo` workflow ([AGENTS.md](../../../AGENTS.md)). Tests: [testing/apple/](../../testing/apple/README.md).

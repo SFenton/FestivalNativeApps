@@ -263,4 +263,91 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-trios.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
 }
+
+// MARK: - Song Detail band previews
+
+@MainActor
+private func songBandPreviewsFixture() throws -> SongBandLeaderboardsResponse {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+    let data = try Data(contentsOf: root.appendingPathComponent(
+        "contracts/fixtures/song-band-leaderboards-demo.json"
+    ))
+    return try JSONDecoder().decode(SongBandLeaderboardsResponse.self, from: data)
+}
+
+@MainActor
+private func renderSongBandPreviews(
+    _ state: SongBandPreviewState, filename: String, dynamicTypeSize: DynamicTypeSize = .large
+) async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    ForEach(BandType.allCases) { bandType in
+                        SongBandPreviewSection(song: song, bandType: bandType, state: state, onRetry: {})
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .dynamicTypeSize(dynamicTypeSize)
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 1400)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1400))
+    defer { window.orderOut(nil) }
+    await settle(host, iterations: 6)
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: filename, environment: "FST_BANDS_RENDER_OUT")
+    #expect(image.width > 0 && image.height > 0)
+}
+
+@MainActor
+@Test func songBandPreviewsRenderRowsSelectedAndEmptySizes() async throws {
+    try await renderSongBandPreviews(.loaded(songBandPreviewsFixture()), filename: "song-band-previews-loaded.png")
+}
+
+@MainActor
+@Test func songBandPreviewsRenderAtAccessibilitySizes() async throws {
+    try await renderSongBandPreviews(
+        .loaded(songBandPreviewsFixture()), filename: "song-band-previews-ax5.png",
+        dynamicTypeSize: .accessibility5
+    )
+}
+
+@MainActor
+@Test func songBandPreviewsRenderLoadingAndFailure() async throws {
+    try await renderSongBandPreviews(.loading, filename: "song-band-previews-loading.png")
+    try await renderSongBandPreviews(.failed("The service is busy."), filename: "song-band-previews-failed.png")
+}
+
+@MainActor
+@Test func songBandPreviewSpokenLabelReadsRankMembersScoreAndAccuracy() throws {
+    let duos = try songBandPreviewsFixture().preview(for: .duets)
+    let top = try #require(duos.entries.first)
+    #expect(SongBandPreviewText.spokenLabel(top, selected: false)
+        == "Rank 1, Fixture Rank One + Unknown User, score 999,999, 5 stars, full combo, accuracy 99%")
+    let footer = try #require(duos.footerEntry)
+    #expect(SongBandPreviewText.spokenLabel(footer, selected: true).hasPrefix("Your band, Rank 14, "))
+}
+
+@MainActor
+@Test func songBandPreviewsLoaderReadsTheMockAllRoute() async throws {
+    let (session, storage, suite) = try await bandsFixtureSession(selected: "fixture-player-1")
+    defer { if let suite { storage?.removePersistentDomain(forName: suite) } }
+    let state = await SongBandPreviewLoader.load(
+        session: session, songId: "fixture-pulse", accountId: "fixture-player-1"
+    )
+    guard case let .loaded(response)? = state else {
+        Issue.record("Expected loaded band previews, got \(String(describing: state))")
+        return
+    }
+    #expect(response.preview(for: .duets).entries.count == 2)
+    #expect(response.preview(for: .duets).footerEntry?.rank == 14)
+    #expect(response.preview(for: .trios).entries.isEmpty)
+}
 #endif

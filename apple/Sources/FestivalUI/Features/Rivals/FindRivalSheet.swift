@@ -24,7 +24,6 @@ import FestivalDesign
 /// does (see its type doc): no cross-lane seam exists today for a sheet to push
 /// onto the presenting tab's own path.
 struct FindRivalSheet: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var path: [AppRoute] = []
     @State private var query = ""
     @State private var phase = Phase.enterQuery
@@ -46,7 +45,7 @@ struct FindRivalSheet: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        FestivalModal("Find Rival", closeIdentifier: "fst.rivals.findRival.close", path: $path) {
             Form {
                 Section {
                     searchField
@@ -62,18 +61,6 @@ struct FindRivalSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(BrandTokens.appBackground)
-            .navigationTitle("Find Rival")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                // Dismiss-only modal: trailing, per the app's modal-standard placement
-                // (operator, 2026-09-28) — not leading like a paired Cancel action.
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Close") { dismiss() }
-                        .accessibilityIdentifier("fst.rivals.findRival.close")
-                }
-            }
             .navigationDestination(for: AppRoute.self) { route in
                 AppRouteDestination(
                     route: route, session: session, visibleInstruments: [],

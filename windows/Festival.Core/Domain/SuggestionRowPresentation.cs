@@ -18,7 +18,7 @@ public enum SuggestionRowLayout
     UnfcAccuracy,
     /// <summary>No right-side metadata.</summary>
     Hidden,
-    /// <summary>Rival name, rank delta and instrument icon.</summary>
+    /// <summary>Rival name badge (see <see cref="SuggestionRowPresentation.ShowsRivalName"/>), rank delta and instrument icon.</summary>
     Rival,
 }
 
@@ -66,7 +66,7 @@ public sealed record SuggestionRowPresentation
     public string? PercentileText { get; init; }
     /// <summary>Percentile pill tier.</summary>
     public PercentileTier PercentileTier { get; init; }
-    /// <summary>Rival name, truncated to 12 characters.</summary>
+    /// <summary>Rival name badge text, truncated to 12 characters; null on single-rival cards, whose title already names the rival (<see cref="ShowsRivalName"/>).</summary>
     public string? RivalName { get; init; }
     /// <summary>Signed delta text ("+5" / "-3"), or null when zero.</summary>
     public string? RivalDeltaText { get; init; }
@@ -94,6 +94,39 @@ public sealed record SuggestionRowPresentation
         if (Has("near_fc") || Has("almost_six_star") || Has("more_stars") || Has("first_plays_mixed") || Has("star_gains") ||
             Has("samename_nearfc_") || Has("near_max_")) return SuggestionRowLayout.SingleInstrument;
         return SuggestionRowLayout.InstrumentChips;
+    }
+
+    /// <summary>Key prefixes of rival categories built around one rival, whose title already names that rival ("Rival Spotlight: {name}", "Close the Gap vs {name}", …).</summary>
+    private static readonly string[] SingleRivalPrefixes =
+    [
+        "song_rival_spotlight_", "song_rival_gap_", "song_rival_protect_", "song_rival_slipping_", "song_rival_dominate_",
+    ];
+
+    /// <summary>
+    /// Whether a rival row draws the rival's name badge beside its rank difference (Apple <c>SuggestionRowLayout.showsRivalName</c>).
+    /// Single-rival cards name the rival in their title, so a per-row badge only repeats it (issue #29); mixed-rival cards
+    /// (Battleground and the cross-pollination families) keep it because each row can be about a different rival.
+    /// </summary>
+    /// <param name="categoryKey">Generator key.</param>
+    /// <returns>False for single-rival categories, true otherwise.</returns>
+    public static bool ShowsRivalName(string categoryKey)
+    {
+        var k = categoryKey.ToLowerInvariant();
+        return !SingleRivalPrefixes.Any(prefix => k.StartsWith(prefix, StringComparison.Ordinal));
+    }
+
+    /// <summary>Spoken rank difference that names the rival (Apple <c>rivalDeltaAccessibilityLabel</c>).</summary>
+    /// <param name="delta">Player rank minus rival rank, signed so positive means the player leads.</param>
+    /// <param name="rivalName">Rival to name, or null/empty to omit it.</param>
+    /// <returns>e.g. "3 ranks ahead of Name", "1 rank behind" or "Tied with Name".</returns>
+    public static string RivalDeltaAccessibilityLabel(int delta, string? rivalName)
+    {
+        var magnitude = Math.Abs(delta);
+        var ranks = magnitude == 1 ? "rank" : "ranks";
+        if (string.IsNullOrEmpty(rivalName))
+            return delta == 0 ? "Tied" : $"{magnitude} {ranks} {(delta > 0 ? "ahead" : "behind")}";
+        if (delta == 0) return $"Tied with {rivalName}";
+        return $"{magnitude} {ranks} {(delta > 0 ? "ahead of" : "behind")} {rivalName}";
     }
 
     /// <summary>Tier of a "Top N%" label.</summary>
@@ -130,14 +163,25 @@ public sealed record SuggestionRowPresentation
         {
             case SuggestionRowLayout.Rival:
                 var delta = item.RivalRankDelta ?? 0;
-                var name = item.RivalName is { Length: > 12 } longName ? longName[..11] + "…" : item.RivalName;
+                var showsName = ShowsRivalName(category.Key);
+                var name = !showsName ? null : item.RivalName is { Length: > 12 } longName ? longName[..11] + "…" : item.RivalName;
                 result = result with
                 {
                     Instrument = item.Instrument, RivalName = name, RivalDeltaSign = Math.Sign(delta),
                     RivalDeltaText = delta == 0 ? null : delta > 0 ? $"+{delta}" : delta.ToString(CultureInfo.InvariantCulture),
                 };
-                if (item.RivalName is { } rival) details.Add($"rival {rival}");
-                if (delta != 0) details.Add(delta > 0 ? $"ahead by {delta} ranks" : $"behind by {-delta} ranks");
+                var rival = string.IsNullOrEmpty(item.RivalName) ? null : item.RivalName;
+                if (!showsName && rival is not null && delta != 0)
+                {
+                    // No visible badge: the delta itself says which rival ("1 rank behind Name").
+                    details.Add(RivalDeltaAccessibilityLabel(delta, rival));
+                }
+                else
+                {
+                    if (rival is not null) details.Add($"rival {rival}");
+                    var ranks = Math.Abs(delta) == 1 ? "rank" : "ranks";
+                    if (delta != 0) details.Add(delta > 0 ? $"ahead by {delta} {ranks}" : $"behind by {-delta} {ranks}");
+                }
                 break;
             case SuggestionRowLayout.UnfcAccuracy when item.Percent is > 0:
                 var clamped = Math.Clamp(Math.Floor(item.Percent.Value), 0, 99);

@@ -17,12 +17,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,23 +27,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.suggestions.SuggestionCategoryType
 import com.festivalscoretracker.android.core.suggestions.SuggestionFilterSettings
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Filter sheet
 
@@ -76,26 +68,16 @@ fun SuggestionsFilterSheet(
         onChange(next)
     }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val pickedInstrument = instruments.firstOrNull { it.wireId == selected }
 
-    ModalBottomSheet(
+    // Pinned shared header: Close stays reachable however far the form scrolls (changes
+    // apply live, so Close replaces the former Done; its test tag is kept).
+    FestivalModalSheet(
+        title = "Filter Suggestions",
+        closeTag = "fst.suggestions.filter.done",
+        titleTag = "fst.suggestions.filter.title",
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().semantics { testTagsAsResourceId = true },
     ) {
-        // Pinned header: Done stays reachable however far the form scrolls.
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "Filter Suggestions",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.weight(1f).semantics { heading() }.testTag("fst.suggestions.filter.title"),
-            )
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.suggestions.filter.done")) { Text("Done") }
-        }
         HorizontalDivider(color = BrandTokens.glassBorder)
         LazyColumn(Modifier.fillMaxWidth().testTag("fst.suggestions.filter.form")) {
             item { SectionTitle("Instruments", "fst.suggestions.filter.instruments") }

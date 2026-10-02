@@ -53,7 +53,12 @@ class RunJobTests(unittest.TestCase):
         aj.run_job("ios", "submit", "57", "n", False, {"FST_APPSTORE_REVIEW_ENABLED": "true"}, main=fake,
                    marker_lookup=lambda *_a: first)
         self.assertEqual(fake.calls[1]["argv"][-2:], ["--whats-new-baseline", "none"])
-        self.assertEqual(fake.calls[1]["stdin"], "n")
+        # An empty generated note means nothing user-facing: the orchestrator's text never replaces it.
+        self.assertEqual(fake.calls[1]["stdin"], "")
+        legacy = {k: v for k, v in marker.items() if k != "store_notes"}
+        aj.run_job("ios", "submit", "57", "n", False, {"FST_APPSTORE_REVIEW_ENABLED": "true"}, main=fake,
+                   marker_lookup=lambda *_a: legacy)
+        self.assertEqual(fake.calls[2]["stdin"], "n")
 
     def test_stale_refusal_dispatches_one_rebuild(self):
         fake = FakeMain(code=3, doc={"refused": "stale_whats_new"})

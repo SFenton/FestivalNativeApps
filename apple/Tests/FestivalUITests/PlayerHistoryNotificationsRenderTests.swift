@@ -25,7 +25,13 @@ actor HostedHistoryTransport: HTTPTransport {
        {"eventId":2,"notificationGuid":"guid-2","accountId":"fixture-1",
         "eventKind":"player_fc_achieved","songId":"fixture-song",
         "instrument":"Solo_Bass",
-        "detectedAt":"2024-01-04T00:00:00Z","expiresAt":"2024-02-04T00:00:00Z"}
+        "detectedAt":"2024-01-04T00:00:00Z","expiresAt":"2024-02-04T00:00:00Z"},
+       {"eventId":3,"notificationGuid":"guid-3","accountId":"fixture-1",
+        "eventKind":"player_first_score","songId":"fixture-song","instrument":"Solo_Drums",
+        "detectedAt":"2024-01-03T00:00:00Z","expiresAt":"2024-02-03T00:00:00Z",
+        "payload":{"coalescedInstruments":["Solo_Drums","Solo_Vocals"],"coalescedEvents":[
+          {"eventKind":"player_first_score","instrument":"Solo_Drums","newNumeric":250000},
+          {"eventKind":"player_stars_improved","instrument":"Solo_Vocals","oldNumeric":4,"newNumeric":5}]}}
     ]}
     """.utf8)
 
@@ -119,6 +125,25 @@ private func hostedHistorySession(transport: HostedHistoryTransport) -> Festival
     return FestivalSession(factory: { client }, selectionStorage: defaults)
 }
 
+/// Build a selected-profile session whose notification feed is already loaded.
+///
+/// The sheet's own `.task` refresh then revalidates without leaving the loaded
+/// rows, so readiness never depends on when SwiftUI starts that task in an
+/// offscreen host under a loaded parallel CI run (it once stayed on the spinner
+/// for the whole settle timeout).
+///
+/// - Parameter transport: Fixture transport serving the feed.
+/// - Returns: Session whose `notificationsCenter` is `.loaded`.
+@MainActor
+private func preloadedNotificationsSession(
+    transport: HostedHistoryTransport
+) async -> FestivalSession {
+    let session = hostedHistorySession(transport: transport)
+    await session.notificationsCenter.refresh(session: session)
+    #expect(session.notificationsCenter.state == .loaded)
+    return session
+}
+
 private let fixtureSong = Song(
     songId: "fixture-song", title: "Fixture Anthem", artist: "The Fixtures", album: nil,
     year: 2024, durationSeconds: 180, albumArt: nil, difficulty: nil,
@@ -157,12 +182,81 @@ private let fixtureSong = Song(
     assertRendersContent(host, image: image, containing: ["Score History", "score 850,000"])
 }
 
+/// Issue #32: Score History list rows show the season only when the page is at least
+/// 520 pt wide (web `QUERY_SHOW_SEASON`); a portrait-phone page hides it.
+@MainActor
+@Test(arguments: [(393.0, false), (600.0, true)])
+func songScoreHistoryRowsShowTheSeasonOnlyOnWidePages(width: Double, shows: Bool) async throws {
+    let transport = HostedHistoryTransport()
+    let session = hostedHistorySession(transport: transport)
+    let entries = try await session.songHistory(accountId: "fixture-1", songId: "fixture-song").response.history
+    let size = CGSize(width: width, height: 900)
+    let host = nativeHostedView(
+        ScrollView {
+            SongScoreHistorySection(
+                entries: entries, pool: [.lead], keyboardIcon: false,
+                instrument: .constant(nil), expanded: .constant(false),
+                viewportWidth: size.width, currentSeason: 40
+            )
+            .padding(16)
+        }
+        .frame(width: size.width, height: size.height)
+        .background(BrandTokens.appBackground)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["score 850,000", "score 700,000"])
+    _ = try nativeHostedPNG(
+        image, filename: "song-score-history-season-\(Int(width)).png", environment: "FST_HISTORY_RENDER_OUT"
+    )
+    let seasons = ["current season 40, score 850,000", "season 39, score 700,000"]
+    if shows {
+        assertRendersContent(host, image: image, containing: seasons)
+    } else {
+        assertRendersContent(host, image: image, containing: ["score 850,000"], notContaining: ["season 39", "season 40"])
+    }
+}
+
+/// Issue #32: a top-score row draws the season pill only when its card turns the
+/// column on, and an entry without a season keeps the slot without speaking it.
+@MainActor
+@Test func songLeaderboardEntryRowSeasonColumnFollowsTheCard() async throws {
+    func entry(_ id: String, season: Int?) -> LeaderboardEntry {
+        LeaderboardEntry(
+            accountId: id, displayName: "Fixture \(id)", score: 99_800, rank: 2, localRank: nil,
+            accuracy: 980_000, isFullCombo: false, stars: 5, season: season, difficulty: 3
+        )
+    }
+    let size = CGSize(width: 600, height: 200)
+    let host = nativeHostedView(
+        VStack(spacing: 8) {
+            SongLeaderboardEntryRow(entry: entry("a", season: 9), seasonColumn: true, currentSeason: 9)
+            SongLeaderboardEntryRow(entry: entry("b", season: 8), seasonColumn: true, currentSeason: 9)
+            SongLeaderboardEntryRow(entry: entry("c", season: nil), seasonColumn: true)
+            SongLeaderboardEntryRow(entry: entry("d", season: 7))
+        }
+        .padding(16)
+        .frame(width: size.width, height: size.height)
+        .background(BrandTokens.appBackground)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Current season 9", "Season 8", "Fixture d"])
+    assertRendersContent(
+        host, image: image, containing: ["Current season 9", "Season 8"], notContaining: ["Season 7"]
+    )
+}
+
 // MARK: - Notifications
 
 @MainActor
 @Test func notificationsSheetRendersRowsWithUnreadSection() async throws {
     let transport = HostedHistoryTransport()
-    let session = hostedHistorySession(transport: transport)
+    let session = await preloadedNotificationsSession(transport: transport)
     let size = CGSize(width: 420, height: 700)
     let host = nativeHostedView(
         NotificationsSheet(session: session)
@@ -174,11 +268,11 @@ private let fixtureSong = Song(
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass"]
+        host, untilText: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass", "Drums: First Play"]
     )
     _ = try nativeHostedPNG(image, filename: "notifications.png", environment: "FST_HISTORY_RENDER_OUT")
     assertRendersContent(
-        host, image: image, containing: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass"]
+        host, image: image, containing: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass", "Drums: First Play"]
     )
 }
 
@@ -215,7 +309,7 @@ private let fixtureSong = Song(
     {"generatedAt":"2024-01-05T00:00:00Z","expiresAfterHours":72,"sourceRunId":1,
      "sourceCompletedAt":"2024-01-05T00:00:00Z","notificationsGenerated":true,"items":[]}
     """.utf8))
-    let session = hostedHistorySession(transport: transport)
+    let session = await preloadedNotificationsSession(transport: transport)
     let size = CGSize(width: 420, height: 500)
     let host = nativeHostedView(
         NotificationsSheet(session: session)
@@ -247,7 +341,7 @@ private let fixtureSong = Song(
     {"generatedAt":"2024-01-05T00:00:00Z","expiresAfterHours":72,"sourceRunId":null,
      "sourceCompletedAt":null,"notificationsGenerated":false,"items":[]}
     """.utf8))
-    let session = hostedHistorySession(transport: transport)
+    let session = await preloadedNotificationsSession(transport: transport)
     let size = CGSize(width: 420, height: 500)
     let host = nativeHostedView(
         NotificationsSheet(session: session)

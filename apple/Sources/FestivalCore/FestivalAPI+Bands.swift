@@ -160,4 +160,27 @@ extension FestivalAPI {
             observedPublicationId: payload.observedPublicationId, isStale: payload.isStale
         )
     }
+
+    /// Read Song Detail's band previews: every band size's top rows in one request.
+    ///
+    /// - Parameters:
+    ///   - songId: Song shown on Song Detail.
+    ///   - accountId: Selected player, sent only as the `accountId` query so the service
+    ///     can return that player's best band row; never as a selected-profile header.
+    ///   - top: Rows per band size (1...50); the web previews use 10.
+    /// - Returns: The previews with their publication provenance.
+    /// - Throws: `FestivalAPIError` for invalid input, transport or a corrupt response.
+    public func songBandLeaderboards(
+        songId: String, accountId: String?, top: Int = 10
+    ) async throws -> SongBandLeaderboardsPayload {
+        let payload = try await read(
+            PublicEndpoint.songBandLeaderboards(songId: songId, top: top, accountId: accountId)
+        )
+        let response = try JSONDecoder().decode(SongBandLeaderboardsResponse.self, from: payload.data)
+        try response.validate(songId: songId)
+        return SongBandLeaderboardsPayload(
+            response: response, publicationId: payload.publicationId,
+            observedPublicationId: payload.observedPublicationId, isStale: payload.isStale
+        )
+    }
 }

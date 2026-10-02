@@ -52,6 +52,7 @@
             <TitleBar.RightHeader>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="GlobalSearchButton" Visibility="Collapsed" Padding="8" Background="Transparent" BorderThickness="0"
+                        MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
                         VerticalAlignment="Center" ToolTipService.ToolTip="Search (Ctrl+E)"
                         AutomationProperties.Name="Search songs and players"
                         AutomationProperties.AutomationId="fst.global-search.open">
@@ -61,6 +62,7 @@
                 <ContentControl x:Name="NotificationsHost" VerticalAlignment="Center" IsTabStop="False"
                                 Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}" />
                 <Button x:Name="ProfileButton" Padding="4" Margin="0,0,8,0" Background="Transparent" BorderThickness="0"
+                        MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
                         AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"
                         AutomationProperties.AutomationId="fst.shell.profile"
                         ToolTipService.ToolTip="{x:Bind Shell.ProfileName, Mode=OneWay}">

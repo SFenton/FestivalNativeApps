@@ -8,7 +8,7 @@ Helpers: `apple/Tests/FestivalUITests/NativeHostedSnapshot.swift`; self-tests in
 |---|---|
 | `nativeHostedView(_:size:forceGlassFallback:)` | Host a screen. Forces the glass fallback (see root causes) and turns on the in-process accessibility tree |
 | `nativeHostedWindow(_:size:)` | Offscreen, never-shown window; required for lazy `List` rows. Keep it alive through capture |
-| `nativeHostedSettle(_:untilText:excluding:)` / `(_:until:)` | Wait for the **final** state (text present, loading text absent, or any predicate), then for two identical frames. Returns the capture; records an issue on timeout (20 s) |
+| `nativeHostedSettle(_:untilText:excluding:)` / `(_:until:)` | Wait for the **final** state (text present, loading text absent, or any predicate), then for two identical frames. Returns the capture; records an issue on timeout (20 s on a Mac; every budget ×4 in a VM such as `apple-ci`) |
 | `assertRendersContent(_:image:minimumNonBackgroundFraction:minimumInkFraction:containing:notContaining:)` | Fail blank, spinner-only or wrong-state pages. Defaults: 1% non-background, 0.2% ink |
 | `nativeHostedAccessibility(_:)` | Labels/titles/values/identifiers, walking accessibility children **and** AppKit subviews (List/Form cells) |
 | `nativeHostedContent(_:)` | Non-background and ink fractions plus detected background |
@@ -30,6 +30,7 @@ Helpers: `apple/Tests/FestivalUITests/NativeHostedSnapshot.swift`; self-tests in
 |---|---|---|
 | Any **tinted** Liquid Glass (`Glass.regular.tint`, i.e. every `festivalGlass(.card/.overlay)`) in the tree | The *whole* `NSHostingView` captured fully transparent through `cacheDisplay` **and** `CALayer.render(in:)`, window or not; untinted/shaped/interactive glass captures fine | `NativeHostedRoot` sets `\._accessibilityReduceTransparency` (the product's own Reduce Transparency fallback, same branch as Increase Contrast). The canary `hostedHarnessForcesGlassFallbackBecauseTintedGlassCapturesBlank` fails if AppKit ever fixes this |
 | Fixed `Task.sleep` waits | ~200 `@MainActor` tests share one executor; a 300 ms sleep resumed seconds late, so captures showed spinners ("Loading Notifications", "Loading your rank") | `nativeHostedSettle` readiness predicates |
+| Mac-sized readiness budgets on the `apple-ci` VM | A different test timed out on each saturated run (e.g. 4 s alone, 66 s against a 60 s budget in the full bundle) | `nativeHostedReadinessBudget` scales every budget ×4 when `kern.hv_vmm_present` is 1 |
 | `#expect(image.width > 0)` as the only assertion | Neither problem failed a test | `assertRendersContent` |
 | SwiftUI builds no accessibility nodes until an assistive client appears | `accessibilityChildren()` empty | `nativeHostedEnableAccessibility` sets `AXEnhancedUserInterface` on the in-process `NSApplication` (no TCC permission needed) |
 

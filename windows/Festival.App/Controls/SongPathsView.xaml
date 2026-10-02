@@ -62,70 +62,75 @@
         </StackPanel>
 
         <Grid x:Name="ChartArea" Grid.Row="1" MinHeight="240">
-            <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="40" Height="40"
-                          AutomationProperties.Name="Loading path" />
+            <!-- Web PathsModal swap: content fades out, the spinner fades in/holds/fades out, the new content fades in
+                 (300 ms opacity transitions set in code; none without motion). -->
+            <ProgressRing x:Name="PathSpinner" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="40" Height="40"
+                          Opacity="{x:Bind ViewModel.SpinnerOpacity, Mode=OneWay}"
+                          AutomationProperties.Name="Loading path" AutomationProperties.AutomationId="fst.paths.loading" />
 
-            <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
-                                        Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.paths.error" />
+            <Grid x:Name="ChartContent" Opacity="{x:Bind ViewModel.ContentOpacity, Mode=OneWay}">
+                <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+                                            Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
+                                            AutomationProperties.AutomationId="fst.paths.error" />
 
-            <TextBlock Text="No path has been generated for this instrument and difficulty yet." TextWrapping="Wrap"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" MaxWidth="360"
-                       Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" AutomationProperties.AutomationId="fst.paths.empty" />
+                <TextBlock Text="No path has been generated for this instrument and difficulty yet." TextWrapping="Wrap"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" MaxWidth="360"
+                           Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" AutomationProperties.AutomationId="fst.paths.empty" />
 
-            <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in when ready (web fadeInImage). -->
-            <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}" controls:FadeIn.OnShow="True">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Click="OnZoomOut" IsEnabled="{x:Bind ViewModel.CanZoomOut, Mode=OneWay}" AutomationProperties.Name="Zoom out"
-                            AutomationProperties.AutomationId="fst.paths.zoom-out">
-                        <FontIcon Glyph="&#xE71F;" FontSize="14" />
-                    </Button>
-                    <TextBlock Text="{x:Bind ViewModel.ZoomText, Mode=OneWay}" VerticalAlignment="Center" MinWidth="48" TextAlignment="Center"
-                               AutomationProperties.LiveSetting="Polite" />
-                    <Button Click="OnZoomIn" IsEnabled="{x:Bind ViewModel.CanZoomIn, Mode=OneWay}" AutomationProperties.Name="Zoom in"
-                            AutomationProperties.AutomationId="fst.paths.zoom-in">
-                        <FontIcon Glyph="&#xE8A3;" FontSize="14" />
-                    </Button>
-                </StackPanel>
-                <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
-                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
-                              ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
-                    <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
-                           AutomationProperties.Name="{x:Bind ViewModel.ImageDescription, Mode=OneWay}"
-                           AutomationProperties.AutomationId="fst.paths.image" />
-                </ScrollViewer>
-            </Grid>
-
-            <!-- Text (web PathDataTable): a column header row, then one card per activation in the saved column order;
-                 no summary or max score. Narrow sheets stack each card like the web's mobile rows. -->
-            <Grid Visibility="{x:Bind ViewModel.ShowTable, Mode=OneWay}" RowSpacing="4" SizeChanged="OnTableSizeChanged">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <Grid x:Name="TableHeader" Padding="13,4,25,4" ColumnSpacing="10" AutomationProperties.AccessibilityView="Raw" />
-                <ScrollViewer Grid.Row="1" Padding="0,0,12,0">
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Paths Not Available" Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
-                                   HorizontalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                        <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared"
-                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
-                                       AutomationProperties.Name="Path activations">
-                            <ItemsRepeater.Layout>
-                                <StackLayout Spacing="4" />
-                            </ItemsRepeater.Layout>
-                            <ItemsRepeater.ItemTemplate>
-                                <DataTemplate x:DataType="data:PathActivationRow">
-                                    <Border Style="{StaticResource FSTCardStyle}" Padding="12,8" />
-                                </DataTemplate>
-                            </ItemsRepeater.ItemTemplate>
-                        </ItemsRepeater>
+                <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in with ChartContent (web fadeInImage). -->
+                <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Click="OnZoomOut" IsEnabled="{x:Bind ViewModel.CanZoomOut, Mode=OneWay}" AutomationProperties.Name="Zoom out"
+                                AutomationProperties.AutomationId="fst.paths.zoom-out">
+                            <FontIcon Glyph="&#xE71F;" FontSize="14" />
+                        </Button>
+                        <TextBlock Text="{x:Bind ViewModel.ZoomText, Mode=OneWay}" VerticalAlignment="Center" MinWidth="48" TextAlignment="Center"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <Button Click="OnZoomIn" IsEnabled="{x:Bind ViewModel.CanZoomIn, Mode=OneWay}" AutomationProperties.Name="Zoom in"
+                                AutomationProperties.AutomationId="fst.paths.zoom-in">
+                            <FontIcon Glyph="&#xE8A3;" FontSize="14" />
+                        </Button>
                     </StackPanel>
-                </ScrollViewer>
+                    <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
+                                  HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
+                                  ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
+                        <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
+                               AutomationProperties.Name="{x:Bind ViewModel.ImageDescription, Mode=OneWay}"
+                               AutomationProperties.AutomationId="fst.paths.image" />
+                    </ScrollViewer>
+                </Grid>
+
+                <!-- Text (web PathDataTable): a column header row, then one card per activation in the saved column order;
+                     no summary or max score. Narrow sheets stack each card like the web's mobile rows. -->
+                <Grid Visibility="{x:Bind ViewModel.ShowTable, Mode=OneWay}" RowSpacing="4" SizeChanged="OnTableSizeChanged">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid x:Name="TableHeader" Padding="13,4,25,4" ColumnSpacing="10" AutomationProperties.AccessibilityView="Raw" />
+                    <ScrollViewer Grid.Row="1" Padding="0,0,12,0">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Paths Not Available" Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
+                                       HorizontalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                            <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared"
+                                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
+                                           AutomationProperties.Name="Path activations">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Spacing="4" />
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="data:PathActivationRow">
+                                        <Border Style="{StaticResource FSTCardStyle}" Padding="12,8" />
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
             </Grid>
         </Grid>
     </Grid>

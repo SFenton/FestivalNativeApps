@@ -50,27 +50,35 @@ struct FirstRunSongInfoChartDemo: View {
 // MARK: - songinfo-bar-select
 
 /// Ported from `pages/songinfo/firstRun/demo/BarSelectDemo.tsx`: the same chart with one bar
-/// highlighted (a purple selection stroke) and its details in a card below. The web cycles the
-/// selection on a timer; this static port shows the most recent bar selected, matching the
-/// carousel's "no timers while off-screen" rule — see `.agents/controls/first-run/ios.md`.
+/// selected (a purple selection stroke) and its details in a card below. As on the web, every
+/// 2.5 s the card fades out over 300 ms, the selection moves to the next bar and the card
+/// fades back in.
 struct FirstRunSongInfoBarSelectDemo: View {
-    private var selected: FirstRunDemoPool.ScorePoint { FirstRunDemoPool.scoreHistory.last! }
+    private static let barWidth: CGFloat = 28
+    private var points: [FirstRunDemoPool.ScorePoint] { FirstRunDemoPool.scoreHistory }
+    private var selected: FirstRunDemoPool.ScorePoint { points[selectedIndex % points.count] }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedIndex = 0
+    @State private var fading: Set<Int> = []
 
     var body: some View {
         VStack(spacing: 10) {
-            Chart(FirstRunDemoPool.scoreHistory) { point in
-                BarMark(x: .value("Date", point.label), y: .value("Accuracy", point.accuracy))
-                    .foregroundStyle(firstRunAccuracyTint(point.accuracy, isFullCombo: point.isFullCombo))
-                    .cornerRadius(4)
+            Chart(points) { point in
+                BarMark(
+                    x: .value("Date", point.label), y: .value("Accuracy", point.accuracy),
+                    width: .fixed(Self.barWidth)
+                )
+                .foregroundStyle(firstRunAccuracyTint(point.accuracy, isFullCombo: point.isFullCombo))
+                .cornerRadius(4)
             }
             .chartYScale(domain: 0...100)
             .chartYAxis { AxisMarks(position: .leading) }
             .frame(height: 120)
-            .overlay(alignment: .bottomTrailing) {
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(BrandTokens.accentPurple, lineWidth: 2)
-                    .frame(width: 28, height: 60)
-                    .offset(x: -4, y: -4)
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    selectionStroke(proxy: proxy, geometry: geometry)
+                }
             }
             HStack(spacing: 16) {
                 Text(selected.label)
@@ -91,10 +99,39 @@ struct FirstRunSongInfoBarSelectDemo: View {
             .padding(.horizontal, 14)
             .frame(height: 44)
             .background(BrandTokens.accentPurple.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
+            .firstRunSwapRow(0, key: selectedIndex)
         }
         .padding(14)
         .festivalGlass(.card, cornerRadius: 16)
+        .environment(\.firstRunFadingRows, fading)
         .accessibilityHidden(true)
+        .firstRunDemoTicker(every: FirstRunDemoTiming.barSelectInterval) { await swap() }
+    }
+
+    /// The selected bar's purple outline, placed from the chart's own scales.
+    @ViewBuilder
+    private func selectionStroke(proxy: ChartProxy, geometry: GeometryProxy) -> some View {
+        if let plot = proxy.plotFrame,
+           let x = proxy.position(forX: selected.label),
+           let top = proxy.position(forY: selected.accuracy),
+           let bottom = proxy.position(forY: 0.0) {
+            let frame = geometry[plot]
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(BrandTokens.accentPurple, lineWidth: 2)
+                .frame(width: Self.barWidth + 4, height: max(0, bottom - top) + 4)
+                .position(x: frame.minX + x, y: frame.minY + (top + bottom) / 2)
+                // The selection jumps, as on the web; it never slides between bars.
+                .transaction { $0.animation = nil }
+        }
+    }
+
+    private func swap() async {
+        await FirstRunDemoSwap.run(
+            reduceMotion: reduceMotion, seconds: FirstRunDemoTiming.barSelectFadeSeconds,
+            fadeOut: { fading = [0] },
+            update: { selectedIndex = (selectedIndex + 1) % points.count },
+            fadeIn: { fading = [] }
+        )
     }
 }
 

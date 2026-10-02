@@ -31,6 +31,11 @@ final class SuggestionsViewModel {
     private(set) var currentSeason: Int?
     /// False once a `getNext` call returns nothing more for the current mix.
     private(set) var hasMore = true
+    /// Counts generated pages; each new page fades in once (issue #30).
+    private(set) var batchGeneration = 0
+    /// IDs of the newest generated page: the only categories that may fade in.
+    @ObservationIgnored
+    private(set) var latestBatchIds: Set<String> = []
     var filter: SuggestionFilterSettings
 
     /// One page of newly generated categories per `loadMore()` call.
@@ -161,6 +166,8 @@ final class SuggestionsViewModel {
         if next.isEmpty {
             hasMore = false
         } else {
+            latestBatchIds = Set(next.map(\.id))
+            batchGeneration += 1
             categories.append(contentsOf: next)
         }
         loadState = .loaded
