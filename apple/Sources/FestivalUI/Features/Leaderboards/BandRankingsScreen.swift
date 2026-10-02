@@ -100,12 +100,18 @@ struct BandRankingsScreen: View {
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands($rankBy)
         .toolbar {
-            ToolbarItem(placement: .festivalPageAction) {
-                HStack(spacing: 4) {
-                    if layout.sectionChrome.isVerticalBar {
-                        bandTypeMenu(showsTitle: false)
-                    }
+            if layout.sectionChrome.isVerticalBar {
+                // `/duo` J1: band size and Rank By as two titled rail items, not one
+                // custom `HStack` item that keeps a horizontal top bar.
+                ToolbarItemGroup(placement: .festivalPageAction) {
+                    bandTypeMenu(showsTitle: false)
                     BandRankByMenu(selection: $rankBy)
+                }
+            } else {
+                ToolbarItem(placement: .festivalPageAction) {
+                    HStack(spacing: 4) {
+                        BandRankByMenu(selection: $rankBy)
+                    }
                 }
             }
             #if os(iOS)
@@ -130,32 +136,45 @@ struct BandRankingsScreen: View {
         .task(id: requestKey) { await load() }
     }
 
-    /// Band-size switcher: a glass pill in the floating bar, or an icon-only
-    /// toolbar menu in the iPhone Duo rail.
+    /// Band-size switcher: a glass pill in the floating bar, or a titled toolbar
+    /// item (`Label` with the band symbol) in the iPhone Duo rail (`/duo` J1).
     ///
     /// - Parameter showsTitle: Whether the pill shows the band size's name.
     /// - Returns: The native `Menu`, keeping `fst.band-rankings.band-type-menu`.
+    @ViewBuilder
     private func bandTypeMenu(showsTitle: Bool) -> some View {
-        Menu {
-            Picker("Band Size", selection: $bandType) {
-                ForEach(BandType.allCases) { size in
-                    Text(size.label).tag(size)
-                }
+        if layout.sectionChrome.isVerticalBar {
+            Menu {
+                bandTypeChoices
+            } label: {
+                Label(bandType.label, systemImage: "person.3.fill")
             }
-        } label: {
-            if layout.sectionChrome.isVerticalBar {
-                Image(systemName: "person.3.fill")
-            } else {
+            .accessibilityIdentifier("fst.band-rankings.band-type-menu")
+            .accessibilityLabel("Band size")
+            .accessibilityValue(bandType.label)
+        } else {
+            Menu {
+                bandTypeChoices
+            } label: {
                 RankingsSwitcherPillLabel(title: bandType.label, showsTitle: showsTitle) {
                     Image(systemName: "person.3.fill")
                         .font(.title3)
                 }
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("fst.band-rankings.band-type-menu")
+            .accessibilityLabel("Band size")
+            .accessibilityValue(bandType.label)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("fst.band-rankings.band-type-menu")
-        .accessibilityLabel("Band size")
-        .accessibilityValue(bandType.label)
+    }
+
+    /// Band sizes as a picker, shared by the rail item and the pill.
+    private var bandTypeChoices: some View {
+        Picker("Band Size", selection: $bandType) {
+            ForEach(BandType.allCases) { size in
+                Text(size.label).tag(size)
+            }
+        }
     }
 
     /// Load the current page, rejecting late responses from a previous selection.

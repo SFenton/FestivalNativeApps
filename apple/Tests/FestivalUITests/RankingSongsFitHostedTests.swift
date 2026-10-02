@@ -94,10 +94,14 @@ private func rowNames(_ entries: [AccountRankingEntry]) -> [RankingRowName] {
 ///   - width: Card width in points.
 ///   - fitsSongs: Apply `leaderboardSectionColumns(_:hidingCrowdedSongsFor:)`; false
 ///     applies only the shared #37 columns (songs always shown).
+///   - rowPadding: Horizontal padding per side between the measured section and its
+///     rows (Full Rankings pads 16).
+///   - declaredInset: The `rowInset` passed to the fit.
 /// - Returns: Every exposed element.
 @MainActor
 private func hostedCard(
-    _ entries: [AccountRankingEntry], width: CGFloat, fitsSongs: Bool = true
+    _ entries: [AccountRankingEntry], width: CGFloat, fitsSongs: Bool = true,
+    rowPadding: CGFloat = 0, declaredInset: CGFloat = 0
 ) async throws -> [(label: String, value: String)] {
     let size = CGSize(width: width, height: 60 * CGFloat(entries.count) + 32)
     let columns = LeaderboardRowColumns.rankings(entries, metric: .totalscore)
@@ -109,11 +113,14 @@ private func hostedCard(
             )
         }
     }
+    .padding(.horizontal, rowPadding)
     let host = nativeHostedView(
         NavigationStack {
             Group {
                 if fitsSongs {
-                    rows.leaderboardSectionColumns(columns, hidingCrowdedSongsFor: rowNames(entries))
+                    rows.leaderboardSectionColumns(
+                        columns, hidingCrowdedSongsFor: rowNames(entries), rowInset: declaredInset
+                    )
                 } else {
                     rows.leaderboardSectionColumns(columns)
                 }
@@ -237,5 +244,21 @@ private func idealWidth<Content: View>(_ content: Content) async throws -> CGFlo
         shown.first.map { outcomes.insert($0) }
     }
     #expect(outcomes == [true, false])
+}
+/// `/duo` J2: a page that pads its rows (Full Rankings, 16 pt per side) declares the
+/// padding, so a section whose padded rows are too narrow hides songs even though
+/// the section itself would fit the widest row.
+@MainActor
+@Test func paddedRowsDeclareTheirInset() async throws {
+    let entries = try competeRows()
+    let columns = LeaderboardRowColumns.rankings(entries, metric: .totalscore)
+    let required = try await idealWidth(RankingRowWidthProbe(columns: columns, names: rowNames(entries)))
+    let width = required + 20  // rows get required - 12 after 16 pt per side
+    let declared = otherRows(entries, in: try await hostedCard(
+        entries, width: width, rowPadding: 16, declaredInset: 32
+    ))
+    #expect(declared.count == 2 && declared.allSatisfy { !$0.label.contains(spokenSongs($0.entry)) })
+    let undeclared = otherRows(entries, in: try await hostedCard(entries, width: width, rowPadding: 16))
+    #expect(undeclared.count == 2 && undeclared.allSatisfy { $0.label.contains(spokenSongs($0.entry)) })
 }
 #endif

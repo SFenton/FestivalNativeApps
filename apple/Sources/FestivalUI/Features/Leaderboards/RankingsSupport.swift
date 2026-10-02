@@ -314,11 +314,14 @@ extension View {
     /// - Parameters:
     ///   - columns: The section's fitted rankings columns (`LeaderboardRowColumns.rankings`).
     ///   - names: Every row's name in the section, including a pinned/spotlight row.
+    ///   - rowInset: Total horizontal padding between this view's edges and its rows
+    ///     (for example 32 for a page that pads its rows by 16 on each side).
     /// - Returns: This view with the decided columns in its environment.
     func leaderboardSectionColumns(
-        _ columns: LeaderboardRowColumns, hidingCrowdedSongsFor names: [RankingRowName]
+        _ columns: LeaderboardRowColumns, hidingCrowdedSongsFor names: [RankingRowName],
+        rowInset: CGFloat = 0
     ) -> some View {
-        modifier(RankingSongsFit(columns: columns, names: names))
+        modifier(RankingSongsFit(columns: columns, names: names, rowInset: rowInset))
     }
 }
 
@@ -327,13 +330,15 @@ extension View {
 private struct RankingSongsFit: ViewModifier {
     let columns: LeaderboardRowColumns
     let names: [RankingRowName]
+    var rowInset: CGFloat = 0
     @State private var availableWidth: CGFloat = 0
     @State private var requiredWidth: CGFloat = 0
 
     func body(content: Content) -> some View {
         content
             .leaderboardSectionColumns(columns.fittingSongs(
-                availableWidth: Double(availableWidth), requiredWidth: Double(requiredWidth)
+                availableWidth: Double(availableWidth > 0 ? max(1, availableWidth - rowInset) : 0),
+                requiredWidth: Double(requiredWidth)
             ))
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
             .background(alignment: .topLeading) {

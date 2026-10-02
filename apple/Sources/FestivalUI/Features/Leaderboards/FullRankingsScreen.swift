@@ -125,7 +125,15 @@ struct FullRankingsScreen: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     spotlightFooter(entries: payload.rankings.entries)
                 }
-                .leaderboardSectionColumns(pageColumns(payload.rankings.entries))
+                // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split
+                // column, portrait iPhone) drops songs played/total on every row when it
+                // would truncate a name, instead of cutting names to ~5 characters
+                // (the Compete cards' issue #38 fit; rows are padded 16 pt per side).
+                .leaderboardSectionColumns(
+                    pageColumns(payload.rankings.entries),
+                    hidingCrowdedSongsFor: pageNames(payload.rankings.entries),
+                    rowInset: 32
+                )
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -145,12 +153,20 @@ struct FullRankingsScreen: View {
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands($rankBy)
         .toolbar {
-            ToolbarItem(placement: .festivalPageAction) {
-                HStack(spacing: 4) {
-                    if layout.sectionChrome.isVerticalBar {
-                        instrumentMenu(showsTitle: false)
-                    }
+            if layout.sectionChrome.isVerticalBar {
+                // `/duo` J1 (operator, 2026-10-02): the instrument and Rank By are two
+                // titled items, so the rail can place both (one custom `HStack` item
+                // kept a horizontal top bar just for itself; HIG Designing for iPhone
+                // Duo: "Give every non-text-only item a title and symbol").
+                ToolbarItemGroup(placement: .festivalPageAction) {
+                    instrumentMenu(showsTitle: false)
                     RankByMenu(selection: $rankBy)
+                }
+            } else {
+                ToolbarItem(placement: .festivalPageAction) {
+                    HStack(spacing: 4) {
+                        RankByMenu(selection: $rankBy)
+                    }
                 }
             }
             #if os(iOS)
@@ -216,6 +232,20 @@ struct FullRankingsScreen: View {
             rows.append(entry)
         }
         return .rankings(rows, metric: rankBy)
+    }
+
+    /// Every name the page draws (the pinned footer row included) for the songs fit.
+    ///
+    /// - Parameter entries: Current page's loaded rows.
+    /// - Returns: The rows' names, bold for the selected player's.
+    private func pageNames(_ entries: [AccountRankingEntry]) -> [RankingRowName] {
+        var rows = entries
+        if case let .footer(entry) = spotlightPlacement(entries: entries) {
+            rows.append(entry)
+        }
+        return rows.map {
+            RankingRowName(name: AccountRankingRow.displayName($0), emphasized: isSelectedAccount($0.accountId))
+        }
     }
 
     /// Show the selected player's own row below the current page when they are not
@@ -288,30 +318,61 @@ struct FullRankingsScreen: View {
         }
     }
 
-    /// Instrument switcher: a glass pill in the floating bar, or an icon-only
-    /// toolbar menu in the iPhone Duo rail.
+    /// Instrument switcher: a glass pill in the floating bar, or a titled toolbar
+    /// item (instrument artwork plus name) in the iPhone Duo rail (`/duo` J1).
     ///
     /// - Parameter showsTitle: Whether the pill shows the instrument's name.
     /// - Returns: The native `Menu`, keeping `fst.full-rankings.instrument-menu`.
+    @ViewBuilder
     private func instrumentMenu(showsTitle: Bool) -> some View {
+        if layout.sectionChrome.isVerticalBar {
+            instrumentPicker
+                .accessibilityIdentifier("fst.full-rankings.instrument-menu")
+                .accessibilityLabel("Instrument")
+                .accessibilityValue(instrument.label)
+        } else {
+            instrumentPillMenu(showsTitle: showsTitle)
+        }
+    }
+
+    /// The rail's instrument `Menu`: a system toolbar item (system hit target and
+    /// overflow title) whose `Label` carries the artwork redrawn as a menu-sized image.
+    private var instrumentPicker: some View {
         Menu {
-            Picker("Instrument", selection: $instrument) {
-                ForEach(visibleInstruments) { chart in
-                    Label {
-                        Text(chart.label)
-                    } icon: {
-                        InstrumentIcon(chart, size: 16)
-                    }
-                    .tag(chart)
-                }
-            }
+            instrumentChoices
         } label: {
-            if layout.sectionChrome.isVerticalBar {
-                RankingsSwitcherInstrumentIcon(instrument: instrument)
-            } else {
-                RankingsSwitcherPillLabel(title: instrument.label, showsTitle: showsTitle) {
-                    RankingsSwitcherInstrumentIcon(instrument: instrument)
+            Label {
+                Text(instrument.label)
+            } icon: {
+                InstrumentIcon.menuImage(for: instrument, keyboard: false)
+            }
+        }
+    }
+
+    /// The visible charts as a picker, shared by the rail item and the pill.
+    private var instrumentChoices: some View {
+        Picker("Instrument", selection: $instrument) {
+            ForEach(visibleInstruments) { chart in
+                Label {
+                    Text(chart.label)
+                } icon: {
+                    InstrumentIcon(chart, size: 16)
                 }
+                .tag(chart)
+            }
+        }
+    }
+
+    /// The floating bar's glass instrument pill (iPhone, iPad, Duo inner portrait).
+    ///
+    /// - Parameter showsTitle: Whether the pill shows the instrument's name.
+    /// - Returns: The pill `Menu`.
+    private func instrumentPillMenu(showsTitle: Bool) -> some View {
+        Menu {
+            instrumentChoices
+        } label: {
+            RankingsSwitcherPillLabel(title: instrument.label, showsTitle: showsTitle) {
+                RankingsSwitcherInstrumentIcon(instrument: instrument)
             }
         }
         .buttonStyle(.plain)
