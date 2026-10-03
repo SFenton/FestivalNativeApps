@@ -88,6 +88,8 @@ struct AccountRankingRow: View {
                 .contextMenu {
                     MacPlayerRowMenu(accountId: entry.accountId, displayName: entry.displayName)
                 }
+                #else
+                .openInNewWindowMenu(.player(accountId: entry.accountId, displayName: entry.displayName))
                 #endif
             } else {
                 // Anonymous production rows have no profile to open.

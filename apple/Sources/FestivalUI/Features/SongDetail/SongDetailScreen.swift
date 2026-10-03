@@ -152,6 +152,7 @@ struct SongDetailScreen: View {
     }
 
     var body: some View {
+        let _ = MainThreadStallMonitor.count("songdetail.body")
         #if os(iOS)
         detailContent.navigationBarTitleDisplayMode(.inline)
         #else

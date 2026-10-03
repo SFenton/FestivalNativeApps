@@ -67,6 +67,12 @@ struct FestivalMobileApp: App {
         }
         // iPadOS menu bar and ⌘-hold overlay (adds nothing on iPhone).
         .commands { FestivalCommands() }
+
+        // iPad "Open in New Window" (a song or player row's context menu). Every window
+        // shares one session and keeps its own navigation.
+        WindowGroup(for: FestivalWindowRoute.self) { $route in
+            FestivalRootView(windowRoute: route)
+        }
     }
 }
 

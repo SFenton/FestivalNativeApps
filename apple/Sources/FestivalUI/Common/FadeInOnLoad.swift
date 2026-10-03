@@ -172,6 +172,20 @@ struct FestivalFadeInModifier: ViewModifier {
     }
 }
 
+/// ``SwiftUI/View/festivalFadeIn(staggerIndex:)``: the full fade only for a row that
+/// animates; any other row passes through untouched.
+struct FestivalStaggeredRowFade: ViewModifier {
+    let delay: TimeInterval?
+
+    func body(content: Content) -> some View {
+        if let delay {
+            content.modifier(FestivalFadeInModifier(isLoaded: true, delay: delay))
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Public API
 
 extension View {
@@ -200,6 +214,23 @@ extension View {
     /// - Returns: The content with a staggered `fadeInUp` reveal.
     public func festivalFadeIn(isLoaded: Bool, index: Int) -> some View {
         modifier(FestivalFadeInModifier(isLoaded: isLoaded, delay: FestivalFadeIn.delay(forIndex: index)))
+    }
+
+    /// Staggered fade for list rows that only exist once loaded: `staggerIndex` (zero-based
+    /// render order) fades in like ``festivalFadeIn(isLoaded:index:)``; nil, or an index
+    /// past the first screenful, is the plain row with no fade machinery at all.
+    ///
+    /// The general modifier keeps per-row state, an `@AppStorage` observer and an
+    /// `onAppear` state write that re-renders every row once more, even when it never
+    /// animates. In the Songs `List` that was about a quarter of each row's build cost
+    /// during fast scrolling (iPad scroll stress, Lane IPAD2), so rows built by
+    /// scrolling take this path.
+    ///
+    /// - Parameter staggerIndex: The row's stagger position while the first load
+    ///   settles (`FadeStagger.index(_:settled:)`), else nil.
+    /// - Returns: The row, fading in only when it is one of the first staggered rows.
+    public func festivalFadeIn(staggerIndex: Int?) -> some View {
+        modifier(FestivalStaggeredRowFade(delay: staggerIndex.flatMap { FestivalFadeIn.delay(forIndex: $0) }))
     }
 
     /// ``festivalFadeIn(isLoaded:)`` for content that is only built once its data exists

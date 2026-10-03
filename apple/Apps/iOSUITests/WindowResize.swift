@@ -102,6 +102,35 @@ enum WindowResize {
         return false
     }
 
+    /// Close the front app window with its window controls' Close button (resizing a
+    /// full-width window first so its controls show). Journeys that open a second window
+    /// must close it: iPadOS reconnects every open window on the next launch.
+    ///
+    /// - Parameter app: The running app under test.
+    /// - Returns: True when the Close button was found and tapped.
+    @MainActor
+    @discardableResult
+    static func closeFrontWindow(_ app: XCUIApplication) -> Bool {
+        let controls = springboard.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'window-controls'")
+        ).firstMatch
+        let close = springboard.buttons["Close-button"]
+        for attempt in 0..<2 {
+            if attempt > 0 || !controls.waitForExistence(timeout: 2) {
+                resize(app, toScreenFraction: 0.7)
+            }
+            guard controls.waitForExistence(timeout: 3) else { continue }
+            controls.tap()
+            if close.waitForExistence(timeout: 3) {
+                Thread.sleep(forTimeInterval: 0.5)
+                close.tap()
+                Thread.sleep(forTimeInterval: 2)
+                return true
+            }
+        }
+        return false
+    }
+
     /// The app window's current width in points.
     ///
     /// - Parameter app: The running app under test.

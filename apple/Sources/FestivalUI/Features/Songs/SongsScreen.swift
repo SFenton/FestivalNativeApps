@@ -1413,10 +1413,12 @@ struct SongsScreen: View {
         .contextMenu {
             MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
         }
+        #else
+        .openInNewWindowMenu(.song(songId: song.songId))
         #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
-        .festivalFadeIn(isLoaded: true, index: fadeIndex ?? Int.max)
+        .festivalFadeIn(staggerIndex: fadeIndex)
         .accessibilityElement(children: .combine)
         // `.combine` drops the invisible, `opacity(0)` `NavigationLink`'s own Button
         // trait (SwiftUI excludes fully transparent children from the merge), so the

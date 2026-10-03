@@ -8,7 +8,7 @@ import UIKit
 /// The root shell's actions for the iPadOS menu bar, published by each window's
 /// `FestivalRootView` with `focusedSceneValue`, so a menu command always acts on the
 /// window in front (each window keeps its own navigation;
-/// `.agents/design/apple/ipados.md`, Menu bar and Windows).
+/// `.agents/design/apple/ipados.md`, Menu bar and Multiwindow).
 struct FestivalShellCommands: Equatable {
     /// Every destination the Go menu lists for this shell, visible or not (HIG The menu
     /// bar: "Disable, don't hide, unavailable items; always show the same set").

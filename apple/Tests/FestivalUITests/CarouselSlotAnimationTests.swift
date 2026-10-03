@@ -193,3 +193,19 @@ private func movingLayer(
     #expect(!FirstRunPulsePolicy.runs(slideActive: true, reduceMotion: true, stillBackground: false))
     #expect(!FirstRunPulsePolicy.runs(slideActive: true, reduceMotion: false, stillBackground: true))
 }
+
+/// The first-run glow's Core Animation outline follows its surface: a capsule rounds the
+/// short side fully, a card keeps its radius (clamped to half the short side), and the
+/// path fills the surface's bounds; the loop eases between the old SwiftUI values.
+@Test func firstRunGlowOutlineFollowsTheSurface() {
+    let pill = CGSize(width: 180, height: 40)
+    #expect(FirstRunGlowShape.capsule.path(in: pill).boundingBox == CGRect(origin: .zero, size: pill))
+    let card = FirstRunGlowShape.roundedRect(cornerRadius: 12).path(in: CGSize(width: 300, height: 80))
+    #expect(card.boundingBox == CGRect(x: 0, y: 0, width: 300, height: 80))
+    #expect(!card.contains(CGPoint(x: 0.5, y: 0.5)), "corner is rounded")
+    let tiny = FirstRunGlowShape.roundedRect(cornerRadius: 40).path(in: CGSize(width: 20, height: 20))
+    #expect(tiny.contains(CGPoint(x: 10, y: 10)))
+    #expect(FirstRunGlowLayer.restingOpacity == 0.12 && FirstRunGlowLayer.litOpacity == 0.55)
+    #expect(FirstRunGlowLayer.restingRadius == 3 && FirstRunGlowLayer.litRadius == 10)
+    #expect(FirstRunGlowLayer.halfPeriod == 1.1)
+}

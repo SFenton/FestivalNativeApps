@@ -321,6 +321,23 @@ struct MainThreadStallRecorderTests {
         recorder.count("songs.stress.end")
         #expect(recorder.report.marks == ["songs.stress.start": 2, "songs.stress.end": 8])
         #expect(recorder.report.counters["songs.stress.start"] == 2)
+        #expect(Set(recorder.report.cpuMarks?.keys ?? [:].keys) == ["songs.stress.start", "songs.stress.end"])
+    }
+
+    @Test func stallsListTheEventsCountedDuringTheirUnit() throws {
+        let (recorder, url) = recorder()
+        defer { try? FileManager.default.removeItem(at: url) }
+        recorder.record(.afterWaiting, at: 1.0)
+        recorder.count("songs.row")
+        recorder.record(.beforeTimers, at: 1.01)
+        recorder.count("songs.row")
+        recorder.count("songs.row")
+        recorder.count("songdetail.body")
+        recorder.record(.beforeSources, at: 1.31)
+        recorder.record(.beforeWaiting, at: 1.32)
+        #expect(recorder.report.stalls.count == 1)
+        #expect(recorder.report.stalls.first?.counts == ["songs.row": 2, "songdetail.body": 1])
+        #expect(recorder.report.counters["songs.row"] == 3)
     }
 
     @Test func countersAreFlushedWhenIdle() throws {

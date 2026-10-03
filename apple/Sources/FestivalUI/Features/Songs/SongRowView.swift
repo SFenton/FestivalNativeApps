@@ -430,6 +430,7 @@ struct SongRowView: View {
     }
 
     var body: some View {
+        let _ = MainThreadStallMonitor.count("songs.row")
         Group {
             if let shopOffer {
                 if dynamicTypeSize.isAccessibilitySize {

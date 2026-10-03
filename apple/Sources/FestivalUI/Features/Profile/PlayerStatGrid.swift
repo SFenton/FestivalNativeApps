@@ -208,16 +208,28 @@ struct PlayerStatTileView: View {
 struct StatTileSurface: ViewModifier {
     static let cornerRadius: CGFloat = 14
     let isPressed: Bool
+    /// First-run demos: the tile's breathing glow tint, else nil.
+    @Environment(\.statTileGlow) private var glow
 
     func body(content: Content) -> some View {
-        content
+        let surface = content
             .overlay {
                 RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                     .fill(Color.white.opacity(isPressed ? 0.06 : 0))
                     .allowsHitTesting(false)
             }
             .festivalGlass(.card, cornerRadius: Self.cornerRadius)
+        if let glow {
+            surface.firstRunPulse(glow, shape: .roundedRect(cornerRadius: Self.cornerRadius))
+        } else {
+            surface
+        }
     }
+}
+
+extension EnvironmentValues {
+    /// A first-run demo's glow tint for every stat tile inside (nil on real pages).
+    @Entry var statTileGlow: Color?
 }
 
 /// Web `StatBox` press feedback: a slight scale-down and a brighter fill.

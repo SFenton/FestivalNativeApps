@@ -294,6 +294,8 @@ def output_paths(steps: list[str]) -> list[str]:
         verb, _, arg = step.partition(":")
         if verb in ("shot", "tree", "systemTree", "windowFrame") and arg:
             paths.append(arg)
+        elif verb == "appTree" and "|" in arg:
+            paths.append(arg.split("|", 1)[1])
     return paths
 
 

@@ -79,6 +79,10 @@ public struct MainThreadStallReport: Codable, Equatable, Sendable {
     /// reader can keep only the stalls between two marks (e.g. a stress pass's start
     /// and end, excluding launch work). Optional for reports written before it existed.
     public var marks: [String: Double]? = nil
+    /// Main-thread CPU seconds (`CLOCK_THREAD_CPUTIME_ID`) when each counter was first
+    /// counted. The CPU spent between a pass's marks barely moves when other processes
+    /// load the host, unlike the wall-clock stall units. Optional for older reports.
+    public var cpuMarks: [String: Double]? = nil
 
     /// One long unit of main-thread work.
     public struct Stall: Codable, Equatable, Sendable {
@@ -86,6 +90,10 @@ public struct MainThreadStallReport: Codable, Equatable, Sendable {
         public var at: Double
         /// The unit's length in milliseconds.
         public var ms: Double
+        /// Named events counted during the unit (``MainThreadStallMonitor/count(_:)``,
+        /// e.g. row bodies built), so a stress report shows what the unit did. Nil
+        /// when none were counted.
+        public var counts: [String: Int]? = nil
     }
 
     /// An empty report.
@@ -106,6 +114,8 @@ final class MainThreadStallRecorder: @unchecked Sendable {
     private var sleeping = false
     private var countersDirty = false
     private var lastWriteAt: CFTimeInterval = 0
+    /// Events counted since the last run loop activity (the unit in progress).
+    private var unitCounts: [String: Int] = [:]
 
     /// - Parameters:
     ///   - url: The report file, rewritten on every change.
@@ -137,11 +147,13 @@ final class MainThreadStallRecorder: @unchecked Sendable {
             }
             if unit >= MainThreadStallMonitor.reportThreshold, report.stalls.count < 200 {
                 report.stalls.append(.init(
-                    at: ((now - startedAt) * 10).rounded() / 10, ms: (unit * 1000).rounded()
+                    at: ((now - startedAt) * 10).rounded() / 10, ms: (unit * 1000).rounded(),
+                    counts: unitCounts.isEmpty ? nil : unitCounts
                 ))
                 changed = true
             }
         }
+        unitCounts.removeAll(keepingCapacity: true)
         switch activity {
         case .beforeWaiting:
             if let awakeSince, (now - awakeSince) * 1000 > report.maxAwakeMs {
@@ -168,11 +180,21 @@ final class MainThreadStallRecorder: @unchecked Sendable {
     /// Count one named event; flushed to disk at the next idle, at most twice a second.
     func count(_ name: String) {
         report.counters[name, default: 0] += 1
+        unitCounts[name, default: 0] += 1
         if report.marks?[name] == nil {
             report.marks = report.marks ?? [:]
             report.marks?[name] = ((clock() - startedAt) * 10).rounded() / 10
+            report.cpuMarks = report.cpuMarks ?? [:]
+            report.cpuMarks?[name] = (threadCPU() * 1000).rounded() / 1000
         }
         countersDirty = true
+    }
+
+    /// CPU seconds used by the calling thread (the main thread for counters).
+    private func threadCPU() -> Double {
+        var time = timespec()
+        guard clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time) == 0 else { return 0 }
+        return Double(time.tv_sec) + Double(time.tv_nsec) / 1_000_000_000
     }
 
     /// Rewrite the report file (best effort; a failed write keeps the old report).

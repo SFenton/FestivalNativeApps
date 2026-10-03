@@ -63,6 +63,10 @@ class UniversalAppTests(unittest.TestCase):
         ]))
         self.assertNotRegex(self.mobile, re.compile(r"^\s+UIRequiresFullScreen[~a-z]*:", re.M), "multitasking needs it unset")
 
+    def test_ipad_supports_multiple_windows(self):
+        # iPad windows share one session and keep their own navigation (ipados.md, Windows).
+        self.assertIn("UIApplicationSupportsMultipleScenes: true", self.mobile)
+
     def test_launch_screen_and_icon_are_kept(self):
         self.assertIn("UIColorName: FestivalLaunchBackground", self.mobile)
         self.assertIn("ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon", self.mobile)

@@ -280,6 +280,43 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15), "⌘[ goes back")
     }
 
+    // MARK: - Windows
+
+    /// A Songs row's context menu opens the song in a second window (HIG Windows: "Consider
+    /// offering a context-menu ... command to view content in a new window"). Windows share
+    /// one session: a profile deselected in the first window is not selected in the new
+    /// one (a separate session would re-read the debug profile and show it).
+    @MainActor
+    func testOpenInNewWindowSharesProfile() throws {
+        let app = fixtureApp(profile: true)
+        launchFilled(app)
+        let deselect = element(app, "fst.nav.sidebar.deselect-profile")
+        XCTAssertTrue(deselect.waitForExistence(timeout: 20))
+        deselect.tap()
+        let confirm = app.buttons.matching(NSPredicate(format: "label == 'Deselect Profile'")).firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "confirmation")
+        confirm.tap()
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.nav.suggestions"), timeout: 10))
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        row.press(forDuration: 1.2)
+        let open = app.buttons["Open in New Window"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5), "the row offers Open in New Window")
+        let cards = XCUIApplication(bundleIdentifier: "com.apple.springboard").descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'card:com.sfenton.festivalscoretracker.native:sceneID:'"))
+        let first = cards.firstMatch.identifier
+        open.tap()
+        // A full-width window: the new scene takes the screen (the first goes behind it).
+        let newScene = cards.matching(NSPredicate(format: "identifier != %@", first)).firstMatch
+        XCTAssertTrue(newScene.waitForExistence(timeout: 15), "a second window opens")
+        XCTAssertTrue(app.navigationBars["Fixture Pulse"].waitForExistence(timeout: 20), "it shows the song")
+        XCTAssertTrue(element(app, "fst.nav.sidebar").exists)
+        XCTAssertFalse(element(app, "fst.nav.suggestions").exists, "no player in the new window: shared session")
+        XCTAssertFalse(element(app, "fst.nav.sidebar.deselect-profile").exists)
+        // iPadOS reconnects every open window at the next launch: close this one.
+        XCTAssertTrue(WindowResize.closeFrontWindow(app), "close the second window")
+    }
+
     // MARK: - Helpers
 
     /// Launch and make the window fill the screen (iPadOS remembers resized windows).

@@ -16,7 +16,7 @@ struct FirstRunStatsSelectProfileDemo: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(BrandTokens.accentPurple.opacity(0.8), in: Capsule())
-        .firstRunPulse(BrandTokens.accentPurple)
+        .firstRunPulse(BrandTokens.accentPurple, shape: .capsule)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityHidden(true)
     }
@@ -36,7 +36,8 @@ private struct FirstRunStatTiles: View {
         if pulsing.isEmpty {
             grid
         } else {
-            grid.firstRunPulse(BrandTokens.accentBlue)
+            // Every tile glows (the old shadow traced each tile of the grid).
+            grid.environment(\.statTileGlow, BrandTokens.accentBlue)
         }
     }
 

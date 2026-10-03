@@ -40,6 +40,19 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 | Sheets | `festivalSheet` applies `presentationSizing(.form)` (or `.page`) at regular width, centered; compact windows get the phone sheets | sheets.md "Prefer page or form sheet styles in an iPadOS app" |
 | Popovers | Not used for page content; menus (Quick Links, metric pickers) are system menus | popovers.md "Avoid popovers in compact views" |
 
+## Multiwindow
+
+**Decision (2026-10-02): support multiple windows on iPad, opened only by the person.** People compare songs, players and rivals side by side, and iPadOS lets one app offer several windows (multitasking.md iPadOS "multiple windows can come from one app"; designing-for-ipados.md "people view multiple apps together"). The app never opens one by itself (windows.md "Choose the right moment to open a new window ... avoid it as default behavior unless it makes sense for your app").
+
+| Part | Detail | HIG |
+|---|---|---|
+| Opening | System File › New Window and the app switcher; **Open in New Window** in a Songs row's or a ranking player row's context menu (`openInNewWindowMenu`, iPad only, needs `supportsMultipleWindows`) | windows.md "Consider offering a context-menu or File-menu command to view content in a new window" |
+| Content | `WindowGroup(for: FestivalWindowRoute.self)`: `.song(songId:)` (looked up in the shared catalogue, opened on Songs) or `.player(accountId:displayName:)` (pushed on Leaderboards). Codable ids only, so the system can restore the window | windows.md (`OpenWindowAction`) |
+| State | One process-wide `FestivalSession` (selected profile, publication, caches, first-run arbitration) shared by every window; each window keeps its own selection, paths, sheets and menu-bar commands (`focusedSceneValue`) | multitasking.md "Save and restore context" |
+| iPhone | `UIApplicationSupportsMultipleScenes` is true in the universal plist, but iPhone shows one window and the context menu is not attached there | |
+
+Words: user-facing text says "window", never "scene" (windows.md "Say *window* in user-facing content"). Journey: `testOpenInNewWindowSharesProfile`.
+
 ## Window sizes
 
 Exact tiles from the window-controls menu (long-press Zoom; driver `tile:`), FST iPad Pro 11" (1194 × 834 pt screen, 1210 pt framebuffer width):
@@ -96,9 +109,19 @@ iPadOS 26 reveals a menu bar (pointer at, or swipe down from, the top edge). `Fe
 | ⇧⌘P | Select / Switch Profile | keyboards.md "Prefer [Shift] as secondary modifier complementing a related shortcut" |
 | ⌥⌘↓ / ⌥⌘↑ | Next / Previous Quick Links section | keyboards.md: Option "for less-common commands" | Pointer: list/detail rows use the highlight effect on their rounded card shape (no scale: rows sit edge to edge), sidebar footer buttons the highlight effect, system bar buttons their defaults (pointing-devices.md "highlight for small elements ... hover for large ones"; "reserve scaling for elements that can grow without crowding neighbors (not table rows)").
 
+## Keyboard-only and Full Keyboard Access (2026-10-03)
+
+HIG keyboards.md: "Support Full Keyboard Access when possible"; "iPadOS navigates text fields, text views, sidebars ... but avoid keyboard navigation for controls"; focus-and-selection.md iPadOS: "Tab moves among groups; arrow keys move directionally only within one".
+
+| Check | Result |
+|---|---|
+| ⌘ shortcuts and the menu bar | Pass: `testMenuBarShortcuts`, `testCommandDigitSelectsDestination`, `testExactTilesDropUnchosenDetail` (⌘1 in a compact window) |
+| Tab / arrows without FKA (fixture, landscape) | Tab focuses the **Filter Songs** field (the first focus group); further Tab, ↓ and Return stay in the field; the sidebar and list never took keyboard focus. The simulator also shows the software keyboard, i.e. it reports no hardware keyboard (`~/FestivalShowcase/native-ipad/2/keyboard-no-fka-tab-arrows.png`) |
+| Full Keyboard Access | The iPad simulator lists it (Settings › Accessibility › Keyboards & Typing › Full Keyboard Access, `FKAEnabledSwitch`), but tapping the switch through XCUITest left it off (value 0, no focus rings), probably because no hardware keyboard is attached; Simulator › I/O › Keyboard is a host app preference, left alone. Driver: `appLaunch:`/`appTap:`/`appTree:` |
+
 ## Open
 
-- Full Keyboard Access audit.
+- Full Keyboard Access and sidebar/list arrow-key focus need a check with a hardware keyboard (a real iPad, or the simulator with its hardware keyboard connected by the operator).
 - Debug: `FST_DEBUG_LIST_DETAIL=1` overlays the window width, sidebar extent and split sections (root shell).
 - Never fix row counts or hardcode device sizes: chips wrap (5 + 4 where the web tablet shows 9 in one row) as the detail width changes.
 - A Form in a centered sheet may need scrolling to expose Reset above a pinned footer.
