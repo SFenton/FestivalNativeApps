@@ -127,6 +127,21 @@ class LeaderboardsComponentsUiTest {
     }
 
     @Test
+    fun selectedPlayerInTheTopTenIsHighlightedInPlace() {
+        val inTopTen = RankingsFixtures.accountId(5)
+        settings.value = settings.value!!.copy(selectedPlayer = SelectedPlayer(inTopTen, "Synthetic Player 5"))
+        overview()
+        val row = "fst.rankings.row.$inTopTen"
+        rule.waitUntil(5_000) { settle(); exists(row) }
+        val config = rule.onAllNodesWithTag(row, useUnmergedTree = true)[0].fetchSemanticsNode().config
+        assertTrue(config[SemanticsProperties.ContentDescription].single().startsWith("Your rank, #5. Synthetic Player 5."))
+        assertEquals("Open your statistics", config[SemanticsActions.OnClick].label)
+        // Highlighted in place: no pinned row or loading row below the top ten.
+        val card = "fst.leaderboards.card.Solo_Guitar"
+        assertTrue(!exists("$card.spotlight") && !exists("$card.spotlight.loading") && !exists("$card.spotlight.unranked"))
+    }
+
+    @Test
     fun rankHistoryCardDrawsTheChartAndSwitchesCharts() {
         settings.value = settings.value!!.copy(visibleInstruments = setOf(Instrument.Lead, Instrument.Bass))
         rankBy.value = RankingMetric.TotalScore

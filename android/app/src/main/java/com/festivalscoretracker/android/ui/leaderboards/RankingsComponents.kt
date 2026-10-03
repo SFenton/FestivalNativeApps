@@ -77,6 +77,7 @@ import com.festivalscoretracker.android.core.rankings.BandRankingEntry
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.asRankingMetric
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -204,6 +205,8 @@ fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetr
  * @param route Destination; null makes the row non-interactive.
  * @param onOpen Navigation callback.
  * @param tag Test tag.
+ * @param clickLabel TalkBack action label ("Double-tap to …") for a navigable row.
+ * @param unavailable TalkBack state for a row without a destination.
  * @param modifier Modifier.
  */
 @Composable
@@ -217,6 +220,8 @@ private fun RankingRowLayout(
     route: AppRoute?,
     onOpen: (AppRoute) -> Unit,
     tag: String,
+    clickLabel: String,
+    unavailable: String,
     modifier: Modifier = Modifier,
 ) {
     val description = RankingFormatting.rowDescription(rank, name, rating, songs, isSelected)
@@ -227,7 +232,7 @@ private fun RankingRowLayout(
         .clip(shape)
     // Same selected-player treatment as the song boards (web `playerEntryRow`, 7.7).
     if (isSelected) rowModifier = rowModifier.background(BrandTokens.purpleHighlight).border(BorderStroke(1.dp, BrandTokens.purpleHighlightBorder), shape)
-    if (route != null) rowModifier = rowModifier.clickable(role = Role.Button, onClickLabel = "Open") { onOpen(route) }
+    if (route != null) rowModifier = rowModifier.clickable(role = Role.Button, onClickLabel = clickLabel) { onOpen(route) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -236,7 +241,7 @@ private fun RankingRowLayout(
             .testTag(tag)
             .clearAndSetSemantics {
                 contentDescription = description
-                if (route == null) stateDescription = "Profile unavailable"
+                if (route == null) stateDescription = unavailable
             },
     ) {
         // Web `RankingEntry` `isPlayer`: every text in the selected player's row is bold.
@@ -330,6 +335,8 @@ fun AccountRankingRow(
         route = route,
         onOpen = onOpen,
         tag = tag,
+        clickLabel = route?.let(RankingNavigation::actionLabel).orEmpty(),
+        unavailable = "Profile unavailable",
         modifier = Modifier.bringIntoViewRequester(requester),
     )
 }
@@ -355,6 +362,8 @@ fun BandRankingRow(entry: BandRankingEntry, metric: BandRankingMetric, isSelecte
         route = route,
         onOpen = onOpen,
         tag = "fst.band-rankings.row.${entry.key}",
+        clickLabel = "Open band",
+        unavailable = "Band unavailable",
     )
 }
 

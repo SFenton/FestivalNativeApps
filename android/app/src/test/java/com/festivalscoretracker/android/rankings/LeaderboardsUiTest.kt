@@ -262,6 +262,25 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
+    fun overviewRowsNameTheirTalkBackActions() {
+        launch("leaderboards", selected)
+        val other = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        waitForTag(other)
+        // TalkBack says "Double-tap to open profile" rather than a bare "open" (issue #114).
+        assertEquals("Open profile", clickLabel(other))
+        val anonymous = node("fst.rankings.row.anonymous-3-3-3").fetchSemanticsNode().config
+        assertEquals("Profile unavailable", anonymous.getOrNull(SemanticsProperties.StateDescription))
+        rule.waitUntil(10_000) { settle(100); runCatching { scrollTo("fst.leaderboards", "$lead.spotlight") }.isSuccess }
+        waitForTag("$lead.spotlight")
+        assertEquals("Open your statistics", clickLabel("$lead.spotlight"))
+        val band = "fst.band-rankings.row.${RankingsFixtures.accountId(1001)}:${RankingsFixtures.accountId(2001)}"
+        scrollTo("fst.leaderboards", band)
+        waitForTag(band)
+        assertEquals("Open band", clickLabel(band))
+        assertEquals(Role.Button, node(band).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Role))
+    }
+
+    @Test
     fun failedCardRetriesInline() {
         var fail = true
         transport.onRaw("/api/rankings/Solo_Guitar") { request ->
