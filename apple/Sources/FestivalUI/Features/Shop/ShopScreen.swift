@@ -27,6 +27,7 @@ struct ShopScreen: View {
     let session: FestivalSession
     let isVisible: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.deviceLayout) private var layout
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
@@ -305,10 +306,7 @@ struct ShopScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     shopDisclosures(snapshot)
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 210), spacing: 12)],
-                        spacing: 12
-                    ) {
+                    LazyVGrid(columns: gridColumns, spacing: ShopGridPolicy.spacing) {
                         ForEach(Array(offers.enumerated()), id: \.element.id) { index, offer in
                             offerCard(offer, snapshot: snapshot, grid: true)
                                 .detailStaggeredFadeIn(index: index, settled: staggerSettled)
@@ -317,7 +315,7 @@ struct ShopScreen: View {
                     }
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = $0 }
                     .macKeyboardRows(
-                        columns: MacKeyboardPolicy.adaptiveColumns(width: gridWidth, minimum: 210, spacing: 12),
+                        columns: ShopGridPolicy.columnCount(width: gridWidth, layout: layout),
                         Self.keyRows(offers, catalogue: snapshot.songsById, grid: true)
                     )
                 }
@@ -325,6 +323,15 @@ struct ShopScreen: View {
                 .festivalFadeInScope()
             }
         }
+    }
+
+    /// The grid's columns: an even count on the iPhone Duo inner display
+    /// (``ShopGridPolicy``), otherwise adaptive 210 pt cards.
+    private var gridColumns: [GridItem] {
+        if let count = ShopGridPolicy.evenColumnCount(width: gridWidth, layout: layout) {
+            return Array(repeating: GridItem(.flexible(), spacing: ShopGridPolicy.spacing), count: count)
+        }
+        return [GridItem(.adaptive(minimum: ShopGridPolicy.minimumCardWidth), spacing: ShopGridPolicy.spacing)]
     }
 
     /// Mac arrow-key rows: Return does what a click does, so a list row opens Song
@@ -698,5 +705,49 @@ enum ShopArtworkPrimePolicy {
             result.append(raw)
         }
         return result
+    }
+}
+
+// MARK: - Grid columns
+
+/// Column count for the Item Shop grid.
+///
+/// `/duo` S1 (operator, 2026-10-02): on the iPhone Duo inner display the grid uses an
+/// even column count, so a book-pose fold falls between columns instead of across a
+/// card (HIG Designing for iPhone Duo: "Prefer … even grid column counts"; Apple's
+/// Duo layout talk: use even columns even when flat). About 835 pt in landscape gives
+/// 4 columns of ~200 pt; ~637 pt in portrait gives 2. Every other window keeps the
+/// adaptive 210 pt grid.
+enum ShopGridPolicy {
+    /// Narrowest card in the adaptive grid.
+    static let minimumCardWidth: CGFloat = 210
+    /// Narrowest card when the inner display rounds to an even count.
+    static let minimumEvenCardWidth: CGFloat = 190
+    /// Spacing between cards and rows.
+    static let spacing: CGFloat = 12
+
+    /// The even column count on the iPhone Duo inner display.
+    ///
+    /// - Parameters:
+    ///   - width: The grid's measured width (0 before the first layout pass).
+    ///   - layout: Current `\.deviceLayout`.
+    /// - Returns: 2, 4, … on the Duo inner display (flat or partially folded), or nil
+    ///   for the adaptive grid (other windows, unmeasured, or room for one column only).
+    static func evenColumnCount(width: CGFloat, layout: DeviceLayout) -> Int? {
+        guard layout.pose == .unfolded || layout.pose == .partiallyFolded, width > 0 else { return nil }
+        let fit = MacKeyboardPolicy.adaptiveColumns(width: width, minimum: minimumEvenCardWidth, spacing: spacing)
+        guard fit >= 2 else { return nil }
+        return fit - fit % 2
+    }
+
+    /// The number of columns the grid draws (for arrow-key navigation too).
+    ///
+    /// - Parameters:
+    ///   - width: The grid's measured width.
+    ///   - layout: Current `\.deviceLayout`.
+    /// - Returns: The even count on the Duo inner display, else the adaptive count.
+    static func columnCount(width: CGFloat, layout: DeviceLayout) -> Int {
+        evenColumnCount(width: width, layout: layout)
+            ?? MacKeyboardPolicy.adaptiveColumns(width: width, minimum: minimumCardWidth, spacing: spacing)
     }
 }

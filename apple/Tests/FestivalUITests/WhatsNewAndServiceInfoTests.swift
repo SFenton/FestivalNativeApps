@@ -309,6 +309,34 @@ private let sampleWhatsNewEntries = [
     assertRendersContent(host, image: image, containing: expected)
 }
 
+/// `/duo` M1: on the iPhone Duo vertical bar the sheet keeps only its Close (in the
+/// sheet's side bar); the custom Dismiss bar is dropped. Rendered at the folded size.
+@MainActor
+@Test func whatsNewSheetDropsDismissBesideTheVerticalBar() async throws {
+    let size = CGSize(width: 466, height: 678)
+    let folded = DeviceLayout.resolve(LayoutSignals(
+        size: size, widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .closed
+    ))
+    #expect(!WhatsNewSheet.showsDismissBar(folded))
+    #expect(WhatsNewSheet.showsDismissBar(.standardPhone))
+    let host = nativeHostedView(
+        WhatsNewSheet(version: "2610.01.02", entries: Changelog.displayEntries(sampleWhatsNewEntries)) {}
+            .environment(\.deviceLayout, folded)
+            .frame(width: size.width, height: size.height)
+            .background(BrandTokens.cardBackground)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let expected = ["Version 2610.01.02", "Songs"]
+    let image = try await nativeHostedSettle(host, untilText: expected, excluding: ["Dismiss"])
+    _ = try nativeHostedPNG(image, filename: "duo-m1-whats-new-folded.png", environment: "FST_WHATS_NEW_RENDER_OUT")
+    assertRendersContent(host, image: image, containing: expected, notContaining: ["Dismiss"])
+}
+
 @MainActor
 @Test func whatsNewSheetShowsNoNotesWhileTheChannelIsPending() async throws {
     let size = CGSize(width: 402, height: 600)

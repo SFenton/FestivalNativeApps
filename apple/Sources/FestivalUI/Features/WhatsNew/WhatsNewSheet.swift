@@ -23,6 +23,7 @@ struct WhatsNewSheet: View {
     let entries: [ChangelogEntry]?
     /// Called once when the user closes the sheet via Dismiss or Close.
     let onDismiss: () -> Void
+    @Environment(\.deviceLayout) private var layout
 
     var body: some View {
         FestivalModal(
@@ -48,7 +49,12 @@ struct WhatsNewSheet: View {
                 }
             }
             .modifier(PullDownToDismiss(action: onDismiss))
-            .safeAreaInset(edge: .bottom, spacing: 0) { dismissBar }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // `/duo` M1 (operator, 2026-10-02): with the iPhone Duo vertical bar the
+                // sheet's Close sits in its own side bar, so the custom Dismiss bar would
+                // be a second close control outside the managed bars; iPhone keeps it.
+                if Self.showsDismissBar(layout) { dismissBar }
+            }
             .background(BrandTokens.cardBackground)
             #if os(iOS)
             .toolbarBackground(BrandTokens.cardBackground, for: .navigationBar)
@@ -81,6 +87,14 @@ struct WhatsNewSheet: View {
                 .ignoresSafeArea(edges: .bottom)
         }
         .accessibilityIdentifier("fst.whats-new.dismiss")
+    }
+
+    /// Whether the bottom Dismiss bar shows (`/duo` M1).
+    ///
+    /// - Parameter layout: Current `\.deviceLayout`.
+    /// - Returns: False while the section chrome is the iPhone Duo vertical bar.
+    static func showsDismissBar(_ layout: DeviceLayout) -> Bool {
+        !layout.sectionChrome.isVerticalBar
     }
 
     /// Sheet title, e.g. "What's New · 1.0".

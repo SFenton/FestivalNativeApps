@@ -29,6 +29,7 @@ struct SuggestionsScreen: View {
     @State private var handledSelectionRevision: Int?
     @State private var handledPublicationRevision: Int?
     @Environment(\.openProfile) private var openProfile
+    @Environment(\.deviceLayout) private var layout
     @AppStorage(SuggestionFilterSettings.storageKey) private var filterData = Data()
 
     /// Create the screen.
@@ -194,18 +195,22 @@ struct SuggestionsScreen: View {
             settled: settledBatchGeneration == viewModel.batchGeneration
         )
         return ScrollView {
-            LazyVStack(spacing: 20) {
-                ForEach(categories) { category in
-                    SuggestionCategoryCardView(
-                        category: category, session: session,
-                        currentSeason: viewModel.currentSeason, visibleInstruments: visibleInstruments
-                    )
-                        .padding(.horizontal, 16)
-                        // Web `getCardDelay`: the first screenful staggers 125 ms apart.
-                        .festivalFadeIn(isLoaded: true, index: fadeIndexes[category.id] ?? -1)
-                        .onAppear { maybeLoadMore(after: category) }
+            Group {
+                if SuggestionsLayout.usesGrid(layout) {
+                    // `/duo` G1 (operator, 2026-10-02): two card columns at regular width
+                    // (Duo inner display, iPad) instead of one stretched column (Apple's
+                    // Duo design talk: "Don't ship a stretched iPhone app"), even count.
+                    LazyVGrid(columns: SuggestionsLayout.gridColumns, alignment: .leading, spacing: 20) {
+                        cards(categories, fadeIndexes: fadeIndexes, horizontalPadding: 0)
+                    }
+                    .padding(.horizontal, 16)
+                    footer
+                } else {
+                    LazyVStack(spacing: 20) {
+                        cards(categories, fadeIndexes: fadeIndexes, horizontalPadding: 16)
+                        footer
+                    }
                 }
-                footer
             }
             .padding(.vertical, 16)
         }
@@ -218,6 +223,28 @@ struct SuggestionsScreen: View {
         }
         .festivalRefreshable { viewModel.startNewMix(); await viewModel.ensureLoaded(session: session) }
         .accessibilityIdentifier("fst.suggestions.list")
+    }
+
+    /// The category cards, in order, each loading the next page as it appears.
+    ///
+    /// - Parameters:
+    ///   - categories: Categories to show.
+    ///   - fadeIndexes: Staggered fade order of the newest batch.
+    ///   - horizontalPadding: Per-card side padding (the grid pads once outside).
+    /// - Returns: One card per category.
+    private func cards(
+        _ categories: [SuggestionCategory], fadeIndexes: [SuggestionCategory.ID: Int], horizontalPadding: CGFloat
+    ) -> some View {
+        ForEach(categories) { category in
+            SuggestionCategoryCardView(
+                category: category, session: session,
+                currentSeason: viewModel.currentSeason, visibleInstruments: visibleInstruments
+            )
+                .padding(.horizontal, horizontalPadding)
+                // Web `getCardDelay`: the first screenful staggers 125 ms apart.
+                .festivalFadeIn(isLoaded: true, index: fadeIndexes[category.id] ?? -1)
+                .onAppear { maybeLoadMore(after: category) }
+        }
     }
 
     @ViewBuilder private var footer: some View {
@@ -249,5 +276,25 @@ struct SuggestionsScreen: View {
     private func maybeLoadMore(after category: SuggestionCategory) {
         guard category.id == visibleCategories.suffix(3).first?.id else { return }
         Task { await viewModel.loadMore() }
+    }
+}
+
+// MARK: - Layout
+
+/// How Suggestions lays out its category cards (`/duo` G1, operator 2026-10-02).
+enum SuggestionsLayout {
+    /// Two flexible card columns, top-aligned.
+    static let gridColumns = [
+        GridItem(.flexible(), spacing: 20, alignment: .top),
+        GridItem(.flexible(), spacing: 20, alignment: .top),
+    ]
+
+    /// Whether the cards form the two-column grid.
+    ///
+    /// - Parameter layout: Current `\.deviceLayout`.
+    /// - Returns: True at regular width (iPhone Duo inner display, a wide iPad column),
+    ///   false on iPhone and the folded Duo (one column).
+    static func usesGrid(_ layout: DeviceLayout) -> Bool {
+        layout.widthClass == .regular
     }
 }
