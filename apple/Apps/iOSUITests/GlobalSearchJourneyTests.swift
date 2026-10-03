@@ -46,16 +46,37 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(sort.isHittable, "Closing Search did not return to Songs")
     }
 
-    /// The system Search tab focuses the field, raises the keyboard and closes back to
-    /// the previous Songs tab.
+    /// Assert the Search page's navigation bar shows its "Search" title on screen.
+    ///
+    /// - Parameter app: The running app with the Search tab open.
+    @MainActor
+    private func assertSearchTitleVisible(in app: XCUIApplication) {
+        let bar = app.navigationBars["Search"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 5), "Search navigation bar missing")
+        let title = bar.staticTexts["Search"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "Search title missing")
+        XCTAssertTrue(title.isHittable, "Search title is hidden while searching")
+        XCTAssertGreaterThan(title.frame.minY, 0, "Search title is off screen")
+    }
+
+    /// The system Search tab focuses the field, raises the keyboard, keeps its "Search"
+    /// title while searching and closes back to the previous Songs tab.
     @MainActor
     func testSearchTabFocusesFieldAndCloseReturnsToSongs() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
-        _ = openSearch(in: app)
+        let field = openSearch(in: app)
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "Search did not focus the keyboard")
+        // The active field must not hide the page's "Search" title (issue #100).
+        assertSearchTitleVisible(in: app)
+        field.typeText("Fixture")
+        XCTAssertTrue(
+            app.buttons.matching(identifier: "fst.global-search.result.song").firstMatch
+                .waitForExistence(timeout: 10)
+        )
+        assertSearchTitleVisible(in: app)
         closeSearch(in: app)
     }
 
