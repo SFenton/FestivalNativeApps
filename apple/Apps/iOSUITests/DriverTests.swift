@@ -50,6 +50,10 @@ import UIKit
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
 /// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
 ///   window-controls menu (long-press Zoom); end with `fill`.
+/// - `appTree:<bundleId>|<path>` / `appTap:<bundleId>|<identifier-or-label>` — dump or
+///   tap another app's tree (e.g. `com.apple.Preferences`, after `appLaunch:`), for
+///   reading simulator settings such as Full Keyboard Access.
+/// - `appLaunch:<bundleId>` — bring another app to the front.
 /// - `closeWindow` — iPad: close the front app window (window controls › Close).
 /// - `windowFrame:<path>` — append the app window's frame (points) to a host file.
 /// - `key:<[cmd+][shift+][alt+][ctrl+]key>` — hardware-keyboard key press, e.g.
@@ -78,6 +82,9 @@ enum DriverStep {
     case tile(WindowResize.Tile)
     case windowFrame(String)
     case closeWindow
+    case appLaunch(String)
+    case appTree(String, String)
+    case appTap(String, String)
     case key(String, XCUIElement.KeyModifierFlags)
 
     /// A cardinal swipe direction.
@@ -177,6 +184,13 @@ enum DriverStep {
             return .tile(tile)
         case "closeWindow":
             return .closeWindow
+        case "appLaunch":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .appLaunch(arg)
+        case "appTree", "appTap":
+            let bits = arg.split(separator: "|", maxSplits: 1).map(String.init)
+            guard bits.count == 2, !bits[0].isEmpty, !bits[1].isEmpty else { throw ParseError.malformed(raw) }
+            return verb == "appTree" ? .appTree(bits[0], bits[1]) : .appTap(bits[0], bits[1])
         case "windowFrame":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .windowFrame(arg)
@@ -464,6 +478,17 @@ final class DriverTests: XCTestCase {
             app.typeKey(key, modifierFlags: flags)
         case .closeWindow:
             guard WindowResize.closeFrontWindow(app) else { throw DriverError.elementNotFound("Close-button") }
+        case let .appLaunch(bundle):
+            XCUIApplication(bundleIdentifier: bundle).activate()
+        case let .appTree(bundle, path):
+            try XCUIApplication(bundleIdentifier: bundle).debugDescription
+                .write(toFile: path, atomically: true, encoding: .utf8)
+        case let .appTap(bundle, target):
+            let other = XCUIApplication(bundleIdentifier: bundle).descendants(matching: .any).matching(
+                NSPredicate(format: "identifier == %@ OR label == %@", target, target)
+            ).firstMatch
+            guard other.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(target) }
+            other.tap()
         }
     }
 
