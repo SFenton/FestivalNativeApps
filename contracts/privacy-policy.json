@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "title": "Privacy Policy",
+  "effectiveDate": "2026-10-03",
+  "effectiveDateText": "Effective October 3, 2026",
+  "sections": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "blocks": [
+        { "kind": "paragraph", "text": "Festival Score Tracker is an independent, fan-made app for browsing Fortnite Festival songs, leaderboards and player statistics. It is not affiliated with, endorsed by or sponsored by Epic Games." },
+        { "kind": "paragraph", "text": "This policy explains what information the Festival Score Tracker website, its iPhone, iPad, Mac, Android and Windows apps, and the Festival Score Tracker service at festivalscoretracker.com handle, why, and the choices you have." }
+      ]
+    },
+    {
+      "id": "information-collected",
+      "title": "Information We Collect",
+      "blocks": [
+        { "kind": "paragraph", "text": "There is no account. You never sign in, and we never ask for your name, email address, phone number, contacts, location or Epic Games login." },
+        {
+          "kind": "bullets",
+          "items": [
+            "Selected player: when you choose a player, the public Epic account ID and display name of that player are saved on your device so the app can show their scores. Requests for that player's data include the account ID.",
+            "Player search: the names you type into player search are sent to our service to find matching public players.",
+            "Settings: your preferences, such as visible instruments, sorting, filters and which guides you have seen, are stored only on your device or in your browser.",
+            "Technical data: like any internet service, our servers and our network provider receive your IP address and standard request details, such as the time, the address requested and the app version, whenever the app loads data.",
+            "Feedback you choose to send: if you use Report an Issue or Request a Feature, we receive what you type, any images or videos you attach, the app version, and your operating system version and device model."
+          ]
+        },
+        { "kind": "paragraph", "text": "The app contains no advertising, analytics or tracking code. We do not build profiles about you or track you across other companies' apps and websites." }
+      ]
+    },
+    {
+      "id": "how-used",
+      "title": "How We Use Information",
+      "blocks": [
+        {
+          "kind": "bullets",
+          "items": [
+            "To show the songs, leaderboards, rankings and statistics you ask for, and to keep the selected player's public score history up to date.",
+            "To keep the service reliable and secure, for example by limiting abusive traffic and diagnosing errors.",
+            "To file, read and respond to feedback you send."
+          ]
+        },
+        { "kind": "paragraph", "text": "We do not sell your information or share it for advertising." }
+      ]
+    },
+    {
+      "id": "public-game-data",
+      "title": "Public Game Data",
+      "blocks": [
+        { "kind": "paragraph", "text": "The scores, rankings, Epic account IDs and display names shown in the app are public Fortnite Festival leaderboard data that our service collects from Epic Games' services. Players appear under their public Epic display name. To ask us to remove or hide your leaderboard information from Festival Score Tracker, contact us as described below." }
+      ]
+    },
+    {
+      "id": "third-parties",
+      "title": "Third Parties",
+      "blocks": [
+        {
+          "kind": "bullets",
+          "items": [
+            "Epic Games: the source of the song, shop and leaderboard data. Album artwork loads directly from Epic Games' content servers, which receive your IP address with each image request. Item Shop links open fortnite.com, which follows Epic Games' own privacy policy.",
+            "Cloudflare: our network provider, which carries and protects traffic to festivalscoretracker.com.",
+            "GitHub: feedback you send is filed as a public issue on GitHub, together with its attachments. Do not include personal information you do not want to be public.",
+            "Apple, Google and Microsoft: your app store and operating system may collect information when you download, update or use the app, under their own privacy policies."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retention",
+      "title": "Data Retention",
+      "blocks": [
+        {
+          "kind": "bullets",
+          "items": [
+            "Information on your device stays until you remove it: deselect the player, use Reset Settings, clear the website's data or uninstall the app.",
+            "Server request logs are kept only as long as needed to run, secure and troubleshoot the service, and are then deleted.",
+            "Feedback status is held in memory for about an hour. The GitHub issue it creates stays public until it is removed; you can ask us to remove it.",
+            "Public leaderboard data is kept to provide score history and rankings."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "your-rights",
+      "title": "Your Choices and Rights",
+      "blocks": [
+        { "kind": "paragraph", "text": "You can use the app without selecting a player, and you can deselect the player or reset your settings at any time." },
+        { "kind": "paragraph", "text": "Depending on where you live, for example under the GDPR in the European Union and United Kingdom or the CCPA in California, you may have the right to access, correct or delete personal information about you, or to object to its use. Because there are no accounts, include your Epic display name or account ID so we can find the information. We respond within the time the law requires and never treat you differently for making a request." }
+      ]
+    },
+    {
+      "id": "children",
+      "title": "Children",
+      "blocks": [
+        { "kind": "paragraph", "text": "Festival Score Tracker does not knowingly collect personal information from children under 13, or the minimum age in your country. If you believe a child has sent us personal information, contact us and we will delete it." }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security",
+      "blocks": [
+        { "kind": "paragraph", "text": "All app traffic to our service is encrypted with HTTPS, and we limit what we collect in the first place. No method of transmission or storage is completely secure, but we work to protect the information we hold." }
+      ]
+    },
+    {
+      "id": "changes",
+      "title": "Changes to This Policy",
+      "blocks": [
+        { "kind": "paragraph", "text": "If this policy changes, we will update the effective date above and describe significant changes in the app's What's New." }
+      ]
+    },
+    {
+      "id": "contact",
+      "title": "Contact Us",
+      "blocks": [
+        { "kind": "paragraph", "text": "For questions or privacy requests, use Report an Issue in Settings or open an issue at https://github.com/SFenton/FestivalNativeApps/issues. Issues are public, so say only that you have a privacy request and we will arrange a private way to continue." }
+      ]
+    }
+  ]
+}

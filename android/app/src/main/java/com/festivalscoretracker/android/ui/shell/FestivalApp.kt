@@ -68,6 +68,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -552,22 +553,27 @@ private fun FestivalShell(
                         ),
                     )
                     if (usesFloatingToolbar) {
-                        // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
-                        // the web's mobile FAB dock sits; one shared toolbar per screen. The start
-                        // margin bounds a toolbar that fills the width (Songs search, issue #84),
-                        // and a toolbar holding a focused field rides above the keyboard (read in
-                        // the layout phase, so the keyboard animation never recomposes the shell).
-                        FloatingToolbar(
-                            floatingToolbar,
-                            Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset {
-                                    val lift = if (floatingToolbar.aboveKeyboard) FloatingToolbarLift.liftPx(imeInsets.getBottom(this), gapBelowContentPx) else 0
-                                    IntOffset(0, -lift)
-                                }
-                                .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
-                            scroll = toolbarScroll,
-                        )
+                        // Clipped to the content area: hidden on scroll it slides behind the bottom
+                        // bar's edge instead of ghosting through the translucent bar (issue #102).
+                        // The clip layer has no input or semantics, so touches and TalkBack pass through.
+                        Box(Modifier.matchParentSize().clipToBounds()) {
+                            // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
+                            // the web's mobile FAB dock sits; one shared toolbar per screen. The start
+                            // margin bounds a toolbar that fills the width (Songs search, issue #84),
+                            // and a toolbar holding a focused field rides above the keyboard (read in
+                            // the layout phase, so the keyboard animation never recomposes the shell).
+                            FloatingToolbar(
+                                floatingToolbar,
+                                Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .offset {
+                                        val lift = if (floatingToolbar.aboveKeyboard) FloatingToolbarLift.liftPx(imeInsets.getBottom(this), gapBelowContentPx) else 0
+                                        IntOffset(0, -lift)
+                                    }
+                                    .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
+                                scroll = toolbarScroll,
+                            )
+                        }
                     }
                 }
             }

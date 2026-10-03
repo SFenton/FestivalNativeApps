@@ -127,12 +127,6 @@
                                 </ListView.ItemTemplate>
                             </ListView>
                         </Border>
-                        <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.PlayersEmpty, Mode=OneWay}">
-                            <TextBlock Text="{x:Bind ViewModel.NoPlayersText}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                            <Button Content="Retry" Command="{x:Bind ViewModel.RetryCommand}"
-                                    AutomationProperties.Name="Retry player search"
-                                    AutomationProperties.AutomationId="fst.global-search.retry" />
-                        </StackPanel>
                         <controls:ServiceStatusView Status="{x:Bind ViewModel.PlayersStatus}" HorizontalAlignment="Left"
                                                     Visibility="{x:Bind ViewModel.PlayersFailed, Mode=OneWay}"
                                                     AutomationProperties.AutomationId="fst.global-search.players-error" />
@@ -145,11 +139,26 @@
                 <TextBlock Text="{x:Bind ViewModel.Hint, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap"
                            Style="{StaticResource FSTSecondaryTextStyle}" AutomationProperties.LiveSetting="Polite"
                            AutomationProperties.AutomationId="fst.global-search.hint" />
-                <Button Content="Retry" Command="{x:Bind ViewModel.RetryCommand}" HorizontalAlignment="Center"
-                        Visibility="{x:Bind ViewModel.CanRetryAll, Mode=OneWay}"
-                        AutomationProperties.Name="Retry search"
-                        AutomationProperties.AutomationId="fst.global-search.retry" />
             </StackPanel>
+
+            <!-- Empty state (issue #99): centred title + subtitle like the web EmptyState and the Songs page; Retry whenever
+                 the players envelope is part of it (an empty envelope may be a server timeout). Scrolls at large text sizes. -->
+            <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                          Visibility="{x:Bind ViewModel.HasEmptyState, Mode=OneWay}">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="480" Padding="0,24"
+                            AutomationProperties.AutomationId="fst.global-search.empty">
+                    <TextBlock Text="{x:Bind ViewModel.EmptyTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}"
+                               TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"
+                               AutomationProperties.HeadingLevel="Level2"
+                               AutomationProperties.AutomationId="fst.global-search.empty.title" />
+                    <TextBlock Text="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" AutomationProperties.AutomationId="fst.global-search.empty.subtitle" />
+                    <Button Content="Retry" Command="{x:Bind ViewModel.RetryCommand}" HorizontalAlignment="Center"
+                            Visibility="{x:Bind ViewModel.CanRetryEmpty, Mode=OneWay}"
+                            AutomationProperties.Name="Retry search"
+                            AutomationProperties.AutomationId="fst.global-search.retry" />
+                </StackPanel>
+            </ScrollViewer>
 
             <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
                           Width="40" Height="40" VerticalAlignment="Top" Margin="0,48,0,0"

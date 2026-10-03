@@ -1,7 +1,5 @@
 package com.festivalscoretracker.android.core.nav
 
-import kotlin.math.roundToInt
-
 // region Sections
 
 /**
@@ -159,22 +157,6 @@ object AdaptiveLayoutPolicy {
     /** Font scale from which layouts reflow for large text (`ui.common.LARGE_TEXT_SCALE`). */
     const val LARGE_TEXT_SCALE = 1.3f
 
-    /** Permanent drawer width at default text (the web sidebar's compact width). */
-    const val PERMANENT_DRAWER_WIDTH_DP = 280
-
-    /** Material 3 standard drawer width, the widest the permanent drawer grows. */
-    const val PERMANENT_DRAWER_MAX_WIDTH_DP = 360
-
-    /**
-     * Width of the permanent drawer: 280 dp scaled with the user's font scale up to Material's
-     * 360 dp standard drawer (at 200% text a fixed 280 dp broke "Leaderboards" mid-word, issue #101).
-     *
-     * @param fontScale User font scale.
-     * @return Drawer width in dp.
-     */
-    fun permanentDrawerWidth(fontScale: Float): Int =
-        (PERMANENT_DRAWER_WIDTH_DP * fontScale.coerceAtLeast(1f)).roundToInt().coerceAtMost(PERMANENT_DRAWER_MAX_WIDTH_DP)
-
     /**
      * Width of the list pane: the hinge's leading edge when a vertical fold
      * separates the window, otherwise 40% of the usable width clamped to 320–440 dp,
@@ -191,6 +173,22 @@ object AdaptiveLayoutPolicy {
         val inset = leadingInsetDp.coerceIn(0, widthDp / 4)
         return (inset + ((widthDp - inset) * 2 / 5).coerceIn(320, 440)).coerceAtMost(maxOf(widthDp / 2, 320))
     }
+
+    /** Permanent drawer width at default text sizes. */
+    const val PERMANENT_DRAWER_WIDTH_DP = 280
+
+    /** Material 3's standard drawer width, used for large text. */
+    const val LARGE_TEXT_DRAWER_WIDTH_DP = 360
+
+    /**
+     * Width of the permanent navigation drawer.
+     *
+     * @param fontScale User font scale. From [LARGE_TEXT_SCALE] the drawer widens to Material's
+     *   360 dp (at 200% the 280 dp drawer broke "Leaderboards" and the player name mid-word).
+     * @return Drawer width in dp.
+     */
+    fun permanentDrawerWidth(fontScale: Float): Int =
+        if (fontScale >= LARGE_TEXT_SCALE) LARGE_TEXT_DRAWER_WIDTH_DP else PERMANENT_DRAWER_WIDTH_DP
 }
 
 // endregion

@@ -68,3 +68,31 @@ func globalSearchEffectiveQuery(_ raw: String, _ expected: String?) {
     #expect(GlobalSearch.resultAnnouncement(scope: .players, songs: .found(4), players: .pending) == nil)
     #expect(GlobalSearch.resultAnnouncement(scope: .bands, songs: Outcome.found(1), players: .found(1)) == nil)
 }
+
+// MARK: - Empty state (issue #99)
+
+/// Each searched scope gets a title, the contract subtitle, and Retry
+/// wherever players were searched; Bands and short queries have none.
+@Test func emptyStateCopyPerScope() throws {
+    let players = try #require(GlobalSearch.emptyState(scope: .players, query: "  The "))
+    #expect(players.title == "No Players Found")
+    #expect(players.subtitle == "Check the spelling or try a different player name.")
+    #expect(players.offersRetry)
+    #expect(players.accessibilityLabel
+            == "No Players Found. Check the spelling or try a different player name. Retry")
+
+    let songs = try #require(GlobalSearch.emptyState(scope: .songs, query: "zz"))
+    #expect(songs.title == "No Songs Found")
+    #expect(songs.subtitle == "Check the spelling or try a different song or artist.")
+    #expect(!songs.offersRetry)
+    #expect(songs.accessibilityLabel == "No Songs Found. \(songs.subtitle)")
+
+    let all = try #require(GlobalSearch.emptyState(scope: .all, query: "zz"))
+    #expect(all.title == "No Results Found")
+    #expect(all.subtitle == "Check the spelling or try a different song, artist or player.")
+    #expect(all.offersRetry)
+    #expect(all.accessibilityLabel.hasSuffix(" Retry"))
+
+    #expect(GlobalSearch.emptyState(scope: .bands, query: "zz") == nil)
+    #expect(GlobalSearch.emptyState(scope: .players, query: " a ") == nil)
+}
