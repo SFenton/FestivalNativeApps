@@ -4,9 +4,8 @@
 
 | Aspect | iPad |
 |---|---|
-| Shell | `NavigationSplitView` with the Festival sidebar (not a `TabView`), so there is no search tab |
-| Entry point | Toolbar **Search** button (`fst.global-search.open`): trailing on every section root, before the bell and avatar (`FestivalRootTrailingItems`), and with the page actions (`.festivalPageAction`), before the standalone avatar, on pushed pages; hardware keyboard **⌘K** and **⌘F** |
-| Surface | `GlobalSearchSheet` presented with `festivalSheet()` (form-sized on regular width), `.searchable` field focused on open, trailing Close; results push on the presenting section after the sheet closes |
-| Why | HIG iPadOS: search usually sits at the trailing side of the toolbar; the sheet mirrors the web desktop dialog (520 × 640) and keeps the detail column visible behind it |
-
-`TODO(orchestrator)`: when the iPad shell moves to `TabView` + `.sidebarAdaptable` (iPadOS phase), switch to a search tab in the sidebar (HIG: "include search as an item in the sidebar … when you want an area dedicated to discovery").
+| Shell, regular width | `NavigationSplitView` with the Festival sidebar. A **Search** row heads the sidebar (`fst.nav.sidebar.search`, `RootTab.search`); choosing it shows `GlobalSearchTab(asTab: false)` in the detail column with the bell and avatar in that column's bar. The field is **not** focused on selection |
+| Shell, compact width | The phone tab bar, including the trailing Search tab (keyboard up), see [ios.md](ios.md) |
+| Hardware keyboard | ⌘K and ⌘F open search (sidebar Search row or Search tab) |
+| Results | Pushed on the section that was showing before Search; that section's sidebar row is selected again |
+| Why | Issue #92. HIG Search fields (`apple-hig/references/hig/search-fields.md`): "Use a sidebar/tab-bar search item for a dedicated discovery area"; "on iPad with only a virtual keyboard, leave it unfocused to avoid unexpected keyboard coverage". The header Search button and the search sheet are gone on iPad |

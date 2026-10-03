@@ -5,7 +5,7 @@
 | File | Read when |
 |---|---|
 | [liquid-glass.md](liquid-glass.md) | **Which surfaces are glass** (all Apple 26+), shared components `festivalGlass`, `FestivalGlassSection`, `festivalSheet`, `festivalRootChrome` |
-| [nav-accessories.md](nav-accessories.md) | **Where page controls go**: top toolbar vs tab-bar bottom accessory (Songs search, profile Select/Deselect) vs search; per-page table for iOS 26.1+, iOS 17–26.0 and the Duo rail; the Quick Links answer |
+| [nav-accessories.md](nav-accessories.md) | **Where page controls go** (issue #92): trailing top-bar groups (page tools | bell, avatar), the Search tab, the pinned "Filter Songs" field, the narrow-width fold; per-page table for iPhone, the Duo rail and iPad |
 | [iphone.md](iphone.md) | iPhone on iOS 26+ (Liquid Glass) and iOS 17–25 (classic) — owned by the Copilot iPhone sessions |
 | [ipados.md](ipados.md) | iPad split view, sidebar, window sizes |
 | [duo.md](duo.md) | iPhone Duo outer/inner layouts and poses |
