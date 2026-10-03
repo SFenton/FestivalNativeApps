@@ -28,7 +28,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -153,9 +158,11 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
             },
         onClick = if (rival.isNavigable) onClick else null,
     ) {
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            Box(Modifier.width(4.dp).fillMaxHeight().background(if (winning) BrandTokens.statusGreen else BrandTokens.statusRed))
-            Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // The tint bar is drawn rather than laid out: `IntrinsicSize.Min` under-measures a
+        // wrapping FlowRow, which clipped the second pill at large text (issue #108).
+        val tint = if (winning) BrandTokens.statusGreen else BrandTokens.statusRed
+        Row(Modifier.drawBehind { drawStartBar(tint) }) {
+            Column(Modifier.weight(1f).padding(start = 18.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val nameColor = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted
                 if (isLargeText()) {
                     // Large text: the name wraps instead of being squeezed to an ellipsis.
@@ -180,6 +187,20 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
             if (rival.isNavigable) RowChevron(Modifier.align(Alignment.CenterVertically).padding(end = 10.dp))
         }
     }
+}
+
+/** Width of a row's leading result tint bar. */
+private val TintBarWidth = 4.dp
+
+/**
+ * Paints the full-height result tint bar on the leading edge (mirrored in RTL).
+ *
+ * @param color Bar color.
+ */
+private fun DrawScope.drawStartBar(color: Color) {
+    val width = TintBarWidth.toPx()
+    val left = if (layoutDirection == LayoutDirection.Rtl) size.width - width else 0f
+    drawRect(color, topLeft = Offset(left, 0f), size = Size(width, size.height))
 }
 
 // endregion

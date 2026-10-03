@@ -6,8 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -124,8 +125,11 @@ class RivalsUiTest {
         waitForTag("fst.rivals.section.Solo_Guitar")
         scrollTo("fst.rivals.grid", "fst.rivals.see-all.Solo_Guitar")
         rule.onNodeWithTag("fst.rivals.see-all.Solo_Guitar").performSemanticsAction(SemanticsActions.OnClick)
-        waitForTag("fst.all-rivals.title")
-        rule.onNodeWithTag("fst.all-rivals.title").assertTextEquals("Lead Rivals")
+        waitForTag("fst.all-rivals.list")
+        // The top app bar alone names a single-chart list (no repeated heading, no subtitle).
+        rule.onNode(hasText("Lead Rivals") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
+        assertEquals(1, rule.onAllNodesWithText("Lead Rivals").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.all-rivals.subtitle").fetchSemanticsNodes().size)
         waitForTag("fst.rivals.row.anonymous")
         rule.onNodeWithTag("fst.rivals.row.${ids[2]}").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.title")
