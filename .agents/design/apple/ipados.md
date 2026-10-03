@@ -109,9 +109,19 @@ iPadOS 26 reveals a menu bar (pointer at, or swipe down from, the top edge). `Fe
 | ⇧⌘P | Select / Switch Profile | keyboards.md "Prefer [Shift] as secondary modifier complementing a related shortcut" |
 | ⌥⌘↓ / ⌥⌘↑ | Next / Previous Quick Links section | keyboards.md: Option "for less-common commands" | Pointer: list/detail rows use the highlight effect on their rounded card shape (no scale: rows sit edge to edge), sidebar footer buttons the highlight effect, system bar buttons their defaults (pointing-devices.md "highlight for small elements ... hover for large ones"; "reserve scaling for elements that can grow without crowding neighbors (not table rows)").
 
+## Keyboard-only and Full Keyboard Access (2026-10-03)
+
+HIG keyboards.md: "Support Full Keyboard Access when possible"; "iPadOS navigates text fields, text views, sidebars ... but avoid keyboard navigation for controls"; focus-and-selection.md iPadOS: "Tab moves among groups; arrow keys move directionally only within one".
+
+| Check | Result |
+|---|---|
+| ⌘ shortcuts and the menu bar | Pass: `testMenuBarShortcuts`, `testCommandDigitSelectsDestination`, `testExactTilesDropUnchosenDetail` (⌘1 in a compact window) |
+| Tab / arrows without FKA (fixture, landscape) | Tab focuses the **Filter Songs** field (the first focus group); further Tab, ↓ and Return stay in the field; the sidebar and list never took keyboard focus. The simulator also shows the software keyboard, i.e. it reports no hardware keyboard (`~/FestivalShowcase/native-ipad/2/keyboard-no-fka-tab-arrows.png`) |
+| Full Keyboard Access | The iPad simulator lists it (Settings › Accessibility › Keyboards & Typing › Full Keyboard Access, `FKAEnabledSwitch`), but tapping the switch through XCUITest left it off (value 0, no focus rings), probably because no hardware keyboard is attached; Simulator › I/O › Keyboard is a host app preference, left alone. Driver: `appLaunch:`/`appTap:`/`appTree:` |
+
 ## Open
 
-- Full Keyboard Access audit.
+- Full Keyboard Access and sidebar/list arrow-key focus need a check with a hardware keyboard (a real iPad, or the simulator with its hardware keyboard connected by the operator).
 - Debug: `FST_DEBUG_LIST_DETAIL=1` overlays the window width, sidebar extent and split sections (root shell).
 - Never fix row counts or hardcode device sizes: chips wrap (5 + 4 where the web tablet shows 9 in one row) as the detail width changes.
 - A Form in a centered sheet may need scrolling to expose Reset above a pinned footer.

@@ -488,7 +488,12 @@ final class DriverTests: XCTestCase {
                 NSPredicate(format: "identifier == %@ OR label == %@", target, target)
             ).firstMatch
             guard other.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(target) }
-            other.tap()
+            if other.elementType == .switch {
+                // A Settings switch row spans the width; its knob is at the trailing edge.
+                other.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+            } else {
+                other.tap()
+            }
         }
     }
 
