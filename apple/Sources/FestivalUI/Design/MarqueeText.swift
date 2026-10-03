@@ -5,27 +5,27 @@ import SwiftUI
 /// Auto-scrolling single-line text, native port of the web app's
 /// `MarqueeText.tsx`/`MarqueeText.module.css`.
 ///
-/// Renders a plain, tail-truncated `Text` when the string fits. Once the text is
-/// measured wider than its container, a two-copy track scrolls left by
-/// `textWidth + gap` on a fixed cycle (8 s by default) with a 5% dwell at each
-/// end (the web `@keyframes marqueeScroll` 0–5% / 95–100% holds), then jumps back
-/// seamlessly and repeats while visible.
+/// Renders a plain `Text` when the string fits. When it does not, a two-copy track
+/// scrolls left by `textWidth + gap` on a fixed cycle (8 s by default) with a 5%
+/// dwell at each end (the web `@keyframes marqueeScroll` 0–5% / 95–100% holds), then
+/// jumps back seamlessly and repeats while visible.
 ///
 /// **Layout.** Sized like a plain one-line `Text` (never greedy), so swapping a
-/// `Text` for a `MarqueeText` keeps the row layout. The width comes from a
-/// truncating copy of the text (the visible text while static, transparent while
-/// scrolling), never from the scrolling track: the track is drawn in an overlay,
-/// so its full width can never widen the row or feed back into the overflow
-/// check. (The previous version measured the container around the track itself, so starting
-/// to scroll made the container "fit" again and the view fell back to the static,
-/// truncated form: it never visibly scrolled.)
+/// `Text` for a `MarqueeText` keeps the row layout. A `ViewThatFits` picks the
+/// natural one-line text when it fits; otherwise a tail-truncating copy takes the
+/// offered width (visible while static, hidden while scrolling) and the scrolling
+/// track is drawn in its overlay, so the track never changes the size.
 ///
-/// **Cost.** The scroll is a Core Animation keyframe loop over a bitmap of the
-/// track (``MarqueeTrackLayer``), so no SwiftUI update runs per frame (the former
-/// `phaseAnimator` re-rendered the window's graph every frame), and nothing
-/// animates while the text fits, is off screen, the scene
-/// is inactive or its window hidden, or Reduce Motion (system or in-app) is on. Those fall back to
-/// tail truncation, like the web's `prefers-reduced-motion` ellipsis.
+/// **Cost.** Nothing here keeps SwiftUI state: no geometry observers, preferences or
+/// per-frame updates. A Songs row used to measure both widths with
+/// `onGeometryChange` and share them through a preference, so every newly built row
+/// laid out again after writing that state (most of the Mac Songs scroll stalls).
+/// The track (``MarqueeTrackLayer``) measures and scrolls itself with Core
+/// Animation. Nothing animates while the text fits, the window is hidden or the
+/// scene inactive, the container turns it off
+/// (``SwiftUI/EnvironmentValues/marqueeAnimationEnabled``), or Reduce Motion (system
+/// or in-app) is on; those show the tail-truncated text, like the web's
+/// `prefers-reduced-motion` ellipsis.
 ///
 /// Also static under `DebugAnimationOverride.stillBackground`
 /// (`FST_DEBUG_STILL_BACKGROUND=1`): XCUITest waits for the app to idle before each
@@ -42,14 +42,13 @@ public struct MarqueeText: View {
     private let gap: CGFloat
     private let cycleDuration: Double
 
-    @State private var availableWidth: CGFloat = 0
-    @State private var textWidth: CGFloat = 0
-    @State private var isOnScreen = true
+    /// Whether the text overflows its width (from ``MarqueeFitLayout``'s probe).
+    @State private var overflows = false
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.festivalWindowVisible) private var windowVisible
-    @Environment(\.marqueeSyncDistance) private var syncDistance
+    @Environment(\.marqueeSyncGroup) private var syncGroup
     @Environment(\.marqueeAnimationEnabled) private var animationEnabled
     @Environment(\.displayScale) private var displayScale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -73,78 +72,81 @@ public struct MarqueeText: View {
         self.cycleDuration = cycleDuration
     }
 
-    private var overflows: Bool {
-        MarqueeTiming.overflows(textWidth: textWidth, available: availableWidth)
-    }
-
-    private var scrolls: Bool {
-        overflows && animationEnabled && !reduceMotion && !appReduceMotion && isOnScreen
-            && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible) && !DebugAnimationOverride.stillBackground
+    /// Whether an overflowing text may scroll in this environment.
+    private var mayScroll: Bool {
+        animationEnabled && !reduceMotion && !appReduceMotion
+            && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible)
+            && !DebugAnimationOverride.stillBackground
     }
 
     public var body: some View {
-        // Sizing base: one line, tail-truncating, sized exactly like a plain `Text`
-        // (its natural width, or the offered width when that is narrower). While
-        // static it is also the visible text, so a static row lays out one text
-        // fewer; while scrolling it turns transparent (keeping its size) and the
-        // track is drawn in the overlay, so the track never changes this size.
-        Text(text)
+        let text = Text(text)
             .marqueeFont(font)
             .lineLimit(1)
             .truncationMode(.tail)
-            .opacity(scrolls ? 0 : 1)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.width
-            } action: { width in
-                availableWidth = width
+        Group {
+            if mayScroll {
+                MarqueeFitLayout {
+                    text.opacity(overflows ? 0 : 1)
+                    // Proposed a non-zero width only while the text overflows.
+                    Color.clear
+                        .onGeometryChange(for: Bool.self) { $0.size.width > 0 } action: {
+                            overflows = $0
+                        }
+                }
+                .overlay(alignment: .leading) {
+                    if overflows { track }
+                }
+                .clipped()
+            } else {
+                text
             }
-            .overlay(alignment: .leading) {
-                if scrolls { scrollingTrack }
-            }
-            .clipped()
-            .background(alignment: .leading) {
-                // Natural (untruncated) width; `.background` never enlarges the view.
-                Text(text)
-                    .marqueeFont(font)
-                    .fixedSize()
-                    .hidden()
-                    .onGeometryChange(for: CGFloat.self) { proxy in
-                        proxy.size.width
-                    } action: { width in
-                        textWidth = width
-                    }
-            }
-            .preference(key: MarqueeOverflowWidthsKey.self, value: overflows ? [textWidth] : [])
-            .onDisappear { isOnScreen = false }
-            .onAppear { isOnScreen = true }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(text)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(self.text)
     }
 
-    /// The scrolling two-copy track, shown only while ``scrolls`` is true: drawn once
-    /// and scrolled by Core Animation (``MarqueeTrackLayer``), so no SwiftUI update
-    /// runs per frame.
-    private var scrollingTrack: some View {
-        let distance = MarqueeTiming.distance(
-            textWidth: textWidth, gap: gap, syncDistance: syncDistance
-        )
-        let track = HStack(spacing: distance - textWidth) {
-            Text(text).marqueeFont(font)
-            Text(text).marqueeFont(font)
-        }
-        .fixedSize()
-        return MarqueeTrackLayer(
-            track: AnyView(track),
+    /// The Core Animation track, built only for text that overflows.
+    private var track: some View {
+        MarqueeTrackLayer(
+            track: AnyView(Text(text).marqueeFont(font).fixedSize()),
             renderKey: AnyHashable(MarqueeRenderKey(
                 text: text, font: font.map { String(describing: $0) } ?? "inherited",
-                distance: distance, cycleDuration: cycleDuration, displayScale: displayScale,
-                dynamicTypeSize: dynamicTypeSize, colorScheme: colorScheme
+                displayScale: displayScale, dynamicTypeSize: dynamicTypeSize,
+                colorScheme: colorScheme
             )),
-            distance: distance, cycleDuration: cycleDuration
+            gap: gap, cycleDuration: cycleDuration, syncGroup: syncGroup
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
-        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Fit layout
+
+/// Sizes like its first child, a one-line tail-truncating `Text` (natural width, or
+/// the offered width when narrower), and proposes its second child, a probe, a
+/// non-zero width only while that text's natural width overflows the bounds.
+///
+/// One cached text measurement replaces the former second, fixed-size copy of the
+/// text and its geometry observer; the probe's one Bool changes only for text that
+/// overflows, so a row whose texts fit is laid out once.
+struct MarqueeFitLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(proposal) ?? .zero
+    }
+
+    func placeSubviews(
+        in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()
+    ) {
+        guard let text = subviews.first else { return }
+        text.place(at: bounds.origin, proposal: ProposedViewSize(bounds.size))
+        guard subviews.count > 1 else { return }
+        let natural = text.sizeThatFits(.unspecified).width
+        let overflows = MarqueeTiming.overflows(textWidth: natural, available: bounds.width)
+        subviews[1].place(
+            at: bounds.origin,
+            proposal: ProposedViewSize(width: overflows ? 1 : 0, height: 0)
+        )
     }
 }
 
@@ -158,12 +160,10 @@ private extension View {
     }
 }
 
-/// Re-render and restart identity of a marquee track bitmap.
+/// Re-render identity of a marquee's text bitmap.
 private struct MarqueeRenderKey: Hashable {
     let text: String
     let font: String
-    let distance: CGFloat
-    let cycleDuration: Double
     let displayScale: CGFloat
     let dynamicTypeSize: DynamicTypeSize
     let colorScheme: ColorScheme
@@ -255,22 +255,13 @@ enum MarqueeTiming {
 
 // MARK: - Sync groups
 
-/// Natural widths of the overflowing marquees below a view.
-struct MarqueeOverflowWidthsKey: PreferenceKey {
-    static let defaultValue: [CGFloat] = []
-
-    static func reduce(value: inout [CGFloat], nextValue: () -> [CGFloat]) {
-        value.append(contentsOf: nextValue())
-    }
-}
-
 extension EnvironmentValues {
-    /// Shared scroll distance for marquees inside a ``SwiftUI/View/marqueeSync(gap:)`` group.
-    @Entry var marqueeSyncDistance: CGFloat?
+    /// The ``MarqueeSyncGroup`` of the nearest ``SwiftUI/View/marqueeSync(gap:)``.
+    @Entry var marqueeSyncGroup: MarqueeSyncGroup?
 
     /// False holds every ``MarqueeText`` below at rest (tail-truncated). Set it where a
     /// marquee is laid out but not seen, e.g. Song Detail's pinned toolbar title at
-    /// opacity 0 while the hero title is visible (`onAppear` still fires there).
+    /// opacity 0 while the hero title is visible.
     @Entry var marqueeAnimationEnabled = true
 }
 
@@ -286,19 +277,12 @@ public extension View {
     }
 }
 
-/// Collects overflow widths and hands the shared distance back down.
+/// Owns one group for the lifetime of the container; members register themselves.
 private struct MarqueeSyncModifier: ViewModifier {
     let gap: CGFloat
-    @State private var distance: CGFloat?
+    @State private var group = MarqueeSyncGroup()
 
     func body(content: Content) -> some View {
-        content
-            .environment(\.marqueeSyncDistance, distance)
-            .onPreferenceChange(MarqueeOverflowWidthsKey.self) { widths in
-                let next = MarqueeTiming.syncDistance(widths: widths, gap: gap)
-                if next != distance { distance = next }
-            }
-            // A group is self-contained: its members never join an outer group.
-            .transformPreference(MarqueeOverflowWidthsKey.self) { $0 = [] }
+        content.environment(\.marqueeSyncGroup, group.withGap(gap))
     }
 }

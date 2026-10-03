@@ -623,10 +623,7 @@ public enum ServiceInfoText {
             let digits = text[text.index(after: dot)..<digitsEnd]
             text.replaceSubrange(dot..<digitsEnd, with: "." + digits.prefix(3).padding(toLength: 3, withPad: "0", startingAt: 0))
         }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: text) { return date }
-        return ISO8601DateFormatter().date(from: text)
+        return ISO8601Parsing.date(text)
     }
 
     // MARK: Labels

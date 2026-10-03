@@ -175,7 +175,7 @@ public enum NotificationText {
         }
         return AppNotification(
             id: dto.notificationGuid, eventId: dto.eventId, eventKind: dto.eventKind,
-            detectedAt: ISO8601DateFormatter().date(from: dto.detectedAt),
+            detectedAt: ISO8601Parsing.wholeSecondsDate(dto.detectedAt),
             title: presentation.title, message: presentation.message,
             messageParts: presentation.messageParts, flags: presentation.flags,
             flagGroups: presentation.flagGroups,

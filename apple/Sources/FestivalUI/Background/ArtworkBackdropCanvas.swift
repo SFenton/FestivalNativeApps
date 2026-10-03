@@ -155,18 +155,46 @@ struct ArtworkBackdropCanvas: View {
         .accessibilityHidden(true)
     }
 
-    /// One carousel slot, played by Core Animation (no per-frame app work, 30 fps cap).
+    /// One carousel slot. A running zoom/pan or fade plays on Core Animation (no
+    /// per-frame app work, 30 fps cap). On the Mac a still slot (paused, finished or
+    /// Reduce Motion) is drawn by SwiftUI instead, so `ImageRenderer` captures and
+    /// hosted tests see its pixels (platform views do not render there); iOS keeps
+    /// one Core Animation view throughout.
     ///
     /// - Parameters:
     ///   - image: Decoded cover.
     ///   - layer: Slot timing.
     ///   - size: Canvas size.
     /// - Returns: The slot view.
+    @ViewBuilder
     private func slot(
         image: CGImage, layer: ArtworkBackdropState.Layer, size: CGSize
     ) -> some View {
+        let isActive = layer.id == carousel.active
+        #if os(macOS)
+        let now = Date()
+        if CarouselSlotPlan(layer: layer, isActive: isActive, animate: animate, now: now).isAnimating {
+            animatedSlot(image: image, layer: layer, isActive: isActive, size: size)
+        } else {
+            Image(decorative: image, scale: 1)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .colorMultiply(Self.gray(1 - dimming))
+                .modifier(CarouselMotionEffect(fraction: layer.fraction(at: now), motion: layer.motion))
+                .opacity(isActive ? layer.fadeOpacity(at: now) : 1)
+        }
+        #else
+        animatedSlot(image: image, layer: layer, isActive: isActive, size: size)
+        #endif
+    }
+
+    /// The Core Animation slot.
+    private func animatedSlot(
+        image: CGImage, layer: ArtworkBackdropState.Layer, isActive: Bool, size: CGSize
+    ) -> some View {
         CarouselSlotLayer(
-            image: image, layer: layer, isActive: layer.id == carousel.active,
+            image: image, layer: layer, isActive: isActive,
             lightness: 1 - dimming, animate: animate
         )
         .frame(width: size.width, height: size.height)
@@ -267,8 +295,8 @@ struct CoverLayerView: View {
 
 // MARK: - Motion reference
 
-/// Six-second zoom/pan as a pure SwiftUI transform: the reference that
-/// `CarouselSlotPose.transform` (the Core Animation slot) must match.
+/// Six-second zoom/pan as a pure SwiftUI transform: draws a still Mac slot and is
+/// the reference that `CarouselSlotPose.transform` (the Core Animation slot) matches.
 struct CarouselMotionEffect: GeometryEffect {
     var fraction: Double
     let motion: ArtworkMotionPreset

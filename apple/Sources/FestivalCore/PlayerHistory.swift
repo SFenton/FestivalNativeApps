@@ -26,11 +26,7 @@ public struct ScoreHistoryEntry: Decodable, Sendable, Equatable {
     ///
     /// Service timestamps may or may not carry fractional seconds, so both are tried.
     public var displayDate: Date? {
-        let source = scoreAchievedAt ?? changedAt
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: source) { return date }
-        return ISO8601DateFormatter().date(from: source)
+        ISO8601Parsing.date(scoreAchievedAt ?? changedAt)
     }
 }
 

@@ -62,7 +62,7 @@ import Testing
     environment.displayScale = 2
     let track = MarqueeTrackLayer(
         track: AnyView(Text("Long title").fixedSize()), renderKey: AnyHashable(1),
-        distance: 100, cycleDuration: 8
+        gap: 28, cycleDuration: 8, syncGroup: nil
     )
     let rendered = try #require(track.render(in: environment))
     #expect(rendered.image.width == Int((rendered.size.width * 2).rounded()))

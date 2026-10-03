@@ -119,13 +119,18 @@ struct ShopStatusBreathe: ViewModifier {
         // HDR bloom (operator batch 7), so there is none, and the peak is capped
         // below the full status colour. The breathing layer plays on the render
         // server from the shared ``ShopPulseClock``.
+        // Still: plain SwiftUI shapes (captured by `ImageRenderer`, unlike a layer).
         content.background {
             ZStack {
                 Circle().fill(ShopStatusTone.base)
-                ShopPulseLayer(
-                    shape: .disc, color: tone.target, period: ShopStatusTone.period,
-                    restingOpacity: ShopStatusTone.peakOpacity, running: running
-                ) { Self.intensity(at: $0, animating: true) * ShopStatusTone.peakOpacity }
+                if running {
+                    ShopPulseLayer(
+                        shape: .disc, color: tone.target, period: ShopStatusTone.period,
+                        restingOpacity: ShopStatusTone.peakOpacity, running: true
+                    ) { Self.intensity(at: $0, animating: true) * ShopStatusTone.peakOpacity }
+                } else {
+                    Circle().fill(tone.target).opacity(ShopStatusTone.peakOpacity)
+                }
             }
         }
     }
@@ -192,11 +197,20 @@ struct ShopRowPulseBorder: View {
             sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
             still: DebugAnimationOverride.stillBackground
         )
-        ShopPulseLayer(
-            shape: .roundedStroke(cornerRadius: cornerRadius, lineWidth: 2),
-            color: tone.borderColor, period: Self.period, restingOpacity: Self.peak,
-            running: running
-        ) { Self.opacity(at: $0, animating: true) }
+        Group {
+            if running {
+                ShopPulseLayer(
+                    shape: .roundedStroke(cornerRadius: cornerRadius, lineWidth: 2),
+                    color: tone.borderColor, period: Self.period, restingOpacity: Self.peak,
+                    running: true
+                ) { Self.opacity(at: $0, animating: true) }
+            } else {
+                // Still: a plain SwiftUI stroke (captured by `ImageRenderer`).
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(tone.borderColor, lineWidth: 2)
+                    .opacity(Self.peak)
+            }
+        }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

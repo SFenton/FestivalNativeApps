@@ -76,6 +76,30 @@ private struct SongChipRows: Layout {
         }
     }
 
+    /// No explicit horizontal guide: the chips are icons, so the edges serve.
+    ///
+    /// The protocol's default merges every chip's guides, measuring all nine chips
+    /// again whenever a parent stack aligns the row; on the Mac that was the
+    /// heaviest app frame of the Songs scroll-stress profile.
+    ///
+    /// - Returns: Nil, so the parent uses the default guide value.
+    func explicitAlignment(
+        of guide: HorizontalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
+        subviews: Subviews, cache: inout Cache
+    ) -> CGFloat? {
+        nil
+    }
+
+    /// No explicit vertical guide (no text baselines among the chips).
+    ///
+    /// - Returns: Nil, so the parent uses the default guide value.
+    func explicitAlignment(
+        of guide: VerticalAlignment, in bounds: CGRect, proposal: ProposedViewSize,
+        subviews: Subviews, cache: inout Cache
+    ) -> CGFloat? {
+        nil
+    }
+
     /// Split the bounded chart set evenly at a measured content width.
     ///
     /// - Parameters:
@@ -123,6 +147,7 @@ struct SongInstrumentStatusChips: View {
     /// This song's `sig == "Keyboard"`; swaps the Lead/Pro Lead icon variant.
     var keyboard: Bool = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.displayScale) private var displayScale
     @ScaledMetric(relativeTo: .body) private var scaledSide: CGFloat = 34
 
     private var side: CGFloat {
@@ -151,22 +176,94 @@ struct SongInstrumentStatusChips: View {
     /// - Parameter badge: Source-ordered, verified per-song instrument state.
     /// - Returns: A bounded circular native status with a contrast-safe stroke.
     private func chip(_ badge: SongInstrumentBadge) -> some View {
-        InstrumentIcon(
-            badge.instrument,
-            keyboard: keyboard && (badge.instrument == .lead || badge.instrument == .proLead),
-            size: side * 0.7
-        )
+        let keyboard = keyboard && (badge.instrument == .lead || badge.instrument == .proLead)
+        return Group {
+            if let image = SongStatusChipImages.image(
+                instrument: badge.instrument, keyboard: keyboard, status: badge.status,
+                side: side, scale: displayScale
+            ) {
+                // One pre-drawn bitmap per chip (the stroke's outer half overhangs the
+                // frame, as before); unclipped frame keeps the layout size.
+                Image(decorative: image, scale: displayScale)
+                    .frame(width: side, height: side)
+            } else {
+                Self.drawnChip(badge.instrument, keyboard: keyboard, status: badge.status, side: side)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    /// The chip as SwiftUI views; also what ``SongStatusChipImages`` draws once.
+    ///
+    /// - Parameters:
+    ///   - instrument: Chart.
+    ///   - keyboard: Keys variant for Lead/Pro Lead.
+    ///   - status: Score status (fill and stroke colours).
+    ///   - side: Chip diameter.
+    /// - Returns: Icon in a filled, stroked circle.
+    static func drawnChip(
+        _ instrument: Instrument, keyboard: Bool, status: SongInstrumentStatus, side: CGFloat
+    ) -> some View {
+        InstrumentIcon(instrument, keyboard: keyboard, size: side * 0.7)
             .accessibilityHidden(true)
             .frame(width: side, height: side)
-            .background(badge.status.fillColor, in: Circle())
+            .background(status.fillColor, in: Circle())
             .overlay {
-                Circle().stroke(badge.status.strokeColor, lineWidth: 2)
+                Circle().stroke(status.strokeColor, lineWidth: 2)
             }
-            .accessibilityHidden(true)
     }
 }
 
-private extension SongInstrumentStatus {
+// MARK: - Pre-drawn chips
+
+/// Bitmaps of every chip variant in use, drawn once per size and scale.
+///
+/// A Songs row shows up to nine chips; as views each was an image, a filled circle
+/// and a stroked circle, which made chips about half of the row-building cost in the
+/// Mac Songs scroll-stress profile. There are at most 9 instruments × 2 icon
+/// variants × 5 statuses per size, so the cache stays small.
+@MainActor
+enum SongStatusChipImages {
+    private struct Key: Hashable {
+        let instrument: Instrument
+        let keyboard: Bool
+        let status: SongInstrumentStatus
+        let side: CGFloat
+        let scale: CGFloat
+    }
+
+    private static var images: [Key: CGImage] = [:]
+    /// Stroke overhang outside the chip frame on each side (half the 2 pt line).
+    static let overhang: CGFloat = 1
+
+    /// The chip bitmap, drawn on first use.
+    ///
+    /// - Parameters:
+    ///   - instrument: Chart.
+    ///   - keyboard: Keys variant for Lead/Pro Lead.
+    ///   - status: Score status.
+    ///   - side: Chip diameter in points.
+    ///   - scale: Display scale.
+    /// - Returns: A `(side + 2) × (side + 2)` point bitmap, or nil if drawing failed.
+    static func image(
+        instrument: Instrument, keyboard: Bool, status: SongInstrumentStatus,
+        side: CGFloat, scale: CGFloat
+    ) -> CGImage? {
+        let key = Key(instrument: instrument, keyboard: keyboard, status: status, side: side, scale: scale)
+        if let cached = images[key] { return cached }
+        let renderer = ImageRenderer(content:
+            SongInstrumentStatusChips.drawnChip(instrument, keyboard: keyboard, status: status, side: side)
+                .padding(overhang)
+        )
+        renderer.scale = scale
+        renderer.isOpaque = false
+        guard let image = renderer.cgImage else { return nil }
+        images[key] = image
+        return image
+    }
+}
+
+extension SongInstrumentStatus {
     /// One distinct color per status: with the corner mark removed, color is the
     /// *only* visual cue, so `inconsistentFullCombo` can no longer share red with
     /// `noScore` — it now gets its own amber (`BrandTokens.statusAmber`), a native
