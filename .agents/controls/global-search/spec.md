@@ -50,8 +50,10 @@ The Songs page's mobile **FAB search dock** and desktop **Songs toolbar field** 
 | Open, short query | Hint centred |
 | Debouncing / loading | One spinner for the whole panel; in the all-scope view it waits until **every** enabled scope finishes (`SearchModal.tsx:646-651,740-743`) |
 | Loaded | Spinner fades out, then rows fade up with a stagger (first 8 rows) (`SearchModal.tsx:703-738,783-787`) |
-| Empty | Scope-specific or "No results found." |
+| Empty | Scope-specific or "No results found.", centred (`hintCenter`); All hides empty sections |
 | Error | Per scope; other scopes still show (`useUnifiedSearch.ts:146-150,166-170`) |
+
+**Native empty state (issue #99):** never an inline left-aligned row. In All, an empty Players section is hidden while Songs has rows (web `shouldRenderGlobalSection`). When the shown scope(s) are all empty, the results area shows a title + subtitle centred horizontally and vertically, like the Songs page's empty state: All "No results found" / "Check the spelling or try a different song, artist or player."; Songs "No songs found" / "Check the spelling or try a different song or artist."; Players "No players found" / "Check the spelling or try a different player name." All and Players add **Retry** (empty envelope may be a timeout); Songs (local match) has none. At large text sizes the block scrolls so Retry stays reachable.
 
 ### Tapping a result
 
@@ -106,7 +108,7 @@ Band search is **not called** by native apps: when its projection is missing, th
 | `loading` | Songs shown immediately; Players inline progress; superseded queries cancelled |
 | `results-all` | Sections Songs → Players with headings; count announced |
 | `results-scoped` | One scope via chip; toggling again returns to all |
-| `empty` | Scope-specific message; Players empty has Retry |
+| `empty` | Centred scope-specific title + subtitle; All and Players have Retry; All hides an empty Players section next to song rows |
 | `error` | Per-scope failure with Retry; other scopes still shown; freeze → "Scores are updating" |
 | `bands-unavailable` | Bands chip shows the explanation and Band Rankings link; no request |
 | `navigated` | Surface closed, destination pushed on the current section; Back returns to the prior page |
@@ -122,10 +124,11 @@ Band search is **not called** by native apps: when its projection is missing, th
 | `fst.global-search.close` | Explicit close/cancel control, when the surface has one |
 | `fst.global-search.scope.{songs,players,bands}` | Scope chips |
 | `fst.global-search.hint` | Short-query / empty / error message |
+| `fst.global-search.empty` | Centred empty state (Android/Windows; title `.empty.title`, subtitle `.empty.subtitle` on Windows) |
 | `fst.global-search.section.{songs,players}` | Section containers (headings inside) |
 | `fst.global-search.result.song`, `fst.global-search.result.player` | Each result row (repeated; accessible name = title/artist or display name) |
 | `fst.global-search.players-loading` | Players inline progress |
-| `fst.global-search.retry` | Players Retry |
+| `fst.global-search.retry` | Players / empty-state Retry |
 | `fst.global-search.bands-unavailable` | Band explanation block and its Band Rankings button |
 
 ## Test matrix
