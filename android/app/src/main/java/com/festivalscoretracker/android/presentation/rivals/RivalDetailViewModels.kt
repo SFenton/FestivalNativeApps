@@ -190,15 +190,25 @@ class RivalDetailViewModel(
     }
 
     /**
-     * Songs of one category (Rivalry `mode`), ordered.
+     * Songs of one category (Rivalry `mode`), ordered. Rows without a title (rebuilt
+     * from `rivals/all` during a freeze) take catalogue titles so Title sort and Quick
+     * Links read like the web.
      *
      * @param content Loaded comparison.
      * @param mode Category key.
      * @param sort Ordering.
      * @return Category, or null for an unknown or empty key.
      */
-    fun category(content: RivalDetailContent, mode: String, sort: RivalrySort): RivalCategory? =
-        content.categories.firstOrNull { it.key == mode }?.let { it.copy(songs = RivalHeadToHead.sort(it.songs, sort)) }
+    fun category(content: RivalDetailContent, mode: String, sort: RivalrySort): RivalCategory? {
+        val catalog = catalogFlow.value
+        return content.categories.firstOrNull { it.key == mode }?.let { category ->
+            val titled = category.songs.map { song ->
+                val known = catalog[song.songId]
+                if (song.title != null || known == null) song else song.copy(title = known.title, artist = song.artist ?: known.artist)
+            }
+            category.copy(songs = RivalHeadToHead.sort(titled, sort))
+        }
+    }
 
     /**
      * Change the Rivalry ordering.
