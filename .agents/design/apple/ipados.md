@@ -40,6 +40,19 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 | Sheets | `festivalSheet` applies `presentationSizing(.form)` (or `.page`) at regular width, centered; compact windows get the phone sheets | sheets.md "Prefer page or form sheet styles in an iPadOS app" |
 | Popovers | Not used for page content; menus (Quick Links, metric pickers) are system menus | popovers.md "Avoid popovers in compact views" |
 
+## Windows
+
+**Decision (2026-10-02): support multiple windows on iPad, opened only by the person.** People compare songs, players and rivals side by side, and iPadOS lets one app offer several windows (multitasking.md iPadOS "multiple windows can come from one app"; designing-for-ipados.md "people view multiple apps together"). The app never opens one by itself (windows.md "Choose the right moment to open a new window ... avoid it as default behavior unless it makes sense for your app").
+
+| Part | Detail | HIG |
+|---|---|---|
+| Opening | System File › New Window and the app switcher; **Open in New Window** in a Songs row's or a ranking player row's context menu (`openInNewWindowMenu`, iPad only, needs `supportsMultipleWindows`) | windows.md "Consider offering a context-menu or File-menu command to view content in a new window" |
+| Content | `WindowGroup(for: FestivalWindowRoute.self)`: `.song(songId:)` (looked up in the shared catalogue, opened on Songs) or `.player(accountId:displayName:)` (pushed on Leaderboards). Codable ids only, so the system can restore the window | windows.md (`OpenWindowAction`) |
+| State | One process-wide `FestivalSession` (selected profile, publication, caches, first-run arbitration) shared by every window; each window keeps its own selection, paths, sheets and menu-bar commands (`focusedSceneValue`) | multitasking.md "Save and restore context" |
+| iPhone | `UIApplicationSupportsMultipleScenes` is true in the universal plist, but iPhone shows one window and the context menu is not attached there | |
+
+Words: user-facing text says "window", never "scene" (windows.md "Say *window* in user-facing content"). Journey: `testOpenInNewWindowSharesProfile`.
+
 ## Window sizes
 
 Exact tiles from the window-controls menu (long-press Zoom; driver `tile:`), FST iPad Pro 11" (1194 × 834 pt screen, 1210 pt framebuffer width):

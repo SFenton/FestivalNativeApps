@@ -38,8 +38,10 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # iPad multiple windows (File › New Window, "Open in New Window"); iPhone shows
+        # one window regardless (.agents/design/apple/ipados.md, Windows).
         UIApplicationSceneManifest:
-          UIApplicationSupportsMultipleScenes: false
+          UIApplicationSupportsMultipleScenes: true
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:

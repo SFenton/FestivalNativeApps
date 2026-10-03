@@ -17,6 +17,8 @@ import UIKit
 /// - `tap:<identifier-or-label>` — tap the first element whose
 ///   accessibility identifier matches; falls back to an exact label match.
 /// - `tapText:<label>` — tap the first element with an exact label match.
+/// - `hold:<identifier-or-label>` — long-press (1.2 s) an element, e.g. to open its
+///   context menu.
 /// - `tapXY:<x>,<y>` — tap a point. Both components `<= 1.0` are treated as
 ///   a normalized fraction of the app's window; otherwise as device points.
 /// - `swipe:<up|down|left|right>[@identifier]` — swipe the whole app, or one
@@ -48,12 +50,14 @@ import UIKit
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
 /// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
 ///   window-controls menu (long-press Zoom); end with `fill`.
+/// - `closeWindow` — iPad: close the front app window (window controls › Close).
 /// - `windowFrame:<path>` — append the app window's frame (points) to a host file.
 /// - `key:<[cmd+][shift+][alt+][ctrl+]key>` — hardware-keyboard key press, e.g.
 ///   `key:cmd+2`, `key:tab`, `key:down`, `key:return`, `key:escape`, `key:space`.
 enum DriverStep {
     case tap(String)
     case tapText(String)
+    case hold(String)
     case tapXY(Double, Double)
     case swipe(Direction, identifier: String?)
     case drag(CGVector, CGVector)
@@ -73,6 +77,7 @@ enum DriverStep {
     case systemHold(String)
     case tile(WindowResize.Tile)
     case windowFrame(String)
+    case closeWindow
     case key(String, XCUIElement.KeyModifierFlags)
 
     /// A cardinal swipe direction.
@@ -110,6 +115,9 @@ enum DriverStep {
         case "tapText":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tapText(arg)
+        case "hold":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .hold(arg)
         case "tapXY":
             let coordinates = arg.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
             guard coordinates.count == 2,
@@ -167,6 +175,8 @@ enum DriverStep {
         case "tile":
             guard let tile = WindowResize.Tile(rawValue: arg) else { throw ParseError.malformed(raw) }
             return .tile(tile)
+        case "closeWindow":
+            return .closeWindow
         case "windowFrame":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .windowFrame(arg)
@@ -344,6 +354,8 @@ final class DriverTests: XCTestCase {
     @MainActor
     static func perform(_ step: DriverStep, app: XCUIApplication) throws {
         switch step {
+        case let .hold(target):
+            try element(identifierOrLabel: target, in: app).press(forDuration: 1.2)
         case let .tap(target):
             let candidate = try element(identifierOrLabel: target, in: app)
             if candidate.elementType == .switch {
@@ -450,6 +462,8 @@ final class DriverTests: XCTestCase {
             }
         case let .key(key, flags):
             app.typeKey(key, modifierFlags: flags)
+        case .closeWindow:
+            guard WindowResize.closeFrontWindow(app) else { throw DriverError.elementNotFound("Close-button") }
         }
     }
 

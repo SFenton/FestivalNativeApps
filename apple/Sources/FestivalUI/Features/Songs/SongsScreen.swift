@@ -1450,6 +1450,8 @@ struct SongsScreen: View {
         .contextMenu {
             MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
         }
+        #else
+        .openInNewWindowMenu(.song(songId: song.songId))
         #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).

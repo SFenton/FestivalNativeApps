@@ -28,6 +28,10 @@ public struct FestivalRootView: View {
     @State private var pendingNotificationRoute: AppRoute?
     /// What's New opened from the iPad Help menu.
     @State private var whatsNewPresented = false
+    /// The content an "Open in New Window" request opened this window with, if any.
+    private let windowRoute: FestivalWindowRoute?
+    /// Whether ``windowRoute`` was already applied (a song needs the catalogue first).
+    @State private var windowRouteApplied = false
     #if DEBUG && os(iOS)
     @State private var motionReport = DebugMotionReport()
     #endif
@@ -65,6 +69,16 @@ public struct FestivalRootView: View {
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
+        self.init(windowRoute: nil)
+    }
+
+    /// Create a window's root, optionally opened on a song or player ("Open in New
+    /// Window" on iPad). Every window shares one process-wide ``FestivalSession`` (the
+    /// selected profile, publication and caches) and keeps its own navigation.
+    ///
+    /// - Parameter windowRoute: The content to open, or nil for a plain window.
+    public init(windowRoute: FestivalWindowRoute?) {
+        self.windowRoute = windowRoute
         NavigationTitleStyle.apply()
         var initialSection = FestivalSection.songs
         var selectionStorage: UserDefaults? = .standard
@@ -92,14 +106,21 @@ public struct FestivalRootView: View {
         debugSelectedPlayer = debug.debugSelectedPlayer()
         if debug.anonymous { selectionStorage = nil }
         #endif
-        let factory: @Sendable () throws -> FestivalAPI = {
-            try Self.makeClient(environment: ProcessInfo.processInfo.environment)
+        let session: FestivalSession
+        if let shared = Self.processSession {
+            session = shared
+        } else {
+            let factory: @Sendable () throws -> FestivalAPI = {
+                try Self.makeClient(environment: ProcessInfo.processInfo.environment)
+            }
+            session = FestivalSession(
+                factory: factory, selectionStorage: selectionStorage,
+                debugSelectedPlayer: debugSelectedPlayer
+            )
+            Self.processSession = session
         }
-        let session = FestivalSession(
-            factory: factory, selectionStorage: selectionStorage,
-            debugSelectedPlayer: debugSelectedPlayer
-        )
         _session = State(initialValue: session)
+        if let windowRoute { initialSection = windowRoute.section }
         // A deep link or restored tab may name a section the stored profile hides. The
         // first geometry pass has not published a layout yet; `shell(_:)`'s
         // `onChange(of: sections)` re-resolves once it has (e.g. Duo unfolded).
@@ -112,7 +133,12 @@ public struct FestivalRootView: View {
         let resolved = FestivalTabPolicy.resolve(initialSection, in: visible)
         _selected = State(initialValue: resolved)
         if let initialRoute { _paths = State(initialValue: [resolved: [initialRoute]]) }
+        if let route = windowRoute?.immediateRoute { _paths = State(initialValue: [resolved: [route]]) }
     }
+
+    /// The one session every window of this process shares (iPad multiple windows):
+    /// a second window must see the same selected profile, publication and caches.
+    @MainActor private static var processSession: FestivalSession?
 
     /// Use the public HTTPS service unless Debug explicitly selects a fixture.
     ///
@@ -158,6 +184,7 @@ public struct FestivalRootView: View {
     ///   - initialSection: Initial platform navigation destination.
     ///   - clientFactory: Fixture-backed API client provider.
     init(initialSection: FestivalSection, clientFactory: @escaping @Sendable () throws -> FestivalAPI) {
+        windowRoute = nil
         _selected = State(initialValue: initialSection)
         _session = State(initialValue: FestivalSession(factory: clientFactory))
     }
@@ -167,6 +194,7 @@ public struct FestivalRootView: View {
     /// `FestivalShellContent` sits inside `publishesDeviceLayout` so the shell can pick its
     /// section set from the published ``DeviceLayout`` (see ``ShellPresentation``).
     public var body: some View {
+        let _ = MainThreadStallMonitor.count("root.body")
         FestivalShellContent(usesSidebarShell: usesSidebarShell) { presentation, layout in
             ZStack {
                 FestivalBackgroundHost(session: session)
@@ -213,6 +241,7 @@ public struct FestivalRootView: View {
             #endif
         }
         .publishesDeviceLayout(usesSidebarShell: usesSidebarShell)
+        .task { await applyWindowRoute() }
         // A window that widens back into the sidebar shell shows every column again:
         // the split may have tucked them away (`.detailOnly`) while it was narrow.
         .onChange(of: usesSidebarShell) { _, sidebar in
@@ -559,6 +588,19 @@ public struct FestivalRootView: View {
             }
         }
         automaticDetails = [:]
+    }
+
+    // MARK: - Windows
+
+    /// Open a song window's song once the catalogue has it (players open at once).
+    private func applyWindowRoute() async {
+        guard !windowRouteApplied, case let .song(songId) = windowRoute else { return }
+        windowRouteApplied = true
+        guard let payload = try? await session.catalog(),
+              let song = payload.catalog.songs.first(where: { $0.songId == songId })
+        else { return }
+        paths[.songs] = [.songDetail(song)]
+        if selected != .songs { select(.songs) }
     }
 
     /// The root actions this window publishes to the iPad menu bar.
