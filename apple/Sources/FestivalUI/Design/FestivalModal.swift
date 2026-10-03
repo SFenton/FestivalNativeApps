@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The one container every Festival modal is built from (issue #23): a `NavigationStack`
 /// with an inline title and the system Close (``FestivalSheetCloseItem``) at the top
-/// trailing edge.
+/// trailing edge. Its content fades out as it scrolls under that header
+/// (``ModalTopEdgeFadeModifier``, issue #94).
 ///
 /// HIG (Toolbars): "Close dismisses a modal; prefer their standard symbols without text
 /// labels." Sheets therefore never draw their own ✕, a text "Close"/"Done" or a bottom
@@ -65,6 +66,8 @@ struct FestivalModal<Content: View>: View {
 
     private var chrome: some View {
         content
+            // Content fades out under the header rather than drawing behind it (#94).
+            .modifier(ModalTopEdgeFadeModifier())
             .modifier(FestivalModalTitle(title: title))
             .toolbar {
                 FestivalSheetCloseItem(identifier: closeIdentifier, action: close)
