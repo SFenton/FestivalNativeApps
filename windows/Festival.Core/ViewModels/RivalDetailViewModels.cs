@@ -572,7 +572,7 @@ public sealed partial class RivalryViewModel : RivalPageViewModel
     /// <summary>Applies <see cref="Sort"/> to the loaded category.</summary>
     private void ApplySort()
     {
-        Rows = RivalHeadToHead.Sort(categorySongs, s => s.Comparison, Sort);
+        Rows = RivalHeadToHead.Sort(categorySongs, s => s.Comparison, Sort, s => s.Title);
     }
 }
 #endregion
