@@ -50,6 +50,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Settings, Licenses, first-run and notifications journeys on a phone window (Robolectric, synthetic fixtures). */
 @RunWith(AndroidJUnit4::class)
@@ -440,5 +441,48 @@ class LargeTextPermanentDrawerUiTest {
         assertTrue("name row ${name.bottom - name.top}", (name.bottom - name.top).value < 70f)
         assertTrue("deselect ${deselect.top} above name bottom ${name.bottom}", deselect.top >= name.bottom)
         assertTrue("deselect ${deselect.bottom - deselect.top} below 48 dp", (deselect.bottom - deselect.top).value >= 48f)
+    }
+}
+
+/** 200% text on a medium window: the rail's Profile item goes icon-only like its destinations (issue #101). */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w884dp-h1104dp-xhdpi", fontScale = 2f)
+class LargeTextRailProfileUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun profileItemDropsItsLabelAndKeepsItsName() {
+        val debug = DebugLaunch(stillBackground = true, profile = SelectedPlayer(Fixtures.ACCOUNT_A, "SFentonX"))
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = FakeTransport.standard(), settingsStore = InMemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+        fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.nav.rail.profile").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(rule.onAllNodesWithText("Profile", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.nav.rail.profile").assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Profile: SFentonX")))
+    }
+}
+
+/** Medium window list pane: the pinned Songs search field stays one line tall (issue #101). */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w884dp-h1104dp-xhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class SongsSearchPlaceholderUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun placeholderStaysOnOneLineInTheListPane() {
+        val debug = DebugLaunch(stillBackground = true)
+        val transport = FakeTransport.standard().apply {
+            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+        }
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+        fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.songs.search").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.songs.detail-pane").assertExists()
+        val field = rule.onNodeWithTag("fst.songs.search").getUnclippedBoundsInRoot()
+        assertTrue("search field ${field.right - field.left} wide, ${field.bottom - field.top} tall", (field.bottom - field.top).value <= 64f)
     }
 }
