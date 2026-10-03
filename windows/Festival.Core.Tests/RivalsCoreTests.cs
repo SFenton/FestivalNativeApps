@@ -30,9 +30,9 @@ public class RivalsCoreTests
         Assert.Equal("/api/player/abc/rivals/all", RivalsEndpoints.All(Base, "abc").AbsolutePath);
         Assert.Equal("/api/player/abc/rivals/Solo_Bass", RivalsEndpoints.List(Base, "abc", "Solo_Bass").AbsolutePath);
         Assert.Equal("/api/player/abc/rivals/03", RivalsEndpoints.List(Base, "abc", "03").AbsolutePath);
-        Assert.Equal("/api/player/abc/rivals/pro_drums/r1?sort=you_lead&limit=0&offset=0",
+        Assert.Equal("/api/player/abc/rivals/pro_drums/r1?limit=0&sort=you_lead",
             RivalsEndpoints.Detail(Base, "abc", "pro_drums", "r1", "you_lead").PathAndQuery);
-        Assert.Equal("/api/player/abc/rivals/Solo_Bass/r1?sort=closest&limit=0&offset=0&allowLiveFallback=true",
+        Assert.Equal("/api/player/abc/rivals/Solo_Bass/r1?limit=0&sort=closest&allowLiveFallback=true",
             RivalsEndpoints.Detail(Base, "abc", "Solo_Bass", "r1", allowLiveFallback: true).PathAndQuery);
         Assert.Equal("/api/player/abc/leaderboard-rivals/Solo_Guitar?rankBy=fcrate",
             RivalsEndpoints.LeaderboardList(Base, "abc", Instrument.Lead, RankingMetric.FcRate).PathAndQuery);
@@ -102,6 +102,56 @@ public class RivalsCoreTests
             Assert.DoesNotContain(r.Headers.Keys, k => k.Equals(FestivalApiClient.PublicationHeader, StringComparison.OrdinalIgnoreCase));
         });
         Assert.DoesNotContain(handler.Requests, r => r.Uri.AbsolutePath == "/api/publication");
+    }
+
+    [Fact]
+    public async Task Client_AcceptsLiveSizedRivalsAll()
+    {
+        // The live payload passed 8.9 MB in 2026-10; the old 8 MB cap made every Windows read fail (issue #95).
+        var json = Fixture("rivals-all-demo").Replace("0000000000000000000000000000a001", Me);
+        var padded = json.Insert(json.LastIndexOf('}'), ",\"pad\":\"" + new string('x', 9_000_000) + "\"");
+        var (client, _) = Client(_ => Wire.Ok(padded));
+        Assert.False((await client.GetRivalsAllAsync(Me)).IsEmpty);
+        Assert.True(FestivalApiClient.RivalsAllMaxBytes >= 24_000_000);
+    }
+
+    [Fact]
+    public void RivalsAll_DetailForRebuildsScopedSamples()
+    {
+        RivalsAllEntry Entry(string id, string? name, params RivalsAllSample[] samples) => new(id, name, "above", samples.Length, 0, 0, 1, null, samples);
+        var all = new RivalsAllResponse(Me, ["s-a", "s-b", "s-c", "bad\u0001id"],
+        [
+            new RivalsAllCombo("01", [Entry(Rival, "Rival Name",
+                new RivalsAllSample(0, "Solo_Guitar", 5, 3, 1000, 1100),
+                new RivalsAllSample(1, "Solo_Guitar", 2, 10, 2000, 1500),
+                new RivalsAllSample(2, "Solo_Bass", 4, 5, 900, 800),
+                new RivalsAllSample(9, "Solo_Guitar", 1, 2, 1, 1),
+                new RivalsAllSample(3, "Solo_Guitar", 1, 2, 1, 1),
+                new RivalsAllSample(2, "Solo_Guitar", -1, 2, 1, 1),
+                new RivalsAllSample(2, "Solo_Nope", 1, 2, 1, 1))], []),
+            new RivalsAllCombo("03", [], [Entry(Rival, null,
+                new RivalsAllSample(0, "Solo_Guitar", 5, 3, 1000, 1100),
+                new RivalsAllSample(1, "Solo_Bass", 7, 6, null, 700))]),
+        ]);
+
+        var lead = all.DetailFor(Rival, [Instrument.Lead], "Solo_Guitar")!;
+        Assert.Equal("Rival Name", lead.Rival.DisplayName);
+        Assert.Equal(Rival, lead.Rival.AccountId);
+        Assert.Equal(RivalsAllResponse.DetailSource, lead.Source);
+        Assert.Equal("Solo_Guitar", lead.Combo);
+        Assert.Equal(2, lead.TotalSongs);
+        Assert.Equal(["s-a", "s-b"], lead.Songs.Select(s => s.SongId)); // closest first, duplicate and invalid samples dropped
+        Assert.Equal([-2, 8], lead.Songs.Select(s => s.RankDelta)); // rivalRank − userRank: positive = player leads
+        Assert.Equal((1000L, 1100L), (lead.Songs[0].UserScore!.Value, lead.Songs[0].RivalScore!.Value));
+        Assert.All(lead.Songs, s => Assert.Null(s.Title));
+
+        var both = all.DetailFor(Rival.ToUpperInvariant(), [Instrument.Lead, Instrument.Bass], "03")!;
+        Assert.Equal(["s-c:Solo_Bass", "s-b:Solo_Bass", "s-a:Solo_Guitar", "s-b:Solo_Guitar"], both.Songs.Select(s => $"{s.SongId}:{s.Instrument}"));
+        Assert.Null(both.Songs[1].UserScore);
+
+        Assert.Null(all.DetailFor(Rival, [Instrument.Drums], "Solo_Drums"));
+        Assert.Null(all.DetailFor("someoneelse", [Instrument.Lead], "Solo_Guitar"));
+        Assert.Null(RivalsAllResponse.Empty(Me).DetailFor(Rival, [Instrument.Lead], "Solo_Guitar"));
     }
 
     [Fact]
