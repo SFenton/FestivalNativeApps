@@ -26,6 +26,16 @@ struct SoloLeaderboardScreen: View {
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+    /// The last loaded page: keeps the pager's page count and the footer's columns
+    /// while the next page loads, so neither disappears (issue #93).
+    @State private var shownPayload: LeaderboardPayload?
+    /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
+    @State private var bottomChromeTop: CGFloat?
+
+    /// Coordinate space shared by the rows' fade mask and the pinned chrome.
+    nonisolated private static let pageSpace = "fst.song-leaderboard.page"
 
     enum LoadState {
         case loading
@@ -77,6 +87,9 @@ struct SoloLeaderboardScreen: View {
         _page = State(initialValue: max(1, initialPage))
         _path = path
         _state = State(initialValue: initialState)
+        if case let .loaded(payload) = initialState {
+            _shownPayload = State(initialValue: payload)
+        }
     }
 
     var body: some View {
@@ -141,33 +154,15 @@ struct SoloLeaderboardScreen: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    // The last row comes to rest above the fade, not inside it.
+                    .contentMargins(.bottom, ScrollEdgeFade.distance, for: .scrollContent)
                     .rankingsListRailClearance(layout)
-                    // Pinned below the rows as a bottom safe-area inset, not a VStack
-                    // sibling: the tab bar minimizes on scroll down, and a sibling made
-                    // the List's own frame grow and shrink at the end of the page, which
-                    // read as a bounce. As an inset the List keeps its frame and only
-                    // its content inset changes, so reaching the end rubber-bands normally.
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        VStack(spacing: 0) {
-                            selectedPlayerFooter(payload)
-                            RankingsPagerView(
-                                page: page, totalPages: payload.leaderboard.pageCount,
-                                idPrefix: "fst.song-leaderboard"
-                            ) { destination in
-                                move(to: destination)
-                            }
-                        }
-                        // Rows scrolling under a see-through footer failed the contrast
-                        // audit; the footer keeps an opaque band.
-                        .background(BrandTokens.appBackground)
-                    }
-                }
-                // One set of columns for the page's rows and the pinned footer (web
-                // `LeaderboardPage` `rankWidth`/`scoreWidth`, operator batch 7.3), with
-                // season from 520 pt and stars from 768 pt of chart width.
-                .leaderboardSectionColumns(sectionColumns(payload))
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-                    chartWidth = width
+                    // Rows fade out over 36 pt above the pinned footer and pager and are
+                    // not drawn beneath them (web `useScrollFade`, issue #93), so the
+                    // chrome floats over the page background with no opaque band, and
+                    // no row text sits under its text (the contrast audit that once
+                    // required the band).
+                    .mask { bottomChromeFadeMask }
                 }
                 .task {
                     await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
@@ -177,6 +172,23 @@ struct SoloLeaderboardScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Pinned outside the reload gate so the player's footer and the pager stay put
+        // while another page loads and only the rows fade (web portals both outside
+        // its LoadGate, issue #93). A bottom safe-area inset, not a VStack sibling: the
+        // tab bar minimizes on scroll down, and a sibling made the List's own frame grow
+        // and shrink at the end of the page, which read as a bounce. As an inset the
+        // List keeps its frame and only its content inset changes.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            bottomChrome
+        }
+        // One set of columns for the page's rows and the pinned footer (web
+        // `LeaderboardPage` `rankWidth`/`scoreWidth`, operator batch 7.3), with
+        // season from 520 pt and stars from 768 pt of chart width.
+        .leaderboardSectionColumns(sectionColumns(shownPayload))
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            chartWidth = width
+        }
+        .coordinateSpace(.named(Self.pageSpace))
         // New rows stagger in again; the gate reveals them after its spinner, so the
         // settle timer runs from the reveal (inside the gated content).
         .onChange(of: loadedRowsKey) { _, _ in staggerSettled = false }
@@ -188,6 +200,9 @@ struct SoloLeaderboardScreen: View {
             ToolbarItem(placement: .principal) {
                 // Built only once the header has scrolled away: a hidden (opacity 0)
                 // copy was still audited, and its fixed-size icon failed Dynamic Type.
+                // Until then an empty, unspoken placeholder holds the slot: an empty
+                // principal item let the bar fall back to `navigationTitle`, so the
+                // title showed above the in-page header before any scroll (issue #93).
                 if headerHidden {
                     HStack(spacing: 8) {
                         ArtworkTile(raw: song.albumArt, session: session, size: 28)
@@ -206,12 +221,16 @@ struct SoloLeaderboardScreen: View {
                     .transition(.opacity)
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
+                } else {
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityHidden(true)
                 }
             }
             #if os(iOS)
-            if case let .loaded(payload) = state {
+            if let shownPayload {
                 RankingsPagerToolbarContent(
-                    page: page, totalPages: payload.leaderboard.pageCount,
+                    page: page, totalPages: shownPayload.leaderboard.pageCount,
                     idPrefix: "fst.song-leaderboard"
                 ) { destination in
                     move(to: destination)
@@ -229,6 +248,63 @@ struct SoloLeaderboardScreen: View {
                 await loadPage()
             }
         }
+    }
+
+    // MARK: Pinned bottom chrome
+
+    /// The current page's payload, nil while it loads or after a failure.
+    private var loadedPayload: LeaderboardPayload? {
+        if case let .loaded(payload) = state { return payload }
+        return nil
+    }
+
+    /// The player's footer and the pager, floating over the page background with no
+    /// band behind them (issue #93, HIG Materials: "Let content scroll and peek
+    /// through while preserving control and navigation legibility"). Built from the
+    /// last loaded page, so paging keeps both in place while only the rows reload.
+    private var bottomChrome: some View {
+        VStack(spacing: 0) {
+            selectedPlayerFooter
+            if let shownPayload {
+                RankingsPagerView(
+                    page: page, totalPages: shownPayload.leaderboard.pageCount,
+                    idPrefix: "fst.song-leaderboard"
+                ) { destination in
+                    move(to: destination)
+                }
+            }
+        }
+        .onGeometryChange(for: CGFloat?.self) { proxy in
+            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
+        } action: { top in
+            bottomChromeTop = top
+        }
+    }
+
+    /// Alpha mask for the rows: opaque, then a 36 pt fade ending at the pinned
+    /// chrome's top edge, clear beneath it. Extends into the top safe area so rows
+    /// still scroll under the navigation bar.
+    private var bottomChromeFadeMask: some View {
+        GeometryReader { proxy in
+            let frame = proxy.frame(in: .named(Self.pageSpace))
+            let stops = ScrollEdgeFade.bottom(
+                height: Double(frame.height),
+                obscured: bottomChromeTop.map { Double(frame.maxY - $0) } ?? 0
+            )
+            if bottomChromeTop == nil {
+                Color.black
+            } else {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: stops.fadeStart),
+                        .init(color: .clear, location: stops.fadeEnd),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 
     // MARK: Selected-player spotlight
@@ -252,15 +328,16 @@ struct SoloLeaderboardScreen: View {
     /// (`LeaderboardPage.tsx:476-500`, `navigate('/statistics')`); a trailing jump
     /// control — a native addition beyond web — moves straight to their page when
     /// they are not visible on the current one.
-    ///
-    /// - Parameter payload: Current page's loaded leaderboard.
     @ViewBuilder
-    private func selectedPlayerFooter(_ payload: LeaderboardPayload) -> some View {
+    private var selectedPlayerFooter: some View {
         if let selected = session.selectedPlayer, let entry = selectedPlayerEntry() {
             let rank = entry.rank
-            let isVisible = payload.leaderboard.entries.contains {
-                $0.accountId.caseInsensitiveCompare(selected.accountId) == .orderedSame
-            }
+            // While the next page loads, its rank decides, so the footer keeps its
+            // place and action (issue #93).
+            let isVisible = LeaderboardPaging.isSelectedOnPage(
+                accountId: selected.accountId, rank: rank, page: page, pageSize: 25,
+                entries: loadedPayload?.leaderboard.entries.map(\.accountId)
+            )
             // Same row design and columns as the list rows (operator batch 7.3). Off
             // this page, tapping jumps to the player's page; on it, opens Statistics.
             Group {
@@ -303,10 +380,10 @@ struct SoloLeaderboardScreen: View {
 
     /// The page's fitted columns, measured over its rows and the pinned footer row.
     ///
-    /// - Parameter payload: Current page's loaded leaderboard.
+    /// - Parameter payload: The last loaded page, kept while the next one loads.
     /// - Returns: Shared rank/score widths and the visible columns for `chartWidth`.
-    private func sectionColumns(_ payload: LeaderboardPayload) -> LeaderboardRowColumns {
-        let rows = payload.leaderboard.entries + [selectedPlayerEntry()].compactMap { $0 }
+    private func sectionColumns(_ payload: LeaderboardPayload?) -> LeaderboardRowColumns {
+        let rows = (payload?.leaderboard.entries ?? []) + [selectedPlayerEntry()].compactMap { $0 }
         return LeaderboardRowColumns.fit(
             .songLeaderboard, width: Double(chartWidth),
             ranks: rows.map(\.rank), scores: rows.map(\.score)
@@ -327,6 +404,15 @@ struct SoloLeaderboardScreen: View {
         .padding(.horizontal, 14)
         .frame(minHeight: LeaderboardRowMetrics.minHeight)
         .modifier(RankingRowSurface(isSelected: true))
+        // The footer floats over artwork with no band behind it (issue #93): with
+        // Reduce Transparency or Increase Contrast its translucent purple gets an
+        // opaque backing, as the pager's plates already have.
+        .background {
+            if reduceTransparency || contrast == .increased {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(BrandTokens.appBackground)
+            }
+        }
     }
 
     /// Send a row to the shared Statistics tab when it is the selected player,
@@ -434,6 +520,7 @@ struct SoloLeaderboardScreen: View {
                 move(to: corrected)
                 return
             }
+            shownPayload = payload
             state = .loaded(payload)
         } catch is CancellationError {
             if requested == requestKey { state = .loading }

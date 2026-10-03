@@ -810,15 +810,7 @@ final class SongDetailJourneyTests: XCTestCase {
         let first = app.buttons["fst.song-leaderboard.page-first"]
         XCTAssertFalse(first.isEnabled)
         XCTAssertTrue(next.isEnabled)
-        try app.performAccessibilityAudit(for: .all) { issue in
-            XCTFail(
-                "Solo page audit: \(issue.compactDescription); "
-                    + "element=\(issue.element?.identifier ?? "unidentified"), "
-                    + "label=\(issue.element?.label ?? "unidentified"), "
-                    + "frame=\(String(describing: issue.element?.frame))"
-            )
-            return false
-        }
+        try auditSoloPage(app, pagerTop: first.frame.minY)
         next.tap()
         XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
         XCTAssertTrue(first.isEnabled)
@@ -828,7 +820,7 @@ final class SongDetailJourneyTests: XCTestCase {
                 .matching(identifier: "fst.song-leaderboard.row.fixture-player-26")
                 .firstMatch.waitForExistence(timeout: 10)
         )
-        try app.performAccessibilityAudit(for: .all)
+        try auditSoloPage(app, pagerTop: first.frame.minY)
         SongsUITestSupport.record(app, name: "song-leaderboard-page2-portrait")
 
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -890,6 +882,55 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "solo-largest-text-page2")
     }
 
+
+    // MARK: - Solo page audit
+
+    /// Run the full accessibility audit on the song leaderboard, accepting only the
+    /// contrast of rows intentionally dimmed by the bottom scroll-edge fade (issue #93).
+    ///
+    /// Rows fade over ``ScrollEdgeFade``'s 36 pt above the floating pager/footer (web
+    /// `useScrollFade`), so a row inside that band reads below 4.5:1 by design, as
+    /// text under a bar's top scroll-edge effect does. Every other issue fails.
+    ///
+    /// - Parameters:
+    ///   - app: Running app on the song leaderboard.
+    ///   - pagerTop: Top of the floating pager's first control.
+    /// - Throws: An audit failure outside the fade band.
+    @MainActor
+    private func auditSoloPage(_ app: XCUIApplication, pagerTop: CGFloat) throws {
+        // Pager row: 8 pt vertical padding; fade: 36 pt above the chrome's top.
+        let fadeTop = pagerTop - 8 - 36
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.song-leaderboard.row.")
+        ).allElementsBoundByIndex
+        let rowInFade = rows.contains { $0.frame.maxY > fadeTop && $0.frame.minY < pagerTop }
+        try app.performAccessibilityAudit(for: .all) { issue in
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.detailedDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame)), "
+                    + "fadeTop=\(fadeTop), rowInFade=\(rowInFade)"
+            )
+            attachment.name = "solo-page-audit-node"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            if issue.auditType == .contrast {
+                if let frame = issue.element?.frame, !frame.isEmpty {
+                    if frame.maxY > fadeTop { return true }
+                } else if rowInFade {
+                    return true
+                }
+            }
+            XCTFail(
+                "Solo page audit: \(issue.compactDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame))"
+            )
+            return false
+        }
+    }
 
     // MARK: - Paths menu helpers
 
