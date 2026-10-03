@@ -65,7 +65,7 @@ struct RivalsScreen: View {
         .festivalBackground(.carousel, session: session)
         .toolbar {
             // Pushed from the iPhone drawer: page actions only (the pushed-page avatar
-            // comes from `.globalSearchToolbarItem()`). As a tab root (iPad, Duo
+            // comes from `.pageTrailingItems()`). As a tab root (iPad, Duo
             // unfolded) the toolbar ends with `FestivalRootTrailingItems`. Either way
             // Find Rival precedes the avatar (`.agents/controls/app-navigation/ios.md`).
             ToolbarItem(placement: .festivalPageAction) {

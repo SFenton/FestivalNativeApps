@@ -247,19 +247,18 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 15))
     }
 
-    /// The iPadOS menu bar's shortcuts reach the window in front: ⌘K opens search,
-    /// ⇧⌘P profile selection, ⌘5 Leaderboards (sidebar order with a player), ⌘[ goes
-    /// back from Full Rankings, ⌘R refreshes without leaving the page.
+    /// The iPadOS menu bar's shortcuts reach the window in front: ⌘K opens the sidebar's
+    /// Search row (issue #92), ⇧⌘P profile selection, ⌘5 leaves Search for Leaderboards
+    /// (sidebar order with a player), ⌘[ goes back from Full Rankings, ⌘R refreshes
+    /// without leaving the page.
     @MainActor
     func testMenuBarShortcuts() throws {
         let app = fixtureApp(profile: true)
         launchFilled(app)
         XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 20))
         app.typeKey("k", modifierFlags: .command)
-        let field = app.textFields["fst.global-search.field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "⌘K opens search")
-        app.buttons["fst.global-search.close"].tap()
-        XCTAssertTrue(waitForDisappearance(of: field, timeout: 10))
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 10), "⌘K opens the Search row")
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 10), "Search shows its field")
         app.typeKey("p", modifierFlags: [.shift, .command])
         let scope = element(app, "fst.profile.scope")
         XCTAssertTrue(scope.waitForExistence(timeout: 10), "⇧⌘P opens profile selection")
@@ -270,6 +269,7 @@ final class IPadShellJourneyTests: XCTestCase {
         }
         app.typeKey("5", modifierFlags: .command)
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15), "⌘5 is Leaderboards")
+        XCTAssertFalse(app.navigationBars["Search"].exists, "⌘5 leaves Search")
         let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
         viewAll.tap()

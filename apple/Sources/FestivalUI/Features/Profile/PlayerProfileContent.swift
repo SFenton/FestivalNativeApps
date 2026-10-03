@@ -357,8 +357,10 @@ struct PlayerProfileContent: View {
             .padding(16)
             .festivalFadeInScope()
         }
-        .quickLinks(quickLinks, title: "Quick Links")
+        // On the scroll view itself: after `.quickLinks` it would land on the
+        // `ScrollViewReader` wrapper, which UI tests cannot find.
         .accessibilityIdentifier("fst.player.available")
+        .quickLinks(quickLinks, title: "Quick Links")
     }
 
     // MARK: Identity notices
@@ -376,8 +378,8 @@ struct PlayerProfileContent: View {
 
     /// Selection-pause notice and Select/Switch error, in one card shown only while
     /// either applies. The page title already names the player, so there is no
-    /// avatar or name here (issue #97). The action itself lives in the tab accessory
-    /// or toolbar (`ProfileIdentityAccessory.swift`).
+    /// avatar or name here (issue #97). The action itself is a toolbar item
+    /// (`ProfileIdentityToolbarItem` in `ProfileIdentityAction.swift`).
     ///
     /// - Parameter notice: Current pause reason, if any.
     private func identityNotices(_ notice: PlayerProfileIdentityNotice?) -> some View {

@@ -14,16 +14,25 @@ import FestivalDesign
 /// sidebar footer: the selected player (name opens their profile, Deselect beside it)
 /// or Select Profile, then Settings.
 ///
+/// A Search row heads the list: global search in the detail column (issue #92; HIG
+/// Search fields: "Use a sidebar/tab-bar search item for a dedicated discovery area ...
+/// keeping search available across sections").
+///
 /// Compiles on macOS only so hosted snapshot tests can render it; the Mac app has its
 /// own sidebar (`Mac/MacRootView.swift`).
 struct FestivalSidebar: View {
     let session: FestivalSession
     /// Browse rows (``SidebarMenu/browse(profile:hideShop:)``).
     let browse: [FestivalSection]
-    /// Selected root destination.
+    /// Selected root destination (underneath Search while it shows).
     let selected: FestivalSection
-    /// Select a destination (re-selecting pops it to its root).
+    /// The Search row is selected.
+    var searchSelected = false
+    /// Select a destination (re-selecting pops it to its root; choosing the destination
+    /// Search was opened from returns to it).
     let onSelect: (FestivalSection) -> Void
+    /// Show global search in the detail column; nil hides the Search row.
+    var onSearch: (() -> Void)?
     /// Push the selected player's page on the current destination.
     let onOpenPlayer: (AppRoute) -> Void
     /// Present profile selection.
@@ -36,11 +45,17 @@ struct FestivalSidebar: View {
 
     var body: some View {
         List(selection: selection) {
+            if onSearch != nil {
+                Label("Search", systemImage: "magnifyingglass")
+                    .accessibilityElement(children: .combine)
+                    .tag(RootTab.search)
+                    .accessibilityIdentifier("fst.nav.sidebar.search")
+            }
             ForEach(browse) { section in
                 Label(section.title, systemImage: section.symbol)
                     // One element per row, so the identifier names the row, not its icon.
                     .accessibilityElement(children: .combine)
-                    .tag(section)
+                    .tag(RootTab.section(section))
                     .accessibilityIdentifier("fst.nav.\(section.rawValue)")
             }
         }
@@ -65,12 +80,21 @@ struct FestivalSidebar: View {
         }
     }
 
-    /// List selection: only browse rows; Settings (footer) leaves the list unselected.
-    private var selection: Binding<FestivalSection?> {
+    /// List selection: Search and the browse rows; Settings (footer) leaves the list
+    /// unselected.
+    private var selection: Binding<RootTab?> {
         Binding {
-            browse.contains(selected) ? selected : nil
+            if searchSelected { return .search }
+            return browse.contains(selected) ? .section(selected) : nil
         } set: { next in
-            if let next, next != selected { onSelect(next) }
+            switch next {
+            case .search:
+                if !searchSelected { onSearch?() }
+            case let .section(section):
+                if section != selected || searchSelected { onSelect(section) }
+            case nil:
+                break
+            }
         }
     }
 
@@ -82,7 +106,7 @@ struct FestivalSidebar: View {
             profileRow
             SidebarFooterRow(
                 title: FestivalSection.settings.title, symbol: FestivalSection.settings.symbol,
-                isSelected: selected == .settings
+                isSelected: selected == .settings && !searchSelected
             ) {
                 onSelect(.settings)
             }

@@ -115,7 +115,7 @@ Band search is **not called** by native apps: when its projection is missing, th
 
 | ID | Element |
 |---|---|
-| `fst.global-search.open` | Shell Search action (one per window/scene; the same ID in every layout) |
+| `fst.global-search.open` | Shell Search action (one per window/scene). Apple iPhone/iPad use a system Search tab or sidebar row instead (issue #92, [ios.md](ios.md)), which has no settable ID |
 | `fst.global-search.surface` | The open surface (sheet, expanded search view, flyout or dialog) |
 | `fst.global-search.field` | Text field |
 | `fst.global-search.clear` | Clear-text control, when the platform field has one |

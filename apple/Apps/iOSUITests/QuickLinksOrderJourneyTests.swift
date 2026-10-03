@@ -2,12 +2,10 @@ import XCTest
 
 /// Quick Links menu order on every iPhone page that has one (#11, after #6).
 ///
-/// The iPhone menu opens upward from the bottom dock, where iOS reverses an
-/// `.automatic`-order menu so its first item sits nearest the touch. The shared
-/// `QuickLinksMenu` uses `.menuOrder(.fixed)` instead, so each page's menu must
-/// list its sections top to bottom in the order the page draws them. Each test
-/// opens the real system menu and compares the rows' on-screen order (by frame)
-/// with the page's section order, which also catches missing or extra rows.
+/// The shared `QuickLinksMenu` uses `.menuOrder(.fixed)`, so each page's menu must
+/// list its sections top to bottom in the order the page draws them. Each test opens
+/// the real system menu and compares the rows' on-screen order (by frame) with the
+/// page's section order, which also catches missing or extra rows.
 /// Settings is covered by `SettingsJourneyTests.testQuickLinksMenuListsSectionsInPageOrder`.
 ///
 /// Fixture-backed against `tools/mock_service.py` (port 8765; Band Detail uses the
@@ -52,8 +50,8 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
                 .sorted { $0.top < $1.top }
                 .map(\.id)
         }
-        // The iOS 26.1+ tab-bar accessory opens Quick Links as a sheet whose List builds
-        // only the rows on screen (issue #42): scroll it to collect the rest in order.
+        // A compact menu can build only the rows on screen: scroll it to collect the
+        // rest in order.
         var actual = visible()
         SongsUITestSupport.record(app, name: name)
         // Swipe the list, not a row: a swipe that does not scroll lands as a tap and jumps.

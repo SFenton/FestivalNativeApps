@@ -79,6 +79,59 @@ enum FestivalTabPolicy {
         return sections
     }
 
+    /// Most tabs a phone tab bar shows without a system "More" tab. The Search tab counts
+    /// toward it (measured, iOS 26.5: five sections plus Search moved Search into More).
+    static let phoneTabLimit = 5
+
+    /// Sections a phone tab bar drops first to leave room for the Search tab, in order.
+    /// Each stays in the drawer, which pushes it when it is not a tab (``DrawerMenu``).
+    static let dropOrderForSearchTab: [FestivalSection] = [.statistics, .rivals, .suggestions, .leaderboards]
+
+    /// Fit compact phone tabs beside the trailing Search tab (issue #92).
+    ///
+    /// HIG Tab bars: on iPhone a tab bar shows up to five tabs before "More", and a hidden
+    /// Search tab would defeat it. With a player selected, Statistics leaves the bar
+    /// (Songs · Suggestions · Compete · Settings · Search) and opens from the drawer.
+    /// Songs, Compete and Settings are never dropped: the drawer lists neither Compete
+    /// nor a pushable Settings.
+    ///
+    /// - Parameters:
+    ///   - sections: Sections from ``sections(profile:regularWidth:)``.
+    ///   - limit: Tab slots, the Search tab included.
+    /// - Returns: `sections` in order, minus the fewest droppable sections.
+    static func fittingSearchTab(_ sections: [FestivalSection], limit: Int = phoneTabLimit) -> [FestivalSection] {
+        var result = sections
+        for section in dropOrderForSearchTab where result.count + 1 > limit {
+            result.removeAll { $0 == section }
+        }
+        return result
+    }
+
+    /// The page the drawer pushes for a section the phone tab bar dropped to fit the
+    /// Search tab (``fittingSearchTab(_:limit:)``), so a launch or link naming it still
+    /// opens it rather than a neighbouring tab.
+    ///
+    /// - Parameters:
+    ///   - section: Requested root section.
+    ///   - profile: Selected profile kind.
+    ///   - visible: Sections shown as tabs.
+    /// - Returns: The drawer's route for `section`, or nil when it is a visible tab or
+    ///   not available for `profile` at all.
+    static func searchTabOverflowRoute(
+        for section: FestivalSection, profile: FestivalProfileKind, visible: [FestivalSection]
+    ) -> AppRoute? {
+        guard !visible.contains(section), dropOrderForSearchTab.contains(section),
+              sections(profile: profile, regularWidth: false).contains(section)
+        else { return nil }
+        switch section {
+        case .statistics: return .statistics
+        case .rivals: return .rivals
+        case .suggestions: return .suggestions
+        case .leaderboards: return .leaderboards
+        default: return nil
+        }
+    }
+
     /// Keep the user on an equivalent section when the visible set changes.
     ///
     /// Compete and Leaderboards occupy the same slot (web `activeKeys`), so selecting or

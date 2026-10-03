@@ -84,12 +84,16 @@ extension EnvironmentValues {
 /// `visibilityPriority`, so ``RootChromeRailPriorityTests`` pins the decision
 /// against a regression, not just a comment.
 ///
-/// `/duo` D3 (operator, 2026-10-02): global Search joins them at high priority (HIG
-/// Searching: "Give important search a primary position"); page actions such as Sort
-/// and Filter keep the default and overflow first.
+/// Global search is the Search tab (issue #92), so it is no longer a rail item. The
+/// separate Search tab leaves the folded rail room for only two items plus "…" with a
+/// profile selected (measured 2026-10-04): with Quick Links at `.high` too, the profile
+/// moved into "…". So Quick Links keeps the default priority, like Sort and Filter, and
+/// the badged bell and the profile identity stay visible (HIG Designing for iPhone Duo:
+/// "Set visibility priority by group ... to preserve frequent actions ... and
+/// status/badged items"). Horizontal bars show Quick Links regardless.
 enum RootChromeRailItem: CaseIterable, Equatable {
     case drawer
-    case search
+    case quickLinks
     case bell
     case profile
 
@@ -97,76 +101,67 @@ enum RootChromeRailItem: CaseIterable, Equatable {
     /// items with standard priority once the vertical bar runs out of room.
     var staysVisibleAheadOfOthers: Bool {
         switch self {
-        case .drawer: false
-        case .search, .bell, .profile: true
+        case .drawer, .quickLinks: false
+        case .bell, .profile: true
         }
     }
 }
 
 // MARK: - Trailing glass groups
 
-/// A shared trailing item that ``FestivalRootTrailingItems`` places on every tab root.
+/// A trailing item in the persistent top bar (issue #92), leading to trailing.
 enum RootChromeTrailingItem: Equatable {
-    case search
+    /// A page action (Songs Sort, Filter; Song Detail Item Shop, Paths…).
+    case pageAction
+    /// The page's Quick Links menu.
+    case quickLinks
+    /// The notifications bell (a profile is selected).
     case bell
+    /// The profile button, always the trailing-most item.
     case profile
 }
 
-/// How the shared trailing items split into Liquid Glass groups (iOS 26+).
+/// How the persistent top bar's trailing items split into Liquid Glass groups (iOS 26+).
 ///
-/// SwiftUI merges adjacent bar items into one glass capsule by default, which drew
-/// the bell and the avatar as a single control. They are independent actions (issue
-/// #14), so horizontal bars separate them with `ToolbarSpacer(.fixed)`. HIG Toolbars
-/// "Item groupings": "generally use no more than three groups" — page actions join
-/// the Search group (no spacer before Search), so the trailing side stays at
-/// [page actions + Search] · bell · profile.
+/// Issue #92: two groups, page tools (page actions, then Quick Links) and account
+/// (Notifications, Profile), separated by a toolbar spacer. HIG Toolbars "Item
+/// groupings": "Trailing: important always-available items" and "generally use no more
+/// than three groups". SwiftUI merges adjacent bar items into one capsule, so the page
+/// tools share one capsule and the bell and profile share the other.
 ///
-/// The iPhone Duo vertical bar keeps the bell and profile together: it fits only two
-/// root items plus "…" (`.agents/design/apple/duo.md` "Toolbar rules"), and an extra
-/// gap there could push one of them into the overflow menu.
+/// The iPhone Duo vertical bar gets no fixed spacer: HIG Designing for iPhone Duo, "Group
+/// related items with `ToolbarItemGroup`/`UIBarButtonItemGroup`; system spacing adapts,
+/// so don't add fixed spacing."
 enum RootChromeTrailingGroups {
-    /// Whether the bell and the profile avatar get separate glass backgrounds.
+    /// Whether the account group (bell, profile) is separated from the page tools by a
+    /// `ToolbarSpacer(.fixed)`.
     ///
     /// - Parameter chrome: Current section chrome.
     /// - Returns: False only in the system vertical bar.
-    static func separatesBellFromProfile(chrome: DeviceLayout.SectionChrome) -> Bool {
+    static func separatesAccount(chrome: DeviceLayout.SectionChrome) -> Bool {
         !chrome.isVerticalBar
     }
 
-    /// Whether Search (and the page actions before it) get a glass group of their own.
-    ///
-    /// HIG Designing for iPhone Duo: "Group related items with
-    /// `ToolbarItemGroup`/`UIBarButtonItemGroup`; system spacing adapts, so don't add fixed
-    /// spacing." The vertical bar therefore gets no `ToolbarSpacer(.fixed)` at all.
-    ///
-    /// - Parameter chrome: Current section chrome.
-    /// - Returns: False only in the system vertical bar.
-    static func separatesSearch(chrome: DeviceLayout.SectionChrome) -> Bool {
-        !chrome.isVerticalBar
-    }
-
-    /// The glass groups the shared trailing items form, leading to trailing.
+    /// The glass groups the trailing items form, leading to trailing.
     ///
     /// - Parameters:
-    ///   - showsSearch: Global search is available.
+    ///   - pageActions: Number of page actions (0 when the page has none or they are
+    ///     folded into one menu, which then counts as one).
+    ///   - showsQuickLinks: The page offers Quick Links.
     ///   - showsBell: The bell shows (a profile is selected and the page allows it).
     ///   - chrome: Current section chrome.
-    /// - Returns: One array per glass group, in bar order.
+    /// - Returns: One array per glass group, in bar order. Never more than two groups.
     static func resolve(
-        showsSearch: Bool, showsBell: Bool, chrome: DeviceLayout.SectionChrome
+        pageActions: Int, showsQuickLinks: Bool, showsBell: Bool,
+        chrome: DeviceLayout.SectionChrome
     ) -> [[RootChromeTrailingItem]] {
-        guard separatesSearch(chrome: chrome) else {
-            return [(showsSearch ? [.search] : []) + (showsBell ? [.bell] : []) + [.profile]]
+        let tools = Array(repeating: RootChromeTrailingItem.pageAction, count: max(0, pageActions))
+            + (showsQuickLinks ? [.quickLinks] : [])
+        let account: [RootChromeTrailingItem] = (showsBell ? [.bell] : []) + [.profile]
+        guard separatesAccount(chrome: chrome), !tools.isEmpty else {
+            return tools.isEmpty ? [account] : [tools + account]
         }
-        var groups: [[RootChromeTrailingItem]] = showsSearch ? [[.search]] : []
-        if !showsBell {
-            groups.append([.profile])
-        } else if separatesBellFromProfile(chrome: chrome) {
-            groups.append(contentsOf: [[.bell], [.profile]])
-        } else {
-            groups.append([.bell, .profile])
-        }
-        return groups
+        return [tools, account]
     }
 }
 
@@ -268,13 +263,16 @@ struct FestivalRootChrome: ViewModifier {
 
 // MARK: - Shared trailing items
 
-/// Global search, the notifications bell and the profile avatar at the top-right.
+/// The account group at the top-right: the notifications bell (a profile is selected),
+/// then the profile button, always the trailing-most item (issue #92).
 ///
 /// Pages with their own trailing actions list this **last** inside their `.toolbar`
 /// and apply `.festivalProvidesRootTrailingItems()`, so the avatar stays rightmost.
+/// Global search is the Search tab, not a bar button.
 ///
-/// In horizontal bars the bell and avatar are separate glass buttons
-/// (``RootChromeTrailingGroups``); the Duo vertical bar keeps them in one group.
+/// In horizontal bars a `ToolbarSpacer(.fixed)` separates this account group from the
+/// page tools before it (Sort, Filter, Quick Links), so the bar shows two Liquid Glass
+/// groups (``RootChromeTrailingGroups``); the Duo vertical bar relies on system spacing.
 ///
 /// In the iPhone Duo vertical bar both items stay symbol items (see ``RootProfileButton``)
 /// and carry `visibilityPriority(.high)` (iOS 27+), so page actions overflow into the
@@ -286,28 +284,16 @@ struct FestivalRootTrailingItems: ToolbarContent {
     @Environment(\.openProfile) private var openProfile
     /// Notification rows open their destination on the current tab (issue #75).
     @Environment(\.pushRoute) private var pushRoute
-    /// Global search: a header button on every layout (operator, 2026-09-28).
-    @Environment(\.openGlobalSearch) private var openGlobalSearch
     @Environment(\.deviceLayout) private var layout
+    #if !os(iOS)
+    @Environment(\.openGlobalSearch) private var openGlobalSearch
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
+    #endif
 
     var body: some ToolbarContent {
         #if os(iOS)
-        if let openGlobalSearch {
-            // Global search before the bell and avatar (web header order).
-            if #available(iOS 27.0, *) {
-                ToolbarItem(placement: .topBarTrailing) {
-                    GlobalSearchButton { openGlobalSearch() }
-                }
-                .railVisibilityPriority(.search)
-            } else {
-                ToolbarItem(placement: .topBarTrailing) {
-                    GlobalSearchButton { openGlobalSearch() }
-                }
-            }
-        }
         if #available(iOS 26.0, *) {
-            if RootChromeTrailingGroups.separatesSearch(chrome: layout.sectionChrome) {
+            if RootChromeTrailingGroups.separatesAccount(chrome: layout.sectionChrome) {
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
             }
         }
@@ -321,11 +307,6 @@ struct FestivalRootTrailingItems: ToolbarContent {
             } else {
                 ToolbarItem(placement: .topBarTrailing) {
                     NotificationsButton(session: session, pushRoute: pushRoute)
-                }
-            }
-            if #available(iOS 26.0, *) {
-                if RootChromeTrailingGroups.separatesBellFromProfile(chrome: layout.sectionChrome) {
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
             }
         }
@@ -362,10 +343,10 @@ extension ToolbarItemPlacement {
     ///
     /// iOS pins `.primaryAction` to the far trailing edge, after every `.topBarTrailing`
     /// item, whatever modifier added it. Page actions therefore use `.topBarTrailing`,
-    /// before the shared Search and bell, and the pushed-page profile avatar alone uses
-    /// `.primaryAction` (``GlobalSearchToolbarItem``). Its outer modifier would otherwise
-    /// lay it out *before* the page's own items, folding it into their glass group away
-    /// from the corner (issue #85). Other platforms use `.primaryAction`.
+    /// before the shared bell and profile, and the pushed-page account group (bell,
+    /// profile) uses `.primaryAction` (``PageTrailingItems``). Its outer modifier would
+    /// otherwise lay it out *before* the page's own items, folding it into their glass
+    /// group away from the corner (issue #85). Other platforms use `.primaryAction`.
     static var festivalPageAction: ToolbarItemPlacement {
         #if os(iOS)
         .topBarTrailing

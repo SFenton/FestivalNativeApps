@@ -1,17 +1,17 @@
 import XCTest
 
-/// Issue #15: navigation-bar and floating page buttons accept near-miss taps.
+/// Issue #15: navigation-bar page buttons accept near-miss taps.
 ///
 /// Each button is tapped 20 pt off-centre in every direction and 15 pt diagonally, all
 /// inside a 44 × 44 pt square centred on it (HIG Buttons: "the hit region is at least
 /// 44x44 pt"), and must open its own sheet or menu. Neighbours are probed the same way,
 /// so a tap that opened the wrong one (overlapping hit regions) fails too.
 ///
-/// Before the fix the floating Quick Links menu answered only ~12 pt either side of its
-/// glyph and nowhere above or below it, and the selected-profile monogram only inside
-/// its 36 pt-tall capsule. Runs against `tools/mock_service.py --large-catalogue`,
-/// exported as `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`; the in-bar and Quick Links
-/// checks skip on the two-song fixture, which has a single Year section and no scroll.
+/// Before the fix the Quick Links menu answered only ~12 pt either side of its glyph
+/// and nowhere above or below it, and the selected-profile monogram only inside its
+/// 36 pt-tall capsule. Runs against `tools/mock_service.py --large-catalogue`,
+/// exported as `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`; Quick Links checks skip on
+/// the two-song fixture, which has a single Year section.
 final class NavButtonHitRegionJourneyTests: XCTestCase {
     /// Offsets from a button's centre, all inside a 44 × 44 pt square.
     private static let nearMisses: [CGVector] = [
@@ -34,10 +34,9 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     // MARK: - Journeys
 
-    /// Filter, Sort and Quick Links above the tab bar, floating or in the iOS 26.1+ tab-bar
-    /// accessory (issue #42; Year sort adds Quick Links).
+    /// Songs' page tools in the navigation bar accept 44 pt near-miss taps.
     @MainActor
-    func testFloatingToolsAcceptNearMisses() throws {
+    func testSongsPageToolsAcceptNearMisses() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
@@ -45,14 +44,15 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let sort = app.buttons["fst.songs.sort"]
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
         try chooseYearSort(in: app)
-        let ids = ["fst.songs.filter", "fst.songs.sort", "fst.quick-links.open"]
+        // XCUITest reports the 36 pt glass capsule; the system hit region around it is
+        // checked by the near-miss taps below.
+        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
         let frames = ids.map { app.buttons[$0].frame }
         for (id, frame) in zip(ids, frames) {
-            XCTAssertGreaterThanOrEqual(frame.width, 44, "\(id) \(frame)")
-            XCTAssertGreaterThanOrEqual(frame.height, 44, "\(id) \(frame)")
+            XCTAssertGreaterThanOrEqual(frame.height, 36, "\(id) \(frame)")
         }
         for index in frames.indices.dropLast() {
-            XCTAssertLessThan(frames[index].maxX, frames[index + 1].minX, "\(ids[index]) touches its neighbour")
+            XCTAssertLessThanOrEqual(frames[index].maxX, frames[index + 1].minX, "\(ids[index]) overlaps its neighbour")
         }
 
         assertNearMissesOpen(app, "fst.songs.filter", opens: app.buttons["fst.songs.filter.done"]) {
@@ -66,7 +66,30 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Drawer, Search, bell and the selected-profile monogram in the navigation bar.
+    /// Songs' trailing navigation bar order is page tools, then account items, with
+    /// 44 pt hit regions on the standard iPhone width.
+    @MainActor
+    func testSongsTrailingNavBarOrderAndHitRegions() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(profile: true)
+        app.launch()
+        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.shell.notifications", "fst.shell.profile"]
+        let controls = ids.map { app.buttons[$0] }
+        XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "iPhone 17 Pro should not fold Sort and Filter")
+        for (id, control) in zip(ids, controls) {
+            XCTAssertTrue(control.waitForExistence(timeout: 15), "\(id) missing")
+            XCTAssertTrue(control.isHittable, "\(id) not hittable")
+            XCTAssertGreaterThanOrEqual(control.frame.height, 36, "\(id) visual frame \(control.frame)")
+        }
+        for index in controls.indices.dropLast() {
+            XCTAssertLessThan(
+                controls[index].frame.minX, controls[index + 1].frame.minX,
+                "\(ids[index]) is not before \(ids[index + 1])"
+            )
+        }
+    }
+
+    /// Drawer, bell and the selected-profile monogram in the navigation bar.
     @MainActor
     func testHeaderButtonsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -75,9 +98,6 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.shell.profile"].waitForExistence(timeout: 15))
         assertNearMissesOpen(app, "fst.shell.drawer.open", opens: app.buttons["fst.shell.drawer.close"]) {
             app.buttons["fst.shell.drawer.close"].tap()
-        }
-        assertNearMissesOpen(app, "fst.global-search.open", opens: app.buttons["fst.global-search.close"]) {
-            app.buttons["fst.global-search.close"].tap()
         }
         assertNearMissesOpen(app, "fst.shell.notifications", opens: app.buttons["fst.notifications.close"]) {
             app.buttons["fst.notifications.close"].tap()
@@ -108,28 +128,34 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Sort, Filter and Quick Links after they rise into the navigation bar (issue #13).
+    /// Sort, Filter and Quick Links stay in the navigation bar while the list scrolls.
     @MainActor
-    func testToolsInTheBarAcceptNearMisses() throws {
+    func testSongsToolsStayInTheBarWhileScrolled() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
         defer { resetSort(in: app) }
         XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
-        if app.buttons["fst.songs.search.open"].waitForExistence(timeout: 3) {
-            throw XCTSkip("iOS 26.1+: the tools stay in the tab-bar accessory while scrolled (issue #42).")
-        }
         try chooseYearSort(in: app)
+        let field = app.searchFields["Filter Songs"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
         app.swipeUp()
-        let inBar = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
-            MainActor.assumeIsolated {
-                app.buttons["fst.quick-links.open"].frame.maxY
-                    <= app.navigationBars.firstMatch.frame.maxY + 1
+        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
+        for _ in 0..<100 {
+            let bar = app.navigationBars.firstMatch.frame
+            if ids.allSatisfy({ id in
+                let button = app.buttons[id]
+                return button.exists && button.isHittable && button.frame.maxY <= bar.maxY + 1
+            }) {
+                break
             }
-        }, object: nil)
-        guard XCTWaiter.wait(for: [inBar], timeout: 10) == .completed else {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        let bar = app.navigationBars.firstMatch.frame
+        guard ids.allSatisfy({ app.buttons[$0].exists && app.buttons[$0].frame.maxY <= bar.maxY + 1 }) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
+        XCTAssertTrue(field.exists, "Filter Songs field disappeared while scrolled")
         assertNearMissesOpen(app, "fst.songs.sort", opens: app.buttons["fst.songs.sort.done"]) {
             app.buttons["fst.songs.sort.done"].tap()
         }
@@ -178,8 +204,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.quick-links.item.'")).firstMatch
     }
 
-    /// Close the Quick Links menu (floating or in the bar) by tapping away from it; the
-    /// dismissing tap is consumed. A legacy sheet closes with its close button.
+    /// Close the Quick Links menu by tapping away from it; the dismissing tap is
+    /// consumed. A legacy sheet closes with its close button.
     @MainActor
     private static func closeQuickLinks(in app: XCUIApplication) {
         let close = app.buttons["fst.quick-links.close"]

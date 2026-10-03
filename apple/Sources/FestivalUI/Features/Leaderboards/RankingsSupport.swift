@@ -715,9 +715,8 @@ private struct PagerPlate: ViewModifier {
 /// web's floating pagination pill and instrument pill (`FullRankingsPage.tsx`).
 ///
 /// Place it with `.safeAreaInset(edge: .bottom)` on the page: inside a `TabView` the
-/// page's bottom safe area already ends above the floating tab bar and the tab-bar
-/// bottom accessory (global Search, `Common/TabAccessory`), so the bar sits above
-/// both and the scroll content insets under it. On the iPhone Duo vertical bar it
+/// page's bottom safe area already ends above the floating tab bar, so the bar sits
+/// above it and the scroll content insets under it. On the iPhone Duo vertical bar it
 /// renders nothing: ``RankingsPagerToolbarContent`` puts the pager in the rail (B2)
 /// and the caller keeps its switcher menu in the toolbar.
 ///
