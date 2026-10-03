@@ -27,6 +27,11 @@ struct RivalDetailScreen: View {
     @State private var songsById: [String: Song] = [:]
     @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
+    /// Pushes on the current tab: the accessory is outside the navigation stack, so a
+    /// `NavigationLink` there could not push.
+    @Environment(\.pushRoute) private var pushRoute
     private var visible = VisibleInstrumentsReader()
 
     /// Create the screen.
@@ -55,13 +60,24 @@ struct RivalDetailScreen: View {
         .navigationTitle(displayName ?? "Rival")
         .festivalBackground(.carousel, session: session)
         .toolbar {
-            ToolbarItem(placement: .festivalPageAction) {
-                NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: displayName)) {
-                    Label("View Profile", systemImage: "person.crop.circle")
+            if pageTools == nil {
+                ToolbarItem(placement: .festivalPageAction) {
+                    NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: displayName)) {
+                        Label("View Profile", systemImage: "person.crop.circle")
+                    }
+                    .accessibilityIdentifier("fst.rival-detail.view-profile")
                 }
-                .accessibilityIdentifier("fst.rival-detail.view-profile")
             }
             QuickLinksToolbarItem(quickLinks)
+        }
+        // iPhone tab-bar accessory (issue #92): View Profile before Quick Links.
+        .festivalPageTool(token: displayName ?? "", order: PageToolOrder.primary) {
+            Button {
+                pushRoute?(.player(accountId: rivalId, displayName: displayName))
+            } label: {
+                Label("View Profile", systemImage: "person.crop.circle")
+            }
+            .accessibilityIdentifier("fst.rival-detail.view-profile")
         }
         .task(id: RivalDetailTaskKey(rivalId: rivalId, scope: scope)) { await load() }
         .task { await loadSongLookup() }

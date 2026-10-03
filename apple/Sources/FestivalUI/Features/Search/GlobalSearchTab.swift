@@ -74,7 +74,9 @@ private struct SearchPageChrome: ViewModifier {
 /// - Choosing the Search tab activates its field (`.searchTabSelection`), so the keyboard
 ///   comes up at once (HIG Search fields).
 /// - The horizontal tab bar minimizes on scroll down, to the current tab and Search,
-///   with nothing riding on it (HIG Tab bars: "scrolling down can minimize the bar").
+///   and the page-tools accessory moves inline beside it (HIG Tab bars: "With an
+///   attached accessory such as Music's MiniPlayer, scrolling down can minimize the bar
+///   and move the accessory inline").
 struct RootTabBarBehavior: ViewModifier {
     @Environment(\.deviceLayout) private var layout
 

@@ -201,6 +201,7 @@
   ],
   "testIds": {
     "fst.shell.*": "app-navigation",
+    "fst.page-tools.*": "app-navigation",
     "fst.history.*": "player-history",
     "fst.notifications.*": "notifications",
     "fst.quick-links.*": "quick-links",
