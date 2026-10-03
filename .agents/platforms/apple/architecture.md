@@ -86,3 +86,39 @@ Loaded content never pops in: apply `.festivalFadeIn(isLoaded:)` (`Common/FadeIn
 ## Loading indicators (operator rule)
 
 Every spinner is `Common/FestivalLoadingView` (white, **no visible title/subtitle**; spoken label only). Never `ProgressView("…")` with text. Determinate progress bars (e.g. Paths image download) are exempt.
+
+## Performance
+
+Measured with [`tools/apple_perf.py`](../../../tools/apple_perf.py) (live SFentonX, Mac window 1280×820, FST iPad Pro 11" simulator). Rules that keep the numbers down:
+
+- **Continuous decoration runs on Core Animation, never in SwiftUI.** A SwiftUI animation, `TimelineView` or `phaseAnimator` that never ends re-renders the window's graph every display frame (on the Mac, a NSHostingView layout per frame). The carousel (`CarouselSlotLayer`, 30 fps discrete keyframes), the Shop row border and Song Detail breathe (`ShopPulseLayer`, one wall-clock phase `ShopPulseClock` for every pulse, 30 fps) and marquee scrolling (`MarqueeTrackLayer`, a bitmap of the text) are render-server animations; the app does no work per frame. HIG motion (`apple-hig` `distilled/motion.md`): purposeful, honours Reduce Motion, which all three still do.
+- **Still states draw with SwiftUI** (Mac still carousel slot, paused pulses, fitting or paused marquees) so `ImageRenderer` captures keep their pixels; platform views do not render there.
+- **Mac dimming:** AppKit composites a translucent black layer about twice as bright as SwiftUI's `colorMultiply`, so the Mac multiplies cover pixels once per cover (`DimmedArtwork`). iOS keeps the black layer (unchanged).
+- **Rows must not lay out twice.** No `@State` written from geometry or preferences for every row: `MarqueeText` measures with `MarqueeFitLayout` and only overflowing text flips one Bool. A platform view per row is expensive in a `List`; create one only where needed (overflowing marquees, animating Shop rows). `ViewThatFits` costs about as much as the old double layout.
+- **Fewer views per row:** status chips are pre-drawn bitmaps (`SongStatusChipImages`); a custom `Layout` with icon-only children returns nil from `explicitAlignment` (the default re-measures every child per parent alignment query).
+- **No formatter construction in bodies:** use `ISO8601Parsing` (cached `ISO8601DateFormatter`s).
+
+### Methodology
+
+| Command | Measures |
+|---|---|
+| `apple_perf.py build mac\|ipad [--configuration Release] [--probe]` | `--probe` = Release optimization with the `DEBUG` condition (own DerivedData), so the Debug overrides and stall monitor run on optimized code. True Release ignores `FST_DEBUG_*` and opens on the persisted page (the first-run sheet over Songs on this Mac) |
+| `apple_perf.py mac\|ipad --tab songs` | Process CPU (`ps` time delta, one core = 100%) in 2 s windows over 20 s after a 20 s settle; the Mac window must be uncovered (occlusion pauses everything) |
+| `… --stress` | `FST_DEBUG_SONGS_SCROLL_STRESS` (6 rounds of animated section jumps) with `MainThreadStallMonitor`; counts units ≥ 100 ms between the pass's `marks` |
+| `… --trace 'Time Profiler' --top 30` (or `'SwiftUI'`, `'Animation Hitches'`) | `xctrace record --attach` for `--duration`; with `--stress` it covers the pass. `--top` lists leaf and first-app-frame symbols |
+
+### Last measured (2026-10-02)
+
+Before = `a64b8fae`/`301adecf`, after = this lane's commits; CPU is the mean of the 2 s windows.
+
+| Measure | Before | After |
+|---|---|---|
+| Mac Songs idle CPU, Debug / Release probe | 57.7% / 59.9% | **0.6% / 0.6%** |
+| Mac Leaderboards / Statistics / Item Shop idle, probe | 39.5% / 37.4% / 18.3% | 0.7% / 0.7% / 0.7% |
+| Mac true Release (first-run Song Info sheet over Songs) | 38.9% | 14.3% (the sheet's `repeatForever` shadow glow) |
+| Mac Songs scroll stress, units ≥ 100 ms (worst), Debug | 62 (526 ms) | 22–23 (376–436 ms) |
+| Mac Songs scroll stress, probe | 68 (631 ms) | 13–29 (293–420 ms) |
+| iPad Songs idle CPU, Debug / probe | 3.1% / 2.4% | 4.3% / 1.0% (iPad already used the Core Animation carousel; noise ±3%) |
+| iPad Songs scroll stress, Debug / probe | 38 (714 ms) / 39 (717 ms) | 40 (378 ms) / 37 (446 ms) |
+
+Open: the stress pass's animated far jumps still build rows inside `NSTableView`/`UICollectionView` animated scrolls (each jump ≈ 250–450 ms); real section jumps (`jumpToSection`) are instant. The first-run demo glow (`FirstRunPulse`) is still a SwiftUI shadow animation.

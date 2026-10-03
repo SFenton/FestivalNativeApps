@@ -4,7 +4,7 @@
 
 | File | Read when |
 |---|---|
-| [architecture.md](architecture.md) | Package/target layout, network client, caches, shared components |
+| [architecture.md](architecture.md) | Package/target layout, network client, caches, shared components, performance rules and numbers (`tools/apple_perf.py`) |
 | [build-and-run.md](build-and-run.md) | Building, launching against live or fixture service, launch-screen prerequisite |
 | [simulators.md](simulators.md) | Which simulator to use and the one-at-a-time rules |
 | [duo.md](duo.md) | iPhone Duo simulator/posture facts |

@@ -12,6 +12,7 @@ from tools.apple_perf import (
     app_bundle,
     build_argv,
     cpu_percent,
+    ipad_product,
     parse_cpu_time,
     parse_launch_pid,
     parse_time_profile,
@@ -75,7 +76,9 @@ class LaunchAndBuildTests(unittest.TestCase):
 
     def test_probe_builds_use_their_own_derived_data(self):
         self.assertTrue(str(app_bundle("mac", "Release", True)).endswith("mac-probe/Build/Products/Release/FestivalDesktop.app"))
-        self.assertTrue(str(app_bundle("ipad", "Debug", False)).endswith("lane/Build/Products/Debug-iphonesimulator/FestivalTablet.app"))
+        self.assertTrue(str(app_bundle("ipad", "Debug", False)).endswith(
+            f"lane/Build/Products/Debug-iphonesimulator/{ipad_product().app_name}.app"))
+        self.assertIn(ipad_product().scheme, build_argv("ipad", "Debug", False))
         argv = build_argv("mac", "Release", True)
         self.assertIn("SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG", argv)
         self.assertNotIn("SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG", build_argv("mac", "Release", False))

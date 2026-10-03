@@ -459,7 +459,8 @@ def start_trace(pid: int, template: str, seconds: float, out: Path, device: str 
     out.parent.mkdir(parents=True, exist_ok=True)
     argv = trace_argv(pid, template, seconds, out, device)
     print("+", " ".join(argv), file=sys.stderr)
-    return subprocess.Popen(argv, env=_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    log = open(out.with_suffix(".log"), "w")
+    return subprocess.Popen(argv, env=_env(), stdout=log, stderr=subprocess.STDOUT)
 
 
 def print_top(trace: Path, limit: int) -> dict:
@@ -621,7 +622,9 @@ def cmd_ipad(args: argparse.Namespace) -> int:
             print(f"could not read the app pid from {launched.stdout!r}", file=sys.stderr)
             return 1
         try:
-            result = _measure(args, pid, stall_log, udid)
+            # Simulator apps are host processes: xctrace attaches to the host pid on
+            # this Mac (with `--device <udid>` it cannot find that pid).
+            result = _measure(args, pid, stall_log, None)
         finally:
             _run(["xcrun", "simctl", "terminate", udid, bundle_id], check=False, capture_output=True)
     return _report(args, result)

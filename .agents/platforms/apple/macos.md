@@ -27,25 +27,16 @@
 - Pure parts are tested in `tools/tests/test_mac_app.py`.
 - Key presses reach the focused page even though the window is not key, but SwiftUI then reports no keyboard focus, so live shots show the gray (unfocused) selection.
 
-## Performance (2026-10-02, Debug build, 1280×820, live SFentonX)
+## Performance
 
-CPU is the process's `ps -o time` delta over 20 s (one core = 100%), with the window visible but the app in the background, after a 20 s settle.
+Methodology, rules and the last measured numbers (Debug, Release probe, Release; Mac and iPad): [architecture.md § Performance](architecture.md#performance), tool `tools/apple_perf.py`.
 
-| State | CPU |
-|---|---|
-| Songs (carousel behind the list, song cover behind Song Detail, Shop pulse borders and marquee titles on rows) | 53–61% (`top` samples 45–70%) |
-| Songs with `FST_DEBUG_STILL_BACKGROUND=1` (carousel, pulses and marquees still) | 0.0% |
-| Songs, window covered (`command minimize`) | **0.0%** after the occlusion pause (17% while marquees still ignored it, 45–55% before any pause) |
-| Songs, uncovered again | 54–59% (resumes) |
-| Leaderboards (carousel only) | 35% |
-| Statistics | 16% |
-
-- Before this change nothing paused for a hidden window: on macOS `scenePhase` stays `.active` for a visible-or-hidden window of a background app. Every continuous decoration now uses `AnimationActivity.sceneActive` (scene active and `\.festivalWindowVisible`, set from `NSWindow.occlusionState` by `MacWindowConfigurator`).
-- The remaining Songs cost is per-row: each visible Shop row runs its own 30 fps `TimelineView` pulse and long titles run marquees. A shared pulse clock would be the next saving.
-- **Songs scroll stress** (`FST_DEBUG_SONGS_SCROLL_STRESS=1 FST_DEBUG_STALL_LOG=<path>`; the Mac app now starts `MainThreadStallMonitor`): 6 rounds of animated section jumps in ~35 s logged 51 main-thread units ≥ 100 ms, worst **423 ms**, longest awake span 447 ms (Debug). Far jumps place unbuilt `List` rows from estimates; manual trackpad scrolling cannot be driven without Automation Mode.
+- On macOS `scenePhase` stays `.active` for a visible-or-hidden window of a background app, so every continuous decoration also checks `AnimationActivity.sceneActive` (scene active and `\.festivalWindowVisible`, set from `NSWindow.occlusionState` by `MacWindowConfigurator`). A covered window reads 0% CPU; measure with the window uncovered.
+- `FST_DEBUG_STILL_BACKGROUND=1` stills carousel, pulses and marquees; `FST_DEBUG_NO_BACKDROP=1` drops the backdrop, for bisecting.
+- **Songs scroll stress** (`apple_perf.py mac --stress`): far animated jumps place unbuilt `List` rows from estimates, so the pass still logs units ≥ 100 ms (row creation inside `NSTableView`'s animated scroll). Manual trackpad scrolling cannot be driven without Automation Mode.
 
 ## Release build (2026-10-02)
 
 - `python3 tools/mac_app.py build --configuration Release` (1 min 50 s clean on this Mac) produces a universal (arm64 + x86_64) `FestivalDesktop.app` of 61 MB, **ad-hoc signed** (`Signature=adhoc`, no team; project `CODE_SIGN_IDENTITY: "-"`). Distribution signing and notarization need separate approval.
 - `launch --configuration Release` showed the window in 1.3–1.7 s over three launches (tool-measured, includes its 0.25 s poll). Release ignores the `FST_DEBUG_*` environment and the Debug notifications, so it opens with the persisted profile and its own first-run state (the Song Info carousel on first launch) and `quit` falls back to SIGTERM.
-- Release with the first-run sheet over Songs: 42% CPU, 347 MB RSS.
+- Release with the first-run sheet over Songs: see the CPU row in [architecture.md § Performance](architecture.md#performance) (the sheet's demo glow is a SwiftUI `repeatForever` shadow).
