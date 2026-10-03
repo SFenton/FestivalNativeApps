@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.profile
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -51,7 +49,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.onClick
@@ -60,12 +57,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.core.model.Instrument
-import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
 import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.ProfileRow
@@ -135,7 +130,8 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val gridState = rememberLazyStaggeredGridState()
     val loaded = state.phase == ProfilePhase.Loaded
     val visible = state.instruments.map { it.instrument }
-    val rows = remember(visible, loaded) { if (loaded) ProfileSections.rows(visible) else emptyList() }
+    val showIdentity = state.showsIdentityRow
+    val rows = remember(visible, loaded, showIdentity) { if (loaded) ProfileSections.rows(visible, showIdentity) else emptyList() }
     val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
     val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
@@ -161,7 +157,9 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
 // region Content
 
 /**
- * The shared player-profile body: header with identity actions, Overview, one card
+ * The shared player-profile body: identity actions (Select/Switch and paused-selection
+ * notices, only when they apply; no avatar or name, the top bar names the page),
+ * Overview, one card
  * per Settings-visible chart (stats, global rank, rank history, percentiles), top and
  * bottom five songs per chart and the Bands link. Select/Switch never
  * navigate away; stat tiles and song rows do (web `withProfileSwitch`).
@@ -240,7 +238,7 @@ private fun LoadedProfile(
             item(key = row.key, span = span) {
                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index)).readingGroup()) {
                 when (row) {
-                    ProfileRow.Header -> Header(state, onSelect = {
+                    ProfileRow.Identity -> IdentityActions(state, onSelect = {
                         if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
                     })
                     ProfileRow.Overview -> Column(Modifier.testTag("fst.player.overview")) {
@@ -298,54 +296,34 @@ private fun LoadedProfile(
 
 // endregion
 
-// region Header
+// region Identity actions
 
+/**
+ * Select/Switch, the paused-selection notice and the last action error, straight on the
+ * page background. Issue #97: no avatar/name card; the top bar already names the player.
+ *
+ * @param state Page state.
+ * @param onSelect Select, or ask to confirm a switch.
+ */
 @Composable
-private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth().testTag("fst.player.header")) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Decorative initials: the name heading beside it is what TalkBack reads.
-                Box(
-                    Modifier.size(56.dp).background(BrandTokens.accentPurple, CircleShape).clearAndSetSemantics { },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        SelectedPlayer(state.accountId, state.displayName).initials,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandTokens.textPrimary,
-                    )
-                }
-                Column(Modifier.padding(start = 16.dp).weight(1f)) {
-                    Text(
-                        state.displayName,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandTokens.textPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("fst.player.name").semantics { heading() },
-                    )
-                }
+private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit) {
+    Column(Modifier.fillMaxWidth().testTag("fst.player.identity"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        when (state.identity) {
+            PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
+                onClick = onSelect,
+                colors = festivalFilledButtonColors(),
+                modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.select"),
+            ) { Text(state.selectLabel) }
+            else -> Unit
+        }
+        state.identityNotice?.let { notice ->
+            Row(Modifier.testTag("fst.player.identity-notice"), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(18.dp))
+                Text(notice, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary, modifier = Modifier.padding(start = 8.dp))
             }
-            when (state.identity) {
-                PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
-                    onClick = onSelect,
-                    colors = festivalFilledButtonColors(),
-                    modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp).testTag("fst.player.select"),
-                ) { Text(state.selectLabel) }
-                else -> Unit
-            }
-            state.identityNotice?.let { notice ->
-                Row(Modifier.padding(top = 12.dp).testTag("fst.player.identity-notice"), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(18.dp))
-                    Text(notice, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary, modifier = Modifier.padding(start = 8.dp))
-                }
-            }
-            state.actionError?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp).testTag("fst.player.action-error"))
-            }
+        }
+        state.actionError?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("fst.player.action-error"))
         }
     }
 }

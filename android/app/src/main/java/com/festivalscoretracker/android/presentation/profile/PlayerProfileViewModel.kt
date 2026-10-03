@@ -318,6 +318,11 @@ data class PlayerProfileUiState(
             PlayerIdentityAction.Changed -> "Published scores changed. Reload this page before selecting."
             else -> null
         }
+
+    /** Whether the page needs its identity row: a Select/Switch button, a paused-selection notice or an action error. */
+    val showsIdentityRow: Boolean
+        get() = identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch ||
+            identityNotice != null || actionError != null
 }
 
 // endregion
