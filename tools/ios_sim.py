@@ -292,7 +292,7 @@ def output_paths(steps: list[str]) -> list[str]:
     paths = []
     for step in steps:
         verb, _, arg = step.partition(":")
-        if verb in ("shot", "tree", "systemTree") and arg:
+        if verb in ("shot", "tree", "systemTree", "windowFrame") and arg:
             paths.append(arg)
     return paths
 

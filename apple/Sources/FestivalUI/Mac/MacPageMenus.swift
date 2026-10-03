@@ -1,5 +1,8 @@
 import SwiftUI
 import FestivalCore
+#if os(iOS)
+import UIKit
+#endif
 
 // MARK: - Rank By
 
@@ -58,41 +61,32 @@ struct MacQuickLinksCommand: Equatable {
 // MARK: - Publishing (every platform)
 
 extension View {
-    /// Publish an account rankings page's Rank By to View › Rank By (a no-op on
-    /// iPhone and iPad).
+    /// Publish an account rankings page's Rank By to View › Rank By (macOS and the
+    /// iPadOS menu bar; a no-op on iPhone).
     ///
     /// - Parameter selection: The page's metric.
     /// - Returns: The view.
     func macRankByCommands(_ selection: Binding<RankingMetric>) -> some View {
-        #if os(macOS)
         modifier(MacRankByPublisher(commands: MacRankByCommands(
             options: MacRankByCommands.accountOptions, selected: selection.wrappedValue.rawValue,
             select: { id in RankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
         )))
-        #else
-        self
-        #endif
     }
 
     /// Publish a band rankings page's Rank By to View › Rank By (no Max Score; a no-op
-    /// on iPhone and iPad).
+    /// on iPhone).
     ///
     /// - Parameter selection: The page's band metric.
     /// - Returns: The view.
     func macRankByCommands(_ selection: Binding<BandRankingMetric>) -> some View {
-        #if os(macOS)
         modifier(MacRankByPublisher(commands: MacRankByCommands(
             options: BandRankingMetric.allCases.map { .init(id: $0.rawValue, label: $0.label) },
             selected: selection.wrappedValue.rawValue,
             select: { id in BandRankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
         )))
-        #else
-        self
-        #endif
     }
 }
 
-#if os(macOS)
 private struct MacRankByCommandsKey: FocusedValueKey {
     typealias Value = MacRankByCommands
 }
@@ -131,7 +125,11 @@ private struct MacRankByPublisher: ViewModifier {
     @Environment(\.macPageIsTop) private var isTop
 
     func body(content: Content) -> some View {
-        content.focusedSceneValue(\.macRankBy, isTop ? commands : nil)
+        if MenuBarCommandsSupport.isAvailable {
+            content.focusedSceneValue(\.macRankBy, isTop ? commands : nil)
+        } else {
+            content
+        }
     }
 }
 
@@ -144,9 +142,56 @@ struct MacQuickLinksPublisher: ViewModifier {
 
     func body(content: Content) -> some View {
         let command = isTop ? MacQuickLinksCommand(controller: controller) : nil
-        content
-            .focusedSceneValue(\.macQuickLinksPage, isList ? nil : command)
-            .focusedSceneValue(\.macQuickLinksList, isList ? command : nil)
+        if MenuBarCommandsSupport.isAvailable {
+            content
+                .focusedSceneValue(\.macQuickLinksPage, isList ? nil : command)
+                .focusedSceneValue(\.macQuickLinksList, isList ? command : nil)
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Availability
+
+extension EnvironmentValues {
+    /// Whether the page is the top of its column's stack (menu commands publish only
+    /// from the top page; a page under a push stays alive). macOS and iPad.
+    @Entry var macPageIsTop = true
+    /// Whether the page is in a split's list column (Quick Links prefer the detail).
+    @Entry var macColumnIsList = false
+}
+
+/// Where page menu-bar commands are published: macOS, and iPad (iPadOS menu bar and
+/// the ⌘-hold shortcut overlay). Never on iPhone, which has no menu bar, so phone
+/// pages publish nothing (`.agents/design/apple/ipados.md`, Menu bar).
+enum MenuBarCommandsSupport {
+    /// Whether this device shows menu-bar commands.
+    @MainActor static var isAvailable: Bool {
+        #if os(macOS)
+        true
+        #else
+        UIDevice.current.userInterfaceIdiom == .pad
+        #endif
+    }
+}
+
+#if os(iOS)
+/// Publishes a page's menu-bar value from the top page of its column only (a page
+/// under a push, or in an unselected tab, stays alive in iOS navigation), and only on
+/// iPad.
+struct MenuBarTopPagePublisher<Published>: ViewModifier {
+    let keyPath: WritableKeyPath<FocusedValues, Published?>
+    let value: Published
+    @Environment(\.macPageIsTop) private var isTop
+
+    func body(content: Content) -> some View {
+        if MenuBarCommandsSupport.isAvailable {
+            let published: Published? = isTop ? value : nil
+            content.focusedSceneValue(keyPath, published)
+        } else {
+            content
+        }
     }
 }
 #endif

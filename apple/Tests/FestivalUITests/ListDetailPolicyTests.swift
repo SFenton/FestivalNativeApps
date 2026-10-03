@@ -344,3 +344,24 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
         anchor: .player(accountId: "a", displayName: nil), restored: nil, rowIDs: ids, rowID: rowID
     ) == nil)
 }
+
+/// iPad: collapsing a split (portrait, narrower window, compact tab shell) pops a detail
+/// the split chose by itself, never a picked row or a page pushed inside the detail.
+@Test func collapsePopsOnlyTheAutomaticDetail() throws {
+    let first = AppRoute.songDetail(try song("a"))
+    let second = AppRoute.songDetail(try song("b"))
+    #expect(ListDetailPolicy.pathDroppingAutomaticDetail(section: .songs, path: [first], automatic: first) == [])
+    // A picked row (automatic cleared, or a different route) stays.
+    #expect(ListDetailPolicy.pathDroppingAutomaticDetail(section: .songs, path: [second], automatic: first) == nil)
+    #expect(ListDetailPolicy.pathDroppingAutomaticDetail(section: .songs, path: [first], automatic: nil) == nil)
+    // Something pushed inside the detail column stays.
+    #expect(ListDetailPolicy.pathDroppingAutomaticDetail(
+        section: .songs, path: [first, .shop], automatic: first
+    ) == nil)
+    // Full Rankings keeps its list page.
+    #expect(ListDetailPolicy.pathDroppingAutomaticDetail(
+        section: .leaderboards, path: [rankings, player("p")], automatic: player("p")
+    ) == [rankings])
+    // Non-splittable sections never change.
+    #expect(ListDetailPolicy.pathDroppingAutomaticDetail(section: .settings, path: [.licenses], automatic: .licenses) == nil)
+}

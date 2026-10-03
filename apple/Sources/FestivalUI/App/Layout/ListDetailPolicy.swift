@@ -261,6 +261,27 @@ enum ListDetailPolicy {
         return nil
     }
 
+    // MARK: Collapse
+
+    /// The section path after its split collapses to one stack on iPad (portrait, a
+    /// narrower window, or a compact window's tab shell): a detail nobody chose would
+    /// stay pushed over the list, so it is popped, like Mail. A row the person picked
+    /// (or anything pushed inside the detail) stays.
+    ///
+    /// - Parameters:
+    ///   - section: Section owning the path.
+    ///   - path: The section's navigation path.
+    ///   - automatic: The detail root the split chose by itself, if any.
+    /// - Returns: The list-only path, or nil when nothing should change.
+    static func pathDroppingAutomaticDetail(
+        section: FestivalSection, path: [AppRoute], automatic: AppRoute?
+    ) -> [AppRoute]? {
+        guard let automatic, let split = split(section: section, path: path),
+              split.detail == [automatic]
+        else { return nil }
+        return split.list
+    }
+
     // MARK: Column writes
 
     /// The section path after the list column's `NavigationStack` writes its path.

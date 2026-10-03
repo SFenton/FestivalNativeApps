@@ -138,11 +138,9 @@ struct QuickLinksContainerModifier: ViewModifier {
             QuickLinksMenu(controller: controller)
                 .frame(minWidth: 44, minHeight: 44)
         }
-        #if os(macOS)
         // Go › Quick Links / Next Section / Previous Section (HIG Toolbars › macOS:
-        // "Every toolbar item must also be a menu-bar command").
+        // "Every toolbar item must also be a menu-bar command"; iPadOS menu bar too).
         .modifier(MacQuickLinksPublisher(controller: controller))
-        #endif
     }
 
     private func configure() {

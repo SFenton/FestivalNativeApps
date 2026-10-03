@@ -87,9 +87,7 @@ struct RivalsScreen: View {
             }
         }
         .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
-        #if os(macOS)
         .macPageCommands(MacPageCommands(findRival: { findRivalPresented = true }))
-        #endif
         .sheet(isPresented: $findRivalPresented) {
             FindRivalSheet(session: session)
                 .festivalSheet()

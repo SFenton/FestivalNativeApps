@@ -62,5 +62,7 @@ struct FestivalMobileApp: App {
         WindowGroup {
             FestivalRootView()
         }
+        // iPadOS menu bar and ⌘-hold overlay (adds nothing on iPhone).
+        .commands { FestivalCommands() }
     }
 }
