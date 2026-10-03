@@ -158,6 +158,31 @@ public static class ScoreHistoryChartScale
     public static string Tick(double value) => value >= 1000
         ? (value / 1000).ToString("0", CultureInfo.InvariantCulture) + "k"
         : value.ToString("0", CultureInfo.InvariantCulture);
+
+    /// <summary>Narrowest side gutter (the 100% text-scale layout).</summary>
+    public const double MinAxisGutter = 64;
+
+    /// <summary>Space between the window edge and a rotated axis title.</summary>
+    public const double AxisTitleInset = 4;
+
+    /// <summary>Space between a rotated axis title and its tick labels.</summary>
+    public const double AxisTitleGap = 4;
+
+    /// <summary>Space between tick labels and the axis line.</summary>
+    public const double AxisTickGap = 8;
+
+    /// <summary>
+    /// Side gutter that fits a rotated axis title and its tick labels without overlap, so text scaling (Windows
+    /// Accessibility › Text size up to 225%) grows the gutter instead of drawing the title over the ticks.
+    /// </summary>
+    /// <param name="tickWidth">Widest tick label's measured width.</param>
+    /// <param name="titleHeight">Axis title's measured line height (its width once rotated).</param>
+    /// <returns>Gutter width, at least <see cref="MinAxisGutter"/>.</returns>
+    public static double AxisGutter(double tickWidth, double titleHeight)
+    {
+        var needed = AxisTitleInset + Math.Max(0, titleHeight) + AxisTitleGap + Math.Max(0, tickWidth) + AxisTickGap;
+        return double.IsFinite(needed) ? Math.Max(MinAxisGutter, Math.Ceiling(needed)) : MinAxisGutter;
+    }
 }
 #endregion
 

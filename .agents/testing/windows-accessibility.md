@@ -26,7 +26,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Songs (anonymous / selected) | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ (C+M) |
 | Songs Filter (web sections, percentile open) | ✅✅✅ (+AOT) | 20/20/20 | ✅ | ✅ | ✅ |
 | Song Detail + Paths dialog | ✅✅✅ | 16/17/17 | ✅ | ✅ | ✅ |
-| Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ |
+| Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
 | Item Shop | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
@@ -70,6 +70,10 @@ Scope: the unified leaderboard row and pager (operator batches 7.7/7.4), Filter 
 
 Android learnings applied: every leaderboard row (and each score-history row) is one Button stop whose name reads the whole row, with its rank/name/score/pill parts Raw so Narrator scan mode doesn't read them twice; chart legends hide each label (Raw on a panel does not hide its children); the two CHOpt Settings subsection titles are headings (level 3). Already equivalent on Windows: side-by-side cards are named `AccessibleGroup`s (TalkBack reading groups), 48 epx rows (touch targets), pager buttons are Buttons with names. Not applicable: TalkBack's on-screen-only traversal of a half-open fold (Narrator scrolls virtualized lists itself).
 
+## Song Detail validation (issue #195, 2026-10)
+
+Scope: Song Detail only, fixture matrix plus the live public service (SFentonX on "Never Back Down": Leaving Tomorrow in the Shop, two Lead history bars, eight instrument cards, Duos/Trios/Quads). Results per configuration in [song-detail/windows.md](../pages/song-detail/windows.md#validation-issue-195). Axe 0 errors everywhere: compact, medium, wide, snap-left and maximized; light and dark system theme; Desert and Night sky; text 200%; display 100% and 150%; live and fixture. Keyboard journeys `kb-detail-back`, `kb-paths-dialog-esc` (all sizes) and `kb-detail-compact-previews` (compact: every card's row and View Full stop, arrows between rows, Shift+Tab back) pass. Fixed: Tab skipped virtualized cards at compact, Trios/Quads cards clipped (uniform grid), focus hidden under the pinned header (WCAG 2.4.11), High Contrast chart axes/selection and Item Shop surface, chart axis titles over the ticks at 200% text.
+
 ## Song Band Leaderboard validation (issue #196, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan` for `song-band-leaderboard` at compact/medium/wide, then at medium under all four contrast themes, text 200% (C+M), text 225%, no animations and no transparency: 0 Axe errors in all 12 runs. The live public service (temp wrapper without `--base-url`) gave 0 Axe errors under Desert, Night sky and text 200%. Both band journeys pass.
@@ -94,7 +98,7 @@ Same host constraint as #196 (locked console; display scaling fixed at 300%).
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
-2. (Resolved 2026-09-29, win-unify.) Contrast themes now map status chips, emphasis text, pills, Shop borders/badges and destructive buttons to system colours ([design/windows.md](../design/windows.md) contrast roles; Axe 0 errors under Desert and Night sky on Songs, Song Detail, song leaderboard, Leaderboards, Suggestions, Player, Shop and the Songs Filter). Charts still use brand hues.
+2. (Resolved 2026-09-29, win-unify.) Contrast themes now map status chips, emphasis text, pills, Shop borders/badges and destructive buttons to system colours ([design/windows.md](../design/windows.md) contrast roles; Axe 0 errors under Desert and Night sky on Songs, Song Detail, song leaderboard, Leaderboards, Suggestions, Player, Shop and the Songs Filter). Charts keep their brand data hues; since issue #195 the Song Detail score chart draws axes and bar outlines in WindowText and the selected bar in Highlight.
 3. (Resolved 2026-09-29, no repro.) Player Bands at compact: the row sitting exactly on the viewport's bottom edge reports a zero-height, not-offscreen UIA rectangle (Axe `BoundingRectangleSizeReasonable`). This is WinUI clipping, not app layout, and it doesn't occur at medium or wide.
 4. The XAML choice menus (Rank By, Instrument, Band Size, Jump, Sort) share the implicit presenter name "Options". The invoking button names the choice, but per-menu names would read better.
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
