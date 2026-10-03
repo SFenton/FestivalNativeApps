@@ -42,7 +42,7 @@ Native correction: the web sends the Settings combo for **every** Song Rivals ro
 
 ## IDs
 
-`fst.rivals.tab[.song|.leaderboard]`, `.findRival`, `.find.sheet|search|result.<id>`, Quick Links `fst.quick-links.item.<sectionId>`, `.grid`, `.section.<common|combo|Solo_*|leaderboard.Solo_*>`, `.see-all.<sectionId>`, `.row.<accountId>|anonymous`, `.song.<songId>.<instrument>`, `.empty`, `.loading`, `.chooseProfile[.action]`; `fst.all-rivals.list|title|empty|unresolved`; `fst.rival-detail.grid|title|summary|category.<key>|see-all.<key>|view-profile|empty` (Quick Links `fst.quick-links.item.rival-category:<key>`); `fst.rivalry.list|title|sort[.<option>]|empty`.
+`fst.rivals.tab[.song|.leaderboard]`, `.findRival`, `.find.sheet|search|result.<id>`, Quick Links `fst.quick-links.item.<sectionId>`, `.grid`, `.section.<common|combo|Solo_*|leaderboard.Solo_*>`, `.see-all.<sectionId>`, `.row.<accountId>|anonymous`, `.song.<songId>.<instrument>`, `.empty`, `.loading`, `.chooseProfile[.action]`; `fst.all-rivals.list|title|empty|unresolved`; `fst.rival-detail.grid|title|summary|category.<key>|see-all.<key>|view-profile|empty` (Quick Links `fst.quick-links.item.rival-category:<key>`); `fst.rivalry.list|title|sort[.menu|.<option>]|empty`.
 
 ## Tests
 
