@@ -119,8 +119,6 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   while the page scrolls instead of hiding it (Songs, Suggestions: issue #52).
  * @param actionsAboveKeyboard On compact windows, [actions] currently hold a focused text field,
  *   so the shell lifts the floating toolbar above the on-screen keyboard (Songs search, issue #84).
- * @param toolbarLeading On compact windows, a page control that is not an action (Songs search),
- *   drawn in its own floating-toolbar pill before [actions] (issue #89). Ignored on wider windows.
  * @param scrolled Content sits under the bar. No visual effect since batch 6.20 (the bar stays
  *   transparent); kept so screens can still report it without churn.
  * @param content Content given padding that clears the top bar and bottom chrome.
@@ -134,7 +132,6 @@ fun FestivalScreen(
     actions: @Composable RowScope.() -> Unit = {},
     pinActions: Boolean = false,
     actionsAboveKeyboard: Boolean = false,
-    toolbarLeading: (@Composable RowScope.() -> Unit)? = null,
     scrolled: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -153,7 +150,7 @@ fun FestivalScreen(
     // Compact windows: page actions float over the bottom bar (web bottom dock); global search
     // stays in the top app bar on every window size (operator 2026-09-28).
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard, leading = toolbarLeading) { actions() }
+        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard) { actions() }
     }
     Scaffold(
         modifier = modifier

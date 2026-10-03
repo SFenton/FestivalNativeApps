@@ -42,8 +42,6 @@ import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_GAP_DP
-import com.festivalscoretracker.android.ui.common.FloatingToolbarTags
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import com.festivalscoretracker.android.ui.shell.ShellShortcutBridge
 import java.time.Duration
@@ -271,47 +269,28 @@ class GlobalSearchUiTest {
     fun songsSearchSortAndFilterLiveInTheBottomToolbarAndSearchMinimizesWhileScrolled() {
         // Issue #52: nothing scrolls or slides away on a phone. Issue #84: search sits in the bottom
         // floating toolbar with Sort, Filter (and Quick Links when present), not under the top app bar,
-        // and minimizes to an icon while the list scrolls down. Issue #89: search has its own pill;
-        // the tools are a separate pill beside it, never inside the search bar.
+        // and minimizes to an icon while the list scrolls down.
         val songs = (1..40).joinToString(",") { i ->
             """{"songId":"s-$i","title":"${'A' + (i - 1) / 2} Song ${"%02d".format(i)}","artist":"${'A' + (i - 1) / 2} Band $i","year":2020,"durationSeconds":120,"difficulty":{"guitar":1}}"""
         }
         h.transport.on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { """{"count":40,"currentSeason":15,"songs":[$songs]}""" }
         h.launch()
         h.waitForTag("fst.songs.row.s-1")
-        val inToolbar = hasAnyAncestor(hasTestTag(FloatingToolbarTags.TOOLBAR))
-        val inSearchPill = hasAnyAncestor(hasTestTag(FloatingToolbarTags.LEADING))
-        val inToolsPill = hasAnyAncestor(hasTestTag(FloatingToolbarTags.ACTIONS))
+        val inToolbar = hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar"))
         val inTopBar = hasAnyAncestor(hasTestTag("fst.nav.top-bar"))
         fun bounds(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
         val dp48 = 48 * 3f // xxhdpi
-        val dp64 = 64 * 3f
-        val gap = FLOATING_TOOLBAR_GAP_DP * 3f
         rule.onNode(hasTestTag("fst.songs.search.open") and inToolbar).assertIsDisplayed()
-        rule.onNode(hasTestTag("fst.songs.search.open") and inSearchPill).assertIsDisplayed()
-        assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.search.open") and inToolsPill).fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.search.open") and inTopBar).fetchSemanticsNodes().size)
-        for (tool in listOf("fst.songs.sort.open", "fst.songs.filter.open")) {
-            rule.onNode(hasTestTag(tool) and inToolsPill).assertIsDisplayed()
-            assertEquals(0, rule.onAllNodes(hasTestTag(tool) and inSearchPill).fetchSemanticsNodes().size)
-        }
         // No search field pinned under the top app bar on a phone.
         assertTrue(rule.onAllNodesWithTag("fst.songs.search").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.songs.search.open")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search songs")))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-        val toolbarAtTop = bounds(FloatingToolbarTags.TOOLBAR)
-        val toolsAtTop = bounds(FloatingToolbarTags.ACTIONS)
-        val searchPillAtTop = bounds(FloatingToolbarTags.LEADING)
+        val toolbarAtTop = bounds("fst.nav.floating-toolbar")
         val searchAtTop = bounds("fst.songs.search.open")
         assertTrue("field-shaped search $searchAtTop", searchAtTop.width > 3 * dp48)
         assertTrue(searchAtTop.height >= dp48 - 1f)
-        // Two pills side by side on one row: search first, then the tools after a 12 dp gap.
-        assertTrue("$searchPillAtTop vs $toolsAtTop", toolsAtTop.left - searchPillAtTop.right >= gap - 1f)
-        assertEquals(searchPillAtTop.center.y, toolsAtTop.center.y, 1f)
-        assertTrue(searchAtTop.right <= searchPillAtTop.right)
-        // The tools pill holds only Sort and Filter here: two 48 dp buttons plus its padding.
-        assertTrue("tools $toolsAtTop", toolsAtTop.width < 3 * dp48 + 16 * 3f)
         // The toolbar floats at the bottom of the page, below the list's first rows.
         assertTrue(toolbarAtTop.top > bounds("fst.songs.row.s-1").bottom)
 
@@ -321,22 +300,18 @@ class GlobalSearchUiTest {
         }
         assertTrue(rule.onAllNodesWithTag("fst.songs.row.s-1").fetchSemanticsNodes().isEmpty())
         // Pinned, not merely present: same bottom and end edge (a hidden toolbar slides down behind
-        // the bar); search minimized to a round icon with a 48 dp target, so the toolbar is narrower.
-        val toolbarScrolled = bounds(FloatingToolbarTags.TOOLBAR)
+        // the bar); search minimized to an icon with a 48 dp target, so the pill is narrower.
+        val toolbarScrolled = bounds("fst.nav.floating-toolbar")
         assertEquals(toolbarAtTop.bottom, toolbarScrolled.bottom, 0.5f)
         assertEquals(toolbarAtTop.right, toolbarScrolled.right, 0.5f)
         assertTrue("$toolbarScrolled vs $toolbarAtTop", toolbarScrolled.width < toolbarAtTop.width)
-        assertEquals(toolsAtTop, bounds(FloatingToolbarTags.ACTIONS))
         val searchScrolled = bounds("fst.songs.search.open")
         assertTrue("minimized search $searchScrolled", searchScrolled.width <= dp48 + 1f)
-        val searchPillScrolled = bounds(FloatingToolbarTags.LEADING)
-        assertEquals("round search pill $searchPillScrolled", searchPillScrolled.width, searchPillScrolled.height, 1f)
-        assertEquals(dp64, searchPillScrolled.width, 1f)
         val target = rule.onNodeWithTag("fst.songs.search.open").fetchSemanticsNode().touchBoundsInRoot
         assertTrue(target.width >= dp48 - 1f && target.height >= dp48 - 1f)
-        rule.onNode(hasTestTag("fst.songs.search.open") and inSearchPill).assertIsDisplayed()
-        rule.onNode(hasTestTag("fst.songs.sort.open") and inToolsPill).assertIsDisplayed()
-        rule.onNode(hasTestTag("fst.songs.filter.open") and inToolsPill).assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.search.open") and inToolbar).assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.sort.open") and inToolbar).assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.filter.open") and inToolbar).assertIsDisplayed()
         assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.filter.open") and inTopBar).fetchSemanticsNodes().size)
 
         // Scrolling back up expands it again.
@@ -344,15 +319,13 @@ class GlobalSearchUiTest {
         h.settle()
         assertTrue(bounds("fst.songs.search.open").width > 3 * dp48)
 
-        // Opening search gives a focused field in the search pill; the tools step aside while typing.
+        // Opening search gives a focused field in the toolbar; the tools step aside while typing.
         rule.onNodeWithTag("fst.songs.search.open").performClick()
         h.waitForTag("fst.songs.search")
-        rule.onNode(hasTestTag("fst.songs.search") and inSearchPill).assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.search") and inToolbar).assertIsDisplayed()
         rule.onNodeWithTag("fst.songs.search").assertIsFocused()
         assertTrue(rule.onAllNodesWithTag("fst.songs.sort.open").fetchSemanticsNodes().isEmpty())
         assertTrue(rule.onAllNodesWithTag("fst.songs.filter.open").fetchSemanticsNodes().isEmpty())
-        // The empty tools pill takes no room: the field's pill ends at the toolbar's end edge.
-        assertEquals(bounds(FloatingToolbarTags.TOOLBAR).right, bounds(FloatingToolbarTags.LEADING).right, 1f)
         rule.onNodeWithTag("fst.songs.search").performTextInput("Song 40")
         h.waitForTag("fst.songs.row.s-40")
         // Back closes the field and keeps the query (spoken as the button's state).

@@ -179,10 +179,9 @@ fun SongsScreen(
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
-    // Phones (floating toolbar): search sits in its own bottom pill beside the Sort/Filter/Quick
-    // Links toolbar (issue #89; it joined the bottom toolbar in #84) and minimizes to an icon while
-    // the list scrolls down; wider windows keep the field pinned above the list and their actions
-    // in the top app bar.
+    // Phones (floating toolbar): search joins Sort/Filter/Quick Links in the bottom toolbar and
+    // minimizes to an icon while the list scrolls down (issue #84); wider windows keep the field
+    // pinned above the list and their actions in the top app bar.
     val searchInToolbar = LocalShellActions.current.floatingToolbar != null
     var searchOpenRequested by remember { mutableStateOf(false) }
     val searchOpen = searchInToolbar && searchOpenRequested
@@ -213,22 +212,15 @@ fun SongsScreen(
             // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
             pinActions = true,
             actionsAboveKeyboard = searchOpen,
-            // Read the state objects inside these lambdas, not captured Booleans: the toolbar
-            // re-runs a registered lambda only for state reads inside it.
-            toolbarLeading = if (searchInToolbar) {
-                {
-                    if (searchOpenRequested) {
-                        SongsToolbarSearchField(search, viewModel::onSearchChange, onClose = { searchOpenRequested = false })
-                    } else {
+            actions = {
+                // Read the state object here, not the captured Boolean: the toolbar re-runs this
+                // lambda only for state reads inside it.
+                if (searchInToolbar && searchOpenRequested) {
+                    SongsToolbarSearchField(search, viewModel::onSearchChange, onClose = { searchOpenRequested = false })
+                } else {
+                    if (searchInToolbar) {
                         SongsToolbarSearchButton(search, searchMinimized, onOpen = { searchOpenRequested = true }, onClear = { viewModel.onSearchChange("") })
                     }
-                }
-            } else {
-                null
-            },
-            actions = {
-                // The tools step aside while the search field is open, so it gets the width.
-                if (!(searchInToolbar && searchOpenRequested)) {
                     SongsPageTools(state, quickLinks, windowWidthDp, onSort = { showSort = true }, onFilter = { showFilter = true })
                 }
             },
