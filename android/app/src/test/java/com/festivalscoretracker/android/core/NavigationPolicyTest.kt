@@ -98,6 +98,11 @@ class NavigationPolicyTest {
         assertEquals(426, AdaptiveLayoutPolicy.listPaneWidth(900, 426))
         assertEquals(360, AdaptiveLayoutPolicy.listPaneWidth(900, 0))
         assertEquals(360, AdaptiveLayoutPolicy.listPaneWidth(900, 950))
+        // Issue #102: the permanent drawer widens to Material's 360 dp for large text.
+        assertEquals(280, AdaptiveLayoutPolicy.permanentDrawerWidth(1f))
+        assertEquals(280, AdaptiveLayoutPolicy.permanentDrawerWidth(1.15f))
+        assertEquals(360, AdaptiveLayoutPolicy.permanentDrawerWidth(1.3f))
+        assertEquals(360, AdaptiveLayoutPolicy.permanentDrawerWidth(2f))
     }
 
     // endregion
