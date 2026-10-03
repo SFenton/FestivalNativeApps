@@ -159,10 +159,19 @@ struct RankingRowLayout: View {
                         rankText
                         nameText
                     }
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        songsText
-                        Spacer(minLength: 8)
-                        ratingColumn
+                    // Songs and value share a line when it fits; otherwise they stack and the
+                    // value scales down rather than run past the row (folded Duo at AX5: a
+                    // 596 pt row in a 350 pt column, under the vertical bar).
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            songsText
+                            Spacer(minLength: 8)
+                            ratingColumn
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            songsText
+                            stackedRatingColumn
+                        }
                     }
                 }
             } else {
@@ -259,6 +268,28 @@ struct RankingRowLayout: View {
             .foregroundStyle(FestivalText.primary)
             .fixedSize()
             .accessibilityLabel(spokenSongs)
+    }
+
+    /// The value on its own line at accessibility sizes: one line that scales down to
+    /// fit the row instead of overflowing it (digits never wrap).
+    private var stackedRatingColumn: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(rating)
+                .font(.body)
+                .fontWeight(emphasized ? .bold : .semibold)
+                .monospacedDigit()
+                .foregroundStyle(BrandTokens.accentBlue)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+            if let bayesian {
+                Text(bayesian)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(FestivalText.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+        }
     }
 
     private var ratingColumn: some View {
