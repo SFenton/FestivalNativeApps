@@ -82,6 +82,11 @@ class NavigationPolicyTest {
         assertEquals(NavigationLayout.BottomBar, AdaptiveLayoutPolicy.navigationLayout(1920, 470))
         assertEquals(NavigationLayout.Rail, AdaptiveLayoutPolicy.navigationLayout(840, 900))
         assertEquals(NavigationLayout.PermanentDrawer, AdaptiveLayoutPolicy.navigationLayout(1280, 800))
+        // Permanent drawer: 280 dp, growing with text up to Material's 360 dp standard drawer.
+        assertEquals(280, AdaptiveLayoutPolicy.permanentDrawerWidth(1f))
+        assertEquals(280, AdaptiveLayoutPolicy.permanentDrawerWidth(0.85f))
+        assertEquals(322, AdaptiveLayoutPolicy.permanentDrawerWidth(1.15f))
+        assertEquals(360, AdaptiveLayoutPolicy.permanentDrawerWidth(2f))
         assertTrue(AdaptiveLayoutPolicy.isRegularWidth(600))
         assertFalse(AdaptiveLayoutPolicy.isRegularWidth(599))
         assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(840, false))
@@ -98,6 +103,13 @@ class NavigationPolicyTest {
         assertEquals(426, AdaptiveLayoutPolicy.listPaneWidth(900, 426))
         assertEquals(360, AdaptiveLayoutPolicy.listPaneWidth(900, 0))
         assertEquals(360, AdaptiveLayoutPolicy.listPaneWidth(900, 950))
+        // A landscape phone's 54 dp camera inset is added on top of 40% of the usable width.
+        assertEquals(401, AdaptiveLayoutPolicy.listPaneWidth(923, null, leadingInsetDp = 54))
+        assertEquals(369, AdaptiveLayoutPolicy.listPaneWidth(923, null, leadingInsetDp = 0))
+        assertEquals(369, AdaptiveLayoutPolicy.listPaneWidth(923, null, leadingInsetDp = -5))
+        // A hinge fixes the split regardless of insets; the pane never takes more than half.
+        assertEquals(426, AdaptiveLayoutPolicy.listPaneWidth(900, 426, leadingInsetDp = 54))
+        assertEquals(420, AdaptiveLayoutPolicy.listPaneWidth(840, null, leadingInsetDp = 200))
     }
 
     // endregion
