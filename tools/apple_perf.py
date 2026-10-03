@@ -10,7 +10,8 @@ One command launches the app on a page, lets it settle, then measures:
   (``FST_DEBUG_SONGS_SCROLL_STRESS=1``) with ``MainThreadStallMonitor``
   (``FST_DEBUG_STALL_LOG``); only units of main-thread work between the pass's start
   and end marks are counted, so launch work is excluded.
-- **Instruments** (``--trace TEMPLATE``): ``xcrun xctrace record --attach <pid>`` for
+- **Instruments** (``--trace TEMPLATE``, Mac only: xctrace cannot attach to
+  simulator apps on this host): ``xcrun xctrace record --attach <pid>`` for
   the measuring window (e.g. ``'Time Profiler'``, ``'Animation Hitches'``,
   ``'SwiftUI'``); ``--top N`` prints the heaviest symbols of a Time Profiler trace.
 
@@ -421,11 +422,11 @@ def wait_for_stress(log: Path, timeout: float) -> dict:
     return report
 
 
-def trace_argv(pid: int, template: str, seconds: float, out: Path, device: str | None) -> list[str]:
+def trace_argv(pid: int | str, template: str, seconds: float, out: Path, device: str | None) -> list[str]:
     """``xctrace record`` invocation attached to a process.
 
     Args:
-        pid: Process id.
+        pid: Process id (or name).
         template: xctrace template name.
         seconds: Time limit.
         out: ``.trace`` destination.
@@ -441,7 +442,7 @@ def trace_argv(pid: int, template: str, seconds: float, out: Path, device: str |
     return argv
 
 
-def start_trace(pid: int, template: str, seconds: float, out: Path, device: str | None) -> subprocess.Popen:
+def start_trace(pid: int | str, template: str, seconds: float, out: Path, device: str | None) -> subprocess.Popen:
     """Attach Instruments to a running process in the background.
 
     Args:
@@ -581,6 +582,13 @@ def cmd_mac(args: argparse.Namespace) -> int:
 def cmd_ipad(args: argparse.Namespace) -> int:
     import fcntl
 
+    if args.trace:
+        # Xcode 27.1: `xctrace record --attach` finds no simulator app, by host pid
+        # ("Cannot find process for provided pid") or by name with `--device`.
+        print("--trace is Mac-only: xctrace cannot attach to simulator apps on this host; "
+              "profile the shared SwiftUI code with `apple_perf.py mac --trace`.", file=sys.stderr)
+        return 2
+
     configuration = "Release" if args.probe else args.configuration
     bundle = app_bundle("ipad", configuration, args.probe)
     if not bundle.exists():
@@ -622,9 +630,7 @@ def cmd_ipad(args: argparse.Namespace) -> int:
             print(f"could not read the app pid from {launched.stdout!r}", file=sys.stderr)
             return 1
         try:
-            # Simulator apps are host processes: xctrace attaches to the host pid on
-            # this Mac (with `--device <udid>` it cannot find that pid).
-            result = _measure(args, pid, stall_log, None)
+            result = _measure(args, pid, stall_log, udid)
         finally:
             _run(["xcrun", "simctl", "terminate", udid, bundle_id], check=False, capture_output=True)
     return _report(args, result)

@@ -105,7 +105,7 @@ Measured with [`tools/apple_perf.py`](../../../tools/apple_perf.py) (live SFento
 | `apple_perf.py build mac\|ipad [--configuration Release] [--probe]` | `--probe` = Release optimization with the `DEBUG` condition (own DerivedData), so the Debug overrides and stall monitor run on optimized code. True Release ignores `FST_DEBUG_*` and opens on the persisted page (the first-run sheet over Songs on this Mac) |
 | `apple_perf.py mac\|ipad --tab songs` | Process CPU (`ps` time delta, one core = 100%) in 2 s windows over 20 s after a 20 s settle; the Mac window must be uncovered (occlusion pauses everything) |
 | `… --stress` | `FST_DEBUG_SONGS_SCROLL_STRESS` (6 rounds of animated section jumps) with `MainThreadStallMonitor`; counts units ≥ 100 ms between the pass's `marks` |
-| `… --trace 'Time Profiler' --top 30` (or `'SwiftUI'`, `'Animation Hitches'`) | `xctrace record --attach` for `--duration`; with `--stress` it covers the pass. `--top` lists leaf and first-app-frame symbols |
+| `mac … --trace 'Time Profiler' --top 30` (or `'SwiftUI'`, `'Animation Hitches'`; xctrace cannot attach to simulator apps here) | `xctrace record --attach` for `--duration`; with `--stress` it covers the pass. `--top` lists leaf and first-app-frame symbols |
 
 ### Last measured (2026-10-02)
 
