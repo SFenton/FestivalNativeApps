@@ -370,9 +370,11 @@ final class SongDetailJourneyTests: XCTestCase {
             secondRow.label, "#2, Fixture Player 2, 99,800, Full combo, accuracy 98%"
         )
         secondRow.tap()
-        let profileName = app.staticTexts["fst.player.name"]
-        XCTAssertTrue(profileName.waitForExistence(timeout: 10), "Row did not open the profile")
-        XCTAssertEqual(profileName.label, "Fixture Player 2")
+        XCTAssertTrue(
+            SongsUITestSupport.playerPage(in: app).waitForExistence(timeout: 10),
+            "Row did not open the profile"
+        )
+        SongsUITestSupport.assertPlayerTitle("Fixture Player 2", in: app)
         SongsUITestSupport.record(app, name: "song-detail-preview-row-opens-profile")
         app.buttons["BackButton"].tap()
         XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
