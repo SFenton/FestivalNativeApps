@@ -175,14 +175,14 @@ enum SongsUITestSupport {
         if songs.waitForExistence(timeout: 5), songs.isHittable { songs.tap() }
     }
 
-    /// Bring back the floating Filter/Sort dock after a drawer deselection.
+    /// Refresh the Songs toolbar after a drawer deselection.
     ///
-    /// Known gap (also on `master`): deselecting from the drawer leaves the Songs dock
-    /// unregistered until the page reappears, so visit another tab and return.
+    /// Deselecting from the drawer can leave the Songs toolbar stale until the page
+    /// reappears, so visit another tab and return.
     ///
     /// - Parameter app: Foreground app on the Songs root.
     @MainActor
-    static func reshowSongsDock(in app: XCUIApplication) {
+    static func reshowSongsToolbar(in app: XCUIApplication) {
         rootControl("Leaderboards", app: app).tap()
         rootControl("Songs", app: app).tap()
         _ = app.buttons["fst.songs.sort"].waitForExistence(timeout: 10)
@@ -538,25 +538,36 @@ enum SongsUITestSupport {
         return tab
     }
 
-    /// The Songs list's search field, opened and ready to type into.
+    /// Open the Statistics destination from its tab when visible, otherwise from the
+    /// leading drawer (compact phones hide Statistics when the Search tab is present).
     ///
-    /// iPhone iOS 26.1+: the field-shaped "Search Songs" button in the tab-bar accessory
-    /// opens a focused field above the keyboard (`fst.songs.search.field`, issue #42).
-    /// Elsewhere it is the `.searchable` field matched by its prompt "Filter Songs", so it
-    /// is never confused with global search's field
-    /// (`.agents/controls/global-search/ios.md`).
+    /// - Parameter app: Foreground app with a selected player.
+    @MainActor
+    static func openStatistics(in app: XCUIApplication) {
+        let tab = rootControl("Statistics", app: app)
+        if tab.waitForExistence(timeout: 2), tab.isHittable {
+            tab.tap()
+            return
+        }
+        let songs = rootControl("Songs", app: app)
+        if songs.waitForExistence(timeout: 5), songs.isHittable { songs.tap() }
+        let drawerOpen = app.buttons["fst.shell.drawer.open"]
+        XCTAssertTrue(drawerOpen.waitForExistence(timeout: 10))
+        drawerOpen.tap()
+        let statistics = app.buttons["fst.shell.drawer.statistics"]
+        XCTAssertTrue(statistics.waitForExistence(timeout: 10), "Statistics drawer row missing")
+        statistics.tap()
+    }
+
+    /// The Songs list's pinned `.searchable` field, ready to type into.
+    ///
+    /// It is matched by its prompt "Filter Songs", so it is never confused with global
+    /// search's field (`.agents/controls/global-search/ios.md`).
     ///
     /// - Parameter app: Foreground app on the Songs root.
     /// - Returns: The Songs search field.
     @MainActor
     static func songsSearchField(in app: XCUIApplication) -> XCUIElement {
-        let open = app.buttons["fst.songs.search.open"]
-        if open.waitForExistence(timeout: 3) {
-            open.tap()
-            let field = app.textFields["fst.songs.search.field"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5))
-            return field
-        }
         let field = app.searchFields.matching(
             NSPredicate(format: "placeholderValue == %@", "Filter Songs")
         ).firstMatch
@@ -564,15 +575,13 @@ enum SongsUITestSupport {
         return field
     }
 
-    /// The Songs search entry point without opening it: the accessory's "Search Songs"
-    /// button on iPhone iOS 26.1+ (issue #42), otherwise the "Filter Songs" field.
+    /// The Songs search entry point: the pinned "Filter Songs" field.
     ///
     /// - Parameter app: Foreground app on the Songs root.
     /// - Returns: The visible search control.
     @MainActor
     static func songsSearchEntry(in app: XCUIApplication) -> XCUIElement {
-        let open = app.buttons["fst.songs.search.open"]
-        return open.waitForExistence(timeout: 3) ? open : app.searchFields["Filter Songs"]
+        app.searchFields["Filter Songs"]
     }
 
     /// Scroll a large-type error until Retry is both tappable and above native navigation.
@@ -995,8 +1004,8 @@ enum SongsUITestSupport {
             for _ in 0..<8 {
                 if element.isHittable {
                     if clearsBottomChrome(element, in: app) { return }
-                    // Hittable but behind the tab-bar accessory (issue #42): XCUITest
-                    // reports it hittable while a tap opens Quick Links instead.
+                    // Hittable but under bottom chrome: XCUITest reports it hittable
+                    // while a tap can hit the tab bar instead.
                     window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
                         .press(
                             forDuration: 0.05,
@@ -1020,7 +1029,7 @@ enum SongsUITestSupport {
         )
     }
 
-    /// Whether a control sits wholly above the tab bar and any bottom page tools.
+    /// Whether a control sits wholly above the tab bar.
     ///
     /// - Parameters:
     ///   - element: Hittable control to check.
@@ -1032,11 +1041,6 @@ enum SongsUITestSupport {
         var limit = window.maxY
         let tabs = app.tabBars.firstMatch
         if tabs.exists { limit = min(limit, tabs.frame.minY) }
-        let quickLinks = app.buttons.matching(identifier: "fst.quick-links.open")
-        for index in 0..<quickLinks.count {
-            let frame = quickLinks.element(boundBy: index).frame
-            if frame.minY > window.midY { limit = min(limit, frame.minY) }
-        }
         return element.frame.maxY <= limit
     }
 

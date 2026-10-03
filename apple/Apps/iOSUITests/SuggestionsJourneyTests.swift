@@ -169,9 +169,9 @@ final class SuggestionsJourneyTests: XCTestCase {
         app.buttons["fst.suggestions.filter.done"].tap()
     }
 
-    /// Issue #13: Filter and global search are navigation-bar items, so they stay in the
-    /// bar row, hittable (and so reachable by VoiceOver), at the top and while scrolled;
-    /// the large title collapses under them and returns at the top.
+    /// Filter plus account items are navigation-bar items, so they stay in the bar row,
+    /// hittable (and so reachable by VoiceOver), at the top and while scrolled; the
+    /// large title collapses under them and returns at the top.
     ///
     /// Scrolling needs a populated mix: pass a richer catalogue as
     /// `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL` (`mock_service.py --large-catalogue`);
@@ -179,7 +179,7 @@ final class SuggestionsJourneyTests: XCTestCase {
     ///
     /// - Throws: A control that leaves the bar or stops being hittable.
     @MainActor
-    func testSuggestionsFilterAndSearchStayInTheBarWhileScrolled() throws {
+    func testSuggestionsToolbarItemsStayInTheBarWhileScrolled() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         if let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"] {
@@ -189,7 +189,9 @@ final class SuggestionsJourneyTests: XCTestCase {
         app.launch()
         let settled = awaitSuggestionsSettled(in: app)
         let bar = app.navigationBars.firstMatch
-        let controls = ["fst.suggestions.filter-button", "fst.global-search.open"].map { app.buttons[$0] }
+        let controls = [
+            "fst.suggestions.filter-button", "fst.shell.notifications", "fst.shell.profile",
+        ].map { app.buttons[$0] }
         func assertInBar(_ state: String) {
             for control in controls {
                 XCTAssertTrue(control.waitForExistence(timeout: 10), "\(control) missing \(state)")
@@ -201,6 +203,9 @@ final class SuggestionsJourneyTests: XCTestCase {
         let expanded = bar.frame.height
         guard settled.identifier == "fst.suggestions.list" else {
             throw XCTSkip("Fixture mix produced no categories; nothing to scroll")
+        }
+        guard settled.isHittable, !settled.frame.isEmpty else {
+            throw XCTSkip("Fixture mix produced no visible list viewport; nothing to scroll")
         }
         settled.swipeUp()
         settled.swipeUp()
@@ -241,7 +246,7 @@ final class SuggestionsJourneyTests: XCTestCase {
             if startNewMix.exists { break }
             list.swipeUp()
         }
-        // One more drag lifts the footer clear of the floating tab bar.
+        // One more drag lifts the footer clear of the tab bar.
         if startNewMix.exists && !startNewMix.isHittable { list.swipeUp() }
         record(app, name: "suggestions-list-scrolled")
         if startNewMix.exists {

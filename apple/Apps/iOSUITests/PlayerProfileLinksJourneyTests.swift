@@ -21,13 +21,13 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
         ])
     }
 
-    /// Fixture app with `fixture-player-2` selected, on the Statistics tab.
+    /// Fixture app with `fixture-player-2` selected, starting on Songs.
     @MainActor
     private func selectedApp() -> XCUIApplication {
         FestivalApp.launch([
             "FST_API_BASE_URL": "http://127.0.0.1:8765",
             "FST_DEBUG_PROFILE": "fixture-player-2:Fixture Player 2",
-            "FST_DEBUG_TAB": "statistics",
+            "FST_DEBUG_TAB": "songs",
         ])
     }
 
@@ -69,6 +69,16 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
         }
         XCTAssertTrue(clear(), "\(identifier) never scrolled into view: \(tile.frame)")
         tile.tap()
+    }
+
+    /// Return to a root tab if needed, then open Statistics from the drawer on phone.
+    ///
+    /// - Parameter app: Running fixture app with a selected player.
+    @MainActor
+    private func reopenStatistics(in app: XCUIApplication) {
+        let songs = SongsUITestSupport.rootControl("Songs", app: app)
+        if songs.waitForExistence(timeout: 3), songs.isHittable { songs.tap() }
+        SongsUITestSupport.openStatistics(in: app)
     }
 
     // MARK: Push stability
@@ -122,10 +132,12 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
         tapTile("fst.player.stat.Solo_Drums.songs-played", in: app)
         XCTAssertTrue(element("fst.songs.row.fixture-pulse", in: app).waitForExistence(timeout: 15))
         XCTAssertFalse(element("fst.songs.row.fixture-orbit", in: app).exists, "Drums filter kept an unplayed song")
+        app.buttons["fst.shell.drawer.open"].tap()
         XCTAssertTrue(
-            SongsUITestSupport.rootControl("Statistics", app: app).waitForExistence(timeout: 10),
+            app.buttons["fst.shell.drawer.statistics"].waitForExistence(timeout: 10),
             "The viewed player was not selected before filtering"
         )
+        app.buttons["fst.shell.drawer.close"].tap()
     }
 
     // MARK: Selected player: every link
@@ -137,7 +149,7 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
     func testSelectedPlayerStatLinksReachTheirPages() throws {
         continueAfterFailure = false
         let app = selectedApp()
-        let statistics = SongsUITestSupport.rootControl("Statistics", app: app)
+        SongsUITestSupport.openStatistics(in: app)
 
         let goldStars = element("fst.player.stat.overview.gold-stars", in: app)
         XCTAssertTrue(goldStars.waitForExistence(timeout: 20))
@@ -147,11 +159,11 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
         XCTAssertTrue(element("fst.songs.row.fixture-pulse", in: app).waitForExistence(timeout: 15))
         XCTAssertTrue(element("fst.songs.row.fixture-orbit", in: app).exists)
 
-        statistics.tap()
+        reopenStatistics(in: app)
         tapTile("fst.player.stat.Solo_Guitar.global-rank", in: app)
         XCTAssertTrue(app.navigationBars["Lead Rankings"].waitForExistence(timeout: 15))
 
-        statistics.tap()
+        reopenStatistics(in: app)
         tapTile("fst.player.stat.Solo_Drums.best-rank", in: app)
         XCTAssertTrue(element("fst.song-detail.intensity", in: app).waitForExistence(timeout: 15))
     }
@@ -164,6 +176,7 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
     func testPercentileRowOpensSongsFilteredToItsBand() throws {
         continueAfterFailure = false
         let app = selectedApp()
+        SongsUITestSupport.openStatistics(in: app)
         let row = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "fst.player.percentile-row.Solo_Guitar.")
         ).firstMatch

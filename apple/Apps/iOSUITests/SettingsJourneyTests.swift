@@ -184,11 +184,10 @@ final class SettingsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "settings-hide-shop-after-reset")
     }
 
-    /// **Fixed bug (#6):** the iPhone Quick Links menu opens upward from the bottom
-    /// dock, and iOS reversed an `.automatic`-order menu there, so the menu listed
-    /// Settings' sections bottom-to-top. `QuickLinksMenu` now uses `.menuOrder(.fixed)`.
-    /// Rows must stack top-to-bottom in page order, the active section stays checked,
-    /// and choosing a row still jumps to it.
+    /// **Fixed bug (#6):** the iPhone Quick Links menu must keep the page's section
+    /// order instead of letting iOS reorder an `.automatic` menu. `QuickLinksMenu` now
+    /// uses `.menuOrder(.fixed)`. Rows must stack top-to-bottom in page order, the active
+    /// section stays checked, and choosing a row still jumps to it.
     @MainActor
     func testQuickLinksMenuListsSectionsInPageOrder() throws {
         continueAfterFailure = false

@@ -60,7 +60,7 @@ final class ModalCloseJourneyTests: XCTestCase {
         element.tap()
     }
 
-    /// Songs: Sort, global Search, Profiles, and Song Detail's Paths.
+    /// Songs: Sort, Profiles, and Song Detail's Paths.
     @MainActor
     func testSongsModalsCloseWithSystemClose() throws {
         continueAfterFailure = false
@@ -68,8 +68,6 @@ final class ModalCloseJourneyTests: XCTestCase {
         app.launch()
         tap("fst.songs.sort", in: app)
         closeWithSystemClose("fst.songs.sort.done", in: app)
-        tap("fst.global-search.open", in: app)
-        closeWithSystemClose("fst.global-search.close", in: app)
         tap("fst.shell.profile", in: app)
         closeWithSystemClose("fst.profile.close", in: app, shot: "modal-close-profiles")
         tap("fst.songs.row.fixture-pulse", in: app)

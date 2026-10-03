@@ -44,13 +44,11 @@ final class ProfileStatisticsJourneyTests: XCTestCase {
         SongsUITestSupport.selectViewedPlayer(in: app)
         SongsUITestSupport.record(app, name: "profile-selected")
 
-        let statisticsTab = SongsUITestSupport.rootControl("Statistics", app: app)
-        XCTAssertTrue(statisticsTab.waitForExistence(timeout: 10), "Statistics tab did not appear after selecting a profile")
-        statisticsTab.tap()
+        SongsUITestSupport.openStatistics(in: app)
         let ownName = app.staticTexts["fst.player.name"]
         XCTAssertTrue(
             ownName.waitForExistence(timeout: 15),
-            "Statistics tab never reached the selected player's own profile: "
+            "Statistics never reached the selected player's own profile: "
                 + "\(app.staticTexts.allElementsBoundByIndex.prefix(12).map(\.label))"
         )
         let name = app.staticTexts["fst.player.name"]
@@ -59,10 +57,9 @@ final class ProfileStatisticsJourneyTests: XCTestCase {
 
         try SongsUITestSupport.deselectFixturePlayer(in: app)
         SongsUITestSupport.record(app, name: "profile-deselected")
-        // The tab bar hides Statistics again once no player is selected.
-        let statisticsGone = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"), object: statisticsTab
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [statisticsGone], timeout: 10), .completed)
+        // The drawer hides Statistics again once no player is selected.
+        app.buttons["fst.shell.drawer.open"].tap()
+        XCTAssertFalse(app.buttons["fst.shell.drawer.statistics"].exists)
+        app.buttons["fst.shell.drawer.close"].tap()
     }
 }

@@ -1,8 +1,8 @@
 import XCTest
 
 /// Global search journeys against the loopback fixture (`tools/mock_service.py` on
-/// `127.0.0.1:8765`): open from any page, search songs and players, open a result,
-/// and the blocked Bands scope (`.agents/controls/global-search/ios.md`).
+/// `127.0.0.1:8765`): open from the Search tab, search songs and players, open a
+/// result, and the blocked Bands scope (`.agents/controls/global-search/ios.md`).
 final class GlobalSearchJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp() -> XCUIApplication {
@@ -13,16 +13,50 @@ final class GlobalSearchJourneyTests: XCTestCase {
         ])
     }
 
-    /// Open global search (accessory on iOS 26.1+, toolbar button elsewhere) and return
-    /// its search field.
+    /// Open global search from the system Search tab and return its focused search field.
+    ///
+    /// - Parameter app: Launched app on any root tab.
+    /// - Returns: The Search tab's system search field.
     @MainActor
     private func openSearch(in app: XCUIApplication) -> XCUIElement {
-        let open = app.buttons.matching(identifier: "fst.global-search.open").firstMatch
-        XCTAssertTrue(open.waitForExistence(timeout: 15))
-        open.tap()
-        let field = app.textFields["fst.global-search.field"]
+        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label == %@", "Search")).firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 15), "Search tab missing")
+        tab.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "fst.nav.search").firstMatch
+                .waitForExistence(timeout: 10),
+            "Search tab content did not appear"
+        )
+        let field = app.searchFields["Search songs or players"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         return field
+    }
+
+    /// Close the system Search tab and assert Songs is active again.
+    ///
+    /// - Parameter app: The running app with the Search tab open.
+    @MainActor
+    private func closeSearch(in app: XCUIApplication) {
+        let close = app.buttons.matching(NSPredicate(format: "label == %@", "Close")).firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "Search Close missing")
+        close.tap()
+        let sort = app.buttons["fst.songs.sort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 10))
+        XCTAssertTrue(sort.isHittable, "Closing Search did not return to Songs")
+    }
+
+    /// The system Search tab focuses the field, raises the keyboard and closes back to
+    /// the previous Songs tab.
+    @MainActor
+    func testSearchTabFocusesFieldAndCloseReturnsToSongs() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        _ = openSearch(in: app)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "Search did not focus the keyboard")
+        closeSearch(in: app)
     }
 
     /// Short queries show the hint; a song and a player match; a song opens Song Detail
@@ -41,9 +75,9 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertGreaterThan(hint.frame.minY, scope.frame.maxY + 40)
         field.tap()
         field.typeText("Fixture")
-        // Focusing the field must not hide the sheet's own Close (operator bug, 2026-09-28).
+        // Focusing the field must not hide the system Close beside it.
         XCTAssertTrue(
-            app.buttons["fst.global-search.close"].isHittable,
+            app.buttons.matching(NSPredicate(format: "label == %@", "Close")).firstMatch.isHittable,
             "Close disappeared while searching"
         )
         let song = app.buttons.matching(identifier: "fst.global-search.result.song").firstMatch
