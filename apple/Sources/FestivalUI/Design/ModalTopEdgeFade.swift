@@ -65,7 +65,7 @@ enum ModalTopEdgeFade {
 struct ModalTopEdgeFadeModifier: ViewModifier {
     /// The content's own coordinate space. Global coordinates would include the sheet's
     /// presentation transform, which SwiftUI doesn't report as a geometry change.
-    private static let space = "fst.modalTopEdgeFade"
+    private nonisolated static let space = "fst.modalTopEdgeFade"
 
     /// The content's top safe-area inset, from a reader that respects the safe area: a view
     /// that ignores it, and a mask, always report a zero inset.
