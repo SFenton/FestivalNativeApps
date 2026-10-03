@@ -43,6 +43,8 @@ struct FeedbackFormSheet: View {
     var body: some View {
         NavigationStack {
             form
+                // Fade under the header like every `FestivalModal` (#94).
+                .modifier(ModalTopEdgeFadeModifier())
                 .navigationTitle(kind.formTitle)
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)

@@ -66,6 +66,8 @@ struct FindRivalSheet: View {
                     route: route, session: session, visibleInstruments: [],
                     path: $path, isVisible: true
                 )
+                // Pages pushed inside the modal fade under its header too (#94).
+                .modifier(ModalTopEdgeFadeModifier())
             }
         }
         .onAppear { searchFocused = true }
