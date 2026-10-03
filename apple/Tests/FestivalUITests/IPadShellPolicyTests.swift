@@ -177,3 +177,25 @@ import Testing
     #expect(ListDetailPolicy.detailColumnWidth(layout: iPad, containerWidth: nil) == nil)
 }
 
+
+// MARK: - Menu bar
+
+/// The Go menu lists a fixed set per shell (disabled, never hidden, when not visible)
+/// and numbers ⌘1…⌘9 by visible order, like the sidebar's.
+@Test func goMenuListsFixedDestinationsAndNumbersVisibleOnes() {
+    let anonymous = SidebarMenu.sections(profile: .none, hideShop: true)
+    let sidebar = FestivalShellCommands.destinations(sidebar: true, visible: anonymous)
+    #expect(sidebar == [.songs, .suggestions, .statistics, .rivals, .leaderboards, .shop, .settings])
+    let tabs = FestivalShellCommands.destinations(sidebar: false, visible: [.songs, .leaderboards, .settings])
+    #expect(tabs == [.songs, .suggestions, .compete, .leaderboards, .statistics, .settings])
+    let commands = FestivalShellCommands(
+        destinations: sidebar, visible: anonymous, selected: .songs, canGoBack: false,
+        sheetOpen: false, hasPlayer: false, select: { _ in }, goBack: {}, search: {}, refresh: {},
+        chooseProfile: {}, deselectProfile: {}, notifications: {}, whatsNew: {}, licenses: {}
+    )
+    #expect(commands.digit(for: .songs) == 1)
+    #expect(commands.digit(for: .leaderboards) == 2)
+    #expect(commands.digit(for: .settings) == 3)
+    #expect(commands.digit(for: .shop) == nil, "Hide Item Shop: listed, disabled, no shortcut")
+    #expect(commands.digit(for: .rivals) == nil)
+}

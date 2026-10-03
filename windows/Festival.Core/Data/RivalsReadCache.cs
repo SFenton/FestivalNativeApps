@@ -81,7 +81,7 @@ public sealed class RivalsReadCache(TimeProvider time, TimeSpan? lifetime = null
     /// <summary>Whether a failure is the service holding reads during publication or maintenance (HTTP 503).</summary>
     /// <param name="error">Failure.</param>
     /// <returns><see langword="true"/> for a freeze or an unavailable published response.</returns>
-    private static bool IsFrozen(FestivalApiException error) =>
+    internal static bool IsFrozen(FestivalApiException error) =>
         error.Kind is FestivalApiErrorKind.PublicReadFrozen or FestivalApiErrorKind.Unavailable;
 
     /// <summary>The last good value for a key while it is within <see cref="StaleGrace"/>.</summary>

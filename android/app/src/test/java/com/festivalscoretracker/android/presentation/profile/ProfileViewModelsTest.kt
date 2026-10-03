@@ -109,6 +109,20 @@ class ProfileViewModelsTest {
     // region Player profile
 
     @Test
+    fun identityRowShowsOnlyForSelectSwitchNoticeOrError() {
+        // Issue #97: the name card is gone; the row appears only when it has something to act on or say.
+        PlayerIdentityAction.entries.forEach { action ->
+            val expected = action in setOf(
+                PlayerIdentityAction.Select, PlayerIdentityAction.Switch,
+                PlayerIdentityAction.Unverified, PlayerIdentityAction.Changed,
+            )
+            assertEquals(action.name, expected, PlayerProfileUiState(identity = action).showsIdentityRow)
+        }
+        assertTrue(PlayerProfileUiState(identity = PlayerIdentityAction.Deselect, actionError = "failed").showsIdentityRow)
+        assertFalse(PlayerProfileUiState(identity = PlayerIdentityAction.None, actionError = null).showsIdentityRow)
+    }
+
+    @Test
     fun viewedProfileSelectsAndDeselectsWithoutNavigatingOrRereading() = runTest(main.dispatcher) {
         val store = store(this)
         val vm = viewModel(store, Fixtures.ACCOUNT_A)

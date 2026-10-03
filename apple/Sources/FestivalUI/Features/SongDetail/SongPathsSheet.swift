@@ -103,7 +103,10 @@ struct SongPathsSheet: View {
         } message: {
             Text("Karaoke is not available for path visualization yet.")
         }
-        .interactiveDismissDisabled()
+        // Swipe-to-dismiss stays on (issue #96; HIG sheets: "Support swiping vertically
+        // to dismiss"): the viewer has no unsaved changes, and the system sheet only
+        // takes a downward pull from the title bar or a scroll view at its top edge, so
+        // image pinch and pan keep working.
     }
 
     // MARK: - Compact chrome
@@ -321,23 +324,23 @@ struct SongPathsSheet: View {
     /// how a two-axis `ScrollView` places narrower content (issue #87). Indicators are
     /// hidden like the app's other scrollers; the cut-off bottom edge keeps the tall
     /// path visibly scrollable, and macOS still shows scroll bars when the user's
-    /// system setting asks for them.
+    /// system setting asks for them. The viewport scrolls sideways only while the
+    /// zoomed image is wider than it: a two-axis scroll view at its top edge keeps a
+    /// downward pull instead of letting the sheet's swipe-to-dismiss take it (issue #96).
     ///
     /// - Parameter image: Validated, bounded image decoded away from the UI actor.
     /// - Returns: Scrollable native image viewport.
     private func imageScroll(_ image: CGImage) -> some View {
         GeometryReader { geometry in
             let fit = min(1, max(1, geometry.size.width) / CGFloat(image.width))
-            ScrollView([.vertical, .horizontal]) {
+            let width = CGFloat(image.width) * fit * zoom
+            ScrollView(width > geometry.size.width + 0.5 ? [.vertical, .horizontal] : .vertical) {
                 Image(image, scale: 1, label: Text(
                     "\(instrument.label) \(difficulty.label) CHOpt path"
                 ))
                 .resizable()
                 .interpolation(.high)
-                .frame(
-                    width: CGFloat(image.width) * fit * zoom,
-                    height: CGFloat(image.height) * fit * zoom
-                )
+                .frame(width: width, height: CGFloat(image.height) * fit * zoom)
                 .accessibilityIdentifier("fst.paths.image")
                 .simultaneousGesture(
                     MagnifyGesture()

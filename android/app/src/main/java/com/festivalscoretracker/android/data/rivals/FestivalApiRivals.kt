@@ -8,6 +8,7 @@ import com.festivalscoretracker.android.core.rivals.RivalCombo
 import com.festivalscoretracker.android.core.rivals.RivalDetailResponse
 import com.festivalscoretracker.android.core.rivals.RivalRankMetric
 import com.festivalscoretracker.android.core.rivals.RivalsListResponse
+import com.festivalscoretracker.android.core.suggestions.RivalsAllResponse
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ServiceEndpoint
 
@@ -145,6 +146,25 @@ suspend fun FestivalApi.leaderboardRivalDetail(
             ),
         ).validated(rivalId)
     }
+}
+
+/**
+ * `GET /api/player/{accountId}/rivals/all`, unpinned like the other Rivals reads (Suggestions
+ * reads the same endpoint pinned); 404 becomes empty. Rival Detail uses it as the freeze
+ * fallback ([com.festivalscoretracker.android.core.rivals.RivalsAllDetail]). The live body is
+ * ~8.9 MB uncompressed (2026-10).
+ *
+ * @param accountId Selected player.
+ * @return Every combo's rivals with samples.
+ * @throws FestivalApiException.InvalidResponse when the echoed account differs.
+ */
+suspend fun FestivalApi.rivalsAll(accountId: String): RivalsAllResponse {
+    requireAccount(accountId)
+    val all = emptyOn404({ RivalsAllResponse.empty(accountId) }) {
+        decode(RivalsAllResponse.serializer(), rivalsRead(listOf("player", accountId, "rivals", "all")))
+    }
+    if (!all.accountId.equals(accountId, ignoreCase = true)) throw FestivalApiException.InvalidResponse()
+    return all
 }
 
 // endregion

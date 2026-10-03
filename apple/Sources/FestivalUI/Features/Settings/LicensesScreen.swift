@@ -82,7 +82,7 @@ struct LicensesScreen: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(BrandTokens.surfaceFrosted, in: Capsule())
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(FestivalText.primary)
                     .accessibilityHidden(true)

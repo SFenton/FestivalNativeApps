@@ -28,7 +28,7 @@ enum WindowResize {
     /// ~375 pt minimum, so from full screen any fraction below ~0.6 lands on the
     /// compact minimum (a ⅓ / Slide Over-like window); growing a small window again
     /// gives an intermediate regular width (measured 829 pt for `0.5`). Exact tiling
-    /// (½, ⅓) is the window-controls menu, which is not scripted yet.
+    /// (½, ⅓) uses the window-controls menu instead: ``tile(_:_:)``.
     ///
     /// - Parameters:
     ///   - app: The running app under test.
@@ -48,6 +48,72 @@ enum WindowResize {
         Thread.sleep(forTimeInterval: 1.5)
         return abs(app.windows.firstMatch.frame.width - window.width) > 1
     }
+
+    /// A window-controls tiling choice (iPadOS 26: long-press the window's green Zoom
+    /// button). The raw value is the menu button's accessibility label. "Fill" is left
+    /// out on purpose: it enters full screen, where the window controls leave the
+    /// accessibility tree and the next SpringBoard query hung XCUITest; ``fill(_:)``
+    /// (Zoom) restores a full-width window that keeps its controls.
+    enum Tile: String, CaseIterable {
+        /// Left half of the screen ("Move & Resize › Left").
+        case left = "Left"
+        /// Right half of the screen.
+        case right = "Right"
+        /// Arrange the frontmost windows in thirds.
+        case thirds = "Arrange thirds"
+        /// Arrange the two frontmost windows left and right.
+        case leftAndRight = "Left and Right"
+    }
+
+    /// Tile the app window exactly through the window-controls menu (expand the controls
+    /// when the window fills the screen, long-press Zoom, choose the tile).
+    ///
+    /// - Parameters:
+    ///   - app: The running app under test.
+    ///   - tile: The menu choice.
+    /// - Returns: True when the menu item was found and tapped.
+    @MainActor
+    @discardableResult
+    static func tile(_ app: XCUIApplication, _ tile: Tile) -> Bool {
+        let controls = springboard.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'window-controls'")
+        ).firstMatch
+        let zoom = springboard.buttons["Zoom-button"]
+        let item = springboard.buttons[tile.rawValue]
+        // A full-width window hides its controls a moment after it fills (they leave
+        // the accessibility tree); a drag-resized window keeps them, so shrink first
+        // when they are gone or a try found no menu. The collapsed controls keep a
+        // hittable-looking Zoom button in the tree, so always tap the controls first.
+        for attempt in 0..<3 {
+            if attempt > 0 || !controls.waitForExistence(timeout: 2) {
+                resize(app, toScreenFraction: 0.7)
+            }
+            guard controls.waitForExistence(timeout: 3) else { continue }
+            controls.tap()
+            guard zoom.waitForExistence(timeout: 3) else { continue }
+            Thread.sleep(forTimeInterval: 0.5)
+            zoom.press(forDuration: 1.2)
+            if item.waitForExistence(timeout: 3) {
+                item.tap()
+                Thread.sleep(forTimeInterval: 2)
+                return true
+            }
+        }
+        return false
+    }
+
+    /// The app window's current width in points.
+    ///
+    /// - Parameter app: The running app under test.
+    /// - Returns: The width, or 0 without a window.
+    @MainActor
+    static func windowWidth(_ app: XCUIApplication) -> CGFloat {
+        app.windows.firstMatch.frame.width
+    }
+
+    /// The screen width in the current orientation (for tiling assertions).
+    @MainActor
+    static var currentScreenWidth: CGFloat { screenWidth }
 
     /// Make the app window fill the screen again: the window-controls button, then
     /// **Zoom** (iPadOS 26 window controls).

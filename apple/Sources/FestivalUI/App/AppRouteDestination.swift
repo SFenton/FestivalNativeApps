@@ -139,6 +139,7 @@ struct FestivalTabStack<Root: View>: View {
                 // iPhone: the page's Filter/Sort and Quick Links float above the tab bar.
                 .modifier(FloatingPageControls())
                 .modifier(TopEdgeScrim())
+                .menuBarColumn(isTop: isVisible && path.isEmpty)
                 .navigationDestination(for: AppRoute.self) { route in
                 AppRouteDestination(
                     route: route, session: session, visibleInstruments: visibleInstruments,
@@ -148,7 +149,30 @@ struct FestivalTabStack<Root: View>: View {
                 .globalSearchToolbarItem()
                 .modifier(FloatingPageControls())
                 .modifier(TopEdgeScrim())
+                .menuBarColumn(isTop: isVisible && path.last == route)
             }
         }
+    }
+}
+
+// MARK: - Menu-bar column context (iPad)
+
+extension View {
+    /// Tell an iOS page whether it is the top page of its column and whether that column
+    /// is a split's list column, so only the front pages publish menu-bar commands
+    /// (`MenuBarTopPagePublisher`; iOS navigation keeps covered pages and unselected
+    /// tabs alive). The Mac sets the same values in `MacListDetailStack`.
+    ///
+    /// - Parameters:
+    ///   - isTop: The page is visible and nothing is pushed over it.
+    ///   - isList: The page is in a split's list column.
+    /// - Returns: The page with its menu-bar context.
+    @ViewBuilder
+    func menuBarColumn(isTop: Bool, isList: Bool = false) -> some View {
+        #if os(iOS)
+        environment(\.macPageIsTop, isTop).environment(\.macColumnIsList, isList)
+        #else
+        self
+        #endif
     }
 }

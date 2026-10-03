@@ -157,10 +157,9 @@ struct ShopScreen: View {
             ShopFilterSheet(applied: appliedFilter, onApply: applyFilter)
                 .macSheetFrame(width: 420, height: 360)
         }
-        #if os(macOS)
-        // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command".
+        // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command"
+        // (also the iPadOS menu bar).
         .macPageCommands(MacPageCommands(filter: { filterPresented = true }))
-        #endif
         .task(id: requestKey) {
             guard isVisible else { return }
             // Returning from Song Detail re-runs `.task`; keep the loaded list instead

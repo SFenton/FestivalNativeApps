@@ -22,6 +22,12 @@ public struct FestivalRootView: View {
     @State private var globalSearchPresented = false
     /// A search result to push after the search sheet has dismissed.
     @State private var pendingSearchRoute: AppRoute?
+    /// Notifications opened from the iPad menu bar (the bell owns its own sheet).
+    @State private var notificationsPresented = false
+    /// A notification row to push after the menu-opened sheet has dismissed.
+    @State private var pendingNotificationRoute: AppRoute?
+    /// What's New opened from the iPad Help menu.
+    @State private var whatsNewPresented = false
     #if DEBUG && os(iOS)
     @State private var motionReport = DebugMotionReport()
     #endif
@@ -53,6 +59,9 @@ public struct FestivalRootView: View {
     /// Shell split column visibility, shared by every section's split so a hidden
     /// sidebar stays hidden across destinations.
     @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
+    /// Details each list/detail section's split chose by itself (auto-select or restore),
+    /// popped when the iPad window falls back to the compact tab shell.
+    @State private var automaticDetails: [FestivalSection: AppRoute] = [:]
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
@@ -169,6 +178,7 @@ public struct FestivalRootView: View {
                             ? max(0, layout.size.width - sidebarExtent) : nil
                     )
                     .background { keyboardCommands(presentation, layout: layout) }
+                    .modifier(ShellCommandsPublisher(commands: shellCommands(presentation)))
                 #if DEBUG
                 if ProcessInfo.processInfo.environment["FST_DEBUG_LIST_DETAIL"] == "1" {
                     Text("win=\(Int(layout.size.width)) sb=\(Int(sidebarExtent)) split=\(splitSections.map(\.rawValue).sorted().joined(separator: ",")) nav=\(presentation.navigation == .sidebar ? "SB" : "T")")
@@ -206,7 +216,7 @@ public struct FestivalRootView: View {
         // A window that widens back into the sidebar shell shows every column again:
         // the split may have tucked them away (`.detailOnly`) while it was narrow.
         .onChange(of: usesSidebarShell) { _, sidebar in
-            if sidebar { sidebarVisibility = .all }
+            if sidebar { sidebarVisibility = .all } else { dropAutomaticDetails() }
         }
         // Debug only: lay the whole app out in a narrower canvas (e.g. 375 pt, iPhone
         // SE width) on a wider simulator, so small-width chrome (title truncation,
@@ -311,6 +321,9 @@ public struct FestivalRootView: View {
         .environment(\.listDetailSplitReporter, ListDetailSplitReporter { section, isSplit in
             if isSplit { splitSections.insert(section) } else { splitSections.remove(section) }
         })
+        .environment(\.listDetailAutomaticReporter, ListDetailAutomaticReporter { section, automatic in
+            automaticDetails[section] = automatic
+        })
         // Notification rows open their page on the current tab, not inside the sheet (#75).
         .environment(\.pushRoute, PushRouteAction { route in
             paths[selected, default: []].append(route)
@@ -349,8 +362,25 @@ public struct FestivalRootView: View {
             }
             .festivalSheet()
         }
+        .sheet(isPresented: $notificationsPresented, onDismiss: {
+            if let route = pendingNotificationRoute {
+                pendingNotificationRoute = nil
+                paths[selected, default: []].append(route)
+            }
+        }) {
+            NotificationsSheet(session: session) { pendingNotificationRoute = $0 }
+                .festivalSheet(.large)
+        }
+        .whatsNewPresentation(isPresented: $whatsNewPresented) {
+            WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {
+                ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
+                whatsNewPresented = false
+            }
+        }
         .whatsNew(session: session)
         .onChange(of: visibleSections) { _, visible in
+            // Pop unchosen details before the paths move between section slots.
+            if !usesSidebarShell { dropAutomaticDetails() }
             let adapted = FestivalTabPolicy.adapt(selected: selected, paths: paths, to: visible)
             if adapted.paths != paths { paths = adapted.paths }
             if adapted.selected != selected { selected = adapted.selected }
@@ -484,7 +514,19 @@ public struct FestivalRootView: View {
     ///   - presentation: Presentation resolved for the current window.
     ///   - layout: Published window layout.
     /// - Returns: Invisible, zero-size buttons carrying the shortcuts.
+    @ViewBuilder
     private func keyboardCommands(_ presentation: ShellPresentation, layout: DeviceLayout) -> some View {
+        // iPad: the menu bar (`FestivalCommands`) carries these shortcuts instead.
+        if !MenuBarCommandsSupport.isAvailable {
+            phoneKeyboardCommands(presentation)
+        }
+    }
+
+    /// The hidden shortcut buttons for a phone with a hardware keyboard.
+    ///
+    /// - Parameter presentation: Presentation resolved for the current window.
+    /// - Returns: Invisible, zero-size buttons carrying the shortcuts.
+    private func phoneKeyboardCommands(_ presentation: ShellPresentation) -> some View {
         let visible = sections(for: presentation)
         return ZStack {
             KeyCommandButton(title: "Search", key: "f") { globalSearchPresented = true }
@@ -501,6 +543,54 @@ public struct FestivalRootView: View {
                 Task { await refreshCommands.refresh() }
             }
         }
+    }
+
+    /// iPad: the window became compact (⅓ / ½ portrait / Slide Over), so the tab shell
+    /// rebuilds every section's stack. A detail the three-column split chose by itself
+    /// would otherwise stay pushed over the list (`ListDetailPolicy.pathDroppingAutomaticDetail`);
+    /// a row the person picked stays.
+    private func dropAutomaticDetails() {
+        guard !automaticDetails.isEmpty else { return }
+        for (section, automatic) in automaticDetails {
+            if let list = ListDetailPolicy.pathDroppingAutomaticDetail(
+                section: section, path: paths[section] ?? [], automatic: automatic
+            ) {
+                paths[section] = list
+            }
+        }
+        automaticDetails = [:]
+    }
+
+    /// The root actions this window publishes to the iPad menu bar.
+    ///
+    /// - Parameter presentation: Presentation resolved for the current window.
+    /// - Returns: The window's shell commands.
+    private func shellCommands(_ presentation: ShellPresentation) -> FestivalShellCommands {
+        let visible = sections(for: presentation)
+        return FestivalShellCommands(
+            destinations: FestivalShellCommands.destinations(
+                sidebar: presentation.navigation == .sidebar, visible: visible
+            ),
+            visible: visible, selected: selected,
+            canGoBack: ListDetailPolicy.pathAfterBack(
+                section: selected, path: path(for: selected).wrappedValue,
+                isSplit: splitSections.contains(selected)
+            ) != nil,
+            sheetOpen: rootProfilePresented || globalSearchPresented || notificationsPresented
+                || whatsNewPresented || drawerPresented,
+            hasPlayer: session.selectedPlayer != nil,
+            select: { section in
+                if selected == section { paths[section] = [] } else { select(section) }
+            },
+            goBack: { goBack() },
+            search: { globalSearchPresented = true },
+            refresh: { Task { await refreshCommands.refresh() } },
+            chooseProfile: { rootProfilePresented = true },
+            deselectProfile: { session.deselectPlayer() },
+            notifications: { notificationsPresented = true },
+            whatsNew: { whatsNewPresented = true },
+            licenses: { paths[selected, default: []].append(.licenses) }
+        )
     }
 
     /// Pop the frontmost column of the selected section (⌘[).
@@ -727,6 +817,21 @@ public struct FestivalRootView: View {
     }
 }
 
+
+// MARK: - Menu bar publishing
+
+/// Publishes the window's shell commands to the iPad menu bar (nothing on iPhone).
+private struct ShellCommandsPublisher: ViewModifier {
+    let commands: FestivalShellCommands
+
+    func body(content: Content) -> some View {
+        if MenuBarCommandsSupport.isAvailable {
+            content.focusedSceneValue(\.festivalShellCommands, commands)
+        } else {
+            content
+        }
+    }
+}
 
 // MARK: - Debug launch routing
 

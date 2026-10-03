@@ -579,7 +579,7 @@ struct SettingsScreen: View {
             HStack(alignment: .center, spacing: 16) {
                 FestivalSectionHeader("Licenses", subtitle: "Open source package license details.")
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(FestivalText.primary)
                     .accessibilityHidden(true)

@@ -222,7 +222,7 @@ struct NotificationRow: View {
             if isUnread || notification.destination != nil {
                 ZStack {
                     if notification.destination != nil {
-                        Image(systemName: "chevron.right")
+                        Image(systemName: "chevron.forward")
                             .font(.body.weight(.semibold))
                             .foregroundStyle(FestivalText.primary.opacity(0.72))
                     }

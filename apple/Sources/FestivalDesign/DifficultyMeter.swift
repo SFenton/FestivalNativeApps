@@ -66,6 +66,8 @@ public struct DifficultyMeter: View {
                     }
                 }
                 .frame(width: 62, height: 20)
+                // A level indicator fills in reading order: right to left in RTL (HIG Right to left).
+                .flipsForRightToLeftLayoutDirection(true)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
                     "Difficulty \(displayed == Double(filled) ? String(filled) : String(displayed)) of 7"

@@ -48,19 +48,12 @@ final class ProfileJourneyTests: XCTestCase {
     /// Require the pushed profile page to belong to exactly `displayName`.
     ///
     /// - Parameters:
-    ///   - displayName: Fixture display name expected in the page header.
+    ///   - displayName: Fixture display name expected in the page title.
     ///   - app: App on the pushed player page.
     @MainActor
     private func assertViewing(_ displayName: String, in app: XCUIApplication) {
-        let name = app.staticTexts["fst.player.name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 15))
-        let settled = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label == %@", displayName), object: name
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [settled], timeout: 10), .completed,
-            "Viewed \(name.label), expected \(displayName)"
-        )
+        XCTAssertTrue(SongsUITestSupport.playerPage(in: app).waitForExistence(timeout: 15))
+        SongsUITestSupport.assertPlayerTitle(displayName, in: app)
     }
 
     /// One Back must land on the presenting tab root: only one route was pushed.
@@ -76,7 +69,7 @@ final class ProfileJourneyTests: XCTestCase {
             app.buttons["fst.shell.profile"].waitForExistence(timeout: 10),
             "Back did not return to the tab root; more than one profile was pushed"
         )
-        XCTAssertFalse(app.staticTexts["fst.player.name"].exists)
+        XCTAssertFalse(SongsUITestSupport.playerPage(in: app).exists)
     }
 
     // MARK: Journeys

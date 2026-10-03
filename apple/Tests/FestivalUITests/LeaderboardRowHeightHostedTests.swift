@@ -99,6 +99,25 @@ private func rowHeight(
     #expect(large > LeaderboardRowMetrics.minHeight)
 }
 
+/// `/duo` Stage 5 Dynamic Type check: at AX5 a folded iPhone Duo row is ~350 pt wide
+/// (466 pt window less the 84 pt vertical bar and margins), and its songs + value line
+/// measured 596 pt, so the row ran under the bar and off the leading edge. macOS does not
+/// scale fonts with Dynamic Type, so the same ratio is reproduced with a column narrower
+/// than one line of songs + value: the stacked row must still fit the proposed width.
+@Test(arguments: [DynamicTypeSize.accessibility1, .accessibility5])
+@MainActor func rankingsRowsFitANarrowColumnAtAccessibilitySizes(_ size: DynamicTypeSize) throws {
+    let entry = try rankingRow(rank: 868_662, name: "Cardinalsfan0351")
+    let host = NSHostingController(
+        rootView: AccountRankingRow(entry: entry, metric: .totalscore, isSelected: true, glassSurface: true)
+            .environment(\.dynamicTypeSize, size)
+            .preferredColorScheme(.dark)
+    )
+    let width: CGFloat = 140
+    let fitted = host.sizeThatFits(in: CGSize(width: width, height: 10_000))
+    #expect(fitted.width <= width)
+    #expect(fitted.height > LeaderboardRowMetrics.minHeight)
+}
+
 @Test @MainActor func bandScoreCardsAreAtLeastOneRowTall() throws {
     let height = rowHeight(SongBandPreviewRow(entry: try bandRow(), highlighted: false))
     #expect(height >= LeaderboardRowMetrics.minHeight)

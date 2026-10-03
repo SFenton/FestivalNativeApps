@@ -102,7 +102,7 @@ struct PlayerPercentileTableCard: View {
                 .monospacedDigit()
                 .foregroundStyle(FestivalText.primary)
             if showsChevron {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)

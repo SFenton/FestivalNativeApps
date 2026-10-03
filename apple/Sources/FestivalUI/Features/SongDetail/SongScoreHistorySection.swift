@@ -367,17 +367,17 @@ private struct ScoreHistoryChart: View {
         let paging = paging
         let first = first
         return HStack(spacing: 12) {
-            pagerButton("chevron.left.2", "Back one page", enabled: paging.canGoBack(from: first)) {
+            pagerButton("chevron.backward.2", "Back one page", enabled: paging.canGoBack(from: first)) {
                 move(to: paging.backPage(from: first))
             }
-            pagerButton("chevron.left", "Back one entry", enabled: paging.canGoBack(from: first)) {
+            pagerButton("chevron.backward", "Back one entry", enabled: paging.canGoBack(from: first)) {
                 move(to: paging.backEntry(from: first))
             }
             Spacer(minLength: 0)
-            pagerButton("chevron.right", "Forward one entry", enabled: paging.canGoForward(from: first)) {
+            pagerButton("chevron.forward", "Forward one entry", enabled: paging.canGoForward(from: first)) {
                 move(to: paging.forwardEntry(from: first))
             }
-            pagerButton("chevron.right.2", "Forward one page", enabled: paging.canGoForward(from: first)) {
+            pagerButton("chevron.forward.2", "Forward one page", enabled: paging.canGoForward(from: first)) {
                 move(to: paging.forwardPage(from: first))
             }
         }

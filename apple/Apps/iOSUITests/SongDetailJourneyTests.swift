@@ -142,6 +142,69 @@ final class SongDetailJourneyTests: XCTestCase {
         )
     }
 
+    /// Swiping the Paths sheet down closes it in text and image modes (issue #96), while
+    /// pinch zoom on the image still works (HIG sheets: "Support swiping vertically to
+    /// dismiss").
+    ///
+    /// - Throws: A sheet that bounces back, or a pinch the sheet swallows.
+    @MainActor
+    func testSongPathsSwipeDownDismisses() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let open = app.buttons["fst.song-detail.paths"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        let display = pathsMenu("fst.paths.display", in: app)
+
+        /// Open the sheet on one view, past the optional Karaoke notice.
+        func openPaths(_ view: String) {
+            XCTAssertTrue(open.waitForExistence(timeout: 10))
+            open.tap()
+            let warning = app.alerts["Some Instruments Unavailable"]
+            if warning.waitForExistence(timeout: 2) { warning.buttons["OK"].tap() }
+            XCTAssertTrue(display.waitForExistence(timeout: 10))
+            if !menuShows(view, display) { choose(view, in: display, app: app) }
+        }
+
+        /// Drag from an element's upper area to the bottom of the window and expect the
+        /// sheet to close.
+        func swipeDismiss(from element: XCUIElement, _ context: String) {
+            let window = app.windows.firstMatch
+            let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+            let end = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.98))
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .fast, thenHoldForDuration: 0)
+            XCTAssertTrue(display.waitForNonExistence(timeout: 10), "Paths sheet bounced back \(context)")
+            XCTAssertTrue(open.waitForExistence(timeout: 10))
+        }
+
+        openPaths("Text")
+        let text = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.paths.text.")).firstMatch
+        XCTAssertTrue(text.waitForExistence(timeout: 15))
+        swipeDismiss(from: text, "in text mode")
+
+        openPaths("Image")
+        let image = app.images["fst.paths.image"]
+        let viewport = app.descendants(matching: .any)
+            .matching(identifier: "fst.paths.image-viewport").firstMatch
+        XCTAssertTrue(image.waitForExistence(timeout: 15))
+        let fittedWidth = image.frame.width
+        // The viewport's centre lies on the fitted image, where the magnify gesture is.
+        viewport.pinch(withScale: 2, velocity: 2)
+        XCTAssertGreaterThan(image.frame.width, fittedWidth, "Pinch did not zoom the path")
+        XCTAssertTrue(display.exists, "Pinching closed the Paths sheet")
+        swipeDismiss(from: app.navigationBars.staticTexts["Paths"], "from the title bar")
+
+        openPaths("Image")
+        XCTAssertTrue(image.waitForExistence(timeout: 15))
+        swipeDismiss(from: viewport, "with the image at its top edge")
+    }
+
     /// A saved Settings path default initializes the next modal without erasing it.
     ///
     /// - Throws: A disconnected setting, unavailable modal or lost original preference.
@@ -370,9 +433,11 @@ final class SongDetailJourneyTests: XCTestCase {
             secondRow.label, "#2, Fixture Player 2, 99,800, Full combo, accuracy 98%"
         )
         secondRow.tap()
-        let profileName = app.staticTexts["fst.player.name"]
-        XCTAssertTrue(profileName.waitForExistence(timeout: 10), "Row did not open the profile")
-        XCTAssertEqual(profileName.label, "Fixture Player 2")
+        XCTAssertTrue(
+            SongsUITestSupport.playerPage(in: app).waitForExistence(timeout: 10),
+            "Row did not open the profile"
+        )
+        SongsUITestSupport.assertPlayerTitle("Fixture Player 2", in: app)
         SongsUITestSupport.record(app, name: "song-detail-preview-row-opens-profile")
         app.buttons["BackButton"].tap()
         XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
@@ -810,15 +875,7 @@ final class SongDetailJourneyTests: XCTestCase {
         let first = app.buttons["fst.song-leaderboard.page-first"]
         XCTAssertFalse(first.isEnabled)
         XCTAssertTrue(next.isEnabled)
-        try app.performAccessibilityAudit(for: .all) { issue in
-            XCTFail(
-                "Solo page audit: \(issue.compactDescription); "
-                    + "element=\(issue.element?.identifier ?? "unidentified"), "
-                    + "label=\(issue.element?.label ?? "unidentified"), "
-                    + "frame=\(String(describing: issue.element?.frame))"
-            )
-            return false
-        }
+        try auditSoloPage(app, pagerTop: first.frame.minY)
         next.tap()
         XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
         XCTAssertTrue(first.isEnabled)
@@ -828,7 +885,7 @@ final class SongDetailJourneyTests: XCTestCase {
                 .matching(identifier: "fst.song-leaderboard.row.fixture-player-26")
                 .firstMatch.waitForExistence(timeout: 10)
         )
-        try app.performAccessibilityAudit(for: .all)
+        try auditSoloPage(app, pagerTop: first.frame.minY)
         SongsUITestSupport.record(app, name: "song-leaderboard-page2-portrait")
 
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -890,6 +947,55 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "solo-largest-text-page2")
     }
 
+
+    // MARK: - Solo page audit
+
+    /// Run the full accessibility audit on the song leaderboard, accepting only the
+    /// contrast of rows intentionally dimmed by the bottom scroll-edge fade (issue #93).
+    ///
+    /// Rows fade over ``ScrollEdgeFade``'s 36 pt above the floating pager/footer (web
+    /// `useScrollFade`), so a row inside that band reads below 4.5:1 by design, as
+    /// text under a bar's top scroll-edge effect does. Every other issue fails.
+    ///
+    /// - Parameters:
+    ///   - app: Running app on the song leaderboard.
+    ///   - pagerTop: Top of the floating pager's first control.
+    /// - Throws: An audit failure outside the fade band.
+    @MainActor
+    private func auditSoloPage(_ app: XCUIApplication, pagerTop: CGFloat) throws {
+        // Pager row: 8 pt vertical padding; fade: 36 pt above the chrome's top.
+        let fadeTop = pagerTop - 8 - 36
+        let rows = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.song-leaderboard.row.")
+        ).allElementsBoundByIndex
+        let rowInFade = rows.contains { $0.frame.maxY > fadeTop && $0.frame.minY < pagerTop }
+        try app.performAccessibilityAudit(for: .all) { issue in
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.detailedDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame)), "
+                    + "fadeTop=\(fadeTop), rowInFade=\(rowInFade)"
+            )
+            attachment.name = "solo-page-audit-node"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            if issue.auditType == .contrast {
+                if let frame = issue.element?.frame, !frame.isEmpty {
+                    if frame.maxY > fadeTop { return true }
+                } else if rowInFade {
+                    return true
+                }
+            }
+            XCTFail(
+                "Solo page audit: \(issue.compactDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame))"
+            )
+            return false
+        }
+    }
 
     // MARK: - Paths menu helpers
 

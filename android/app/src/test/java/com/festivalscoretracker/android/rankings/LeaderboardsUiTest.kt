@@ -21,7 +21,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
+import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -32,6 +34,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.CompletableDeferred
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -56,9 +59,18 @@ abstract class LeaderboardsHarness {
     protected val store = InMemoryPreferences()
     protected val selected = SelectedPlayer(RankingsFixtures.SELECTED, "Selected Player")
 
+    /** Holds a matching request until the returned deferred completes (null = answer at once). */
+    protected var hold: (HttpRequest) -> CompletableDeferred<Unit>? = { null }
+
     protected fun launch(route: String, profile: SelectedPlayer? = null) {
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = store)
+        val gated = object : HttpTransport {
+            override suspend fun send(request: HttpRequest): HttpResult {
+                hold(request)?.await()
+                return transport.send(request)
+            }
+        }
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -306,6 +318,30 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
             assertEquals(footerScore.right, bounds.right, 0.5f)
             assertEquals(footerScore.width, bounds.width, 0.5f)
         }
+    }
+
+    @Test
+    fun songLeaderboardKeepsItsHeaderPinnedScoreAndPagerWhilePaging() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        val nextPage = CompletableDeferred<Unit>()
+        hold = { request -> nextPage.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") && request.url.contains("offset=25") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForDescription("Page 1 of 3")
+        waitForTag("fst.song-leaderboard.spotlight-footer")
+        click("fst.song-leaderboard.page-next")
+        // Issue #93: only the rows swap to the spinner; the song header, instrument picker,
+        // pinned score and pager stay put while the next page loads, as on the web.
+        waitForTag("fst.song-leaderboard.loading")
+        assertTrue(exists("fst.song-leaderboard.instrument"))
+        assertTrue(exists("fst.song-leaderboard.spotlight-footer"))
+        assertTrue(exists("fst.song-leaderboard.pager"))
+        assertTrue(exists("fst.song-leaderboard.page-next"))
+        nextPage.complete(Unit)
+        waitForDescription("Page 2 of 3")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.loading") }
+        assertTrue(exists("fst.song-leaderboard.pager"))
     }
 
     private fun scoreBounds(ancestor: String) = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag(ancestor)), useUnmergedTree = true)

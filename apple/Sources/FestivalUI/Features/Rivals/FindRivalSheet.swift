@@ -15,9 +15,10 @@ import FestivalDesign
 /// just "select any player, then open their rival detail". A selected result
 /// pushes `AppRoute.rivalDetail` with a `nil` scope, matching how the web's
 /// `handleFindRivalSelect` asks the detail page to derive scope from Settings
-/// rather than from a specific instrument's list: this app's destination screen
-/// already falls back to merging every Settings-visible instrument for a `nil`
-/// scope (`FestivalSession.rivalDetail(forScope:rivalId:visibleInstruments:)`).
+/// rather than from a specific instrument's list: for a `nil` scope the
+/// destination reads the web's Settings scopes (pad combo, Pro Strings combo,
+/// `pro_drums`) with `allowLiveFallback=true`
+/// (`RivalDetailScopes.settingsScopes(visible:)`).
 ///
 /// Pushes inside the sheet's own `NavigationStack` rather than dismissing and
 /// pushing on the presenting tab, for the same reason `ProfileSelectionSheet`

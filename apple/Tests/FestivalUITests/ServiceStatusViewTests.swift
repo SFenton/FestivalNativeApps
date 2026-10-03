@@ -117,4 +117,20 @@ func scrapeFreezeRetriesAutomaticallyWhileOtherIssuesWait() async throws {
     #expect(try nativeHostedImage(legacy) != nativeHostedImage(clear))
     _ = (clearWindow, failingWindow, legacyWindow)
 }
+/// `/duo` Stage 5 Dynamic Type check: at accessibility sizes Retry moves under the
+/// message instead of squeezing it to a hyphenated column beside the button (folded
+/// iPhone Duo Rivals at AX5). macOS does not scale fonts, so the switch shows as height.
+@MainActor
+@Test func inlineServiceStatusStacksRetryAtAccessibilitySizes() {
+    func height(_ size: DynamicTypeSize) -> CGFloat {
+        NSHostingController(
+            rootView: ServiceStatusInline(.unavailable(retryAfter: nil), scope: "duo-ax.\(size)") {}
+                .environment(\.dynamicTypeSize, size)
+        ).sizeThatFits(in: CGSize(width: 300, height: 10_000)).height
+    }
+    let large = height(.large)
+    #expect(large == 44)
+    #expect(height(.accessibility1) > large + 10)
+}
+
 #endif

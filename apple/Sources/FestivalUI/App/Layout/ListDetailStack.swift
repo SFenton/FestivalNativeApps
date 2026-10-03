@@ -25,6 +25,10 @@ extension EnvironmentValues {
     /// The iPad sidebar shell's sidebar column and its visibility, handed to list/detail
     /// sections so they draw the whole shell split themselves; nil elsewhere.
     @Entry var sidebarShell: SidebarShellContext?
+    /// Tells the root shell which detail a section's split chose by itself (nil once a
+    /// person picks a row), so the root can pop it when the window falls back to the
+    /// compact tab shell, which rebuilds the section's stack; nil outside the root.
+    @Entry var listDetailAutomaticReporter: ListDetailAutomaticReporter?
     /// The row a rebuilt list page should scroll back to, set only after the section
     /// switched between one stack and two columns (fold/unfold rebuilds its screens and
     /// so drops their scroll position). Nil on iPhone, where that never happens. List
@@ -86,6 +90,18 @@ struct ListDetailSplitReporter: Equatable {
 
     /// Record whether `section` shows two columns.
     @MainActor func callAsFunction(_ section: FestivalSection, isSplit: Bool) { report(section, isSplit) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
+/// Reports a section's automatically chosen detail root to the root shell.
+///
+/// Equatable as always-equal (see ``ListDetailSplitReporter``).
+struct ListDetailAutomaticReporter: Equatable {
+    let report: @MainActor (FestivalSection, AppRoute?) -> Void
+
+    /// Record the detail `section` chose by itself, or nil.
+    @MainActor func callAsFunction(_ section: FestivalSection, automatic: AppRoute?) { report(section, automatic) }
 
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
@@ -187,6 +203,7 @@ struct ListDetailStack<Root: View>: View {
 
     @Environment(\.deviceLayout) private var layout
     @Environment(\.listDetailSplitReporter) private var splitReporter
+    @Environment(\.listDetailAutomaticReporter) private var automaticReporter
     @Environment(\.sidebarShell) private var sidebarShell
     /// Width the iPad sidebar shell leaves for this section (window minus the
     /// sidebar), for the column layouts its pages see; nil elsewhere.
@@ -266,6 +283,9 @@ struct ListDetailStack<Root: View>: View {
         }
         .onChange(of: isVisible) { _, visible in
             if visible { splitReporter?(section, isSplit: isSplit) }
+        }
+        .onChange(of: automaticSelection) { _, automatic in
+            automaticReporter?(section, automatic: automatic)
         }
     }
 
@@ -362,11 +382,12 @@ struct ListDetailStack<Root: View>: View {
     /// detail nobody chose would stay pushed over the list; pop it so the list shows,
     /// like Mail. A row the person picked stays (and Duo folding keeps either).
     private func dropAutomaticSelection() {
-        guard layout.sectionChrome == .sidebar, let automatic = automaticSelection,
-              let split = ListDetailPolicy.split(section: section, path: path),
-              split.detail == [automatic]
+        guard layout.sectionChrome == .sidebar,
+              let list = ListDetailPolicy.pathDroppingAutomaticDetail(
+                section: section, path: path, automatic: automaticSelection
+              )
         else { return }
-        path = split.list
+        path = list
     }
 
     /// Keep the detail column populated: restore the last selection this list page
@@ -420,8 +441,10 @@ struct ListDetailStack<Root: View>: View {
     private func listStack(_ split: ListDetailPolicy.Split) -> some View {
         NavigationStack(path: listPath) {
             listColumn(root(split.list.isEmpty), split: split)
+                .menuBarColumn(isTop: isVisible && split.list.isEmpty, isList: true)
                 .navigationDestination(for: AppRoute.self) { route in
                     listColumn(destination(route), split: split)
+                        .menuBarColumn(isTop: isVisible && split.list.last == route, isList: true)
                 }
         }
         // The list column is always narrow.
@@ -440,12 +463,15 @@ struct ListDetailStack<Root: View>: View {
             Group {
                 if let selection = split.selection {
                     destination(selection).id(selection)
+                        .menuBarColumn(isTop: isVisible && split.detail.count == 1)
                 } else {
                     FestivalLoadingView(accessibilityLabel: "Loading")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .navigationDestination(for: AppRoute.self, destination: destination)
+            .navigationDestination(for: AppRoute.self) { route in
+                destination(route).menuBarColumn(isTop: isVisible && split.detail.last == route)
+            }
         }
         .transformEnvironment(\.deviceLayout) { value in
             value = Self.columnLayout(value, width: detailWidth)

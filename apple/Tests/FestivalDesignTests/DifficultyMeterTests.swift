@@ -42,4 +42,23 @@ func renderedDifficultyBars(_ filled: Int) throws {
         #expect(pixel.alphaComponent > 0.95)
     }
 }
+
+/// A level indicator fills in reading order, so right to left in an RTL layout
+/// (HIG Right to left: "Flip progress controls"; `/duo` Stage 5 RTL check).
+@MainActor
+@Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
+func renderedDifficultyBarsFollowReadingDirection(_ direction: LayoutDirection) throws {
+    let renderer = ImageRenderer(
+        content: DifficultyMeter(level: 2).environment(\.layoutDirection, direction)
+    )
+    renderer.scale = 1
+    let image = try #require(renderer.cgImage)
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    for index in 0..<7 {
+        let x = index * 9 + 4
+        let pixel = try #require(bitmap.colorAt(x: direction == .rightToLeft ? 61 - x : x, y: 10))
+        let expected = index < 2 ? 1.0 : 0.4
+        #expect(abs(pixel.redComponent - expected) < 0.02)
+    }
+}
 #endif

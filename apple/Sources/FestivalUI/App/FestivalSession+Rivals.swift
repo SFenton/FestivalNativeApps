@@ -38,137 +38,129 @@ extension FestivalSession {
         try await client().rivalsComboList(accountId: requireSelectedAccountId(), token: token)
     }
 
-    /// A combo/Pro-Drums-family rival's shared-song comparison.
+    /// One scope's shared-song comparison against a rival, sent in the web's
+    /// `getRivalDetail` shape (`limit=0&sort=closest[&allowLiveFallback=true]`).
     ///
     /// - Parameters:
-    ///   - token: `RivalComboScope.token`.
+    ///   - token: A solo instrument raw value, hex combo ID or `pro_drums`.
     ///   - rivalId: Target rival's account ID.
-    ///   - sort: `closest`, `they_lead` or `you_lead`.
+    ///   - allowLiveFallback: Whether the service may compute samples for an
+    ///     untracked rival (read-only; web Find Rival).
     /// - Returns: Compared songs for this scope.
     /// - Throws: No selected player, or a `RivalsAPIError`/transport failure.
-    func rivalComboDetail(
-        token: String, rivalId: String, sort: String = "closest"
+    func rivalScopeDetail(
+        token: String, rivalId: String, allowLiveFallback: Bool = false
     ) async throws -> RivalDetailResponse {
-        try await client().rivalComboDetail(
-            accountId: requireSelectedAccountId(), token: token, rivalId: rivalId, sort: sort
+        let accountId = try requireSelectedAccountId()
+        if let instrument = RivalDetailScopes.soloInstrument(forToken: token) {
+            return try await client().rivalDetail(
+                accountId: accountId, instrument: instrument, rivalId: rivalId,
+                allowLiveFallback: allowLiveFallback
+            )
+        }
+        return try await client().rivalComboDetail(
+            accountId: accountId, token: token, rivalId: rivalId, allowLiveFallback: allowLiveFallback
         )
     }
 
-    /// One rival's shared-song comparison on one instrument.
+    /// A rival's comparison merged across one or more scopes, ported from the
+    /// web's `fetchCombinedRivalDetail`: a failed scope is dropped, and the read
+    /// throws only when every scope failed.
     ///
     /// - Parameters:
-    ///   - instrument: Solo chart scope.
+    ///   - scopes: Scope tokens from `RivalDetailScopes.tokens(for:visible:)`.
     ///   - rivalId: Target rival's account ID.
-    ///   - sort: `closest`, `they_lead` or `you_lead`.
-    /// - Returns: Compared songs for this instrument.
-    /// - Throws: No selected player, or a `RivalsAPIError`/transport failure.
-    func rivalDetail(
-        instrument: Instrument, rivalId: String, sort: String = "closest"
-    ) async throws -> RivalDetailResponse {
-        try await client().rivalDetail(
-            accountId: requireSelectedAccountId(), instrument: instrument, rivalId: rivalId, sort: sort
-        )
-    }
-
-    /// A rival's shared-song comparison merged across several instruments (a
-    /// simplified native stand-in for the web's `fetchCombinedRivalDetail`,
-    /// which additionally supports hex-bitmask "combo" scopes this app does
-    /// not query).
-    ///
-    /// - Parameters:
-    ///   - instruments: One or more solo chart scopes to merge, deduplicated.
-    ///   - rivalId: Target rival's account ID.
-    ///   - sort: `closest`, `they_lead` or `you_lead`.
-    /// - Returns: The union of compared songs across all requested instruments.
-    /// - Throws: No selected player; a per-instrument failure is only thrown when
-    ///   every requested instrument failed.
+    ///   - allowLiveFallback: Passed to every scope read.
+    /// - Returns: The union of compared songs across the scopes.
+    /// - Throws: No selected player, or the first scope's failure when all failed.
     func combinedRivalDetail(
-        instruments: [Instrument], rivalId: String, sort: String = "closest"
+        scopes: [String], rivalId: String, allowLiveFallback: Bool = false
     ) async throws -> RivalDetailResponse {
-        let unique = Array(Set(instruments))
-        guard let first = unique.first else {
-            throw FestivalAPIError.invalidResource
-        }
-        if unique.count == 1 {
-            return try await rivalDetail(instrument: first, rivalId: rivalId, sort: sort)
-        }
-        // Sequential rather than concurrent: at most a handful of instruments per
-        // rival push, and this keeps every call on the session's own MainActor
-        // isolation without crossing into a detached task group.
+        var unique: [String] = []
+        for scope in scopes where !unique.contains(scope) { unique.append(scope) }
+        guard !unique.isEmpty else { throw FestivalAPIError.invalidResource }
+        // Sequential rather than concurrent: at most three scopes, and this keeps
+        // every call on the session's MainActor isolation.
         var succeeded: [RivalDetailResponse] = []
         var firstError: Error?
-        for instrument in unique {
+        for scope in unique {
             do {
-                succeeded.append(try await rivalDetail(instrument: instrument, rivalId: rivalId, sort: sort))
+                succeeded.append(try await rivalScopeDetail(
+                    token: scope, rivalId: rivalId, allowLiveFallback: allowLiveFallback
+                ))
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 if firstError == nil { firstError = error }
             }
         }
-        guard let base = succeeded.first else {
+        guard let merged = RivalDetailResponse.combined(succeeded, scopes: unique) else {
             throw firstError ?? FestivalAPIError.invalidResponse
         }
-        var seen = Set<String>()
-        var songs: [RivalSongComparison] = []
-        for detail in succeeded {
-            for song in detail.songs where seen.insert(song.id).inserted {
-                songs.append(song)
-            }
-        }
-        let displayName = succeeded.compactMap(\.rival.displayName).first ?? base.rival.displayName
-        return RivalDetailResponse(
-            rival: RivalIdentity(accountId: base.rival.accountId, displayName: displayName),
-            combo: unique.map(\.rawValue).joined(separator: ","),
-            instrument: nil, rankBy: nil, source: base.source,
-            totalSongs: songs.count, offset: 0, limit: 0, sort: base.sort,
-            songs: songs, songsToCompete: nil, yourExclusiveSongs: nil
-        )
+        return merged
     }
 
-    /// Resolve a rival detail read for a typed `RivalScope`, falling back to
-    /// merging every Settings-visible instrument when no scope is known (a rival
-    /// route reached without one: deep link, restored state, cold `DebugLaunchRoute`).
+    /// Resolve a rival detail read for a typed `RivalScope`, with the same scope
+    /// and query as the web (`RivalDetailScopes`), so the app reuses
+    /// the responses the service keeps for the web during a publish.
     ///
-    /// Shared by `RivalDetailScreen` and `RivalryScreen` so both resolve a pushed
-    /// `AppRoute.rivalDetail`/`.rivalry`'s optional scope identically.
+    /// Shared by `RivalDetailScreen`, `RivalryScreen` and the dual-screen
+    /// rivalry pane, so a pushed `AppRoute.rivalDetail`/`.rivalry` resolves its
+    /// optional scope identically. If the detail endpoint answers 503 while the
+    /// service publishes, the comparison is rebuilt from the precomputed
+    /// `/rivals/all` samples (`RivalDetailFallback`). When that response has
+    /// nothing for this rival, the original error is rethrown for the retry state.
     ///
     /// - Parameters:
-    ///   - scope: The route's carried scope, or `nil`.
+    ///   - scope: The route's carried scope, or `nil` (Find Rival, deep link).
     ///   - rivalId: Target rival's account ID.
-    ///   - visibleInstruments: Settings-visible instruments, used only as the
-    ///     fallback merge set when `scope` is `nil` or names no valid instrument.
+    ///   - visibleInstruments: Settings-visible instruments, used to derive the
+    ///     Settings scope(s) for Common Rivals and `nil` scopes.
     /// - Returns: Compared songs for the resolved scope.
     /// - Throws: No selected player, or a `RivalsAPIError`/transport failure.
     func rivalDetail(
         forScope scope: RivalScope?, rivalId: String, visibleInstruments: [Instrument]
     ) async throws -> RivalDetailResponse {
-        switch scope {
-        case let .leaderboard(instrumentRaw, rankBy):
-            guard let instrument = Instrument(rawValue: instrumentRaw) else {
-                return try await fallbackRivalDetail(rivalId: rivalId, visibleInstruments: visibleInstruments)
-            }
+        if case let .leaderboard(instrumentRaw, rankBy) = scope,
+           let instrument = Instrument(rawValue: instrumentRaw) {
             return try await leaderboardRivalDetail(instrument: instrument, rivalId: rivalId, rankBy: rankBy)
-        case let .song(instrumentsRaw):
-            let instruments = instrumentsRaw.compactMap(Instrument.init(rawValue:))
-            guard !instruments.isEmpty else {
-                return try await fallbackRivalDetail(rivalId: rivalId, visibleInstruments: visibleInstruments)
+        }
+        let scopes = RivalDetailScopes.tokens(for: scope, visible: visibleInstruments)
+        do {
+            return try await combinedRivalDetail(
+                scopes: scopes, rivalId: rivalId,
+                allowLiveFallback: RivalDetailScopes.allowsLiveFallback(for: scope)
+            )
+        } catch let error as FestivalAPIError {
+            switch error {
+            case .publicReadFrozen, .unavailable:
+                if let fallback = await publishFallbackDetail(rivalId: rivalId, scopes: scopes) {
+                    return fallback
+                }
+            default:
+                break
             }
-            return try await combinedRivalDetail(instruments: instruments, rivalId: rivalId)
-        case let .combo(token, _):
-            return try await rivalComboDetail(token: token, rivalId: rivalId)
-        case nil:
-            return try await fallbackRivalDetail(rivalId: rivalId, visibleInstruments: visibleInstruments)
+            throw error
         }
     }
 
-    /// Merge every Settings-visible instrument's rivals detail (the fallback path
-    /// of `rivalDetail(forScope:rivalId:visibleInstruments:)`).
-    private func fallbackRivalDetail(
-        rivalId: String, visibleInstruments: [Instrument]
-    ) async throws -> RivalDetailResponse {
-        guard !visibleInstruments.isEmpty else {
-            return .empty(rivalId: rivalId, displayName: nil)
+    /// Rebuild a detail from `/rivals/all` while the detail endpoint is frozen.
+    ///
+    /// - Parameters:
+    ///   - rivalId: Target rival's account ID.
+    ///   - scopes: Scope tokens the detail read asked for.
+    /// - Returns: The rebuilt detail, or `nil` when unavailable.
+    private func publishFallbackDetail(rivalId: String, scopes: [String]) async -> RivalDetailResponse? {
+        guard let accountId = try? requireSelectedAccountId(),
+              let all = try? await client().rivalsAll(accountId: accountId) else {
+            return nil
         }
-        return try await combinedRivalDetail(instruments: visibleInstruments, rivalId: rivalId)
+        let songs = (try? await catalog())?.catalog.songs ?? []
+        let info = Dictionary(
+            songs.map { ($0.songId, (title: $0.title, artist: $0.artist)) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return RivalDetailFallback.detail(from: all, rivalId: rivalId, scopes: scopes) { info[$0] }
     }
 
     /// One instrument's global-leaderboard rivals for the selected player.

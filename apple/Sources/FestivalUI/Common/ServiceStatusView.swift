@@ -227,6 +227,7 @@ struct ServiceStatusInline: View {
 
     @State private var remaining: Int?
     @Environment(\.serviceRetryClock) private var clock
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Create an inline status.
     ///
@@ -241,23 +242,34 @@ struct ServiceStatusInline: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Image(systemName: ServiceStatusView.symbolName(for: issue))
-                .foregroundStyle(BrandTokens.gold)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(issue.title ?? issue.message)
-                    .font(.footnote)
-                    .foregroundStyle(FestivalText.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let remaining {
-                    Text("Trying again in \(ServiceStatusView.clock(remaining))")
-                        .font(.footnote.monospacedDigit())
+        // At accessibility sizes Retry moves under the message: beside it, a folded iPhone
+        // Duo column left the message a few characters wide, hyphenated mid-word (`/duo`
+        // Stage 5 Dynamic Type check).
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 10))
+        layout {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: ServiceStatusView.symbolName(for: issue))
+                    .foregroundStyle(BrandTokens.gold)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(issue.title ?? issue.message)
+                        .font(.footnote)
                         .foregroundStyle(FestivalText.primary)
-                        .accessibilityLabel("Trying again automatically in \(remaining) seconds")
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let remaining {
+                        Text("Trying again in \(ServiceStatusView.clock(remaining))")
+                            .font(.footnote.monospacedDigit())
+                            .foregroundStyle(FestivalText.primary)
+                            .accessibilityLabel("Trying again automatically in \(remaining) seconds")
+                    }
                 }
             }
-            Spacer(minLength: 8)
+            if !stacked {
+                Spacer(minLength: 8)
+            }
             Button(remaining == nil ? "Retry" : "Retry Now", action: retry)
                 .font(.footnote.weight(.semibold))
                 .frame(minHeight: 44)

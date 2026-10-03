@@ -218,6 +218,29 @@ class RivalsViewModelTest {
     }
 
     @Test
+    fun aFrozenDetailRebuildsFromRivalsAllWithCatalogueTitles() = runTest(main.dispatcher) {
+        // Issue #95: detail is 503 during a publish freeze; rivals/all supplies the cards.
+        val transport = RivalsFixtures.transport().apply {
+            onRaw("/api/player/$player/rivals/Solo_Guitar/${ids[0]}") { HttpResult(503, ByteArray(0), mapOf("X-FST-Public-Read-Freeze-Reason" to "post-process")) }
+            on("/api/player/$player/rivals/all") {
+                """{"accountId":"$player","songs":["zz-unknown","s-alpha"],"combos":[{"combo":"01","above":[{"accountId":"${ids[0]}","displayName":"All Name",""" +
+                    """"direction":"above","sharedSongCount":2,"aheadCount":2,"behindCount":0,"rivalScore":1,"samples":[""" +
+                    """{"s":0,"i":"Solo_Guitar","ur":10,"rr":12,"us":5,"rs":4},{"s":1,"i":"Solo_Guitar","ur":10,"rr":11,"us":5,"rs":4}]}],"below":[]}]}"""
+            }
+        }
+        val detail = RivalDetailViewModel(player, ids[0], "Route Name", RivalScopes.song(listOf(Instrument.Lead)), false, leadBass, repository(transport), { FestivalApi("https://fixture.test", transport).catalog() }, ServiceRetryBackoff())
+        advanceUntilIdle()
+        val content = detail.state.value.valueOrNull!!
+        assertEquals("All Name", content.rivalName)
+        assertEquals("2 shared songs · 2 ahead / 0 behind", content.summary)
+        val mode = content.categories.first { it.songs.size == 2 }.key
+        assertEquals(listOf(null, null), content.categories.first { it.key == mode }.songs.map { it.title })
+        val titled = detail.category(content, mode, RivalrySort.Title)!!.songs
+        assertEquals(listOf("Alpha Tune", null), titled.map { it.title })
+        assertEquals("Band One", titled[0].artist)
+    }
+
+    @Test
     fun findRivalDetailUsesSettingsScopesWithLiveFallback() = runTest(main.dispatcher) {
         val transport = RivalsFixtures.transport()
         val detail = RivalDetailViewModel(

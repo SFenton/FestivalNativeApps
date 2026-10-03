@@ -93,6 +93,17 @@ class MockServiceTests(unittest.TestCase):
         with urlopen(self.base + "/api/version") as response:
             self.assertEqual(json.load(response), {"version": "fixture"})
 
+    def test_rival_detail_accepts_the_web_query_shape(self):
+        """Rival detail takes the web's `limit=0&sort=closest[&allowLiveFallback=true]` (#95)."""
+        detail = self.base + "/api/player/fixture-riv/rivals/03/f1c749eb07c32578cfa3e59ec38c03a8"
+        for query in ("?limit=0&sort=closest", "?limit=0&sort=closest&allowLiveFallback=true"):
+            with urlopen(detail + query) as response:
+                self.assertEqual(json.load(response)["combo"], "03")
+        for query in ("?limit=0&sort=closest&allowLiveFallback=maybe", "?limit=0&sort=closest&extra=1"):
+            with self.assertRaises(HTTPError) as error:
+                urlopen(detail + query)
+            self.assertEqual(error.exception.code, 400)
+
     def test_service_info_discovery_fixture_reports_attempt_progress(self):
         """The opt-in discovery body carries the web's schema-1 attempt counts."""
         server = FixtureServer(("127.0.0.1", 0), FixtureHandler, service_info_discovery=True)

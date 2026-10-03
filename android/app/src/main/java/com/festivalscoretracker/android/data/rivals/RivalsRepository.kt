@@ -6,7 +6,9 @@ import com.festivalscoretracker.android.core.rivals.LeaderboardRivalsListRespons
 import com.festivalscoretracker.android.core.rivals.RivalDetailRequest
 import com.festivalscoretracker.android.core.rivals.RivalDetailResponse
 import com.festivalscoretracker.android.core.rivals.RivalRankMetric
+import com.festivalscoretracker.android.core.rivals.RivalsAllDetail
 import com.festivalscoretracker.android.core.rivals.RivalsListResponse
+import com.festivalscoretracker.android.core.suggestions.RivalsAllResponse
 import com.festivalscoretracker.android.data.FestivalApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -30,6 +32,7 @@ import kotlinx.coroutines.sync.withLock
  * @param details Song-scope detail read `(accountId, scope, rivalId, allowLiveFallback)`.
  * @param leaderboardDetails Leaderboard detail read.
  * @param clock Milliseconds source.
+ * @param all `rivals/all` read `(accountId)` for the detail freeze fallback, or null for none.
  */
 class RivalsRepository(
     private val lists: suspend (String, String) -> RivalsListResponse,
@@ -37,6 +40,7 @@ class RivalsRepository(
     private val details: suspend (String, String, String, Boolean) -> RivalDetailResponse,
     private val leaderboardDetails: suspend (String, Instrument, String, RivalRankMetric) -> RivalDetailResponse,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val all: (suspend (String) -> RivalsAllResponse)? = null,
 ) {
     /**
      * Build over the shared API client.
@@ -48,6 +52,7 @@ class RivalsRepository(
         leaderboardLists = api::leaderboardRivals,
         details = { account, scope, rival, live -> api.rivalDetail(account, scope, rival, allowLiveFallback = live) },
         leaderboardDetails = { account, instrument, rival, rankBy -> api.leaderboardRivalDetail(account, instrument, rival, rankBy) },
+        all = api::rivalsAll,
     )
 
     private data class Entry(val value: Any, val atMillis: Long)
@@ -81,7 +86,9 @@ class RivalsRepository(
     /**
      * A rival comparison for a resolved request. Several scopes are read concurrently
      * and merged; one failing scope still shows the rest, and only an all-failed read
-     * throws (web `fetchCombinedRivalDetail`).
+     * throws (web `fetchCombinedRivalDetail`). Chart/combo scopes refused by a freeze
+     * or 503 are rebuilt from `rivals/all` ([RivalsAllDetail], issue #95); when that
+     * cannot supply them the original failure stands, so the page keeps its retry state.
      *
      * @param accountId Selected player.
      * @param rivalId Rival.
@@ -114,10 +121,35 @@ class RivalsRepository(
                     }
                 }.awaitAll()
             }
-            val succeeded = results.mapNotNull { it.getOrNull() }
+            val succeeded = results.mapNotNull { it.getOrNull() }.toMutableList()
+            val frozen = request.scopes.filterIndexed { index, _ -> results[index].exceptionOrNull()?.let(::isFreeze) == true }
+            if (frozen.isNotEmpty()) rebuiltFromAll(accountId, rivalId, frozen, refresh)?.let(succeeded::add)
             if (succeeded.isEmpty()) throw results.first().exceptionOrNull()!!
             if (succeeded.size == 1 && request.scopes.size == 1) succeeded.single() else RivalDetailResponse.merge(succeeded, request.scopes)
         }
+    }
+
+    /**
+     * Rebuild frozen chart/combo scopes from the cached `rivals/all` read.
+     *
+     * @param accountId Selected player.
+     * @param rivalId Rival.
+     * @param scopes Scopes the service refused.
+     * @param refresh Bypass the cache.
+     * @return Rebuilt detail, or null when unavailable.
+     */
+    private suspend fun rebuiltFromAll(accountId: String, rivalId: String, scopes: List<String>, refresh: Boolean): RivalDetailResponse? {
+        val read = all ?: return null
+        val instruments = scopes.mapNotNull(RivalsAllDetail::instrumentsFor).flatten().toSet()
+        if (instruments.isEmpty()) return null
+        val response = try {
+            cached("all:$accountId", refresh) { read(accountId) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return null
+        }
+        return RivalsAllDetail.build(response, rivalId, instruments, scopes.joinToString(","))
     }
 
     /** Forget every cached read (pull to refresh everywhere). */

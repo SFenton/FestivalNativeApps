@@ -18,8 +18,14 @@ enum RivalsEndpoint: Sendable {
     case all(accountId: String)
     case list(accountId: String, instrument: Instrument)
     case comboList(accountId: String, token: String)
-    case detail(accountId: String, instrument: Instrument, rivalId: String, sort: String, limit: Int, offset: Int)
-    case comboDetail(accountId: String, token: String, rivalId: String, sort: String, limit: Int, offset: Int)
+    case detail(
+        accountId: String, instrument: Instrument, rivalId: String,
+        sort: String, limit: Int, offset: Int, allowLiveFallback: Bool = false
+    )
+    case comboDetail(
+        accountId: String, token: String, rivalId: String,
+        sort: String, limit: Int, offset: Int, allowLiveFallback: Bool = false
+    )
     case leaderboardList(accountId: String, instrument: Instrument, rankBy: RivalRankMetric)
     case leaderboardDetail(
         accountId: String, instrument: Instrument, rivalId: String,
@@ -74,7 +80,7 @@ enum RivalsEndpoint: Sendable {
                 .appendingPathComponent(accountId).appendingPathComponent("rivals")
                 .appendingPathComponent(token)
 
-        case let .detail(accountId, instrument, rivalId, sort, limit, offset):
+        case let .detail(accountId, instrument, rivalId, sort, limit, offset, allowLiveFallback):
             guard ProfileSearchText.isValidAccountId(accountId),
                   ProfileSearchText.isValidAccountId(rivalId),
                   Self.validSorts.contains(sort), limit >= 0, offset >= 0 else {
@@ -84,11 +90,11 @@ enum RivalsEndpoint: Sendable {
                 .appendingPathComponent("api").appendingPathComponent("player")
                 .appendingPathComponent(accountId).appendingPathComponent("rivals")
                 .appendingPathComponent(instrument.rawValue).appendingPathComponent(rivalId)
-            return try Self.appendingQuery(path, [
-                ("sort", sort), ("limit", String(limit)), ("offset", String(offset)),
-            ])
+            return try Self.appendingQuery(
+                path, Self.detailQuery(sort: sort, limit: limit, offset: offset, allowLiveFallback: allowLiveFallback)
+            )
 
-        case let .comboDetail(accountId, token, rivalId, sort, limit, offset):
+        case let .comboDetail(accountId, token, rivalId, sort, limit, offset, allowLiveFallback):
             guard ProfileSearchText.isValidAccountId(accountId), Self.isValidComboToken(token),
                   ProfileSearchText.isValidAccountId(rivalId),
                   Self.validSorts.contains(sort), limit >= 0, offset >= 0 else {
@@ -98,9 +104,9 @@ enum RivalsEndpoint: Sendable {
                 .appendingPathComponent("api").appendingPathComponent("player")
                 .appendingPathComponent(accountId).appendingPathComponent("rivals")
                 .appendingPathComponent(token).appendingPathComponent(rivalId)
-            return try Self.appendingQuery(path, [
-                ("sort", sort), ("limit", String(limit)), ("offset", String(offset)),
-            ])
+            return try Self.appendingQuery(
+                path, Self.detailQuery(sort: sort, limit: limit, offset: offset, allowLiveFallback: allowLiveFallback)
+            )
 
         case let .leaderboardList(accountId, instrument, rankBy):
             guard ProfileSearchText.isValidAccountId(accountId) else {
@@ -124,6 +130,27 @@ enum RivalsEndpoint: Sendable {
                 .appendingPathComponent(instrument.rawValue).appendingPathComponent(rivalId)
             return try Self.appendingQuery(path, [("rankBy", rankBy.rawValue), ("sort", sort)])
         }
+    }
+
+    /// Query items for a rival detail read, in the web's `getRivalDetail` shape
+    /// (`limit=0&sort=closest[&allowLiveFallback=true]`). `offset` is sent only
+    /// when non-zero, because the web never sends it. The service's frozen-read
+    /// caches key on the parameter *set*, so an extra `offset=0` can miss a
+    /// response the web already warmed.
+    ///
+    /// - Parameters:
+    ///   - sort: Validated sort mode.
+    ///   - limit: Rows requested; `0` means "all".
+    ///   - offset: Zero-based row offset.
+    ///   - allowLiveFallback: Whether to let the service compute samples live.
+    /// - Returns: Ordered query items.
+    static func detailQuery(
+        sort: String, limit: Int, offset: Int, allowLiveFallback: Bool
+    ) -> [(String, String)] {
+        var items: [(String, String)] = [("limit", String(limit)), ("sort", sort)]
+        if offset > 0 { items.append(("offset", String(offset))) }
+        if allowLiveFallback { items.append(("allowLiveFallback", "true")) }
+        return items
     }
 
     private static func appendingQuery(_ url: URL, _ items: [(String, String)]) throws -> URL {
@@ -224,17 +251,19 @@ extension FestivalAPI {
     ///   - sort: `closest`, `they_lead` or `you_lead`.
     ///   - limit: Rows requested; `0` means "all".
     ///   - offset: Zero-based row offset.
+    ///   - allowLiveFallback: Let the service compute samples for an untracked
+    ///     rival (read-only `RivalsCalculator.ComputeDirectSongSamples`).
     /// - Returns: Compared songs, or an empty detail result if none are precomputed yet.
     /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
     ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func rivalDetail(
         accountId: String, instrument: Instrument, rivalId: String,
-        sort: String = "closest", limit: Int = 0, offset: Int = 0
+        sort: String = "closest", limit: Int = 0, offset: Int = 0, allowLiveFallback: Bool = false
     ) async throws -> RivalDetailResponse {
         try await fetchRivalsJSON(
             .detail(
                 accountId: accountId, instrument: instrument, rivalId: rivalId,
-                sort: sort, limit: limit, offset: offset
+                sort: sort, limit: limit, offset: offset, allowLiveFallback: allowLiveFallback
             ),
             emptyOn404: .empty(rivalId: rivalId, displayName: nil)
         )
@@ -250,17 +279,19 @@ extension FestivalAPI {
     ///   - sort: `closest`, `they_lead` or `you_lead`.
     ///   - limit: Rows requested; `0` means "all".
     ///   - offset: Zero-based row offset.
+    ///   - allowLiveFallback: Let the service compute samples for an untracked
+    ///     rival (read-only `RivalsCalculator.ComputeDirectSongSamples`).
     /// - Returns: Compared songs, or an empty detail result if none are precomputed yet.
     /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
     ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func rivalComboDetail(
         accountId: String, token: String, rivalId: String,
-        sort: String = "closest", limit: Int = 0, offset: Int = 0
+        sort: String = "closest", limit: Int = 0, offset: Int = 0, allowLiveFallback: Bool = false
     ) async throws -> RivalDetailResponse {
         try await fetchRivalsJSON(
             .comboDetail(
                 accountId: accountId, token: token, rivalId: rivalId,
-                sort: sort, limit: limit, offset: offset
+                sort: sort, limit: limit, offset: offset, allowLiveFallback: allowLiveFallback
             ),
             emptyOn404: .empty(rivalId: rivalId, displayName: nil)
         )

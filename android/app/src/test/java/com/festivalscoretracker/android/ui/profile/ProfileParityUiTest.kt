@@ -294,6 +294,33 @@ class ProfileParityUiTest {
     }
 
     @Test
+    fun noNameCardRepeatsTheTitle() {
+        // Issue #97: the top bar names the player; no avatar/name card repeats it below.
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.waitForTag("fst.player.overview")
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.name").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.header").fetchSemanticsNodes().size)
+        // Select stays visible, above Overview.
+        journey.waitForTag("fst.player.identity")
+        rule.onNodeWithTag("fst.player.select").assertIsDisplayed()
+        val select = rule.onNodeWithTag("fst.player.select").fetchSemanticsNode().boundsInRoot
+        val overview = rule.onNodeWithTag("fst.player.overview").fetchSemanticsNode().boundsInRoot
+        assertTrue(select.bottom <= overview.top)
+    }
+
+    @Test
+    fun selectedPlayerStartsAtOverview() {
+        journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.waitForTag("fst.player.overview")
+        // Nothing to act on: no identity row, so Overview is the first row (no empty gap).
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.identity").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.name").fetchSemanticsNodes().size)
+        val grid = rule.onNodeWithTag("fst.player.available").fetchSemanticsNode().boundsInRoot
+        val overview = rule.onNodeWithTag("fst.player.overview").fetchSemanticsNode().boundsInRoot
+        assertTrue("Overview starts within the grid's top padding", overview.top - grid.top < 400f)
+    }
+
+    @Test
     fun pausedSelectionLeavesSongsTilesFlat() {
         journey.transport.on("/api/player/${Fixtures.ACCOUNT_B}") { ProfileFixtures.profile(Fixtures.ACCOUNT_B) }
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B), stillBackground = true))
