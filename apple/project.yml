@@ -39,7 +39,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # iPad multiple windows (File › New Window, "Open in New Window"); iPhone shows
-        # one window regardless (.agents/design/apple/ipados.md, Windows).
+        # one window regardless (.agents/design/apple/ipados.md, Multiwindow).
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
         ITSAppUsesNonExemptEncryption: false

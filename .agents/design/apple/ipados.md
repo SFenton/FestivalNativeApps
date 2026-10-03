@@ -40,7 +40,7 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 | Sheets | `festivalSheet` applies `presentationSizing(.form)` (or `.page`) at regular width, centered; compact windows get the phone sheets | sheets.md "Prefer page or form sheet styles in an iPadOS app" |
 | Popovers | Not used for page content; menus (Quick Links, metric pickers) are system menus | popovers.md "Avoid popovers in compact views" |
 
-## Windows
+## Multiwindow
 
 **Decision (2026-10-02): support multiple windows on iPad, opened only by the person.** People compare songs, players and rivals side by side, and iPadOS lets one app offer several windows (multitasking.md iPadOS "multiple windows can come from one app"; designing-for-ipados.md "people view multiple apps together"). The app never opens one by itself (windows.md "Choose the right moment to open a new window ... avoid it as default behavior unless it makes sense for your app").
 
