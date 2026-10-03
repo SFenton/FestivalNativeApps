@@ -228,6 +228,43 @@ object RivalHeadToHead {
      * @return Player minus rival.
      */
     fun scoreDiff(song: RivalSongComparison): Long = (song.userScore ?: 0) - (song.rivalScore ?: 0)
+
+    /**
+     * Spoken rank lead for TalkBack: the full count (the visual pill abbreviates to `12K`),
+     * no sign and a singular/plural noun.
+     *
+     * @param delta Signed rank delta (positive: the player leads).
+     * @param rivalName Rival's display name.
+     * @param locale Number locale.
+     * @return "you lead by 2 ranks", "Name leads by 1 rank" or "tied on rank".
+     */
+    fun spokenRankLead(delta: Long, rivalName: String, locale: Locale = Locale.getDefault()): String {
+        val magnitude = abs(delta)
+        val count = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " rank" else " ranks"
+        return when {
+            delta > 0 -> "you lead by $count"
+            delta < 0 -> "$rivalName leads by $count"
+            else -> "tied on rank"
+        }
+    }
+
+    /**
+     * Spoken score gap for TalkBack, player minus rival (missing scores count as zero).
+     *
+     * @param song Comparison.
+     * @param locale Number locale.
+     * @return "your score is 200 points higher", "… 1 point lower" or "same score".
+     */
+    fun spokenScoreDiff(song: RivalSongComparison, locale: Locale = Locale.getDefault()): String {
+        val diff = scoreDiff(song)
+        val magnitude = abs(diff)
+        val points = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " point" else " points"
+        return when {
+            diff > 0 -> "your score is $points higher"
+            diff < 0 -> "your score is $points lower"
+            else -> "same score"
+        }
+    }
 }
 
 // endregion
