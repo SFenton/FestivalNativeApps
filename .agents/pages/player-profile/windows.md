@@ -60,7 +60,31 @@ UIA gotcha: `Border`, `StackPanel`, `ItemsRepeater` and `UserControl` are not in
 ## Tests
 
 - Core: `PlayerDataTests.cs` (wire decode/validation, client reads, session selection), `PlayerViewModelTests.cs` (page/instrument/history view models, charts, flyout, launch options), `PlayerStatLinksTests.cs` (presets vs. the web updaters, link routes, select-first policy, tile/row state, follow flows) and `SongScoreBandFilterTests.cs` (band maths, Songs pipeline/draft/deselect).
-- UI journeys: `python tools/windows/journeys/profile.py [--exe …] [--shots dir]`: search → view → select → Statistics → deselect, restart persistence, **links** (a viewed player's Songs Played selects them and opens filtered Songs), history sort and states, syncing, Bands scope.
+- UI journeys: `python tools/windows/journeys/profile.py [names…] [--exe …] [--shots dir]`. All are UIA-only (`invoke`/`select`/`reveal`), so they run on a locked console:
+  - **select**: route-launch a player → select → Statistics → deselect.
+  - **restart**: selection persists across a restart.
+  - **links**: a viewed player's Songs Played selects them and opens filtered Songs.
+  - **rank-history**: Older/Newer page the Lead chart's date range.
+  - **instrument-links**: a revealed percentile row opens the Songs Filter preset.
+  - **syncing**: the syncing state.
+  - **bands-scope**: the Bands scope.
+- The `history*` journeys in the same file target the Song Detail score history (`AppRoute.PlayerHistory` now opens Song Detail). They are stale, and they belong to that page's validation.
+- Accessibility pages in `journeys/a11y.json`: `player`, `statistics`, `player-lead` (the Lead section, revealed) and `player-empty` (an empty instrument).
+
+## Validation (issue #199, 2026-10-03)
+
+The live public service was viewed as `SFentonX` with no selected-profile headers. Statistics was checked with that player selected. The fixture is `rivals_fixture.py`. The host console was locked, so actions ran through UIA patterns and screenshots used PrintWindow.
+
+| Configuration | Result |
+|---|---|
+| Compact 500, medium 900 and wide 1440 epx; maximized; snapped left and right | ✅ Live and fixture: 0 Axe errors. Cards reflow from 1 to 2 to 3 columns; the Lead section and percentile table are reachable by scrolling |
+| Light / Dark | Dark ✅. The app is dark-only (`RequestedTheme="Dark"`), so the system Light theme doesn't apply. This is a deliberate brand decision |
+| Contrast themes Aquatic, Desert, Dusk and Night sky | ✅ (fixed) 0 Axe errors. Card hover/press surfaces and percentile pills used hard-coded brushes; they now use theme resources with system colours. Charts keep their brand data hues (accessibility Open issue 2) |
+| Text 200% (compact and medium) and 225% (medium) | ✅ 0 Axe errors. Tiles wrap and scale |
+| Display 100% / 150% | The host runs at a fixed 300% scale. Layout is in epx, so breakpoints match at every scale |
+| Keyboard | UIA only (as in #196): every tile, row, chart pager and link is a focusable Button or Image, and SendInput Tab walks can't run on a locked console |
+| Narrator / UIA | ✅ (fixed) Each stat tile and percentile row is one stop whose name holds the value. The child texts are Raw: they used to be read twice in scan mode. The Lead chart's Older/Newer buttons kept the previous instrument's IDs after the section repeater recycled them; the IDs are now re-forwarded when they change |
+| Automated | Core 1549 tests, coverage 98.9% logic / 97.9% UX; 7/7 player journeys |
 
 ## Gaps
 

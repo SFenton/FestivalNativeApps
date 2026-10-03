@@ -38,7 +38,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
-| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
+| Statistics / Player Profile | ✅✅✅ (+live, #199) | 7–8/10–11 | UIA only (#199) | ✅ | ✅ (tiles scale; +200% C+M) |
 | Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ | 10/14/14 | — | ✅ | ✅ |
@@ -84,6 +84,17 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Player Profile validation (issue #199, 2026-10-03)
+
+Fixture evidence: `a11y_matrix.py --scan` ran on `player`, `statistics`, `player-lead` (the Lead section, scrolled into view with the `reveal:` step) and `player-empty`. Sizes were compact, medium and wide, then medium under all four contrast themes, text 225%, no animations and no transparency, then text 200% at compact and medium. Every run had 0 Axe errors.
+
+Live public-service evidence used `SFentonX`, with Statistics checked with that player selected. It gave 0 Axe errors at compact, medium, wide, maximized and snapped, and also under Desert, Night sky and text 200%. The 7 player journeys pass. Per-configuration findings are in [player-profile/windows.md](../pages/player-profile/windows.md#validation-issue-199-2026-10-03).
+
+Fixed:
+- In stat tiles and percentile rows, the value, label, pill and count texts were exposed beside the tile or row name, so Narrator scan mode read each value twice. They are now Raw.
+- Tile hover/press surfaces and the neutral/gold percentile pills used hard-coded brushes, so contrast themes kept the dark navy and gold fills. They now use `FSTCardSurfacePointerOver/Pressed`, `FSTCardStrokePointerOver`, `FSTNeutralPill*` and `FSTGoldPillFill`, which map to system colours under High Contrast.
+- When the section repeater recycled a rank-history chart for another instrument, its Older/Newer buttons kept the previous instrument's AutomationIds.
 
 ## Open issues
 
