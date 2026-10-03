@@ -1296,7 +1296,9 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Retry"].exists)
         SongsUITestSupport.record(app, name: "songs-service-error")
-        try app.performAccessibilityAudit(for: .all)
+        try app.performAccessibilityAudit(for: .all) { issue in
+            SongsUITestSupport.isSystemSearchPlaceholderContrast(issue)
+        }
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         let publication = app.buttons["Check Publication"]
         SongsUITestSupport.reveal(publication, in: app, scrollingUp: true)
