@@ -97,10 +97,10 @@ VK = {
 STEP_VERBS = {
     "click": "selector", "rightclick": "selector", "hover": "selector", "invoke": "selector",
     "toggle": "selector", "select": "selector", "expand": "selector",
-    "collapse": "selector", "focus": "selector", "waitfor": "selector",
+    "collapse": "selector", "focus": "selector", "waitfor": "selector", "waitgone": "selector", "scrollinto": "selector",
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
-    "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path",
+    "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto", "reveal": "selector",
 }
 
@@ -161,12 +161,16 @@ def parse_step(step: str) -> dict:
     """Validate one ``verb:argument`` step and expand it for the driver.
 
     Selector steps accept an ``@<seconds>`` wait suffix (``waitfor:id=x@10``);
+    ``waitgone`` waits until no on-screen element matches (an absence assertion);
+    ``scrollinto`` brings a scrolled-out element on screen (UIA ScrollItem, no wheel);
     ``scroll`` takes ``up``/``down``/``<wheel clicks>``, optionally prefixed by a
     selector and a comma (``scroll:id=fst.songs.list,down``); ``shot`` accepts
     ``@screen`` to capture composited screen pixels instead of ``PrintWindow``;
     ``tabwalk`` takes ``<count>`` or ``<count>,shift`` (Tab/Shift+Tab presses, each
     focused element recorded); ``assertfocus`` fails unless focus matches the selector;
     ``scan:<dir>/<scan-id>`` runs an Axe.Windows scan (results in the ``scans`` output);
+    ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
+    so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
     Scroll pattern and ``reveal:<selector>`` steps the target's scroller from the top until
     the target is on screen (no input, so both work while the console is locked).
@@ -188,7 +192,15 @@ def parse_step(step: str) -> dict:
     if not arg:
         raise ValueError(f"step {verb!r} needs an argument")
     result: dict = {"verb": verb, "arg": arg}
-    if shape == "selector":
+    if shape == "setvalue":
+        selector, sep, text = arg.partition("|")
+        if not sep:
+            raise ValueError(f"bad setvalue {arg!r}; use <selector>|<text>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("setvalue needs an element selector, not coordinates")
+        result["text"] = step.partition(":")[2].lstrip().partition("|")[2]
+    elif shape == "selector":
         selector, _, wait = arg.rpartition("@") if "@" in arg else (arg, "", "")
         result["selector"] = parse_selector(selector)
         if wait:

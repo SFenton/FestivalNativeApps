@@ -91,6 +91,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -696,7 +697,9 @@ private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusR
         value = value,
         onValueChange = onChange,
         singleLine = true,
-        placeholder = { Text("Search songs or artists") },
+        // One line like the toolbar field: a wrapped placeholder doubled the pinned field's
+        // height in a medium-width list pane (issue #101).
+        placeholder = { Text(SONGS_SEARCH_PLACEHOLDER, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
         trailingIcon = {
             if (value.isNotEmpty()) {

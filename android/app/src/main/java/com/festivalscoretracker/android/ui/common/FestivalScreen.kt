@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fitInside
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -39,7 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.WindowInsetsRulers
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -140,6 +145,9 @@ fun FestivalScreen(
     // Page actions move to a ⋮ overflow menu when the title would truncate at this pane width
     // (a list pane can be far narrower than the window), and return once the pane is wider.
     var widthPx by remember { mutableIntStateOf(0) }
+    // Gaps between this screen and the window's left/right edges (a list pane beside a detail pane).
+    var leftGapPx by remember { mutableIntStateOf(0) }
+    var rightGapPx by remember { mutableIntStateOf(0) }
     var collapsedAtPx by remember(title) { mutableStateOf<Int?>(null) }
     var pageActionsWidth by remember { mutableIntStateOf(0) }
     var titleTruncated by remember { mutableStateOf(false) }
@@ -155,12 +163,19 @@ fun FestivalScreen(
     Scaffold(
         modifier = modifier
             .onSizeChanged { widthPx = it.width }
+            .onGloballyPositioned {
+                val left = it.positionInWindow().x.toInt()
+                leftGapPx = left
+                rightGapPx = it.findRootCoordinates().size.width - left - it.size.width
+            }
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 modifier = Modifier.testTag("fst.nav.top-bar"),
+                // Only the cutout / system-bar insets this pane actually reaches (issue #101).
+                windowInsets = PaneInsets(TopAppBarDefaults.windowInsets, leftGapPx, rightGapPx),
                 title = {
                     Text(
                         title,
@@ -211,11 +226,13 @@ fun FestivalScreen(
         // Content starts (and is clipped) below the top app bar, whose own window insets
         // already cover the status bar / cutout, so scrolled rows never draw under the
         // transparent bar or the status bar on any width class, including after a
-        // programmatic scroll that no nested-scroll event reports.
+        // programmatic scroll that no nested-scroll event reports. Content also stays clear
+        // of a landscape camera cutout, only where this pane actually overlaps it (issue #101).
         Box(
             Modifier
                 .fillMaxSize()
                 .padding(top = inner.calculateTopPadding())
+                .fitInside(WindowInsetsRulers.DisplayCutout.current)
                 .clipToBounds()
                 .testTag("fst.nav.content"),
         ) {

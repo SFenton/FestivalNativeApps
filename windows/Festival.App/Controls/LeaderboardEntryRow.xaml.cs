@@ -20,6 +20,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
 
     private double width = double.NaN;
     private bool current;
+    private string? rowAutomationId;
 
     /// <summary>Row model: any <see cref="ILeaderboardEntryRow"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
@@ -30,6 +31,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
     {
         InitializeComponent();
         IsTabStop = false;
+        NameText.IsTextTrimmedChanged += (_, _) => UpdateNameToolTip();
     }
 
     /// <summary>Row model.</summary>
@@ -44,6 +46,21 @@ public sealed partial class LeaderboardEntryRow : UserControl
     {
         get => Backplate.Visibility == Visibility.Visible;
         set => Backplate.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// UIA automation ID for this instance instead of the row model's (e.g. the pinned "your rank" row, which would
+    /// otherwise repeat the in-list row's <c>….row.&lt;accountId&gt;</c> ID). The row's one UIA element is its inner
+    /// Button, so an ID set on this UserControl never reaches the automation tree.
+    /// </summary>
+    public string? RowAutomationId
+    {
+        get => rowAutomationId;
+        set
+        {
+            rowAutomationId = value;
+            Update();
+        }
     }
 
     /// <summary>The row's destination, if it has one.</summary>
@@ -81,12 +98,20 @@ public sealed partial class LeaderboardEntryRow : UserControl
         if (e.PropertyName == nameof(ILeaderboardEntryRow.Section)) UpdateColumns();
     }
 
+    /// <summary>
+    /// Shows the full name as the row's tooltip only while the name is trimmed (narrow windows, large text sizes), so
+    /// mouse and keyboard users can read what the ellipsis hides; Narrator already reads the full name.
+    /// </summary>
+    private void UpdateNameToolTip() =>
+        ToolTipService.SetToolTip(RowButton, NameText.IsTextTrimmed && NameText.Text.Length > 0 ? NameText.Text : null);
+
     /// <summary>Projects the model into the columns.</summary>
     private void Update()
     {
         if (Row is not ILeaderboardEntryRow row) return;
         RankText.Text = row.RankText;
         NameText.Text = row.Name;
+        UpdateNameToolTip();
         // A labelled row (score history date) has no rank: the label takes the rank column too (web label rows).
         var ranked = row.RankText.Length > 0;
         RankText.Visibility = ranked ? Visibility.Visible : Visibility.Collapsed;
@@ -117,7 +142,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 break;
         }
         AutomationProperties.SetName(RowButton, row.Announcement);
-        AutomationProperties.SetAutomationId(RowButton, row.AutomationId);
+        AutomationProperties.SetAutomationId(RowButton, string.IsNullOrEmpty(rowAutomationId) ? row.AutomationId : rowAutomationId);
         // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
         // UIA reads them as text rather than an invokable button.
         RowButton.IsHitTestVisible = RowButton.IsTabStop = RowButton.IsActionable = row.Route is not null;

@@ -93,6 +93,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>Whether input steps minimize overlapping windows of other same-named processes (other lanes).</summary>
     private bool isolate;
 
+    /// <summary>
+    /// Whether keyboard steps post messages to the app (<see cref="PostedInput"/>) instead of sending real input:
+    /// the request's <c>post_keys</c>, else automatically while the console session is locked.
+    /// </summary>
+    private bool postKeys;
+
     /// <summary>Runs the request's <c>command</c>.</summary>
     /// <param name="request">Request JSON.</param>
     /// <returns>Command result JSON.</returns>
@@ -100,6 +106,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var command = (string?)request["command"] ?? throw new ArgumentException("missing command");
         isolate = (bool?)request["isolate"] ?? false;
+        postKeys = (bool?)request["post_keys"] ?? PostedInput.IsSessionLocked();
         try
         {
             return command switch
@@ -439,14 +446,19 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>Steps that send real mouse/keyboard input and so need the target in front.</summary>
     private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "hover", "type", "key", "scroll", "tabwalk"];
 
+    /// <summary>Keyboard steps that <see cref="postKeys"/> posts to the window instead (no foreground needed).</summary>
+    private static readonly HashSet<string> KeyVerbs = ["type", "key", "tabwalk"];
+
     private JsonNode Drive(Window window, JsonArray steps)
     {
+        if (postKeys) Log("keyboard steps are posted to the window (session locked or post_keys)");
         foreach (var node in steps)
         {
             var step = node!.AsObject();
             var verb = (string)step["verb"]!;
             var arg = (string?)step["arg"] ?? "";
-            if (InputVerbs.Contains(verb) && !(bool)EnsureForeground(window)["foreground"]!)
+            if (InputVerbs.Contains(verb) && !(postKeys && KeyVerbs.Contains(verb))
+                && !(bool)EnsureForeground(window)["foreground"]!)
                 Log("warning: target is not foreground (nothing covers it, so input proceeds)");
             RunStep(window, verb, arg, step);
             Log($"ok {verb}:{arg}");
@@ -498,11 +510,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Find(window, step);
                 break;
             case "type":
-                Keyboard.Type(arg);
+                if (postKeys) PostedInput.Type(window.Properties.NativeWindowHandle.Value, arg);
+                else Keyboard.Type(arg);
                 break;
             case "key":
                 var keys = step["vk"]!.AsArray().Select(k => (VirtualKeyShort)(int)k!).ToArray();
-                Keyboard.TypeSimultaneously(keys);
+                if (postKeys) PostedInput.Press(window.Properties.NativeWindowHandle.Value, keys);
+                else Keyboard.TypeSimultaneously(keys);
                 break;
             case "scroll":
                 var amount = (double?)step["amount"] ?? -3;
@@ -537,6 +551,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "scan":
                 ScanStep(window, arg);
+                break;
+            case "setvalue":
+                SetValue(Find(window, step), (string?)step["text"] ?? "");
+                break;
+            case "waitgone":
+                WaitGone(window, step);
+                break;
+            case "scrollinto":
+                ScrollInto(window, step);
                 break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
@@ -588,6 +611,18 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         throw new InvalidOperationException($"reveal could not bring {selector["kind"]}={selector["value"]} on screen");
     }
 
+    /// <summary>Writes text through the UIA Value pattern, so no keyboard input is needed (works on a locked console).</summary>
+    /// <param name="element">The field, or a container (e.g. an AutoSuggestBox) whose first editable descendant takes the text.</param>
+    /// <param name="text">New value; empty clears the field.</param>
+    private void SetValue(AutomationElement element, string text)
+    {
+        var target = element.Patterns.Value.IsSupported
+            ? element
+            : element.FindFirstDescendant(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))
+              ?? throw new InvalidOperationException("element has no Value pattern or editable descendant");
+        target.Patterns.Value.Pattern.SetValue(text);
+    }
+
     /// <summary>Screen point of a step's selector: window-relative coordinates or the element's clickable point.</summary>
     private Point ScreenPoint(Window window, JsonObject step)
     {
@@ -597,7 +632,66 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return new Point(bounds.X + (int)selector["x"]!, bounds.Y + (int)selector["y"]!);
     }
 
-    internal AutomationElement Find(Window window, JsonObject step)
+    /// <summary>Waits until no on-screen element matches the step's selector (an absence assertion).</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">A matching element is still on screen at the timeout.</exception>
+    private void WaitGone(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (window.FindAllDescendants(condition).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
+        {
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"element {label} is still on screen");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>
+    /// Brings an element that exists but is scrolled out of view (e.g. below the fold of a flyout's ScrollViewer) on
+    /// screen through the UIA ScrollItem pattern, or by paging the nearest scrollable ancestor when the element has no
+    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">No element matches, or it is still off screen at the timeout.</exception>
+    private void ScrollInto(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            var found = window.FindFirstDescendant(condition);
+            if (found is not null)
+            {
+                if (!found.Properties.IsOffscreen.ValueOrDefault) return;
+                if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
+                else PageTowards(found);
+            }
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element.</summary>
+    /// <param name="element">Element to bring closer to its viewport.</param>
+    private void PageTowards(AutomationElement element)
+    {
+        var walker = automation.TreeWalkerFactory.GetControlViewWalker();
+        for (var parent = walker.GetParent(element); parent is not null; parent = walker.GetParent(parent))
+        {
+            if (!parent.Patterns.Scroll.IsSupported || !parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) continue;
+            var target = element.BoundingRectangle;
+            var viewport = parent.BoundingRectangle;
+            var amount = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom
+                ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement
+                : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement;
+            parent.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, amount);
+            return;
+        }
+    }
+
+    private (ConditionBase Condition, string Label) Condition(JsonObject step)
     {
         var selector = step["selector"]!.AsObject();
         var kind = (string)selector["kind"]!;
@@ -610,12 +704,18 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             "class" => cf.ByClassName(value),
             _ => throw new ArgumentException($"selector {kind} cannot locate an element"),
         };
+        return (condition, $"{kind}={value}");
+    }
+
+    internal AutomationElement Find(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
             var found = window.FindFirstDescendant(condition);
             if (found is not null && !found.Properties.IsOffscreen.ValueOrDefault) return found;
-            if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {kind}={value}");
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
     }

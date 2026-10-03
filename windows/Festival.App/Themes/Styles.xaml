@@ -78,6 +78,11 @@
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="#FFFFFFFF" />
+            <!-- Song Detail's Item Shop button surface under its breathing status fill (web shopButton). -->
+            <SolidColorBrush x:Key="FSTShopButtonSurfaceBrush" Color="#F5121826" />
+            <!-- Song Detail score-history chart chrome (web ScoreHistoryChart axis stroke, selected-bar purple). -->
+            <SolidColorBrush x:Key="FSTChartAxisBrush" Color="#33FFFFFF" />
+            <SolidColorBrush x:Key="FSTChartSelectedStrokeBrush" Color="#FF7C3AED" />
             <SolidColorBrush x:Key="FSTDangerBackgroundBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPointerOverBrush" Color="#FFD84343" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPressedBrush" Color="#FFA82020" />
@@ -175,6 +180,11 @@
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <!-- Same Highlight as the status fill, so the breathe never exposes a non-system surface under HighlightText. -->
+            <SolidColorBrush x:Key="FSTShopButtonSurfaceBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <!-- Chart axes and bar outlines in the text colour; the selected bar in Highlight. -->
+            <SolidColorBrush x:Key="FSTChartAxisBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTChartSelectedStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTDangerBackgroundBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPointerOverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
