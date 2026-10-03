@@ -334,9 +334,10 @@ struct GlobalSearchResults: View {
 
 // MARK: - Sheet
 
-/// Global search as a sheet: opened by ⌘K or ⌘F on iPad's sidebar shell and from the Mac
-/// shell. A result dismisses the sheet, then pushes on the presenting section. Phone
-/// tabs use the Search tab instead (``GlobalSearchTab``, issue #92).
+/// Global search as a sheet, for the Mac shell (⌘K / ⌘F). A result dismisses the sheet,
+/// then pushes on the presenting section. iOS uses the phone Search tab or the iPad
+/// sidebar's Search row instead (``GlobalSearchTab``, issue #92), menu-bar shortcuts
+/// included.
 struct GlobalSearchSheet: View {
     let session: FestivalSession
     /// Pushes the chosen route on the presenting section (passed directly: environment

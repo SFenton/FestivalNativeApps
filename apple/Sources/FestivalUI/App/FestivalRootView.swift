@@ -655,15 +655,17 @@ public struct FestivalRootView: View {
                 sidebar: presentation.navigation == .sidebar, visible: visible
             ),
             visible: visible, selected: selected,
-            canGoBack: ListDetailPolicy.pathAfterBack(
+            // Search owns no stack: Back would pop the hidden section under it.
+            canGoBack: !searchActive && ListDetailPolicy.pathAfterBack(
                 section: selected, path: path(for: selected).wrappedValue,
                 isSplit: splitSections.contains(selected)
             ) != nil,
             sheetOpen: rootProfilePresented || globalSearchPresented || notificationsPresented
                 || whatsNewPresented || drawerPresented,
             hasPlayer: session.selectedPlayer != nil,
+            // Like a sidebar row: leaves the Search row (issue #92), else web tab semantics.
             select: { section in
-                if selected == section { paths[section] = [] } else { select(section) }
+                perform(RootTabTransition.choose(.section(section), selected: selected, searchActive: searchActive))
             },
             goBack: { goBack() },
             search: { openGlobalSearch() },
@@ -672,7 +674,7 @@ public struct FestivalRootView: View {
             deselectProfile: { session.deselectPlayer() },
             notifications: { notificationsPresented = true },
             whatsNew: { whatsNewPresented = true },
-            licenses: { paths[selected, default: []].append(.licenses) }
+            licenses: { perform(.push(.licenses)) }
         )
     }
 
