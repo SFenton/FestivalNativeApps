@@ -36,7 +36,7 @@ public static class PrivacyPolicyDialog
     public static async Task ShowAsync(XamlRoot root)
     {
         var policy = Load();
-        var dialog = FestivalDialog.Create(root, policy.Title, Content(policy, root), "fst.settings.privacy.dialog", closeAutomationId: "fst.settings.privacy.close");
+        var dialog = FestivalDialog.Create(root, policy.Title, Content(policy, root), "fst.privacy-policy.dialog", closeAutomationId: "fst.privacy-policy.close");
         await FestivalDialog.ShowAsync(dialog);
     }
 
@@ -54,13 +54,13 @@ public static class PrivacyPolicyDialog
         if (!string.IsNullOrWhiteSpace(policy.EffectiveDateText))
         {
             var date = new TextBlock { Text = policy.EffectiveDateText, Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"], TextWrapping = TextWrapping.Wrap };
-            AutomationProperties.SetAutomationId(date, "fst.settings.privacy.effective-date");
+            AutomationProperties.SetAutomationId(date, "fst.privacy-policy.effective-date");
             panel.Children.Add(date);
         }
         foreach (var section in policy.Sections)
         {
             var block = new StackPanel { Spacing = 8 };
-            AutomationProperties.SetAutomationId(block, $"fst.settings.privacy.section.{section.Id}");
+            AutomationProperties.SetAutomationId(block, $"fst.privacy-policy.section.{section.Id}");
             var heading = new TextBlock { Text = section.Title, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextWrapping = TextWrapping.Wrap };
             AutomationProperties.SetHeadingLevel(heading, AutomationHeadingLevel.Level2);
             block.Children.Add(heading);
@@ -90,7 +90,7 @@ public static class PrivacyPolicyDialog
         var height = root.Size.Height;
         // A tab stop, so the dialog opens focused on the text (arrow/Page keys scroll) rather than its last hyperlink.
         var scroller = new ScrollViewer { Content = panel, IsTabStop = true, MaxHeight = Math.Max(200, (double.IsNaN(height) ? 640 : height) - 240) };
-        AutomationProperties.SetAutomationId(scroller, "fst.settings.privacy.list");
+        AutomationProperties.SetAutomationId(scroller, "fst.privacy-policy.content");
         AutomationProperties.SetName(scroller, policy.Title);
         return scroller;
     }

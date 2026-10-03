@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,21 +65,21 @@ fun PrivacyPolicySheet(compact: Boolean, onDismiss: () -> Unit, loadPolicy: (sus
     if (compact) {
         FestivalModalSheet(
             title = title,
-            closeTag = "fst.settings.privacy.close",
-            titleTag = "fst.settings.privacy.title",
+            closeTag = "fst.privacy-policy.close",
+            titleTag = "fst.privacy-policy.title",
             onDismissRequest = onDismiss,
-            modifier = Modifier.testTag("fst.settings.privacy.sheet"),
+            modifier = Modifier.testTag("fst.privacy-policy.sheet"),
         ) {
             PolicyBody(policy, Modifier.fillMaxHeight())
         }
     } else {
         FestivalModalDialog(
             title = title,
-            closeTag = "fst.settings.privacy.close",
-            titleTag = "fst.settings.privacy.title",
+            closeTag = "fst.privacy-policy.close",
+            titleTag = "fst.privacy-policy.title",
             onDismissRequest = onDismiss,
             maxHeight = 640.dp,
-            modifier = Modifier.testTag("fst.settings.privacy.sheet"),
+            modifier = Modifier.testTag("fst.privacy-policy.sheet"),
         ) {
             PolicyBody(policy, Modifier)
         }
@@ -93,13 +94,13 @@ fun PrivacyPolicySheet(compact: Boolean, onDismiss: () -> Unit, loadPolicy: (sus
 private fun ColumnScope.PolicyBody(policy: PrivacyPolicy?, modifier: Modifier) {
     if (policy == null) return
     if (policy.isEmpty) {
-        FestivalEmptyState("The privacy policy could not be loaded.", modifier.fillMaxWidth().testTag("fst.settings.privacy.empty"))
+        FestivalEmptyState("The privacy policy could not be loaded.", modifier.fillMaxWidth().testTag("fst.privacy-policy.empty"))
         return
     }
     LazyColumn(
         contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 4.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = modifier.weight(1f, fill = false).fillMaxWidth().testTag("fst.settings.privacy.list"),
+        modifier = modifier.weight(1f, fill = false).fillMaxWidth().testTag("fst.privacy-policy.content"),
     ) {
         if (policy.effectiveDateText.isNotBlank()) {
             item(key = "effective-date") {
@@ -107,7 +108,7 @@ private fun ColumnScope.PolicyBody(policy: PrivacyPolicy?, modifier: Modifier) {
                     policy.effectiveDateText,
                     style = MaterialTheme.typography.bodyMedium,
                     color = BrandTokens.textSecondary,
-                    modifier = Modifier.testTag("fst.settings.privacy.effective-date"),
+                    modifier = Modifier.testTag("fst.privacy-policy.effective-date"),
                 )
             }
         }
@@ -116,8 +117,8 @@ private fun ColumnScope.PolicyBody(policy: PrivacyPolicy?, modifier: Modifier) {
 }
 
 @Composable
-private fun PolicySection(section: PrivacyPolicySection) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.settings.privacy.section.${section.id}")) {
+private fun PolicySection(section: PrivacyPolicySection) = SelectionContainer {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.privacy-policy.section.${section.id}")) {
         Text(
             section.title,
             style = MaterialTheme.typography.titleMedium,

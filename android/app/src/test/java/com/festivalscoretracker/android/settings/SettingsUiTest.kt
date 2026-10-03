@@ -246,15 +246,15 @@ class SettingsUiTest {
         launch(settingsTab)
         waitForTag("fst.settings.list")
         tap("fst.settings.privacy-policy")
-        waitForTag("fst.settings.privacy.list")
-        rule.onNodeWithTag("fst.settings.privacy.sheet").assertExists()
-        rule.onNodeWithTag("fst.settings.privacy.title").assertTextEquals("Privacy Policy")
-        rule.onNodeWithTag("fst.settings.privacy.effective-date").assertTextEquals("Effective October 3, 2026")
+        waitForTag("fst.privacy-policy.content")
+        rule.onNodeWithTag("fst.privacy-policy.sheet").assertExists()
+        rule.onNodeWithTag("fst.privacy-policy.title").assertTextEquals("Privacy Policy")
+        rule.onNodeWithTag("fst.privacy-policy.effective-date").assertTextEquals("Effective October 3, 2026")
         // Section titles are headings, in contract order.
-        rule.onNodeWithTag("fst.settings.privacy.list").performScrollToNode(hasTestTag("fst.settings.privacy.section.contact"))
+        rule.onNodeWithTag("fst.privacy-policy.content").performScrollToNode(hasTestTag("fst.privacy-policy.section.contact"))
         rule.onNodeWithText("Contact Us").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
-        rule.onNodeWithTag("fst.settings.privacy.close").performSemanticsAction(SemanticsActions.OnClick)
-        waitGone("fst.settings.privacy.sheet")
+        rule.onNodeWithTag("fst.privacy-policy.close").performSemanticsAction(SemanticsActions.OnClick)
+        waitGone("fst.privacy-policy.sheet")
     }
 
     @Test
@@ -407,11 +407,11 @@ class ExpandedSettingsUiTest {
         rule.onNodeWithTag("fst.quick-links.item.privacy-policy").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.privacy-policy").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.settings.privacy-policy").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.privacy.list").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.privacy-policy.content").fetchSemanticsNodes().isNotEmpty() }
         // Wider windows: a centred dialog capped at the shared modal width, not a full-width sheet.
-        val bounds = rule.onNodeWithTag("fst.settings.privacy.sheet").getUnclippedBoundsInRoot()
+        val bounds = rule.onNodeWithTag("fst.privacy-policy.sheet").getUnclippedBoundsInRoot()
         assertTrue((bounds.right - bounds.left).value <= 560f + 1f)
-        rule.onNodeWithTag("fst.settings.privacy.close").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.privacy.sheet").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("fst.privacy-policy.close").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.privacy-policy.sheet").fetchSemanticsNodes().isEmpty() }
     }
 }

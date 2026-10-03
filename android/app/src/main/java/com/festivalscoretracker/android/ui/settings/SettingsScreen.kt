@@ -194,7 +194,7 @@ fun SettingsScreen(
                                     "licenses" -> NavigationRow("Licenses", "Open source package license details.", "fst.settings.licenses") {
                                         shell.navigate(LicensesRoute)
                                     }
-                                    "privacy-policy" -> NavigationRow("Privacy Policy", "What information the app handles and your choices.", "fst.settings.privacy-policy") {
+                                    "privacy-policy" -> NavigationRow("Privacy Policy", "How Festival Score Tracker handles your information.", "fst.settings.privacy-policy") {
                                         showPrivacy = true
                                     }
                                     "reset" -> ResetSection { confirmReset = true }

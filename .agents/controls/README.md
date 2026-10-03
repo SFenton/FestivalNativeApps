@@ -28,7 +28,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [ios](global-search/ios.md) · [ipados](global-search/ipados.md) · [macos](global-search/macos.md) · [android](global-search/android.md) · [windows](global-search/windows.md) |
 | whats-new | `fst.whats-new.*` | 5 | pending | [spec](whats-new/spec.md) | [ios](whats-new/ios.md) · [android](whats-new/android.md) · [windows](whats-new/windows.md) |
 | feedback-form | `fst.settings.feedback.*` | 10 | pending | [spec](feedback-form/spec.md) | [ios](feedback-form/ios.md) · [ipados](feedback-form/ipados.md) · [duo](feedback-form/duo.md) · [macos](feedback-form/macos.md) · [android](feedback-form/android.md) · [windows](feedback-form/windows.md) |
-| privacy-policy | `fst.privacy-policy.*` | 5 | pending | [spec](privacy-policy/spec.md) | [ios](privacy-policy/ios.md) · [ipados](privacy-policy/ipados.md) · [duo](privacy-policy/duo.md) · [macos](privacy-policy/macos.md) |
+| privacy-policy | `fst.privacy-policy.*` | 5 | pending | [spec](privacy-policy/spec.md) | [ios](privacy-policy/ios.md) · [ipados](privacy-policy/ipados.md) · [duo](privacy-policy/duo.md) · [macos](privacy-policy/macos.md) · [android](privacy-policy/android.md) · [windows](privacy-policy/windows.md) |
 | leaderboard-row-columns | ? | ? | not in contract | [spec](leaderboard-row-columns/spec.md) | [ios](leaderboard-row-columns/ios.md) · [ipados](leaderboard-row-columns/ipados.md) · [macos](leaderboard-row-columns/macos.md) |
 <!-- END GENERATED -->
 # Controls router

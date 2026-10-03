@@ -1,6 +1,6 @@
 # Privacy Policy (`fst.privacy-policy.*`): spec
 
-> **What:** platform-neutral behavior of Settings → **Privacy Policy**: the canonical policy text, its entry row, modal presentation, direct web URL and test matrix (issue #98). **Read when:** changing the policy wording or its entry/presentation on any platform. Platform notes: [ios.md](ios.md), [ipados.md](ipados.md), [duo.md](duo.md), [macos.md](macos.md).
+> **What:** platform-neutral behavior of Settings → **Privacy Policy**: the canonical policy text, its entry row, modal presentation, direct web URL and test matrix (issue #98). **Read when:** changing the policy wording or its entry/presentation on any platform. Platform notes: [ios.md](ios.md), [ipados.md](ipados.md), [duo.md](duo.md), [macos.md](macos.md), [android.md](android.md), [windows.md](windows.md).
 
 Source of truth: [`contracts/privacy-policy.json`](../../../contracts/privacy-policy.json). The pinned web revision has no privacy policy; this contract is native-first and the web reads the same text.
 
@@ -8,7 +8,7 @@ Source of truth: [`contracts/privacy-policy.json`](../../../contracts/privacy-po
 
 - **Every platform renders the contract's text verbatim**: `title`, `effectiveDateText`, then each `sections[]` entry's `title` and `blocks[]` in order. No platform may reword, add or drop a sentence; change the JSON and every platform's copy in the same change.
 - Block kinds (`schema` 1): `paragraph` (`text`) and `bullets` (`items[]`, one string per bullet). Presentation-only styling is allowed when the words stay identical: a bullet's short leading label before `": "` may be bold, and `https://` addresses in the text should be tappable links that open the system browser.
-- Each platform keeps a native copy (no runtime fetch, works before the service answers) plus a unit test that decodes the JSON and asserts its copy is identical. Apple: `FestivalCore/PrivacyPolicy.swift` + `PrivacyPolicyTests`.
+- Each platform keeps a native copy (no runtime fetch, works before the service answers) plus a unit test that decodes the JSON and asserts its copy is identical. Apple: `FestivalCore/PrivacyPolicy.swift` + `PrivacyPolicyTests`. Android: `assets/privacy-policy.json` (byte-identical copy) + `PrivacyPolicyTest`. Windows: the csproj links the contract file itself + `PrivacyPolicyTests`.
 - Required sections (industry-standard, App Review 5.1.1(i)): `information-collected`, `how-used`, `third-parties` (Epic Games, Cloudflare, GitHub, app stores), `retention`, `your-rights`, `contact` (last); the contract also has `overview`, `public-game-data`, `children`, `security` and `changes`, plus the effective date. Tests assert the required `id`s exist.
 - Bump `effectiveDate`/`effectiveDateText` whenever the wording changes. Claims must stay true of the shipped clients and service: re-check the policy when adding analytics, accounts, a new third-party host, persisted server data or a new user-initiated write ([service-safety](../../platforms/service-safety.md)).
 - No public contact email exists; contact goes through the public GitHub issues page and in-app Report an Issue, with a note not to post private details. TODO(orchestrator): replace with a private contact address if one is created.
