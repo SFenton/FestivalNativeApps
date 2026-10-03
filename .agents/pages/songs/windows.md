@@ -51,7 +51,27 @@ From a **1100 epx page** (e.g. a 1440 epx window with the expanded pane) the pag
 
 ## UI journeys
 
-`python tools/windows/songs_journey.py [--sizes compact,medium,wide] [--shots DIR]` (fixture `tools/mock_service.py`, throwaway `FST_SETTINGS_PATH`): selected-player rows → Item Shop sort → Leaving Tomorrow filter → reset → Song Detail; Item Shop grid/list/compact → Song Detail; Paths image → text → not generated; Karaoke warning dismissal; no player; hidden Shop. Rows expose `fst.songs.row.<songId>`. IDs must sit on UIA-visible elements (text, buttons), not `Border`/`StackPanel`.
+`python tools/windows/songs_journey.py [--sizes compact,medium,wide] [--shots DIR] [--only NAME[,NAME…]]` (fixture `tools/mock_service.py`, throwaway `FST_SETTINGS_PATH`): selected-player rows → Item Shop sort → Leaving Tomorrow filter → reset → Song Detail; Item Shop grid/list/compact → Song Detail; Paths image → text → not generated; Karaoke warning dismissal; no player; hidden Shop. Lock-tolerant state scenarios (UIA patterns only, so they also run on a locked console): `songs-search` (match → No Results → clear), `songs-sort` (Artist ↓ → Year sections, Jump hidden → reset), `songs-jump` (zoomed-out letter grid → letter → rows), `songs-filter-empty` (decade filter → No Results → Clear Filters), `songs-syncing` (202 notice + "Scores syncing" rows), `songs-denied` (403 notice + "Scores unavailable"), `songs-filter-invalid` (unsupported saved decade → readable pause + reset) and `songs-error` (unreachable origin → retryable service status). Rows expose `fst.songs.row.<songId>`. IDs must sit on UIA-visible elements (text, buttons), not `Border`/`StackPanel`/`ItemsRepeater` (`fst.songs.empty`, `fst.songs.sort.form` and `fst.songs.notices` have no UIA peer: wait on `name=No Results`, `fst.songs.sort.mode` or `class=Microsoft.UI.Xaml.Controls.InfoBar`).
+
+## Validation (issue #194, 2026-10-03)
+
+Checked against the live public service (keyless default origin, public player SFentonX, throwaway settings/data dirs) on a 3840×2160 display whose native scale is 300%, so compact/medium/wide presets give 500/900/1280 epx windows; the 1440 epx two-column layout was checked at 100% and 150% display scale. The console was locked: UIA patterns, posted keys and PrintWindow captures were used, not real input.
+
+| Configuration | Result |
+|---|---|
+| Compact 500 epx, snapped half (640 epx) | Pass: search full width, Sort/Filter + icon-only Jump (named "Jump") below, chips wrap under titles |
+| Medium 900 epx | Pass: one toolbar row, chips inline, first-row Shop accent |
+| Wide/maximized at 300% (1280 epx) | Pass: single column (page < 1100 epx), pane expanded |
+| Wide 1440 epx at 100%, maximized 2560 epx at 150% | Pass: list + Song Detail columns, first row selected |
+| Display scale 100% / 150% / 300% | Pass: no clipping; layout follows epx breakpoints |
+| Light / Dark default app mode | Pass, identical: the app is Dark-only by design (below) |
+| High contrast Night sky, Desert | Pass: system colours on toolbar, rows, chips and Sort flyout; Axe 0 |
+| Text size 200% (and 225% fixture) | Pass: toolbar still fits at medium; search placeholder truncates (standard `TextBox`); compact rows grow, nothing clipped. Title-bar notification badge digits overflow its circle (shell, not Songs) |
+| Keyboard | Pass (`a11y-keyboard.json` `kb-songs-order`, `kb-songs-sort-esc`, `kb-section-accelerators`, all sizes): Ctrl+F → search → Sort → Filter → Jump → rows, Down within rows, Shift+Tab back, Esc returns focus to Sort |
+| Axe.Windows | 0 errors for `songs`, `songs-selected`, `songs-syncing`, `songs-denied`, `songs-sort`, `songs-no-results`, `songs-filter-invalid` and `songs-filter` at all three sizes. `songs-jump` reports 2 `BoundingRectangleCompletelyObscuresContainer` errors on WinUI's windowed popup host for the Jump button's ToolTip ("Jump to section (Ctrl+Minus)", shown because UIA Invoke focuses the button): the framework issue in [windows-accessibility](../../testing/windows-accessibility.md) item 8, not a Songs defect. The `songs-filter` page now reaches Percentile with `scrollinto:` and `toggle:` (the compact instrument centre is a `ToggleButton` without an Invoke pattern), so it runs on a locked console |
+| UIA states | All `songs_journey.py` state scenarios above pass at compact, medium and wide (fixture) |
+
+Deliberate deviations from the `winui-design` skill: Dark-only (`RequestedTheme="Dark"`, web parity over album-art backgrounds; contrast themes still map to system colours); the loading state is an accessible-named `ProgressRing` without visible text (repo-wide convention, brief load); Jump uses `SemanticZoom` instead of the web scrubber; the filter's full-width red Reset and the Shop pulse ring follow the web. The `InfoBar` notices have no Title, so their UIA name is empty; Narrator reads the message child and the open notification, and Axe reports no error.
 
 ## Gotchas
 
@@ -60,4 +80,4 @@ From a **1100 epx page** (e.g. a 1440 epx window with the expanded pane) the pag
 
 ## Open
 
-Quick Links rail (Settings lane owns the pattern); profile/FC/band sort modes; the invalid-score warning icon/alert (web `InvalidScoreIcon`); band rows; UIA journeys for sort/filter drafts; Narrator pass.
+Quick Links rail (Settings lane owns the pattern); profile/FC/band sort modes; the invalid-score warning icon/alert (web `InvalidScoreIcon`); band rows; a light-dismiss draft-discard journey for Sort/Filter; a spoken Narrator pass on an unlocked console (UIA names/roles/order and Axe are covered above).

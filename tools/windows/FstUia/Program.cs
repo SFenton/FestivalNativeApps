@@ -530,6 +530,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "scan":
                 ScanStep(window, arg);
                 break;
+            case "setvalue":
+                SetValue(Find(window, step), (string?)step["text"] ?? "");
+                break;
+            case "waitgone":
+                WaitGone(window, step);
+                break;
+            case "scrollinto":
+                ScrollInto(window, step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -537,6 +546,18 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     private void Click(Window window, JsonObject step, MouseButton button) => Mouse.Click(ScreenPoint(window, step), button);
+
+    /// <summary>Writes text through the UIA Value pattern, so no keyboard input is needed (works on a locked console).</summary>
+    /// <param name="element">The field, or a container (e.g. an AutoSuggestBox) whose first editable descendant takes the text.</param>
+    /// <param name="text">New value; empty clears the field.</param>
+    private void SetValue(AutomationElement element, string text)
+    {
+        var target = element.Patterns.Value.IsSupported
+            ? element
+            : element.FindFirstDescendant(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Edit))
+              ?? throw new InvalidOperationException("element has no Value pattern or editable descendant");
+        target.Patterns.Value.Pattern.SetValue(text);
+    }
 
     /// <summary>Screen point of a step's selector: window-relative coordinates or the element's clickable point.</summary>
     private Point ScreenPoint(Window window, JsonObject step)
@@ -547,7 +568,66 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return new Point(bounds.X + (int)selector["x"]!, bounds.Y + (int)selector["y"]!);
     }
 
-    internal AutomationElement Find(Window window, JsonObject step)
+    /// <summary>Waits until no on-screen element matches the step's selector (an absence assertion).</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">A matching element is still on screen at the timeout.</exception>
+    private void WaitGone(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (window.FindAllDescendants(condition).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
+        {
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"element {label} is still on screen");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>
+    /// Brings an element that exists but is scrolled out of view (e.g. below the fold of a flyout's ScrollViewer) on
+    /// screen through the UIA ScrollItem pattern, or by paging the nearest scrollable ancestor when the element has no
+    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">No element matches, or it is still off screen at the timeout.</exception>
+    private void ScrollInto(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            var found = window.FindFirstDescendant(condition);
+            if (found is not null)
+            {
+                if (!found.Properties.IsOffscreen.ValueOrDefault) return;
+                if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
+                else PageTowards(found);
+            }
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element.</summary>
+    /// <param name="element">Element to bring closer to its viewport.</param>
+    private void PageTowards(AutomationElement element)
+    {
+        var walker = automation.TreeWalkerFactory.GetControlViewWalker();
+        for (var parent = walker.GetParent(element); parent is not null; parent = walker.GetParent(parent))
+        {
+            if (!parent.Patterns.Scroll.IsSupported || !parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) continue;
+            var target = element.BoundingRectangle;
+            var viewport = parent.BoundingRectangle;
+            var amount = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom
+                ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement
+                : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement;
+            parent.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, amount);
+            return;
+        }
+    }
+
+    private (ConditionBase Condition, string Label) Condition(JsonObject step)
     {
         var selector = step["selector"]!.AsObject();
         var kind = (string)selector["kind"]!;
@@ -560,12 +640,18 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             "class" => cf.ByClassName(value),
             _ => throw new ArgumentException($"selector {kind} cannot locate an element"),
         };
+        return (condition, $"{kind}={value}");
+    }
+
+    internal AutomationElement Find(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
             var found = window.FindFirstDescendant(condition);
             if (found is not null && !found.Properties.IsOffscreen.ValueOrDefault) return found;
-            if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {kind}={value}");
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
     }
