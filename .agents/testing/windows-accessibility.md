@@ -26,7 +26,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Songs (anonymous / selected) | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ (C+M) |
 | Songs Filter (web sections, percentile open) | ✅✅✅ (+AOT) | 20/20/20 | ✅ | ✅ | ✅ |
 | Song Detail + Paths dialog | ✅✅✅ | 16/17/17 | ✅ | ✅ | ✅ |
-| Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ |
+| Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
 | Song Band Leaderboard | ✅✅✅ | 8/10/10 | — | ✅ | ✅ |
 | Item Shop | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
