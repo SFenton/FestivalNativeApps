@@ -90,7 +90,7 @@ public class SettingsPageTests
         var (release, _, _) = Create(debug: false);
         Assert.Equal("Release", release.BuildConfiguration);
         Assert.DoesNotContain(release.QuickLinks.Items, i => i.Section.Id == "diagnostics");
-        Assert.Equal(["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility", "version", "service-info", "first-run", "licenses", "reset"],
+        Assert.Equal(["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility", "version", "service-info", "first-run", "licenses", "privacy-policy", "reset"],
             release.QuickLinks.Items.Select(i => i.Section.Id));
     }
 

@@ -39,7 +39,7 @@ private let paneIdentifiers: [SettingsPane: [String]] = [
         "fst.settings.path-default-view", "fst.settings.path-column-order",
         "fst.settings.filter-invalid-scores",
     ],
-    .about: ["fst.settings.whats-new", "fst.settings.licenses"],
+    .about: ["fst.settings.whats-new", "fst.settings.licenses", "fst.settings.privacy-policy"],
 ]
 
 @MainActor
