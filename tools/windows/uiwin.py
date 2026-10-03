@@ -97,7 +97,7 @@ VK = {
 STEP_VERBS = {
     "click": "selector", "rightclick": "selector", "hover": "selector", "invoke": "selector",
     "toggle": "selector", "select": "selector", "expand": "selector",
-    "collapse": "selector", "focus": "selector", "waitfor": "selector",
+    "collapse": "selector", "focus": "selector", "reveal": "selector", "waitfor": "selector",
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path",
