@@ -565,27 +565,39 @@ private fun FestivalShell(
             }
         }
     }
-    if (layout == NavigationLayout.PermanentDrawer) {
-        content()
-    } else {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            // Edge swipes belong to system back; the drawer opens from the menu button only.
-            gesturesEnabled = drawerState.isOpen,
-            // The drawerState overload adds M3's predictive back handling: system back closes
-            // the open drawer instead of leaving the app. Its corners follow the display corners
-            // (issue #55); without reported corners the shape is Material's default.
-            drawerContent = {
-                ChromeColors {
-                    ModalDrawerSheet(
-                        drawerState = drawerState,
-                        drawerShape = rememberConcentricDrawerShape(),
-                        drawerContainerColor = BrandTokens.cardBackground,
-                    ) { drawer(false) }
-                }
-            },
-        ) { content() }
+    // One parent at every width: hosting the pages bare beside a permanent drawer but inside the
+    // modal drawer otherwise rebuilt the NavHost whenever the window crossed the expanded width
+    // (tablet rotation, unfolding, resizing) and sent every page back to the top (issue #106).
+    // The permanent layout keeps the modal sheet closed and empty, so its anchors (sheet width)
+    // and system-back order stay those of the modal layouts.
+    val permanent = layout == NavigationLayout.PermanentDrawer
+    // Material re-targets the drawer to the anchor nearest its old pixel offset when the sheet's
+    // width changes, so a closed drawer reopened after a display-size (density) change such as
+    // desktop → phone. Re-close it once the new anchors are laid out.
+    val keepDrawerClosed = remember(permanent, density.density) { permanent || drawerState.isClosed }
+    LaunchedEffect(permanent, density.density) {
+        if (keepDrawerClosed) {
+            withFrameNanos {}
+            drawerState.snapTo(DrawerValue.Closed)
+        }
     }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        // Edge swipes belong to system back; the drawer opens from the menu button only.
+        gesturesEnabled = drawerState.isOpen && !permanent,
+        // The drawerState overload adds M3's predictive back handling: system back closes
+        // the open drawer instead of leaving the app. Its corners follow the display corners
+        // (issue #55); without reported corners the shape is Material's default.
+        drawerContent = {
+            ChromeColors {
+                ModalDrawerSheet(
+                    drawerState = drawerState,
+                    drawerShape = rememberConcentricDrawerShape(),
+                    drawerContainerColor = BrandTokens.cardBackground,
+                ) { if (!permanent) drawer(false) }
+            }
+        },
+    ) { content() }
     GlobalSearchHost(
         viewModel = searchViewModel,
         searchState = searchState,
