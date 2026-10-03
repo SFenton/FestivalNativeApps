@@ -27,7 +27,8 @@ internal sealed partial class Driver
 
     /// <summary>
     /// <c>sysset</c>: applies any of <c>high_contrast</c> (<c>off</c>, <c>aquatic</c>, <c>desert</c>, <c>dusk</c>,
-    /// <c>night-sky</c> or a raw scheme name), <c>animations</c> (bool), <c>transparency</c> (bool) and
+    /// <c>night-sky</c> or a raw scheme name), <c>animations</c> (bool), <c>transparency</c> (bool),
+    /// <c>light_theme</c> (bool, the default app mode), <c>display_scale</c> (percent, primary display) and
     /// <c>text_scale</c> (100–225) and returns the values before and after, so the caller can restore them.
     /// </summary>
     /// <param name="request">Request with a <c>set</c> object.</param>
@@ -40,6 +41,8 @@ internal sealed partial class Driver
         if (set["animations"] is JsonNode animations) SetAnimations((bool)animations!);
         if (set["transparency"] is JsonNode transparency) SetTransparency((bool)transparency!);
         if (set["text_scale"] is JsonNode scale) SetTextScale((int)scale!);
+        if (set["light_theme"] is JsonNode light) SetLightTheme((bool)light!);
+        if (set["display_scale"] is JsonNode displayScale) DisplayScale.Set((int)displayScale!);
         return new JsonObject { ["previous"] = previous, ["current"] = ReadSettings() };
     }
 
@@ -61,6 +64,8 @@ internal sealed partial class Driver
             ["animations"] = animations,
             ["transparency"] = (personalize?.GetValue("EnableTransparency") as int? ?? 1) != 0,
             ["text_scale"] = accessibility?.GetValue("TextScaleFactor") as int? ?? 100,
+            ["light_theme"] = (personalize?.GetValue("AppsUseLightTheme") as int? ?? 1) != 0,
+            ["display_scale"] = DisplayScale.Get(),
             ["window_color"] = $"#{GetSysColor(ColorWindow) & 0xFF:X2}{(GetSysColor(ColorWindow) >> 8) & 0xFF:X2}{(GetSysColor(ColorWindow) >> 16) & 0xFF:X2}",
         };
     }
@@ -99,6 +104,16 @@ internal sealed partial class Driver
         using (var key = Registry.CurrentUser.CreateSubKey(PersonalizeKey))
             key.SetValue("EnableTransparency", enabled ? 1 : 0, RegistryValueKind.DWord);
         Broadcast("ImmersiveColorSet");
+    }
+
+    /// <summary>Settings → Personalization → Colors → "Choose your default app mode" (apps only; the system mode is untouched).</summary>
+    /// <param name="light">Light app mode when true, Dark when false.</param>
+    private static void SetLightTheme(bool light)
+    {
+        using (var key = Registry.CurrentUser.CreateSubKey(PersonalizeKey))
+            key.SetValue("AppsUseLightTheme", light ? 1 : 0, RegistryValueKind.DWord);
+        Broadcast("ImmersiveColorSet");
+        Thread.Sleep(1000);
     }
 
     private static void SetTextScale(int percent)

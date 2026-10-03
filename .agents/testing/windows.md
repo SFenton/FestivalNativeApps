@@ -51,7 +51,7 @@ Per-page results (page × check × status) and open gaps: [windows-accessibility
 | Tool | Use |
 |---|---|
 | `python tools/windows/a11y_matrix.py --out DIR --scan --tabs 30 [--sizes …] [--only …]` | Every page in `tools/windows/journeys/a11y.json` (fixture service, isolated settings/app data, `--first-run=off`) at each size: screenshot, in-process Axe.Windows scan, Tab walk; `summary.md` + `results.json`. Exit 1 on any Axe error or load failure |
-| `… --mode hc-aquatic\|hc-desert\|hc-dusk\|hc-night-sky\|text-150\|text-225\|no-animations\|no-transparency\|app-reduced\|app-contrast` | Applies a system contrast theme / text size / Animation effects / transparency setting (or the in-app Reduce Motion + Disable Animated Artwork + Save Data, or More Contrast + Less Transparency) for each launch and restores the previous value before releasing the desktop lock |
+| `… --mode hc-aquatic\|hc-desert\|hc-dusk\|hc-night-sky\|light-theme\|dark-theme\|scale-100\|scale-150\|text-150\|text-200\|text-225\|no-animations\|no-transparency\|app-reduced\|app-contrast` | Applies a system contrast theme / app light-dark theme / primary-display scale / text size / Animation effects / transparency setting (or the in-app Reduce Motion + Disable Animated Artwork + Save Data, or More Contrast + Less Transparency) for each launch and restores the previous value before releasing the desktop lock |
 | `… --pages tools/windows/journeys/a11y-keyboard.json` | Keyboard journeys: `assertfocus:` order (Songs toolbar → rows), Esc returns focus to the Sort/Filter/Profile buttons, Ctrl+1…7 / Ctrl+comma sections, Ctrl+E, Alt+Left from a text field |
 | `uiwin.py scan` / `focus-order` / `tree` | One-off scan, Tab walk or tree (tree lines show heading/landmark/live/accelerator/access-key annotations) |
 | Axe.Windows CLI 2.4.2 | `pwsh tools/windows/axe_scan.ps1 -ProcessId <pid> -OutputDirectory <dir>` (older path; the matrix uses the NuGet in `FstUia`) |
@@ -63,6 +63,8 @@ Per-page results (page × check × status) and open gaps: [windows-accessibility
 - System modes change the operator's real desktop. The runner writes the previous values to `~/.fst-locks/uiwin/a11y-sysset-restore.json` before changing anything and replays a leftover file at the start of its next hold, so a killed run cannot leave a contrast theme on for other lanes. Still prefer letting a mode run finish.
 - `--exe debug|release|aot` runs the matrix on a publish in automation mode (same as `uiwin.py launch`).
 - Text size is read by apps at launch; `text-*` modes set it before launching, so the running operator desktop only changes for new windows.
+- `scale-*` modes change the primary display's scale (`DisplayConfigSetDeviceInfo` relative steps, as Settings › Display does); window presets are effective pixels, so a `wide` preset is clamped by the scaled desktop (1440×900 epx at 150% on the 4K host, 1280×672 at its normal 300%).
+- While the console session is locked, the driver **posts** keyboard steps (`type`, `key`, `tabwalk`) to the app window (`FstUia/PostedInput.cs`: `WM_KEYDOWN`/`WM_CHAR`/`WM_KEYUP` with the modifier state) instead of `SendInput`, which a locked desktop drops; a request's `post_keys: true` forces it. `focus:` and `waitfor:` still need an on-screen element (realized and inside the viewport), and mouse steps need an unlocked desktop. When the Axe output file cannot be written (`Win32Exception` from the locked desktop's screenshot), the scan retries without an output file and still reports its error count.
 
 ### Narrator manual script (operator)
 

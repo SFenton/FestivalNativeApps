@@ -93,6 +93,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>Whether input steps minimize overlapping windows of other same-named processes (other lanes).</summary>
     private bool isolate;
 
+    /// <summary>
+    /// Whether keyboard steps post messages to the app (<see cref="PostedInput"/>) instead of sending real input:
+    /// the request's <c>post_keys</c>, else automatically while the console session is locked.
+    /// </summary>
+    private bool postKeys;
+
     /// <summary>Runs the request's <c>command</c>.</summary>
     /// <param name="request">Request JSON.</param>
     /// <returns>Command result JSON.</returns>
@@ -100,6 +106,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var command = (string?)request["command"] ?? throw new ArgumentException("missing command");
         isolate = (bool?)request["isolate"] ?? false;
+        postKeys = (bool?)request["post_keys"] ?? PostedInput.IsSessionLocked();
         try
         {
             return command switch
@@ -439,14 +446,19 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>Steps that send real mouse/keyboard input and so need the target in front.</summary>
     private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "hover", "type", "key", "scroll", "tabwalk"];
 
+    /// <summary>Keyboard steps that <see cref="postKeys"/> posts to the window instead (no foreground needed).</summary>
+    private static readonly HashSet<string> KeyVerbs = ["type", "key", "tabwalk"];
+
     private JsonNode Drive(Window window, JsonArray steps)
     {
+        if (postKeys) Log("keyboard steps are posted to the window (session locked or post_keys)");
         foreach (var node in steps)
         {
             var step = node!.AsObject();
             var verb = (string)step["verb"]!;
             var arg = (string?)step["arg"] ?? "";
-            if (InputVerbs.Contains(verb) && !(bool)EnsureForeground(window)["foreground"]!)
+            if (InputVerbs.Contains(verb) && !(postKeys && KeyVerbs.Contains(verb))
+                && !(bool)EnsureForeground(window)["foreground"]!)
                 Log("warning: target is not foreground (nothing covers it, so input proceeds)");
             RunStep(window, verb, arg, step);
             Log($"ok {verb}:{arg}");
@@ -498,11 +510,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Find(window, step);
                 break;
             case "type":
-                Keyboard.Type(arg);
+                if (postKeys) PostedInput.Type(window.Properties.NativeWindowHandle.Value, arg);
+                else Keyboard.Type(arg);
                 break;
             case "key":
                 var keys = step["vk"]!.AsArray().Select(k => (VirtualKeyShort)(int)k!).ToArray();
-                Keyboard.TypeSimultaneously(keys);
+                if (postKeys) PostedInput.Press(window.Properties.NativeWindowHandle.Value, keys);
+                else Keyboard.TypeSimultaneously(keys);
                 break;
             case "scroll":
                 var amount = (double?)step["amount"] ?? -3;
