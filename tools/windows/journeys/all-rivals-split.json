@@ -1,0 +1,20 @@
+[
+  {
+    "name": "all-rivals-split",
+    "route": "/rivals/all",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": ["wide", "maximized"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.all-rivals.list@20",
+      "waitfor:id=fst.all-rivals.detail-pane@10",
+      "waitfor:name=View Demo Rival 1's Profile@20"
+    ],
+    "after_ready": [
+      "select:id=fst.all-rivals.row.f1c7f9da2f4c13b52437fac7ae3f9120",
+      "waitfor:name=View Demo Rival 2's Profile@15",
+      "invoke:id=fst.all-rivals.row.f1c74606d0c9692c3273311486f53945",
+      "waitfor:name=View Demo Rival 3's Profile@15"
+    ]
+  }
+]
