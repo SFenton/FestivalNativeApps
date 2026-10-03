@@ -32,7 +32,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     {
         InitializeComponent();
         var host = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, pane: null, menuMaxWidth: 640);
-        // Cards far below the viewport are not realized yet (virtualizing grid): realize one on demand for a jump.
+        // Realize a card on demand for a jump (the card grid realizes all, but a jump can run before the first layout).
         host.Binder.Resolve = id => ViewModel?.Leaderboards.FindIndex(c => c.QuickLinkId == id) is >= 0 and var index
             ? Boards.GetOrCreateElement(index) as FrameworkElement
             : ViewModel?.BandPreviews.FindIndex(b => b.QuickLinkId == id) is >= 0 and var band
@@ -275,6 +275,20 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         var pinned = Scroller.VerticalOffset > FullHeader.ActualHeight + 12;
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
         if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
+    }
+
+    /// <summary>
+    /// Keeps a focused element (Tab, Shift+Tab, arrows, Narrator) clear of the pinned header that overlays the scroller:
+    /// the target grows upwards by the header's height before the scroller handles the request (issue #195).
+    /// </summary>
+    /// <param name="sender">Scroller content.</param>
+    /// <param name="args">Request; explicit alignments (e.g. a Quick Links jump) are left alone.</param>
+    private void OnContentBringIntoViewRequested(UIElement sender, BringIntoViewRequestedEventArgs args)
+    {
+        if (!double.IsNaN(args.VerticalAlignmentRatio)) return;
+        var target = args.TargetRect;
+        var (top, height) = SongDetailLayout.RevealBelowPinnedHeader(target.Y, target.Height, PinnedHeader.ActualHeight);
+        args.TargetRect = new Windows.Foundation.Rect(target.X, top, target.Width, height);
     }
 
     /// <summary>Intensity: three cells per row (3×3) at compact/medium, all in one row when they fit at wide widths.</summary>

@@ -105,6 +105,20 @@ public sealed class SongDetailLayoutTests
     public void IntensityColumns_ThreePerRowUnlessAllFit(double width, int count, int columns) =>
         Assert.Equal(columns, Festival.Core.ViewModels.SongDetailLayout.IntensityColumns(width, count));
 
+    [Theory]
+    [InlineData(500, 48, 90, 410, 138)]
+    [InlineData(500, 48, 120, 380, 168)]
+    [InlineData(500, 48, 0, 436, 112)]
+    [InlineData(10, 48, double.NaN, -54, 112)]
+    [InlineData(0, -5, 57, -64, 64)]
+    public void RevealBelowPinnedHeader_KeepsTheHeaderHeightAbove(double top, double height, double header, double expectedTop,
+        double expectedHeight)
+    {
+        var (newTop, newHeight) = Festival.Core.ViewModels.SongDetailLayout.RevealBelowPinnedHeader(top, height, header);
+        Assert.Equal(expectedTop, newTop);
+        Assert.Equal(expectedHeight, newHeight);
+    }
+
     [Fact]
     public void AccuracyValue_ZeroWhenMissing()
     {

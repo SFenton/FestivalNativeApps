@@ -4,6 +4,8 @@ import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -356,6 +358,112 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         click(row)
         rule.waitUntil(10_000) { settle(100); !exists("fst.song-leaderboard.list") }
     }
+
+    // region Song leaderboard states (issue #104)
+
+    private fun clickLabel(tag: String) = node(tag).fetchSemanticsNode().config.getOrNull(SemanticsActions.OnClick)?.label
+
+    @Test
+    fun songLeaderboardInstrumentSwitcherIsA48dpDropDownThatChecksTheCurrentChart() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.instrument")
+        val switcher = node("fst.song-leaderboard.instrument").fetchSemanticsNode()
+        assertEquals(Role.DropdownList, switcher.config.getOrNull(SemanticsProperties.Role))
+        assertEquals("Switch instrument", switcher.config.getOrNull(SemanticsActions.OnClick)?.label)
+        assertTrue(with(rule.density) { switcher.size.height.toDp() } >= 48.dp)
+        click("fst.song-leaderboard.instrument")
+        waitForTag("fst.song-leaderboard.instrument.Solo_Bass")
+        assertEquals(true, node("fst.song-leaderboard.instrument.Solo_Guitar").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected))
+        assertEquals(false, node("fst.song-leaderboard.instrument.Solo_Bass").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected))
+    }
+
+    @Test
+    fun songLeaderboardWithOneChartShowsThePlainInstrument() {
+        // s-gamma only charts drums: the instrument is text, not a disabled control.
+        launch("songLeaderboard:s-gamma:Solo_Drums")
+        waitForTag("fst.song-leaderboard.instrument")
+        waitForDescription("Page 1 of 3")
+        assertFalse(isClickable("fst.song-leaderboard.instrument"))
+        assertEquals(null, node("fst.song-leaderboard.instrument").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Role))
+    }
+
+    @Test
+    fun songLeaderboardSelectedRowOpensStatisticsAndOthersOpenProfiles() {
+        val mine = "${Fixtures.ACCOUNT_A.dropLast(2)}12"
+        launch("songLeaderboard:s-alpha:Solo_Guitar", SelectedPlayer(mine, "Synthetic Player 3"))
+        waitForTag("fst.song-leaderboard.row.$mine")
+        assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.$mine"))
+        assertEquals("Open profile", clickLabel("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}10"))
+        // Highlighted in place: no pinned copy below the board.
+        assertFalse(exists("fst.song-leaderboard.spotlight-footer"))
+    }
+
+    @Test
+    fun songLeaderboardPinnedFooterOpensStatistics() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForTag("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}")
+        assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"))
+    }
+
+    @Test
+    fun songLeaderboardAnonymousRowsAreReadButNotInteractive() {
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            Fixtures.leaderboard("s-alpha", rows = 2, total = 2).replaceFirst("\"accountId\":\"${Fixtures.ACCOUNT_A.dropLast(2)}10\"", "\"accountId\":\"\"")
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.row.rank-1")
+        assertFalse(isClickable("fst.song-leaderboard.row.rank-1"))
+        assertEquals("Profile unavailable", node("fst.song-leaderboard.row.rank-1").fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription))
+        assertTrue(isClickable("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}11"))
+    }
+
+    @Test
+    fun songLeaderboardShowsAnEmptyBoard() {
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            Fixtures.leaderboard("s-alpha", rows = 0, total = 0)
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForText("No scores yet")
+        assertFalse(exists("fst.song-leaderboard.loading"))
+        assertFalse(isEnabled("fst.song-leaderboard.page-next"))
+    }
+
+    @Test
+    fun songLeaderboardFailureOffersRetry() {
+        var fail = true
+        transport.onRaw("/api/leaderboard/s-alpha/Solo_Guitar") { _ ->
+            if (fail) HttpResult(500, "{}".toByteArray())
+            else HttpResult(200, Fixtures.leaderboard("s-alpha", rows = 25, total = 60).toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForText("Leaderboard unavailable")
+        assertFalse(exists("fst.song-leaderboard.list"))
+        fail = false
+        click("fst.service-status.retry")
+        waitForDescription("Page 1 of 3")
+        assertFalse(exists("fst.service-status.retry"))
+    }
+
+    @Test
+    fun songLeaderboardCorrectsAnOutOfRangePageAndDisablesBoundaryButtons() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar:9")
+        waitForDescription("Page 3 of 3")
+        assertFalse(isEnabled("fst.song-leaderboard.page-next"))
+        assertFalse(isEnabled("fst.song-leaderboard.page-last"))
+        assertTrue(isEnabled("fst.song-leaderboard.page-first"))
+        click("fst.song-leaderboard.page-first")
+        waitForDescription("Page 1 of 3")
+        assertFalse(isEnabled("fst.song-leaderboard.page-first"))
+        assertFalse(isEnabled("fst.song-leaderboard.page-previous"))
+        assertTrue(isEnabled("fst.song-leaderboard.page-next"))
+    }
+
+    private fun isEnabled(tag: String) = node(tag).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Disabled) == null
+
+    // endregion
 }
 
 @RunWith(AndroidJUnit4::class)

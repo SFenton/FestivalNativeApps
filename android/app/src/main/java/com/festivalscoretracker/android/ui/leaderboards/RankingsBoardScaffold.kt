@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -68,7 +70,8 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * @param footer Anchored "your rank" content (may emit nothing).
  * @param pager Pager.
  * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out just
- *   above it ([BoardFooterEdgeFade], the web's scroll mask; issue #93).
+ *   above it ([BoardFooterEdgeFade], the web's scroll mask; issue #93); hidden rows also leave
+ *   touch and TalkBack (issue #104).
  * @param rows Row items.
  */
 @Composable
@@ -163,7 +166,9 @@ internal fun RankingsBoardLayout(
                     listState,
                     idPrefix,
                     PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + 16.dp),
-                    Modifier.footerEdgeFade(edge, depth),
+                    Modifier
+                        .then(if (fades) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
+                        .footerEdgeFade(edge, depth),
                 ) {
                     item(key = "controls") { Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = controls) }
                     rows()
@@ -243,6 +248,23 @@ private fun BoardList(
         content = rows,
     )
 }
+
+/**
+ * Clips the full-height list at the floating footer's top edge, where [footerEdgeFade] already
+ * hides the rows: the list keeps its full viewport (scrolling, padding and the fade are
+ * unchanged) but reports the shorter size, so rows beneath the footer and pager leave touch and
+ * the accessibility tree. Otherwise TalkBack skips a row fully covered by the footer and focuses
+ * hidden rows peeking around the pager instead of scrolling (issue #104).
+ *
+ * @param footerHeight Anchored footer height in px, bottom inset included (read during layout).
+ */
+private fun Modifier.clipAboveFooter(footerHeight: () -> Int): Modifier = this
+    .clipToBounds()
+    .layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val visible = (placeable.height - footerHeight()).coerceIn(0, placeable.height)
+        layout(placeable.width, visible) { placeable.place(0, 0) }
+    }
 
 /**
  * Hides rows beneath the floating footer and fades them out over an eased band ending at its

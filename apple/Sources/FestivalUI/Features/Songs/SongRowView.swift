@@ -68,7 +68,7 @@ enum ShopRowPolicy {
 // MARK: - Song row
 
 /// The one Song row shared by Songs, the Item Shop list and first-run demos: art,
-/// marquee title/artist line and the Songs glass card surface.
+/// marquee title/artist line and the Songs row card surface (``festivalRowCard(cornerRadius:)``).
 struct SongRowView: View {
     let song: Song
     let instrument: Instrument?
@@ -486,7 +486,7 @@ struct SongRowView: View {
         .onGeometryChange(for: CGFloat.self) { allowsSingleLine ? $0.size.width : 0 } action: { rowWidth = $0 }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .festivalGlass(.card, cornerRadius: 12)
+        .festivalRowCard(cornerRadius: 12)
         .overlay {
             if let pulseTone {
                 // Web `shopPulse`: a 2pt border fading 0 → 0.7 → 0 every 2 s, green in

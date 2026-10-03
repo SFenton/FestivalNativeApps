@@ -16,7 +16,8 @@
     <Grid x:Name="Root">
         <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                       ViewChanged="OnScrollerViewChanged" AutomationProperties.AutomationId="fst.song-detail">
-            <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch">
+            <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch"
+                        BringIntoViewRequested="OnContentBringIntoViewRequested">
                 <!-- Header: static cover, title, artist · year · duration. -->
                 <Grid x:Name="FullHeader" ColumnSpacing="20" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
@@ -46,7 +47,7 @@
                                  fill (web shopBreathe*, 3 s); the UIA name carries it ("Open in Item Shop, Leaving Tomorrow"). -->
                             <Button Click="OnShopClick" Visibility="{x:Bind ViewModel.HasShopLink, Mode=OneWay}" Padding="0"
                                     MinHeight="{StaticResource FSTMinTargetSize}" VerticalContentAlignment="Stretch"
-                                    Background="#F5121826" Foreground="White"
+                                    Background="{ThemeResource FSTShopButtonSurfaceBrush}" Foreground="{ThemeResource FSTShopBadgeTextBrush}"
                                     AutomationProperties.Name="{x:Bind ViewModel.ShopButtonName, Mode=OneWay}"
                                     AutomationProperties.AutomationId="fst.song-detail.shop"
                                     ToolTipService.ToolTip="Open the official Item Shop page">
@@ -207,12 +208,16 @@
                 <StackPanel x:Name="LeaderboardsSection">
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                 </StackPanel>
+                <!-- Every card and row stays realized (issue #195): a virtualized element is not in the Tab order, so a
+                     single-column compact window skipped the lower charts' rows and the band sections. The card grid is
+                     non-virtualizing (one card per instrument) and the rows keep a 20-viewport cache. -->
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="Boards" ItemsSource="{x:Bind ViewModel.Leaderboards, Mode=OneWay}"
                                ElementPrepared="OnBoardPrepared">
                     <ItemsRepeater.Layout>
-                        <!-- At most two cards per row (web isTwoCol), even on wide windows; two already at a portrait tablet. -->
-                        <UniformGridLayout MinItemWidth="320" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
-                                           MaximumRowsOrColumns="2" />
+                        <!-- At most two cards per row (web isTwoCol), even on wide windows; two already at a portrait tablet.
+                             Each row is as tall as its tallest card (CSS grid rows), so a card with row eleven or a failure
+                             never clips, which UniformGridLayout (every item sized from the first) did. -->
+                        <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="2" Spacing="16" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:LeaderboardPreviewViewModel">
@@ -242,7 +247,7 @@
                                         </Border>
                                         <!-- Top-ten rows open the player; the player's own row eleven opens the full board at their
                                              page (web InstrumentCardRowLink). -->
-                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" VerticalCacheLength="20"
                                                        Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
@@ -270,8 +275,8 @@
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="BandBoards" Margin="0,16,0,0"
                                ItemsSource="{x:Bind ViewModel.BandPreviews, Mode=OneWay}">
                     <ItemsRepeater.Layout>
-                        <UniformGridLayout MinItemWidth="320" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
-                                           MaximumRowsOrColumns="2" />
+                        <!-- Trios and Quads rows (three or four members) are taller than Duos: rows size to their tallest card. -->
+                        <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="2" Spacing="16" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:SongBandPreviewViewModel">
@@ -298,7 +303,7 @@
                                                 </StackPanel>
                                             </StackPanel>
                                         </Border>
-                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" VerticalCacheLength="20"
                                                        Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="96">
                                             <ItemsRepeater.Layout>

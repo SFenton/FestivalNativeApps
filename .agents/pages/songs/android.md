@@ -35,6 +35,27 @@
 
 `core/songs/SongsCoreTest` (filters, pipeline pauses, sort, drafts, chips, metadata, projection), `core/songs/SongsParityTest` (profile sorts, buckets, invalid-score variants, population tiers, warnings, pulses), `data/songs/SongsDataTest`, `presentation/songs/SongsViewModelTest`, `ui/ShellUiTest`, `ui/songs/SongsUiTest.anonymousFilterOffersOnlyGeneralFilters` (no-profile General-only sheet, Double Bass, Year, Duration), `core/FloatingToolbarPolicyTest` (minimize threshold/direction, IME lift), `ui/search/GlobalSearchUiTest.songsSearchSortAndFilterLiveInTheBottomToolbarAndSearchMinimizesWhileScrolled` (phone: search/Sort in the toolbar, none in the top bar; toolbar edges fixed, search ≤ 48 dp after scrolling down and field-shaped again after scrolling up; open → focused field → Back keeps the query; inline Clear), `ui/songs/SongsParityUiTest` (Quick Links sheet/menu, profile sorts, invalid-score alert → Settings, Over CHOpt Threshold, leaderboard leeway, band links), `ui/songs/SongsDrawUiTest` (native-graphics pulses/badges/Paths image). Fixture screenshot: `android/reports/screenshots/songs-player-phone.png` (mock service, `fixture-player-1`).
 
+Issue #101 large-text/inset tests (`settings/SettingsUiTest.kt`): `LargeTextNotificationsBadgeUiTest`, `LargeTextPermanentDrawerUiTest`, `LargeTextRailProfileUiTest`, `SongsSearchPlaceholderUiTest` (native graphics, so text really wraps), plus `ui/common/PaneInsetsTest` and `core/NavigationPolicyTest` (drawer width, cutout-aware list pane).
+
+## Validation (issue #101, 2026-10-03)
+
+Live public service, SFentonX selected, dark scheme, animator scale 0 unless noted. Material 3 skill guidance checked: window classes (Compact < 600, Medium 600–839, Expanded 840+), list-detail at expanded widths, "Standard Drawer (Persistent) — Always visible alongside content. Width: 360dp", 48 dp targets, 4.5:1 text.
+
+| Configuration | Found | Result |
+|---|---|---|
+| FST_Phone portrait, fs 1.0/2.0 | At 200% the bell's unread badge grew over the bell and the avatar | Badge text capped at 1.3× (`NotificationsUi.kt`); the count is still in the bell's description |
+| FST_Phone landscape (90/270) | The camera cutout covered the title, back/menu and the start of every row; title cut to "Son…" in the list pane | Pane-aware insets (`ui/common/PaneInsets.kt`): only the pane touching the cutout pads for it; `listPaneWidth` adds the leading inset |
+| FST_Tablet landscape/portrait, fs 1.0/2.0 | At 200% the 280 dp permanent drawer broke labels mid-word and squeezed Deselect | `permanentDrawerWidth(fontScale)`: 280 dp × scale, capped at M3's 360 dp; Deselect stacks under the name at ≥ 1.3× |
+| FST_Resizable phone/foldable/tablet/desktop, fs 2.0 | Pinned search placeholder wrapped to two lines (80 dp field) in the 320 dp list pane; rail Profile kept its label while other items were icon-only | Placeholder one line with ellipsis (as the toolbar field); rail Profile icon-only at ≥ 1.3×, the avatar names "Profile: <name>" |
+| FST_Book_Fold unfolded/half/folded, fs 1.0/2.0 | — | Pass (two panes at the hinge; tabletop uses the bottom bar) |
+| FST_Passport_Fold folded/unfolded, portrait/landscape, fs 2.0 | — (rail fix above confirmed) | Pass |
+| FST_TriFold folded/partial/unfolded, fs 2.0 | — | Pass |
+| Light theme | App stays dark | Documented dark-only deviation ([design](../../design/android.md)) |
+| TalkBack (FST_Phone) | Songs: Search, Notifications (N unread), Profile: <name>, then one stop per row (title, artist · year · duration, Shop state, per-instrument score/FC); Sort sheet: Close, 7 radios with state and position, Sort Direction heading + 2 radios, Reset | Coherent order; initial focus on the first action is TalkBack's heuristic |
+| Connected ATF journeys | `SongsAccessibilityJourneyTest` (FST_Phone, FST_Tablet), `ShellAccessibilityJourneyTest` (FST_Phone) | 0 errors |
+
+Deliberate deviations kept: dark scheme only; bar and rail icon-only at ≥ 1.3×; one pane at large text unless width ÷ fontScale ≥ 840 dp; bottom bar at compact height and in tabletop; width-capped `ModalBottomSheet` instead of a side sheet on expanded windows; 280 dp drawer at default text (web sidebar width); pinned toolbar on phone landscape at 200% leaves little list room (issue #52).
+
 ## Open
 
-Band rows and band sort modes (no native selected-band identity), device journeys on every foldable preset, TalkBack walkthrough. The web's anonymous Has FC (title order only) and Primary Instrument Order (no consumer) are not ported.
+Band rows and band sort modes (no native selected-band identity). The web's anonymous Has FC (title order only) and Primary Instrument Order (no consumer) are not ported.

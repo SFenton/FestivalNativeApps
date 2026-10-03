@@ -15,6 +15,7 @@
 
 ## Content (branded, Fluent tokens)
 
+- **Theme: dark only** (`App.xaml` `RequestedTheme="Dark"`; the product's design, which follows the web app). The Windows light/dark app setting does not change the app, a deliberate deviation from winui-design's "support Light, Dark and High Contrast". High Contrast is honoured through the `HighContrast` dictionaries and system colours. Checked in issue #195 (light and dark system themes look the same; Axe 0 errors in both).
 - Brand colours come from the generated `contracts/generated/windows/BrandTokens.xaml` (linked, never copied). Content-only brushes (`FSTCardSurfaceBrush`, header, meter) live in `windows/Festival.App/Themes/Styles.xaml` with a `HighContrast` theme dictionary mapping to system colours.
 - **Navigation pane:** docked (expanded or icon rail) it is transparent over the backdrop; only when it overlays content (LeftMinimal flyout, rail opened over content) does it get `FSTOverlayPaneBrush`, an in-app acrylic tinted `#121826` (blurred only while the overlay is open). Item hover/selection keep the Fluent `SubtleFill` states.
 - **Text colour:** white by default. `FSTSecondaryTextBrush` is white (lines differ by size/weight); `FSTDeemphasisTextBrush` (the web's `textSecondary` `#D7DEE8`) is reserved for true de-emphasis such as notification timestamps. In-app More Contrast turns that white too.

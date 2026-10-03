@@ -29,41 +29,98 @@ public sealed partial class SongScoreHistoryChart : UserControl
         nameof(Model), typeof(SongScoreHistoryViewModel), typeof(SongScoreHistoryChart),
         new PropertyMetadata(null, (d, e) => ((SongScoreHistoryChart)d).OnModelChanged(e.OldValue as SongScoreHistoryViewModel)));
 
-    private const double AxisBand = 64;
-    private const double TickLabelHeight = 16;
-    private const double LabelBand = 28;
+    private const double TickFontSize = 12;
+    private const double TitleFontSize = 14;
     private static readonly SolidColorBrush Clear = new(Colors.Transparent);
     private readonly UISettings uiSettings = new();
-
-    /// <summary>Windows text size (1–2.25): the axis bands, date band and bar slots grow with the labels they hold.</summary>
-    private static double TextScale => Math.Max(1, TextScaleLayout.Factor);
-
-    /// <summary>Width of each axis band (tick labels plus the rotated axis title).</summary>
-    private static double AxisWidth => Math.Ceiling(AxisBand * TextScale);
+    private double leftAxis = ScoreHistoryChartScale.MinAxisGutter;
+    private double rightAxis = ScoreHistoryChartScale.MinAxisGutter;
+    private double tickHeight = 16;
+    private double labelBand = 28;
+    private Size scoreTitle = new(40, 20);
+    private Size accuracyTitle = new(64, 20);
 
     /// <summary>Creates the chart.</summary>
     public SongScoreHistoryChart()
     {
         InitializeComponent();
-        Plot.SizeChanged += (_, e) =>
+        Plot.SizeChanged += (_, _) =>
         {
-            Model?.SetPlotWidth(LayoutWidth(e.NewSize.Width));
+            MeasureLabels();
+            Model?.SetPlotWidth(LayoutWidth);
             Redraw();
         };
-        // Switching contrast themes raises ColorValuesChanged (off the UI thread); the code-drawn bars pick up the new roles.
-        Loaded += (_, _) => uiSettings.ColorValuesChanged += OnColorValuesChanged;
-        Unloaded += (_, _) => uiSettings.ColorValuesChanged -= OnColorValuesChanged;
+        // A contrast-theme switch raises ColorValuesChanged (off the UI thread; HighContrastChanged needs a CoreWindow): the
+        // code-drawn bars pick up the new roles. A text-size change re-measures the gutters for the scaled labels.
+        Loaded += (_, _) =>
+        {
+            uiSettings.ColorValuesChanged -= OnColorValuesChanged;
+            uiSettings.ColorValuesChanged += OnColorValuesChanged;
+            uiSettings.TextScaleFactorChanged -= OnTextScaleFactorChanged;
+            uiSettings.TextScaleFactorChanged += OnTextScaleFactorChanged;
+        };
+        Unloaded += (_, _) =>
+        {
+            uiSettings.ColorValuesChanged -= OnColorValuesChanged;
+            uiSettings.TextScaleFactorChanged -= OnTextScaleFactorChanged;
+        };
     }
+
+    /// <summary>Windows text size (1–2.25), read live: the date band and bar slots grow with the labels they hold.</summary>
+    private double TextScale => Math.Max(1, uiSettings.TextScaleFactor);
+
+    /// <summary>Top of the plot: room for half of the top tick label.</summary>
+    private double TopPad => 8 + tickHeight / 2;
+
+    /// <summary>Width left for bars between the two measured axis gutters.</summary>
+    private double PlotWidth => Plot.ActualWidth - leftAxis - rightAxis;
+
+    /// <summary>Width the model pages against: the plot in 100%-text units, so a scaled date label fits its slot.</summary>
+    private double LayoutWidth => PlotWidth / TextScale;
 
     /// <summary>Redraws with the current theme's role brushes.</summary>
     /// <param name="sender">Settings.</param>
     /// <param name="args">Unused.</param>
     private void OnColorValuesChanged(UISettings sender, object args) => DispatcherQueue.TryEnqueue(Redraw);
 
-    /// <summary>Width the model pages against: the plot less both axes, in 100%-text units so a date label fits its slot.</summary>
-    /// <param name="width">Canvas width.</param>
-    /// <returns>Unscaled plot width.</returns>
-    private static double LayoutWidth(double width) => (width - 2 * AxisWidth) / TextScale;
+    /// <summary>Re-measures the gutters and repages for a changed text size.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="args">Unused.</param>
+    private void OnTextScaleFactorChanged(UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            MeasureLabels();
+            if (Plot.ActualWidth > 0) Model?.SetPlotWidth(LayoutWidth);
+            Redraw();
+        });
+
+    /// <summary>
+    /// Measures the scaled tick labels and axis titles (the system text size applies to them) and sizes the side gutters
+    /// and date band so neither title overlaps its ticks nor the dates leave the plot.
+    /// </summary>
+    private void MeasureLabels()
+    {
+        var tick = MeasureText("0000k", TickFontSize, FontWeights.Normal);
+        var percent = MeasureText("100%", TickFontSize, FontWeights.Normal);
+        scoreTitle = MeasureText("Score", TitleFontSize, FontWeights.SemiBold);
+        accuracyTitle = MeasureText("Accuracy", TitleFontSize, FontWeights.SemiBold);
+        tickHeight = Math.Max(tick.Height, 16);
+        labelBand = Math.Max(28, Math.Ceiling(6 + tickHeight + 4));
+        leftAxis = ScoreHistoryChartScale.AxisGutter(tick.Width, scoreTitle.Height);
+        rightAxis = ScoreHistoryChartScale.AxisGutter(percent.Width, accuracyTitle.Height);
+    }
+
+    /// <summary>Desired size of a label as the chart draws it.</summary>
+    /// <param name="text">Sample text.</param>
+    /// <param name="size">Font size before text scaling.</param>
+    /// <param name="weight">Font weight.</param>
+    /// <returns>Measured size.</returns>
+    private static Size MeasureText(string text, double size, Windows.UI.Text.FontWeight weight)
+    {
+        var block = new TextBlock { Text = text, FontSize = size, FontWeight = weight, TextWrapping = TextWrapping.NoWrap };
+        block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return block.DesiredSize;
+    }
 
     /// <summary>Section model.</summary>
     public SongScoreHistoryViewModel? Model
@@ -80,7 +137,11 @@ public sealed partial class SongScoreHistoryChart : UserControl
         if (Model is { } model)
         {
             model.PropertyChanged += OnModelPropertyChanged;
-            if (Plot.ActualWidth > 0) model.SetPlotWidth(LayoutWidth(Plot.ActualWidth));
+            if (Plot.ActualWidth > 0)
+            {
+                MeasureLabels();
+                model.SetPlotWidth(LayoutWidth);
+            }
         }
         Redraw();
     }
@@ -108,12 +169,9 @@ public sealed partial class SongScoreHistoryChart : UserControl
         var bars = Model?.Bars ?? [];
         var width = Plot.ActualWidth;
         var height = Plot.Height;
-        var scale = TextScale;
-        var axis = AxisWidth;
-        var plotWidth = width - 2 * axis;
+        var plotWidth = width - leftAxis - rightAxis;
         if (bars.Count == 0 || plotWidth <= 0) return;
-        var labelBand = LabelBand * scale;
-        var topPad = 8 + TickLabelHeight * scale / 2;
+        var topPad = TopPad;
         var plotHeight = height - topPad - labelBand;
         var bottom = topPad + plotHeight;
         var contrast = Services.ContrastTheme.IsOn;
@@ -122,19 +180,18 @@ public sealed partial class SongScoreHistoryChart : UserControl
 
         // Axes: score (left), accuracy 0–100% (right, 4 epx headroom as the web's padding.top), baseline.
         var niceMax = ScoreHistoryChartScale.NiceMax(bars.Max(b => b.Point.Score));
-        AddLine(axis, topPad, axis, bottom);
-        AddLine(axis + plotWidth, topPad, axis + plotWidth, bottom);
-        AddLine(axis, bottom, axis + plotWidth, bottom);
-        var tickOffset = TickLabelHeight * scale / 2;
+        AddLine(leftAxis, topPad, leftAxis, bottom);
+        AddLine(leftAxis + plotWidth, topPad, leftAxis + plotWidth, bottom);
+        AddLine(leftAxis, bottom, leftAxis + plotWidth, bottom);
         for (var i = 0; i <= 4; i++)
         {
             var y = bottom - plotHeight * i / 4;
-            AddText(ScoreHistoryChartScale.Tick(niceMax * i / 4.0), 0, y - tickOffset, axis - 8, TextAlignment.Right);
+            AddText(ScoreHistoryChartScale.Tick(niceMax * i / 4.0), 0, y - tickHeight / 2, leftAxis - ScoreHistoryChartScale.AxisTickGap, TextAlignment.Right);
             var accY = bottom - (plotHeight - 4) * i / 4;
-            AddText((25 * i).ToString(CultureInfo.InvariantCulture) + "%", axis + plotWidth + 8, accY - tickOffset, axis - 8, TextAlignment.Left);
+            AddText((25 * i).ToString(CultureInfo.InvariantCulture) + "%", leftAxis + plotWidth + ScoreHistoryChartScale.AxisTickGap, accY - tickHeight / 2, rightAxis - ScoreHistoryChartScale.AxisTickGap, TextAlignment.Left);
         }
-        AddAxisTitle("Score", 2 + 10 * scale, topPad + plotHeight / 2, -90, scale);
-        AddAxisTitle("Accuracy", width - 2 - 10 * scale, topPad + plotHeight / 2, 90, scale);
+        AddAxisTitle("Score", scoreTitle, ScoreHistoryChartScale.AxisTitleInset + scoreTitle.Height / 2, topPad + plotHeight / 2, -90);
+        AddAxisTitle("Accuracy", accuracyTitle, width - ScoreHistoryChartScale.AxisTitleInset - accuracyTitle.Height / 2, topPad + plotHeight / 2, 90);
 
         // Bars (80% of each category, web barCategoryGap 10%), then the score line and dots over them. Under a contrast
         // theme the bars are outlined in WindowText, FC bars filled, and the selection and score line use Highlight.
@@ -148,7 +205,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
         {
             var bar = bars[i];
             var point = bar.Point;
-            var centre = axis + slot * (i + 0.5);
+            var centre = leftAxis + slot * (i + 0.5);
             var barHeight = Math.Max(2, (plotHeight - 4) * point.AccuracyPercent / 100);
             var fill = new Border
             {
@@ -258,7 +315,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
     {
         var block = new TextBlock
         {
-            Text = text, FontSize = 12, Width = Math.Max(0, width), TextAlignment = alignment, IsHitTestVisible = false,
+            Text = text, FontSize = TickFontSize, Width = Math.Max(0, width), TextAlignment = alignment, IsHitTestVisible = false,
             TextTrimming = TextTrimming.Clip, TextWrapping = TextWrapping.NoWrap,
         };
         AutomationProperties.SetAccessibilityView(block, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
@@ -269,23 +326,23 @@ public sealed partial class SongScoreHistoryChart : UserControl
 
     /// <summary>Adds a rotated axis title centred on a point.</summary>
     /// <param name="text">Title.</param>
+    /// <param name="measured">Measured unrotated size (<see cref="MeasureLabels"/>).</param>
     /// <param name="x">Centre x.</param>
     /// <param name="y">Centre y.</param>
     /// <param name="angle">Rotation.</param>
-    /// <param name="scale">Windows text size (the title's line height grows with it).</param>
-    private void AddAxisTitle(string text, double x, double y, double angle, double scale)
+    private void AddAxisTitle(string text, Size measured, double x, double y, double angle)
     {
-        var box = 120 * scale;
-        var lineHeight = 20 * scale;
+        var box = Math.Max(120, Math.Ceiling(measured.Width) + 8);
         var block = new TextBlock
         {
-            Text = text, FontSize = 14, FontWeight = FontWeights.SemiBold, Width = box, Height = lineHeight,
-            TextAlignment = TextAlignment.Center, IsHitTestVisible = false, RenderTransformOrigin = new Point(0.5, 0.5),
+            Text = text, FontSize = TitleFontSize, FontWeight = FontWeights.SemiBold, Width = box, Height = measured.Height,
+            TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.NoWrap,
+            IsHitTestVisible = false, RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = new RotateTransform { Angle = angle },
         };
         AutomationProperties.SetAccessibilityView(block, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
         Canvas.SetLeft(block, x - box / 2);
-        Canvas.SetTop(block, y - lineHeight / 2);
+        Canvas.SetTop(block, y - measured.Height / 2);
         Plot.Children.Add(block);
     }
 }

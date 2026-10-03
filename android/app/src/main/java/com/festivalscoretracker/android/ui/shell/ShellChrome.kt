@@ -38,6 +38,7 @@ import com.festivalscoretracker.android.core.shell.DrawerEntry
 import com.festivalscoretracker.android.core.shell.DrawerPolicy
 import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -112,16 +113,29 @@ fun DrawerContent(
         }
         HorizontalDivider(Modifier.padding(vertical = 8.dp), color = BrandTokens.glassBorder)
         if (player != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) {
-                    DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
-                        open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
-                    }
+            val profileItem = @Composable {
+                DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
+                    open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
                 }
+            }
+            val deselect = @Composable { modifier: Modifier ->
                 TextButton(
                     onClick = onDeselect,
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect").semantics { contentDescription = "Deselect profile" },
+                    modifier = modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect").semantics { contentDescription = "Deselect profile" },
                 ) { Text("Deselect", Modifier.clearAndSetSemantics { }) }
+            }
+            // Large text: the name keeps the row's width and Deselect drops below it (beside it,
+            // a 200% "SFentonX" broke a few letters per line, issue #101).
+            if (isLargeText()) {
+                Column {
+                    profileItem()
+                    deselect(Modifier.align(Alignment.End))
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { profileItem() }
+                    deselect(Modifier)
+                }
             }
         } else {
             DrawerItem("Select Profile", Icons.Outlined.PersonAdd, tag = "fst.nav.drawer.select-profile", onClick = onOpenProfile)
