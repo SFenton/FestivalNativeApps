@@ -728,7 +728,8 @@ public sealed class SongLeaderboardViewModelTests
         {
             Override = r => r.RequestUri!.AbsolutePath switch
             {
-                "/api/leaderboard/s1/Solo_Drums" => Wire.Ok(Wire.Leaderboard("s1", "Solo_Drums", 0, 0, 0), ("X-FST-Publication-Id", "7")),
+                "/api/leaderboard/s1/Solo_Drums" => Wire.Ok(Wire.Leaderboard("s1", "Solo_Drums", 0, 0, 0)
+                    .Replace("\"count\"", "\"showLeaderboardEntryTotals\":true,\"count\"", StringComparison.Ordinal), ("X-FST-Publication-Id", "7")),
                 "/api/leaderboard/s1/Solo_Vocals" => Wire.Response(HttpStatusCode.ServiceUnavailable),
                 _ => null,
             },
@@ -738,6 +739,8 @@ public sealed class SongLeaderboardViewModelTests
         await empty.LoadAsync();
         Assert.True(empty.ShowEmpty);
         Assert.True(empty.ShowContent);
+        Assert.Equal("", empty.TotalText);
+        Assert.False(empty.HasTotal);
 
         var missing = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("nope", Instrument.Lead));
         await missing.LoadAsync();
