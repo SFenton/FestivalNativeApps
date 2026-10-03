@@ -430,6 +430,25 @@ public sealed class RankingRowTests
         Assert.Equal([2, 1200, 4, 1], moves);
         Assert.Equal("fst.x", pager.IdPrefix);
     }
+
+    [Fact]
+    public async Task PagerStaysEnabledWhileAPageLoads()
+    {
+        var pending = new TaskCompletionSource();
+        var pager = new RankingsPagerViewModel("fst.x", _ => pending.Task);
+        pager.Update(1, 3);
+        var move = pager.NextCommand.ExecuteAsync(null);
+        // A disabled focused button hands keyboard focus elsewhere (issue #197), so only page bounds may disable it.
+        Assert.True(pager.NextCommand.IsRunning);
+        Assert.True(pager.NextCommand.CanExecute(null));
+        Assert.True(pager.LastCommand.CanExecute(null));
+        Assert.False(pager.PreviousCommand.CanExecute(null));
+        pending.SetResult();
+        await move;
+        pager.Update(3, 3);
+        Assert.False(pager.NextCommand.CanExecute(null));
+        Assert.True(pager.FirstCommand.CanExecute(null));
+    }
 }
 
 public sealed class FullRankingsViewModelTests
