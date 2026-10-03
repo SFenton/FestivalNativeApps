@@ -5,7 +5,9 @@
     xmlns:local="using:Festival.App.Controls"
     IsTabStop="False">
     <!-- Web RivalRow: tint bar; name (+ leaderboard rank); "ahead"/"behind" pills across the full width. No shared-song
-         count (owner decision, issues #40/#67): it is always ahead + behind. -->
+         count (owner decision, issues #40/#67): it is always ahead + behind. Every text part is Raw: the hosting
+         button or list item carries the whole row as one Narrator stop (RivalRowItem.AccessibleName), and Raw on a panel
+         does not hide its children (issue #200). -->
     <Grid ColumnSpacing="12" MinHeight="52">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="4" />
@@ -23,24 +25,26 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="{x:Bind Item.RankText, Mode=OneWay}" Visibility="{x:Bind Item.HasRank, Mode=OneWay}"
-                       Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                       Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                       AutomationProperties.AccessibilityView="Raw" />
             <TextBlock Grid.Column="1" Text="{x:Bind Item.Name, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" AutomationProperties.AccessibilityView="Raw" />
             <local:WrapPanel Grid.Row="1" Grid.ColumnSpan="2">
                 <Border Style="{StaticResource FSTRivalPillStyle}" Background="{ThemeResource FSTRivalWinFillBrush}"
                         BorderBrush="{ThemeResource FSTRivalWinStrokeBrush}">
                     <TextBlock Text="{x:Bind Item.AheadText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}"
-                               Foreground="{ThemeResource FSTRivalWinTextBrush}" />
+                               Foreground="{ThemeResource FSTRivalWinTextBrush}" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
                 <Border Style="{StaticResource FSTRivalPillStyle}" Background="{ThemeResource FSTRivalLoseFillBrush}"
                         BorderBrush="{ThemeResource FSTRivalLoseStrokeBrush}">
                     <TextBlock Text="{x:Bind Item.BehindText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}"
-                               Foreground="{ThemeResource FSTRivalLoseTextBrush}" />
+                               Foreground="{ThemeResource FSTRivalLoseTextBrush}" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
             </local:WrapPanel>
         </Grid>
         <!-- In-card chevron: the row opens a page (batch 7.3). -->
         <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
+                  Visibility="{x:Bind Item.IsNavigable, Mode=OneWay}"
                   Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
     </Grid>
 </UserControl>
