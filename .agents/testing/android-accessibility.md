@@ -34,6 +34,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | What's New row read title, button, then explanation | Settings | Title + explanation are one stop before the button |
 | Drawer profile row read only the name | Drawer | "Profile: <name>"; Deselect reads "Deselect profile" |
 | Side-by-side cards read row by row; half-open fold skipped the rest of a tall card | Two-column grids | `readingGroup()`; one column while TalkBack runs (`rememberSingleColumn`) |
+| Next item skipped a row wholly behind a floating footer and focused hidden rows around/below the pager instead of scrolling (Compose drops only fully covered nodes) | Song Leaderboard | Where the rows are drawn hidden beneath the footer, clip the list's reported size at the footer's top (`clipAboveFooter` in `RankingsBoardScaffold`) |
 
 ### Large text (200% + largest display size)
 
