@@ -18,48 +18,55 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer x:Name="Scroller" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
-                      controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                      AutomationProperties.AutomationId="fst.song-leaderboard.list">
-            <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,4">
-                <Grid ColumnSpacing="16" controls:FadeIn.OnShow="True">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
-                        <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                    </Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                        <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
-                                   AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
-                        <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
-                                                     AutomationProperties.AccessibilityView="Raw" />
-                            <TextBlock Text="{x:Bind ViewModel.InstrumentLabel}" VerticalAlignment="Center"
-                                       AutomationProperties.AutomationId="fst.song-leaderboard.instrument" />
+        <!-- The fade source: its composition visual is hidden while BoardFadeHost paints the rows faded out above the
+             footer (BoardFooterFade, issue #93). The header and pager stay while another page loads; only the rows swap
+             for the spinner (web PaginatedLeaderboard). -->
+        <Grid x:Name="BoardFadeSource" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
+            <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.song-leaderboard.list">
+                <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,4">
+                    <Grid ColumnSpacing="16" controls:FadeIn.OnShow="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
+                            <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
+                                       AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
+                            <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
+                                                         AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock Text="{x:Bind ViewModel.InstrumentLabel}" VerticalAlignment="Center"
+                                           AutomationProperties.AutomationId="fst.song-leaderboard.instrument" />
+                            </StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
+                                       Visibility="{x:Bind ViewModel.HasTotal, Mode=OneWay}" />
                         </StackPanel>
-                        <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                                   Visibility="{x:Bind ViewModel.HasTotal, Mode=OneWay}" />
-                    </StackPanel>
-                </Grid>
-                <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7). -->
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
-                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}">
-                    <ItemsRepeater.Layout>
-                        <StackLayout Spacing="4" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SongLeaderboardRowViewModel">
-                            <controls:LeaderboardEntryRow Row="{x:Bind}" />
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
-                <TextBlock Text="No scores yet." Style="{StaticResource FSTSecondaryTextStyle}" HorizontalAlignment="Center" Margin="0,48"
-                           Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
-            </StackPanel>
-        </ScrollViewer>
+                    </Grid>
+                    <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7). -->
+                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                                   controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                   ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="4" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SongLeaderboardRowViewModel">
+                                <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                    <TextBlock Text="No scores yet." Style="{StaticResource FSTSecondaryTextStyle}" HorizontalAlignment="Center" Margin="0,48"
+                               controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                               Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+        <!-- Paints BoardFadeSource with its rows faded above the footer while the fade is on; never hit-testable. -->
+        <Border x:Name="BoardFadeHost" Grid.RowSpan="3" IsHitTestVisible="False" />
         <ProgressRing Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
                       AutomationProperties.Name="Loading leaderboard" />
