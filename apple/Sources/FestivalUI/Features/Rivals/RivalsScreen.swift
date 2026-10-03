@@ -137,7 +137,10 @@ struct RivalsScreen: View {
                         RivalComboSection(session: session, scope: comboScope)
                     }
                     ForEach(instruments) { instrument in
-                        RivalInstrumentSongSection(session: session, instrument: instrument)
+                        RivalInstrumentSongSection(
+                            session: session, instrument: instrument,
+                            detailScope: RivalDetailScopes.hubScope(visible: instruments)
+                        )
                     }
                 } else {
                     rankByPicker
@@ -389,6 +392,11 @@ struct RivalComboSection: View {
 struct RivalInstrumentSongSection: View {
     let session: FestivalSession
     let instrument: Instrument
+    /// Scope a tapped rival opens with. `RivalsScreen` passes the Settings scope,
+    /// as the web's `RivalsPage.navigateToRival` does for every hub section.
+    /// `CompeteScreen` leaves it nil, so a row opens this instrument's comparison
+    /// (web `CompetePage`: `combo: scope.queryValue`).
+    var detailScope: RivalScope? = nil
     var registersQuickLink = true
     /// When set, an empty result renders this sentence instead of hiding the
     /// section entirely. `RivalsScreen` leaves this nil — its per-instrument
@@ -405,6 +413,10 @@ struct RivalInstrumentSongSection: View {
     @State private var gate = ReappearanceLoadGate<CompeteSectionLoadKey>()
 
     private let previewCount = 3
+
+    private var rowDetailScope: RivalScope {
+        detailScope ?? .song(instruments: [instrument.rawValue])
+    }
 
     private var loadKey: CompeteSectionLoadKey {
         CompeteSectionLoadKey(instrument: instrument, session: session)
@@ -438,7 +450,7 @@ struct RivalInstrumentSongSection: View {
                     ListDetailLink(
                         value: AppRoute.rivalDetail(
                             rivalId: row.rival.accountId, name: row.rival.displayName,
-                            scope: .song(instruments: [instrument.rawValue])
+                            scope: rowDetailScope
                         )
                     ) {
                         RivalRowContent(rival: row.rival, direction: row.direction)
@@ -452,7 +464,7 @@ struct RivalInstrumentSongSection: View {
                     id: "song.\(instrument.rawValue)|\(row.rival.accountId)",
                     action: .route(.rivalDetail(
                         rivalId: row.rival.accountId, name: row.rival.displayName,
-                        scope: .song(instruments: [instrument.rawValue])
+                        scope: rowDetailScope
                     ))
                 )
             })

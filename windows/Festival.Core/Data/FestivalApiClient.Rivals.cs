@@ -10,12 +10,15 @@ namespace Festival.Core.Data;
 /// </summary>
 public sealed partial class FestivalApiClient
 {
-    /// <summary>Every combo's rivals in one read (suggestion rival families).</summary>
+    /// <summary>Largest accepted <c>rivals/all</c> body: the live payload was ~8.9 MB uncompressed in 2026-10 and grows with the catalogue.</summary>
+    public const int RivalsAllMaxBytes = 32_000_000;
+
+    /// <summary>Every combo's rivals in one read (suggestion rival families, Rival Detail freeze fallback).</summary>
     /// <param name="accountId">Selected player.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Validated response; empty on 404.</returns>
     public Task<RivalsAllResponse> GetRivalsAllAsync(string accountId, CancellationToken cancellationToken = default) =>
-        ReadRivalsAsync(RivalsEndpoints.All(BaseUri, accountId), 8_000_000, body => ParseRivalsAll(body, accountId), cancellationToken);
+        ReadRivalsAsync(RivalsEndpoints.All(BaseUri, accountId), RivalsAllMaxBytes, body => ParseRivalsAll(body, accountId), cancellationToken);
 
     /// <summary>Shared-song rivals for one chart, hex combo or the Pro Drums family.</summary>
     /// <param name="accountId">Selected player.</param>

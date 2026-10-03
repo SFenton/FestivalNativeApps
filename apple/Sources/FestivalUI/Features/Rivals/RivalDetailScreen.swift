@@ -16,7 +16,8 @@ import FestivalDesign
 /// information directly as a typed `RivalScope?` payload, so this screen (and any
 /// other way of reaching this route — deep link, restored state, `DebugLaunchRoute`)
 /// always sees the same scope a tap would have stashed. A `nil` scope (no context
-/// at all) falls back to merging every Settings-visible instrument.
+/// at all) reads the web's Settings scopes with `allowLiveFallback=true`
+/// (`RivalDetailScopes`), like the web's Find Rival.
 struct RivalDetailScreen: View {
     let session: FestivalSession
     let rivalId: String

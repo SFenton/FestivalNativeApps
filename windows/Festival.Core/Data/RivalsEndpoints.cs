@@ -29,7 +29,10 @@ public static class RivalsEndpoints
     public static Uri List(Uri baseUri, string accountId, string scope) =>
         ServiceEndpoints.Build(baseUri, ["api", "player", Account(accountId), "rivals", Scope(scope)]);
 
-    /// <summary><c>GET /api/player/{accountId}/rivals/{scope}/{rivalId}?sort=&amp;limit=0&amp;offset=0</c> (limit 0 = all rows).</summary>
+    /// <summary>
+    /// <c>GET /api/player/{accountId}/rivals/{scope}/{rivalId}?limit=0&amp;sort=</c> (limit 0 = all rows), byte-for-byte the
+    /// web's <c>api.getRivalDetail</c> query so both clients share the service's per-request rivals cache key (issue #95).
+    /// </summary>
     /// <param name="baseUri">Validated origin.</param>
     /// <param name="accountId">Selected player.</param>
     /// <param name="scope">Instrument service ID or combo token.</param>
@@ -40,8 +43,8 @@ public static class RivalsEndpoints
     public static Uri Detail(Uri baseUri, string accountId, string scope, string rivalId, string sort = "closest", bool allowLiveFallback = false) =>
         ServiceEndpoints.Build(baseUri, ["api", "player", Account(accountId), "rivals", Scope(scope), Account(rivalId)],
             allowLiveFallback
-                ? [("sort", Sort(sort)), ("limit", "0"), ("offset", "0"), ("allowLiveFallback", "true")]
-                : [("sort", Sort(sort)), ("limit", "0"), ("offset", "0")]);
+                ? [("limit", "0"), ("sort", Sort(sort)), ("allowLiveFallback", "true")]
+                : [("limit", "0"), ("sort", Sort(sort))]);
 
     /// <summary><c>GET /api/player/{accountId}/leaderboard-rivals/{instrument}?rankBy=</c>.</summary>
     /// <param name="baseUri">Validated origin.</param>

@@ -527,6 +527,76 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public async Task RivalDetail_FreezeRebuildsFromAllRivals()
+    {
+        // Issue #95: every uncached detail is 503 during publication, but the precomputed rivals/all stays readable.
+        const string all = $$"""
+            {"accountId":"{{Me}}","songs":["s-a","s2","s-c"],"combos":[
+              {"combo":"01","above":[{"accountId":"{{Rival}}","displayName":"All Name","direction":"above","sharedSongCount":3,"aheadCount":1,"behindCount":2,"rivalScore":1,
+                "samples":[{"s":0,"i":"Solo_Guitar","ur":5,"rr":3,"us":1000,"rs":1100},{"s":1,"i":"Solo_Guitar","ur":2,"rr":10,"us":2000,"rs":1500},
+                           {"s":2,"i":"Solo_Bass","ur":4,"rr":5,"us":900,"rs":800},{"s":2,"i":"Solo_PeripheralDrums","ur":4,"rr":5,"us":900,"rs":800}]}],"below":[]}]}
+            """;
+        var fake = new RivalsFakeService { Fallback = path => path.Count(c => c == '/') == 6 ? RivalsFakeService.Frozen() : null };
+        var allPath = $"/api/player/{Me}/rivals/all";
+        fake.Paths[allPath] = () => Wire.Ok(all);
+        var session = fake.Session(RivalsFakeService.Settings(Instrument.Lead, Instrument.Bass));
+
+        var merged = await Loaded(new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, "Hint")));
+        Assert.Equal("All Name", merged.Title);
+        Assert.Equal("3 shared songs · 2 ahead / 1 behind", merged.Summary);
+        Assert.Equal(1, fake.Count(allPath));
+
+        var combo = await Loaded(new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, null, new RivalScope.Combo("02"))));
+        Assert.Equal("1 shared songs · 1 ahead / 0 behind", combo.Summary);
+        var rivalry = await Loaded(new RivalryViewModel(session, new AppRoute.Rivalry(Rival, "closest_battles", null, new RivalScope.Song([Instrument.Lead]))));
+        Assert.Equal(["s-a", "s2"], rivalry.Rows.Select(r => r.Comparison.SongId));
+        // Samples carry no titles: catalogue titles fill in (Title sort), unknown songs stay untitled.
+        Assert.Equal([null, "Beta"], rivalry.Rows.Select(r => r.Comparison.Title));
+        Assert.Equal("Ann Artist", rivalry.Rows[1].Comparison.Artist);
+        Assert.Equal(1, fake.Count(allPath)); // one shared rivals/all read
+
+        // Pro Drums family samples carry no per-player chart, so that scope keeps the retry state.
+        var family = new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, null, new RivalScope.Combo(RivalCombo.ProDrumsToken)));
+        await family.LoadAsync();
+        Assert.Equal(RivalPageState.Failed, family.State);
+        Assert.Equal("Scores are updating", family.Status.Title);
+
+        // A rival without samples in rivals/all, or rivals/all failing, keeps the original freeze.
+        var missing = new RivalDetailViewModel(session, new AppRoute.RivalDetail("0000000000000000000000000000beef", "Other"));
+        await missing.LoadAsync();
+        Assert.Equal(RivalPageState.Failed, missing.State);
+        fake.Paths[allPath] = RivalsFakeService.Frozen;
+        var allFrozen = new RivalDetailViewModel(fake.Session(RivalsFakeService.Settings(Instrument.Lead)), new AppRoute.RivalDetail(Rival, "Hint"));
+        await allFrozen.LoadAsync();
+        Assert.Equal(RivalPageState.Failed, allFrozen.State);
+        Assert.Equal("Scores are updating", allFrozen.Status.Title);
+    }
+
+    [Fact]
+    public async Task RivalDetail_FillsOnlyFrozenChartsAndIgnoresOtherFailures()
+    {
+        var fake = new RivalsFakeService();
+        var allPath = $"/api/player/{Me}/rivals/all";
+        fake.Paths[allPath] = () => Wire.Ok($$"""
+            {"accountId":"{{Me}}","songs":["bass-only","fixture-echo"],"combos":[{"combo":"02","above":[],"below":[{"accountId":"{{Rival}}","displayName":null,
+              "direction":"below","sharedSongCount":2,"aheadCount":0,"behindCount":2,"rivalScore":1,
+              "samples":[{"s":0,"i":"Solo_Bass","ur":1,"rr":2,"us":5,"rs":4},{"s":1,"i":"Solo_Guitar","ur":1,"rr":2,"us":5,"rs":4}]}]}]}
+            """);
+        fake.Paths[$"/api/player/{Me}/rivals/Solo_Bass/{Rival}"] = RivalsFakeService.Frozen;
+        var partial = await Loaded(new RivalDetailViewModel(fake.Session(RivalsFakeService.Settings(Instrument.Lead, Instrument.Bass)), new AppRoute.RivalDetail(Rival)));
+        Assert.Equal("5 shared songs · 3 ahead / 1 behind", partial.Summary); // 4 fixture Lead songs + the rebuilt Bass song
+        Assert.Equal("Fixture Rival Golf", partial.Title);
+
+        // A non-freeze failure (500) is not a publication pause: no rivals/all substitution.
+        fake.Paths[$"/api/player/{Me}/rivals/Solo_Bass/{Rival}"] = () => Wire.Response(HttpStatusCode.InternalServerError);
+        var reads = fake.Count(allPath);
+        var failed = new RivalDetailViewModel(fake.Session(RivalsFakeService.Settings(Instrument.Bass)), new AppRoute.RivalDetail(Rival));
+        await failed.LoadAsync();
+        Assert.Equal(RivalPageState.Failed, failed.State);
+        Assert.Equal(reads, fake.Count(allPath));
+    }
+
+    [Fact]
     public async Task RivalDetail_EmptyWhenNoSharedSongs()
     {
         var fake = new RivalsFakeService { Fallback = _ => Wire.Response(HttpStatusCode.NotFound) };
