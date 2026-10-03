@@ -14,6 +14,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
@@ -56,7 +58,7 @@ class BoardFooterFadeDrawUiTest {
                         pager = {},
                         fadeAboveFooter = fade,
                     ) {
-                        items(100) { Box(Modifier.fillMaxWidth().height(40.dp).background(Color.Red)) }
+                        items(100) { Box(Modifier.fillMaxWidth().height(40.dp).background(Color.Red).testTag("row.$it")) }
                     }
                 }
             }
@@ -96,5 +98,26 @@ class BoardFooterFadeDrawUiTest {
     @Test
     fun reduceTransparencyKeepsTheHardEdge() {
         assertTrue(board(fade = true, FestivalAccessibility(reduceTransparency = true)).redIn(700 until 800))
+    }
+
+    /**
+     * Rows hidden beneath the footer leave the accessibility tree (issue #104): TalkBack would
+     * otherwise skip a row fully covered by the footer and focus hidden rows below it instead
+     * of scrolling. Row 14 (736..776 dp, wholly behind the 100 dp footer) is the probe; row 0 stays.
+     */
+    @Test
+    fun rowsHiddenBeneathTheFooterLeaveTalkBack() {
+        board(fade = true)
+        rule.onNodeWithTag("row.0").assertIsDisplayed()
+        rule.onNodeWithTag("row.14").assertIsNotDisplayed()
+        val list = rule.onNodeWithTag("fst.t.list").fetchSemanticsNode().boundsInRoot
+        val footer = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().boundsInRoot
+        assertTrue("the list ends at the footer's top", list.bottom <= footer.top + 1f)
+    }
+
+    @Test
+    fun rowsUnderAVisibleFooterStayReachable() {
+        board(fade = false)
+        rule.onNodeWithTag("row.14").assertIsDisplayed()
     }
 }
