@@ -28,6 +28,7 @@
     <None Include="..\..\contracts\fixtures\leaderboard-rival-detail-demo.json" Link="fixtures\leaderboard-rival-detail-demo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\contracts\fixtures\rivals-all-demo.json" Link="fixtures\rivals-all-demo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\contracts\fixtures\*band*-demo.json" Link="fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\privacy-policy.json" Link="fixtures\privacy-policy.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <!-- Suggestions parity fixture + Apple reference output (tools/windows/suggestion_parity). -->
