@@ -75,7 +75,7 @@ Artwork motion follows [artwork-background](../controls/artwork-background/windo
 | Shop borders, Songs art bag, Shop badges and pulse (`FSTShop*`) | gold (New) / red (Leaving) | Highlight / HighlightText (the label and UIA name say which) |
 | Destructive buttons (Reset, Reset All Settings, Deselect; `FSTDanger*`) | `#C62828` | ButtonFace / ButtonText; hover and press Highlight / HighlightText |
 
-Open: charts (rank history bars, score history bars and line) keep brand hues; their values are on the axes and in each bar's UIA name.
+Charts (rank history bars, score history bars and line) keep brand data hues; their values are on the axes and in each bar's UIA name. In contrast themes both charts draw axes, gridlines and bar outlines in WindowText (#195 Song Detail, #204 Rank History).
 - **Text size:** controls keep `IsTextScaleFactorEnabled`; at ≥150% the title-bar caption text is dropped so the global search box keeps its width.
 - **Motion and transparency:** system Animation effects off or in-app Reduce Motion → still artwork and no marquee; transparency off or in-app Less Transparency → opaque cards and the overlay pane's acrylic uses its solid fallback.
 - Results per page and open gaps: [testing/windows-accessibility.md](../testing/windows-accessibility.md).

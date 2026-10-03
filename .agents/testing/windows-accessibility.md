@@ -38,7 +38,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
-| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
+| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ (#204 chart outlines) | ✅ (tiles scale; #204 chart gutters) |
 | Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ | 10/14/14 | — | ✅ | ✅ |
@@ -84,6 +84,10 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Statistics validation (issue #204, 2026-10)
+
+Ran 11y_matrix.py --scan for statistics and statistics-chart at compact, medium, wide, snap-left, snap-right and maximized, then at compact/medium/wide under light and dark theme, Desert, Night sky, text 200% and display 100%/150%. The live public service (SFentonX) gave the same results at C/M/W, Desert and text 200%. Axe reported 0 errors in every run. Fixed: the Rank History chart under contrast themes (opaque outlined bars, WindowText gridlines) and its axis labels clipped at 200% text (measured gutters). Per-configuration results: [statistics/windows.md](../pages/statistics/windows.md#validation-issue-204).
 
 ## Open issues
 
