@@ -9,4 +9,20 @@
 - Rows: virtualized `ListView` of two-line cards (score + star images (`StarRow`); date · season + accuracy/FC pills) that fit compact widths. Accuracy uses the leaderboard scale (the service stores an int).
 - Native addition: "Score Over Time" line (`ScoreHistoryChart`) for 2+ dated rows, personal best in gold, month/day axis labels.
 - IDs: `fst.history`, `fst.history.{subtitle,rows,chart,message}`, `fst.history.sort.open`, `fst.history.sort.mode.{date,score,accuracy,season}`, `fst.history.sort.direction.{ascending,descending}`, `fst.history.sort.reset`.
-- Fixture gap: `tools/mock_service.py` history rows send `accuracy` as a 0–1 fraction (`0.9912`), which renders as 0%; production sends the int scale. TODO(orchestrator): fix the fixture.
+- Fixture: `tools/mock_service.py` history rows use the production int accuracy scale (`991200`); `fixture-history-multi` has 8 Lead / 2 Bass / 3 Drums points (paging), `fixture-history-fail` returns 500 (failed state).
+
+## Validation (issue #198)
+
+Validated the route (`/songs/<id>/<instrument>/history` → Song Detail Score History) with the `winui-design` / `winui-code-review` skills.
+
+| Configuration | Result |
+| --- | --- |
+| Compact 500, medium 900, wide 1440, portrait tablet 800, snap-left/right, maximized | Chart pages by width (fewer bars when narrow), card centred, no clipping (live SFentonX "Through the Fire and Flames" Lead; fixtures). |
+| Dark (the only app theme; no light theme by design) | Pass. |
+| Contrast (Night sky, Desert) | **Fixed:** bars kept brand hues; now `FSTChart*Brush` roles (outlined bars, Highlight line/selection), redraw on theme switch. |
+| Text 200% | **Fixed:** rotated axis titles overlapped tick labels and "1000k" clipped; axis/date bands and bar slots now scale with `TextScaleLayout.Factor`. |
+| Display scale | Host monitor runs at 300%; layout uses effective pixels. 100%/150% could not be switched on the shared host. |
+| Keyboard / Narrator (UIA) | **Fixed:** selecting a bar dropped focus to the pager (redraw) and bars had no selected state; bars are now `ToggleButton`s that keep focus, Left/Right move between them. Plot name was stale after paging; Retry buttons, error and detail lacked IDs (IDs on peer-less elements). |
+| Axe (axe-windows) | 0 issues: compact, medium, wide, Night sky, Desert, text 200% (fixtures); live compact, medium, wide, maximized, snap-left, Night sky and text 200%. A focused bar's keyboard tooltip adds WinUI's windowed-popup `BoundingRectangleCompletelyObscuresContainer` (framework `PopupHost` internals, no app element; same as [windows-accessibility.md](../../testing/windows-accessibility.md) item 8). |
+
+Automated: `tools/windows/journeys/profile.py` `history` (sort Date/asc/reset, bar toggle + detail), `history-paging`, `history-syncing` (202 + Retry), `history-failed` (500 + Retry), `history-anonymous` (route redirects to Songs because `AppRouteParser.RequiresPlayer`; the section is hidden on Song Detail), `history-unregistered` (404 hides), `history-no-rows`. The locked console blocks real Tab/mouse input, so focus and toggles go through UIA patterns.

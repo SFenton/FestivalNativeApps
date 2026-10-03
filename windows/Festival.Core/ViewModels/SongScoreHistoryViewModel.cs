@@ -389,8 +389,13 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     /// <summary>History rows open nothing.</summary>
     public AppRoute? Route => null;
 
-    /// <summary>UIA automation ID (<c>fst.song-detail.history.row.&lt;yyyyMMddHHmmss&gt;</c>).</summary>
-    public string AutomationId => "fst.song-detail.history.row." + Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+    /// <summary>
+    /// UIA automation ID: <c>fst.history.detail</c> for the selected bar's detail row (it may show the same score as a list
+    /// row, whose ID must stay unique), else <c>fst.song-detail.history.row.&lt;yyyyMMddHHmmss&gt;</c>.
+    /// </summary>
+    public string AutomationId => IsDetail
+        ? "fst.history.detail"
+        : "fst.song-detail.history.row." + Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
 
     /// <summary>Date label.</summary>
     public string Date => Point.LongDate;

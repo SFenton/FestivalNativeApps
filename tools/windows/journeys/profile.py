@@ -48,6 +48,7 @@ class Journey:
         forbid: Per phase, substrings that must not appear in that tree.
         relaunch: Phase index after which the app is closed and relaunched with ``relaunch_args``.
         relaunch_args: Launch arguments for the relaunch.
+        preset: ``uiwin.py`` window preset (a tall one keeps more of a long page on screen).
     """
 
     name: str
@@ -57,6 +58,7 @@ class Journey:
     forbid: list[list[str]] = field(default_factory=list)
     relaunch: int | None = None
     relaunch_args: list[str] = field(default_factory=list)
+    preset: str = "medium"
 
 
 def _profile(value: str) -> list[str]:
@@ -65,6 +67,7 @@ def _profile(value: str) -> list[str]:
 
 
 ANONYMOUS = ["--arg=--anonymous"]
+HISTORY_ROUTE = "/songs/fixture-pulse/Solo_Guitar/history"
 
 JOURNEYS = [
     Journey(
@@ -109,28 +112,100 @@ JOURNEYS = [
         expect=[["fst.player.stat.overview.full-combos", "fst.player.select"], ["fst.songs.filter", "fst.nav.statistics"]],
         forbid=[[], ["fst.player.select"]],
     ),
+    # Player History is Song Detail's Score History section (operator 6.39); the route scrolls to it. The tall
+    # portrait-tablet window keeps the chart, sort button and rows on screen without real scrolling (issue #198).
     Journey(
         name="history",
-        launch=["--route", "/songs/fixture-pulse/Solo_Guitar/history", *_profile("fixture-player-1:Fixture Player 1")],
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-player-1:Fixture Player 1")],
+        preset="portrait-tablet",
         steps=[
-            ["waitfor:id=fst.history.rows@15", "waitfor:id=fst.history.chart@5"],
+            ["waitfor:id=fst.history.chart@15", "waitfor:id=fst.history.bar.0@5", "waitfor:id=fst.history.sort.open@5"],
+            ["toggle:id=fst.history.bar.0", "waitfor:id=fst.history.detail@5"],
+            ["toggle:id=fst.history.bar.0", "wait:1"],
             ["invoke:id=fst.history.sort.open", "waitfor:id=fst.history.sort.mode.date@5",
-             "invoke:id=fst.history.sort.mode.date", "wait:1"],
+             "toggle:id=fst.history.sort.mode.date", "wait:1"],
+            ["invoke:id=fst.history.sort.open", "waitfor:id=fst.history.sort.direction.ascending@5",
+             "toggle:id=fst.history.sort.direction.ascending", "wait:1"],
+            ["invoke:id=fst.history.sort.open", "waitfor:id=fst.history.sort.reset@5",
+             "invoke:id=fst.history.sort.reset", "wait:1"],
         ],
-        expect=[["Sort by Score, descending", "personal best"], ["Sort by Date, descending"]],
+        expect=[
+            ["Score History", "score history, 2 of 2 scores",
+             "id=fst.history.bar.1", "patterns=Toggle", "Sort scores by Score, descending", "personal best",
+             "fst.song-detail.history.row.20240105"],
+            ["fst.history.detail"],
+            ["fst.history.bar.0"],
+            ["Sort scores by Date, descending"],
+            ["Sort scores by Date, ascending"],
+            ["Sort scores by Score, descending"],
+        ],
+        forbid=[["fst.history.detail", "fst.history.view-all", "fst.history.page-back", "fst.history.retry"],
+                [], ["fst.history.detail"]],
+    ),
+    Journey(
+        name="history-paging",
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-history-multi:History Multi")],
+        preset="portrait-tablet",
+        steps=[
+            ["waitfor:id=fst.history.chart@15", "waitfor:id=fst.history.bar.7@5", "waitfor:id=fst.history.page-back@5"],
+            ["invoke:id=fst.history.entry-back", "waitfor:id=fst.history.bar.2@5"],
+            ["invoke:id=fst.history.entry-forward", "waitfor:id=fst.history.bar.7@5"],
+            ["reveal:id=fst.history.view-all", "invoke:id=fst.history.view-all", "wait:1"],
+            ["reveal:id=fst.history.instrument.Solo_Bass", "toggle:id=fst.history.instrument.Solo_Bass", "wait:1",
+             "waitfor:id=fst.history.bar.1@5"],
+            ["toggle:id=fst.history.instrument.Solo_Drums", "wait:1", "waitfor:id=fst.history.bar.0@5"],
+        ],
+        expect=[
+            ["fst.history.instrument.Solo_Bass", "fst.history.instrument.Solo_Drums", "5 of 8 scores",
+             "fst.history.entry-back", "fst.history.page-forward", "fst.history.view-all"],
+            ["fst.history.bar.2"],
+            ["fst.history.bar.7"],
+            ["610,000"],
+            ["Bass score history, 2 of 2 scores"],
+            ["Drums score history"],
+        ],
+        forbid=[["fst.history.bar.2"], ["fst.history.bar.7"], ["fst.history.bar.2"], ["fst.history.view-all"],
+                ["fst.history.entry-back", "fst.history.view-all"]],
     ),
     Journey(
         name="history-syncing",
-        launch=["--route", "/songs/fixture-pulse/Solo_Guitar/history", *_profile("fixture-syncing:Syncing Player")],
-        steps=[["waitfor:id=fst.history.message@15"]],
-        expect=[["Still Syncing"]],
-        forbid=[["fst.history.rows"]],
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-syncing:Syncing Player")],
+        steps=[["waitfor:id=fst.history.message@15", "waitfor:id=fst.history.retry@5"],
+               ["invoke:id=fst.history.retry", "wait:1", "waitfor:id=fst.history.message@15"]],
+        expect=[["still being prepared", "Retry score history"], ["still being prepared"]],
+        forbid=[["fst.history.chart", "fst.history.rows", "fst.history.error"], ["fst.history.chart"]],
     ),
     Journey(
+        name="history-failed",
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-history-fail:History Fail")],
+        steps=[["waitfor:id=fst.history.error@15", "waitfor:id=fst.history.retry@5"],
+               ["invoke:id=fst.history.retry", "wait:1", "waitfor:id=fst.history.error@15"]],
+        expect=[["fst.history.retry"], ["fst.history.error"]],
+        forbid=[["fst.history.chart", "fst.history.rows", "fst.history.message"], ["fst.history.chart"]],
+    ),
+    # No player, an unregistered player (404) and a song without rows all hide the section (web: no chart, no message).
+    # A history link without a player is a player-only route and opens Songs (AppRouteParser.RequiresPlayer).
+    Journey(
         name="history-anonymous",
-        launch=["--route", "/songs/fixture-pulse/Solo_Guitar/history", *ANONYMOUS],
-        steps=[["waitfor:id=fst.history.message@15"]],
-        expect=[["No Player Selected"]],
+        launch=["--route", HISTORY_ROUTE, *ANONYMOUS],
+        steps=[["waitfor:id=fst.songs.list@15", "wait:2"],
+               ["invoke:id=fst.songs.row.fixture-pulse", "waitfor:id=fst.song-detail.title@15", "wait:3"]],
+        expect=[["fst.songs.list"], ["fst.song-detail.title"]],
+        forbid=[["Score History", "fst.history."], ["Score History", "fst.history."]],
+    ),
+    Journey(
+        name="history-unregistered",
+        launch=["--route", HISTORY_ROUTE, *_profile("fixture-player-2:Fixture Player 2")],
+        steps=[["waitfor:id=fst.song-detail.title@15", "wait:3"]],
+        expect=[["fst.song-detail.title"]],
+        forbid=[["Score History", "fst.history."]],
+    ),
+    Journey(
+        name="history-no-rows",
+        launch=["--route", "/songs/fixture-orbit/Solo_Guitar/history", *_profile("fixture-player-1:Fixture Player 1")],
+        steps=[["waitfor:id=fst.song-detail.title@15", "wait:3"]],
+        expect=[["fst.song-detail.title"]],
+        forbid=[["Score History", "fst.history."]],
     ),
     Journey(
         name="syncing",
@@ -183,10 +258,10 @@ def _app_args(extra: list[str]) -> list[str]:
     return result
 
 
-def _launch(exe: Path, base: str, settings: Path, extra: list[str]) -> int:
+def _launch(exe: Path, base: str, settings: Path, extra: list[str], preset: str = "medium") -> int:
     """Launch the app and return its pid."""
     out = _uiwin("launch", str(exe), "--arg=--base-url", f"--arg={base}", "--arg=--settings-path",
-                 f"--arg={settings}", "--preset", "medium", *_app_args(extra)).stdout
+                 f"--arg={settings}", "--preset", preset, *_app_args(extra)).stdout
     for line in out.splitlines():
         if '"pid"' in line:
             return int(line.split(":")[1].strip().rstrip(","))
@@ -205,7 +280,7 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
     try:
         time.sleep(1.0)
         base = f"http://127.0.0.1:{port}/"
-        pid = _launch(exe, base, settings, journey.launch)
+        pid = _launch(exe, base, settings, journey.launch, journey.preset)
         for index, phase in enumerate(journey.steps):
             tree = work / f"tree-{index}.txt"
             steps = [*phase, f"tree:{tree}"]
@@ -224,7 +299,7 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
                     failures.append(f"phase {index}: did not expect {needle!r} in the UIA tree")
             if journey.relaunch == index:
                 _uiwin("close", "--pid", str(pid), check=False)
-                pid = _launch(exe, base, settings, journey.relaunch_args)
+                pid = _launch(exe, base, settings, journey.relaunch_args, journey.preset)
     except RuntimeError as error:
         failures.append(str(error))
     finally:
