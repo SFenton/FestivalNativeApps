@@ -75,6 +75,13 @@ struct DeviceLayoutPublisher: ViewModifier {
                     .modifier(DuoSignalProbe(verticalBarEdge: $verticalBarEdge, hinge: $hinge))
                     .accessibilityHidden(true)
             }
+            // A real hinge (not the debug pose override) lets the outer display rotate (O1).
+            .onChange(of: hinge, initial: true) { _, newHinge in
+                HingePresence.shared.record(hinge: newHinge, verticalBarEdge: verticalBarEdge)
+            }
+            .onChange(of: verticalBarEdge) { _, newEdge in
+                HingePresence.shared.record(hinge: hinge, verticalBarEdge: newEdge)
+            }
     }
 }
 

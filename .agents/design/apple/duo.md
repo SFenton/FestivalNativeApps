@@ -23,6 +23,8 @@
 
 Why `TabView` rather than a sections sidebar when unfolded: HIG asks that controls keep their relative positions across poses, and the inner display keeps the vertical bar in landscape exactly where the folded tabs were. A permanent sections sidebar would spend a column on navigation instead of content. The iPad sidebar shell is unchanged until the iPadOS phase.
 
+- **Outer display rotates** (O1 (b), operator 2026-10-02): hinged devices only support every orientation (`OrientationPolicy`); regular iPhones stay portrait-locked. Outer landscape layout is unverified until Device Hub rotation works.
+
 ## List/detail pages (regular width)
 
 | Section | List column (horizontal bar: search/sort/filter) | Detail column (vertical bar on Duo) | Deeper pushes |
