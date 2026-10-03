@@ -34,6 +34,27 @@ class A11yStepTests(unittest.TestCase):
         self.assertTrue(Path(scan["arg"]).is_absolute())
         self.assertEqual(Path(scan["arg"]).name, "songs-compact")
 
+    def test_setvalue(self):
+        step = u.parse_step("setvalue:id=fst.songs.search|fix it ")
+        self.assertEqual((step["selector"]["value"], step["text"]), ("fst.songs.search", "fix it "))
+        self.assertEqual(u.parse_step("setvalue:id=fst.songs.search|")["text"], "")
+        self.assertEqual(u.parse_step("setvalue:name=Search|a|b")["text"], "a|b")
+        for bad in ("setvalue:id=fst.songs.search", "setvalue:10,10|x"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_waitgone(self):
+        step = u.parse_step("waitgone:id=fst.songs.row.fixture-pulse@10")
+        self.assertEqual((step["verb"], step["selector"]["value"], step["timeout"]), ("waitgone", "fst.songs.row.fixture-pulse", 10.0))
+        with self.assertRaises(ValueError):
+            u.parse_step("waitgone:10,10")
+
+    def test_scrollinto(self):
+        step = u.parse_step("scrollinto:id=fst.songs.filter.percentile@8")
+        self.assertEqual((step["verb"], step["selector"]["value"], step["timeout"]), ("scrollinto", "fst.songs.filter.percentile", 8.0))
+        with self.assertRaises(ValueError):
+            u.parse_step("scrollinto:10,10")
+
     def test_summarize_scan(self):
         result = {"errors": 2, "findings": [
             {"rule": "NameNotEmpty", "element": {"ControlType": "Button", "Name": "", "AutomationId": "x", "ClassName": "Button"},

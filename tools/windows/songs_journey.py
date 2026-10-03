@@ -4,10 +4,12 @@ Starts ``tools/mock_service.py`` (synthetic fixtures) on a private loopback port
 the Debug app with a throwaway settings file (``FST_SETTINGS_PATH``) and an in-memory debug profile, drives it by
 ``fst.*`` AutomationIds and fails on the first missing element (``waitfor:``). Scenarios: selected-player rows
 with Shop accents, Item Shop sort and Shop filter drafts, the Item Shop page (grid, list, Song Detail link),
-Song Detail with Paths image/text/not-generated states, no selected player, and a hidden Item Shop. Official Shop
-links are never opened. With ``--shots DIR`` it also captures screenshots of each scenario.
+Song Detail with Paths image/text/not-generated states, no selected player, and a hidden Item Shop. Lock-tolerant
+Songs states (search match/no results, sort modes, Jump index, General filter empty result, syncing and denied
+players, damaged saved filter, service error) use only UIA patterns, so they also pass on a locked console. Official
+Shop links are never opened. With ``--shots DIR`` it also captures screenshots of each scenario.
 
-Usage: ``python tools/windows/songs_journey.py [--port 18751] [--shots DIR] [--only NAME] [--sizes compact,medium,wide]``
+Usage: ``python tools/windows/songs_journey.py [--port 18751] [--shots DIR] [--only NAME[,NAME…]] [--sizes compact,medium,wide]``
 """
 
 from __future__ import annotations
@@ -174,6 +176,120 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
         PLAYER, "/shop", {"hideShop": True},
         ["waitfor:id=fst.shop.hidden@20", "{shot:shop-hidden}"],
     ),
+    # Lock-tolerant Songs states (#194): UIA patterns, Value writes and PrintWindow shots only, no SendInput, so they
+    # also pass while the console session is locked.
+    "songs-search": (
+        PLAYER, "/songs", {},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "setvalue:id=fst.songs.search|orbit",
+            "waitgone:id=fst.songs.row.fixture-pulse@10",
+            "waitfor:id=fst.songs.row.fixture-orbit",
+            "{shot:songs-search}",
+            "setvalue:id=fst.songs.search|zzzz",
+            "waitfor:name=No Results@10",
+            "waitgone:id=fst.songs.row.fixture-orbit",
+            "{shot:songs-search-empty}",
+            "setvalue:id=fst.songs.search|",
+            "waitfor:id=fst.songs.row.fixture-pulse@10",
+        ],
+    ),
+    "songs-sort": (
+        PLAYER, "/songs", {},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "expand:id=fst.songs.sort",
+            "waitfor:id=fst.songs.sort.mode@5",
+            "select:name=Artist",
+            "select:id=fst.songs.sort.direction.descending",
+            "{shot:songs-sort-flyout}",
+            "collapse:id=fst.songs.sort",
+            "waitgone:id=fst.songs.sort.mode@5",
+            "waitfor:id=fst.songs.section-index-button@5",
+            # No quick-jump under the Year sort (operator 2026-09-28): decade headers stay, Jump hides.
+            "expand:id=fst.songs.sort",
+            "select:name=Year@5",
+            "collapse:id=fst.songs.sort",
+            "waitgone:id=fst.songs.section-index-button@5",
+            "waitfor:name=2020s@5",
+            "{shot:songs-sort-year}",
+            "expand:id=fst.songs.sort",
+            "invoke:id=fst.songs.sort.reset@5",
+            "collapse:id=fst.songs.sort",
+            "waitfor:id=fst.songs.section-index-button@5",
+        ],
+    ),
+    "songs-jump": (
+        PLAYER, "/songs", {},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "invoke:id=fst.songs.section-index-button",
+            "waitfor:id=fst.songs.section-index@5",
+            "waitgone:id=fst.songs.row.fixture-pulse@5",
+            "{shot:songs-jump}",
+            "invoke:name=F",
+            "waitfor:id=fst.songs.row.fixture-pulse@5",
+            "waitgone:id=fst.songs.section-index@5",
+        ],
+    ),
+    "songs-filter-empty": (
+        {"FST_DEBUG_ANONYMOUS": "1"}, "/songs", {},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "expand:id=fst.songs.filter",
+            "waitfor:id=fst.songs.filter.year@5",
+            "waitgone:id=fst.songs.filter.score.global",
+            "expand:id=fst.songs.filter.year",
+            "toggle:id=fst.songs.filter.year.2020@5",
+            "{shot:songs-filter-year}",
+            "collapse:id=fst.songs.filter",
+            "waitfor:name=No Results@10",
+            "waitfor:name=Clear Filters",
+            "{shot:songs-filter-empty}",
+            "invoke:name=Clear Filters",
+            "waitfor:id=fst.songs.row.fixture-pulse@10",
+        ],
+    ),
+    "songs-syncing": (
+        {"FST_DEBUG_PROFILE": "fixture-syncing:Syncing Player"}, "/songs", {},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            # ItemsRepeater and StackPanel IDs have no UIA peer: find the InfoBar notice and its message text instead.
+            "waitfor:class=Microsoft.UI.Xaml.Controls.InfoBar@10",
+            "waitfor:name=This player's scores are still syncing. Scores appear once they're published.",
+            "waitfor:name=Scores syncing",
+            "{shot:songs-syncing}",
+        ],
+    ),
+    "songs-denied": (
+        {"FST_DEBUG_PROFILE": "fixture-denied:Denied Player"}, "/songs", {},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "waitfor:class=Microsoft.UI.Xaml.Controls.InfoBar@10",
+            "waitfor:name=Scores unavailable",
+            "{shot:songs-denied}",
+        ],
+    ),
+    "songs-filter-invalid": (
+        PLAYER, "/songs", {"songGeneralFilter": {"excludedDecades": [1985]}},
+        [
+            "waitfor:id=fst.songs.filter-invalid@20",
+            "waitgone:id=fst.songs.row.fixture-pulse",
+            "{shot:songs-filter-invalid}",
+            "invoke:id=fst.songs.filter-reset-invalid",
+            "waitfor:id=fst.songs.row.fixture-pulse@10",
+        ],
+    ),
+    "songs-error": (
+        # A closed loopback port: the catalogue read fails and Songs shows its retryable service status.
+        {**PLAYER, "FST_BASE_URL": "http://127.0.0.1:9/"}, "/songs", {},
+        [
+            "waitfor:id=fst.service-status.retry@60",
+            "waitfor:id=fst.service-status.title",
+            "waitgone:id=fst.songs.list",
+            "{shot:songs-error}",
+        ],
+    ),
 }
 
 
@@ -228,7 +344,10 @@ def run(name: str, port: int, shots: Path | None, size: str) -> None:
         if settings:
             settings_path.write_text(json.dumps({"version": 1, **settings}), encoding="utf-8")
         args = ["launch", str(EXE), "--timeout", "60", "--wait", "1", "--preset", size,
-                f"--arg=--base-url=http://127.0.0.1:{port}/", "--extra", f"FST_SETTINGS_PATH={settings_path}"]
+                "--extra", f"FST_SETTINGS_PATH={settings_path}"]
+        # A scenario's own FST_BASE_URL (e.g. a closed port) replaces the fixture origin; --base-url would override it.
+        if "FST_BASE_URL" not in env:
+            args.append(f"--arg=--base-url=http://127.0.0.1:{port}/")
         for key, value in env.items():
             args += ["--extra", f"{key}={value}"]
         if route:
@@ -252,10 +371,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=18751)
     parser.add_argument("--shots", type=Path)
-    parser.add_argument("--only", choices=sorted(SCENARIOS))
+    parser.add_argument("--only", help=f"comma-separated scenarios ({', '.join(SCENARIOS)})")
     parser.add_argument("--sizes", default="medium", help="comma-separated presets for every scenario")
     journey_exe.add_argument(parser)
     options = parser.parse_args()
+    names = options.only.split(",") if options.only else list(SCENARIOS)
+    if unknown := [name for name in names if name not in SCENARIOS]:
+        parser.error(f"unknown scenario(s): {', '.join(unknown)}")
     global EXE
     EXE = options.exe
     server = subprocess.Popen([sys.executable, str(ROOT / "tools" / "mock_service.py"), "--port", str(options.port)],
@@ -270,7 +392,7 @@ def main() -> int:
                 time.sleep(0.2)
         if options.shots:
             options.shots.mkdir(parents=True, exist_ok=True)
-        for name in [options.only] if options.only else list(SCENARIOS):
+        for name in names:
             for size in options.sizes.split(","):
                 if name in SIZES and size not in SIZES[name]:
                     continue
