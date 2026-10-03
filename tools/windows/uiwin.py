@@ -101,6 +101,7 @@ STEP_VERBS = {
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path",
+    "scrollto": "scrollto", "reveal": "selector",
 }
 
 # endregion
@@ -165,7 +166,10 @@ def parse_step(step: str) -> dict:
     ``@screen`` to capture composited screen pixels instead of ``PrintWindow``;
     ``tabwalk`` takes ``<count>`` or ``<count>,shift`` (Tab/Shift+Tab presses, each
     focused element recorded); ``assertfocus`` fails unless focus matches the selector;
-    ``scan:<dir>/<scan-id>`` runs an Axe.Windows scan (results in the ``scans`` output).
+    ``scan:<dir>/<scan-id>`` runs an Axe.Windows scan (results in the ``scans`` output);
+    ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
+    Scroll pattern and ``reveal:<selector>`` steps the target's scroller from the top until
+    the target is on screen (no input, so both work while the console is locked).
 
     Args:
         step: A step string.
@@ -203,6 +207,14 @@ def parse_step(step: str) -> dict:
             if not re.fullmatch(r"-?\d+", amount):
                 raise ValueError(f"bad scroll amount {amount!r}")
             result["amount"] = int(amount)
+    elif shape == "scrollto":
+        target, _, percent = arg.rpartition(",")
+        if not target or not re.fullmatch(r"\d+(\.\d+)?", percent.strip()) or float(percent) > 100:
+            raise ValueError(f"bad scrollto {arg!r}; use <selector>,<0-100>")
+        result["selector"] = parse_selector(target)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("scrollto needs an element selector, not coordinates")
+        result["percent"] = float(percent)
     elif shape == "seconds":
         result["arg"] = str(float(arg))
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):

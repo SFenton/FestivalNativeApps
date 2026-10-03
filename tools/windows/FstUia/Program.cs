@@ -509,6 +509,14 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 if (step["selector"] is not null) Mouse.MoveTo(Find(window, step).GetClickablePoint());
                 Mouse.Scroll(amount);
                 break;
+            case "scrollto":
+                var scroller = Find(window, step);
+                if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollto target has no Scroll pattern");
+                scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
+                break;
+            case "reveal":
+                Reveal(window, step);
+                break;
             case "wait":
                 Thread.Sleep(TimeSpan.FromSeconds(double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
                 break;
@@ -537,6 +545,48 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     private void Click(Window window, JsonObject step, MouseButton button) => Mouse.Click(ScreenPoint(window, step), button);
+
+    /// <summary>
+    /// Scrolls the target's vertical scroller (UIA Scroll pattern, no input) from the top, a viewport at a time, until the
+    /// target is on screen. Virtualized targets need not exist yet: the window's first vertically scrollable element is used then.
+    /// </summary>
+    private void Reveal(Window window, JsonObject step)
+    {
+        var selector = step["selector"]!.AsObject();
+        var condition = (string)selector["kind"]! switch
+        {
+            "id" => automation.ConditionFactory.ByAutomationId((string)selector["value"]!),
+            "name" => automation.ConditionFactory.ByName((string)selector["value"]!),
+            _ => automation.ConditionFactory.ByClassName((string)selector["value"]!),
+        };
+        bool OnScreen(out AutomationElement? found)
+        {
+            found = window.FindFirstDescendant(condition);
+            return found is not null && !found.Properties.IsOffscreen.ValueOrDefault;
+        }
+        if (OnScreen(out var target)) return;
+        AutomationElement? scroller = null;
+        var walker = automation.TreeWalkerFactory.GetControlViewWalker();
+        for (var parent = target is null ? null : walker.GetParent(target); parent is not null; parent = walker.GetParent(parent))
+        {
+            if (parent.Patterns.Scroll.IsSupported && parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) { scroller = parent; break; }
+        }
+        scroller ??= window.FindAllDescendants(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Pane))
+            .FirstOrDefault(e => e.Patterns.Scroll.IsSupported && e.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+            ?? throw new InvalidOperationException("reveal found no vertical scroller");
+        var scroll = scroller.Patterns.Scroll.Pattern;
+        // Step by most of a viewport (VerticalViewSize is the visible share of the extent, which grows as items realize).
+        for (var percent = 0.0; percent <= 100; percent += Math.Clamp(scroll.VerticalViewSize.ValueOrDefault * 0.8, 0.5, 5))
+        {
+            scroll.SetScrollPercent(-1, percent);
+            Thread.Sleep(250);
+            if (OnScreen(out _)) return;
+        }
+        scroll.SetScrollPercent(-1, 100);
+        Thread.Sleep(250);
+        if (OnScreen(out _)) return;
+        throw new InvalidOperationException($"reveal could not bring {selector["kind"]}={selector["value"]} on screen");
+    }
 
     /// <summary>Screen point of a step's selector: window-relative coordinates or the element's clickable point.</summary>
     private Point ScreenPoint(Window window, JsonObject step)

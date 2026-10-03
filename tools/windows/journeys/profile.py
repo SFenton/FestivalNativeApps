@@ -69,20 +69,19 @@ ANONYMOUS = ["--arg=--anonymous"]
 JOURNEYS = [
     Journey(
         name="select",
-        launch=["--tab", "songs", *ANONYMOUS],
+        # Opened by route rather than typed profile search: UIA patterns only, so it also runs on a locked console.
+        launch=["--route", "/player/fixture-player-2", *ANONYMOUS],
         steps=[
-            ["invoke:id=fst.shell.profile", "waitfor:id=fst.profile.search@5", "type:Fixture",
-             "waitfor:name=Fixture Player 2@10", "click:name=Fixture Player 2",
-             "waitfor:id=fst.player.name@15", "waitfor:id=fst.player.select@10"],
+            ["waitfor:id=fst.player.name@15", "waitfor:id=fst.player.select@10"],
             ["invoke:id=fst.player.select", "waitfor:id=fst.player.deselect@10", "waitfor:id=fst.nav.statistics@10"],
-            ["click:id=fst.nav.statistics", "waitfor:id=fst.statistics@10", "waitfor:id=fst.player.deselect@15",
+            ["invoke:id=fst.nav.statistics", "waitfor:id=fst.player.deselect@15",
              "waitfor:id=fst.player.overview@15", "wait:5"],
             ["invoke:id=fst.player.deselect", "waitfor:id=PrimaryButton@10", "invoke:id=PrimaryButton", "wait:2"],
         ],
         expect=[
             ["fst.player.select", "fst.player.bands-link"],
             ["fst.player.deselect", "fst.nav.statistics", "fst.nav.rivals"],
-            ["fst.statistics", "fst.player.overview", "fst.player.instrument.Solo_Guitar",
+            ["Fixture Player 2", "fst.player.overview", "fst.player.instrument.Solo_Guitar",
              "fst.player.rank-history.Solo_Guitar", "fst.player.percentiles.Solo_Guitar"],
             ["fst.nav.songs"],
         ],
@@ -93,7 +92,7 @@ JOURNEYS = [
         launch=["--route", "/player/fixture-player-1"],
         steps=[
             ["waitfor:id=fst.player.select@15", "invoke:id=fst.player.select", "waitfor:id=fst.player.deselect@10"],
-            ["waitfor:id=fst.nav.statistics@15", "click:id=fst.nav.statistics", "waitfor:id=fst.player.deselect@15"],
+            ["waitfor:id=fst.nav.statistics@15", "invoke:id=fst.nav.statistics", "waitfor:id=fst.player.deselect@15"],
         ],
         expect=[["fst.player.deselect"], ["Fixture Player 1", "fst.player.deselect"]],
         relaunch=0,
@@ -133,6 +132,28 @@ JOURNEYS = [
         expect=[["No Player Selected"]],
     ),
     Journey(
+        name="rank-history",
+        launch=["--route", "/player/fixture-player-1", *ANONYMOUS],
+        steps=[
+            ["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.rank-history.Solo_Guitar.older@5"],
+            ["invoke:id=fst.player.rank-history.Solo_Guitar.older", "wait:1"],
+            ["invoke:id=fst.player.rank-history.Solo_Guitar.newer", "wait:1"],
+        ],
+        # The fixture's committed 7-day series pages 6 bars at the default launch size: Older reveals Sep 21.
+        expect=[["Rank history, Sep 22, 2026"], ["Rank history, Sep 21, 2026"], ["Rank history, Sep 22, 2026"]],
+        forbid=[["Rank history, Sep 21, 2026"], ["Rank history, Sep 22, 2026"], ["Rank history, Sep 21, 2026"]],
+    ),
+    Journey(
+        name="instrument-links",
+        launch=["--route", "/player/fixture-player-1", *ANONYMOUS],
+        steps=[
+            ["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.percentile.Solo_Guitar.4@5"],
+            ["invoke:id=fst.player.percentile.Solo_Guitar.4", "waitfor:id=fst.songs.filter@10", "wait:2"],
+        ],
+        expect=[["Top 4%: 2 songs", "Global Rank: #1", "Opens Lead songs in the Top 4%"], ["fst.songs.filter"]],
+        forbid=[[], ["fst.player.select"]],
+    ),
+    Journey(
         name="syncing",
         launch=["--route", "/player/fixture-syncing", *ANONYMOUS],
         steps=[["waitfor:id=fst.player.syncing@15"]],
@@ -143,7 +164,7 @@ JOURNEYS = [
         name="bands-scope",
         launch=["--tab", "songs", *ANONYMOUS],
         steps=[["invoke:id=fst.shell.profile", "waitfor:id=fst.profile.scope.bands@5",
-                "click:id=fst.profile.scope.bands", "wait:1"]],
+                "select:id=fst.profile.scope.bands", "wait:1"]],
         expect=[["Find Band", "Band search isn"]],
         forbid=[["fst.profile.retry"]],
     ),
