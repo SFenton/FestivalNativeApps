@@ -138,14 +138,26 @@ object GlobalSearchResults {
     /** Short-query hint (web `search.enterQuery`). */
     const val ENTER_QUERY_HINT = "Enter at least two characters to search."
 
-    /** All-scope empty text. */
+    /** Spoken announcement when every scope is empty. */
     const val NO_RESULTS = "No results found."
 
-    /** Songs empty text. */
-    const val NO_SONGS = "No songs found."
+    /** All-scope empty-state title (issue #99: centred title and subtitle, like the web `EmptyState`). */
+    const val EMPTY_ALL_TITLE = "No results found"
 
-    /** Players empty text (an empty envelope may be a server timeout, so Retry is offered). */
-    const val NO_PLAYERS = "No players found."
+    /** All-scope empty-state subtitle. */
+    const val EMPTY_ALL_SUBTITLE = "Check the spelling or try a different song, artist or player."
+
+    /** Songs-scope empty-state title. */
+    const val EMPTY_SONGS_TITLE = "No songs found"
+
+    /** Songs-scope empty-state subtitle. */
+    const val EMPTY_SONGS_SUBTITLE = "Check the spelling or try a different song or artist."
+
+    /** Players-scope empty-state title (an empty envelope may be a server timeout, so Retry is offered). */
+    const val EMPTY_PLAYERS_TITLE = "No players found"
+
+    /** Players-scope empty-state subtitle. */
+    const val EMPTY_PLAYERS_SUBTITLE = "Check the spelling or try a different player name."
 
     /** Catalogue failure text in the Songs section. */
     const val SONGS_FAILED = "Search failed. Try again."
