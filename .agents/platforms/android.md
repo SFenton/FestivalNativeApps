@@ -15,7 +15,7 @@ SDK root `C:/Users/sfent/AppData/Local/Android/Sdk`; JDK 17 (Temurin 17.0.20). P
 | Package | Version |
 |---|---|
 | Emulator | 37.1.11 |
-| Acceleration | Windows Hypervisor Platform, which needs CPU virtualization (AMD SVM) enabled in the UEFI. Until it is, `device.py boot` fails with "x86_64 emulation currently requires hardware acceleration" (`-accel-check`); builds and JVM unit tests are unaffected |
+| Acceleration | Windows Hypervisor Platform (WHPX), which needs CPU virtualization (AMD SVM) enabled in the UEFI. On `sfenton-music` both are on (2026-10-03): `emulator -accel-check` reports "WHPX … is installed and usable" and `device.py boot FST_Phone` boots headless in about a minute. Without it, `device.py boot` fails with "x86_64 emulation currently requires hardware acceleration"; builds and JVM unit tests are unaffected |
 | Platform-tools (adb) | 37.0.1 |
 | cmdline-tools | 23.0 (side by side with `latest` = 20.0). `sdkmanager` 23 prints a deprecation notice (replacement: `android sdk`) and exits 9 even on success, and its `.bat` splits `;`, so pass packages with `--package_file=` |
 | Platforms | android-36, android-37.0, **android-37.2** (latest stable) |
@@ -169,6 +169,6 @@ Measured 2026-09-29 (FST-and-a11y2) with `tools/android/frame_stats.py --animati
 ## Devices
 
 - One emulator per host, only through `device.py` (FST AVDs, API 37). Never start `Pixel_5_API_36`/`Pixel_9_Pro_Fold` by hand while lanes share the host; headless `-gpu auto` in session 0 wedged adb shell — the shared tool uses `swiftshader_indirect`.
-- On 2026-10-02 `device.py boot` failed on `sfenton-music` with "x86_64 emulation currently requires hardware acceleration" (Android Emulator hypervisor driver not installed; log in `~/.fst-locks/emulator-<AVD>.log`). That host cannot run emulators; verify on another host or through unit tests and the generated `BuildConfig`.
+- On 2026-10-02 `device.py boot` failed on `sfenton-music` with "x86_64 emulation currently requires hardware acceleration" because AMD SVM was off in the UEFI. It was enabled on 2026-10-03, and the emulator now boots there. Verify Android on the emulator (one at a time) rather than only through Robolectric and the generated `BuildConfig`.
 - Observe folds with Jetpack WindowManager (`currentWindowAdaptiveInfo().windowPosture.hingeList`), never product names or pixels. Record API level, window size and posture with each result (`device.py` writes a JSON sidecar).
 - Host: Android SDK `C:/Users/sfent/AppData/Local/Android/Sdk`, JDK 17 (Temurin), Gradle 8.14.3 wrapper, AGP 8.11, Kotlin 2.2.10, compile/target SDK 36, min 26.
