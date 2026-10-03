@@ -109,7 +109,7 @@ internal val LEADERBOARD_ROW_GAP = 2.dp
  * @property songs "X / Y" column (0 when hidden).
  * @property rating Rating column.
  * @property showSongs Whether one-line rows draw the songs column; it yields to names on
- *   narrow Compete cards (issue #38) and stays in the row's spoken description.
+ *   narrow Compete cards (issue #38) and narrow Leaderboards cards (issue #114) and stays in the row's spoken description.
  */
 @Immutable
 data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp, val showSongs: Boolean = true)
@@ -125,8 +125,9 @@ val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
  * @param songs Songs labels.
  * @param ratings Rating labels.
  * @param names Row names; when non-empty the songs column shows only if every name fits
- *   beside it in [rowWidth] (issue #38). Empty keeps the songs column at any width.
- * @param rowWidth Row width in dp (NaN before the first layout); used only with [names].
+ *   beside it in [rowWidth] (issue #38). Empty keeps the songs column unless names would
+ *   collapse below their minimum in [rowWidth] (issue #114).
+ * @param rowWidth Row width in dp (NaN before the first layout or when unknown).
  * @return Column widths.
  */
 @Composable
@@ -166,16 +167,18 @@ fun rememberRankingColumns(
  * @param entries Rows sharing the columns (page rows plus the selected player's pinned row).
  * @param metric Rank By metric.
  * @param fitNamesTo Row width in dp (NaN before the first layout) to hide the songs column
- *   in when it would truncate a name (Compete, issue #38); null keeps it at any width.
+ *   in when it would truncate a name (Compete, issue #38); null keeps it unless [rowWidth] is too narrow.
+ * @param rowWidth Row width in dp (NaN when unknown) to hide the songs column in when names
+ *   would collapse below their minimum (Leaderboards cards, issue #114); ignored with [fitNamesTo].
  * @return Column widths.
  */
 @Composable
-fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMetric, fitNamesTo: Float? = null): RankingColumns = rememberRankingColumns(
+fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMetric, fitNamesTo: Float? = null, rowWidth: Float = Float.NaN): RankingColumns = rememberRankingColumns(
     entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
     entries.map { it.songsLabel(metric) },
     entries.map { RankingFormatting.rating(it.ratingValue(metric), metric) },
     names = if (fitNamesTo != null) entries.map { it.name } else emptyList(),
-    rowWidth = fitNamesTo ?: Float.NaN,
+    rowWidth = fitNamesTo ?: rowWidth,
 )
 
 /**
@@ -183,13 +186,16 @@ fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMe
  *
  * @param entries Rows sharing the columns.
  * @param metric Band metric.
+ * @param rowWidth Row width in dp (NaN when unknown) to hide the songs column in when names
+ *   would collapse below their minimum (Leaderboards cards, issue #114).
  * @return Column widths.
  */
 @Composable
-fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetric): RankingColumns = rememberRankingColumns(
+fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetric, rowWidth: Float = Float.NaN): RankingColumns = rememberRankingColumns(
     entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
     entries.map { it.songsLabel(metric) },
     entries.map { RankingFormatting.rating(it.ratingValue(metric), metric.asRankingMetric) },
+    rowWidth = rowWidth,
 )
 
 /**
@@ -260,7 +266,7 @@ private fun RankingRowLayout(
             modifier = columns?.let { Modifier.width(it.rank) } ?: Modifier.widthIn(min = 44.dp),
         )
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        // Hidden for the whole section when it would truncate a name (issue #38); still spoken in `description`.
+        // Hidden for the whole section when it would truncate or collapse a name (issues #38, #114); still spoken in `description`.
         if (columns?.showSongs != false) {
             Text(
                 songs,
