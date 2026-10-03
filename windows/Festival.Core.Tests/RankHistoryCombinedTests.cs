@@ -109,6 +109,18 @@ public sealed class RankHistoryCombinedTests
     [InlineData(double.NaN, 1)]
     public void MaxBars_FitsWebBarWidth(double width, int bars) => Assert.Equal(bars, RankHistoryCombinedChart.MaxBars(width));
 
+    [Theory]
+    [InlineData(30, 52, 52)]       // 100% text: the design gutter
+    [InlineData(46, 52, 52)]       // exactly fits with the 6 epx gap
+    [InlineData(60.2, 52, 67)]     // 200% text: widest label + gap, rounded up
+    [InlineData(-5, 48, 48)]
+    [InlineData(double.NaN, 48, 48)]
+    [InlineData(double.PositiveInfinity, 48, 48)]
+    [InlineData(10, double.NaN, 16)]
+    [InlineData(10, -4, 16)]
+    public void AxisGutter_FitsScaledLabels(double label, double minimum, double gutter) =>
+        Assert.Equal(gutter, RankHistoryCombinedChart.AxisGutter(label, minimum));
+
     [Fact]
     public void Page_NewestFirstAndClamped()
     {

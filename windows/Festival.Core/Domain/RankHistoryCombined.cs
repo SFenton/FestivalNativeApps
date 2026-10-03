@@ -192,6 +192,22 @@ public sealed class RankHistoryCombinedChart
     public static int MaxBars(double plotWidth) =>
         !double.IsFinite(plotWidth) || plotWidth <= 0 ? 1 : Math.Max(1, (int)Math.Floor((plotWidth + BarGap) / (MinBarWidth + BarGap)));
 
+    /// <summary>Gap between an axis tick label and the plot edge, in epx.</summary>
+    public const double AxisLabelGap = 6;
+
+    /// <summary>
+    /// Side gutter that fits the widest measured tick label (the system text size scales the labels) plus
+    /// <see cref="AxisLabelGap"/>, never narrower than the design gutter.
+    /// </summary>
+    /// <param name="labelWidth">Widest measured label width in epx.</param>
+    /// <param name="minimum">Design gutter at 100% text size.</param>
+    /// <returns>Gutter width in whole epx.</returns>
+    public static double AxisGutter(double labelWidth, double minimum)
+    {
+        var floor = double.IsFinite(minimum) ? Math.Max(0, minimum) : 0;
+        return double.IsFinite(labelWidth) ? Math.Max(floor, Math.Ceiling(Math.Max(0, labelWidth) + AxisLabelGap)) : floor;
+    }
+
     /// <summary>Largest offset for a page size.</summary>
     /// <param name="maxBars">Bars per page.</param>
     /// <returns>Offset of the oldest page.</returns>

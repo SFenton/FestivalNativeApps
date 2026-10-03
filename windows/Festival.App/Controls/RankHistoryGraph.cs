@@ -31,12 +31,21 @@ public sealed partial class RankHistoryGraph : Grid
     private const double LeftAxis = 52;
     private const double RightAxis = 48;
     private const double SwipeThreshold = 50; // web SWIPE_THRESHOLD
+    private const double TickFontSize = 12;
+    private const double DateFontSize = 11;
+    private const double DateBand = 22;
 
     private readonly PlotSurface plot = new();
     private readonly Canvas shapes = new();
     private readonly Canvas leftLabels = new() { Width = LeftAxis };
     private readonly Canvas rightLabels = new() { Width = RightAxis };
-    private readonly Canvas dates = new() { Height = 22 };
+    private readonly Canvas dates = new() { Height = DateBand };
+    private readonly ColumnDefinition leftColumn = new() { Width = new GridLength(LeftAxis) };
+    private readonly ColumnDefinition rightColumn = new() { Width = new GridLength(RightAxis) };
+    private readonly Windows.UI.ViewManagement.UISettings uiSettings = new();
+    private Rectangle? legendSwatch;
+    private double leftAxis = LeftAxis;
+    private double rightAxis = RightAxis;
     private readonly Button older = NavButton("", "Show older rank history");
     private readonly Button newer = NavButton("", "Show newer rank history");
     private readonly TextBlock range = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 };
@@ -58,9 +67,9 @@ public sealed partial class RankHistoryGraph : Grid
         Children.Add(Legend());
 
         var plotGrid = new Grid();
-        plotGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LeftAxis) });
+        plotGrid.ColumnDefinitions.Add(leftColumn);
         plotGrid.ColumnDefinitions.Add(new ColumnDefinition());
-        plotGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(RightAxis) });
+        plotGrid.ColumnDefinitions.Add(rightColumn);
         plotGrid.Children.Add(leftLabels);
         plot.Content = new Grid { Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), Children = { shapes } };
         SetColumn(plot, 1);
@@ -99,8 +108,28 @@ public sealed partial class RankHistoryGraph : Grid
         plot.PointerReleased += (_, e) => EndSwipe(e.GetCurrentPoint(plot).Position);
         plot.PointerCaptureLost += (_, _) => swipeStart = null;
         SizeChanged += (_, _) => Redraw();
-        Loaded += (_, _) => ForwardAutomationId();
+        // A contrast-theme switch raises ColorValuesChanged (HighContrastChanged needs a CoreWindow) and a text-size change
+        // TextScaleFactorChanged; both arrive off the UI thread. The shapes and gutters are code-built, so redraw.
+        Loaded += (_, _) =>
+        {
+            ForwardAutomationId();
+            uiSettings.ColorValuesChanged -= OnSystemSettingsChanged;
+            uiSettings.ColorValuesChanged += OnSystemSettingsChanged;
+            uiSettings.TextScaleFactorChanged -= OnSystemSettingsChanged;
+            uiSettings.TextScaleFactorChanged += OnSystemSettingsChanged;
+            Redraw();
+        };
+        Unloaded += (_, _) =>
+        {
+            uiSettings.ColorValuesChanged -= OnSystemSettingsChanged;
+            uiSettings.TextScaleFactorChanged -= OnSystemSettingsChanged;
+        };
     }
+
+    /// <summary>Redraws with the new theme's brushes or the new text size's gutters.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="args">Unused.</param>
+    private void OnSystemSettingsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(Redraw);
 
     /// <summary>Chart model (the whole history).</summary>
     public RankHistoryCombinedChart? Model
@@ -176,24 +205,58 @@ public sealed partial class RankHistoryGraph : Grid
     #endregion
 
     #region Drawing
-    /// <summary>Rebuilds the visible page for the current size.</summary>
+    /// <summary>Rebuilds the visible page for the current size, text size and theme.</summary>
+    /// <remarks>
+    /// Contrast themes: gridlines, bar outlines and the legend swatch outline use the window text colour
+    /// (<c>FSTChartAxisBrush</c>) and the bars are opaque; the rank hues are a data series named by the legend and the
+    /// plot's UIA summary, so they stay, outlined to keep each bar's shape at system contrast (as Song Details' chart).
+    /// The side gutters and date band grow to the measured, text-scaled labels.
+    /// </remarks>
     private void Redraw()
     {
         shapes.Children.Clear();
         leftLabels.Children.Clear();
         rightLabels.Children.Clear();
         dates.Children.Clear();
-        var width = ActualWidth - LeftAxis - RightAxis;
-        if (Model is not { } model || width <= 8)
+        var contrast = Services.ContrastTheme.IsOn;
+        var axis = Services.ContrastTheme.Brush("FSTChartAxisBrush");
+        if (legendSwatch is not null)
+        {
+            legendSwatch.Stroke = contrast ? axis : null;
+            legendSwatch.StrokeThickness = contrast ? 1 : 0;
+        }
+        if (Model is not { } model || ActualWidth - LeftAxis - RightAxis <= 8)
         {
             page = null;
             return;
         }
-        maxBars = RankHistoryCombinedChart.MaxBars(width);
-        page = model.Page(maxBars, offset);
+
+        // Page with the design gutters, then widen them to the scaled labels and repage (labels depend on the page; gutters
+        // only grow, and the third page is laid out with the final gutters without re-measuring).
+        double left = LeftAxis, right = RightAxis, width = 0;
+        for (var pass = 0; ; pass++)
+        {
+            width = ActualWidth - left - right;
+            maxBars = RankHistoryCombinedChart.MaxBars(width);
+            page = model.Page(maxBars, offset);
+            if (pass == 2) break;
+            var needLeft = RankHistoryCombinedChart.AxisGutter(WidestLabel(page.ValueTicks), LeftAxis);
+            var needRight = RankHistoryCombinedChart.AxisGutter(WidestLabel(page.RankTicks), RightAxis);
+            if (needLeft <= left && needRight <= right) break;
+            left = Math.Max(left, needLeft);
+            right = Math.Max(right, needRight);
+        }
+        if (width <= 8)
+        {
+            page = null;
+            return;
+        }
+        SetGutters(left, right);
         offset = page.Offset;
+        var tickHeight = MeasureText("0", TickFontSize).Height;
+        dates.Height = Math.Max(DateBand, Math.Ceiling(MeasureText("0", DateFontSize).Height + 4));
         var text = (Brush)Application.Current.Resources["FSTSecondaryTextBrush"];
-        var grid = (Brush)Application.Current.Resources["FSTGlassBorderBrush"];
+        var grid = contrast ? axis : (Brush)Application.Current.Resources["FSTGlassBorderBrush"];
         var lineBrush = Solid(RankHistoryCombinedChart.LineArgb);
         const double inset = 10;
         double Y(double fraction) => inset + fraction * (PlotHeight - 2 * inset);
@@ -202,10 +265,10 @@ public sealed partial class RankHistoryGraph : Grid
         foreach (var tick in page.ValueTicks)
         {
             shapes.Children.Add(new Line { X1 = 0, X2 = width, Y1 = Y(tick.Y), Y2 = Y(tick.Y), Stroke = grid, StrokeThickness = 1, StrokeDashArray = [3, 3] });
-            leftLabels.Children.Add(Label(tick.Label, Y(tick.Y), LeftAxis - 6, TextAlignment.Right, 0, text));
+            leftLabels.Children.Add(Label(tick.Label, Y(tick.Y) - tickHeight / 2, left - RankHistoryCombinedChart.AxisLabelGap, TextAlignment.Right, 0, text));
         }
         foreach (var tick in page.RankTicks)
-            rightLabels.Children.Add(Label(tick.Label, Y(tick.Y), RightAxis - 6, TextAlignment.Left, 6, text));
+            rightLabels.Children.Add(Label(tick.Label, Y(tick.Y) - tickHeight / 2, right - RankHistoryCombinedChart.AxisLabelGap, TextAlignment.Left, RankHistoryCombinedChart.AxisLabelGap, text));
 
         // Bars (web barCategoryGap 10%, fill opacity 0.8), coloured by placement.
         var slot = width / page.Points.Count;
@@ -217,12 +280,14 @@ public sealed partial class RankHistoryGraph : Grid
             var rect = new Rectangle
             {
                 Width = barWidth, Height = height, RadiusX = 4, RadiusY = 4,
-                Fill = new SolidColorBrush(Color(page.Points[i].BarArgb)) { Opacity = 0.8 },
+                Fill = new SolidColorBrush(Color(page.Points[i].BarArgb)) { Opacity = contrast ? 1 : 0.8 },
+                Stroke = contrast ? axis : null,
+                StrokeThickness = contrast ? 1 : 0,
             };
             Canvas.SetLeft(rect, X(bar.X) - barWidth / 2);
             Canvas.SetTop(rect, PlotHeight - inset - height);
             shapes.Children.Add(rect);
-            var date = new TextBlock { Text = page.Points[i].AxisLabel, FontSize = 11, Foreground = text, Width = slot, TextAlignment = TextAlignment.Center };
+            var date = new TextBlock { Text = page.Points[i].AxisLabel, FontSize = DateFontSize, Foreground = text, Width = slot, TextAlignment = TextAlignment.Center };
             AutomationProperties.SetAccessibilityView(date, AccessibilityView.Raw);
             Canvas.SetLeft(date, X(bar.X) - slot / 2);
             dates.Children.Add(date);
@@ -269,6 +334,7 @@ public sealed partial class RankHistoryGraph : Grid
         gradient.GradientStops.Add(new GradientStop { Color = Color(0xFFDC2828), Offset = 0 });
         gradient.GradientStops.Add(new GradientStop { Color = Color(0xFF2ECC71), Offset = 1 });
         var swatch = new Rectangle { Width = 20, Height = 12, RadiusX = 2, RadiusY = 2, Fill = gradient, VerticalAlignment = VerticalAlignment.Center };
+        legendSwatch = swatch;
         var rank = new Canvas { Width = 24, Height = 12, VerticalAlignment = VerticalAlignment.Center };
         rank.Children.Add(new Line { X1 = 0, X2 = 18, Y1 = 6, Y2 = 6, Stroke = Solid(RankHistoryCombinedChart.LineArgb), StrokeThickness = 2 });
         var dot = new Ellipse { Width = 6, Height = 6, Fill = Solid(RankHistoryCombinedChart.LineArgb) };
@@ -289,15 +355,47 @@ public sealed partial class RankHistoryGraph : Grid
         };
     }
 
-    /// <summary>An axis label vertically centred on <paramref name="y"/>.</summary>
-    private static TextBlock Label(string value, double y, double width, TextAlignment alignment, double left, Brush brush)
+    /// <summary>An axis label whose top is at <paramref name="top"/>.</summary>
+    private static TextBlock Label(string value, double top, double width, TextAlignment alignment, double left, Brush brush)
     {
-        var label = new TextBlock { Text = value, FontSize = 12, Foreground = brush, Width = width, TextAlignment = alignment };
+        var label = new TextBlock { Text = value, FontSize = TickFontSize, Foreground = brush, Width = width, TextAlignment = alignment, TextWrapping = TextWrapping.NoWrap };
         // Raw on the label panel alone still exposes its children; the chart's summary name carries the values.
         AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
-        Canvas.SetTop(label, y - 9);
+        Canvas.SetTop(label, top);
         Canvas.SetLeft(label, left);
         return label;
+    }
+
+    /// <summary>Desired size of a label as the chart draws it (the system text size applies).</summary>
+    /// <param name="value">Text.</param>
+    /// <param name="size">Font size before text scaling.</param>
+    /// <returns>Measured size.</returns>
+    private static Size MeasureText(string value, double size)
+    {
+        var block = new TextBlock { Text = value, FontSize = size, TextWrapping = TextWrapping.NoWrap };
+        block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return block.DesiredSize;
+    }
+
+    /// <summary>Width of the widest tick label.</summary>
+    /// <param name="ticks">Axis ticks.</param>
+    /// <returns>Width in epx (0 without ticks).</returns>
+    private static double WidestLabel(IEnumerable<ChartTick> ticks) =>
+        ticks.Select(t => MeasureText(t.Label, TickFontSize).Width).DefaultIfEmpty(0).Max();
+
+    /// <summary>Applies the side gutters to the label canvases, plot columns and date band.</summary>
+    /// <param name="left">Left (value) gutter.</param>
+    /// <param name="right">Right (rank) gutter.</param>
+    private void SetGutters(double left, double right)
+    {
+        if (left == leftAxis && right == rightAxis) return;
+        leftAxis = left;
+        rightAxis = right;
+        leftLabels.Width = left;
+        rightLabels.Width = right;
+        leftColumn.Width = new GridLength(left);
+        rightColumn.Width = new GridLength(right);
+        dates.Margin = new Thickness(left, 0, right, 0);
     }
 
     /// <summary>A paging button with a chevron glyph, tooltip and UIA name.</summary>
