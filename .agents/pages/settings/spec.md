@@ -15,7 +15,9 @@ Source: `FortniteFestivalWeb/src/contexts/SettingsContext.tsx:18-75,280-305`, `s
 
 ## Sections and actions
 
-App · debug-only Diagnostics · Shop · Instruments · Metadata · Version · live Service Progress · first-run replays · Licenses · selected-profile name refresh (a POST: fixtures only) · ZIP export with a visible failure state · confirmed Reset. Service Progress polls faster while visible; do not keep background polling beside a game without measurement. Wide web layouts have a section rail; narrow uses modal/quick links.
+App · debug-only Diagnostics · Shop · Instruments · Metadata · Version · live Service Progress · first-run replays · Licenses · Privacy Policy · selected-profile name refresh (a POST: fixtures only) · ZIP export with a visible failure state · confirmed Reset. Service Progress polls faster while visible; do not keep background polling beside a game without measurement. Wide web layouts have a section rail; narrow uses modal/quick links.
+
+**Privacy Policy** (issue #98): a navigation row after Licenses (quick link `privacy-policy`) that opens the policy as a titled modal with the platform's standard dismiss; the web modal also has a direct URL. Every client renders the same text from [contracts/privacy-policy.json](../../../contracts/privacy-policy.json) (schema 1: `title`, `effectiveDateText`, `sections[{id,title,blocks}]`, blocks `paragraph{text}` or `bullets{items}`; HTTPS addresses are links) with native text views, never a WebView or a network read. Change the wording only in that file and bump `effectiveDate`/`effectiveDateText`.
 
 ## Native accessibility section (all platforms)
 
