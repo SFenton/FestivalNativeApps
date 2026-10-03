@@ -63,6 +63,17 @@ class StallTests(unittest.TestCase):
         self.assertEqual(summary["worst_ms"], 200)
         self.assertTrue(summary["completed"])
 
+    def test_main_thread_cpu_between_marks(self):
+        report = {
+            "stalls": [], "marks": {"songs.stress.start": 4.0, "songs.stress.end": 20.0},
+            "cpuMarks": {"songs.stress.start": 3.25, "songs.stress.end": 9.5},
+            "counters": {"songs.stress.end": 1, "songs.row": 900},
+        }
+        summary = summarize_stalls(report)
+        self.assertEqual(summary["main_cpu_s"], 6.25)
+        self.assertEqual(summary["rows_built"], 900)
+        self.assertIsNone(summarize_stalls({"stalls": []})["main_cpu_s"])
+
     def test_report_without_marks_counts_every_stall(self):
         summary = summarize_stalls({"stalls": [{"at": 1.0, "ms": 120}]})
         self.assertEqual(summary["count"], 1)

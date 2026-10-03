@@ -260,6 +260,7 @@ struct ListDetailStack<Root: View>: View {
     }
 
     var body: some View {
+        let _ = MainThreadStallMonitor.count("listdetail.body")
         Group {
             if let sidebarShell {
                 shellSplit(sidebarShell)
@@ -651,6 +652,11 @@ struct ListDetailLink<Label: View>: View {
                         return .handled
                     }
                     #endif
+                    // Only a split's list column auto-selects. Attached in this branch
+                    // (stable while the split shows), so one-stack rows (iPhone, iPad
+                    // portrait) carry no geometry observer: it was a fifth of a Songs
+                    // row's build cost in the iPad scroll stress (Lane IPAD2).
+                    .modifier(AutoSelectOffer(route: value, action: autoSelect))
             } else {
                 NavigationLink(value: value) { decoratedLabel }
             }
@@ -662,7 +668,6 @@ struct ListDetailLink<Label: View>: View {
         .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: 12, style: .continuous))
         .hoverEffect(.highlight)
         #endif
-        .modifier(AutoSelectOffer(route: value, action: autoSelect))
     }
 }
 

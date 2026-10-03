@@ -160,10 +160,16 @@ def summarize_stalls(report: dict, threshold_ms: float = STALL_THRESHOLD_MS,
         s for s in report.get("stalls", [])
         if s.get("ms", 0) >= threshold_ms and lo <= s.get("at", 0) <= hi + s.get("ms", 0) / 1000
     ]
+    cpu = report.get("cpuMarks") or {}
+    counters = report.get("counters") or {}
+    main_cpu = round(cpu[end] - cpu[start], 3) if start in cpu and end in cpu else None
     return {
         "count": len(stalls),
         "worst_ms": max((s["ms"] for s in stalls), default=0.0),
-        "completed": end in (report.get("counters") or {}),
+        "completed": end in counters,
+        # Main-thread CPU seconds inside the pass: robust to host load, unlike stalls.
+        "main_cpu_s": main_cpu,
+        "rows_built": counters.get("songs.row"),
         "stalls": stalls,
     }
 
