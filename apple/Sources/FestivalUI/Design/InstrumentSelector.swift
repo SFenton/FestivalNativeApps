@@ -175,7 +175,7 @@ struct InstrumentSelector<Panel: View>: View {
             case let .preview(index): previewIndex = index
             }
         } label: {
-            Image(systemName: direction == .previous ? "chevron.left" : "chevron.right")
+            Image(systemName: direction == .previous ? "chevron.backward" : "chevron.forward")
                 .font(.body.weight(.semibold))
                 .foregroundStyle(FestivalText.primary)
                 .frame(width: 44, height: 44)

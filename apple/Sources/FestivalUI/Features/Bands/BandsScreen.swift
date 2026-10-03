@@ -37,7 +37,7 @@ struct BandsScreen: View {
                                 Text("View \(player.displayName)'s Bands")
                                     .foregroundStyle(BrandTokens.textPrimary)
                                 Spacer()
-                                Image(systemName: "chevron.right")
+                                Image(systemName: "chevron.forward")
                                     .foregroundStyle(FestivalText.deemphasized)
                             }
                             .contentShape(Rectangle())
@@ -60,7 +60,7 @@ struct BandsScreen: View {
                                 Text(bandType.label)
                                     .foregroundStyle(BrandTokens.textPrimary)
                                 Spacer()
-                                Image(systemName: "chevron.right")
+                                Image(systemName: "chevron.forward")
                                     .foregroundStyle(FestivalText.deemphasized)
                             }
                             .contentShape(Rectangle())

@@ -179,7 +179,7 @@ struct PlayerStatTileView: View {
         .padding(.horizontal, 22)
         .overlay(alignment: .trailing) {
             if showsChevron {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(FestivalText.deemphasized)
                     .padding(.trailing, 10)

@@ -348,7 +348,7 @@ struct SongRowView: View {
                     .accessibilityHidden(true)
             }
             if offer.navigable {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(FestivalText.deemphasized)
                     .frame(width: ShopRowMetrics.chevronWidth)

@@ -516,18 +516,18 @@ struct RankHistoryCharts: View {
         let start = start
         let range = paging.visibleRange(from: start)
         return HStack(spacing: 12) {
-            pagerButton("chevron.left.2", label: "Back one page", id: "back-page",
+            pagerButton("chevron.backward.2", label: "Back one page", id: "back-page",
                         enabled: paging.canGoBack(from: start)) { move(to: paging.backPage(from: start)) }
-            pagerButton("chevron.left", label: "Back one entry", id: "back-entry",
+            pagerButton("chevron.backward", label: "Back one entry", id: "back-entry",
                         enabled: paging.canGoBack(from: start)) { move(to: paging.backEntry(from: start)) }
             Text(rangeLabel(range))
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(FestivalText.primary)
                 .frame(maxWidth: .infinity)
                 .accessibilityLabel("Showing \(rangeLabel(range))")
-            pagerButton("chevron.right", label: "Forward one entry", id: "forward-entry",
+            pagerButton("chevron.forward", label: "Forward one entry", id: "forward-entry",
                         enabled: paging.canGoForward(from: start)) { move(to: paging.forwardEntry(from: start)) }
-            pagerButton("chevron.right.2", label: "Forward one page", id: "forward-page",
+            pagerButton("chevron.forward.2", label: "Forward one page", id: "forward-page",
                         enabled: paging.canGoForward(from: start)) { move(to: paging.forwardPage(from: start)) }
         }
     }

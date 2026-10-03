@@ -115,7 +115,7 @@ struct SoloLeaderboardScreen: View {
                                         entry: entry, isPlayer: isSelectedRow,
                                         currentSeason: session.catalogCurrentSeason
                                     )
-                                    Image(systemName: "chevron.right")
+                                    Image(systemName: "chevron.forward")
                                         .font(.footnote.weight(.semibold))
                                         .foregroundStyle(FestivalText.deemphasized)
                                         .accessibilityHidden(true)
@@ -319,7 +319,7 @@ struct SoloLeaderboardScreen: View {
             SongLeaderboardEntryRow(
                 entry: entry, isPlayer: true, currentSeason: session.catalogCurrentSeason
             )
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(FestivalText.deemphasized)
                 .accessibilityHidden(true)

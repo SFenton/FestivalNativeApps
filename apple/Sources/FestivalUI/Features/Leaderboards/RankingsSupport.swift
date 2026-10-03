@@ -216,7 +216,7 @@ struct RankingRowLayout: View {
 
     /// The trailing disclosure chevron (operator batch 7.12).
     static var chevron: some View {
-        Image(systemName: "chevron.right")
+        Image(systemName: "chevron.forward")
             .font(.footnote.weight(.semibold))
             .foregroundStyle(FestivalText.deemphasized)
             .accessibilityHidden(true)
@@ -612,8 +612,8 @@ struct RankingsPagerView: View {
             // Web `FixedLeaderboardPagination` / `Paginator`: one centred row of
             // frosted circle arrows around a "page / total" badge (operator batch 7.5).
             HStack(spacing: 10) {
-                arrow("chevron.left.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
-                arrow("chevron.left", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
+                arrow("chevron.backward.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
+                arrow("chevron.backward", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
                 Text("\(page) / \(totalPages)")
                     .font(.body.weight(.semibold))
                     .monospacedDigit()
@@ -624,8 +624,8 @@ struct RankingsPagerView: View {
                     .frame(minHeight: 44)
                     .modifier(PagerPlate(cornerRadius: 12))
                     .accessibilityIdentifier("\(idPrefix).page-info")
-                arrow("chevron.right", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
-                arrow("chevron.right.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
+                arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
+                arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
@@ -808,10 +808,10 @@ struct RankingsGlassPager: View {
     /// - Returns: Symbol name.
     static func symbol(_ action: RankingsPagerAction) -> String {
         switch action {
-        case .first: "chevron.left.2"
-        case .previous: "chevron.left"
-        case .next: "chevron.right"
-        case .last: "chevron.right.2"
+        case .first: "chevron.backward.2"
+        case .previous: "chevron.backward"
+        case .next: "chevron.forward"
+        case .last: "chevron.forward.2"
         }
     }
 
@@ -924,7 +924,7 @@ struct RankingsPagerToolbarContent: ToolbarContent {
 
     private var previousButton: some View {
         Button { onChange(page - 1) } label: {
-            Label("Previous", systemImage: "chevron.left")
+            Label("Previous", systemImage: "chevron.backward")
         }
         .disabled(page <= 1)
         .accessibilityIdentifier("\(idPrefix).page-previous")
@@ -932,7 +932,7 @@ struct RankingsPagerToolbarContent: ToolbarContent {
 
     private var nextButton: some View {
         Button { onChange(page + 1) } label: {
-            Label("Next", systemImage: "chevron.right")
+            Label("Next", systemImage: "chevron.forward")
         }
         .disabled(page >= totalPages)
         .accessibilityIdentifier("\(idPrefix).page-next")
@@ -942,7 +942,7 @@ struct RankingsPagerToolbarContent: ToolbarContent {
         if layout.sectionChrome.isVerticalBar {
             ToolbarItem(placement: .bottomBar) {
                 Button { onChange(1) } label: {
-                    Label("First", systemImage: "chevron.left.to.line")
+                    Label("First", systemImage: "chevron.backward.to.line")
                 }
                 .disabled(page <= 1)
                 .accessibilityIdentifier("\(idPrefix).page-first")
@@ -969,7 +969,7 @@ struct RankingsPagerToolbarContent: ToolbarContent {
             }
             ToolbarItem(placement: .bottomBar) {
                 Button { onChange(totalPages) } label: {
-                    Label("Last", systemImage: "chevron.right.to.line")
+                    Label("Last", systemImage: "chevron.forward.to.line")
                 }
                 .disabled(page >= totalPages)
                 .accessibilityIdentifier("\(idPrefix).page-last")

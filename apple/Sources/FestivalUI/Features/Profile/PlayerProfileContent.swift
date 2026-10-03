@@ -605,7 +605,7 @@ struct PlayerProfileContent: View {
                 Text("View \(displayName)'s Bands")
                     .foregroundStyle(BrandTokens.textPrimary)
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.footnote)
                     .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)
