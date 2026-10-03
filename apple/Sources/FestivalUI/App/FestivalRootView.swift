@@ -18,8 +18,14 @@ public struct FestivalRootView: View {
     @State private var songsNotice: String?
     @State private var session: FestivalSession
     @State private var rootProfilePresented = false
-    /// Global search sheet (opened from the tab accessory, a toolbar button, ⌘K or ⌘F).
+    /// Global search sheet (macOS hosted shell only; iOS uses the Search tab or row).
     @State private var globalSearchPresented = false
+    /// The Search tab (phone tabs) or sidebar Search row (iPad) is showing; `selected`
+    /// stays the section it was opened from (issue #92, ``RootTab``).
+    @State private var searchActive = false
+    /// Global search query, scope and results, kept while Search is closed so it
+    /// reopens where the user left it.
+    @State private var searchModel = GlobalSearchModel()
     /// A search result to push after the search sheet has dismissed.
     @State private var pendingSearchRoute: AppRoute?
     #if DEBUG && os(iOS)
@@ -284,7 +290,14 @@ public struct FestivalRootView: View {
             }
             #else
             if presentation.navigation == .sidebar {
-                if ListDetailPolicy.splittableSections.contains(selected) {
+                if searchActive {
+                    // The sidebar's Search row shows global search in the detail column.
+                    NavigationSplitView(columnVisibility: $sidebarVisibility) {
+                        sidebarColumn
+                    } detail: {
+                        searchView(asTab: false)
+                    }
+                } else if ListDetailPolicy.splittableSections.contains(selected) {
                     // List/detail sections draw the whole shell split themselves
                     // (sidebar | stack, or sidebar | list | detail; `ListDetailStack`).
                     content(for: selected)
@@ -306,7 +319,7 @@ public struct FestivalRootView: View {
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
         .environment(\.festivalSession, session)
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
-        .environment(\.openGlobalSearch, OpenGlobalSearchAction { globalSearchPresented = true })
+        .environment(\.openGlobalSearch, OpenGlobalSearchAction { openGlobalSearch() })
         .environment(\.refreshCommandRegistry, refreshCommands)
         .environment(\.listDetailSplitReporter, ListDetailSplitReporter { section, isSplit in
             if isSplit { splitSections.insert(section) } else { splitSections.remove(section) }
@@ -387,41 +400,97 @@ public struct FestivalRootView: View {
     /// classic `.tabItem` on iOS 17. On iPhone Duo the system moves the same tab bar into
     /// the vertical bar; nothing here is Duo-specific.
     ///
+    /// Global search is a separate trailing Search tab (issue #92; HIG Tab bars: "A
+    /// dedicated Search tab may be trailing"). Nothing rides on the tab bar: the page
+    /// tools sit in each page's navigation bar.
+    ///
     /// - Parameter visibleSections: Sections to show as tabs.
     /// - Returns: The tab view.
     @ViewBuilder private func tabs(_ visibleSections: [FestivalSection]) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
-            TabView(selection: tabSelection) {
+            TabView(selection: rootTabSelection) {
                 ForEach(visibleSections) { section in
-                    Tab(section.title, systemImage: section.symbol, value: section) {
+                    Tab(section.title, systemImage: section.symbol, value: RootTab.section(section)) {
                         content(for: section)
                             .accessibilityIdentifier("fst.nav.\(section.rawValue)")
                     }
                 }
+                #if os(iOS)
+                Tab(value: RootTab.search, role: .search) {
+                    searchView(asTab: true)
+                }
+                #endif
             }
-            // Bottom dock above the tab bar: global Search + page controls (Songs
-            // Filter/Sort, Quick Links, profile Select); `.agents/design/apple/nav-accessories.md`.
-            .festivalTabAccessoryHost()
+            .modifier(RootTabBarBehavior())
         } else {
-            TabView(selection: tabSelection) {
+            TabView(selection: rootTabSelection) {
                 ForEach(visibleSections) { section in
                     content(for: section)
                         .tabItem { Label(section.title, systemImage: section.symbol) }
-                        .tag(section)
+                        .tag(RootTab.section(section))
                         .accessibilityIdentifier("fst.nav.\(section.rawValue)")
                 }
+                #if os(iOS)
+                searchView(asTab: true)
+                    .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                    .tag(RootTab.search)
+                #endif
             }
-            .festivalTabAccessoryHost()
         }
     }
 
-    /// Tab selection that pops a re-tapped tab to its root and clears Statistics on leave.
-    private var tabSelection: Binding<FestivalSection> {
+    /// Global search for the Search tab or the iPad sidebar's Search row.
+    ///
+    /// - Parameter asTab: The phone Search tab (focuses the field when chosen and returns
+    ///   to the previous tab when it is dismissed); false for the sidebar's detail column.
+    /// - Returns: The search page.
+    private func searchView(asTab: Bool) -> some View {
+        GlobalSearchTab(
+            session: session, model: searchModel, isSelected: searchActive, asTab: asTab,
+            open: { perform(RootTabTransition.openResult($0)) },
+            dismiss: { perform(RootTabTransition.dismissSearch(searchActive: searchActive)) }
+        )
+        .accessibilityIdentifier("fst.nav.search")
+    }
+
+    /// Tab selection: a re-tapped tab pops to its root, leaving Search returns to the
+    /// tab it was opened from (``RootTabTransition``).
+    private var rootTabSelection: Binding<RootTab> {
         Binding {
-            selected
+            searchActive ? .search : .section(selected)
         } set: { next in
-            select(next)
+            perform(RootTabTransition.choose(next, selected: selected, searchActive: searchActive))
         }
+    }
+
+    /// Carry out a tab, search or sidebar transition.
+    ///
+    /// - Parameter transition: What changed (``RootTabTransition``).
+    private func perform(_ transition: RootTabTransition) {
+        switch transition {
+        case .none:
+            break
+        case .openSearch:
+            searchActive = true
+        case .closeSearch:
+            searchActive = false
+        case let .select(section):
+            searchActive = false
+            select(section)
+        case let .push(route):
+            searchActive = false
+            paths[selected, default: []].append(route)
+        }
+    }
+
+    /// ⌘F / ⌘K and any remaining `openGlobalSearch` caller: the Search tab or sidebar
+    /// row on iOS, the search sheet in the hosted macOS shell.
+    private func openGlobalSearch() {
+        #if os(iOS)
+        perform(.openSearch)
+        #else
+        globalSearchPresented = true
+        #endif
     }
 
     /// Change the root section with web tab semantics.
@@ -463,8 +532,10 @@ public struct FestivalRootView: View {
         FestivalSidebar(
             session: session,
             browse: SidebarMenu.browse(profile: profileKind, hideShop: hideShop),
-            selected: selected, onSelect: select,
-            onOpenPlayer: { paths[selected, default: []].append($0) },
+            selected: selected, searchSelected: searchActive,
+            onSelect: { perform(RootTabTransition.choose(.section($0), selected: selected, searchActive: searchActive)) },
+            onSearch: { perform(.openSearch) },
+            onOpenPlayer: { perform(.push($0)) },
             onChooseProfile: { rootProfilePresented = true },
             onExtentChange: { extent in
                 if abs(extent - sidebarExtent) >= 1 { sidebarExtent = extent }
@@ -487,13 +558,17 @@ public struct FestivalRootView: View {
     private func keyboardCommands(_ presentation: ShellPresentation, layout: DeviceLayout) -> some View {
         let visible = sections(for: presentation)
         return ZStack {
-            KeyCommandButton(title: "Search", key: "f") { globalSearchPresented = true }
-            KeyCommandButton(title: "Search", key: "k") { globalSearchPresented = true }
+            KeyCommandButton(title: "Search", key: "f") { openGlobalSearch() }
+            KeyCommandButton(title: "Search", key: "k") { openGlobalSearch() }
             ForEach(Array(visible.prefix(9).enumerated()), id: \.element) { index, section in
                 KeyCommandButton(
                     title: section.title, key: KeyEquivalent(Character(String(index + 1)))
                 ) {
-                    if selected == section { paths[section] = [] } else { select(section) }
+                    if selected == section && !searchActive {
+                        paths[section] = []
+                    } else {
+                        perform(.select(section))
+                    }
                 }
             }
             KeyCommandButton(title: "Back", key: "[") { goBack() }

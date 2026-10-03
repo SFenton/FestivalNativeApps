@@ -12,8 +12,6 @@ import FestivalDesign
 public struct QuickLinksToolbarItem: ToolbarContent {
     private let controller: QuickLinksController
     private let placement: ToolbarItemPlacement
-    /// Where the iPhone bottom dock exists the menu lives there instead.
-    @Environment(\.isTabAccessoryAvailable) private var inDock
 
     /// Create the toolbar item.
     ///
@@ -29,11 +27,24 @@ public struct QuickLinksToolbarItem: ToolbarContent {
     public static var defaultPlacement: ToolbarItemPlacement { .festivalPageAction }
 
     public var body: some ToolbarContent {
-        if !inDock || controller.prefersToolbar {
+        // Stays visible in the iPhone Duo vertical bar while page actions overflow
+        // (issue #92, ``RootChromeRailItem``).
+        #if os(iOS)
+        if #available(iOS 27.0, *) {
+            ToolbarItem(placement: placement) {
+                QuickLinksMenu(controller: controller)
+            }
+            .railVisibilityPriority(.quickLinks)
+        } else {
             ToolbarItem(placement: placement) {
                 QuickLinksMenu(controller: controller)
             }
         }
+        #else
+        ToolbarItem(placement: placement) {
+            QuickLinksMenu(controller: controller)
+        }
+        #endif
     }
 }
 
@@ -67,8 +78,8 @@ public struct QuickLinksMenu: View {
             } label: {
                 Label("Quick Links", systemImage: "list.bullet.indent")
             }
-            // iOS flips `.automatic` menus that open upward (the iPhone bottom dock),
-            // listing sections bottom-to-top; keep page order wherever it opens.
+            // iOS flips `.automatic` menus that open upward, listing sections
+            // bottom-to-top; keep page order wherever it opens.
             .menuOrder(.fixed)
             .tint(BrandTokens.textPrimary)
             .accessibilityLabel("Quick Links")

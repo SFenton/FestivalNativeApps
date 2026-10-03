@@ -136,17 +136,14 @@ struct FestivalTabStack<Root: View>: View {
     var body: some View {
         NavigationStack(path: $path) {
             root
-                // iPhone: the page's Filter/Sort and Quick Links float above the tab bar.
-                .modifier(FloatingPageControls())
                 .modifier(TopEdgeScrim())
                 .navigationDestination(for: AppRoute.self) { route in
                 AppRouteDestination(
                     route: route, session: session, visibleInstruments: visibleInstruments,
                     path: $path, isVisible: isVisible
                 )
-                // Header Search on every pushed page.
-                .globalSearchToolbarItem()
-                .modifier(FloatingPageControls())
+                // The bell and profile on every pushed page (issue #92).
+                .pageTrailingItems()
                 .modifier(TopEdgeScrim())
             }
         }

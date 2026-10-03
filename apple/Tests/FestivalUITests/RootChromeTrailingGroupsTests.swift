@@ -2,61 +2,61 @@ import SwiftUI
 import Testing
 @testable import FestivalUI
 
-// MARK: - Trailing glass groups (issue #14)
+// MARK: - Trailing glass groups (issues #14, #92)
 
-/// Pins how the shared trailing items split into Liquid Glass groups:
-/// `FestivalRootTrailingItems` inserts its bell/profile `ToolbarSpacer` from the same
-/// ``RootChromeTrailingGroups/separatesBellFromProfile(chrome:)`` decision.
+/// Pins how the trailing items split into Liquid Glass groups: page tools (Sort, Filter,
+/// Quick Links), then account (bell, profile). `FestivalRootTrailingItems` and
+/// `PageTrailingItems` insert their `ToolbarSpacer` from the same
+/// ``RootChromeTrailingGroups/separatesAccount(chrome:)`` decision.
 @Suite("Root chrome trailing glass groups")
 struct RootChromeTrailingGroupsTests {
-    @Test("Horizontal bars give the bell and the profile their own glass buttons")
-    func bellAndProfileSeparateInHorizontalBars() {
+    @Test("Songs reads Sort, Filter, Quick Links | Notifications, Profile")
+    func songsTwoGroups() {
         for chrome in [DeviceLayout.SectionChrome.tabBar, .sidebar] {
-            #expect(RootChromeTrailingGroups.separatesBellFromProfile(chrome: chrome))
-            #expect(RootChromeTrailingGroups.resolve(showsSearch: true, showsBell: true, chrome: chrome)
-                == [[.search], [.bell], [.profile]])
+            #expect(RootChromeTrailingGroups.separatesAccount(chrome: chrome))
+            #expect(RootChromeTrailingGroups.resolve(pageActions: 2, showsQuickLinks: true, showsBell: true, chrome: chrome)
+                == [[.pageAction, .pageAction, .quickLinks], [.bell, .profile]])
         }
+    }
+
+    @Test("Folded Sort and Filter count as one page action")
+    func foldedTools() {
+        #expect(RootChromeTrailingGroups.resolve(pageActions: 1, showsQuickLinks: true, showsBell: false, chrome: .tabBar)
+            == [[.pageAction, .quickLinks], [.profile]])
+    }
+
+    @Test("Pages without tools show only Notifications and Profile")
+    func noToolsOneGroup() {
+        #expect(RootChromeTrailingGroups.resolve(pageActions: 0, showsQuickLinks: false, showsBell: true, chrome: .tabBar)
+            == [[.bell, .profile]])
+        #expect(RootChromeTrailingGroups.resolve(pageActions: 0, showsQuickLinks: false, showsBell: false, chrome: .tabBar)
+            == [[.profile]])
     }
 
     @Test("The Duo vertical bar adds no fixed spacing: one group (HIG iPhone Duo)")
     func verticalBarKeepsOneGroup() {
         for edge in [HorizontalEdge.leading, .trailing] {
             let chrome = DeviceLayout.SectionChrome.verticalBar(edge)
-            #expect(!RootChromeTrailingGroups.separatesBellFromProfile(chrome: chrome))
-            #expect(!RootChromeTrailingGroups.separatesSearch(chrome: chrome))
-            #expect(RootChromeTrailingGroups.resolve(showsSearch: true, showsBell: true, chrome: chrome)
-                == [[.search, .bell, .profile]])
-            #expect(RootChromeTrailingGroups.resolve(showsSearch: true, showsBell: false, chrome: chrome)
-                == [[.search, .profile]])
+            #expect(!RootChromeTrailingGroups.separatesAccount(chrome: chrome))
+            #expect(RootChromeTrailingGroups.resolve(pageActions: 2, showsQuickLinks: true, showsBell: true, chrome: chrome)
+                == [[.pageAction, .pageAction, .quickLinks, .bell, .profile]])
         }
     }
 
-    @Test("Horizontal bars keep Search in its own group")
-    func horizontalBarsSeparateSearch() {
-        for chrome in [DeviceLayout.SectionChrome.tabBar, .sidebar] {
-            #expect(RootChromeTrailingGroups.separatesSearch(chrome: chrome))
-        }
-    }
-
-    @Test("Without a selected profile only Search and the profile show")
-    func anonymousHasNoBell() {
-        #expect(RootChromeTrailingGroups.resolve(showsSearch: true, showsBell: false, chrome: .tabBar)
-            == [[.search], [.profile]])
-        #expect(RootChromeTrailingGroups.resolve(showsSearch: false, showsBell: false, chrome: .tabBar)
-            == [[.profile]])
-    }
-
-    @Test("The trailing side never exceeds three glass groups (HIG Toolbars)")
+    @Test("The trailing side never exceeds three glass groups; Profile stays rightmost (HIG Toolbars)")
     func atMostThreeGroups() {
         let chromes: [DeviceLayout.SectionChrome] = [.tabBar, .sidebar, .verticalBar(.leading), .verticalBar(.trailing)]
         for chrome in chromes {
-            for showsSearch in [true, false] {
-                for showsBell in [true, false] {
-                    let groups = RootChromeTrailingGroups.resolve(
-                        showsSearch: showsSearch, showsBell: showsBell, chrome: chrome
-                    )
-                    #expect(groups.count <= 3)
-                    #expect(groups.last?.last == .profile, "profile must stay rightmost")
+            for actions in 0...2 {
+                for quickLinks in [true, false] {
+                    for bell in [true, false] {
+                        let groups = RootChromeTrailingGroups.resolve(
+                            pageActions: actions, showsQuickLinks: quickLinks, showsBell: bell, chrome: chrome
+                        )
+                        #expect(groups.count <= 3)
+                        #expect(groups.allSatisfy { !$0.isEmpty })
+                        #expect(groups.last?.last == .profile, "profile must stay rightmost")
+                    }
                 }
             }
         }
@@ -66,7 +66,7 @@ struct RootChromeTrailingGroupsTests {
 // MARK: - Pushed-page avatar placement (issue #85)
 
 /// iOS pins `.primaryAction` to the far trailing edge, and the pushed-page avatar comes
-/// from an outer modifier (`.globalSearchToolbarItem()`) whose items SwiftUI lays out
+/// from an outer modifier (`.pageTrailingItems()`) whose items SwiftUI lays out
 /// before the page's own. The avatar stays rightmost and standalone only while it is the
 /// sole `.primaryAction` item, so page actions must use `.festivalPageAction`.
 @Suite("Pushed-page avatar placement")

@@ -34,16 +34,13 @@ struct SongsScreen: View {
     @State private var shopRetryRevision = 0
     @State private var sortPresented = false
     @State private var filterPresented = false
-    /// The accessory's search bar is open above the keyboard (iOS 26.1+ iPhone, issue #42).
-    @State private var searchBarPresented = false
     @State private var debugPushedSong: Song?
     /// When the catalogue first arrived; rows fade in only shortly after it.
     @State private var fadeLoadedAt: Date?
     @State private var quickLinks = QuickLinksController()
-    /// Scroll-driven chrome state (scrolled away, tools in the bar, passed section
-    /// titles, section bar edge). Never read in `body`: only the section bar, row mask
-    /// and page-tools modifier observe it, so scrolling does not re-render the whole
-    /// screen (issue #8).
+    /// Scroll-driven chrome state (scrolled away, passed section titles, section bar
+    /// edge). Never read in `body`: only the section bar and row mask observe it, so
+    /// scrolling does not re-render the whole screen (issue #8).
     @State private var scrollChrome = SongsScrollChrome()
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
@@ -51,10 +48,6 @@ struct SongsScreen: View {
     @Environment(\.listDetailScrollAnchor) private var listScrollAnchor
     /// The anchor this instance already scrolled to.
     @State private var restoredScrollAnchor: AppRoute?
-    /// True where Filter/Sort live above the iPhone tab bar instead of the toolbar.
-    @Environment(\.isTabAccessoryAvailable) private var actionsInDock
-    /// The tab-bar accessory (iOS 26.1+) or floating buttons (earlier); nil for toolbar items.
-    @Environment(\.pageToolsPresentation) private var toolsPresentation
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage(SongGeneralFilter.storageKey) private var generalFilterData = Data()
@@ -454,28 +447,23 @@ struct SongsScreen: View {
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
-        // Search this list: the iOS 26.1+ iPhone tab-bar accessory holds only this field
-        // (issues #42, #89; HIG Search fields: "Place search at the bottom if there's
-        // room"), else the inline `.searchable` field (HIG "search as an inline field",
-        // like Music's Library). Global search stays a header button.
-        .modifier(SongsListSearch(
-            text: $searchText, presentation: toolsPresentation,
-            sidebarShell: deviceLayout.sectionChrome == .sidebar,
-            barPresented: $searchBarPresented
-        ))
-        // iPhone: Filter, Sort and Quick Links float as round buttons above the tab bar
-        // (and above the search accessory, never inside it, issue #89), like the web's
-        // Songs dock; toolbar items elsewhere (Duo rail, iPad, Mac).
+        // Filter this list: an inline field pinned above it (issue #92; HIG Search
+        // fields: "Use an inline field when adjacency clarifies that it filters one view
+        // rather than searches globally"). Global search is the Search tab.
+        .searchable(
+            text: $searchText, placement: Self.filterFieldPlacement,
+            prompt: Text("Filter Songs")
+        )
+        // Sort, Filter and Quick Links, then the account group, in the navigation bar
+        // (issue #92); Sort and Filter fold into one menu where the bar is too narrow.
         .modifier(SongsPageTools(
-            chrome: scrollChrome, session: session, quickLinks: quickLinks,
-            filterDockToken: filterDockToken, sortDockToken: sortDockToken,
-            canPresentFilter: canPresentFilter, actionsInDock: actionsInDock,
-            presentation: toolsPresentation,
-            placement: .festivalPageAction,
+            session: session, quickLinks: quickLinks,
+            canPresentFilter: canPresentFilter,
+            sortCustomized: !(sortMode == .title && sortAscending),
+            filterActive: generalFilterActive || appliedPlayerScoreFilter?.isActive == true,
             sortAction: sortAction, filterAction: filterAction,
-            searchQuery: searchText,
-            openSearch: { searchBarPresented = true },
-            clearSearch: { searchText = "" }
+            presentSort: { sortPresented = true },
+            presentFilter: { filterPresented = true }
         ))
         #if os(iOS)
         .sheet(isPresented: $sortPresented) { sortSheet }
@@ -513,7 +501,7 @@ struct SongsScreen: View {
         .navigationDestination(item: $debugPushedSong) { song in
             // Same pushed-page chrome (Search + avatar) as `FestivalTabStack` destinations.
             SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
-                .globalSearchToolbarItem()
+                .pageTrailingItems()
         }
         .task(id: FestivalDebugLaunch.songTitleOrId) {
             guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId
@@ -587,22 +575,17 @@ struct SongsScreen: View {
         }
     }
 
-    /// Where the `.searchable` Filter Songs field sits (unused in the tab-bar accessory).
+    /// Where the `.searchable` Filter Songs field sits.
     ///
-    /// - Parameters:
-    ///   - presentation: Where the page tools sit above an iPhone tab bar.
-    ///   - sidebarShell: The iPad sections sidebar shell.
-    /// - Returns: With floating tools (iOS 17–26.0 iPhone), the navigation-bar drawer kept
-    ///   visible while scrolling, so the field stays with the tools that rise into the bar
-    ///   (issue #13). On iPad too: the system placement there collapses the field into a
-    ///   second magnifier beside global Search, two identical buttons with different scopes
-    ///   (HIG Searching: "Show current scope with descriptive placeholder"). The system
-    ///   placement elsewhere.
-    static func filterFieldPlacement(
-        presentation: PageToolsPresentation?, sidebarShell: Bool = false
-    ) -> SearchFieldPlacement {
+    /// iOS (iPhone, iPhone Duo, iPad): the navigation-bar drawer, always displayed, so the
+    /// field sits above the list and stays pinned while it scrolls (issue #92; HIG Search
+    /// fields: "Put a top inline field above its list and consider pinning it to the top
+    /// toolbar while scrolling"). The system placement elsewhere; there `.automatic`
+    /// would collapse the field into a second magnifier that reads as global search
+    /// (HIG Searching: "Show current scope with descriptive placeholder").
+    static var filterFieldPlacement: SearchFieldPlacement {
         #if os(iOS)
-        presentation == .floating || sidebarShell ? .navigationBarDrawer(displayMode: .always) : .automatic
+        .navigationBarDrawer(displayMode: .always)
         #else
         .automatic
         #endif
@@ -704,17 +687,6 @@ struct SongsScreen: View {
         .accessibilityIdentifier("fst.songs.filter")
         .tint(generalFilterActive || appliedPlayerScoreFilter?.isActive == true
             ? BrandTokens.gold : BrandTokens.accentBlue)
-    }
-
-    /// Everything the dock's Sort button shows; a change re-registers it.
-    private var sortDockToken: [String] {
-        [sortMode.rawValue, String(sortAscending), sortPausedMessage ?? ""]
-    }
-
-    /// Everything the dock's Filter button shows; a change re-registers it.
-    private var filterDockToken: [String] {
-        [filterAccessibilityValue, String(generalFilterActive),
-         String(appliedPlayerScoreFilter?.isActive == true)]
     }
 
     /// Keep a saved Shop or player sort visible when its source is hidden or unavailable.
@@ -1109,17 +1081,8 @@ struct SongsScreen: View {
                 }
                 .modifier(ScrolledAwayTracker(
                     topInsetChanged: scrollChrome.setListTopInset
-                ) { scrolled, style in
+                ) { scrolled in
                     scrollChrome.setScrolled(scrolled)
-                    let moved = PageToolsHandOff.toolsInBar(
-                        scrolled: scrolled, presentation: toolsPresentation
-                    )
-                    guard moved != scrollChrome.toolsInBar else { return }
-                    // The floating dock animates its half with the same timing.
-                    withAnimation(PageToolsHandOff.animation(style)) {
-                        scrollChrome.setToolsInBar(moved)
-                        quickLinks.prefersToolbar = moved
-                    }
                 })
                 .scrollContentBackground(.hidden)
                 // Reserve room for the trailing section-index scrubber so its glass
@@ -1591,15 +1554,12 @@ private extension SongShopSectionKind {
 /// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
 
 /// Reports whether a scroll view has moved away from its top (iOS 18+; always false
-/// before, so older systems keep the floating tools), with the hand-off style the
-/// current Reduce Motion settings call for. ``ScrollAwayGate`` keeps the chrome this
-/// report moves from feeding back into it (issue #5).
+/// before). ``ScrollAwayGate`` keeps the chrome this report moves from feeding back
+/// into it (issue #5).
 private struct ScrolledAwayTracker: ViewModifier {
     /// Receives the List's top content inset on every scroll geometry change.
     let topInsetChanged: (CGFloat) -> Void
-    let changed: (Bool, PageToolsHandOff.Style) -> Void
-    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+    let changed: (Bool) -> Void
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
     @State private var reported: Bool?
@@ -1626,9 +1586,7 @@ private struct ScrolledAwayTracker: ViewModifier {
                 )
                 guard reported != gate.isScrolled else { return }
                 reported = gate.isScrolled
-                changed(gate.isScrolled, PageToolsHandOff.style(
-                    systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
-                ))
+                changed(gate.isScrolled)
             }
         } else {
             content
@@ -1768,95 +1726,49 @@ private struct RowMaskShape: Shape {
     }
 }
 
-/// Where Songs' list search lives: an accessory button plus ``SongsSearchBar`` above the
-/// keyboard (iOS 26.1+ iPhone, issue #42), or the `.searchable` Filter Songs field.
+/// Songs' page tools in the persistent top bar (issue #92): Sort, Filter and Quick Links
+/// in one Liquid Glass group, then the account group (``FestivalRootTrailingItems``).
 ///
-/// The presentation changes only with the device layout (an iPhone Duo pose), so the
-/// branch never flips while scrolling and never rebuilds the List.
-private struct SongsListSearch: ViewModifier {
-    @Binding var text: String
-    let presentation: PageToolsPresentation?
-    let sidebarShell: Bool
-    @Binding var barPresented: Bool
-    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
-
-    func body(content: Content) -> some View {
-        if presentation == .accessory {
-            let style = PageToolsHandOff.style(
-                systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
-            )
-            content
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if barPresented {
-                        SongsSearchBar(text: $text) { barPresented = false }
-                            .transition(style == .motion
-                                ? .move(edge: .bottom).combined(with: .opacity) : .opacity)
-                    }
-                }
-                .animation(PageToolsHandOff.animation(style), value: barPresented)
-        } else {
-            content.searchable(
-                text: $text, placement: SongsScreen.filterFieldPlacement(
-                    presentation: presentation, sidebarShell: sidebarShell
-                ),
-                prompt: Text("Filter Songs")
-            )
-        }
-    }
-}
-
-/// Songs' search/Filter/Sort/Quick Links placement: on iOS 26.1+ iPhone search in the
-/// tab-bar accessory and the rest floating beside it (issues #42, #89), the earlier iPhone floating dock (handed to the navigation bar
-/// once scrolled, issue #13), or the navigation bar (Duo rail, iPad, Mac), plus the root
-/// trailing items and, with the floating dock, an empty inline title.
-///
-/// Observes ``SongsScrollChrome/toolsInBar`` itself, so moving the tools re-renders only
-/// this toolbar and dock, never the List (issue #8).
+/// Where the bar is too narrow (``SongsToolbarFold``) Sort and Filter fold into one
+/// "Sort and Filter" menu, so Quick Links, Notifications and Profile stay visible
+/// (HIG Toolbars, iOS: "Put only essential actions in the main area; use More for the
+/// rest"). It measures its own width, so a width change re-renders only this toolbar.
 private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
-    let chrome: SongsScrollChrome
     let session: FestivalSession
     let quickLinks: QuickLinksController
-    let filterDockToken: [String]
-    let sortDockToken: [String]
     let canPresentFilter: Bool
-    let actionsInDock: Bool
-    let presentation: PageToolsPresentation?
-    let placement: ToolbarItemPlacement
+    /// Sort differs from Title ascending (the folded menu is tinted gold, like Sort).
+    let sortCustomized: Bool
+    /// A filter is applied (the folded menu is tinted gold, like Filter).
+    let filterActive: Bool
     let sortAction: SortAction
     let filterAction: FilterAction
-    /// The Songs search text shown by the accessory's field-shaped button.
-    let searchQuery: String
-    let openSearch: () -> Void
-    let clearSearch: () -> Void
+    let presentSort: () -> Void
+    let presentFilter: () -> Void
+    @Environment(\.deviceLayout) private var layout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var width: CGFloat = 0
+
+    private var folds: Bool {
+        SongsToolbarFold.folds(
+            width: width, dynamicTypeSize: dynamicTypeSize, chrome: layout.sectionChrome
+        )
+    }
 
     func body(content: Content) -> some View {
-        let toolsInBar = chrome.toolsInBar
         content
-            .festivalTabAccessory(
-                token: searchQuery, order: DockOrder.search, kind: .field,
-                isEnabled: presentation == .accessory
-            ) {
-                SongsSearchAccessoryButton(
-                    query: searchQuery, open: openSearch, clear: clearSearch
-                )
-            }
-            .festivalTabAccessory(
-                token: filterDockToken, order: DockOrder.filter,
-                accessibilityID: "fst.songs.filter",
-                isEnabled: canPresentFilter && !toolsInBar
-            ) {
-                filterAction.frame(minWidth: 44, minHeight: 44)
-            }
-            .festivalTabAccessory(
-                token: sortDockToken, order: DockOrder.sort, accessibilityID: "fst.songs.sort",
-                isEnabled: !toolsInBar
-            ) {
-                sortAction.frame(minWidth: 44, minHeight: 44)
-            }
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
             .toolbar {
-                if !actionsInDock || toolsInBar {
-                    ToolbarItemGroup(placement: placement) {
+                if folds {
+                    ToolbarItem(placement: .festivalPageAction) {
+                        SongsSortFilterMenu(
+                            canPresentFilter: canPresentFilter,
+                            highlighted: sortCustomized || filterActive,
+                            presentSort: presentSort, presentFilter: presentFilter
+                        )
+                    }
+                } else {
+                    ToolbarItemGroup(placement: .festivalPageAction) {
                         sortAction
                         if canPresentFilter {
                             filterAction
@@ -1865,22 +1777,41 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
                 }
                 QuickLinksToolbarItem(quickLinks)
                 FestivalRootTrailingItems(session: session)
-                #if os(iOS)
-                if presentation == .floating {
-                    // With Filter/Sort/Quick Links in the bar the inline title had no room
-                    // and read "…"; the section bar names the place instead (Back still
-                    // says "Songs"). A permanent empty title view, never a toggled
-                    // `toolbar(removing: .title)`: removing the title also removed the
-                    // large title, so the list jumped by its height on every hand-off and
-                    // the title reappeared late back at the top (issue #13).
-                    ToolbarItem(placement: .principal) {
-                        Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
-                    }
-                }
-                #endif
             }
             .festivalProvidesRootTrailingItems()
             .festivalRootChrome(session: session, providesTrailingItems: true)
+    }
+}
+
+/// Sort and Filter folded into one menu for a narrow bar or large text (issue #92).
+///
+/// Not an ellipsis: HIG Designing for iPhone Duo, "reserve ellipsis for overflow"; the
+/// filter-style symbol names what the menu holds.
+private struct SongsSortFilterMenu: View {
+    let canPresentFilter: Bool
+    let highlighted: Bool
+    let presentSort: () -> Void
+    let presentFilter: () -> Void
+
+    var body: some View {
+        Menu {
+            Button(action: presentSort) {
+                Label("Sort…", systemImage: "arrow.up.arrow.down")
+            }
+            .accessibilityIdentifier("fst.songs.tools.sort")
+            if canPresentFilter {
+                Button(action: presentFilter) {
+                    Label("Filter…", systemImage: "line.3.horizontal.decrease")
+                }
+                .accessibilityIdentifier("fst.songs.tools.filter")
+            }
+        } label: {
+            Label("Sort and Filter", systemImage: "slider.horizontal.3")
+        }
+        .menuOrder(.fixed)
+        .tint(highlighted ? BrandTokens.gold : BrandTokens.accentBlue)
+        .accessibilityLabel("Sort and Filter")
+        .accessibilityIdentifier("fst.songs.tools")
     }
 }
 

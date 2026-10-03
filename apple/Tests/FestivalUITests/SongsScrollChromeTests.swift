@@ -34,14 +34,6 @@ struct SongsScrollChromeTests {
         #expect(chrome.setScrolled(false))
     }
 
-    @Test func toolsInBarWritesOnlyOnChange() {
-        let chrome = SongsScrollChrome()
-        #expect(!invalidates(chrome, reading: { _ = $0.toolsInBar }) { $0.setToolsInBar(false) })
-        #expect(invalidates(chrome, reading: { _ = $0.toolsInBar }) { $0.setToolsInBar(true) })
-        #expect(!chrome.setToolsInBar(true))
-        #expect(chrome.setToolsInBar(false))
-    }
-
     @Test func headerWritesOnlyOnChange() {
         let chrome = SongsScrollChrome()
         #expect(!invalidates(chrome, reading: { _ = $0.passedHeaders }) {
@@ -85,8 +77,7 @@ struct SongsScrollChromeTests {
     /// Writes to one property never invalidate observers of another (the List reads none).
     @Test func propertiesAreObservedIndependently() {
         let chrome = SongsScrollChrome()
-        #expect(!invalidates(chrome, reading: { _ = $0.toolsInBar }) {
-            $0.setScrolled(true)
+        #expect(!invalidates(chrome, reading: { _ = $0.listScrolled }) {
             $0.setHeader("A", passed: true)
             $0.setSectionBarBottom(90)
         })

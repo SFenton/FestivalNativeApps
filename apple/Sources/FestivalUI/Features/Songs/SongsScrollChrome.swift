@@ -6,8 +6,7 @@ import os
 
 /// Scroll-driven Songs chrome state, kept out of `SongsScreen`'s own state (issue #8).
 ///
-/// Whether the List has left its top, whether the page tools sit in the navigation bar,
-/// which in-list section titles have scrolled up to the section bar, and where that bar
+/// Whether the List has left its top, which in-list section titles have scrolled up to the section bar, and where that bar
 /// ends all change while the user scrolls, mostly
 /// near the top of the list. As `@State` on `SongsScreen` every change re-ran the whole
 /// screen: re-filter and re-sort the catalogue, re-diff every List row and re-render
@@ -15,7 +14,6 @@ import os
 /// stutters, hangs and, on device, freezes. Here only the views that show the state (the
 /// floating section bar and the row mask) read it, so `SongsScreen` never re-renders
 /// for it, and writes that would not change a value are dropped so they notify no one.
-/// The page tools' placement is read only by the toolbar modifier, for the same reason.
 @MainActor @Observable
 final class SongsScrollChrome {
     /// Section-bar edge movement smaller than this is layout jitter.
@@ -30,10 +28,6 @@ final class SongsScrollChrome {
     private(set) var passedHeaders: Set<String> = []
     /// Bottom edge of the floating section bar (global), for masking rows under it.
     private(set) var sectionBarBottom: CGFloat = 0
-    /// Scrolled away from the top with a profile selected: Filter/Sort/Quick Links move
-    /// from the floating dock into the navigation bar (operator batch 7), and back at
-    /// the top.
-    private(set) var toolsInBar = false
 
     /// Record whether the List has left its top.
     ///
@@ -43,17 +37,6 @@ final class SongsScrollChrome {
     func setScrolled(_ scrolled: Bool) -> Bool {
         guard scrolled != listScrolled else { return false }
         listScrolled = scrolled
-        return true
-    }
-
-    /// Move the page tools into (or out of) the navigation bar.
-    ///
-    /// - Parameter inBar: True to show them in the navigation bar.
-    /// - Returns: True when the value changed.
-    @discardableResult
-    func setToolsInBar(_ inBar: Bool) -> Bool {
-        guard inBar != toolsInBar else { return false }
-        toolsInBar = inBar
         return true
     }
 

@@ -66,13 +66,14 @@ private enum Layouts {
 
 // MARK: - Section set and navigation
 
-/// iPhone portrait keeps today's tabs and the drawer.
+/// iPhone portrait keeps tabs and the drawer; Statistics leaves the bar for the Search
+/// tab (issue #92).
 @Test func iPhoneKeepsCompactTabs() {
     let presentation = ShellPresentation.resolve(layout: Layouts.iPhonePortrait, usesSidebarShell: false)
     #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
     #expect(presentation.usesDrawer)
     #expect(presentation.sections(profile: .player)
-        == [.songs, .suggestions, .compete, .statistics, .settings])
+        == [.songs, .suggestions, .compete, .settings])
 }
 
 /// Operator 2026-09-28: large iPhones in landscape keep their portrait tabs.
@@ -82,7 +83,7 @@ private enum Layouts {
         layout: Layouts.largeIPhoneLandscape, usesSidebarShell: false
     )
     #expect(presentation.sections(profile: .player)
-        == [.songs, .suggestions, .compete, .statistics, .settings])
+        == [.songs, .suggestions, .compete, .settings])
 }
 
 /// The folded Duo is compact in every rotation: Compete, tabs, drawer.
@@ -241,5 +242,43 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
     let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: false)
     #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
     #expect(presentation.sections(profile: .player)
-        == [.songs, .suggestions, .compete, .statistics, .settings])
+        == [.songs, .suggestions, .compete, .settings])
+}
+
+// MARK: - Search tab slot (issue #92)
+
+/// Five phone tabs plus Search would move Search into "More": Statistics goes first.
+@Test func searchTabDropsStatisticsFirst() {
+    #expect(FestivalTabPolicy.fittingSearchTab([.songs, .suggestions, .compete, .statistics, .settings])
+        == [.songs, .suggestions, .compete, .settings])
+    #expect(FestivalTabPolicy.fittingSearchTab([.songs, .suggestions, .leaderboards, .statistics, .settings])
+        == [.songs, .suggestions, .leaderboards, .settings])
+}
+
+/// Sets that already fit are unchanged (anonymous: Songs · Leaderboards · Settings).
+@Test func searchTabKeepsSetsThatFit() {
+    #expect(FestivalTabPolicy.fittingSearchTab([.songs, .leaderboards, .settings]) == [.songs, .leaderboards, .settings])
+    #expect(ShellPresentation(navigation: .tabs, usesRegularSectionSet: false).sections(profile: .none)
+        == [.songs, .leaderboards, .settings])
+}
+
+/// Every compact set fits beside Search, and Songs, Compete and Settings are never dropped.
+@Test func searchTabAlwaysFits() {
+    for profile in [FestivalProfileKind.none, .player, .band] {
+        let all = FestivalTabPolicy.sections(profile: profile, regularWidth: false)
+        let fitted = FestivalTabPolicy.fittingSearchTab(all)
+        #expect(fitted.count + 1 <= FestivalTabPolicy.phoneTabLimit)
+        for kept: FestivalSection in [.songs, .compete, .settings] where all.contains(kept) {
+            #expect(fitted.contains(kept))
+        }
+        #expect(fitted == all.filter(fitted.contains), "order is preserved")
+    }
+}
+
+/// A dropped section stays in the drawer, which pushes it on the current stack.
+@Test func droppedStatisticsOpensFromDrawer() {
+    let visible = ShellPresentation(navigation: .tabs, usesRegularSectionSet: false).sections(profile: .player)
+    let row = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
+        .first { $0.id == FestivalSection.statistics.rawValue }
+    #expect(row?.intent == .push(.statistics))
 }

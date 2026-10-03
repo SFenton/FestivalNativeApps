@@ -16,11 +16,12 @@ import Testing
     #expect(!ShellPresentation.usesSidebarShell(supportsSidebar: false, widthClass: .compact))
 }
 
-/// A compact iPad window uses the phone section set (Compete), a regular one the sidebar.
+/// A compact iPad window uses the phone section set (Compete, room for Search), a regular
+/// one the sidebar.
 @Test func compactIPadUsesPhoneSections() {
     let compact = ShellPresentation.resolve(layout: .standardPhone, usesSidebarShell: false)
     #expect(compact.usesDrawer)
-    #expect(compact.sections(profile: .player) == [.songs, .suggestions, .compete, .statistics, .settings])
+    #expect(compact.sections(profile: .player) == [.songs, .suggestions, .compete, .settings])
     let regular = ShellPresentation.resolve(layout: .standardPhone, usesSidebarShell: true)
     #expect(regular.sections(profile: .player, hideShop: false)
         == [.songs, .suggestions, .statistics, .rivals, .leaderboards, .shop, .settings])

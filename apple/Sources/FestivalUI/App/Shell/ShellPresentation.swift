@@ -62,7 +62,10 @@ struct ShellPresentation: Sendable, Equatable {
     /// Visible root sections for a profile under this presentation.
     ///
     /// The sidebar lists the web sidebar's destinations (``SidebarMenu``, Item Shop
-    /// included); tabs list the web `BottomNav` sections (``FestivalTabPolicy``).
+    /// included); tabs list the web `BottomNav` sections (``FestivalTabPolicy``). Compact
+    /// phone tabs leave a slot for the Search tab
+    /// (``FestivalTabPolicy/fittingSearchTab(_:limit:)``); the regular set (iPhone Duo
+    /// inner display) keeps the system's own overflow.
     ///
     /// - Parameters:
     ///   - profile: Selected profile kind.
@@ -72,7 +75,8 @@ struct ShellPresentation: Sendable, Equatable {
         if navigation == .sidebar {
             return SidebarMenu.sections(profile: profile, hideShop: hideShop)
         }
-        return FestivalTabPolicy.sections(profile: profile, regularWidth: usesRegularSectionSet)
+        let sections = FestivalTabPolicy.sections(profile: profile, regularWidth: usesRegularSectionSet)
+        return usesRegularSectionSet ? sections : FestivalTabPolicy.fittingSearchTab(sections)
     }
 }
 

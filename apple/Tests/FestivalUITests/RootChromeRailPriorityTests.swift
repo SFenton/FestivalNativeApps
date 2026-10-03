@@ -23,9 +23,9 @@ struct RootChromeRailPriorityTests {
         #expect(!RootChromeRailItem.drawer.staysVisibleAheadOfOthers)
     }
 
-    @Test("Global Search stays visible with the bell and profile (/duo D3)")
-    func searchOutranksPageActions() {
-        #expect(RootChromeRailItem.search.staysVisibleAheadOfOthers)
+    @Test("Quick Links stays visible with the bell and profile (issue #92)")
+    func quickLinksOutranksPageActions() {
+        #expect(RootChromeRailItem.quickLinks.staysVisibleAheadOfOthers)
     }
 
     @Test("Every rail item resolves to a ranking (no silent gaps as cases are added)")

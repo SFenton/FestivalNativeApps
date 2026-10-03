@@ -15,14 +15,19 @@ struct GlobalSearchResults: View {
     let session: FestivalSession
     /// Navigate to a result (Song Detail, player profile or Statistics).
     let open: (AppRoute) -> Void
+    /// Draw the sheet's own ``GlobalSearchField``; false where the Search tab's system
+    /// `.searchable` field holds the query (issue #92).
+    var showsField = true
     /// Result set whose staggered fade has finished: rows the List rebuilds after that
     /// (scrolled away and back) appear without a fade (issue #30).
     @State private var fadeSettledResults: [String]?
 
     var body: some View {
         VStack(spacing: 10) {
-            GlobalSearchField(text: $model.query, prompt: GlobalSearch.prompt(for: model.scope))
-                .padding(.horizontal, 16)
+            if showsField {
+                GlobalSearchField(text: $model.query, prompt: GlobalSearch.prompt(for: model.scope))
+                    .padding(.horizontal, 16)
+            }
             // HIG scope bar: a segmented control, broadest scope first.
             Picker("Search Scope", selection: $model.scope) {
                 ForEach(GlobalSearchScope.allCases) { scope in
@@ -329,8 +334,9 @@ struct GlobalSearchResults: View {
 
 // MARK: - Sheet
 
-/// Global search as a sheet: opened from the header Search button, ⌘K or ⌘F. A result dismisses the
-/// sheet, then pushes on the presenting section.
+/// Global search as a sheet: opened by ⌘K or ⌘F on iPad's sidebar shell and from the Mac
+/// shell. A result dismisses the sheet, then pushes on the presenting section. Phone
+/// tabs use the Search tab instead (``GlobalSearchTab``, issue #92).
 struct GlobalSearchSheet: View {
     let session: FestivalSession
     /// Pushes the chosen route on the presenting section (passed directly: environment
@@ -423,48 +429,52 @@ extension EnvironmentValues {
     @Entry var openGlobalSearch: OpenGlobalSearchAction? = nil
 }
 
-// MARK: - Toolbar item for pushed pages
+// MARK: - Account items for pushed pages
 
 extension View {
-    /// Add the header Search button to a pushed page's toolbar.
+    /// Add the account group (bell when a profile is selected, then the profile button)
+    /// to a pushed page's toolbar, so the persistent top bar matches its tab root
+    /// (issue #92).
     ///
-    /// - Returns: The page with a trailing Search item.
-    func globalSearchToolbarItem() -> some View {
-        modifier(GlobalSearchToolbarItem())
+    /// - Returns: The page with the trailing account items.
+    func pageTrailingItems() -> some View {
+        modifier(PageTrailingItems())
     }
 }
 
-/// Implementation of `globalSearchToolbarItem()`.
-struct GlobalSearchToolbarItem: ViewModifier {
-    @Environment(\.openGlobalSearch) private var openGlobalSearch
+/// Implementation of `pageTrailingItems()`.
+struct PageTrailingItems: ViewModifier {
     @Environment(\.openProfile) private var openProfile
     @Environment(\.festivalSession) private var session
+    @Environment(\.pushRoute) private var pushRoute
+    @Environment(\.deviceLayout) private var layout
     /// A root screen pushed as a page (Leaderboards from the drawer) already ends its
-    /// toolbar with `FestivalRootTrailingItems`, whose Search and avatar would otherwise
+    /// toolbar with `FestivalRootTrailingItems`, whose bell and avatar would otherwise
     /// appear twice.
-    @State private var pageProvidesSearch = false
-    /// The macOS shell shows Search and the avatar once for the whole window.
+    @State private var pageProvidesAccount = false
+    /// The macOS shell shows the account items once for the whole window.
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
 
     func body(content: Content) -> some View {
         content
-            .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { pageProvidesSearch = $0 }
+            .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { pageProvidesAccount = $0 }
             .toolbar {
-                if let openGlobalSearch, !pageProvidesSearch, !shellOwnsGlobalToolbar {
-                    // Joins the page's own actions (`.festivalPageAction`) in one group.
-                    ToolbarItem(placement: .festivalPageAction) {
-                        GlobalSearchButton { openGlobalSearch() }
-                    }
-                }
-                // The profile avatar stays top-right on every pushed page too (operator
-                // batch 7); root screens carry it in their own trailing items. This outer
-                // modifier's items are laid out before the page's, so on iOS the avatar is
-                // the only `.primaryAction` item (pinned to the trailing edge), in its own
-                // glass group like on tab roots (issue #85).
-                if let session, !pageProvidesSearch, !shellOwnsGlobalToolbar {
+                // The bell and profile stay top-right on every pushed page too (operator
+                // batch 7, issue #92); root screens carry them in their own trailing items.
+                // This outer modifier's items are laid out before the page's, so on iOS
+                // they are the only `.primaryAction` items (pinned to the trailing edge),
+                // in their own glass group after the page's tools (issue #85).
+                if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar {
                     #if os(iOS)
                     if #available(iOS 26.0, *) {
-                        ToolbarSpacer(.fixed, placement: .primaryAction)
+                        if RootChromeTrailingGroups.separatesAccount(chrome: layout.sectionChrome) {
+                            ToolbarSpacer(.fixed, placement: .primaryAction)
+                        }
+                    }
+                    if session.selectedPlayer != nil {
+                        ToolbarItem(placement: .primaryAction) {
+                            NotificationsButton(session: session, pushRoute: pushRoute)
+                        }
                     }
                     #endif
                     ToolbarItem(placement: .primaryAction) {
