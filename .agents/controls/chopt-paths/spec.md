@@ -19,7 +19,7 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:163-167,302-3
 | Text | Activation note, beat, time, OD and score table; desktop columns drag-reorder and save to Settings |
 | Switch | Instrument, four difficulties, image/text; an old request never paints after a new choice. Content fades out (300 ms), spinner fades in for at least 400 ms (image) / 500 ms (text), fades out (300 ms), new content fades in (`PathsModal.tsx:537-750`) |
 | Error | Independent text/image failures |
-| Dismiss | Close / overlay / Escape; the web dialog lacks a full focus trap (natives fix this) |
+| Dismiss | Close / overlay / Escape; the web dialog lacks a full focus trap (natives fix this). Native bottom/page sheets also swipe down to close (Apple issue #96) |
 
 Settings dependencies: chart visibility limits the instrument menu (Intensity unaffected); if only Karaoke is visible, Paths must disappear entirely.
 
