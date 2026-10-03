@@ -21,20 +21,27 @@ private struct FirstRunPulse: ViewModifier {
     let tint: Color
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.firstRunSlideActive) private var slideActive
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.festivalWindowVisible) private var windowVisible
     @State private var lit = false
+
+    /// The slide is on screen in an active scene whose window can be seen.
+    private var visible: Bool {
+        slideActive && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible)
+    }
 
     func body(content: Content) -> some View {
         content
             .shadow(color: tint.opacity(lit ? 0.55 : 0.12), radius: lit ? 10 : 3)
             .onAppear { update() }
-            .onChange(of: slideActive) { _, _ in update() }
+            .onChange(of: visible) { _, _ in update() }
             .onChange(of: reduceMotion) { _, _ in update() }
     }
 
     /// Start the loop on the visible slide; otherwise stop it at the resting glow.
     private func update() {
         let run = FirstRunPulsePolicy.runs(
-            slideActive: slideActive, reduceMotion: reduceMotion,
+            slideActive: visible, reduceMotion: reduceMotion,
             stillBackground: DebugAnimationOverride.stillBackground
         )
         if run {
