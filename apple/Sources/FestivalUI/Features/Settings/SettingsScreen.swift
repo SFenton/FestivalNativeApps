@@ -55,6 +55,8 @@ struct SettingsScreen: View {
     @State private var serviceVersion: String?
     @State private var serviceVersionFailed = false
     @State private var showingWhatsNew = false
+    /// Privacy Policy sheet (issue #98).
+    @State private var showingPrivacyPolicy = false
     /// Open Report an Issue / Request a Feature form, if any (issue #78).
     @State private var feedbackForm: FeedbackKind?
     /// The service accepts in-app feedback (`GET /api/features` → `feedback`). The rows stay
@@ -124,6 +126,9 @@ struct SettingsScreen: View {
                     + "Your profile, song filters and navigation history will remain."
             )
         }
+        .sheet(isPresented: $showingPrivacyPolicy) {
+            PrivacyPolicySheet()
+        }
         .sheet(item: $feedbackForm, onDismiss: FeedbackFormModel.purgeStagedMedia) { kind in
             FeedbackFormSheet(kind: kind, session: session)
                 .festivalSheet(.large)
@@ -181,8 +186,13 @@ struct SettingsScreen: View {
                     .festivalFadeIn(isLoaded: true, index: 8)
                 licensesRow.quickLinkSection(id: "licenses", title: "Licenses", symbol: "doc.text")
                     .festivalFadeIn(isLoaded: true, index: 9)
-                reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
+                privacyPolicyRow
+                    .quickLinkSection(
+                        id: "privacy-policy", title: "Privacy Policy", symbol: "hand.raised"
+                    )
                     .festivalFadeIn(isLoaded: true, index: 10)
+                reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
+                    .festivalFadeIn(isLoaded: true, index: 11)
     }
 
     /// One Mac Settings pane: the same sections and rows (same storage keys and
@@ -239,6 +249,7 @@ struct SettingsScreen: View {
         case .about:
             version
             licensesRow
+            privacyPolicyRow
         }
     }
 
@@ -592,6 +603,34 @@ struct SettingsScreen: View {
         .accessibilityLabel("View Licenses")
         .accessibilityHint("Open source package license details")
         .accessibilityIdentifier("fst.settings.licenses")
+    }
+
+    /// Settings › Privacy Policy (issue #98): styled like the Licenses link, but it opens
+    /// the policy as a modal sheet instead of pushing a page (App Review 5.1.1(i) asks for
+    /// an easily accessible in-app policy; HIG Sheets: a scoped, self-contained view).
+    private var privacyPolicyRow: some View {
+        Button {
+            showingPrivacyPolicy = true
+        } label: {
+            HStack(alignment: .center, spacing: 16) {
+                FestivalSectionHeader(
+                    "Privacy Policy",
+                    subtitle: "How Festival Score Tracker handles your information."
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "chevron.forward")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(FestivalText.primary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Privacy Policy")
+        .accessibilityHint("How Festival Score Tracker handles your information")
+        .accessibilityIdentifier("fst.settings.privacy-policy")
     }
 
     /// An inline reorder list with its bold title and description, the web's

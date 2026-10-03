@@ -115,6 +115,15 @@ public sealed partial class SettingsPage : Page
     /// <param name="e">Unused.</param>
     private void OnLicensesClick(object sender, RoutedEventArgs e) => MainWindow.Instance?.Navigate(new AppRoute.Licenses());
 
+    /// <summary>Opens the shared Privacy Policy dialog (issue #98), then returns focus to the row.</summary>
+    /// <param name="sender">Row.</param>
+    /// <param name="e">Unused.</param>
+    private async void OnPrivacyPolicyClick(object sender, RoutedEventArgs e)
+    {
+        await PrivacyPolicyDialog.ShowAsync(XamlRoot);
+        (sender as Control)?.Focus(FocusState.Programmatic);
+    }
+
     /// <summary>Confirms, then restores app settings only (the web's confirm dialog).</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>

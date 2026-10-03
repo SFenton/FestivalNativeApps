@@ -2,7 +2,8 @@ import UIKit
 import XCTest
 
 /// Native journeys for Settings: a toggle survives a cold relaunch, the inline reorder
-/// lists drag to reorder, View Licenses opens a third-party-only page, and Reset App
+/// lists drag to reorder, View Licenses opens a third-party-only page, Privacy Policy opens
+/// a dismissible sheet, and Reset App
 /// Settings restores a changed toggle to its registered default
 /// (`SettingsRegistry.defaults`). Needs `tools/mock_service.py --port 18790`.
 ///
@@ -151,6 +152,45 @@ final class SettingsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "settings-licenses-page")
     }
 
+    /// Issue #98: the Privacy Policy row opens the policy as a titled sheet whose text
+    /// scrolls to its Contact section, and the system Close returns to Settings.
+    @MainActor
+    func testPrivacyPolicyRowOpensDismissibleSheet() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let row = app.buttons["fst.settings.privacy-policy"]
+        SongsUITestSupport.reveal(row, in: app, scrollingUp: false)
+        row.tap()
+
+        XCTAssertTrue(app.navigationBars["Privacy Policy"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["fst.privacy-policy.effective-date"].exists)
+        let firstHeading = app.staticTexts["fst.privacy-policy.section.information-collected"]
+        XCTAssertTrue(firstHeading.exists)
+        SongsUITestSupport.record(app, name: "settings-privacy-policy-top")
+
+        let contact = app.staticTexts["fst.privacy-policy.section.contact"]
+        let content = app.scrollViews["fst.privacy-policy.content"]
+        for _ in 0..<12 where !contact.isHittable {
+            content.swipeUp()
+        }
+        XCTAssertTrue(contact.isHittable, "The policy does not scroll to its Contact section")
+        let contactText = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "github.com/SFenton/FestivalNativeApps/issues")
+        ).firstMatch
+        XCTAssertTrue(contactText.exists, "Contact Us names the public issues page")
+        SongsUITestSupport.record(app, name: "settings-privacy-policy-contact")
+
+        let close = app.navigationBars.buttons["fst.privacy-policy.close"]
+        XCTAssertEqual(close.label, "Close")
+        close.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let closed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: app.navigationBars["Privacy Policy"]
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 10), .completed)
+    }
+
     /// Reset App Settings restores a changed toggle to its registered default.
     @MainActor
     func testResetAppSettingsRestoresChangedToggle() throws {
@@ -199,7 +239,8 @@ final class SettingsJourneyTests: XCTestCase {
 
         let pageOrder = [
             "app-settings", "diagnostics", "accessibility", "item-shop", "show-instruments",
-            "show-metadata", "version", "service-info", "first-run", "licenses", "reset",
+            "show-metadata", "version", "service-info", "first-run", "licenses", "privacy-policy",
+            "reset",
         ]
         let rows = pageOrder.map { app.buttons["fst.quick-links.item.\($0)"] }
         XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
