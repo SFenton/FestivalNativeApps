@@ -26,7 +26,7 @@ Fret accents are chart-content colours isolated to this control, not shared Flue
 
 ## Open (iPhone)
 
-Draggable column order and full table geometry; only-Karaoke-visible guard; focus-return proof; large-image performance on long real charts; warning alert full audit (system title contrast + message Dynamic Type — [accessibility](../../testing/apple/accessibility.md)). Offline/unverified path disclosure predates online-only.
+Draggable column order and full table geometry; only-Karaoke-visible guard; focus-return proof; large-image performance on long real charts; warning alert full audit (system title contrast + message Dynamic Type — [accessibility](../../testing/apple/accessibility.md)). Offline/unverified path disclosure predates online-only. iPhone Duo folded (side-bar pose, 2026-10-03, issue #96 runs): the instrument pill wraps "Lead" to "Lea/d" and `testSongPathsImageTextSwitchAndMissingDifficulty`'s `.all` audit fails Contrast on that label; the swipe-dismiss journey passes there.
 
 ## Web mobile table and selector (operator batch 6.27, Lane AP5)
 

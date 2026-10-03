@@ -157,7 +157,6 @@ final class SongDetailJourneyTests: XCTestCase {
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
         song.tap()
-        SongsUITestSupport.collapseSidebarOnPad(app)
         let open = app.buttons["fst.song-detail.paths"]
         XCTAssertTrue(open.waitForExistence(timeout: 10))
         let display = pathsMenu("fst.paths.display", in: app)
