@@ -67,6 +67,7 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
+            <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="#FF223047" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="#FFFFFFFF" />
@@ -158,6 +159,7 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
