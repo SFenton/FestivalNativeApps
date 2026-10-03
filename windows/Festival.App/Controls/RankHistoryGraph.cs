@@ -100,6 +100,8 @@ public sealed partial class RankHistoryGraph : Grid
         plot.PointerCaptureLost += (_, _) => swipeStart = null;
         SizeChanged += (_, _) => Redraw();
         Loaded += (_, _) => ForwardAutomationId();
+        // The section repeater recycles charts across instruments: re-forward when x:Bind changes the ID in place.
+        RegisterPropertyChangedCallback(AutomationProperties.AutomationIdProperty, (_, _) => ForwardAutomationId());
     }
 
     /// <summary>Chart model (the whole history).</summary>
