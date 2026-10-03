@@ -288,7 +288,7 @@ struct FirstRunSongInfoShopPillDemo: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(tint, in: Capsule())
-        .firstRunPulse(tint)
+        .firstRunPulse(tint, shape: .capsule)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityHidden(true)
     }
