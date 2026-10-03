@@ -37,7 +37,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
-| Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
+| Rivalry | ✅✅✅ (+live, #203) | 8/11/11 | UIA only (#203) | ✅ | ✅ (+200% C+M, #203) |
 | Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
 | Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
@@ -84,6 +84,17 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Rivalry validation (issue #203, 2026-10)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` on `rivalry`, `rivalry-unknown`, `rivalry-empty` and `rivalry-freeze` at compact, medium, wide, maximized and snapped, then under Night sky, Desert, light system theme, text 200% (C+M) and display 100%/150%. The same configurations ran against the live public service (SFentonX against GingerNINZIN_JPN). All runs had 0 Axe errors except fixture medium text 200%, where the 2 findings were the viewport-edge `BoundingRectangleSizeReasonable` artifact (item 3) on a row clipped at the bottom. Results per configuration are in [rivalry/windows.md](../pages/rivalry/windows.md#validation-issue-203-2026-10).
+
+Fixed:
+- The sort `ComboBox` had no visible label (now "Sort By").
+- The View Profile button overflowed a compact window at text 200%.
+- Title sort used the comparison title rather than the displayed title.
+
+The console was locked, so keys were posted. Tab walks, Enter on a row and Alt+Left worked.
 
 ## Open issues
 
