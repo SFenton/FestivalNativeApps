@@ -71,8 +71,8 @@ enum SongsUITestSupport {
     ///
     /// A search result dismisses the sheet and pushes the real `AppRoute.player`
     /// destination onto the presenting tab (`ProfileSelectionSheet.swift`'s
-    /// dismiss-then-push flow), so this waits for `fst.player.name` on that pushed
-    /// page and requires it to name `accountId`'s fixture player (the wrong-account
+    /// dismiss-then-push flow), so this waits for `fst.player.available` on that pushed
+    /// page and requires its title to name `accountId`'s fixture player (the wrong-account
     /// bug pushed every result, leaving the last on top). Pair with
     /// ``selectViewedPlayer(in:)`` to select and return to the presenting tab.
     ///
@@ -99,21 +99,40 @@ enum SongsUITestSupport {
         }
         XCTAssertTrue(result.isHittable, "Player result stayed outside the visible sheet")
         result.tap()
-        let viewed = app.staticTexts["fst.player.name"]
         XCTAssertTrue(
-            viewed.waitForExistence(timeout: 10),
+            playerPage(in: app).waitForExistence(timeout: 10),
             "Pushed player page never replaced search results: "
                 + "\(app.staticTexts.allElementsBoundByIndex.prefix(14).map(\.label))"
         )
-        let expectedName = NSPredicate(
-            format: "label == %@", fixtureDisplayNames[accountId] ?? accountId
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(
-                for: [XCTNSPredicateExpectation(predicate: expectedName, object: viewed)],
-                timeout: 10
-            ),
-            .completed, "Viewed \(viewed.label) instead of \(accountId)"
+        assertPlayerTitle(fixtureDisplayNames[accountId] ?? accountId, in: app)
+    }
+
+    /// The loaded Player Profile page (its scroll content), on whichever route.
+    ///
+    /// - Parameter app: Running app.
+    /// - Returns: The page element; it exists only while a profile is shown.
+    @MainActor
+    static func playerPage(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)["fst.player.available"]
+    }
+
+    /// Require the shown Player Profile page's navigation title to be `displayName`.
+    ///
+    /// The page has no name chip (issue #97): the large navigation title names the
+    /// player, and SwiftUI exposes it as the navigation bar's identifier.
+    ///
+    /// - Parameters:
+    ///   - displayName: Expected player name.
+    ///   - app: App on a Player Profile page.
+    @MainActor
+    static func assertPlayerTitle(
+        _ displayName: String, in app: XCUIApplication,
+        file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            app.navigationBars[displayName].waitForExistence(timeout: 10),
+            "Viewed \(app.navigationBars.allElementsBoundByIndex.map(\.identifier)) instead of \(displayName)",
+            file: file, line: line
         )
     }
 
@@ -140,8 +159,7 @@ enum SongsUITestSupport {
         }
         // A selection change pops the Songs stack by itself ("Selected profile
         // changed. Returned to Songs…"); only other tabs need a manual Back.
-        let viewed = app.staticTexts["fst.player.name"]
-        if !viewed.waitForNonExistence(timeout: 5) {
+        if !playerPage(in: app).waitForNonExistence(timeout: 5) {
             let back = app.navigationBars.buttons["BackButton"]
             XCTAssertTrue(back.waitForExistence(timeout: 5))
             back.tap()

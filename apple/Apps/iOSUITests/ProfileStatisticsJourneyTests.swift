@@ -47,14 +47,14 @@ final class ProfileStatisticsJourneyTests: XCTestCase {
         let statisticsTab = SongsUITestSupport.rootControl("Statistics", app: app)
         XCTAssertTrue(statisticsTab.waitForExistence(timeout: 10), "Statistics tab did not appear after selecting a profile")
         statisticsTab.tap()
-        let ownName = app.staticTexts["fst.player.name"]
         XCTAssertTrue(
-            ownName.waitForExistence(timeout: 15),
+            SongsUITestSupport.playerPage(in: app).waitForExistence(timeout: 15),
             "Statistics tab never reached the selected player's own profile: "
                 + "\(app.staticTexts.allElementsBoundByIndex.prefix(12).map(\.label))"
         )
-        let name = app.staticTexts["fst.player.name"]
-        XCTAssertTrue(name.exists)
+        SongsUITestSupport.assertPlayerTitle("Fixture Player 1", in: app)
+        // Issue #97: no avatar/name chip repeats the title above the content.
+        XCTAssertFalse(app.staticTexts["fst.player.name"].exists)
         SongsUITestSupport.record(app, name: "statistics-selected-player")
 
         try SongsUITestSupport.deselectFixturePlayer(in: app)
