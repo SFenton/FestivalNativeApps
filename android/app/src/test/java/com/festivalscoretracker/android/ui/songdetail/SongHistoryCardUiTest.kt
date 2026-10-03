@@ -3,6 +3,9 @@ package com.festivalscoretracker.android.ui.songdetail
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assert
@@ -249,6 +252,35 @@ class SongHistoryCardUiTest {
             }
         }
         assertFalse(exists("fst.song-detail.history"))
+    }
+
+    /** Shows the card at [fontScale] and returns the best (top) row's height in dp. */
+    private fun topRowHeightAt(fontScale: Float): Float {
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                FestivalTheme {
+                    SongHistoryCard(rows("Solo_Guitar", 3, goldLast = true), visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
+                }
+            }
+        }
+        rule.waitForIdle()
+        return rule.onNodeWithTag("fst.song-detail.history.top.0").getBoundsInRoot().height.value
+    }
+
+    @Test
+    fun largeTextStacksTheTopRowsInsteadOfClippingTheDateOrWrappingTheAccuracy() {
+        // Issue #102: at 200% on a phone the one-line row cut the date to "Jan 3," and wrapped "100%" to "100 / %".
+        val height = topRowHeightAt(2f)
+        // Stacked: the date line (bodyLarge, 48 dp at 200%) over the score/accuracy line, plus padding.
+        assertTrue("stacked row is $height dp", height >= 100f)
+        assertTrue(description("fst.song-detail.history.top.0").contains("accuracy 100%, full combo, best score"))
+    }
+
+    @Test
+    fun defaultTextKeepsTheTopRowsOnOneLine() {
+        val height = topRowHeightAt(1f)
+        assertTrue("one-line row is $height dp", height < 60f)
     }
 
     @Test
