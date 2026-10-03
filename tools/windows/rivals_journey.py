@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
 EXE = journey_exe.DEBUG_EXE
 RIVAL = "f1c749eb07c32578cfa3e59ec38c03a8"
+LEADERBOARD_RIVAL = "f1c71052e0052ae7143f3b3c750f2f49"  # rank 2 in contracts/fixtures/leaderboard-rivals-demo.json
 
 # name -> (environment, route, steps). {shot:NAME} placeholders become screenshots when --shots is given.
 SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
@@ -39,7 +40,8 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "{shot:hub}",
             "select:id=fst.rivals.tab.leaderboard",
             "waitfor:id=fst.rivals.section.leaderboard.Solo_Guitar@10",
-            "waitfor:name=#2@10",
+            # The row is one Narrator stop ("<name>, rank 2, …"); its "#2" text part is Raw (issue #200).
+            f"waitfor:id=fst.rivals.row.{LEADERBOARD_RIVAL}@10",
             "{shot:hub-leaderboard}",
             "select:id=fst.rivals.tab.song",
             "waitfor:id=fst.rivals.section.common@10",

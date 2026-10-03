@@ -34,10 +34,10 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Leaderboards + Quick Links | ✅✅✅ | 20/21/21 | ✅ | ✅ | ✅ |
 | Full Rankings / Rank By menu | ✅✅✅ | 8/11/11 | ✅ | ✅ | ✅ |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
-| Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
-| All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
-| Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
-| Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
+| Rivals / Compete | ✅✅✅ (+live, #200) | 9/10/10 | UIA only (#200) | ✅ | ✅ (+200% C+M) |
+| All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | UIA only (#200) | ✅ | ✅ (+200% C+M) |
+| Rival Detail | ✅✅✅ | 12/14/14 | UIA only (#200) | ✅ | ✅ (+200% C+M) |
+| Rivalry | ✅✅✅ | 8/11/11 | UIA only (#200) | ✅ | ✅ (+200% C+M) |
 | Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
 | Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
@@ -80,6 +80,16 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Rivals validation (issue #200, 2026-10)
+
+Evidence: `a11y_matrix.py --scan` (new `text-200` mode) for `rivals`, `compete`, `all-rivals`, `rival-detail` and `rivalry` at compact/medium/wide; the four Rivals pages at medium under all four contrast themes, text 200% (C+M), text 225%, no animations and no transparency: 0 Axe errors. Live public service (SFentonX): Night sky and text 200% render correctly, and UIA trees show one stop per row with no unnamed `Image`. Journeys `empty`, `freeze`, `no-player`, `compete` and `populated` pass.
+
+Fixed:
+- Rival rows (hub, All Rivals) and Rival Detail/Rivalry song rows exposed every rank, name, pill and score `Text`, the instrument icons and `SongArt`'s inner `Image` under the named row, so Narrator scan mode read each row twice. Now all parts are Raw. Rivalry rows read the song, artist and year plus both ranks and scores (`RivalSongItem.FullAccessibleName`).
+- Anonymous leaderboard rivals (live `accountId: ""`) broke three Leaderboard Rivals cards. They now read "Unknown User, rank N, …" as non-actionable rows (see [Rivals Windows notes](../pages/rivals/windows.md)).
+
+Same host constraint as #196 (locked console; display scaling fixed at 300%).
 
 ## Open issues
 

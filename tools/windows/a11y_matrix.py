@@ -10,7 +10,7 @@ walk. System modes change the operator's real desktop, so they are applied insid
 previous values are always restored before it is released.
 
 Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` (contrast themes);
-``text-150``, ``text-225`` (text size); ``no-animations`` (Animation effects off); ``no-transparency``;
+``text-150``, ``text-200``, ``text-225`` (text size); ``no-animations`` (Animation effects off); ``no-transparency``;
 ``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data); ``app-contrast`` (in-app
 More Contrast + Less Transparency).
 
@@ -59,6 +59,7 @@ MODES: dict[str, dict] = {
     "hc-dusk": {"system": {"high_contrast": "dusk"}},
     "hc-night-sky": {"system": {"high_contrast": "night-sky"}},
     "text-150": {"system": {"text_scale": 150}},
+    "text-200": {"system": {"text_scale": 200}},
     "text-225": {"system": {"text_scale": 225}},
     "no-animations": {"system": {"animations": False}},
     "no-transparency": {"system": {"transparency": False}},
