@@ -316,6 +316,20 @@ class RivalsCoreTest {
         assertEquals(-7000L, RivalHeadToHead.scoreDiff(song(0).copy(userScore = 1000, rivalScore = 8000)))
     }
 
+    @Test
+    fun spokenGapsUseFullCountsWithoutSignsAndSingularNouns() {
+        assertEquals("you lead by 2 ranks", RivalHeadToHead.spokenRankLead(2, "Rival", Locale.US))
+        assertEquals("Rival leads by 1 rank", RivalHeadToHead.spokenRankLead(-1, "Rival", Locale.US))
+        assertEquals("you lead by 1 rank", RivalHeadToHead.spokenRankLead(1, "Rival", Locale.US))
+        assertEquals("Rival leads by 15,400 ranks", RivalHeadToHead.spokenRankLead(-15_400, "Rival", Locale.US))
+        assertEquals("tied on rank", RivalHeadToHead.spokenRankLead(0, "Rival", Locale.US))
+        assertEquals("your score is 20 points higher", RivalHeadToHead.spokenScoreDiff(song(20), Locale.US))
+        assertEquals("your score is 1 point higher", RivalHeadToHead.spokenScoreDiff(song(1), Locale.US))
+        assertEquals("your score is 7,000 points lower", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = 1000, rivalScore = 8000), Locale.US))
+        assertEquals("your score is 1 point lower", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = 999, rivalScore = 1000), Locale.US))
+        assertEquals("same score", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = null, rivalScore = null), Locale.US))
+    }
+
     // endregion
 
     // region Columns
