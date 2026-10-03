@@ -106,4 +106,55 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(explanation.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Band Rankings"].exists)
     }
+
+    /// Issue #99: in "All" an empty Players section is hidden while songs match; an
+    /// empty Players, Songs or All scope shows a centred title and subtitle, with Retry
+    /// wherever players were searched, as one VoiceOver element.
+    @MainActor
+    func testEmptyResultsShowCentredTitleSubtitleAndRetry() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        let field = openSearch(in: app)
+        field.tap()
+        field.typeText("Pulse")
+        XCTAssertTrue(
+            app.buttons.matching(identifier: "fst.global-search.result.song").firstMatch
+                .waitForExistence(timeout: 10)
+        )
+        // The fixture has no player named "Pulse": once players settle, no Players
+        // section or inline "No players found" row remains in All.
+        let playersSection = app.descendants(matching: .any)
+            .matching(identifier: "fst.global-search.section.players").firstMatch
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: playersSection)
+        wait(for: [gone], timeout: 15)
+        let retry = app.descendants(matching: .any).matching(identifier: "fst.global-search.retry").firstMatch
+        XCTAssertFalse(retry.exists, "All showed an empty Players row")
+
+        let scope = app.segmentedControls["fst.global-search.scope"]
+        scope.buttons["Players"].tap()
+        XCTAssertTrue(retry.waitForExistence(timeout: 10), "Players scope has no empty state")
+        XCTAssertTrue(retry.label.hasPrefix("No Players Found. Check the spelling"), retry.label)
+        XCTAssertTrue(retry.label.hasSuffix("Retry"), retry.label)
+        let window = app.windows.firstMatch.frame
+        XCTAssertEqual(retry.frame.midX, window.midX, accuracy: 2, "Empty state is not centred horizontally")
+        XCTAssertGreaterThan(retry.frame.minY, scope.frame.maxY + 40, "Empty state is not centred vertically")
+        retry.tap()
+        XCTAssertTrue(retry.waitForExistence(timeout: 10), "Retry lost the empty state")
+
+        // The field's prompt follows the scope ("Search players"), so find it afresh.
+        let scopedField = app.searchFields.firstMatch
+        scopedField.tap()
+        scopedField.typeText("zzz")
+        scope.buttons["Songs"].tap()
+        let hint = app.descendants(matching: .any).matching(identifier: "fst.global-search.hint").firstMatch
+        XCTAssertTrue(hint.waitForExistence(timeout: 10), "Songs scope has no empty state")
+        XCTAssertTrue(hint.label.hasPrefix("No Songs Found. Check the spelling"), hint.label)
+        XCTAssertFalse(retry.exists, "Songs offered Retry for a local search")
+
+        scope.buttons["All"].tap()
+        XCTAssertTrue(retry.waitForExistence(timeout: 15), "All scope has no empty state")
+        XCTAssertTrue(retry.label.hasPrefix("No Results Found. Check the spelling"), retry.label)
+    }
 }
