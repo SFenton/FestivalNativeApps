@@ -1,6 +1,7 @@
 import XCTest
 
-/// Issue #15: navigation-bar page buttons accept near-miss taps.
+/// Issue #15: page buttons accept near-miss taps. Since issue #92 the page tools and
+/// the account group (Notifications, Profile) live in the tab-bar bottom accessory.
 ///
 /// Each button is tapped 20 pt off-centre in every direction and 15 pt diagonally, all
 /// inside a 44 × 44 pt square centred on it (HIG Buttons: "the hit region is at least
@@ -34,7 +35,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     // MARK: - Journeys
 
-    /// Songs' page tools in the navigation bar accept 44 pt near-miss taps.
+    /// Songs' page tools in the tab-bar accessory accept 44 pt near-miss taps.
     @MainActor
     func testSongsPageToolsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -44,12 +45,12 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let sort = app.buttons["fst.songs.sort"]
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
         try chooseYearSort(in: app)
-        // XCUITest reports the 36 pt glass capsule; the system hit region around it is
-        // checked by the near-miss taps below.
+        // Each accessory item fills its slot, so the reported frame is the hit region.
         let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
         let frames = ids.map { app.buttons[$0].frame }
         for (id, frame) in zip(ids, frames) {
-            XCTAssertGreaterThanOrEqual(frame.height, 36, "\(id) \(frame)")
+            XCTAssertGreaterThanOrEqual(frame.height, 44, "\(id) \(frame)")
+            XCTAssertGreaterThanOrEqual(frame.width, 44, "\(id) \(frame)")
         }
         for index in frames.indices.dropLast() {
             XCTAssertLessThanOrEqual(frames[index].maxX, frames[index + 1].minX, "\(ids[index]) overlaps its neighbour")
@@ -66,20 +67,26 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Songs' trailing navigation bar order is page tools, then account items, with
-    /// 44 pt hit regions on the standard iPhone width.
+    /// Issue #92: Songs' page tools, then Notifications and Profile, sit left to right in
+    /// the tab-bar accessory (Profile last) with 44 pt hit regions on the standard iPhone
+    /// width; none of them is left in the navigation bar.
     @MainActor
-    func testSongsTrailingNavBarOrderAndHitRegions() throws {
+    func testSongsAccessoryOrderAndHitRegions() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
         let ids = ["fst.songs.sort", "fst.songs.filter", "fst.shell.notifications", "fst.shell.profile"]
-        let controls = ids.map { app.buttons[$0] }
+        let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
+        XCTAssertTrue(accessory.waitForExistence(timeout: 15), "Tab-bar accessory missing")
+        let controls = ids.map { accessory.buttons[$0] }
         XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "iPhone 17 Pro should not fold Sort and Filter")
         for (id, control) in zip(ids, controls) {
-            XCTAssertTrue(control.waitForExistence(timeout: 15), "\(id) missing")
+            XCTAssertTrue(control.waitForExistence(timeout: 15), "\(id) missing from the accessory")
             XCTAssertTrue(control.isHittable, "\(id) not hittable")
-            XCTAssertGreaterThanOrEqual(control.frame.height, 36, "\(id) visual frame \(control.frame)")
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44, "\(id) hit region \(control.frame)")
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44, "\(id) hit region \(control.frame)")
+            XCTAssertFalse(app.navigationBars.buttons[id].exists, "\(id) is still in the navigation bar")
+            XCTAssertGreaterThan(control.frame.minY, app.navigationBars.firstMatch.frame.maxY)
         }
         for index in controls.indices.dropLast() {
             XCTAssertLessThan(
@@ -89,7 +96,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Drawer, bell and the selected-profile monogram in the navigation bar.
+    /// The drawer (navigation bar), bell and selected-profile monogram (tab-bar accessory).
     @MainActor
     func testHeaderButtonsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -107,7 +114,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Choose Profile (anonymous) and Suggestions' Filter in the navigation bar.
+    /// Choose Profile (anonymous) and Suggestions' Filter in the tab-bar accessory.
     @MainActor
     func testChooseProfileAndSuggestionsFilterAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -128,9 +135,11 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Sort, Filter and Quick Links stay in the navigation bar while the list scrolls.
+    /// Issue #92: scrolling minimizes the tab bar and moves the accessory inline, where
+    /// Sort and Filter fold into one control; it and Quick Links still accept near-miss
+    /// taps and open their choices (as a sheet: iOS 26 does not open a `Menu` there).
     @MainActor
-    func testSongsToolsStayInTheBarWhileScrolled() throws {
+    func testSongsToolsStayInTheInlineAccessoryWhileScrolled() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
@@ -140,31 +149,36 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let field = app.searchFields["Filter Songs"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         app.swipeUp()
-        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
+        let ids = ["fst.songs.tools", "fst.quick-links.open", "fst.shell.notifications", "fst.shell.profile"]
         for _ in 0..<100 {
-            let bar = app.navigationBars.firstMatch.frame
-            if ids.allSatisfy({ id in
-                let button = app.buttons[id]
-                return button.exists && button.isHittable && button.frame.maxY <= bar.maxY + 1
-            }) {
-                break
-            }
+            if ids.allSatisfy({ app.buttons[$0].exists && app.buttons[$0].isHittable }) { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        let bar = app.navigationBars.firstMatch.frame
-        guard ids.allSatisfy({ app.buttons[$0].exists && app.buttons[$0].frame.maxY <= bar.maxY + 1 }) else {
+        guard ids.allSatisfy({ app.buttons[$0].exists }) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
         XCTAssertTrue(field.exists, "Filter Songs field disappeared while scrolled")
-        assertNearMissesOpen(app, "fst.songs.sort", opens: app.buttons["fst.songs.sort.done"]) {
-            app.buttons["fst.songs.sort.done"].tap()
+        let frames = ids.map { app.buttons[$0].frame }
+        for (id, frame) in zip(ids, frames) {
+            XCTAssertGreaterThanOrEqual(frame.width, 44, "\(id) \(frame)")
+            XCTAssertGreaterThan(frame.minY, app.navigationBars.firstMatch.frame.maxY, "\(id) in the header")
         }
-        assertNearMissesOpen(app, "fst.songs.filter", opens: app.buttons["fst.songs.filter.done"]) {
-            app.buttons["fst.songs.filter.done"].tap()
+        for index in frames.indices.dropLast() {
+            XCTAssertLessThanOrEqual(frames[index].maxX, frames[index + 1].minX, "\(ids[index]) overlaps its neighbour")
+        }
+        let menuClose = app.buttons["fst.page-tools.menu.close"]
+        assertNearMissesOpen(app, "fst.songs.tools", opens: app.buttons["fst.songs.tools.filter"]) {
+            menuClose.tap()
         }
         assertNearMissesOpen(app, "fst.quick-links.open", opens: quickLinksRow(in: app)) {
             Self.closeQuickLinks(in: app)
         }
+        // A choice runs once the sheet has closed: Filter… opens the Filter sheet.
+        app.buttons["fst.songs.tools"].tap()
+        XCTAssertTrue(app.buttons["fst.songs.tools.filter"].waitForExistence(timeout: 5))
+        app.buttons["fst.songs.tools.filter"].tap()
+        XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: 5))
+        app.buttons["fst.songs.filter.done"].tap()
     }
 
     // MARK: - Helpers
@@ -183,6 +197,11 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     ) {
         let button = app.buttons.matching(identifier: id).firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 10), "\(id) missing", file: file, line: line)
+        // A closing sheet briefly leaves the accessory's items without a frame.
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: button)
+        XCTAssertEqual(XCTWaiter.wait(for: [hittable], timeout: 5), .completed, "\(id) not hittable", file: file, line: line)
+        // A `Menu` ignores taps while a sheet is still animating away.
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
         let frame = button.frame
         let origin = app.coordinate(withNormalizedOffset: .zero)
         for offset in Self.nearMisses {
@@ -195,6 +214,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
             close()
             let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: opens)
             XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 5), .completed, file: file, line: line)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.6))
         }
     }
 
@@ -205,12 +225,16 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     }
 
     /// Close the Quick Links menu by tapping away from it; the dismissing tap is
-    /// consumed. A legacy sheet closes with its close button.
+    /// consumed. A legacy sheet, or the inline accessory's sheet, closes with its close
+    /// button.
     @MainActor
     private static func closeQuickLinks(in app: XCUIApplication) {
         let close = app.buttons["fst.quick-links.close"]
+        let inlineClose = app.buttons["fst.page-tools.menu.close"]
         if close.exists {
             close.tap()
+        } else if inlineClose.exists {
+            inlineClose.tap()
         } else {
             app.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
         }

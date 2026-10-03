@@ -126,19 +126,21 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(field.exists, "Filter Songs field disappeared")
     }
 
-    /// Sort and Filter stay in the navigation bar while the Songs list scrolls; the
-    /// pinned Filter Songs field remains present for local filtering.
+    /// Issue #92: Sort and Filter sit in the tab-bar accessory, not the navigation bar,
+    /// and stay reachable while the Songs list scrolls (folded into "Sort and Filter"
+    /// when the inline accessory is too narrow); the pinned Filter Songs field remains
+    /// present for local filtering.
     ///
     /// Needs a catalogue that scrolls (`TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`, as for
     /// ``testScrollingBackToTopNearTheTopStaysResponsive``); skips on the two-song fixture.
     @MainActor
-    func testToolsRemainInTheNavigationBarWhileScrolled() throws {
+    func testToolsStayInTheTabBarAccessoryWhileScrolled() throws {
         continueAfterFailure = false
         try assertToolsWhileScrolled(profile: false, tools: ["fst.songs.sort", "fst.songs.filter"])
         try assertToolsWhileScrolled(profile: true, tools: ["fst.songs.sort", "fst.songs.filter"])
     }
 
-    /// Launch the scrolling catalogue and check the Songs tools remain in the top bar.
+    /// Launch the scrolling catalogue and check the Songs tools stay in the accessory.
     ///
     /// - Parameters:
     ///   - profile: Launch with the fixture player selected.
@@ -165,31 +167,33 @@ final class SongsChromeJourneyTests: XCTestCase {
         let field = app.searchFields["Filter Songs"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         let who = profile ? "profile" : "anonymous"
-        func assertInTopBar(_ state: String) {
+        let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
+        XCTAssertTrue(accessory.waitForExistence(timeout: 5), "\(who): tab-bar accessory missing")
+        func assertInAccessory(_ ids: [String], _ state: String) {
             let bar = app.navigationBars.firstMatch.frame
-            for id in tools {
-                let tool = app.buttons[id]
-                XCTAssertTrue(tool.exists, "\(who): \(id) missing \(state)")
+            for id in ids + ["fst.shell.profile"] {
+                let tool = accessory.buttons[id]
+                XCTAssertTrue(tool.exists, "\(who): \(id) missing from the accessory \(state)")
                 XCTAssertTrue(tool.isHittable, "\(who): \(id) not hittable \(state)")
-                XCTAssertLessThanOrEqual(tool.frame.maxY, bar.maxY + 1, "\(who): \(id) left the bar \(state)")
-                XCTAssertGreaterThanOrEqual(tool.frame.height, 36, "\(who): \(id) glass capsule under 36 pt")
+                XCTAssertFalse(app.navigationBars.buttons[id].exists, "\(who): \(id) in the header \(state)")
+                XCTAssertGreaterThan(tool.frame.minY, bar.maxY, "\(who): \(id) in the header \(state)")
+                XCTAssertGreaterThanOrEqual(tool.frame.width, 44, "\(who): \(id) slot under 44 pt")
             }
         }
-        assertInTopBar("at the top")
+        assertInAccessory(tools, "at the top")
         app.swipeUp()
+        // Inline beside the minimized tab bar, Sort and Filter may fold into one control.
+        let folded = ["fst.songs.tools"]
         for _ in 0..<100 {
-            let bar = app.navigationBars.firstMatch.frame
-            if tools.allSatisfy({ id in
-                let tool = app.buttons[id]
-                return tool.exists && tool.isHittable && tool.frame.maxY <= bar.maxY + 1
-            }) {
+            if (tools + ["fst.shell.profile"]).allSatisfy({ accessory.buttons[$0].isHittable })
+                || accessory.buttons["fst.songs.tools"].exists {
                 break
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        assertInTopBar("while scrolled")
+        assertInAccessory(accessory.buttons["fst.songs.tools"].exists ? folded : tools, "while scrolled")
         XCTAssertTrue(field.exists, "\(who): Filter Songs hid while scrolled")
-        SongsUITestSupport.record(app, name: "songs-tools-top-bar-\(who)")
+        SongsUITestSupport.record(app, name: "songs-tools-accessory-\(who)")
     }
 
     /// Reversing the sort re-orders the list and shows it from the top: the new first
@@ -275,7 +279,10 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 5))
         XCTAssertTrue(search.isHittable, "Songs search did not return")
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].isHittable, "First row not shown")
-        XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Sort did not remain available")
+        XCTAssertTrue(
+            app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
+            "Sort did not remain available"
+        )
     }
 
     /// Issue #9: a far A–Z rail jump (# → P) showed Q's songs, or P's songs under a "Q"
@@ -432,6 +439,9 @@ final class SongsChromeJourneyTests: XCTestCase {
         app.swipeDown()
         app.swipeDown()
         XCTAssertTrue(SongsUITestSupport.songsSearchEntry(in: app).waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Floating Sort did not return")
+        XCTAssertTrue(
+            app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
+            "Sort did not return to the tab-bar accessory"
+        )
     }
 }
