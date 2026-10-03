@@ -23,9 +23,9 @@ struct RootChromeRailPriorityTests {
         #expect(!RootChromeRailItem.drawer.staysVisibleAheadOfOthers)
     }
 
-    @Test("Quick Links stays visible with the bell and profile (issue #92)")
-    func quickLinksOutranksPageActions() {
-        #expect(RootChromeRailItem.quickLinks.staysVisibleAheadOfOthers)
+    @Test("Quick Links yields the folded rail to the bell and profile (issue #92)")
+    func quickLinksYieldsToAccountItems() {
+        #expect(!RootChromeRailItem.quickLinks.staysVisibleAheadOfOthers)
     }
 
     @Test("Every rail item resolves to a ranking (no silent gaps as cases are added)")

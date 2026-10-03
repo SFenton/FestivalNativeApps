@@ -27,8 +27,8 @@ public struct QuickLinksToolbarItem: ToolbarContent {
     public static var defaultPlacement: ToolbarItemPlacement { .festivalPageAction }
 
     public var body: some ToolbarContent {
-        // Stays visible in the iPhone Duo vertical bar while page actions overflow
-        // (issue #92, ``RootChromeRailItem``).
+        // Default priority in the iPhone Duo vertical bar: the bell and profile stay
+        // visible first (issue #92, ``RootChromeRailItem``).
         #if os(iOS)
         if #available(iOS 27.0, *) {
             ToolbarItem(placement: placement) {

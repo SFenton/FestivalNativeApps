@@ -84,11 +84,13 @@ extension EnvironmentValues {
 /// `visibilityPriority`, so ``RootChromeRailPriorityTests`` pins the decision
 /// against a regression, not just a comment.
 ///
-/// Global search is the Search tab (issue #92), so it is no longer a rail item. Quick
-/// Links joins the bell and profile (issue #92: they "always stay visible"); page
-/// actions such as Sort and Filter keep the default priority and overflow first (HIG
-/// Designing for iPhone Duo: "Set visibility priority by group ... to preserve frequent
-/// actions ... and status/badged items").
+/// Global search is the Search tab (issue #92), so it is no longer a rail item. The
+/// separate Search tab leaves the folded rail room for only two items plus "…" with a
+/// profile selected (measured 2026-10-04): with Quick Links at `.high` too, the profile
+/// moved into "…". So Quick Links keeps the default priority, like Sort and Filter, and
+/// the badged bell and the profile identity stay visible (HIG Designing for iPhone Duo:
+/// "Set visibility priority by group ... to preserve frequent actions ... and
+/// status/badged items"). Horizontal bars show Quick Links regardless.
 enum RootChromeRailItem: CaseIterable, Equatable {
     case drawer
     case quickLinks
@@ -99,8 +101,8 @@ enum RootChromeRailItem: CaseIterable, Equatable {
     /// items with standard priority once the vertical bar runs out of room.
     var staysVisibleAheadOfOthers: Bool {
         switch self {
-        case .drawer: false
-        case .quickLinks, .bell, .profile: true
+        case .drawer, .quickLinks: false
+        case .bell, .profile: true
         }
     }
 }
