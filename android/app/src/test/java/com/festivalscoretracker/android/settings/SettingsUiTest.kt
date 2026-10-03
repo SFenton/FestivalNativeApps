@@ -37,6 +37,7 @@ import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.ui.common.FloatingToolbarTags
 import com.festivalscoretracker.android.ui.firstrun.FIRST_RUN_DEMO_IDS
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
@@ -177,6 +178,15 @@ class SettingsUiTest {
     fun quickLinksSheetJumpsToLiveServiceInfo() {
         launch(settingsTab)
         waitForTag("fst.quick-links.open")
+        // Issue #89: a page's lone Quick Links is a round icon-only pill (64 dp around a 48 dp
+        // target), not a full-width text button, and no leading pill appears beside it.
+        val pill = rule.onNodeWithTag(FloatingToolbarTags.ACTIONS).fetchSemanticsNode().boundsInRoot
+        assertEquals(64 * 3f, pill.width, 1f)
+        assertEquals(pill.width, pill.height, 1f)
+        assertTrue(rule.onAllNodesWithTag(FloatingToolbarTags.LEADING).fetchSemanticsNodes().isEmpty())
+        val open = rule.onNodeWithTag("fst.quick-links.open").fetchSemanticsNode()
+        assertTrue(open.touchBoundsInRoot.width >= 48 * 3f - 1f && open.touchBoundsInRoot.height >= 48 * 3f - 1f)
+        assertTrue(open.config[SemanticsProperties.ContentDescription].single().startsWith("Quick Links"))
         rule.onNodeWithTag("fst.quick-links.open").performClick()
         waitForTag("fst.quick-links.sheet")
         rule.onNodeWithTag("fst.quick-links.item.service-info").performSemanticsAction(SemanticsActions.OnClick)

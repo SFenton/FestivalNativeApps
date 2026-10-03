@@ -68,11 +68,11 @@ object SongsToolbarSearchTags {
 internal const val SONGS_SEARCH_PLACEHOLDER = "Search songs or artists"
 
 /**
- * The Songs search entry in the phone floating toolbar (issue #84, the Android port of iOS #42's
- * accessory search): at the top of the list a field-shaped button that takes the toolbar's free
- * width and shows the placeholder or the current query (with an inline Clear); once the list
- * scrolls down, a search icon in the same pill, gold while a query filters the list. Either opens
- * [SongsToolbarSearchField].
+ * The Songs search entry in the phone floating toolbar's leading pill (issue #84, the Android port
+ * of iOS #42's accessory search; its own pill beside the tools since issue #89): at the top of the
+ * list a field-shaped button that takes the free width and shows the placeholder or the current
+ * query (with an inline Clear); once the list scrolls down, a round search icon, gold while a query
+ * filters the list. Either opens [SongsToolbarSearchField].
  *
  * @param query Current Songs search text.
  * @param minimized Show the icon instead of the field-shaped button.
@@ -123,7 +123,8 @@ internal fun RowScope.SongsToolbarSearchButton(query: String, minimized: Boolean
 }
 
 /**
- * The editable Songs search field that replaces the toolbar's tools while open. It is focused on
+ * The editable Songs search field that fills the leading pill while open; the tools pill steps
+ * aside meanwhile. It is focused on
  * open and the shell lifts the toolbar above the keyboard (`FestivalScreen(actionsAboveKeyboard)`),
  * so typing is never hidden. The close arrow, system back, the keyboard's Search key and losing
  * focus all close it and keep the query; Clear empties it.

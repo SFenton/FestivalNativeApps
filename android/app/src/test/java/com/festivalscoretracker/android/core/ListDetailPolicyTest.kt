@@ -11,6 +11,7 @@ import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -70,5 +71,27 @@ class ListDetailPolicyTest {
         songs()
         assertFalse(host.pinned)
         assertNull(host.current)
+    }
+
+    @Test
+    fun leadingPillFollowsTheLatestToolbarOwner() {
+        // Issue #89: Songs registers its search as a separate leading pill; a page pushed over it
+        // with only actions shows no leading pill, and Songs gets its search back on return.
+        val host = FloatingToolbarHost()
+        val content = mutableStateOf<@Composable RowScope.() -> Unit>({})
+        val search: @Composable RowScope.() -> Unit = {}
+        val leading = mutableStateOf<(@Composable RowScope.() -> Unit)?>(search)
+        assertNull(host.currentLeading)
+        val songs = host.register(content, pinned = true, leading = leading)
+        assertSame(search, host.currentLeading)
+        val detail = host.register(content)
+        assertNull(host.currentLeading)
+        detail()
+        assertSame(search, host.currentLeading)
+        // A wider window drops the leading control without re-registering.
+        leading.value = null
+        assertNull(host.currentLeading)
+        songs()
+        assertNull(host.currentLeading)
     }
 }
