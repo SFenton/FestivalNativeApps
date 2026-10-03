@@ -9,6 +9,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import com.festivalscoretracker.android.ui.notifications.NotificationMediaKind
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -241,6 +242,22 @@ class SettingsUiTest {
     }
 
     @Test
+    fun privacyPolicyRowOpensTheSharedPolicyInASheet() {
+        launch(settingsTab)
+        waitForTag("fst.settings.list")
+        tap("fst.settings.privacy-policy")
+        waitForTag("fst.settings.privacy.list")
+        rule.onNodeWithTag("fst.settings.privacy.sheet").assertExists()
+        rule.onNodeWithTag("fst.settings.privacy.title").assertTextEquals("Privacy Policy")
+        rule.onNodeWithTag("fst.settings.privacy.effective-date").assertTextEquals("Effective October 3, 2026")
+        // Section titles are headings, in contract order.
+        rule.onNodeWithTag("fst.settings.privacy.list").performScrollToNode(hasTestTag("fst.settings.privacy.section.contact"))
+        rule.onNodeWithText("Contact Us").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        rule.onNodeWithTag("fst.settings.privacy.close").performSemanticsAction(SemanticsActions.OnClick)
+        waitGone("fst.settings.privacy.sheet")
+    }
+
+    @Test
     fun firstRunShowsUnseenSlidesOnceAndSettingsReplayShowsAll() {
         launch(DebugLaunch(stillBackground = true, firstRun = "on"))
         waitForTag("fst.first-run.dialog")
@@ -373,5 +390,28 @@ class ExpandedSettingsUiTest {
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.text").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.licenses.detail-pane").assertExists()
         assertTrue(rule.onAllNodesWithTag("fst.licenses.detail").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun privacyPolicyIsADialogOnExpandedWindows() {
+        val debug = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
+        val transport = FakeTransport.standard().apply {
+            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+        }
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+        fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.quick-links.open").performClick()
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.menu").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.quick-links.item.privacy-policy").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.privacy-policy").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.settings.privacy-policy").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.privacy.list").fetchSemanticsNodes().isNotEmpty() }
+        // Wider windows: a centred dialog capped at the shared modal width, not a full-width sheet.
+        val bounds = rule.onNodeWithTag("fst.settings.privacy.sheet").getUnclippedBoundsInRoot()
+        assertTrue((bounds.right - bounds.left).value <= 560f + 1f)
+        rule.onNodeWithTag("fst.settings.privacy.close").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.privacy.sheet").fetchSemanticsNodes().isEmpty() }
     }
 }

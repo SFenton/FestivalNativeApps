@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LibraryMusic
@@ -323,6 +324,7 @@ fun quickLinkIcon(token: String?): ImageVector = when (token) {
     "service" -> Icons.Outlined.Dns
     "sparkles" -> Icons.Outlined.AutoAwesome
     "document" -> Icons.Outlined.Description
+    "privacy" -> Icons.Outlined.PrivacyTip
     "trash" -> Icons.Outlined.Delete
     "accessibility" -> Icons.Outlined.Accessibility
     "trophy" -> Icons.Outlined.EmojiEvents

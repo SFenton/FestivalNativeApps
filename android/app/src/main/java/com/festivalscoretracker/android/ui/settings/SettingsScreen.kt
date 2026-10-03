@@ -77,6 +77,7 @@ import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.LicensesRoute
+import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import com.festivalscoretracker.android.core.settings.AppBuildInfo
@@ -117,6 +118,7 @@ internal fun settingsSections(debug: Boolean): List<QuickLinkSection> = buildLis
     add(QuickLinkSection("service-info", "Service Info", "service"))
     add(QuickLinkSection("first-run", "First Run Guides", "sparkles"))
     add(QuickLinkSection("licenses", "Licenses", "document"))
+    add(QuickLinkSection("privacy-policy", "Privacy Policy", "privacy"))
     add(QuickLinkSection("reset", "Reset Settings", "trash"))
 }
 
@@ -156,6 +158,7 @@ fun SettingsScreen(
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
+    var showPrivacy by rememberSaveable { mutableStateOf(false) }
     val serviceVersion by viewModel.serviceVersion.collectAsStateWithLifecycle()
     // The rows show only once the service reports `feedback: true`; each Settings visit retries a failed read.
     val feedbackAvailable = feedback?.let { it.available.collectAsStateWithLifecycle().value } == true
@@ -191,6 +194,9 @@ fun SettingsScreen(
                                     "licenses" -> NavigationRow("Licenses", "Open source package license details.", "fst.settings.licenses") {
                                         shell.navigate(LicensesRoute)
                                     }
+                                    "privacy-policy" -> NavigationRow("Privacy Policy", "What information the app handles and your choices.", "fst.settings.privacy-policy") {
+                                        showPrivacy = true
+                                    }
                                     "reset" -> ResetSection { confirmReset = true }
                                 }
                             }
@@ -203,6 +209,7 @@ fun SettingsScreen(
         }
     }
     feedback?.let { FeedbackDialogHost(it) }
+    if (showPrivacy) PrivacyPolicySheet(compact = !AdaptiveLayoutPolicy.isRegularWidth(windowWidthDp), onDismiss = { showPrivacy = false })
     if (confirmReset) {
         FestivalAlertDialog(
             title = "Reset Settings",
