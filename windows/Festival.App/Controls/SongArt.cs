@@ -35,6 +35,8 @@ public sealed partial class SongArt : ContentControl
             Child = image,
         };
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
+        // Raw on the host does not hide its children: without this the image leaks as an unnamed Image (issue #200).
+        AutomationProperties.SetAccessibilityView(image, AccessibilityView.Raw);
         Unloaded += (_, _) => load?.Cancel();
         Loaded += (_, _) =>
         {
