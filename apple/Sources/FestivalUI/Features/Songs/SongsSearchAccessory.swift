@@ -3,18 +3,18 @@ import FestivalDesign
 
 // MARK: - Rules
 
-/// The Songs list search when it lives in the iOS 26.1+ tab-bar accessory (issue #42).
+/// The Songs list search when it leads the iOS 26.1+ page-tools dock (issues #42, #89).
 ///
-/// The accessory shows a field-shaped button; tapping it opens ``SongsSearchBar``, a
+/// The dock shows a field-shaped button; tapping it opens ``SongsSearchBar``, a
 /// focused field that rides just above the keyboard (HIG Search fields: a bottom field
-/// "animates above the keyboard when tapped"). A `TextField` inside the accessory itself
-/// did not take focus and stayed under the keyboard on iOS 26.5
+/// "animates above the keyboard when tapped"). A `TextField` inside the system tab-bar
+/// accessory (issue #42's first home) did not take focus and stayed under the keyboard on iOS 26.5
 /// (`.agents/design/apple/nav-accessories.md`). The text is the same Songs filter the
 /// `.searchable` field edits on earlier iOS, the iPhone Duo rail, iPad and Mac.
 enum SongsSearchAccessory {
     /// Placeholder naming what the field searches (web `songs.searchPlaceholder`).
     static let prompt = "Search songs or artists"
-    /// Placeholder when the inline accessory has no room for ``prompt``.
+    /// Placeholder when the dock beside the minimized tab bar has no room for ``prompt``.
     static let shortPrompt = "Search"
     /// VoiceOver name of the accessory button and the field.
     static let accessibilityLabel = "Search Songs"
@@ -51,7 +51,7 @@ enum SongsSearchAccessory {
 
 // MARK: - Accessory button
 
-/// The Songs search inside the tab-bar accessory: a field-shaped button showing the
+/// The Songs search in the page-tools dock: a field-shaped button showing the
 /// prompt or the current query, plus Clear while text is entered. Both are separate
 /// VoiceOver elements with 44 pt hit targets.
 struct SongsSearchAccessoryButton: View {
@@ -96,14 +96,18 @@ struct SongsSearchAccessoryButton: View {
         }
     }
 
-    /// The query, or the prompt shortened to fit the inline accessory.
+    /// The query, or the prompt shortened (or dropped) to fit beside the minimized tab bar.
     @ViewBuilder private var label: some View {
         if let shown = SongsSearchAccessory.displayedQuery(query) {
             Text(shown).lineLimit(1)
         } else {
+            // Beside the minimized tab bar the field can shrink to its magnifier alone
+            // (HIG Search fields: "choose an expanded field or button according to
+            // available space"); VoiceOver still reads "Search Songs".
             ViewThatFits(in: .horizontal) {
                 Text(SongsSearchAccessory.prompt).lineLimit(1)
                 Text(SongsSearchAccessory.shortPrompt).lineLimit(1)
+                Color.clear.frame(width: 0, height: 0)
             }
             .opacity(0.8)
         }
@@ -113,7 +117,7 @@ struct SongsSearchAccessoryButton: View {
 // MARK: - Search bar
 
 /// The focused Songs search field shown above the keyboard while searching from the
-/// tab-bar accessory. Return keeps the query and closes the bar; Cancel clears it.
+/// page-tools dock (which steps aside meanwhile). Return keeps the query and closes the bar; Cancel clears it.
 /// The list filters as you type, behind the keyboard.
 struct SongsSearchBar: View {
     @Binding var text: String

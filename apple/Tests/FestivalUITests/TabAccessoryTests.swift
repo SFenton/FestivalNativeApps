@@ -90,12 +90,12 @@ struct TabAccessoryRegistryTests {
         registry.upsert(id: links, order: DockOrder.quickLinks, scope: detail, content: AnyView(EmptyView()))
         #expect(registry.frontItems.isEmpty, "No page on screen yet")
         registry.pageAppeared(songs)
-        #expect(registry.frontItems.map(\.id) == [search, filter, sort])
+        #expect(registry.frontItems.map(\.id) == [search, sort, filter])
         #expect(registry.frontItems.first?.kind == .field)
         registry.pageAppeared(detail)
         #expect(registry.frontItems.map(\.id) == [links])
         registry.pageDisappeared(detail)
-        #expect(registry.frontItems.map(\.id) == [search, filter, sort])
+        #expect(registry.frontItems.map(\.id) == [search, sort, filter])
         registry.pageDisappeared(songs)
         #expect(registry.frontItems.isEmpty)
     }
@@ -136,12 +136,12 @@ func pageToolsPresentationResolves(
     ) == expected)
 }
 
-// MARK: - Separate tools and the accessory (issue #89)
+// MARK: - One row beside the tab bar (issue #89)
 
-/// The tab-bar accessory holds only the front page's field (Songs search); Filter, Sort
-/// and Quick Links float as separate round buttons in dock order.
+/// The dock shows the front page's search field first, then round Sort, Filter and
+/// Quick Links in that order; before iOS 26.1 only the icon tools float.
 @MainActor
-@Test func accessoryHoldsOnlyFieldsAndToolsFloat() {
+@Test func dockShowsSearchThenSortFilterQuickLinks() {
     let registry = TabAccessoryRegistry()
     let songs = UUID()
     let detail = UUID()
@@ -151,8 +151,8 @@ func pageToolsPresentationResolves(
     let links = UUID()
     let detailLinks = UUID()
     registry.upsert(id: links, order: DockOrder.quickLinks, scope: songs, content: AnyView(EmptyView()))
-    registry.upsert(id: sort, order: DockOrder.sort, scope: songs, content: AnyView(EmptyView()))
     registry.upsert(id: filter, order: DockOrder.filter, scope: songs, content: AnyView(EmptyView()))
+    registry.upsert(id: sort, order: DockOrder.sort, scope: songs, content: AnyView(EmptyView()))
     registry.upsert(
         id: search, order: DockOrder.search, scope: songs, kind: .field, content: AnyView(EmptyView())
     )
@@ -160,44 +160,138 @@ func pageToolsPresentationResolves(
         id: detailLinks, order: DockOrder.quickLinks, scope: detail, content: AnyView(EmptyView())
     )
     registry.pageAppeared(songs)
-    #expect(registry.frontFields.map(\.id) == [search])
-    #expect(registry.tools(in: songs).map(\.id) == [filter, sort, links])
+    #expect(registry.frontItems.map(\.id) == [search, sort, filter, links])
+    #expect(registry.tools(in: songs).map(\.id) == [sort, filter, links])
     registry.pageAppeared(detail)
-    #expect(registry.frontFields.isEmpty, "Song Detail has no field: no accessory")
-    #expect(registry.tools(in: detail).map(\.id) == [detailLinks])
+    #expect(registry.frontItems.map(\.id) == [detailLinks], "Song Detail: Quick Links only")
 }
 
-/// While the accessory is inline the tools drop until their resting bottom meets its top,
-/// and rise again when it expands.
-@Test func accessoryFollowDropsToTheInlineAccessory() {
-    var follow = AccessoryFollow()
-    #expect(follow.drop(restingBottom: 736) == 0)
-    follow.report(top: 736, inline: false)
-    #expect(follow.drop(restingBottom: 736) == 0, "Expanded: tools rest on the safe area above it")
-    follow.report(top: 798, inline: true)
-    #expect(follow.drop(restingBottom: 736) == 62)
-    follow.report(top: 736, inline: false)
-    #expect(follow.drop(restingBottom: 736) == 0)
-}
-
-/// Before the tools are laid out, or if the accessory sits above them, they stay where
-/// the safe area puts them.
-@Test func accessoryFollowNeverGuessesOrRises() {
-    var follow = AccessoryFollow()
-    follow.report(top: 798, inline: true)
-    #expect(follow.drop(restingBottom: nil) == 0, "Tools not laid out yet")
-    follow.report(top: 700, inline: true)
-    #expect(follow.drop(restingBottom: 736) == 0, "Never negative")
-}
-
-/// Withdrawing the accessory (a page without a field) resets the tools' drop.
+/// The open Songs search bar hides the dock; identical reports never re-publish.
 @MainActor
-@Test func withdrawingTheAccessoryResetsTheDrop() {
+@Test func registryTracksTabBarAndSuppression() {
     let registry = TabAccessoryRegistry()
-    registry.reportAccessory(top: 822, inline: true)
-    #expect(registry.accessoryFollow.drop(restingBottom: 760) == 62)
-    registry.accessoryWithdrawn()
-    #expect(registry.accessoryFollow == AccessoryFollow())
+    #expect(registry.tabBar == nil && !registry.dockSuppressed)
+    let geometry = TabBarGeometry(
+        bar: CGRect(x: 0, y: 791, width: 402, height: 83),
+        platter: CGRect(x: 43, y: 791, width: 317, height: 62)
+    )
+    registry.reportTabBar(geometry)
+    #expect(registry.tabBar == geometry)
+    registry.reportTabBar(nil)
+    #expect(registry.tabBar == nil)
+    registry.setDockSuppressed(true)
+    #expect(registry.dockSuppressed)
+    registry.setDockSuppressed(false)
+    #expect(!registry.dockSuppressed)
+}
+
+/// iPhone 17 Pro, iOS 26.5 (402 × 874 pt): measured tab-bar frames.
+private enum Measured {
+    static let window = CGRect(x: 0, y: 0, width: 402, height: 874)
+    static let bar = CGRect(x: 0, y: 791, width: 402, height: 83)
+    static let expanded = TabBarGeometry(bar: bar, platter: CGRect(x: 43, y: 791, width: 317, height: 62))
+    static let minimized = TabBarGeometry(bar: bar, platter: CGRect(x: 28, y: 798, width: 48, height: 48))
+    /// Right-to-left: the minimized tab sits on the right.
+    static let minimizedRTL = TabBarGeometry(bar: bar, platter: CGRect(x: 326, y: 798, width: 48, height: 48))
+}
+
+/// A wide platter is the expanded bar; a circle is the minimized one.
+@Test func tabBarGeometryClassifiesMinimized() {
+    #expect(!Measured.expanded.isMinimized)
+    #expect(Measured.minimized.isMinimized)
+    #expect(Measured.minimizedRTL.isMinimized)
+    #expect(!TabBarGeometry(bar: Measured.bar, platter: .zero).isMinimized)
+    #expect(!TabBarGeometry(bar: Measured.bar, platter: CGRect(x: 100, y: 791, width: 200, height: 62)).isMinimized,
+            "Two tabs are still wider than tall")
+}
+
+/// The platter is the largest visible subview; empty or missing frames are ignored.
+@Test func tabBarPlatterIsTheLargestFrame() {
+    let platter = CGRect(x: 43, y: 791, width: 317, height: 62)
+    #expect(TabBarGeometry.platter(among: [
+        CGRect(x: 0, y: 791, width: 1, height: 1), platter, .zero,
+        CGRect(x: 60, y: 795, width: 70, height: 54),
+    ]) == platter)
+    #expect(TabBarGeometry.platter(among: []) == nil)
+    #expect(TabBarGeometry.platter(among: [.zero]) == nil)
+    let noisy = TabBarGeometry(
+        bar: CGRect(x: 0, y: 790.83, width: 402, height: 83.2),
+        platter: CGRect(x: 27.9, y: 798.1, width: 48.2, height: 47.9)
+    ).rounded()
+    #expect(noisy == TabBarGeometry(
+        bar: CGRect(x: 0, y: 791, width: 402, height: 83),
+        platter: CGRect(x: 28, y: 798, width: 48, height: 48)
+    ))
+}
+
+/// Expanded: the row spans the width just above the tab bar's glass, ending where the
+/// page's bottom inset begins.
+@Test func dockSitsAboveTheExpandedTabBar() {
+    let layout = PageToolsDockLayout.resolve(
+        tabBar: Measured.expanded, container: Measured.window, bottomSafeArea: 34
+    )
+    #expect(!layout.collapsed)
+    #expect(layout.minX == 20 && layout.maxX == 382)
+    #expect(layout.midY + PageToolsDockLayout.rowHeight / 2 == 781, "10 pt above the glass")
+    #expect(layout.midY - PageToolsDockLayout.rowHeight / 2 == Measured.bar.minY - PageToolsDockLayout.pageInset,
+            "The page's bottom inset ends where the row begins")
+}
+
+/// Minimized: the row moves into the tab-bar row beside the round tab, mirroring its
+/// margin on the far side, in either reading direction.
+@Test func dockMovesBesideTheMinimizedTab() {
+    let ltr = PageToolsDockLayout.resolve(
+        tabBar: Measured.minimized, container: Measured.window, bottomSafeArea: 34
+    )
+    #expect(ltr.collapsed)
+    #expect(ltr.minX == 28 + 48 + 12 && ltr.maxX == 402 - 28)
+    #expect(ltr.midY == 822, "Centred on the minimized tab")
+    let rtl = PageToolsDockLayout.resolve(
+        tabBar: Measured.minimizedRTL, container: Measured.window, bottomSafeArea: 34
+    )
+    #expect(rtl.collapsed)
+    #expect(rtl.minX == 28 && rtl.maxX == 326 - 12)
+    #expect(rtl.width == ltr.width)
+}
+
+/// Without a tab bar reading the row rests where a standard bar would put it: the
+/// expanded position, never over the tabs.
+@Test func dockFallsBackToTheExpandedPlace() {
+    let layout = PageToolsDockLayout.resolve(tabBar: nil, container: Measured.window, bottomSafeArea: 34)
+    #expect(!layout.collapsed)
+    let restingBottom: CGFloat = 874 - 34 - 49 - 10
+    #expect(layout.midY + PageToolsDockLayout.rowHeight / 2 == restingBottom)
+    #expect(layout.minX == 20 && layout.maxX == 382)
+    let empty = PageToolsDockLayout.resolve(
+        tabBar: TabBarGeometry(bar: Measured.bar, platter: .zero),
+        container: Measured.window, bottomSafeArea: 34
+    )
+    #expect(empty == layout)
+}
+
+/// Each round tool and the row keep a 44 pt hit region (HIG Buttons).
+@Test func dockControlsKeepTheMinimumHitRegion() {
+    #expect(PageToolsDockLayout.rowHeight >= 44)
+    #expect(PageToolsDockLayout.spacing >= 8)
+}
+
+/// Pages keep room for the row only when they have tools, and not while the Songs
+/// search bar replaces it; before 26.1 the floating dock's height applies.
+@MainActor
+@Test(arguments: [
+    (PageToolsPresentation?.none, true, false, CGFloat(0)),
+    (.accessory, false, false, 0),
+    (.accessory, true, false, PageToolsDockLayout.pageInset),
+    (.accessory, true, true, 0),
+    (.floating, true, false, 58), // FloatingPageControls.height
+    (.floating, false, false, 0),
+] as [(PageToolsPresentation?, Bool, Bool, CGFloat)])
+func pageInsetFollowsThePresentation(
+    presentation: PageToolsPresentation?, hasItems: Bool, suppressed: Bool, expected: CGFloat
+) {
+    #expect(FloatingPageControls.inset(
+        presentation: presentation, hasItems: hasItems, dockSuppressed: suppressed
+    ) == expected)
 }
 
 // MARK: - Profile identity action

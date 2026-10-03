@@ -51,7 +51,7 @@ final class SongsChromeJourneyTests: XCTestCase {
 
     /// The A–Z rail is centred between the navigation bar and the tab bar, stays put when
     /// the large title collapses, and scrubbing collapses the title like a manual scroll.
-    /// With the tab-bar accessory (iOS 26.1+, issue #42) Songs search stays at the bottom;
+    /// With the bottom page-tools row (iOS 26.1+, issues #42, #89) Songs search stays at the bottom;
     /// before it, the Filter Songs field rises with the bar and stays usable (#13).
     ///
     /// Needs a catalogue with at least two initial letters; the loopback fixture's two
@@ -90,9 +90,9 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(search.isHittable, "Songs search hid instead of staying usable")
     }
 
-    /// Issue #42 (iPhone iOS 26.1+): Songs search, Filter and Sort sit in the tab-bar
-    /// accessory above the tab bar; scrolling down minimizes the tab bar and moves them
-    /// inline beside it, still separate hittable controls; scrolling back to the top
+    /// Issues #42 and #89 (iPhone iOS 26.1+): Songs search, Sort and Filter sit in one row
+    /// above the tab bar; scrolling down minimizes the tab bar and moves them beside it,
+    /// still separate hittable controls; scrolling back to the top
     /// restores the expanded layout. Before iOS 26.1 (issue #13) the floating tools move
     /// into the navigation bar row instead and the Filter Songs field stays pinned.
     ///
@@ -106,7 +106,7 @@ final class SongsChromeJourneyTests: XCTestCase {
     }
 
     /// Launch the scrolling catalogue and check the Songs tools for the runtime's
-    /// presentation (accessory or floating dock).
+    /// presentation (bottom row or floating dock).
     ///
     /// - Parameters:
     ///   - profile: Launch with the fixture player selected.
@@ -137,9 +137,9 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
     }
 
-    /// Issues #42 and #89: search sits in the accessory and the tools float above it as
-    /// separate round buttons, never overlapping it; all drop when the tab bar minimizes
-    /// on scroll down and rise back when scrolled to the top.
+    /// Issues #42 and #89: search and the round tools share one row above the tab bar,
+    /// each tool beside (never inside) the search field; the row moves into the tab-bar
+    /// row beside the minimized tab on scroll down and rises back at the top.
     @MainActor
     private func assertToolsRideTheAccessory(
         _ app: XCUIApplication, profile: Bool, tools: [String]
@@ -151,7 +151,7 @@ final class SongsChromeJourneyTests: XCTestCase {
             for id in ids {
                 let matches = app.buttons.matching(identifier: id)
                 guard matches.count == 1 else { return nil }
-                // Mid-transition the accessory's button can have an empty frame, and
+                // Mid-transition a row button can have an empty frame, and
                 // `isHittable` then throws instead of returning false.
                 let frame = matches.element.frame
                 guard !frame.isEmpty, matches.element.isHittable else { return nil }
@@ -165,12 +165,13 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertNotNil(expanded, "\(who): search or a tool is missing")
         for frame in expanded ?? [] {
             XCTAssertGreaterThan(frame.minY, barBottom + 100, "\(who): a tool is in the header")
-            XCTAssertLessThanOrEqual(frame.maxY, tabsTop + 1, "\(who): accessory overlaps the tab bar")
+            XCTAssertLessThanOrEqual(frame.maxY, tabsTop + 1, "\(who): the row overlaps the tab bar")
             XCTAssertGreaterThanOrEqual(frame.height, 44, "\(who): tool hit target under 44 pt")
         }
         if let search = expanded?.first {
             for frame in expanded?.dropFirst() ?? [] {
-                XCTAssertLessThanOrEqual(frame.maxY, search.minY + 1, "\(who): a tool sits in the search bar")
+                XCTAssertEqual(frame.midY, search.midY, accuracy: 2, "\(who): a tool is not beside search")
+                XCTAssertGreaterThanOrEqual(frame.minX, search.maxX + 8, "\(who): a tool sits in the search bar")
                 XCTAssertEqual(frame.width, frame.height, accuracy: 1, "\(who): a tool is not round")
             }
         }
@@ -182,7 +183,14 @@ final class SongsChromeJourneyTests: XCTestCase {
             XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 10), .completed, message)
         }
         app.swipeUp()
-        wait({ zip($0, before).allSatisfy { $0.minY > $1.minY + 20 } }, "\(who): tools did not follow the tab bar")
+        // Minimized: the whole row moves into the tab-bar row beside the round tab (Music).
+        wait({ zip($0, before).allSatisfy { $0.minY > $1.minY + 20 && $0.minY >= tabsTop - 1 } },
+             "\(who): the row did not move beside the minimized tab bar")
+        let collapsed = frames() ?? []
+        for frame in collapsed.dropFirst() {
+            XCTAssertEqual(frame.midY, collapsed.first?.midY ?? 0, accuracy: 2, "\(who): row split when minimized")
+            XCTAssertGreaterThanOrEqual(frame.height, 44, "\(who): tool hit target under 44 pt when minimized")
+        }
         XCTAssertTrue(app.buttons["fst.global-search.open"].isHittable)
         SongsUITestSupport.record(app, name: "songs-tools-inline-\(who)")
 

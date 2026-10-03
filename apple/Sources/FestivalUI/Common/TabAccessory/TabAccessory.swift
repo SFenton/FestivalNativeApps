@@ -8,11 +8,13 @@ import FestivalDesign
 /// Sort / Quick Links FABs over the bottom nav).
 ///
 /// Controls register while their page is visible (`onAppear` … `onDisappear`), so a
-/// push or tab switch swaps them. On iOS 26.1+ the front page's field (Songs search)
-/// fills the system tab-bar bottom accessory, which moves inline beside the minimized
-/// tab bar while scrolling (issue #42); every other tool floats as a separate round
-/// glass button in ``Entry/order`` (issue #89) and follows the accessory down. Global Search and the profile avatar are header buttons instead
-/// (operator, 2026-09-28).
+/// push or tab switch swaps them. On iOS 26.1+ the front page's controls form one row of
+/// separate Liquid Glass controls ([search] [Sort] [Filter] [Quick Links], each page
+/// showing only what it has) above the tab bar, which moves into the tab-bar row beside
+/// the minimized tab while scrolling, like Music's MiniPlayer (``PageToolsDock``;
+/// issues #42, #89). Before 26.1 the icon tools float as separate round glass buttons
+/// (``FloatingPageControls``). Global Search and the profile avatar are header buttons
+/// instead (operator, 2026-09-28).
 ///
 /// Design rules: `.agents/design/apple/nav-accessories.md`.
 @MainActor @Observable
@@ -28,32 +30,32 @@ final class TabAccessoryRegistry {
         var accessibilityID: String?
         /// The page (`FloatingPageControls` instance) that owns this control.
         var scope: UUID?
-        /// How the accessory lays the control out.
+        /// How the dock lays the control out.
         var kind: DockItemKind = .tool
     }
 
     private(set) var entries: [Entry] = []
     /// Pages whose floating controls are on screen, in the order they appeared.
     private(set) var pageScopes: [UUID] = []
-    /// Where the tab-bar accessory sits, so the floating tools follow it inline
-    /// (issue #89).
-    private(set) var accessoryFollow = AccessoryFollow()
+    /// The tab bar's visible glass (iOS 26.1+ iPhone), so the dock follows it as it
+    /// minimizes; nil before it is found or while hidden (issue #89).
+    private(set) var tabBar: TabBarGeometry?
+    /// The Songs search bar is open above the keyboard: the dock steps aside.
+    private(set) var dockSuppressed = false
 
-    /// The tab-bar accessory's content was laid out.
+    /// The tab bar changed shape or position.
     ///
-    /// - Parameters:
-    ///   - top: Its top edge in global coordinates.
-    ///   - inline: It sits inline beside the minimized tab bar.
-    func reportAccessory(top: CGFloat, inline: Bool) {
-        var follow = accessoryFollow
-        follow.report(top: top, inline: inline)
-        // Skip identical reports so observers are not invalidated on every layout pass.
-        if follow != accessoryFollow { accessoryFollow = follow }
+    /// - Parameter geometry: Its glass in window coordinates, or nil when not found.
+    func reportTabBar(_ geometry: TabBarGeometry?) {
+        // Skip identical reports so observers are not invalidated needlessly.
+        if geometry != tabBar { tabBar = geometry }
     }
 
-    /// The tab-bar accessory left the screen (no page offers a field).
-    func accessoryWithdrawn() {
-        if accessoryFollow != AccessoryFollow() { accessoryFollow = AccessoryFollow() }
+    /// Hide or show the dock while a page's own bottom bar (Songs search) replaces it.
+    ///
+    /// - Parameter suppressed: True while that bar is open.
+    func setDockSuppressed(_ suppressed: Bool) {
+        if suppressed != dockSuppressed { dockSuppressed = suppressed }
     }
 
     /// The page controls to show after Search, in dock order (stable for equal orders).
@@ -73,7 +75,7 @@ final class TabAccessoryRegistry {
     ///   - order: Dock position after Search.
     ///   - content: Control content; it renders in the root's environment, so it must
     ///     not rely on page-only environment values.
-    ///   - kind: How the tab-bar accessory lays the control out.
+    ///   - kind: How the dock lays the control out.
     func upsert(
         id: UUID, order: Int = DockOrder.pageAction, accessibilityID: String? = nil,
         scope: UUID? = nil, kind: DockItemKind = .tool, content: AnyView
@@ -108,14 +110,8 @@ final class TabAccessoryRegistry {
         return items(in: front)
     }
 
-    /// The front page's field-shaped controls (Songs search): what the iOS 26.1+ tab-bar
-    /// accessory shows. Icon tools never join them there (issue #89).
-    var frontFields: [Entry] {
-        frontItems.filter { $0.kind == .field }
-    }
-
-    /// The icon tools one page floats as separate round glass buttons (Filter, Sort,
-    /// Quick Links), in dock order; its field stays in the tab-bar accessory (issue #89).
+    /// The icon tools one page floats as separate round glass buttons before iOS 26.1
+    /// (Sort, Filter, Quick Links), in dock order.
     ///
     /// - Parameter scope: The page's `FloatingPageControls` scope.
     /// - Returns: That page's `.tool` controls.
@@ -161,57 +157,22 @@ final class TabAccessoryRegistry {
     }
 }
 
-/// How far the floating tools drop to stay just above the tab-bar accessory (pure,
-/// unit-tested; issue #89).
-///
-/// The page's bottom safe area includes the expanded accessory and does not reliably
-/// follow it when scrolling minimizes the tab bar and moves it inline (on iOS 26.5 it
-/// stayed put in one run and shrank by less than the accessory moved in another), so
-/// tools anchored to the safe area could hang above where the accessory went. While it
-/// is inline they drop until their resting bottom edge meets its top instead.
-struct AccessoryFollow: Equatable {
-    /// The accessory's latest top edge (global).
-    private(set) var top: CGFloat?
-    /// Whether it is inline beside the minimized tab bar.
-    private(set) var inline = false
-
-    /// Record one layout of the accessory.
-    ///
-    /// - Parameters:
-    ///   - top: Its top edge in global coordinates.
-    ///   - inline: It sits inline beside the minimized tab bar.
-    mutating func report(top: CGFloat, inline: Bool) {
-        self.top = top
-        self.inline = inline
-    }
-
-    /// Points the floating tools move down from their safe-area resting place.
-    ///
-    /// - Parameter restingBottom: The bottom edge (global, including the tools' bottom
-    ///   margin) where the safe area puts them, or nil before they are laid out.
-    /// - Returns: The distance down to the inline accessory's top; 0 while it is
-    ///   expanded, unknown, or would move the tools up.
-    func drop(restingBottom: CGFloat?) -> CGFloat {
-        guard inline, let top, let restingBottom else { return 0 }
-        return max(0, top - restingBottom)
-    }
-}
-
-/// Floating-control positions, leading to trailing (the trailing edge is nearest the thumb).
+/// Page-tool positions, leading to trailing (the trailing edge is nearest the thumb).
+/// Sort comes before Filter, like the web's Songs FABs (issue #89).
 enum DockOrder {
-    /// A page's search field (Songs), leading in the tab-bar accessory.
+    /// A page's search field (Songs), leading in the dock.
     static let search = 0
-    /// Songs Filter.
-    static let filter = 10
     /// Songs Sort.
-    static let sort = 20
+    static let sort = 10
+    /// Songs Filter.
+    static let filter = 20
     /// Quick Links menu.
     static let quickLinks = 30
     /// Any other page control.
     static let pageAction = 40
 }
 
-/// How a registered control sits in the tab-bar accessory.
+/// How a registered control sits in the dock.
 enum DockItemKind: Equatable, Sendable {
     /// An icon button with a 44 pt hit target (Filter, Sort, Quick Links).
     case tool
@@ -221,9 +182,9 @@ enum DockItemKind: Equatable, Sendable {
 
 /// Where a page's tools (search, Filter, Sort, Quick Links) live on this layout.
 enum PageToolsPresentation: Equatable, Sendable {
-    /// iOS 26.1+ iPhone: fields in the system tab-bar bottom accessory, inline beside
-    /// the minimized tab bar while scrolling (issue #42); other tools float above it and
-    /// follow it (issue #89).
+    /// iOS 26.1+ iPhone: one row of separate glass controls (search field, round tools)
+    /// above the tab bar that moves beside the minimized tab bar while scrolling
+    /// (``PageToolsDock``; issues #42, #89).
     case accessory
     /// iOS 17–26.0 iPhone: separate floating glass buttons above the tab bar, handed to
     /// the navigation bar while scrolling (issue #13).
@@ -234,7 +195,8 @@ enum PageToolsPresentation: Equatable, Sendable {
     /// - Parameters:
     ///   - horizontalTabBar: The section chrome is the bottom tab bar (iPhone, not the
     ///     iPhone Duo vertical bar, iPad sidebar or Mac).
-    ///   - accessorySupported: The OS has `tabViewBottomAccessory(isEnabled:)` (26.1+).
+    ///   - accessorySupported: The OS minimizes the tab bar on scroll with page tools
+    ///     beside it (26.1+).
     /// - Returns: Nil where the tools stay toolbar items.
     static func resolve(horizontalTabBar: Bool, accessorySupported: Bool) -> Self? {
         guard horizontalTabBar else { return nil }
@@ -268,11 +230,12 @@ extension EnvironmentValues {
 extension View {
     /// Publish the page-tools registry for this iPhone `TabView`.
     ///
-    /// iOS 26.1+: the front page's field fills the system tab-bar bottom accessory and the
-    /// tab bar minimizes on scroll down, moving the accessory inline beside it (Music's
-    /// MiniPlayer behavior, issue #42). Each tab's `FestivalTabStack` floats the other
-    /// tools (`FloatingPageControls`) on every iOS version (issue #89). With the iPhone Duo vertical bar it publishes
-    /// nothing, so pages keep toolbar items.
+    /// iOS 26.1+: the tab bar minimizes on scroll down and ``PageToolsDock`` shows the
+    /// front page's search field and round tools in one row above it, moving into the
+    /// tab-bar row beside the minimized tab (Music's MiniPlayer behavior; issues #42,
+    /// #89). Before 26.1 each tab's `FestivalTabStack` floats the tools
+    /// (`FloatingPageControls`). With the iPhone Duo vertical bar it publishes nothing,
+    /// so pages keep toolbar items.
     ///
     /// - Returns: The tab view with the registry attached.
     func festivalTabAccessoryHost() -> some View {
@@ -289,19 +252,24 @@ struct TabAccessoryHost: ViewModifier {
         #if os(iOS)
         let horizontal = layout.sectionChrome == .tabBar
         if #available(iOS 26.1, *) {
-            let fields = registry.frontFields
             content
-                .tabViewBottomAccessory(isEnabled: horizontal && !fields.isEmpty) {
-                    PageToolsAccessoryBar(items: fields, registry: registry)
-                }
-                // Not the accessory content's `onDisappear`: the system may rebuild it
-                // when it moves inline, which would forget the expanded position.
-                .onChange(of: fields.isEmpty) { _, empty in
-                    if empty { registry.accessoryWithdrawn() }
-                }
                 // HIG Tab bars (iOS): "scrolling down can minimize the bar and move the
                 // accessory inline; tapping a tab or scrolling to the top exits."
                 .tabBarMinimizeBehavior(horizontal ? .onScrollDown : .automatic)
+                // Not `tabViewBottomAccessory`: the system accessory is one full-width
+                // capsule, so the round tools could never sit beside the search field
+                // (issue #89). Drawn over the tab view so it receives touches in the
+                // tab-bar row while the bar is minimized.
+                .overlay {
+                    if horizontal {
+                        PageToolsDock(registry: registry)
+                            .background {
+                                TabBarWatcher { registry.reportTabBar($0) }
+                                    .frame(width: 0, height: 0)
+                                    .accessibilityHidden(true)
+                            }
+                    }
+                }
                 .environment(\.tabAccessoryRegistry, horizontal ? registry : nil)
                 .environment(\.pageToolsPresentation, PageToolsPresentation.resolve(
                     horizontalTabBar: horizontal, accessorySupported: true
@@ -319,87 +287,16 @@ struct TabAccessoryHost: ViewModifier {
     }
 }
 
-// MARK: - Tab-bar accessory
-
-/// The front page's search field inside the system tab-bar bottom accessory (iOS 26.1+),
-/// like Music's mini player. Only field-shaped controls go here: Filter, Sort and Quick
-/// Links float as separate round glass buttons just above it (``FloatingPageControls``,
-/// issue #89), so the capsule reads as one search field, not a search bar with
-/// attachments (HIG Search fields; HIG Buttons).
-///
-/// The accessory's height is fixed by the system, so text stops growing at
-/// ``maxTypeSize``; long-pressing a control shows the Large Content Viewer instead.
-struct PageToolsAccessoryBar: View {
-    let items: [TabAccessoryRegistry.Entry]
-
-    /// The largest Dynamic Type size the fixed-height accessory lays out.
-    static let maxTypeSize = DynamicTypeSize.xxxLarge
-
-    /// Receives the accessory's position so the floating tools can follow it.
-    let registry: TabAccessoryRegistry?
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(items, id: \.id) { item in
-                // A field sets its own identifiers: one applied here would replace its
-                // inner buttons' (open, clear).
-                item.content
-                    .frame(maxWidth: .infinity, minHeight: 44)
-            }
-        }
-        .padding(.horizontal, 6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .font(.body)
-        .tint(BrandTokens.textPrimary)
-        .dynamicTypeSize(...Self.maxTypeSize)
-        #if os(iOS)
-        .modifier(AccessoryPlacementReporter(registry: registry))
-        #endif
-    }
-}
-
-#if os(iOS)
-/// Reports the accessory's top edge and placement (expanded above the tab bar, or inline
-/// beside it once scrolling minimizes the bar) to ``TabAccessoryRegistry``.
-private struct AccessoryPlacementReporter: ViewModifier {
-    let registry: TabAccessoryRegistry?
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26.1, *) {
-            content.modifier(AccessoryPlacementReader(registry: registry))
-        } else {
-            content
-        }
-    }
-}
-
-@available(iOS 26.1, *)
-private struct AccessoryPlacementReader: ViewModifier {
-    let registry: TabAccessoryRegistry?
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
-
-    func body(content: Content) -> some View {
-        let inline = placement == .inline
-        content
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
-                registry?.reportAccessory(top: top, inline: inline)
-            }
-            .onChange(of: inline) { _, now in
-                guard let top = registry?.accessoryFollow.top else { return }
-                registry?.reportAccessory(top: top, inline: now)
-            }
-    }
-}
-#endif
-
 // MARK: - Floating controls
 
-/// The visible page's controls as separate floating glass buttons, trailing-aligned
-/// just above the tab bar (like the web's FABs). `FestivalTabStack` applies it to each
-/// page inside the navigation stack: the page gets matching bottom safe-area padding
-/// (lists scroll clear, trailing overlays such as the A–Z rail end above the buttons)
-/// and the buttons are an overlay. (A `safeAreaInset` outside the stack was ignored by
-/// the pages and let the tab's `fst.nav.*` identifier replace the buttons' own.)
+/// Bottom room for the page tools on each page, and before iOS 26.1 the tools
+/// themselves as separate floating glass buttons trailing-aligned just above the tab bar
+/// (like the web's FABs). `FestivalTabStack` applies it to each page inside the
+/// navigation stack: the page gets matching bottom safe-area padding (lists scroll
+/// clear, trailing overlays such as the A–Z rail end above the tools). On iOS 26.1+ the
+/// tools are drawn by the root ``PageToolsDock`` instead; this only reserves their row
+/// and tracks the front page. (A `safeAreaInset` outside the stack was ignored by the
+/// pages and let the tab's `fst.nav.*` identifier replace the buttons' own.)
 struct FloatingPageControls: ViewModifier {
     @Environment(\.tabAccessoryRegistry) private var registry
     @Environment(\.pageToolsPresentation) private var presentation
@@ -407,9 +304,6 @@ struct FloatingPageControls: ViewModifier {
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     /// This page's scope: only controls registered from inside it are shown here.
     @State private var scope = UUID()
-    /// Where the dock's bottom edge (with its margin) rests without following the
-    /// accessory, in global coordinates.
-    @State private var restingBottom: CGFloat?
 
     /// Diameter of one floating glass button, which is also its square hit region.
     static let buttonSize: CGFloat = 50
@@ -418,33 +312,51 @@ struct FloatingPageControls: ViewModifier {
     /// Button size plus its bottom margin.
     static let height: CGFloat = buttonSize + 8
 
+    /// Bottom room a page keeps for its tools.
+    ///
+    /// - Parameters:
+    ///   - presentation: Where the tools sit; nil keeps them in the toolbar.
+    ///   - hasItems: The page registered any dock control (a field counts on 26.1+).
+    ///   - dockSuppressed: The page's own bottom bar replaces the dock.
+    /// - Returns: The row's height plus its gap, or 0.
+    static func inset(
+        presentation: PageToolsPresentation?, hasItems: Bool, dockSuppressed: Bool
+    ) -> CGFloat {
+        guard hasItems, let presentation else { return 0 }
+        switch presentation {
+        case .accessory: return dockSuppressed ? 0 : PageToolsDockLayout.pageInset
+        case .floating: return height
+        }
+    }
+
     func body(content: Content) -> some View {
-        // Icon tools always float as separate buttons; on iOS 26.1+ a page's field (Songs
-        // search) is the system tab-bar accessory below them instead (issue #89).
-        let items = presentation == nil ? [] : (registry?.tools(in: scope) ?? [])
+        // Before 26.1 only icon tools float here; on 26.1+ the root dock draws every
+        // control, fields included (issue #89).
+        let floating = presentation == .floating ? (registry?.tools(in: scope) ?? []) : []
+        let registered = presentation == .accessory ? (registry?.items(in: scope) ?? []) : floating
+        let inset = Self.inset(
+            presentation: presentation, hasItems: !registered.isEmpty,
+            dockSuppressed: registry?.dockSuppressed ?? false
+        )
         // Only the front page draws its buttons (see `TabAccessoryRegistry.isFront`);
         // the inset stays so an outgoing page's layout does not jump mid-transition.
         let front = registry?.isFront(scope) ?? false
         let style = PageToolsHandOff.style(
             systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
         )
-        // iOS 26.1+: follow the tab-bar accessory down when it moves inline beside the
-        // minimized tab bar, like the accessory itself (issue #89).
-        let drop = presentation == .accessory
-            ? (registry?.accessoryFollow.drop(restingBottom: restingBottom) ?? 0) : 0
         content
             .environment(\.floatingControlsScope, scope)
-            .environment(\.floatingControlsInset, items.isEmpty ? 0 : Self.height)
-            .safeAreaPadding(.bottom, items.isEmpty ? 0 : Self.height)
+            .environment(\.floatingControlsInset, inset)
+            .safeAreaPadding(.bottom, inset)
             .onAppear { registry?.pageAppeared(scope) }
             .onDisappear { registry?.pageDisappeared(scope) }
             .animation(.easeInOut(duration: 0.15), value: front)
             .overlay(alignment: .bottomTrailing) {
                 ZStack(alignment: .bottomTrailing) {
-                    if !items.isEmpty && front {
+                    if !floating.isEmpty && front {
                         FestivalGlassGroup(spacing: Self.spacing) {
                             HStack(spacing: Self.spacing) {
-                                ForEach(items, id: \.id) { item in
+                                ForEach(floating, id: \.id) { item in
                                     item.content
                                         .labelStyle(FloatingPageToolLabelStyle(side: Self.buttonSize))
                                         .font(.title3)
@@ -458,22 +370,13 @@ struct FloatingPageControls: ViewModifier {
                         }
                         .padding(.trailing, 16)
                         .padding(.bottom, 8)
-                        .offset(y: drop)
                         .transition(PageToolsHandOff.dockTransition(style))
                     }
                 }
-                // The container keeps the dock's un-offset layout frame: its resting place.
-                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
-                    restingBottom = $0
-                }
-                // Slides with the system's tab-bar move; under Reduce Motion it moves
-                // without animating (HIG Accessibility: "reduce automatic and repetitive
-                // animation, including zooming, scaling, and peripheral motion").
-                .animation(style == .motion ? .smooth(duration: 0.35) : nil, value: drop)
                 // Registrations change outside the scroll hand-off's transaction, so the
                 // dock animates its own half with the same timing (issue #13); scoped to
                 // the overlay so the page itself never animates with it.
-                .animation(PageToolsHandOff.animation(style), value: items.map(\.id))
+                .animation(PageToolsHandOff.animation(style), value: floating.map(\.id))
             }
     }
 }
@@ -486,7 +389,8 @@ struct FloatingPageControls: ViewModifier {
 /// shape around the glyph must live *inside* the label: the glass circle drawn around
 /// it is not tappable. Buttons honour the outer frame too; using one style keeps every
 /// floating tool's hit region the same square. HIG Buttons: "As a general rule, the hit
-/// region is at least 44x44 pt"; ``FloatingPageControls/spacing`` keeps neighbours apart.
+/// region is at least 44x44 pt"; ``FloatingPageControls/spacing`` and
+/// ``PageToolsDockLayout/spacing`` keep neighbours apart.
 struct FloatingPageToolLabelStyle: LabelStyle {
     /// Side of the square hit region, in points.
     let side: CGFloat
@@ -514,7 +418,7 @@ extension View {
     ///   - token: Changes whenever the control's captured values change.
     ///   - order: Dock position after Search (``DockOrder``).
     ///   - accessibilityID: Identifier the host re-applies to the control.
-    ///   - kind: How the tab-bar accessory lays the control out.
+    ///   - kind: How the dock lays the control out.
     ///   - isEnabled: False withdraws the control without leaving the page.
     ///   - accessory: Control content (rendered in the root's environment).
     /// - Returns: The view, registering its control while visible.

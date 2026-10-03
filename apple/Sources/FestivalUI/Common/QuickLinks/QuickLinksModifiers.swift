@@ -126,9 +126,9 @@ struct QuickLinksContainerModifier: ViewModifier {
         .onAppear { configure() }
         .onChange(of: title) { configure() }
         .onChange(of: sections) { configure() }
-        // iPhone: the Quick Links menu floats above the tab bar as its own round glass
-        // button, following the tab bar as it minimizes (issue #89; never inside the
-        // search accessory); `QuickLinksToolbarItem` steps aside there
+        // iPhone: the Quick Links menu is its own round icon-only glass button in the
+        // page-tools row, beside the search field and following the tab bar as it
+        // minimizes (issue #89); `QuickLinksToolbarItem` steps aside there
         // (`.agents/design/apple/nav-accessories.md`).
         .festivalTabAccessory(
             token: controller.isAvailable, order: DockOrder.quickLinks,

@@ -52,8 +52,8 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
                 .sorted { $0.top < $1.top }
                 .map(\.id)
         }
-        // The iOS 26.1+ tab-bar accessory opens Quick Links as a sheet whose List builds
-        // only the rows on screen (issue #42): scroll it to collect the rest in order.
+        // A long Quick Links list may build only the rows on screen: scroll it to collect
+        // the rest in order.
         var actual = visible()
         SongsUITestSupport.record(app, name: name)
         // Swipe the list, not a row: a swipe that does not scroll lands as a tap and jumps.

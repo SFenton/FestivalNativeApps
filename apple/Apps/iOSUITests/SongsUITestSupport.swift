@@ -188,6 +188,40 @@ enum SongsUITestSupport {
         _ = app.buttons["fst.songs.sort"].waitForExistence(timeout: 10)
     }
 
+    /// Run the full accessibility audit on a Songs root that shows the page-tools dock.
+    ///
+    /// The dock row (iOS 26.1+ iPhone, issue #89) is fixed-height like the tab bar and
+    /// the system bottom accessory it replaced, so its search control caps Dynamic Type,
+    /// swaps to shorter text rather than clipping, and offers the Large Content Viewer;
+    /// only those Dynamic Type and clipping findings on that control are accepted.
+    /// Every other issue still fails the audit.
+    ///
+    /// - Parameter app: Foreground app on the Songs root.
+    @MainActor
+    static func auditSongsWithDock(_ app: XCUIApplication) throws {
+        let dockSearch = app.buttons["fst.songs.search.open"]
+        let dockFrame = dockSearch.exists ? dockSearch.frame : .null
+        try app.performAccessibilityAudit(for: .all) { issue in
+            if [.dynamicType, .textClipped].contains(issue.auditType),
+               let element = issue.element {
+                if element.identifier == "fst.songs.search.open" { return true }
+                // The auditor may report the search control's inner text node.
+                if !dockFrame.isNull,
+                   dockFrame.insetBy(dx: -2, dy: -2).contains(element.frame) {
+                    return true
+                }
+            }
+            // Report every other finding with its element, then keep auditing.
+            XCTFail(
+                "Songs audit: \(issue.compactDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame))"
+            )
+            return true
+        }
+    }
+
     /// Open Shop from the leading hamburger drawer.
     ///
     /// The standalone Songs toolbar Shop button (`fst.songs.shop`) was removed when
@@ -540,7 +574,7 @@ enum SongsUITestSupport {
 
     /// The Songs list's search field, opened and ready to type into.
     ///
-    /// iPhone iOS 26.1+: the field-shaped "Search Songs" button in the tab-bar accessory
+    /// iPhone iOS 26.1+: the field-shaped "Search Songs" button in the bottom page-tools row
     /// opens a focused field above the keyboard (`fst.songs.search.field`, issue #42).
     /// Elsewhere it is the `.searchable` field matched by its prompt "Filter Songs", so it
     /// is never confused with global search's field
@@ -564,7 +598,7 @@ enum SongsUITestSupport {
         return field
     }
 
-    /// The Songs search entry point without opening it: the accessory's "Search Songs"
+    /// The Songs search entry point without opening it: the bottom row's "Search Songs"
     /// button on iPhone iOS 26.1+ (issue #42), otherwise the "Filter Songs" field.
     ///
     /// - Parameter app: Foreground app on the Songs root.
@@ -995,7 +1029,7 @@ enum SongsUITestSupport {
             for _ in 0..<8 {
                 if element.isHittable {
                     if clearsBottomChrome(element, in: app) { return }
-                    // Hittable but behind the tab-bar accessory (issue #42): XCUITest
+                    // Hittable but behind the bottom page-tools row (issues #42, #89): XCUITest
                     // reports it hittable while a tap opens Quick Links instead.
                     window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
                         .press(

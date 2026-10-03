@@ -34,8 +34,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     // MARK: - Journeys
 
-    /// Filter, Sort and Quick Links above the tab bar, floating or in the iOS 26.1+ tab-bar
-    /// accessory (issue #42; Year sort adds Quick Links).
+    /// Sort, Filter and Quick Links above the tab bar, floating or in the iOS 26.1+
+    /// page-tools row beside search (issues #42, #89; Year sort adds Quick Links).
     @MainActor
     func testFloatingToolsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -45,7 +45,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let sort = app.buttons["fst.songs.sort"]
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
         try chooseYearSort(in: app)
-        let ids = ["fst.songs.filter", "fst.songs.sort", "fst.quick-links.open"]
+        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
         let frames = ids.map { app.buttons[$0].frame }
         for (id, frame) in zip(ids, frames) {
             XCTAssertGreaterThanOrEqual(frame.width, 44, "\(id) \(frame)")
@@ -117,7 +117,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         defer { resetSort(in: app) }
         XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
         if app.buttons["fst.songs.search.open"].waitForExistence(timeout: 3) {
-            throw XCTSkip("iOS 26.1+: the tools stay in the tab-bar accessory while scrolled (issue #42).")
+            throw XCTSkip("iOS 26.1+: the tools stay in the bottom page-tools row while scrolled (issues #42, #89).")
         }
         try chooseYearSort(in: app)
         app.swipeUp()

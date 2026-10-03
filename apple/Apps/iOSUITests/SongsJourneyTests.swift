@@ -376,7 +376,7 @@ final class SongsJourneyTests: XCTestCase {
             pulse.frame.maxY, tabs.frame.minY,
             "Grouped card \(pulse.frame) extends behind floating tab \(tabs.frame)"
         )
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.auditSongsWithDock(app)
     }
 
     /// Stage selected-player per-chart score checks and prove real Songs row changes.
@@ -1266,7 +1266,7 @@ final class SongsJourneyTests: XCTestCase {
             "Cannot audit artwork contrast before original fixture art is visible"
         )
         SongsUITestSupport.record(app, name: "songs-before-accessibility-audit")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.auditSongsWithDock(app)
     }
 
     /// Exercise real native no-results and service-error presentation.
@@ -1288,7 +1288,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Retry"].exists)
         SongsUITestSupport.record(app, name: "songs-service-error")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.auditSongsWithDock(app)
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         let publication = app.buttons["Check Publication"]
         SongsUITestSupport.reveal(publication, in: app, scrollingUp: true)
