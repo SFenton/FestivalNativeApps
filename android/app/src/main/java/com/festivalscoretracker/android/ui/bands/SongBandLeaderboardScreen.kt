@@ -1,6 +1,21 @@
 package com.festivalscoretracker.android.ui.bands
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import com.festivalscoretracker.android.core.bands.BandLayout
+import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.design.starsDescription
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +47,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick as onClickAction
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,14 +113,13 @@ fun SongBandLeaderboardScreen(
     // rows in (web PaginatedLeaderboard, issue #71).
     val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = type to page)
     FestivalScreen(title = "${type.label} Leaderboard", isRoot = false, modifier = Modifier.testTag("fst.song-band-leaderboard.screen")) { padding ->
-        BandReadableWidth {
-            LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxSize().testTag("fst.song-band-leaderboard.list"),
-            ) {
-                item(key = "header") { SongHeader(song, swap.shown, type, artworkUrl, onNavigate) }
-                item(key = "sizes") {
+        var contentLeft by remember { mutableFloatStateOf(0f) }
+        BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
+            SongBandLeaderboardLayout(
+                split = BandLayout.listSplit(rememberBandHinge(contentLeft, maxWidth)),
+                padding = padding,
+                controls = {
+                    SongHeader(song, swap.shown, type, artworkUrl, onNavigate)
                     BandSegmentedControl(
                         options = BandType.entries,
                         selected = type,
@@ -111,7 +128,8 @@ fun SongBandLeaderboardScreen(
                         onSelect = viewModel::selectBandType,
                         modifier = Modifier.padding(vertical = 4.dp).testTag("fst.song-band-leaderboard.band-type-menu"),
                     )
-                }
+                },
+            ) {
                 val state = swap.shown
                 if (swap.showsSpinner || state is LoadState.Loading) {
                     loadSwapSpinnerItem(swap, "Loading band scores", "fst.song-band-leaderboard.loading")
@@ -145,6 +163,59 @@ fun SongBandLeaderboardScreen(
                         item(key = "pager") { Box(swap.contentModifier) { BandPager(page, response.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) } }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * The page's single column, or — across a separating vertical hinge (half-open book or
+ * passport fold) — the song header and size switcher on the leading side and the score rows
+ * and pager on the trailing side, so no card or segment straddles the fold. Reading order
+ * stays header → sizes → rows → pager in both layouts.
+ *
+ * @param split [BandLayout.listSplit] for the content box.
+ * @param padding Shell padding.
+ * @param controls Song header and band-size switcher.
+ * @param rows Board state items (spinner, failure, empty, rows, pager).
+ */
+@Composable
+internal fun SongBandLeaderboardLayout(
+    split: BandLayout.Panes,
+    padding: PaddingValues,
+    controls: @Composable () -> Unit,
+    rows: LazyListScope.() -> Unit,
+) {
+    val top = padding.calculateTopPadding()
+    val bottom = padding.calculateBottomPadding() + 24.dp
+    val leading = split.leadingWidth
+    if (split.twoPane && leading != null) {
+        Row(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .width(leading.dp)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom)
+                    .testTag("fst.song-band-leaderboard.controls-pane"),
+            ) { controls() }
+            Spacer(Modifier.width(split.gap.dp))
+            LazyColumn(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 8.dp, bottom = bottom),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f).fillMaxHeight().testTag("fst.song-band-leaderboard.list"),
+                content = rows,
+            )
+        }
+    } else {
+        BandReadableWidth {
+            LazyColumn(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top, bottom = bottom),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize().testTag("fst.song-band-leaderboard.list"),
+            ) {
+                item(key = "controls") { Column { controls() } }
+                rows()
             }
         }
     }
@@ -209,18 +280,16 @@ internal fun BandScoreRow(
     onClick: () -> Unit,
 ) {
     val keyboard = song?.sig == "Keyboard"
-    val accuracy = entry.accuracy?.let { if (it > 0) ScoreFormatting.accuracy(it) + "%" else null }
-    val announcement = buildString {
-        append("Rank ${entry.rank}, ${entry.membersLabel}, ${BandFormatting.count(entry.score)}")
-        if (entry.isFullCombo == true) append(", full combo")
-        accuracy?.let { append(", $it accuracy") }
-        entry.stars?.takeIf { it > 0 }?.let { append(", $it stars") }
-    }
+    val announcement = bandScoreAnnouncement(entry)
     GlassCard(
         Modifier
             .fillMaxWidth()
             .testTag(tag)
-            .semantics(mergeDescendants = true) { contentDescription = announcement },
+            .semantics(mergeDescendants = true) {
+                contentDescription = announcement
+                role = Role.Button
+                onClickAction(label = "Open band") { onClick(); true }
+            },
         onClick = onClick,
         accent = if (selected) BrandTokens.purpleHighlightBorder else null,
     ) {
@@ -229,16 +298,6 @@ internal fun BandScoreRow(
         // The card's description is the whole announcement; the texts inside add nothing for TalkBack.
         BoxWithConstraints(Modifier.background(if (selected) BrandTokens.purpleHighlight else Color.Transparent).padding(12.dp).clearAndSetSemantics { }) {
             val stacked = maxWidth < BAND_ROW_STACK_WIDTH
-            val teamScore: @Composable () -> Unit = {
-                Text(BandFormatting.count(entry.score), fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-            }
-            val badges: @Composable () -> Unit = {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
-                    if (accuracy != null || entry.isFullCombo == true) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
-                    entry.stars?.takeIf { it > 0 }?.let { StarRating(it, size = 14.dp) }
-                }
-            }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
@@ -249,38 +308,111 @@ internal fun BandScoreRow(
                         modifier = Modifier.widthIn(min = 44.dp),
                     )
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        BandMember.distinct(entry.members).forEach { member ->
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                member.chartedInstruments.forEach { InstrumentIcon(it, keyboard = keyboard, size = 18.dp, decorative = true) }
-                                FestivalMarqueeText(
-                                    member.resolvedName,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = BrandTokens.textPrimary,
-                                    modifier = Modifier.weight(1f, fill = false),
-                                )
-                                member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
-                            }
-                        }
+                        BandMember.distinct(entry.members).forEach { BandMemberScoreLine(it, keyboard) }
                     }
                     if (!stacked) {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            teamScore()
-                            badges()
+                            BandTeamScore(entry)
+                            BandScoreBadges(entry)
                         }
                     }
                     RowChevron()
                 }
-                if (stacked) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(start = 54.dp, end = 34.dp)) {
-                        teamScore()
-                        Spacer(Modifier.weight(1f))
-                        badges()
-                    }
-                }
+                if (stacked) BandScoreFooter(entry, Modifier.padding(start = 54.dp, end = 34.dp))
             }
         }
     }
 }
+
+/**
+ * One member: instrument icons, name and member score. Large text wraps names
+ * ([FestivalMarqueeText]), so the score flows under the name instead of squeezing it mid-word.
+ *
+ * @param member Member.
+ * @param keyboard Keyboard-variant icons.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun BandMemberScoreLine(member: BandMember, keyboard: Boolean) {
+    val icons: @Composable () -> Unit = {
+        member.chartedInstruments.forEach { InstrumentIcon(it, keyboard = keyboard, size = 18.dp, decorative = true) }
+    }
+    val score: @Composable () -> Unit = {
+        member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
+    }
+    if (isLargeText()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            icons()
+            FestivalMarqueeText(member.resolvedName, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
+            score()
+        }
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            icons()
+            FestivalMarqueeText(
+                member.resolvedName,
+                style = MaterialTheme.typography.bodyMedium,
+                color = BrandTokens.textPrimary,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            score()
+        }
+    }
+}
+
+/**
+ * Narrow-card footer: team score leading, accuracy and stars trailing; the badges wrap
+ * under the score when large text leaves no room beside it, so no star is clipped.
+ *
+ * @param entry Wire row.
+ * @param modifier Modifier (insets under the members).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun BandScoreFooter(entry: SongBandLeaderboardEntry, modifier: Modifier = Modifier) {
+    FlowRow(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        BandTeamScore(entry)
+        BandScoreBadges(entry)
+    }
+}
+
+@Composable
+private fun BandTeamScore(entry: SongBandLeaderboardEntry) {
+    Text(BandFormatting.count(entry.score), fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+}
+
+@Composable
+private fun BandScoreBadges(entry: SongBandLeaderboardEntry) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
+        if ((entry.accuracy ?: 0.0) > 0 || entry.isFullCombo == true) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
+        entry.stars?.takeIf { it > 0 }?.let { StarRating(it, size = 14.dp) }
+    }
+}
+
+/**
+ * TalkBack description of a band score row: everything the card shows, in visual order —
+ * rank, each member with instruments and member score, band score, full combo, accuracy and
+ * stars (gold stars read as "Gold stars", not "6 stars").
+ *
+ * @param entry Wire row.
+ * @return Announcement.
+ */
+internal fun bandScoreAnnouncement(entry: SongBandLeaderboardEntry): String = buildList {
+    add("Rank ${entry.rank}")
+    BandMember.distinct(entry.members).forEach { member ->
+        add(memberAnnouncement(member) + (member.score?.let { ", " + BandFormatting.count(it) } ?: ""))
+    }
+    add("band score ${BandFormatting.count(entry.score)}")
+    if (entry.isFullCombo == true) add("full combo")
+    entry.accuracy?.takeIf { it > 0 }?.let { add(ScoreFormatting.accuracy(it) + "% accuracy") }
+    entry.stars?.takeIf { it > 0 }?.let { add(starsDescription(it)) }
+}.joinToString(", ")
 
 /** Card width below which the team score moves under the members. */
 private val BAND_ROW_STACK_WIDTH = 400.dp
