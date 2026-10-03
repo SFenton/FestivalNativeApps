@@ -526,6 +526,67 @@ def screenshot_display(args: argparse.Namespace, udid: str) -> str | None:
     return None
 
 
+#: Simulator accessibility settings ``shot --a11y`` can switch on for one capture.
+#: Each maps to (enable argv tail, restore argv tail) after ``xcrun simctl``.
+#: ``increase-contrast`` uses ``simctl ui``; ``reduce-transparency`` writes the
+#: Accessibility preference the system reads at app launch (no ``simctl ui`` option).
+A11Y_SETTINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "increase-contrast": (("ui", "{udid}", "increase_contrast", "enabled"),
+                          ("ui", "{udid}", "increase_contrast", "disabled")),
+    "reduce-transparency": (
+        ("spawn", "{udid}", "defaults", "write", "com.apple.Accessibility",
+         "EnhancedBackgroundContrastEnabled", "-bool", "true"),
+        ("spawn", "{udid}", "defaults", "delete", "com.apple.Accessibility",
+         "EnhancedBackgroundContrastEnabled"),
+    ),
+}
+
+
+def a11y_commands(udid: str, settings: list[str] | None) -> tuple[list[list[str]], list[list[str]]]:
+    """Build the ``simctl`` calls that switch accessibility settings on, then back off.
+
+    Args:
+        udid: Simulator to configure.
+        settings: Keys of ``A11Y_SETTINGS`` (repeatable ``--a11y``), or None.
+
+    Returns:
+        ``(enable, restore)`` argv lists; restore runs in reverse order.
+
+    Raises:
+        ValueError: For an unknown setting.
+    """
+    enable: list[list[str]] = []
+    restore: list[list[str]] = []
+    for name in settings or []:
+        if name not in A11Y_SETTINGS:
+            raise ValueError(f"unknown --a11y setting {name!r}; choose from {sorted(A11Y_SETTINGS)}")
+        on, off = A11Y_SETTINGS[name]
+        enable.append(["xcrun", "simctl", *(part.format(udid=udid) for part in on)])
+        restore.insert(0, ["xcrun", "simctl", *(part.format(udid=udid) for part in off)])
+    return enable, restore
+
+
+@contextmanager
+def simulator_accessibility(udid: str, settings: list[str] | None):
+    """Switch simulator accessibility settings on for a block, restoring them after.
+
+    Use only while holding the simulator lock, before the app launches (apps read
+    these settings at launch).
+
+    Args:
+        udid: Booted simulator.
+        settings: Keys of ``A11Y_SETTINGS``, or None to do nothing.
+    """
+    enable, restore = a11y_commands(udid, settings)
+    try:
+        for cmd in enable:
+            _run(cmd, capture_output=True)
+        yield
+    finally:
+        for cmd in restore:
+            _run(cmd, check=False, capture_output=True)
+
+
 
 class ScreenRecording:
     """Record the simulator screen to an H.264 MP4 while a block runs.
@@ -1054,7 +1115,8 @@ def cmd_shot(args: argparse.Namespace) -> int:
         for pair in args.env or []:
             key, _, value = pair.partition("=")
             launch_env[f"SIMCTL_CHILD_{key}"] = value
-        with ScreenRecording(udid, args.record, args.display if args.display in DUO_PANELS else None):
+        with simulator_accessibility(udid, args.a11y), \
+                ScreenRecording(udid, args.record, args.display if args.display in DUO_PANELS else None):
             _run(["xcrun", "simctl", "launch", udid, product().bundle_id, *(args.launch_arg or [])], env=launch_env)
             for index, out in enumerate(args.out):
                 time.sleep(args.wait if index == 0 else args.interval)
@@ -1499,6 +1561,9 @@ def main(argv: list[str] | None = None) -> int:
                       help="iPhone Duo: rotate via Device Hub after the pose check (repeatable; UI scripting)")
     shot.add_argument("--display", choices=[*sorted(DUO_PANELS), "auto"],
                       help="iPhone Duo panel to capture; auto = the lit panel (default: simctl's first display)")
+    shot.add_argument("--a11y", action="append", choices=sorted(A11Y_SETTINGS),
+                      help="switch a simulator accessibility setting on for this capture, "
+                           "restored afterwards (repeatable)")
     shot.add_argument("--app", choices=sorted(PRODUCTS), default=None,
                        help="UI-test product (default: ipad for the ipad alias, else phone)")
     shot.set_defaults(func=cmd_shot)
