@@ -86,6 +86,11 @@ class MatrixTests(unittest.TestCase):
         previous = {"high_contrast": "off", "animations": True, "transparency": True, "text_scale": 100}
         self.assertEqual(m.restore_values(previous, {"text_scale": 225}), {"text_scale": 100})
         self.assertEqual(m.restore_values(previous, {}), {})
+        self.assertEqual(m.MODES["light-theme"]["system"], {"light_theme": True})
+        self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
+        self.assertEqual(m.MODES["scale-150"]["system"], {"display_scale": 150})
+        light = {**previous, "light_theme": False}
+        self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
 
     def test_pending_restore(self):
         import tempfile
