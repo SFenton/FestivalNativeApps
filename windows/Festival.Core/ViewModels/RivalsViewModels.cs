@@ -29,7 +29,7 @@ public sealed record RivalRowItem(
     /// <param name="scope">Scope the list was read under.</param>
     /// <returns>Row.</returns>
     public static RivalRowItem From(RivalSummary rival, RivalDirection direction, RivalScope? scope) =>
-        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.BehindCount, rival.AheadCount, null,
+        new(rival.AccountId, DisplayName(rival.AccountId, rival.DisplayName), direction, rival.BehindCount, rival.AheadCount, null,
             new AppRoute.RivalDetail(rival.AccountId, rival.DisplayName, scope));
 
     /// <summary>Row for a leaderboard rival.</summary>
@@ -38,11 +38,20 @@ public sealed record RivalRowItem(
     /// <param name="scope">Leaderboard scope.</param>
     /// <returns>Row.</returns>
     public static RivalRowItem From(LeaderboardRivalSummary rival, RivalDirection direction, RivalScope scope) =>
-        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.BehindCount, rival.AheadCount,
+        new(rival.AccountId, DisplayName(rival.AccountId, rival.DisplayName), direction, rival.BehindCount, rival.AheadCount,
             rival.LeaderboardRank, new AppRoute.RivalDetail(rival.AccountId, rival.DisplayName, scope));
 
     /// <summary>Fallback name (web <c>Unknown Player</c>).</summary>
     public const string UnknownName = "Unknown Player";
+
+    /// <summary>Name of an anonymous production row (Android <c>RivalText.UNKNOWN_USER</c>, Windows rankings).</summary>
+    public const string AnonymousName = "Unknown User";
+
+    /// <summary>
+    /// Whether the row names a real account that opens Rival Detail. Production serves anonymous rows with an empty
+    /// account ID (issue #200); they show as "Unknown User" without a chevron, click or Invoke (Android <c>isNavigable</c>).
+    /// </summary>
+    public bool IsNavigable => AccountId.Length > 0;
 
     /// <summary>Whether the player leads this rival overall (green tint).</summary>
     public bool IsWinning => Direction == RivalDirection.Below;
@@ -64,7 +73,18 @@ public sealed record RivalRowItem(
         $"{Name}{(HasRank ? ", rank " + RankText[1..] : "")}, {(IsWinning ? "behind you" : "ahead of you")}, {AheadText}, {BehindText}";
 
     /// <summary>UIA automation ID.</summary>
-    public string AutomationId => "fst.rivals.row." + AccountId;
+    public string AutomationId => "fst.rivals.row." + RowKey;
+
+    /// <summary>The account ID, or <c>rank-N</c> / <c>anonymous</c> for an anonymous row (as rankings' <c>rank-N</c>).</summary>
+    public string RowKey => IsNavigable ? AccountId
+        : LeaderboardRank is { } rank ? string.Create(CultureInfo.InvariantCulture, $"rank-{rank}") : "anonymous";
+
+    /// <summary>Row name: anonymous rows read "Unknown User", nameless accounts "Unknown Player".</summary>
+    /// <param name="accountId">Validated account ID (empty when anonymous).</param>
+    /// <param name="displayName">Sanitized display name.</param>
+    /// <returns>Shown name.</returns>
+    private static string DisplayName(string accountId, string? displayName) =>
+        accountId.Length == 0 ? AnonymousName : displayName ?? UnknownName;
 }
 #endregion
 

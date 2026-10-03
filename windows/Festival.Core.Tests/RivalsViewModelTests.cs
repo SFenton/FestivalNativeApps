@@ -337,6 +337,24 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public void RivalRow_AnonymousRowIsUnlinkedUnknownUser()
+    {
+        // Issue #200: production serves anonymous rows (empty account ID, no name); Android shows "Unknown User", unlinked.
+        var board = RivalRowItem.From(new LeaderboardRivalSummary("", null, 728, 157, 571, 0, 13, 4), RivalDirection.Below,
+            new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore));
+        Assert.False(board.IsNavigable);
+        Assert.Equal(RivalRowItem.AnonymousName, board.Name);
+        Assert.Equal("Unknown User, rank 13, behind you, 571 songs ahead, 157 songs behind", board.AccessibleName);
+        Assert.Equal("fst.rivals.row.rank-13", board.AutomationId);
+        var song = RivalRowItem.From(new RivalSummary("", "Ghost", 1, 2, 1, 1, 0), RivalDirection.Above, null);
+        Assert.Equal(RivalRowItem.AnonymousName, song.Name);
+        Assert.Equal("anonymous", song.RowKey);
+        var named = RivalRowItem.From(new RivalSummary("a1", "Alpha", 1, 2, 1, 1, 0), RivalDirection.Above, null);
+        Assert.True(named.IsNavigable);
+        Assert.Equal("a1", named.RowKey);
+    }
+
+    [Fact]
     public void RivalSongItem_EnrichesFromCatalogue()
     {
         var comparison = new RivalSongComparison("s1", null, null, "Solo_PeripheralCymbals", "Solo_PeripheralCymbals", "Solo_PeripheralDrums",
@@ -366,6 +384,11 @@ public class RivalsViewModelTests
         Assert.Equal("", plain.Subtitle);
         Assert.False(plain.IsMixedInstrument);
         Assert.Contains("tied", plain.AccessibleName);
+        Assert.Equal("T, Lead, you rank 3 with 1,000 points, Them ranks 9, tied",
+            new RivalSongItem(comparison with { Title = "T", Artist = null, Instrument = "Solo_Guitar", UserInstrument = null, RivalInstrument = null, RankDelta = 0 },
+                null, "Me", "Them").FullAccessibleName);
+        Assert.Equal("Catalog, Band, 2024, Pro Drums + Cymbals vs Pro Drums, you rank 3 with 1,000 points, Them ranks 9 with 2,500 points, you lead",
+            new RivalSongItem(comparison with { RivalScore = 2500 }, song, "Me", "Them").FullAccessibleName);
         Assert.Equal(RivalSongOutcome.Losing, new RivalSongItem(comparison with { RankDelta = -1 }, null, "Me", "Them").Outcome);
         Assert.Equal("Band", new RivalSongItem(comparison, song with { Year = null }, "Me", "Them").Subtitle);
     }
