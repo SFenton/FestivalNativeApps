@@ -467,6 +467,8 @@ struct SongsScreen: View {
         ))
         #if os(iOS)
         .sheet(isPresented: $sortPresented) { sortSheet }
+        // iPad menu bar View › Sort… / Filter… (no-op on iPhone).
+        .macPageCommands(macCommands)
         #else
         // Mac: Sort is a popover from its toolbar button (HIG Popovers: "a little
         // information or functionality"); View › Sort… opens it too.
@@ -591,7 +593,6 @@ struct SongsScreen: View {
         #endif
     }
 
-    #if os(macOS)
     /// Sort and Filter for View › Sort… / Filter… (Filter disabled when unavailable).
     private var macCommands: MacPageCommands {
         var commands = MacPageCommands()
@@ -599,7 +600,6 @@ struct SongsScreen: View {
         if canPresentFilter { commands.filter = { filterPresented = true } }
         return commands
     }
-    #endif
 
     /// Sort options (a sheet on iPhone/iPad, a popover on the Mac).
     private var sortSheet: some View {

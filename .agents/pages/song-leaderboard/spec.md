@@ -14,7 +14,7 @@ Source: `FortniteFestivalWeb/src/pages/leaderboard/global/LeaderboardPage.tsx:49
 
 - Header song title → Detail; the selected player's row → Statistics; another player → Player profile.
 - An explicit deep-link page overrides the cached page, then is corrected once totals arrive. First/Previous/Next/Last disable at boundaries; native ID family `fst.song-leaderboard.page-{first,previous,info,next,last}`.
-- Selected-player/band footer uses the effective valid score and opens Statistics. `navToPlayer` targets the highlighted row after rows settle.
+- Selected-player/band footer uses the effective valid score and opens Statistics. The footer and pagination are portalled outside the load gate: they stay in place while another page loads, and rows fade out over 36 px above them (`useScrollFade`). `navToPlayer` targets the highlighted row after rows settle.
 - **Native correction (all platforms):** update route/deep-link state when paging; the PWA changes pages locally and a stale link can override.
 
 ## Accessibility order (target)

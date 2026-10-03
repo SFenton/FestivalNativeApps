@@ -1790,9 +1790,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
             sorts = query.get("sort", ["closest"])
             limits = query.get("limit", ["0"])
             offsets = query.get("offset", ["0"])
-            if (set(query) - {"sort", "limit", "offset"} or len(sorts) != 1
+            # The service also accepts `allowLiveFallback` (web Find Rival).
+            live = query.get("allowLiveFallback", ["false"])
+            if (set(query) - {"sort", "limit", "offset", "allowLiveFallback"} or len(sorts) != 1
                     or sorts[0] not in ("closest", "they_lead", "you_lead")
-                    or len(limits) != 1 or len(offsets) != 1):
+                    or len(limits) != 1 or len(offsets) != 1
+                    or len(live) != 1 or live[0] not in ("true", "false")):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)

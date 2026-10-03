@@ -287,7 +287,7 @@ struct FullRankingsScreen: View {
                     Button {
                         page = LeaderboardPaging.page(forRank: entry.rank(for: rankBy), pageSize: 25)
                     } label: {
-                        Image(systemName: "arrow.right.circle.fill")
+                        Image(systemName: "arrow.forward.circle.fill")
                             .font(.title3)
                             .foregroundStyle(BrandTokens.accentPurple)
                             .frame(minWidth: 44, minHeight: 44)

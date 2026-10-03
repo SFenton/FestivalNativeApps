@@ -181,6 +181,56 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 10), "regular width again")
     }
 
+    /// Exact Split View tiles from the window-controls menu: a landscape ½ (600 pt) and
+    /// ⅓ (≈ 397 pt) window are compact, so the phone tabs show. The detail the
+    /// three-column split auto-selected is not left pushed over the Songs list in the
+    /// tab shell, even when another section was in front as the window narrowed (the
+    /// Songs stack was not on screen to pop it; reproduced on master), and filling the
+    /// screen splits again with a populated detail.
+    @MainActor
+    func testExactTilesDropUnchosenDetail() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
+        element(app, "fst.nav.leaderboards").tap()
+        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
+        let screen = WindowResize.currentScreenWidth
+        guard WindowResize.tile(app, .left) else {
+            throw XCTSkip("window-controls tiling menu unavailable (full-screen multitasking mode)")
+        }
+        XCTAssertEqual(WindowResize.windowWidth(app), screen / 2, accuracy: 12, "exact half (minus the gap)")
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10), "a ½ window is compact")
+        app.typeKey("1", modifierFlags: .command)
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 10), "the list shows")
+        XCTAssertFalse(element(app, "fst.song-detail.intensity").exists, "no unchosen detail pushed")
+        XCTAssertTrue(WindowResize.tile(app, .thirds))
+        XCTAssertEqual(WindowResize.windowWidth(app), screen / 3, accuracy: 12, "exact third")
+        XCTAssertTrue(app.tabBars.firstMatch.exists, "a ⅓ window is compact")
+        XCTAssertTrue(WindowResize.fill(app), "window fills the screen again")
+        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 10), "splits again")
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 15), "detail populated")
+    }
+
+    /// A row the person picked survives the compact tab shell (it stays pushed), then
+    /// returns to the detail column.
+    @MainActor
+    func testChosenDetailSurvivesCompactTile() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let second = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(second.waitForExistence(timeout: 10))
+        second.tap()
+        XCTAssertTrue(second.waitForSelection(timeout: 5))
+        guard WindowResize.tile(app, .left) else {
+            throw XCTSkip("window-controls tiling menu unavailable (full-screen multitasking mode)")
+        }
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 10), "picked song stays")
+        XCTAssertTrue(WindowResize.fill(app))
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForSelection(timeout: 10), "still selected")
+    }
+
     // MARK: - Keyboard
 
     /// ⌘2 selects the second sidebar destination and ⌘1 returns to Songs.
@@ -195,6 +245,39 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Item Shop"].waitForExistence(timeout: 15))
         app.typeKey("1", modifierFlags: .command)
         XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 15))
+    }
+
+    /// The iPadOS menu bar's shortcuts reach the window in front: ⌘K opens search,
+    /// ⇧⌘P profile selection, ⌘5 Leaderboards (sidebar order with a player), ⌘[ goes
+    /// back from Full Rankings, ⌘R refreshes without leaving the page.
+    @MainActor
+    func testMenuBarShortcuts() throws {
+        let app = fixtureApp(profile: true)
+        launchFilled(app)
+        XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 20))
+        app.typeKey("k", modifierFlags: .command)
+        let field = app.textFields["fst.global-search.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "⌘K opens search")
+        app.buttons["fst.global-search.close"].tap()
+        XCTAssertTrue(waitForDisappearance(of: field, timeout: 10))
+        app.typeKey("p", modifierFlags: [.shift, .command])
+        let scope = element(app, "fst.profile.scope")
+        XCTAssertTrue(scope.waitForExistence(timeout: 10), "⇧⌘P opens profile selection")
+        app.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
+        if !waitForDisappearance(of: scope, timeout: 5) {
+            app.swipeDown(velocity: .fast)
+            XCTAssertTrue(waitForDisappearance(of: scope, timeout: 10))
+        }
+        app.typeKey("5", modifierFlags: .command)
+        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15), "⌘5 is Leaderboards")
+        let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
+        viewAll.tap()
+        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 15))
+        app.typeKey("r", modifierFlags: .command)
+        XCTAssertTrue(element(app, "fst.nav.list-detail").exists, "⌘R stays on the page")
+        app.typeKey("[", modifierFlags: .command)
+        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15), "⌘[ goes back")
     }
 
     // MARK: - Helpers

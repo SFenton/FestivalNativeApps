@@ -52,7 +52,7 @@ The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../desi
 | Control | How | Scriptable? |
 |---|---|---|
 | Open / close / partially fold / rotate | Device Hub (Xcode ▸ Open Developer Tool ▸ Device Hub, or `Xcode.app/Contents/Applications/DeviceHub.app`): pose buttons under the device; ⌥-click shows a hinge-angle slider. An older Device Hub lacks the pose widget | **Only by UI scripting** (operator-approved 2026-09-28): `ios_sim.py pose --set folded\|unfolded\|half\|rotate-left\|rotate-right`, `shot --set-pose/--rotate`. No `simctl` subcommand or `XCUIDevice` API; Device Hub sends private vendor HID events. Needs the operator's Accessibility grant for the responsible app ([simulator-driver.md](../../workflow/simulator-driver.md#accessibility-permission-ui-scripting)); agents never change it |
-| `XCUIDevice.shared.orientation` / driver `rotate:` | Ignored on the outer display: window stays 466×678 portrait in all four orientations (re-measured 2026-09-28) | Not a rotation |
+| `XCUIDevice.shared.orientation` / driver `rotate:` | Ignored on the outer display: window stays 466×678 portrait in all four orientations (re-measured 2026-09-28). Not the orientation mask: it still stays portrait with every orientation allowed (2026-10-02). Rotation needs Device Hub | Not a rotation |
 | `simctl io … screenConfig power off` | Blanks a panel; **not** a pose | — |
 | Which panel is lit | `python3 tools/ios_sim.py pose` (screenshots both panels, unlit = black) | Yes (read-only) |
 | Capture a panel | `shot --device duo --display outer\|inner\|auto`; `--pose folded\|unfolded\|half` fails with exit 3 and instructions if Device Hub is in another pose (`--set-pose` fixes it by scripting) | Yes |
@@ -65,6 +65,8 @@ The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../desi
 - Camera transitions between displays cannot be tested in Simulator (Apple).
 
 ## Outer-display rotations and the camera
+
+Supported orientations (operator O1 (b), 2026-10-02): a device that reports a hinge (or the vertical bar) allows all four orientations via the app delegate (`App/Layout/OrientationPolicy.swift`); the iPhone Info.plist key stays portrait-only and iPad keeps its four.
 
 Portrait was captured natively. The other three rows come from the web app's measured standalone-Safari Duo detector (`FortniteFestivalWeb/src/utils/probableDuoDisplay.ts:18-24,157-170`: an 84 pt inset on the bar side, 34 pt bottom, 0 top) and Apple's "controls stay with the camera" rule. TODO(orchestrator): confirm each row natively once the operator rotates the device in Device Hub.
 

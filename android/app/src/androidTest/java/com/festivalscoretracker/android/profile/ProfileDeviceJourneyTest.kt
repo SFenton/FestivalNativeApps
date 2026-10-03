@@ -110,7 +110,7 @@ class ProfileDeviceJourneyTest {
         tap("fst.player.select")
         waitForTag("fst.nav.tab.statistics")
         waitForTag("fst.player.overview")
-        assertNothingStraddles("fst.player.header", "fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
+        assertNothingStraddles("fst.player.identity", "fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
         // Operator 7.12: no page-header Deselect (the drawer owns it, like the web sidebar).
         waitForTag("fst.player")
     }

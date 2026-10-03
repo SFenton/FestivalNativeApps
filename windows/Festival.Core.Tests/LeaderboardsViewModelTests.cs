@@ -783,6 +783,46 @@ public sealed class SongLeaderboardViewModelTests
     }
 
     [Fact]
+    public async Task PagingKeepsHeaderSpotlightAndPagerWhileOnlyTheRowsReload()
+    {
+        var service = new FakeService();
+        var profile = PlayerWire.Profile(PlayerWire.Id, "Fixture One", PlayerWire.Score("s1", "01", 5000, 990, true, 6, 60, 100, 1.0));
+        PlayerWire.Install(service, new() { [PlayerWire.Id] = (HttpStatusCode.OK, profile) });
+        var gate = new TaskCompletionSource();
+        var respond = service.Handler.Responder;
+        service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.Query.Contains("offset=25", StringComparison.Ordinal)) await gate.Task;
+            return await respond(request, token);
+        };
+        var session = Session(service, new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
+        var vm = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s1", Instrument.Lead));
+        await vm.ActivateAsync();
+        await Async.Until(() => vm.ShowSpotlight);
+        Assert.True(vm.ShowContent);
+        Assert.True(vm.ShowRows);
+
+        var changes = new List<string?>();
+        vm.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        var paging = vm.GoToPageAsync(2);
+        await Async.Until(() => vm.IsLoading);
+
+        // Web PaginatedLeaderboard: only the rows swap for the spinner; the header, pinned row and pager stay.
+        Assert.False(vm.ShowRows);
+        Assert.True(vm.ShowContent);
+        Assert.True(vm.ShowSpotlight);
+        Assert.Equal(1, vm.Pager.Page);
+        Assert.DoesNotContain(nameof(SongLeaderboardViewModel.ShowContent), changes);
+
+        gate.SetResult();
+        await paging;
+        Assert.True(vm.ShowRows);
+        Assert.True(vm.ShowContent);
+        Assert.Equal(2, vm.Pager.Page);
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task InvalidScoreFallsBackToValidVariantWhenFiltering()
     {
         var service = new FakeService();

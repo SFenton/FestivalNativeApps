@@ -40,7 +40,6 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
             OnPropertyChanged(nameof(ShowRows));
             OnPropertyChanged(nameof(ShowEmpty));
             OnPropertyChanged(nameof(ShowError));
-            OnPropertyChanged(nameof(ShowContent));
         };
     }
 
@@ -122,8 +121,12 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     /// <summary>Whether the full-page failure is shown.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
-    /// <summary>Whether the header, spotlight and pager are shown.</summary>
-    public bool ShowContent => State is (LoadState.Loaded or LoadState.Empty) && LoadSwap.ContentVisible;
+    /// <summary>
+    /// Whether the song header and pager are shown. They stay in place while another page loads (web
+    /// <c>PaginatedLeaderboard</c> keeps its pagination mounted after the first load): <see cref="State"/> only changes
+    /// when a load commits, so only the rows swap for the spinner (issue #93).
+    /// </summary>
+    public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
     /// <summary>Whether the pinned row is shown.</summary>
     public bool ShowSpotlight => Spotlight is not null;

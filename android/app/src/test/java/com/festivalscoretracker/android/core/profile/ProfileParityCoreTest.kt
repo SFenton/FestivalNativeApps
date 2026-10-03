@@ -244,10 +244,14 @@ class ProfileParityCoreTest {
         val visible = listOf(Instrument.Lead, Instrument.Drums)
         val rows = ProfileSections.rows(visible)
         assertEquals(
-            listOf("header", "overview", "instrument:Solo_Guitar", "instrument:Solo_Drums", "top-songs", "top-songs:Solo_Guitar", "top-songs:Solo_Drums", "bands"),
+            listOf("overview", "instrument:Solo_Guitar", "instrument:Solo_Drums", "top-songs", "top-songs:Solo_Guitar", "top-songs:Solo_Drums", "bands"),
             rows.map { it.key },
         )
-        assertEquals(listOf(true, true, false, false, true, false, false, true), rows.map { it.fullWidth })
+        assertEquals(listOf(true, false, false, true, false, false, true), rows.map { it.fullWidth })
+        // Issue #97: no name card; a full-width identity-actions row leads only when Select/Switch or a notice applies.
+        val withIdentity = ProfileSections.rows(visible, showIdentity = true)
+        assertEquals(listOf("identity") + rows.map { it.key }, withIdentity.map { it.key })
+        assertEquals(true, withIdentity.first().fullWidth)
         val links = ProfileSections.quickLinks(visible, "Synthetic Player")
         assertEquals(listOf("global", "instrument:Solo_Guitar", "instrument:Solo_Drums", "top-songs", "bands"), links.map { it.id })
         assertEquals(listOf("Global Statistics", "Lead", "Drums", "Top Songs", "Bands"), links.map { it.title })

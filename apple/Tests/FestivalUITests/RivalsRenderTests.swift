@@ -493,9 +493,8 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
 }
 
 /// A `nil` scope (deep link, cold `DebugLaunchRoute`, or `FindRivalSheet`'s
-/// arbitrary search result) falls back to merging every Settings-visible
-/// instrument (`FestivalSession.fallbackRivalDetail` → the multi-instrument
-/// branch of `combinedRivalDetail`, deduplicating songs across instruments).
+/// arbitrary search result) reads the web's Settings scopes with
+/// `allowLiveFallback=true` (`RivalDetailScopes.settingsScopes`; Lead + Bass → `03`).
 @MainActor
 @Test func rivalDetailScreenRendersNilScopeFallbackMerge() async throws {
     let (session, storage, suite) = try await rivalsFixtureSession(

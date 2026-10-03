@@ -97,7 +97,7 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                 }
             }
             Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(FestivalText.deemphasized)
         }

@@ -107,6 +107,31 @@ enum FestivalTabPolicy {
         return result
     }
 
+    /// The page the drawer pushes for a section the phone tab bar dropped to fit the
+    /// Search tab (``fittingSearchTab(_:limit:)``), so a launch or link naming it still
+    /// opens it rather than a neighbouring tab.
+    ///
+    /// - Parameters:
+    ///   - section: Requested root section.
+    ///   - profile: Selected profile kind.
+    ///   - visible: Sections shown as tabs.
+    /// - Returns: The drawer's route for `section`, or nil when it is a visible tab or
+    ///   not available for `profile` at all.
+    static func searchTabOverflowRoute(
+        for section: FestivalSection, profile: FestivalProfileKind, visible: [FestivalSection]
+    ) -> AppRoute? {
+        guard !visible.contains(section), dropOrderForSearchTab.contains(section),
+              sections(profile: profile, regularWidth: false).contains(section)
+        else { return nil }
+        switch section {
+        case .statistics: return .statistics
+        case .rivals: return .rivals
+        case .suggestions: return .suggestions
+        case .leaderboards: return .leaderboards
+        default: return nil
+        }
+    }
+
     /// Keep the user on an equivalent section when the visible set changes.
     ///
     /// Compete and Leaderboards occupy the same slot (web `activeKeys`), so selecting or

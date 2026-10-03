@@ -18,6 +18,7 @@ from tempfile import TemporaryDirectory
 
 from tools import ios_sim
 from tools.ios_sim import (
+    a11y_commands,
     accessibility_instructions,
     app_bundle_for,
     bmp_is_dark,
@@ -309,3 +310,22 @@ class AccessibilityInstructionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class A11yCommandsTests(unittest.TestCase):
+    """`shot --a11y` switches simulator settings on, then restores them in reverse."""
+
+    def test_settings_enable_in_order_and_restore_in_reverse(self):
+        enable, restore = a11y_commands("UDID", ["increase-contrast", "reduce-transparency"])
+        self.assertEqual(enable[0], ["xcrun", "simctl", "ui", "UDID", "increase_contrast", "enabled"])
+        self.assertEqual(enable[1][:6], ["xcrun", "simctl", "spawn", "UDID", "defaults", "write"])
+        self.assertIn("EnhancedBackgroundContrastEnabled", enable[1])
+        self.assertEqual(restore[0][4:6], ["defaults", "delete"])
+        self.assertEqual(restore[1], ["xcrun", "simctl", "ui", "UDID", "increase_contrast", "disabled"])
+
+    def test_no_settings_runs_nothing(self):
+        self.assertEqual(a11y_commands("UDID", None), ([], []))
+
+    def test_unknown_setting_is_rejected(self):
+        with self.assertRaises(ValueError):
+            a11y_commands("UDID", ["bold-text"])

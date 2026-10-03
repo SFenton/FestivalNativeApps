@@ -30,6 +30,46 @@ enum PlayerProfilePhase {
     }
 }
 
+/// Why Select/Switch is paused for a viewed player, shown above the page content.
+enum PlayerProfileIdentityNotice: Equatable {
+    /// The read carried no verified publication header.
+    case unverified
+    /// The read's publication differs from the session's current one.
+    case publicationChanged
+
+    /// The notice to show for a read, if any.
+    ///
+    /// - Parameters:
+    ///   - isSelected: Whether the shown account is the selected player.
+    ///   - payloadPublicationId: Publication proven by the profile read, if any.
+    ///   - sessionPublicationId: Publication the session currently observes.
+    /// - Returns: The pause reason, or nil when selection is not paused (or the
+    ///   player is already selected).
+    static func notice(
+        isSelected: Bool, payloadPublicationId: Int?, sessionPublicationId: Int?
+    ) -> PlayerProfileIdentityNotice? {
+        if isSelected { return nil }
+        guard let payloadPublicationId else { return .unverified }
+        return payloadPublicationId == sessionPublicationId ? nil : .publicationChanged
+    }
+
+    /// Readable explanation of the pause.
+    var message: String {
+        switch self {
+        case .unverified: "These scores have no verified publication. Selection is paused."
+        case .publicationChanged: "Published scores changed. Reload this page before selecting."
+        }
+    }
+
+    /// UI-test identifier of the notice text.
+    var accessibilityIdentifier: String {
+        switch self {
+        case .unverified: "fst.player.unverified"
+        case .publicationChanged: "fst.player.preview-changed"
+        }
+    }
+}
+
 /// Shared body for the pushed `/player/:accountId` route (`PlayerProfileScreen`) and
 /// the Statistics tab root for the selected player (`StatisticsScreen`) — the web
 /// renders both from the same `PlayerPage` component (`App.tsx:95-105`).
@@ -273,22 +313,27 @@ struct PlayerProfileContent: View {
     }
 
     private func profileScroll(_ payload: PlayerProfilePayload) -> some View {
-        ScrollView {
+        let notice = identityNotice(payload)
+        // The notices card, when shown, takes the first stagger slot; everything else
+        // follows it, so the first visible item always fades in first.
+        let first = (notice != nil || actionError != nil) ? 1 : 0
+        return ScrollView {
             // New content fades in as it loads: sections stagger like the web's
-            // `PlayerPage` `useStagger` (`Common/FadeInOnLoad.swift`).
+            // `PlayerPage` `useStagger` (`Common/FadeInOnLoad.swift`). No avatar/name
+            // card: the large navigation title already names the player (issue #97).
             VStack(alignment: .leading, spacing: 20) {
-                header(payload)
-                    .festivalFadeIn(isLoaded: true, index: 0)
-                    // Keeps layout so Quick Links offsets are unchanged.
-                    .opacity(DebugAnimationOverride.hideProfileHeader ? 0 : 1)
+                if first == 1 {
+                    identityNotices(notice)
+                        .festivalFadeIn(isLoaded: true, index: 0)
+                }
                 overallSection(payload)
-                    .festivalFadeIn(isLoaded: true, index: 1)
+                    .festivalFadeIn(isLoaded: true, index: first)
                 FestivalSectionHeader(
                     "Instrument Statistics",
                     subtitle: "A quick look at \(displayName)'s overall Festival statistics per instrument."
                 )
                 .padding(.horizontal, 4)
-                .festivalFadeIn(isLoaded: true, index: 2)
+                .festivalFadeIn(isLoaded: true, index: first + 1)
                 if layout.widthClass == .regular {
                     // Two flexible columns on a regular-width window (Duo unfolded,
                     // iPad): each instrument's stats card and charts read as one
@@ -297,68 +342,62 @@ struct PlayerProfileContent: View {
                     LazyVGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
                         ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
                             instrumentTile(payload, instrument: instrument)
-                                .festivalFadeIn(isLoaded: true, index: index + 3)
+                                .festivalFadeIn(isLoaded: true, index: first + 2 + index)
                         }
                     }
                 } else {
                     ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
                         instrumentTile(payload, instrument: instrument)
-                            .festivalFadeIn(isLoaded: true, index: index + 3)
+                            .festivalFadeIn(isLoaded: true, index: first + 2 + index)
                     }
                 }
                 bandsLink
-                    .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + 3)
+                    .festivalFadeIn(isLoaded: true, index: first + 2 + visibleInstruments.count)
             }
             .padding(16)
             .festivalFadeInScope()
         }
-        .quickLinks(quickLinks, title: "Quick Links")
+        // On the scroll view itself: after `.quickLinks` it would land on the
+        // `ScrollViewReader` wrapper, which UI tests cannot find.
         .accessibilityIdentifier("fst.player.available")
+        .quickLinks(quickLinks, title: "Quick Links")
     }
 
-    // MARK: Header
+    // MARK: Identity notices
 
-    @ViewBuilder
-    private func header(_ payload: PlayerProfilePayload) -> some View {
+    /// Why selection is paused for `payload`, if it is.
+    ///
+    /// - Parameter payload: Current validated read backing the action.
+    /// - Returns: The pause reason, or nil.
+    private func identityNotice(_ payload: PlayerProfilePayload) -> PlayerProfileIdentityNotice? {
+        PlayerProfileIdentityNotice.notice(
+            isSelected: isSelected, payloadPublicationId: payload.publicationId,
+            sessionPublicationId: session.publicationId
+        )
+    }
+
+    /// Selection-pause notice and Select/Switch error, in one card shown only while
+    /// either applies. The page title already names the player, so there is no
+    /// avatar or name here (issue #97). The action itself is a toolbar item
+    /// (`ProfileIdentityToolbarItem` in `ProfileIdentityAction.swift`).
+    ///
+    /// - Parameter notice: Current pause reason, if any.
+    private func identityNotices(_ notice: PlayerProfileIdentityNotice?) -> some View {
         FestivalGlassSection {
-            HStack(spacing: 12) {
-                ProfileAvatar(name: displayName, size: 44)
-                // Name only, like the web's PlayerPage: selection state shows solely
-                // through the Select/Switch/Deselect action (operator, 2026-09-28).
-                Text(displayName)
-                    .font(.title3.bold())
-                    .foregroundStyle(BrandTokens.textPrimary)
-                    .accessibilityIdentifier("fst.player.name")
-                Spacer(minLength: 0)
+            if let notice {
+                Text(notice.message)
+                    .font(.footnote)
+                    .foregroundStyle(BrandTokens.gold)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier(notice.accessibilityIdentifier)
             }
-            identityPause(payload)
             if let actionError {
                 Text(actionError)
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.gold)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("fst.player.action-error")
             }
-        }
-    }
-
-    /// Why selection is paused, when it is. The Select/Switch/Deselect action itself
-    /// lives in the tab accessory or toolbar (`ProfileIdentityAccessory.swift`).
-    ///
-    /// - Parameter payload: Current validated read backing the action.
-    @ViewBuilder
-    private func identityPause(_ payload: PlayerProfilePayload) -> some View {
-        if isSelected {
-            EmptyView()
-        } else if payload.publicationId == nil {
-            Text("These scores have no verified publication. Selection is paused.")
-                .font(.footnote)
-                .foregroundStyle(BrandTokens.gold)
-                .accessibilityIdentifier("fst.player.unverified")
-        } else if payload.publicationId != session.publicationId {
-            Text("Published scores changed. Reload this page before selecting.")
-                .font(.footnote)
-                .foregroundStyle(BrandTokens.gold)
-                .accessibilityIdentifier("fst.player.preview-changed")
         }
     }
 
@@ -605,7 +644,7 @@ struct PlayerProfileContent: View {
                 Text("View \(displayName)'s Bands")
                     .foregroundStyle(BrandTokens.textPrimary)
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.footnote)
                     .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)

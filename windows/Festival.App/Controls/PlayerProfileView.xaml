@@ -6,8 +6,8 @@
     xmlns:vm="using:Festival.Core.ViewModels">
     <!--
         Player profile body shared by /player/:accountId and the Statistics section (web PlayerPage). Separate cards like
-        the web: header card with Select/Switch/Deselect (never navigates), Overview stat cards, then per Settings-visible
-        instrument a header, its Rank History card, its stat cards and its Percentiles table card, then the Bands link.
+        the web: the player's name as the page title (no avatar or card, issue #97) with Select/Switch/Deselect (never
+        navigates), Overview stat cards, then per Settings-visible instrument a header, its Rank History card, its stat cards and its Percentiles table card, then the Bands link.
     -->
     <UserControl.Resources>
         <DataTemplate x:Key="StatTileTemplate" x:DataType="vm:PlayerStatTile">
@@ -22,58 +22,42 @@
         </Grid.ColumnDefinitions>
         <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.player.available">
             <StackPanel Padding="24,12,24,32" Spacing="12" MaxWidth="1280">
-                <!-- Header -->
-                <Border x:Name="HeaderCard" Style="{StaticResource FSTCardStyle}">
-                    <Grid ColumnSpacing="16" RowSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <PersonPicture Width="64" Height="64" VerticalAlignment="Center"
-                                       DisplayName="{x:Bind ViewModel.DisplayName, Mode=OneWay}"
-                                       AutomationProperties.AccessibilityView="Raw" />
-                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
-                                           TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
-                                           AutomationProperties.AutomationId="fst.player.name" />
-                        </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="8">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="{x:Bind ViewModel.SelectLabel, Mode=OneWay}" Click="OnSelectClick"
-                                        Style="{StaticResource AccentButtonStyle}" MinHeight="{StaticResource FSTMinTargetSize}"
-                                        Visibility="{x:Bind ViewModel.CanSelect, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.player.select" />
-                                <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="{StaticResource FSTMinTargetSize}" FontWeight="SemiBold"
-                                        Background="{ThemeResource FSTDangerBackgroundBrush}" Foreground="{ThemeResource FSTDangerForegroundBrush}"
-                                        BorderBrush="{ThemeResource FSTDangerBorderBrush}"
-                                        Visibility="{x:Bind ViewModel.CanDeselect, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.player.deselect">
-                                    <Button.Resources>
-                                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
-                                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
-                                        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
-                                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
-                                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
-                                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
-                                    </Button.Resources>
-                                </Button>
-                                <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="{StaticResource FSTMinTargetSize}" />
-                            </StackPanel>
-                            <TextBlock Text="{x:Bind ViewModel.IdentityNotice, Mode=OneWay}" TextWrapping="Wrap"
-                                       Foreground="{ThemeResource FSTEmphasisBrush}"
-                                       Visibility="{x:Bind ViewModel.HasIdentityNotice, Mode=OneWay}"
-                                       AutomationProperties.AutomationId="fst.player.identity-notice" />
-                            <TextBlock Text="{x:Bind ViewModel.ActionError, Mode=OneWay}" TextWrapping="Wrap"
-                                       Foreground="{ThemeResource FSTEmphasisBrush}" AutomationProperties.LiveSetting="Assertive"
-                                       Visibility="{x:Bind ViewModel.HasActionError, Mode=OneWay}"
-                                       AutomationProperties.AutomationId="fst.player.action-error" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                <!-- Page title (issue #97): the player's name as a plain H1 like other pages' titles, with no avatar or card;
+                     Select/Deselect, Quick Links and the selection notices sit under it. -->
+                <StackPanel x:Name="TitleRow" Spacing="12">
+                    <TextBlock Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
+                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
+                               AutomationProperties.AutomationId="fst.player.name" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="{x:Bind ViewModel.SelectLabel, Mode=OneWay}" Click="OnSelectClick"
+                                Style="{StaticResource AccentButtonStyle}" MinHeight="{StaticResource FSTMinTargetSize}"
+                                Visibility="{x:Bind ViewModel.CanSelect, Mode=OneWay}"
+                                AutomationProperties.AutomationId="fst.player.select" />
+                        <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="{StaticResource FSTMinTargetSize}" FontWeight="SemiBold"
+                                Background="{ThemeResource FSTDangerBackgroundBrush}" Foreground="{ThemeResource FSTDangerForegroundBrush}"
+                                BorderBrush="{ThemeResource FSTDangerBorderBrush}"
+                                Visibility="{x:Bind ViewModel.CanDeselect, Mode=OneWay}"
+                                AutomationProperties.AutomationId="fst.player.deselect">
+                            <Button.Resources>
+                                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
+                                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
+                                <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
+                                <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
+                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
+                            </Button.Resources>
+                        </Button>
+                        <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="{StaticResource FSTMinTargetSize}" />
+                    </StackPanel>
+                    <TextBlock Text="{x:Bind ViewModel.IdentityNotice, Mode=OneWay}" TextWrapping="Wrap"
+                               Foreground="{ThemeResource FSTEmphasisBrush}"
+                               Visibility="{x:Bind ViewModel.HasIdentityNotice, Mode=OneWay}"
+                               AutomationProperties.AutomationId="fst.player.identity-notice" />
+                    <TextBlock Text="{x:Bind ViewModel.ActionError, Mode=OneWay}" TextWrapping="Wrap"
+                               Foreground="{ThemeResource FSTEmphasisBrush}" AutomationProperties.LiveSetting="Assertive"
+                               Visibility="{x:Bind ViewModel.HasActionError, Mode=OneWay}"
+                               AutomationProperties.AutomationId="fst.player.action-error" />
+                </StackPanel>
 
                 <!-- Overview: one card per stat -->
                 <TextBlock x:Name="OverviewHeading" Text="Overview" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"

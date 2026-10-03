@@ -190,6 +190,8 @@ fun SongLeaderboardScreen(
             },
             footer = { footer?.let { AnchoredRowCard { LeaderboardSectionMember(columns, "footer") { SelectedScoreFooter(it, navigate, columns.plan) } } } },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
+            // Rows fade out above the pinned score and pager, as on the web (issue #93).
+            fadeAboveFooter = true,
         ) {
             if (swap.showsSpinner || loaded == null) {
                 loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading")

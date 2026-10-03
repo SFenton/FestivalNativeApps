@@ -389,5 +389,5 @@ private func repoFixture(_ name: String) throws -> Data {
     #expect(try await client.rivalComboDetail(accountId: accountA, token: "pro_drums", rivalId: rivalB).songs.isEmpty)
     #expect(try await client.leaderboardRivalDetail(accountId: accountA, instrument: .lead, rivalId: rivalB).songs.isEmpty)
     let queries = await transport.requests.compactMap { $0.url?.query }
-    #expect(queries == ["sort=closest&limit=0&offset=0", "sort=closest&limit=0&offset=0", "rankBy=totalscore&sort=closest"])
+    #expect(queries == ["limit=0&sort=closest", "limit=0&sort=closest", "rankBy=totalscore&sort=closest"])
 }

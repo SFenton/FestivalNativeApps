@@ -23,7 +23,7 @@ public sealed partial class PlayerProfileView : UserControl
         host.Binder.Resolve = id => ViewModel?.Instruments.FindIndex(i => i.QuickLinkId == id) is >= 0 and var index
             ? InstrumentsRepeater.GetOrCreateElement(index) as FrameworkElement
             : null;
-        // Web PlayerPage: spinner until the profile is ready, then header, Overview and sections fade in, staggered.
+        // Web PlayerPage: spinner until the profile is ready, then title, Overview and sections fade in, staggered.
         Scroller.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => StaggerIn());
         Scroller.Loaded += (_, _) => StaggerIn();
     }
@@ -134,11 +134,11 @@ public sealed partial class PlayerProfileView : UserControl
         else MainWindow.Instance?.Navigate(route);
     }
 
-    /// <summary>Fades the header, Overview heading and Overview cards in, 125 ms apart (sections stagger themselves).</summary>
+    /// <summary>Fades the title row, Overview heading and Overview cards in, 125 ms apart (sections stagger themselves).</summary>
     private void StaggerIn()
     {
         if (Scroller.Visibility != Visibility.Visible || !Scroller.IsLoaded) return;
-        FadeIn.Play(HeaderCard, TimeSpan.Zero);
+        FadeIn.Play(TitleRow, TimeSpan.Zero);
         FadeIn.Play(OverviewHeading, FadeInTiming.Interval);
         FadeIn.Play(OverviewGrid, FadeInTiming.Interval * 2);
     }

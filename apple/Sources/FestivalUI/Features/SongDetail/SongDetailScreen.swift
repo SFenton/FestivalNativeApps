@@ -176,8 +176,8 @@ struct SongDetailScreen: View {
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar { detailToolbar }
-        #if os(macOS)
         .macSongCommands(macSongCommands)
+        #if os(macOS)
         #if DEBUG
         // `tools/mac_app.py command song:paths` (the Song menu needs a key window).
         .onReceive(NotificationCenter.default.publisher(for: MacDebugHooks.openPathsName)) { _ in
@@ -215,8 +215,7 @@ struct SongDetailScreen: View {
         }
     }
 
-    #if os(macOS)
-    /// The toolbar's Paths and Item Shop tools for the Mac Song menu.
+    /// The toolbar's Paths and Item Shop tools for the Song menu (macOS, iPadOS).
     private var macSongCommands: MacSongCommands {
         let presented: Binding<Bool> = $pathsPresented
         var commands = MacSongCommands(songId: song.songId, paths: nil, shopURL: shopOffer?.shopUrl)
@@ -225,7 +224,6 @@ struct SongDetailScreen: View {
         }
         return commands
     }
-    #endif
 
     /// Song Detail's bar items.
     ///

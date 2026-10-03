@@ -161,9 +161,12 @@ sealed interface ProfileRow {
     /** Stable lazy key. */
     val key: String
 
-    /** Header with identity actions. */
-    data object Header : ProfileRow {
-        override val key: String get() = "header"
+    /**
+     * Select/Switch and selection notices, with no avatar or name (the top bar names the
+     * page, issue #97). Only present when it has something to show.
+     */
+    data object Identity : ProfileRow {
+        override val key: String get() = "identity"
     }
 
     /** Overview tiles (web Global Statistics). */
@@ -209,10 +212,12 @@ object ProfileSections {
      * Rows for a loaded profile.
      *
      * @param visible Settings-visible charts in service order.
+     * @param showIdentity Whether an identity action, notice or error needs the [ProfileRow.Identity] row;
+     *   without it Overview is the first row, so no empty gap sits under the title.
      * @return Rows in page order.
      */
-    fun rows(visible: List<Instrument>): List<ProfileRow> =
-        listOf(ProfileRow.Header, ProfileRow.Overview) +
+    fun rows(visible: List<Instrument>, showIdentity: Boolean = false): List<ProfileRow> =
+        listOfNotNull(ProfileRow.Identity.takeIf { showIdentity }, ProfileRow.Overview) +
             visible.map { ProfileRow.InstrumentStats(it) } +
             ProfileRow.TopSongsHeading +
             visible.map { ProfileRow.TopSongs(it) } +

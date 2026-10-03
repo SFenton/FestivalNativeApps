@@ -130,6 +130,26 @@ public enum LeaderboardPaging {
         guard rank > 0, pageSize > 0 else { return 1 }
         return (rank - 1) / pageSize + 1
     }
+
+    /// Whether the selected player's row is on the shown page: the loaded rows decide
+    /// when there are any; while the next page loads (no rows yet) their rank does, so
+    /// the pinned footer keeps its action instead of disappearing (issue #93).
+    ///
+    /// - Parameters:
+    ///   - accountId: Selected player's account id.
+    ///   - rank: Their rank on this chart.
+    ///   - page: One-based page being shown or loaded.
+    ///   - pageSize: Rows per page.
+    ///   - entries: Account ids on the loaded page, or nil while it loads.
+    /// - Returns: True when their row is (or will be) on `page`.
+    public static func isSelectedOnPage(
+        accountId: String, rank: Int, page: Int, pageSize: Int, entries: [String]?
+    ) -> Bool {
+        if let entries {
+            return entries.contains { $0.caseInsensitiveCompare(accountId) == .orderedSame }
+        }
+        return rank > 0 && self.page(forRank: rank, pageSize: pageSize) == page
+    }
 }
 
 extension FestivalAPI {

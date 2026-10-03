@@ -275,7 +275,7 @@ struct SongScorePreview: View {
                 currentSeason: session.catalogCurrentSeason
             )
             // Anonymous rows keep the chevron's width so their score column lines up.
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(FestivalText.deemphasized)
                 .opacity(route == nil ? 0 : 1)

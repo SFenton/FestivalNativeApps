@@ -1,11 +1,13 @@
+import SwiftUI
 #if os(macOS)
 import AppKit
-import SwiftUI
+#endif
 
 // MARK: - Page commands
 
-/// Page tools a focused page offers to the menu bar (HIG Toolbars › macOS: "Every
-/// toolbar item must also be a menu-bar command"). Songs publishes Sort and Filter.
+/// Page tools a focused page offers to the menu bar on macOS and iPadOS (HIG Toolbars ›
+/// macOS: "Every toolbar item must also be a menu-bar command"; The menu bar › iPadOS).
+/// Songs publishes Sort and Filter.
 struct MacPageCommands: Equatable {
     /// Opens the page's Sort options, or nil when the page has none.
     var sort: (@MainActor () -> Void)?
@@ -34,12 +36,17 @@ extension FocusedValues {
 }
 
 extension View {
-    /// Publish a page's Sort/Filter actions to View › Sort… / Filter… (macOS only).
+    /// Publish a page's Sort/Filter actions to View › Sort… / Filter… (the macOS and
+    /// iPadOS menu bar; a no-op on iPhone).
     ///
     /// - Parameter commands: The page's actions.
     /// - Returns: The view.
     func macPageCommands(_ commands: MacPageCommands) -> some View {
+        #if os(macOS)
         focusedSceneValue(\.macPageCommands, commands)
+        #else
+        modifier(MenuBarTopPagePublisher(keyPath: \.macPageCommands, value: commands))
+        #endif
     }
 }
 
@@ -75,16 +82,23 @@ extension FocusedValues {
 }
 
 extension View {
-    /// Publish Song Detail's Paths/Item Shop tools to the Song menu (macOS only).
+    /// Publish Song Detail's Paths/Item Shop tools to the Song menu (the macOS and
+    /// iPadOS menu bar; a no-op on iPhone).
     ///
     /// - Parameter commands: The song's tools.
     /// - Returns: The view.
     func macSongCommands(_ commands: MacSongCommands) -> some View {
+        #if os(macOS)
         focusedSceneValue(\.macSongCommands, commands)
+        #else
+        modifier(MenuBarTopPagePublisher(keyPath: \.macSongCommands, value: commands))
+        #endif
     }
 }
 
 // MARK: - Menu bar
+
+#if os(macOS)
 
 /// The Mac app's menu bar commands: File › Close, Edit › Search Festival, View
 /// (sidebar, toolbar, Refresh, Full Screen, Sort/Filter), a Go menu (destinations

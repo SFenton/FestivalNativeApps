@@ -282,3 +282,17 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
         .first { $0.id == FestivalSection.statistics.rawValue }
     #expect(row?.intent == .push(.statistics))
 }
+
+/// A launch naming a section the phone dropped for Search pushes the drawer's page.
+@Test func droppedSectionOpensAsDrawerRoute() {
+    let visible = ShellPresentation(navigation: .tabs, usesRegularSectionSet: false).sections(profile: .player)
+    #expect(FestivalTabPolicy.searchTabOverflowRoute(for: .statistics, profile: .player, visible: visible)
+        == .statistics)
+    // Visible tabs and sections the profile cannot show at all are not pushed.
+    #expect(FestivalTabPolicy.searchTabOverflowRoute(for: .compete, profile: .player, visible: visible) == nil)
+    #expect(FestivalTabPolicy.searchTabOverflowRoute(for: .statistics, profile: .none, visible: [.songs, .leaderboards, .settings])
+        == nil)
+    #expect(FestivalTabPolicy.searchTabOverflowRoute(for: .settings, profile: .player, visible: []) == nil)
+    let sidebar = FestivalTabPolicy.sections(profile: .player, regularWidth: true)
+    #expect(FestivalTabPolicy.searchTabOverflowRoute(for: .statistics, profile: .player, visible: sidebar) == nil)
+}

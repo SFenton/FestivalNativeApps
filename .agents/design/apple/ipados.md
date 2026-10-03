@@ -27,7 +27,7 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 - **When**: `ListDetailPolicy.usesSplit` splits the sidebar shell from a **1000 pt window** (11-inch landscape; portrait shows the sidebar beside a full-width list), by window width alone so the layout never flips while someone opens an overlaid sidebar. Rotation and window resizing reflow live (HIG windows.md "Make sure windows adapt fluidly to different sizes"; multitasking.md "adapt to every window size"). A shared column visibility keeps a hidden sidebar hidden across destinations; in portrait the system may tuck the sidebar away in three columns.
 - **Column layouts**: pages see a per-column `DeviceLayout` (`DeviceLayout.column(width:)`): the list column is compact, the detail and one-stack columns are regular only from 600 pt (window minus the sidebar's reported trailing edge, minus the 320 pt list column), so Leaderboards and Profile do not squeeze two card columns into ~500 pt. Widths come from the root (window probe + `FestivalSidebar` extent): geometry modifiers around a `NavigationStack` hoisted into a split column stopped updating.
 - **Never empty**: the detail restores the last selection, else auto-selects the **top-most** row on screen (rows offer route + `minY`, `ListDetailAutoSelectCollector` picks the smallest after 120 ms; lazy lists call `onAppear` out of order). Selected rows keep the accent highlight (split-views.md "Persistently highlight").
-- **Collapsing**: when the split becomes one stack (portrait, a narrower window) a detail nobody chose (auto-selected or restored) is popped so the list shows, like Mail; a row the person picked stays pushed. Only within one `ListDetailStack`: passing through the compact tab shell (⅓ window) rebuilds it and keeps the detail pushed.
+- **Collapsing**: when the split becomes one stack (portrait, a narrower window, the compact tab shell) a detail nobody chose (auto-selected or restored) is popped so the list shows, like Mail; a row the person picked stays pushed (`ListDetailPolicy.pathDroppingAutomaticDetail`). `ListDetailStack` pops it in place; it also reports its automatic detail to the root (`listDetailAutomaticReporter`), which pops it when the window falls back to the compact tab shell. That root step fixed the case where another section was in front as the window narrowed (Songs' stack was not on screen to pop itself, so the ⅓ window's Songs tab opened on the old detail).
 - Shop stays a grid that pushes Song Detail (a grid beside a detail column would leave two cramped columns).
 
 ## Grids and sheets
@@ -39,6 +39,19 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 | Song Detail instrument cards | `.adaptive(minimum: 360)`: two columns when the page is ≥ ~730 pt (full-width detail); one in a list/detail detail column | collections.md "make dynamic layout changes sensible and easy to track" |
 | Sheets | `festivalSheet` applies `presentationSizing(.form)` (or `.page`) at regular width, centered; compact windows get the phone sheets | sheets.md "Prefer page or form sheet styles in an iPadOS app" |
 | Popovers | Not used for page content; menus (Quick Links, metric pickers) are system menus | popovers.md "Avoid popovers in compact views" |
+
+## Window sizes
+
+Exact tiles from the window-controls menu (long-press Zoom; driver `tile:`), FST iPad Pro 11" (1194 × 834 pt screen, 1210 pt framebuffer width):
+
+| Tile | Landscape | Portrait | Shell |
+|---|---|---|---|
+| Full | 1210 pt | 834 pt | Sidebar; three columns only in landscape (≥ 1000 pt) |
+| ½ (Left/Right) | 600 pt | 412 pt | Compact → phone tabs |
+| ⅓ (Arrange thirds) | 396.5 pt | 375 pt (minimum) | Compact → phone tabs |
+| Drag-resized | 375 pt minimum … full; ~830 pt after growing from the minimum (regular) | same | By size class |
+
+iPadOS decides the size class; the app never checks a width for the shell (layout.md "Choose layout from size classes"; multitasking.md "Apps don't control or receive notice of the chosen configuration, so adapt to every window size"). Journeys: `testExactTilesDropUnchosenDetail`, `testChosenDetailSurvivesCompactTile`, `testNarrowWindowFallsBackToTabs`.
 
 ## Page status (iPad Pro 11", live SFentonX captures in `~/FestivalShowcase/native-ipad/`)
 
@@ -53,23 +66,39 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 
 Song Detail cards are two columns only when the page is ≥ ~730 pt (a wide window with the sidebar hidden); in the three-column detail and beside the portrait sidebar they stay one.
 
+## Menu bar
+
+iPadOS 26 reveals a menu bar (pointer at, or swipe down from, the top edge). `FestivalCommands` (`App/Shell/FestivalCommands.swift`, `.commands` on the `WindowGroup`) mirrors the Mac's `MacCommands`; on iPadOS before 26 the same commands fill the ⌘-hold overlay. Order follows the HIG (app, File, Edit, View, app menus, Window, Help; the-menu-bar.md "Support the standard menus and their order").
+
+| Menu | Items | HIG |
+|---|---|---|
+| FST (app) | system Settings (the app's iPadOS Settings page), then **App Settings…** (the in-app Settings destination) | the-menu-bar.md iPadOS "Reserve Settings for opening your app's page in iPadOS Settings; put internal-preferences ... beneath it, in the same group" |
+| File | system New Window / Close (see Windows) | |
+| Edit | **Search Festival…** ⌘F | keyboards.md Command-F "Open Find window"; the-menu-bar.md "Determine whether Find menu items belong in the Edit menu" |
+| View | Refresh ⌘R, Sort…, Filter…, Rank By ▸ (checkmark on the metric in effect), system Show/Hide Sidebar ⌃⌘S | the-menu-bar.md View menu; menus.md checkmarks; "Make sure a submenu remains available even when its items are unavailable" |
+| Go | Back ⌘[, every destination (⌘1…⌘9 for the visible ones, others disabled), Search… ⌘K, Quick Links ▸, Next / Previous Section ⌥⌘↓ / ⌥⌘↑ | the-menu-bar.md iPadOS "Tab-style navigation: consider a View menu item per tab, and key bindings for each" (kept under Go, as on the Mac); "Disable, don't hide" |
+| Song | Paths…, Open in Item Shop | the-menu-bar.md "Provide app-specific menus for custom commands ... the menu bar enables keyboard shortcuts and Full Keyboard Access" |
+| Profile | Select / Switch Profile… ⇧⌘P, Deselect Profile, Find Rival…, Notifications | same |
+| Help | Festival Score Tracker Website, What's New, Licenses | the-menu-bar.md Help menu |
+
+- **Scene-safe:** each window's root publishes its own `FestivalShellCommands` with `focusedSceneValue`; pages publish Sort/Filter, Rank By, Quick Links and Song tools only from the top page of their column (`menuBarColumn(isTop:isList:)`, `MenuBarTopPagePublisher`), so the menu acts on the window and page in front. Every command is also reachable in the UI (the-menu-bar.md iPadOS "Ensure every function is reachable in your UI").
+- iPad drops the hidden `KeyCommandButton`s (the menu carries the shortcuts); iPhone keeps them and publishes nothing (`MenuBarCommandsSupport.isAvailable`).
+- Evidence: `testMenuBarShortcuts`, `testCommandDigitSelectsDestination`; menu captures `~/FestivalShowcase/native-ipad/2/menu-{go,view,song,profile,help}.png` (rotate 270°). Driver: reveal with `drag:0.5,0.0,0.5,0.12`, open with `systemTap:Go`.
+
 ## Keyboard and pointer
 
 | Shortcut | Action | Note |
 |---|---|---|
 | ⌘F, ⌘K | Global search | keyboards.md: Command-F "Open Find window" |
-| ⌘1…⌘9 | Visible destinations in sidebar order (tab order when compact); the current one pops to its root | `SidebarMenu.destination(forDigit:in:)` |
+| ⌘1…⌘9 | Visible destinations in sidebar order (tab order when compact); the current one pops to its root | `SidebarMenu.destination(forDigit:in:)`, `FestivalShellCommands.digit(for:)` |
 | ⌘[ | Back in the frontmost column (`ListDetailPolicy.pathAfterBack`) | Repurposes the standard Command-[ "Left-align selection": the app has no text editing (keyboards.md "Only consider it when the standard action doesn't make sense") |
 | ⌘R | Refresh the frontmost refreshable page (`RefreshCommandRegistry`, `festivalRefreshable`) | Songs, Leaderboards, Suggestions, Band Detail |
-
-Shortcuts are invisible `KeyCommandButton`s titled for the ⌘-hold overlay. Pointer: list/detail rows use the highlight effect on their rounded card shape (no scale: rows sit edge to edge), sidebar footer buttons the highlight effect, system bar buttons their defaults (pointing-devices.md "highlight for small elements ... hover for large ones"; "reserve scaling for elements that can grow without crowding neighbors (not table rows)").
+| ⇧⌘P | Select / Switch Profile | keyboards.md "Prefer [Shift] as secondary modifier complementing a related shortcut" |
+| ⌥⌘↓ / ⌥⌘↑ | Next / Previous Quick Links section | keyboards.md: Option "for less-common commands" | Pointer: list/detail rows use the highlight effect on their rounded card shape (no scale: rows sit edge to edge), sidebar footer buttons the highlight effect, system bar buttons their defaults (pointing-devices.md "highlight for small elements ... hover for large ones"; "reserve scaling for elements that can grow without crowding neighbors (not table rows)").
 
 ## Open
 
-- Exact ½ / ⅓ window tiling in tests: drag-resizing reaches the compact minimum and an ~830 pt regular window, not a precise half (`resize:` in [simulator-driver](../../workflow/simulator-driver.md)).
-
-- Multiple windows (`UIApplicationSupportsMultipleScenes` is false) and "Open in New Window" (windows.md "Consider offering a context-menu ... command to view content in a new window").
-- iPadOS menu-bar `commands` (Go/View menus) instead of hidden shortcut buttons; Full Keyboard Access audit.
+- Full Keyboard Access audit.
 - Debug: `FST_DEBUG_LIST_DETAIL=1` overlays the window width, sidebar extent and split sections (root shell).
 - Never fix row counts or hardcode device sizes: chips wrap (5 + 4 where the web tablet shows 9 in one row) as the detail width changes.
 - A Form in a centered sheet may need scrolling to expose Reset above a pinned footer.

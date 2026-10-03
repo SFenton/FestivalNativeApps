@@ -46,6 +46,11 @@ import UIKit
 ///   `Zoom-button` for the window tiling menu).
 /// - `fill` — iPad windowed multitasking: make the window fill the screen again
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
+/// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
+///   window-controls menu (long-press Zoom); end with `fill`.
+/// - `windowFrame:<path>` — append the app window's frame (points) to a host file.
+/// - `key:<[cmd+][shift+][alt+][ctrl+]key>` — hardware-keyboard key press, e.g.
+///   `key:cmd+2`, `key:tab`, `key:down`, `key:return`, `key:escape`, `key:space`.
 enum DriverStep {
     case tap(String)
     case tapText(String)
@@ -66,6 +71,9 @@ enum DriverStep {
     case systemTree(String)
     case systemTap(String)
     case systemHold(String)
+    case tile(WindowResize.Tile)
+    case windowFrame(String)
+    case key(String, XCUIElement.KeyModifierFlags)
 
     /// A cardinal swipe direction.
     enum Direction: String {
@@ -156,9 +164,47 @@ enum DriverStep {
             return .rotate(orientation)
         case "home":
             return .home(arg.isEmpty ? nil : arg)
+        case "tile":
+            guard let tile = WindowResize.Tile(rawValue: arg) else { throw ParseError.malformed(raw) }
+            return .tile(tile)
+        case "windowFrame":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .windowFrame(arg)
+        case "key":
+            guard let (key, flags) = keyPress(arg) else { throw ParseError.malformed(raw) }
+            return .key(key, flags)
         default:
             throw ParseError.unknownVerb(verb)
         }
+    }
+
+    /// Parse a `key:` argument: `+`-joined modifiers, then a key name or character.
+    ///
+    /// - Parameter spec: For example `cmd+shift+p`, `tab`, `down`.
+    /// - Returns: The XCUITest key and modifiers, or nil when malformed.
+    static func keyPress(_ spec: String) -> (String, XCUIElement.KeyModifierFlags)? {
+        var parts = spec.split(separator: "+").map(String.init)
+        guard let last = parts.popLast(), !last.isEmpty else { return nil }
+        var flags: XCUIElement.KeyModifierFlags = []
+        for modifier in parts {
+            switch modifier.lowercased() {
+            case "cmd", "command": flags.insert(.command)
+            case "shift": flags.insert(.shift)
+            case "alt", "option": flags.insert(.option)
+            case "ctrl", "control": flags.insert(.control)
+            default: return nil
+            }
+        }
+        let named: [String: String] = [
+            "tab": XCUIKeyboardKey.tab.rawValue, "return": XCUIKeyboardKey.return.rawValue,
+            "escape": XCUIKeyboardKey.escape.rawValue, "space": XCUIKeyboardKey.space.rawValue,
+            "up": XCUIKeyboardKey.upArrow.rawValue, "down": XCUIKeyboardKey.downArrow.rawValue,
+            "left": XCUIKeyboardKey.leftArrow.rawValue, "right": XCUIKeyboardKey.rightArrow.rawValue,
+            "home": XCUIKeyboardKey.home.rawValue, "end": XCUIKeyboardKey.end.rawValue,
+            "delete": XCUIKeyboardKey.delete.rawValue,
+        ]
+        if let key = named[last.lowercased()] { return (key, flags) }
+        return last.count == 1 ? (last, flags) : nil
     }
 
     /// Map a step's orientation name to `UIDeviceOrientation`.
@@ -390,6 +436,20 @@ final class DriverTests: XCTestCase {
             WindowResize.resize(app, toScreenFraction: CGFloat(fraction))
         case .fill:
             WindowResize.fill(app)
+        case let .tile(tile):
+            guard WindowResize.tile(app, tile) else { throw DriverError.elementNotFound(tile.rawValue) }
+        case let .windowFrame(path):
+            let line = "\(NSCoder.string(for: app.windows.firstMatch.frame))\n"
+            let url = URL(fileURLWithPath: path)
+            if let handle = try? FileHandle(forWritingTo: url) {
+                handle.seekToEndOfFile()
+                handle.write(Data(line.utf8))
+                try handle.close()
+            } else {
+                try line.write(to: url, atomically: true, encoding: .utf8)
+            }
+        case let .key(key, flags):
+            app.typeKey(key, modifierFlags: flags)
         }
     }
 

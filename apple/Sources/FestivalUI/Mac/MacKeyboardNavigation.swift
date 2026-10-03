@@ -260,11 +260,6 @@ final class MacKeyboardNavigator {
 extension EnvironmentValues {
     /// The column's keyboard navigator (Mac list pages; nil elsewhere).
     @Entry var macKeyboardNavigator: MacKeyboardNavigator?
-    /// Whether the page is the top of its column's stack (menu commands publish only
-    /// from the top page; a page under a push stays alive).
-    @Entry var macPageIsTop = true
-    /// Whether the page is in a split's list column (Quick Links prefer the detail).
-    @Entry var macColumnIsList = false
 }
 
 // MARK: - Registration

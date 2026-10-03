@@ -1654,8 +1654,8 @@ TAP_ONLY_ARGS = tuple(
 SHOTS = (
     Shot("01-songs", "songs", launch_args=TAP_ONLY_ARGS),
     Shot("02-suggestions", "suggestions"),
-    # Jump past the profile header card via Quick Links (scrolls with a .top anchor).
-    Shot("03-statistics", "statistics", env=("FST_DEBUG_HIDE_PROFILE_HEADER=1",), steps=(
+    # Quick Links → Global Statistics (a .top-anchored scroll) collapses the large title.
+    Shot("03-statistics", "statistics", steps=(
         "waitFor:fst.player.overview", "tap:fst.quick-links.open",
         "tap:fst.quick-links.item.global", "wait:{wait}",
     )),

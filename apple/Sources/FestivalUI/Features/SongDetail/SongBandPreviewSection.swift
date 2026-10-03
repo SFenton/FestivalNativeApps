@@ -181,7 +181,7 @@ struct SongBandPreviewRow: View {
                     members
                     footer
                 }
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)

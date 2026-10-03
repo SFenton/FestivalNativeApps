@@ -258,6 +258,44 @@ public sealed record RivalsAllResponse(
     public string? SongId(RivalsAllSample sample) =>
         Songs is { } songs && sample.SongIndex >= 0 && sample.SongIndex < songs.Count ? songs[sample.SongIndex] : null;
 
+    /// <summary>Source echoed by a detail rebuilt with <see cref="DetailFor"/>.</summary>
+    public const string DetailSource = "rivals-all";
+
+    /// <summary>
+    /// Rebuilds a chart/combo rival detail from this response's samples, for when the detail endpoint answers 503 during a
+    /// public-read freeze (issue #95). The precomputed samples are the same stored <c>rival_song_samples</c> rows the
+    /// detail endpoint reads (each capped at 200 per chart), so ranks, scores and categories match; titles come from the
+    /// catalogue. Not valid for the mixed-chart Pro Drums family (samples carry no player/rival chart).
+    /// </summary>
+    /// <param name="rivalId">Rival account.</param>
+    /// <param name="instruments">Charts the scope covers.</param>
+    /// <param name="combo">Scope echoed as <see cref="RivalDetailResponse.Combo"/>.</param>
+    /// <returns>Detail sorted closest-first like the service's <c>sort=closest</c>, or <see langword="null"/> when the rival
+    /// or its samples on those charts are absent.</returns>
+    public RivalDetailResponse? DetailFor(string rivalId, IReadOnlyCollection<Instrument> instruments, string? combo)
+    {
+        string? name = null;
+        var seen = new HashSet<(string SongId, Instrument Instrument)>();
+        var songs = new List<RivalSongComparison>();
+        foreach (var entry in Combos.SelectMany(c => c.Above.Concat(c.Below)))
+        {
+            if (!string.Equals(entry.AccountId, rivalId, StringComparison.OrdinalIgnoreCase)) continue;
+            name ??= entry.DisplayName;
+            foreach (var sample in entry.Samples ?? [])
+            {
+                if (sample is null || sample.UserRank < 0 || sample.RivalRank < 0 ||
+                    !InstrumentInfo.TryParse(sample.Instrument, out var instrument) || !instruments.Contains(instrument) ||
+                    SongId(sample) is not { } songId || !RivalsValidation.IsSafeText(songId) || !seen.Add((songId, instrument)))
+                    continue;
+                songs.Add(new RivalSongComparison(songId, null, null, instrument.ServiceId(), null, null,
+                    sample.UserRank, sample.RivalRank, sample.RivalRank - sample.UserRank, sample.UserScore, sample.RivalScore));
+            }
+        }
+        if (songs.Count == 0) return null;
+        var sorted = songs.OrderBy(s => Math.Abs((long)s.RankDelta)).ToList();
+        return new RivalDetailResponse(new RivalIdentity(rivalId, name), combo, null, null, DetailSource, sorted.Count, "closest", sorted);
+    }
+
     /// <summary>Rejects missing combos or unsafe IDs; defaults absent songs/samples to empty and drops unsafe names.</summary>
     /// <returns>A sanitized copy.</returns>
     /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResponse"/>.</exception>
