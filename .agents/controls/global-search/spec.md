@@ -53,7 +53,7 @@ The Songs page's mobile **FAB search dock** and desktop **Songs toolbar field** 
 | Empty | Scope-specific or "No results found.", centred (`hintCenter`); All hides empty sections |
 | Error | Per scope; other scopes still show (`useUnifiedSearch.ts:146-150,166-170`) |
 
-**Native empty state (issue #99):** never an inline left-aligned row. In All, an empty Players section is hidden while Songs has rows (web `shouldRenderGlobalSection`). When the shown scope(s) are all empty, the results area shows a title + subtitle centred horizontally and vertically, like the Songs page's empty state: All "No results found" / "Check the spelling or try a different song, artist or player."; Songs "No songs found" / "Check the spelling or try a different song or artist."; Players "No players found" / "Check the spelling or try a different player name." All and Players add **Retry** (empty envelope may be a timeout); Songs (local match) has none. At large text sizes the block scrolls so Retry stays reachable.
+**Native empty state (issue #99):** never an inline left-aligned row. In All, an empty Players section is hidden while Songs has rows (web `shouldRenderGlobalSection`). When the shown scope(s) are all empty, the results area shows a title + subtitle centred horizontally and vertically, like the Songs page's empty state: All "No results found" / "Check the spelling or try a different song, artist or player."; Songs "No songs found" / "Check the spelling or try a different song or artist."; Players "No players found" / "Check the spelling or try a different player name." All and Players add **Retry** (empty envelope may be a timeout); Songs (local match) has none. At large text sizes the block scrolls so Retry stays reachable. Apple titles use title-style capitalization ("No Players Found"), as Apple's own empty states do; the subtitles are this exact copy.
 
 ### Tapping a result
 
@@ -86,7 +86,7 @@ Opening a result **views** it; selecting a profile is a separate action on the d
 - **Query:** trim; <2 chars → hint, no request; 250 ms debounce; cancel superseded work; drop late results. Player requests follow [profile-selection](../profile-selection/spec.md#native-client-contract-all-platforms) exactly (2–200 chars, `+` → `%2B`, ≤10, keyless, no selected-profile header, reject malformed rows).
 - **Songs:** local match over the current catalogue with the Songs page's own text matcher (port of `songMatchesSearch`), ≤20 rows, catalogue order. No network.
 - **Loading (native correction):** show Songs as soon as the debounce fires; the Players section shows its own inline progress until the account search returns. Local results must not wait for the network (the web waits only because band search is also async).
-- **Errors:** per scope. An empty envelope may mean a server timeout ([service-safety](../../platforms/service-safety.md#endpoint-allowlist)), so "No players found." gets **Retry**, like a failure. A public-read freeze 503 shows the [service-status](../service-status/spec.md) "Scores are updating" message in the Players section, never "no players".
+- **Errors:** per scope. An empty envelope may mean a server timeout ([service-safety](../../platforms/service-safety.md#endpoint-allowlist)), so "No players found." gets **Retry**, like a failure. The empty state is the centred title + subtitle in [States and motion](#states-and-motion). A public-read freeze 503 shows the [service-status](../service-status/spec.md) "Scores are updating" message in the Players section, never "no players".
 - **Navigation:** close the surface, then push the destination on the **current section's** stack (the user's place is kept for Back). Selected player/band → the Statistics section. The query is not restored on Back (web parity).
 - **No recent searches, no history persistence** (web parity; also avoids storing account names). See open questions.
 - **Accessibility:** the field has a real accessible name ("Search songs, players and bands"); scope chips expose selected state; announce result counts politely once per settled query ("3 songs, 10 players"); headings per section; focus returns to the Search button on close; the surface is dismissible by the platform's back/escape gesture.
@@ -128,12 +128,12 @@ Band search is **not called** by native apps: when its projection is missing, th
 | `fst.global-search.section.{songs,players}` | Section containers (headings inside) |
 | `fst.global-search.result.song`, `fst.global-search.result.player` | Each result row (repeated; accessible name = title/artist or display name) |
 | `fst.global-search.players-loading` | Players inline progress |
-| `fst.global-search.retry` | Players / empty-state Retry |
+| `fst.global-search.retry` | Players / empty-state Retry; on Apple the whole centred empty state of Players and All is this one element (title, subtitle, Retry) |
 | `fst.global-search.bands-unavailable` | Band explanation block and its Band Rankings button |
 
 ## Test matrix
 
-Open from a tab root and from a detail page in every layout · <2 chars · debounce (fast typing = one request) · songs-only match, players-only match, both · diacritics/punctuation song match · players empty envelope + Retry · players 503 freeze · players transport error with songs still shown · scope toggle on/off · Bands chip explanation (assert no `/api/bands/search` request in the fixture log) · tap song/player/selected player → destination and Back · close by Escape/back gesture restores focus to the opener · screen-reader names, headings and count announcement · Songs filter text untouched by global search and vice versa.
+Open from a tab root and from a detail page in every layout · <2 chars · debounce (fast typing = one request) · songs-only match, players-only match, both · diacritics/punctuation song match · players empty envelope + centred Retry empty state (Players scope; hidden section in All when songs match) · all-empty centred title + subtitle · players 503 freeze · players transport error with songs still shown · scope toggle on/off · Bands chip explanation (assert no `/api/bands/search` request in the fixture log) · tap song/player/selected player → destination and Back · close by Escape/back gesture restores focus to the opener · screen-reader names, headings and count announcement · Songs filter text untouched by global search and vice versa.
 
 ## Open questions (operator)
 

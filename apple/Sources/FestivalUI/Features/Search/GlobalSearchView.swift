@@ -67,8 +67,9 @@ struct GlobalSearchResults: View {
             resultList { bandsUnavailable }
         } else if !model.hasQuery {
             centeredMessage("Enter at least two characters to search.")
-        } else if model.scope == .all && allEmpty {
-            centeredMessage("No results found.")
+        } else if isEmpty, let state = GlobalSearch.emptyState(scope: model.scope, query: model.query) {
+            // Issue #99: a centred title, subtitle and Retry, not an inline row.
+            GlobalSearchEmptyStateView(state: state) { model.retry() }
         } else {
             resultList {
                 if model.scope.sections.contains(.songs) { songsSection }
@@ -118,10 +119,16 @@ struct GlobalSearchResults: View {
             .accessibilityIdentifier("fst.global-search.hint")
     }
 
-    /// Both live sections finished with nothing to show.
-    private var allEmpty: Bool {
-        model.songState == .ready && model.songs.isEmpty
-            && model.playerState == .ready && model.players.isEmpty
+    /// Every section the scope shows finished with nothing to show.
+    private var isEmpty: Bool {
+        let songsEmpty = model.songState == .ready && model.songs.isEmpty
+        let playersEmpty = model.playerState == .ready && model.players.isEmpty
+        switch model.scope {
+        case .all: return songsEmpty && playersEmpty
+        case .songs: return songsEmpty
+        case .players: return playersEmpty
+        case .bands: return false
+        }
     }
 
     // MARK: Songs
@@ -138,7 +145,9 @@ struct GlobalSearchResults: View {
                     .accessibilityIdentifier("fst.global-search.retry")
             }
         case .ready where model.songs.isEmpty:
-            if single { messageSection("No songs found.") }
+            // "All" hides an empty section (web parity); the Songs scope's empty state
+            // is drawn centred by `results`.
+            EmptyView()
         case .ready:
             section("Songs", id: "songs") {
                 ForEach(model.songs) { song in
@@ -193,24 +202,9 @@ struct GlobalSearchResults: View {
                     .accessibilityIdentifier("fst.global-search.retry")
             }
         case .ready where model.players.isEmpty:
-            // An empty envelope can be a server timeout, so it offers Retry too.
-            section("Players", id: "players") {
-                Button {
-                    model.retry()
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("No players found.")
-                            .foregroundStyle(FestivalText.primary)
-                        Text("Retry")
-                            .foregroundStyle(BrandTokens.accentBlue)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("No players found. Retry")
-                .accessibilityIdentifier("fst.global-search.retry")
-            }
+            // "All" hides an empty section, like the web (issue #99); the Players scope
+            // and an all-empty "All" show the centred empty state with Retry instead.
+            EmptyView()
         case .ready:
             section("Players", id: "players") {
                 PlayerSearchResultRows(model.players) { player in
@@ -309,17 +303,6 @@ struct GlobalSearchResults: View {
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listSectionSeparator(.hidden)
-    }
-
-    private func messageSection(_ text: String) -> some View {
-        Section {
-            Text(text)
-                .foregroundStyle(FestivalText.primary)
-                .frame(maxWidth: .infinity)
-                .multilineTextAlignment(.center)
-                .accessibilityIdentifier("fst.global-search.hint")
-        }
-        .listRowBackground(Color.clear)
     }
 
     private func loadingRow(_ label: String) -> some View {
