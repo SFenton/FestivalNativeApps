@@ -339,6 +339,22 @@ class GitFlowTests(unittest.TestCase):
                                            "Release-Note-Tester: none"),
                          ({"*": ["A note."]}, {"android": ["T."]}))
 
+    def test_commits_reverted_inside_a_merge_leave_no_notes(self):
+        r = self.repo
+        r.tag("ios/v2610.01.01")
+        r.run("checkout", "-q", "-b", "report")
+        r.commit("Android\n\nRelease-Note-iOS: Songs: Wrong platform.\nRelease-Note-Replaces: Songs: Keep me.",
+                 "apple/Sources/FestivalUI/A.swift")
+        bad = r.git("rev-parse", "HEAD").strip()
+        r.commit('Revert "Android"\n\nThis reverts commit %s.' % bad, "apple/Sources/FestivalUI/A.swift")
+        r.commit("iOS\n\nRelease-Note: Songs: Tools sit next to search.", "apple/Sources/FestivalUI/B.swift")
+        r.run("checkout", "-q", "master")
+        r.commit("Earlier\n\nRelease-Note: Songs: Keep me.", "apple/Sources/FestivalUI/C.swift")
+        r.run("merge", "-q", "--no-ff", "report", "-m", "Merge pull request #9 from x/report\n\nTools")
+        r.tag("ios/v2610.01.02")
+        self.assertEqual(v.user_notes(r.git, "ios", "ios/v2610.01.01", "ios/v2610.01.02"),
+                         ["Songs: Keep me.", "Songs: Tools sit next to search."])
+
     def test_pending_notes_cli(self):
         self._history()
         self.repo.commit("x\n\nRelease-Note-Tester: Fixed the new Rivals refresh.", "apple/Sources/FestivalUI/R2.swift")

@@ -347,12 +347,21 @@ class Git:
         return self("log", "-1", "--format=%B", sha)
 
     def side_messages(self, merge: str) -> List[str]:
-        """Messages of the commits a merge brought in (``merge^1..merge`` minus first-parent)."""
+        """Messages of the commits a merge brought in (``merge^1..merge`` minus first-parent), leaving out
+        commits reverted within the merge and their reverts."""
         parents = self.parents(merge)
         if len(parents) < 2:
             return []
         shas = [s for s in self("rev-list", "%s..%s" % (parents[0], merge)).split() if s and s != merge]
-        return [self.message(s) for s in shas]
+        messages = {s: self.message(s) for s in shas}
+        # A commit reverted inside the same merge never shipped: drop it and its revert (with their trailers).
+        reverted = {r for m in messages.values() for r in REVERT_RE.findall(m)}
+        dropped = {s for s in shas if any(s.startswith(r) for r in reverted)}
+        for sha, message in messages.items():
+            targets = REVERT_RE.findall(message)
+            if targets and all(any(d.startswith(t) for d in dropped) for t in targets):
+                dropped.add(sha)
+        return [messages[s] for s in shas if s not in dropped]
 
 
 # endregion

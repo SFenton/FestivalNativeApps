@@ -98,7 +98,7 @@ The certificate expires after a year; repeat this to rotate.
 **Net notes.** Every list shows only the net difference from its comparison point; `user_notes` replays the range oldest first:
 - `Release-Note-Replaces: <earlier note>` removes that earlier note in the range. A superseding change adds its own `Release-Note`; an undo also says `Release-Note: none`. Matching ignores case, quotes, spacing and the category prefix, and a target of at least 20 characters also matches notes that start with it. A notes-only commit with no app changes may carry these to curate history.
 - `Release-Note-Tester: <text>` is for a fix to something no release has had, such as a regression introduced since the last release. It appears only in TestFlight's first list for its version, never in "Other Changes", What's New or store text.
-- A git revert (`This reverts commit <sha>`) removes the reverted change's notes and contributes no PR-title fallback.
+- A git revert (`This reverts commit <sha>`) removes the reverted change's notes and contributes no PR-title fallback. A commit reverted inside the same merged branch is dropped with its revert, trailers included.
 - `versioning.py pending-notes --platform ios` lists the notes since the latest release (`notes`) and the range's tester-only notes (`tester`). These are what a change may replace.
 - Both trailers take platform suffixes (`Release-Note-Replaces-iOS`, `Release-Note-Tester-Windows`). Notes that differ only in case, quotes, spacing or category prefix appear once.
 
