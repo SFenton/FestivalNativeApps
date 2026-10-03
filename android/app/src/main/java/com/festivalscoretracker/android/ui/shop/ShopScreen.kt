@@ -236,6 +236,22 @@ internal fun shopGridColumns(widthDp: Float): Int = when {
     else -> 2
 }
 
+/** Widest Shop grid/list (web `min(window, 1080) - 40`; M3 "constrain body content to 840–1040 dp"). */
+internal const val SHOP_CONTENT_MAX_WIDTH_DP = 1040f
+
+/** Minimum side margin of the Shop content (M3 compact margin). */
+private const val SHOP_SIDE_MARGIN_DP = 16f
+
+/**
+ * Side margin that keeps the Shop content at most [SHOP_CONTENT_MAX_WIDTH_DP] wide and
+ * centred (M3 large-screen layout), while the list/grid still scrolls edge to edge.
+ *
+ * @param widthDp Width available to the page.
+ * @return Start/end content padding in dp: 16, or half the space beyond the cap.
+ */
+internal fun shopSideMargin(widthDp: Float): Float =
+    maxOf(SHOP_SIDE_MARGIN_DP, (widthDp - SHOP_CONTENT_MAX_WIDTH_DP) / 2f)
+
 @Composable
 private fun HiddenView(padding: PaddingValues) {
     val shell = LocalShellActions.current
@@ -264,46 +280,48 @@ private fun ShopContent(
     val uri = LocalUriHandler.current
     val openOfficial: (ShopOfferItem) -> Unit = { item -> item.officialUrl?.let(uri::openUri) }
     val openDetail: (ShopOfferItem) -> Unit = { item -> item.detailSongId?.let { shell.navigate(SongDetailRoute(it)) } }
-    val contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
     val pulse = rememberShopPulse(active = state.offers.any { it.highlight != null })
     val header: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
         }
     }
-    if (state.offers.isEmpty()) {
-        Column(Modifier.fillMaxSize().padding(contentPadding)) {
-            header()
-            if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
-        }
-        return
-    }
-    if (mode == ShopViewMode.Grid) BoxWithConstraints(Modifier.fillMaxSize()) {
-        val columns = shopGridColumns((maxWidth - 32.dp).value)
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
-            contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxSize().testTag("fst.shop.grid"),
-        ) {
-            item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
-            itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
-                    ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val side = shopSideMargin(maxWidth.value).dp
+        val contentPadding = PaddingValues(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
+        if (state.offers.isEmpty()) {
+            Column(Modifier.fillMaxSize().padding(contentPadding)) {
+                header()
+                if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
+            }
+        } else if (mode == ShopViewMode.Grid) {
+            // Columns follow the page width (web window width); tiles fill the capped grid.
+            val columns = shopGridColumns((maxWidth - 32.dp).value)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(columns),
+                contentPadding = contentPadding,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize().testTag("fst.shop.grid"),
+            ) {
+                item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
+                itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
+                    Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                        ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                    }
                 }
             }
-        }
-    } else {
-        LazyColumn(
-            contentPadding = contentPadding,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxSize().testTag("fst.shop.list"),
-        ) {
-            item(key = "header") { header() }
-            itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
-                    ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+        } else {
+            LazyColumn(
+                contentPadding = contentPadding,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxSize().testTag("fst.shop.list"),
+            ) {
+                item(key = "header") { header() }
+                itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
+                    Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                        ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                    }
                 }
             }
         }
