@@ -353,6 +353,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new("service-info", "Service Info", ""),
             new("first-run", "First Run Guides", ""),
             new("licenses", "Licenses", ""),
+            new("privacy-policy", "Privacy Policy", ""),
             new("reset", "Reset Settings", ""),
         ]);
         return sections;

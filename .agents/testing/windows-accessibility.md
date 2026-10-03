@@ -28,7 +28,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Detail + Paths dialog | ✅✅✅ | 16/17/17 | ✅ | ✅ | ✅ |
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ |
 | Player History | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
-| Song Band Leaderboard | ✅✅✅ | 8/10/10 | — | ✅ | ✅ |
+| Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
 | Item Shop | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
 | Leaderboards + Quick Links | ✅✅✅ | 20/21/21 | ✅ | ✅ | ✅ |
@@ -73,6 +73,17 @@ Android learnings applied: every leaderboard row (and each score-history row) is
 ## Song Detail validation (issue #195, 2026-10)
 
 Scope: Song Detail only, fixture matrix plus the live public service (SFentonX on "Never Back Down": Leaving Tomorrow in the Shop, two Lead history bars, eight instrument cards, Duos/Trios/Quads). Results per configuration in [song-detail/windows.md](../pages/song-detail/windows.md#validation-issue-195). Axe 0 errors everywhere: compact, medium, wide, snap-left and maximized; light and dark system theme; Desert and Night sky; text 200%; display 100% and 150%; live and fixture. Keyboard journeys `kb-detail-back`, `kb-paths-dialog-esc` (all sizes) and `kb-detail-compact-previews` (compact: every card's row and View Full stop, arrows between rows, Shift+Tab back) pass. Fixed: Tab skipped virtualized cards at compact, Trios/Quads cards clipped (uniform grid), focus hidden under the pinned header (WCAG 2.4.11), High Contrast chart axes/selection and Item Shop surface, chart axis titles over the ticks at 200% text.
+
+## Song Band Leaderboard validation (issue #196, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan` for `song-band-leaderboard` at compact/medium/wide, then at medium under all four contrast themes, text 200% (C+M), text 225%, no animations and no transparency: 0 Axe errors in all 12 runs. The live public service (temp wrapper without `--base-url`) gave 0 Axe errors under Desert, Night sky and text 200%. Both band journeys pass.
+
+Fixed:
+- The rows were templated `ListViewItem`s without a name or ID, and an inner named `Group` repeated the row. Every rank, name, score, pill, star and icon part was a separate Narrator scan stop, and `InstrumentIcon`'s inner `Image` leaked as an unnamed image. Now each row is one stop, with a name built in `ContainerContentChanging` that includes each member's instruments and score.
+- The accuracy pill kept its navy fill under system text in Desert.
+- `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
+
+Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
 
 ## Open issues
 

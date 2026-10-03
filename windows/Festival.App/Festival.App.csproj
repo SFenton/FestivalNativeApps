@@ -93,5 +93,7 @@
     <Content Include="Assets\Instruments\*.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\Stars\*.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Assets\licenses.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Issue #98: the shared Privacy Policy text, bundled as-is so every client shows identical wording. -->
+    <Content Include="..\..\contracts\privacy-policy.json" Link="Assets\privacy-policy.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

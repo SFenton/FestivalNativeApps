@@ -133,9 +133,16 @@ fun FestivalLoadGate(
  * @param modifier Modifier (defaults to filling the available space).
  * @param subtitle Optional explanation.
  * @param icon Optional decorative icon above the title.
+ * @param action Optional action (e.g. Retry) under the subtitle.
  */
 @Composable
-fun FestivalEmptyState(title: String, modifier: Modifier = Modifier.fillMaxSize(), subtitle: String? = null, icon: (@Composable () -> Unit)? = null) {
+fun FestivalEmptyState(
+    title: String,
+    modifier: Modifier = Modifier.fillMaxSize(),
+    subtitle: String? = null,
+    icon: (@Composable () -> Unit)? = null,
+    action: (@Composable () -> Unit)? = null,
+) {
     Column(
         modifier = modifier.padding(horizontal = 24.dp, vertical = 48.dp).testTag("fst.empty-state"),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
@@ -153,6 +160,7 @@ fun FestivalEmptyState(title: String, modifier: Modifier = Modifier.fillMaxSize(
         if (subtitle != null) {
             Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
+        action?.invoke()
     }
 }
 

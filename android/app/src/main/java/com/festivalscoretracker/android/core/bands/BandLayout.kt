@@ -101,6 +101,17 @@ object BandLayout {
     }
 
     /**
+     * Single-list pages (a song's band leaderboard): split into a controls pane and a rows
+     * pane only across a **separating** hinge (half-open fold or physical hinge), meeting
+     * exactly at it; a flat fold or a plain wide window keeps one centred column.
+     *
+     * @param hinge Vertical hinge in content coordinates.
+     * @return Panes.
+     */
+    fun listSplit(hinge: Hinge?): Panes =
+        if (hinge?.separating == true) Panes(true, hinge.left, hinge.right - hinge.left) else Panes(false, null, 0f)
+
+    /**
      * The vertical hinge nearest the content's centre (a tri-fold reports two).
      *
      * @param hinges Candidate hinges in content coordinates.

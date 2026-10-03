@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +29,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -77,6 +80,7 @@ import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
 import com.festivalscoretracker.android.core.songs.SongHistorySwap
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.SectionHeader
@@ -375,32 +379,44 @@ private fun Pager(paging: SongHistoryPaging, onChange: (SongHistoryPaging) -> Un
  * @param tag Test tag.
  * @param showSeason Whether to show the season pill and read it to TalkBack ([ScoreRowSeasonPolicy]).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean) {
     val season = point.season?.takeIf { showSeason }
     val shape = RoundedCornerShape(12.dp)
     val date = longDate(point.dateKey)
     val accuracy = "${ScoreFormatting.accuracy(point.accuracyPercent * 10_000)}%"
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(shape)
-            .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
-            .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
-            .padding(horizontal = 12.dp)
-            .testTag(tag)
-            // One stop that reads the summary once (not the summary and then each child text).
-            .clearAndSetSemantics {
-                contentDescription = listOfNotNull(date, season?.let { "Season $it" }, "score ${NumberFormat.getIntegerInstance().format(point.score)}", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
-            },
-    ) {
-        Text(date, color = BrandTokens.textPrimary, fontWeight = if (best) FontWeight.Bold else null, modifier = Modifier.weight(1f), maxLines = 1)
-        season?.let { SeasonPill(it) }
-        Text(NumberFormat.getIntegerInstance().format(point.score), color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
-        AccuracyText(accuracy, point.isFullCombo)
+    val score = NumberFormat.getIntegerInstance().format(point.score)
+    val modifier = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 48.dp)
+        .clip(shape)
+        .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
+        .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
+        .testTag(tag)
+        // One stop that reads the summary once (not the summary and then each child text).
+        .clearAndSetSemantics {
+            contentDescription = listOfNotNull(date, season?.let { "Season $it" }, "score $score", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
+        }
+    val dateWeight = if (best) FontWeight.Bold else null
+    if (isLargeText()) {
+        // Large text: the date on its own line and the values flowing under it, so the date
+        // never ends in an ellipsis and the accuracy pill never breaks "100%" (like StackedScoreRow).
+        Column(modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(date, color = BrandTokens.textPrimary, fontWeight = dateWeight)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                season?.let { SeasonPill(it) }
+                Text(score, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
+                AccuracyText(accuracy, point.isFullCombo)
+            }
+        }
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier.padding(horizontal = 12.dp)) {
+            Text(date, color = BrandTokens.textPrimary, fontWeight = dateWeight, modifier = Modifier.weight(1f), maxLines = 1)
+            season?.let { SeasonPill(it) }
+            Text(score, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
+            AccuracyText(accuracy, point.isFullCombo)
+        }
     }
 }
 
@@ -417,10 +433,13 @@ private fun SeasonPill(season: Int) {
 
 @Composable
 private fun AccuracyText(text: String, fullCombo: Boolean) {
-    Box(Modifier.width(ACCURACY_WIDTH), contentAlignment = Alignment.Center) {
+    // A minimum, not a fixed width: at 200% "100%" outgrew 64 dp and wrapped to "100 / %".
+    Box(Modifier.widthIn(min = ACCURACY_WIDTH), contentAlignment = Alignment.Center) {
         Text(
             text,
             style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+            softWrap = false,
             fontWeight = FontWeight.SemiBold,
             color = if (fullCombo) BrandTokens.gold else BrandTokens.textPrimary,
             modifier = Modifier

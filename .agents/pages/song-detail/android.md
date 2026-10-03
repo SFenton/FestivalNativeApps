@@ -24,6 +24,28 @@
 - With Filter Invalid Scores on, previews read with `leeway=` and show the service's rows and raw Epic ranks exactly like the web (production Winterfest Wish Lead: 7 valid entries of 12,438; verified live 2026-09-28, test `filterInvalidScoresUsesTheLeewayBoardAndDropsInvalidHistory`).
 - Full board (`SongLeaderboardScreen`): the song header (64 dp art, title, artist) and instrument switcher scroll with the rows; the top bar takes the title once they're gone (7.8). Rows use the same `ScoreRow`; the selected player's pinned footer is just their row (opens Statistics, no page-jump button, 7.9). Rows and footer are one section (`LeaderboardSectionMember` "rows"/"footer"): fitted to the narrower member, and the rows card has the footer card's 8 dp side inset so the columns line up (`LeaderboardsUiTest.songLeaderboardPinsTheSelectedScoreRowLikeTheWeb` asserts equal score-column bounds).
 - Paths sheet: see [chopt-paths/android.md](../../controls/chopt-paths/android.md).
+- **Large-text history rows (issue #102):** at font scale ≥ 1.3 (`isLargeText`), each top-five Score History row stacks the date above a `FlowRow` of season pill, score and accuracy. Before this, the one-line row clipped the date ("Jul 24,") and wrapped the pill to "100 / %". `AccuracyText` keeps a 64 dp minimum width and one line. Tests: `SongHistoryCardUiTest.largeTextStacks…`, `defaultTextKeepsTheTopRowsOnOneLine`.
+
+## Validation (issue #102, live public service, 2026-10)
+
+Ran with SFentonX selected (`FST_DEBUG_PROFILE`) on Everlong, using `device.py drive` with one emulator at a time.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait/landscape, font 1.0/2.0 | Compact layout: bottom bar plus floating toolbar, actions move to the top bar in landscape. Fixed: hidden toolbar ghosting through the 0.96-alpha bottom bar after scrolling (#1), and clipped history rows at 2.0 (#2). |
+| FST_Tablet landscape/portrait, 1.0/2.0 | Permanent drawer in landscape (rail in portrait at 2.0) and two-column Intensity. Fixed: #2, plus the 280 dp drawer breaking words at 2.0 ("Leaderboard / s", #3 → `AdaptiveLayoutPolicy.permanentDrawerWidth`, 360 dp at ≥ 1.3×). |
+| FST_Resizable phone/foldable/tablet/desktop | Bottom bar → rail → drawer by width class. Desktop at 2.0 shows the #3 fix. |
+| FST_Book_Fold folded/half/unfolded (+landscape, 2.0) | Folded is like the phone; half-open splits Intensity and Score History across the hinge; unfolded uses the rail in one column. |
+| FST_Passport_Fold folded (portrait/landscape)/half/unfolded (2.0) | Good. |
+| FST_TriFold folded/partial/unfolded (2.0) | Good. |
+
+- **Light theme:** the app stays dark on purpose ([design/android.md](../../design/android.md), "Dark scheme only for now").
+- **Reduced motion:** with animator scale 0, content appears without animation (as on cold emulator boots), and the Robolectric reduced-motion swap test covers it.
+- **TalkBack** (`talkback_walk.py`, FST_Phone): actions → header → Intensity ("Lead, Difficulty 4 of 7") → Score History selector/chart/pager/rows → each instrument heading, rows, the player's appended row, View Full Leaderboard. `SongsAccessibilityJourneyTest` (ATF: touch targets, contrast, labels) passed on FST_Phone and FST_Book_Fold half-open.
+- **Deliberate deviations:**
+  - Intensity labels hide below a 480 dp card (web icon grid), but TalkBack still reads them.
+  - The bottom bar is icon-only at large text.
+  - The top-bar notification badge slightly overlaps the avatar at 2.0 (shell chrome; noted here, not changed).
 
 ## Open
 

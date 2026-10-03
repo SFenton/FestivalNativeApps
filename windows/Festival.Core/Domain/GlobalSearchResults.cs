@@ -126,12 +126,22 @@ public static class GlobalSearchResults
     public const string FieldName = "Search songs and players";
     /// <summary>Short-query hint (web <c>search.enterQuery</c>).</summary>
     public const string EnterQueryHint = "Enter at least two characters to search.";
-    /// <summary>All-scope empty text.</summary>
+    /// <summary>Spoken announcement when every scope is empty.</summary>
     public const string NoResults = "No results found.";
-    /// <summary>Songs empty text.</summary>
-    public const string NoSongs = "No songs found.";
-    /// <summary>Players empty text (an empty envelope may be a server timeout, so Retry is offered).</summary>
+    /// <summary>Players-only picker empty text (an empty envelope may be a server timeout, so Retry is offered).</summary>
     public const string NoPlayers = "No players found.";
+    /// <summary>All-scope empty-state title (issue #99: centred title and subtitle, like the web <c>EmptyState</c>).</summary>
+    public const string EmptyAllTitle = "No results found";
+    /// <summary>All-scope empty-state subtitle.</summary>
+    public const string EmptyAllSubtitle = "Check the spelling or try a different song, artist or player.";
+    /// <summary>Songs-scope empty-state title.</summary>
+    public const string EmptySongsTitle = "No songs found";
+    /// <summary>Songs-scope empty-state subtitle.</summary>
+    public const string EmptySongsSubtitle = "Check the spelling or try a different song or artist.";
+    /// <summary>Players-scope empty-state title.</summary>
+    public const string EmptyPlayersTitle = "No players found";
+    /// <summary>Players-scope empty-state subtitle.</summary>
+    public const string EmptyPlayersSubtitle = "Check the spelling or try a different player name.";
     /// <summary>Players-only picker progress text.</summary>
     public const string Searching = "Searching…";
     /// <summary>Catalogue failure text in the Songs section.</summary>

@@ -319,6 +319,45 @@ class BandsCoreTest {
         assertEquals(52f, BandLayout.grid(1000f, hinge).gutter)
     }
 
+    @Test
+    fun songBandLeaderboardSplitsOnlyAcrossASeparatingHinge() {
+        // Half-open book fold: controls pane ends at the fold, rows start after it.
+        assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.listSplit(BandLayout.Hinge(452f, 452f, true)))
+        // A physical hinge with width becomes the gap.
+        assertEquals(BandLayout.Panes(true, 500f, 20f), BandLayout.listSplit(BandLayout.Hinge(500f, 520f, true)))
+        // Flat folds (unfolded book, tri-fold) and no hinge keep one centred column.
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.listSplit(BandLayout.Hinge(452f, 452f, false)))
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.listSplit(null))
+    }
+
+    // endregion
+
+    // region Song band leaderboard rows
+
+    @Test
+    fun bandScoreAnnouncementReadsWhatTheRowShows() {
+        val entry = SongBandLeaderboardEntry(
+            bandId = "b",
+            members = listOf(
+                BandMember("a".repeat(32), "Rekayy", listOf("Solo_Guitar"), score = 156_912),
+                BandMember("", null, emptyList()),
+            ),
+            score = 931_020,
+            rank = 1,
+            accuracy = 1_000_000.0,
+            isFullCombo = true,
+            stars = 6,
+        )
+        val text = com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry)
+        assertTrue(text, text.startsWith("Rank 1, Rekayy, Lead, 156,912, Unknown User, No observed instrument, band score 931,020, full combo, "))
+        assertTrue(text, text.endsWith("% accuracy, Gold stars"))
+        assertFalse(text, text.contains("6 stars"))
+        // No accuracy, FC or stars: only rank, members and score.
+        val bare = com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry.copy(accuracy = 0.0, isFullCombo = false, stars = 0, members = entry.members.take(1)))
+        assertEquals("Rank 1, Rekayy, Lead, 156,912, band score 931,020", bare)
+        assertTrue(com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry.copy(stars = 4)).endsWith(", 4 stars"))
+    }
+
     // endregion
 
     @Test

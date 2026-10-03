@@ -25,6 +25,8 @@ public sealed partial class InstrumentIcon : ContentControl
     {
         Width = Height = 24;
         IsTabStop = false;
+        // The control carries the name; its unnamed inner Image would otherwise leak into rows that hide the icon.
+        AutomationProperties.SetAccessibilityView(image, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
         Content = image;
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;

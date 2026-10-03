@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,9 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -95,7 +98,9 @@ import com.festivalscoretracker.android.core.search.SearchPresentation
 import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.presentation.search.GlobalSearchUiState
 import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
+import com.festivalscoretracker.android.presentation.search.SearchEmptyState
 import com.festivalscoretracker.android.presentation.search.SectionPhase
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.SearchChrome
@@ -125,8 +130,11 @@ object GlobalSearchTags {
     /** Close (back arrow) button. */
     const val CLOSE = "fst.global-search.close"
 
-    /** Short-query / empty / error message. */
+    /** Short-query hint. */
     const val HINT = "fst.global-search.hint"
+
+    /** Centred title-and-subtitle empty state (all empty, Songs empty, Players empty). */
+    const val EMPTY = "fst.global-search.empty"
 
     /** Polite result-count status. */
     const val STATUS = "fst.global-search.status"
@@ -420,7 +428,8 @@ fun GlobalSearchContent(
         Box(Modifier.fillMaxWidth().weight(1f)) {
             when {
                 ui.isBandsScope -> BandsUnavailable(onBandRankings)
-                ui.hint != null -> CenteredMessage(ui.hint!!, retry = if (ui.canRetryAll) onRetry else null)
+                ui.hint != null -> CenteredMessage(ui.hint!!)
+                ui.emptyState != null -> EmptyResults(ui.emptyState!!, onRetry, bottomInset)
                 ui.isBusy && !ui.showSongsSection && !ui.showPlayersSection -> Box(Modifier.fillMaxSize().padding(bottom = bottomInset), contentAlignment = Alignment.Center) {
                     FestivalLoading("Searching", Modifier.testTag(GlobalSearchTags.LOADING), size = 36.dp)
                 }
@@ -518,12 +527,6 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
                         modifier = Modifier.padding(horizontal = 16.dp).testTag("fst.global-search.players-error"),
                     )
                 }
-                SectionPhase.Empty -> item(key = "players-empty") {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                        Text(GlobalSearchResults.NO_PLAYERS, color = BrandTokens.textSecondary, modifier = Modifier.weight(1f).testTag(GlobalSearchTags.HINT))
-                        TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag(GlobalSearchTags.RETRY)) { Text("Retry") }
-                    }
-                }
                 else -> Unit
             }
             itemsIndexed(ui.players, key = { _, player -> "p-${player.accountId}" }) { index, player ->
@@ -614,7 +617,7 @@ private fun InlineMessage(text: String) {
 }
 
 @Composable
-private fun CenteredMessage(text: String, retry: (() -> Unit)?) {
+private fun CenteredMessage(text: String) {
     // Web: the hint ("Enter at least two characters…") is plain white text centred in the
     // results area, with no container.
     Column(
@@ -623,8 +626,33 @@ private fun CenteredMessage(text: String, retry: (() -> Unit)?) {
         modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
     ) {
         Text(text, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.testTag(GlobalSearchTags.HINT))
-        if (retry != null) {
-            FilledTonalButton(onClick = retry, modifier = Modifier.heightIn(min = 48.dp).testTag(GlobalSearchTags.RETRY)) { Text("Retry") }
+    }
+}
+
+/**
+ * The app's shared title-and-subtitle empty state, centred horizontally and vertically in the
+ * results area above the keyboard (issue #99), with Retry when an empty players envelope is
+ * involved. It scrolls instead of clipping when large text outgrows a short window.
+ *
+ * @param empty Title, subtitle and whether Retry is offered.
+ * @param onRetry Retry the query.
+ * @param bottomInset Space the keyboard covers at the bottom of the surface.
+ */
+@Composable
+private fun EmptyResults(empty: SearchEmptyState, onRetry: () -> Unit, bottomInset: Dp) {
+    BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = bottomInset).testTag(GlobalSearchTags.EMPTY)) {
+        val viewport = maxHeight
+        Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport), contentAlignment = Alignment.Center) {
+            FestivalEmptyState(
+                title = empty.title,
+                subtitle = empty.subtitle,
+                modifier = Modifier.fillMaxWidth(),
+                action = if (empty.canRetry) {
+                    { FilledTonalButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag(GlobalSearchTags.RETRY)) { Text("Retry") } }
+                } else {
+                    null
+                },
+            )
         }
     }
 }

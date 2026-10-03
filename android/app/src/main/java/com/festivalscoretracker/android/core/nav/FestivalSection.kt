@@ -167,6 +167,22 @@ object AdaptiveLayoutPolicy {
      */
     fun listPaneWidth(widthDp: Int, hingeStartDp: Int?): Int =
         hingeStartDp?.takeIf { it in 1 until widthDp } ?: (widthDp * 2 / 5).coerceIn(320, 440)
+
+    /** Permanent drawer width at default text sizes. */
+    const val PERMANENT_DRAWER_WIDTH_DP = 280
+
+    /** Material 3's standard drawer width, used for large text. */
+    const val LARGE_TEXT_DRAWER_WIDTH_DP = 360
+
+    /**
+     * Width of the permanent navigation drawer.
+     *
+     * @param fontScale User font scale. From [LARGE_TEXT_SCALE] the drawer widens to Material's
+     *   360 dp (at 200% the 280 dp drawer broke "Leaderboards" and the player name mid-word).
+     * @return Drawer width in dp.
+     */
+    fun permanentDrawerWidth(fontScale: Float): Int =
+        if (fontScale >= LARGE_TEXT_SCALE) LARGE_TEXT_DRAWER_WIDTH_DP else PERMANENT_DRAWER_WIDTH_DP
 }
 
 // endregion
