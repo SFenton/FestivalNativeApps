@@ -34,6 +34,7 @@ struct RivalsScreen: View {
     /// Rival shown in the dual-source bottom region (Duo inner display, portrait).
     @State private var dualSelection: AppRoute?
     @Environment(\.openProfile) private var openProfile
+    @Environment(\.deviceLayout) private var layout
     private var visible = VisibleInstrumentsReader()
 
     enum Tab: String, CaseIterable, Identifiable {
@@ -76,6 +77,10 @@ struct RivalsScreen: View {
                 .help("Find Rival")
                 .accessibilityIdentifier("fst.rivals.findRival")
             }
+            // `/duo` R1 (operator, 2026-10-02): the page's own action stays in the
+            // iPhone Duo rail and global Search overflows into "…" (HIG Designing for
+            // iPhone Duo: "Set visibility priority … to preserve frequent actions").
+            .rivalsRailPriority(isVerticalBar: layout.sectionChrome.isVerticalBar)
             QuickLinksToolbarItem(quickLinks)
             if showsRootTrailingItems {
                 FestivalRootTrailingItems(session: session)
@@ -158,9 +163,13 @@ struct RivalsScreen: View {
                     Button(metric.label) { rankBy = metric }
                 }
             } label: {
+                // `/duo` R2: stays beside the boards it sorts, with a 44 pt target
+                // (HIG Accessibility: 44×44 pt default control size).
                 Label(rankBy.label, systemImage: "arrow.up.arrow.down")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(BrandTokens.textPrimary)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityIdentifier("fst.rivals.rankBy")
         }
@@ -614,5 +623,27 @@ struct RivalInstrumentLeaderboardSection: View {
         } catch {
             state = .failed(ServiceIssue(error))
         }
+    }
+}
+
+// MARK: - Rail priority
+
+private extension ToolbarContent {
+    /// High visibility priority for Find Rival while the chrome is the iPhone Duo
+    /// vertical bar (iOS 27+); horizontal bars keep the default ordering.
+    ///
+    /// - Parameter isVerticalBar: Whether the section chrome is the vertical bar.
+    /// - Returns: The toolbar content with its rail priority.
+    @ToolbarContentBuilder
+    func rivalsRailPriority(isVerticalBar: Bool) -> some ToolbarContent {
+        #if os(iOS)
+        if #available(iOS 27.0, *) {
+            visibilityPriority(isVerticalBar ? .high : .automatic)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
