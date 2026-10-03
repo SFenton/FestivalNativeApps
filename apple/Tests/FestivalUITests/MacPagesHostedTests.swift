@@ -109,6 +109,9 @@ private struct MacPageHost<Content: View>: View {
                 path: binding, isVisible: true, onSplitChange: { _ in }
             ) { _ in LeaderboardsScreen(session: session) }
         }
+        // A loaded test host can take longer than 2.5 s to show the first row; the list
+        // would then collapse to one column and never auto-select into the detail.
+        .environment(\.macListCollapseDelay, .seconds(120))
         .frame(width: size.width, height: size.height)
         .preferredColorScheme(.dark)
         .macHostedStorage(),
@@ -160,6 +163,8 @@ private func macAccessibilityNode(_ root: Any, identifier: String, depth: Int = 
                     path: binding, isVisible: true, onSplitChange: { _ in }
                 ) { _ in LeaderboardsScreen(session: session) }
             }
+            // As above: a slow first row must not collapse the split being measured.
+            .environment(\.macListCollapseDelay, .seconds(120))
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark)
             .defaultAppStorage(defaults),
