@@ -135,8 +135,30 @@ object GlobalSearchResults {
     /** Field accessible name. */
     const val FIELD_NAME = "Search songs and players"
 
-    /** Short-query hint (web `search.enterQuery`). */
-    const val ENTER_QUERY_HINT = "Enter at least two characters to search."
+    /** Short-query hint in All (issue #299: every scope names what it searches). */
+    const val ENTER_QUERY_HINT_ALL = "Enter at least two characters to search for songs, players, or bands."
+
+    /** Short-query hint in Songs. */
+    const val ENTER_QUERY_HINT_SONGS = "Enter at least two characters to search for songs."
+
+    /** Short-query hint in Players. */
+    const val ENTER_QUERY_HINT_PLAYERS = "Enter at least two characters to search for players."
+
+    /** Short-query hint in Bands. */
+    const val ENTER_QUERY_HINT_BANDS = "Enter at least two characters to search for bands."
+
+    /**
+     * Short-query hint for a scope (issue #299).
+     *
+     * @param scope Selected scope.
+     * @return The hint ending in what that scope searches.
+     */
+    fun enterQueryHint(scope: SearchScope): String = when (scope) {
+        SearchScope.All -> ENTER_QUERY_HINT_ALL
+        SearchScope.Songs -> ENTER_QUERY_HINT_SONGS
+        SearchScope.Players -> ENTER_QUERY_HINT_PLAYERS
+        SearchScope.Bands -> ENTER_QUERY_HINT_BANDS
+    }
 
     /** Spoken announcement when every scope is empty. */
     const val NO_RESULTS = "No results found."
@@ -153,7 +175,7 @@ object GlobalSearchResults {
     /** Songs-scope empty-state subtitle. */
     const val EMPTY_SONGS_SUBTITLE = "Check the spelling or try a different song or artist."
 
-    /** Players-scope empty-state title (an empty envelope may be a server timeout, so Retry is offered). */
+    /** Players-scope empty-state title. */
     const val EMPTY_PLAYERS_TITLE = "No players found"
 
     /** Players-scope empty-state subtitle. */

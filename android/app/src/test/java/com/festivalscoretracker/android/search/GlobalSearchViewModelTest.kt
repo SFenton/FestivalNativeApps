@@ -68,13 +68,23 @@ class GlobalSearchViewModelTest {
         val vm = model(players)
         vm.open()
         assertTrue(vm.ui.expanded)
-        assertEquals(GlobalSearchResults.ENTER_QUERY_HINT, vm.ui.hint)
+        assertEquals(GlobalSearchResults.ENTER_QUERY_HINT_ALL, vm.ui.hint)
         vm.onQueryChange(" a ")
         settle()
         assertTrue(vm.ui.isShortQuery)
-        assertEquals(GlobalSearchResults.ENTER_QUERY_HINT, vm.ui.hint)
+        assertEquals(GlobalSearchResults.ENTER_QUERY_HINT_ALL, vm.ui.hint)
         assertTrue(players.queries.isEmpty())
         assertFalse(vm.ui.isBusy)
+        // Issue #299: each scope names what it searches, Bands included.
+        vm.toggleScope(SearchScope.Songs)
+        assertEquals("Enter at least two characters to search for songs.", vm.ui.hint)
+        vm.toggleScope(SearchScope.Players)
+        assertEquals("Enter at least two characters to search for players.", vm.ui.hint)
+        vm.toggleScope(SearchScope.Bands)
+        assertEquals("Enter at least two characters to search for bands.", vm.ui.hint)
+        vm.toggleScope(SearchScope.Bands)
+        assertEquals("Enter at least two characters to search for songs, players, or bands.", vm.ui.hint)
+        assertTrue(players.queries.isEmpty())
     }
 
     @Test
@@ -107,7 +117,7 @@ class GlobalSearchViewModelTest {
     }
 
     @Test
-    fun songsShowBeforePlayersAndLateResultsAreDropped() = runTest(main.dispatcher) {
+    fun allWaitsForPlayersBehindOneSpinnerAndLateResultsAreDropped() = runTest(main.dispatcher) {
         val first = CompletableDeferred<List<PlayerSearchResult>>()
         val players = Recorder { query -> if (query == "alpha") first.await() else listOf(PlayerSearchResult(Fixtures.ACCOUNT_B, "Beta Player")) }
         val vm = model(players)
@@ -115,8 +125,14 @@ class GlobalSearchViewModelTest {
         settle()
         assertEquals(SectionPhase.Loaded, vm.ui.songsPhase)
         assertEquals(SectionPhase.Loading, vm.ui.playersPhase)
+        // Issue #299: All shows the one centred spinner until players settle; Songs does not wait.
+        assertTrue(vm.ui.isBusy)
+        vm.toggleScope(SearchScope.Songs)
+        assertFalse(vm.ui.isBusy)
         assertTrue(vm.ui.showSongsSection)
-        assertTrue(vm.ui.showPlayersSection)
+        vm.toggleScope(SearchScope.Players)
+        assertTrue(vm.ui.isBusy)
+        vm.toggleScope(SearchScope.Players)
         assertNull(vm.ui.announcement)
         vm.onQueryChange("beta")
         settle()
@@ -127,25 +143,26 @@ class GlobalSearchViewModelTest {
     }
 
     @Test
-    fun emptyEverythingOffersRetry() = runTest(main.dispatcher) {
+    fun emptyEverythingHasNoRetryButSearchRunsItAgain() = runTest(main.dispatcher) {
         val players = Recorder { emptyList() }
         val vm = model(players)
         vm.onQueryChange("zzz")
         settle()
         assertNull(vm.ui.hint)
         assertEquals(
-            SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE, canRetry = true),
+            SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE),
             vm.ui.emptyState,
         )
         assertFalse(vm.ui.showPlayersSection)
         assertEquals(GlobalSearchResults.NO_RESULTS, vm.ui.announcement)
-        vm.retry()
+        // An empty envelope may be a server timeout: the IME Search action runs the same text again.
+        vm.submit()
         advanceUntilIdle()
         assertEquals(2, players.queries.size)
-        // Scoped views: each shows its own centred title and subtitle; only Players offers Retry.
+        // Scoped views: each shows its own centred title and subtitle.
         vm.toggleScope(SearchScope.Songs)
         assertEquals(
-            SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE, canRetry = false),
+            SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE),
             vm.ui.emptyState,
         )
         vm.toggleScope(SearchScope.Players)
@@ -153,7 +170,7 @@ class GlobalSearchViewModelTest {
         assertFalse(vm.ui.showPlayersSection)
         assertEquals(SectionPhase.Empty, vm.ui.playersPhase)
         assertEquals(
-            SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE, canRetry = true),
+            SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE),
             vm.ui.emptyState,
         )
         vm.toggleScope(SearchScope.Players)
@@ -172,17 +189,16 @@ class GlobalSearchViewModelTest {
         assertFalse(vm.ui.showPlayersSection)
         assertNull(vm.ui.emptyState)
         assertNull(vm.ui.hint)
-        // The Players scope shows the centred empty state with Retry instead.
+        // The Players scope shows the centred empty state instead.
         vm.toggleScope(SearchScope.Players)
         assertEquals(GlobalSearchResults.EMPTY_PLAYERS_TITLE, vm.ui.emptyState?.title)
-        assertTrue(vm.ui.emptyState!!.canRetry)
         // Songs with matches never shows an empty state.
         vm.toggleScope(SearchScope.Songs)
         assertNull(vm.ui.emptyState)
     }
 
     @Test
-    fun playerFailureKeepsSongsAndRetries() = runTest(main.dispatcher) {
+    fun playerFailureKeepsSongsAndSearchRunsItAgain() = runTest(main.dispatcher) {
         var fail = true
         val players = Recorder { if (fail) throw IOException("down") else listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "Alpha Player")) }
         val vm = model(players)
@@ -195,9 +211,14 @@ class GlobalSearchViewModelTest {
         assertTrue(vm.ui.showPlayersSection)
         assertEquals("1 song, player search failed", vm.ui.announcement)
         fail = false
-        vm.retry()
+        vm.submit()
         advanceUntilIdle()
         assertEquals(SectionPhase.Loaded, vm.ui.playersPhase)
+        assertEquals(2, players.queries.size)
+        // A settled, successful query is not run again.
+        vm.submit()
+        advanceUntilIdle()
+        assertEquals(2, players.queries.size)
     }
 
     @Test
@@ -260,7 +281,7 @@ class GlobalSearchViewModelTest {
 
     @Test
     fun submitSkipsDebounceAndClearResets() = runTest(main.dispatcher) {
-        val players = Recorder { emptyList() }
+        val players = Recorder { listOf(PlayerSearchResult(Fixtures.ACCOUNT_B, "Beta Player")) }
         val vm = model(players)
         vm.onQueryChange("beta")
         vm.submit()
@@ -272,7 +293,7 @@ class GlobalSearchViewModelTest {
         vm.clearQuery()
         assertEquals("", vm.ui.query)
         assertEquals(SectionPhase.Idle, vm.ui.songsPhase)
-        vm.retry()
+        vm.submit()
         runCurrent()
         assertEquals(1, players.queries.size)
     }
