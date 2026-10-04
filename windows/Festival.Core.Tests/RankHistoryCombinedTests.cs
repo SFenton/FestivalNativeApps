@@ -150,6 +150,9 @@ public sealed class RankHistoryCombinedTests
     [InlineData(-5, 48, 48)]        // a negative measure keeps the minimum
     [InlineData(double.NaN, 52, 52)]
     [InlineData(double.PositiveInfinity, 48, 48)]
+    [InlineData(46, 52, 52)]        // exactly fits with the 6 epx gap
+    [InlineData(10, double.NaN, 16)] // an invalid minimum counts as 0
+    [InlineData(10, -4, 16)]
     public void AxisGutter_FitsTheWidestLabel(double widest, double minimum, double expected) =>
         Assert.Equal(expected, RankHistoryCombinedChart.AxisGutter(widest, minimum));
 

@@ -1097,6 +1097,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 # Score History instrument switching (issue #31): Lead pages (eight
                 # rows), Bass fits one page (two rows), Drums has a gold full combo.
                 self._json(200, _multi_instrument_history(account_id))
+            elif account_id == "fixture-history-fail":
+                # Score History's failed state and Retry (issue #198).
+                self._json(500, {"status": "internal_error"})
             else:
                 # Every other fixture account is "unregistered" (never tracked for
                 # history): the real service 404s and `FestivalAPI.playerHistory`
