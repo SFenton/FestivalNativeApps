@@ -808,7 +808,7 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
         }
         if (plan.showStars) {
             Box(Modifier.width(plan.starsWidth.dp), contentAlignment = Alignment.CenterEnd) {
-                StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
+                entry.stars?.takeIf { it > 0 }?.let { StarRating(it, Modifier.testTag("fst.stars"), size = 20.dp) }
             }
         }
         if (navigable) RowChevron() else Spacer(Modifier.width(LeaderboardColumnLayout.CHEVRON_WIDTH.dp))
@@ -868,7 +868,7 @@ private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan
                 if (plan.showMeta) entry.season?.let {
                     Text(LeaderboardColumnLayout.seasonLabel(it), style = MaterialTheme.typography.labelLarge, color = BrandTokens.textSecondary, modifier = Modifier.semantics { contentDescription = "Season $it" })
                 }
-                if (plan.showStars) StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
+                if (plan.showStars) entry.stars?.takeIf { it > 0 }?.let { StarRating(it, Modifier.testTag("fst.stars"), size = 20.dp) }
             }
         }
         if (navigable) RowChevron(Modifier.padding(start = 4.dp)) else Spacer(Modifier.width(24.dp))
