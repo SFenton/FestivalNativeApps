@@ -159,8 +159,9 @@ public sealed record PlayerBandCardViewModel
     /// <summary>Automation ID (<c>fst.player-bands.row.&lt;key&gt;</c>).</summary>
     public string AutomationId => "fst.player-bands.row." + Entry.Key;
 
-    /// <summary>Screen-reader summary.</summary>
-    public string Announcement => $"View band {Title}, {BandTypeLabel}, {AppearancesText}";
+    /// <summary>Screen-reader summary: the whole card is one Narrator stop, so it names each member's instruments.</summary>
+    public string Announcement =>
+        $"View band: {(Members.Count > 0 ? string.Join("; ", Members.Select(m => m.Announcement)) : Title)}. {BandTypeLabel}, {AppearancesText}";
 }
 
 /// <summary>A labelled statistic card, optionally navigable.</summary>
