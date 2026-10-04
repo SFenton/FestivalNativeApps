@@ -126,12 +126,22 @@ public static class GlobalSearchResults
     public const string FieldName = "Search songs and players";
     /// <summary>Short-query hint (web <c>search.enterQuery</c>).</summary>
     public const string EnterQueryHint = "Enter at least two characters to search.";
-    /// <summary>All-scope empty text.</summary>
+    /// <summary>Spoken announcement when every scope is empty.</summary>
     public const string NoResults = "No results found.";
-    /// <summary>Songs empty text.</summary>
-    public const string NoSongs = "No songs found.";
-    /// <summary>Players empty text (an empty envelope may be a server timeout, so Retry is offered).</summary>
+    /// <summary>Players-only picker empty text (an empty envelope may be a server timeout, so Retry is offered).</summary>
     public const string NoPlayers = "No players found.";
+    /// <summary>All-scope empty-state title (issue #99: centred title and subtitle, like the web <c>EmptyState</c>).</summary>
+    public const string EmptyAllTitle = "No results found";
+    /// <summary>All-scope empty-state subtitle.</summary>
+    public const string EmptyAllSubtitle = "Check the spelling or try a different song, artist or player.";
+    /// <summary>Songs-scope empty-state title.</summary>
+    public const string EmptySongsTitle = "No songs found";
+    /// <summary>Songs-scope empty-state subtitle.</summary>
+    public const string EmptySongsSubtitle = "Check the spelling or try a different song or artist.";
+    /// <summary>Players-scope empty-state title.</summary>
+    public const string EmptyPlayersTitle = "No players found";
+    /// <summary>Players-scope empty-state subtitle.</summary>
+    public const string EmptyPlayersSubtitle = "Check the spelling or try a different player name.";
     /// <summary>Players-only picker progress text.</summary>
     public const string Searching = "Searching…";
     /// <summary>Catalogue failure text in the Songs section.</summary>
@@ -234,6 +244,20 @@ public static class GlobalSearchResults
         var playerText = players is { } p ? Count(p, "player", "players") : "player search failed";
         return $"{songText}, {playerText}";
     }
+
+    /// <summary>
+    /// Polite announcement for the players-only pickers (profile flyout, Rivals), which never search songs:
+    /// "3 players", "No players found." or the failure text the picker shows.
+    /// </summary>
+    /// <param name="players">Player count, or <see langword="null"/> when the account search failed.</param>
+    /// <param name="failure">Visible failure text, spoken when <paramref name="players"/> is <see langword="null"/>.</param>
+    /// <returns>Announcement text.</returns>
+    public static string PlayersAnnouncement(int? players, string failure) => players switch
+    {
+        null => failure.Length > 0 ? failure : "Player search failed.",
+        0 => NoPlayers,
+        { } p => Count(p, "player", "players"),
+    };
 
     /// <summary>Formats a count with its noun.</summary>
     /// <param name="count">Count.</param>

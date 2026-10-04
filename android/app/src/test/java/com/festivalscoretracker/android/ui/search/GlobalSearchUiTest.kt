@@ -209,12 +209,14 @@ class GlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.FIELD)
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("zzzz")
-        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodes(hasText(GlobalSearchResults.NO_RESULTS)).fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodes(hasText(GlobalSearchResults.EMPTY_ALL_TITLE)).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_SUBTITLE).assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.RETRY).performClick()
         rule.waitUntil(10_000) { h.settle(100); h.transport.sent("/api/account/search").size == 2 }
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Players)).performClick()
         h.waitForTag(GlobalSearchTags.RETRY)
-        rule.onNodeWithText(GlobalSearchResults.NO_PLAYERS).assertIsDisplayed()
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_TITLE).assertIsDisplayed()
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE).assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.CLEAR).performClick()
         h.settle()
         rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))

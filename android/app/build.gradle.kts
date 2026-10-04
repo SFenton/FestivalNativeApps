@@ -125,6 +125,8 @@ dependencies {
     testImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation(composeBom)
     testImplementation("androidx.compose.ui:ui-test-junit4")
+    // Publishes synthetic FoldingFeatures to Jetpack WindowManager in Robolectric hinge tests.
+    testImplementation("androidx.window:window-testing:1.4.0")
 
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

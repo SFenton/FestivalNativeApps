@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.FilledTonalButton
@@ -16,10 +18,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -54,9 +61,9 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 /**
  * `/leaderboards/all`: one instrument's paginated rankings. The instrument and
- * Rank By pickers are top-app-bar actions next to search; the selected player is
- * highlighted in place or pinned above the bottom-anchored pager, with "Your Page"
- * to jump to their page (native addition; the web footer only links to the profile).
+ * Rank By pickers are top-app-bar actions; the selected player is highlighted in place
+ * or pinned above the bottom-anchored pager, and rows fade out above that footer
+ * instead of scrolling visibly behind it (issue #115).
  *
  * @param viewModel Board logic.
  */
@@ -81,6 +88,8 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val shownPage = (shown as? LoadState.Loaded)?.value
     val entries = shownPage?.rankings?.entries.orEmpty()
     val revealsSelected = entries.any { RankingSpotlight.isSelected(selected, it.accountId) }
+    // Inner width of the rows card, so narrow panes (beside a hinge) keep names readable (issue #115).
+    var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
 
     // A new page starts at the top, unless it holds the selected row (revealed instead).
     LaunchedEffect(swap.showsSpinner) {
@@ -105,7 +114,10 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             return@FestivalScreen
         }
         val pinned = ((spotlight as? LoadState.Loaded)?.value as? PlayerRankingResult.Ranked)?.ranking?.entry
-        CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(entries + listOfNotNull(pinned), metric)) {
+        CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(entries + listOfNotNull(pinned), metric, keepNameMinimumIn = rowWidth)) {
+        // Wide windows centre a capped board (web/Windows ~1100), so names stay near their scores.
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.widthIn(max = MAX_BOARD_WIDTH_DP.dp).fillMaxSize()) {
         RankingsBoardScaffold(
             padding = padding,
             listState = listState,
@@ -113,18 +125,24 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             controls = { FullRankingsControls(current) },
             footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, shownPage != null, viewModel, navigate) },
             pager = { RankingsPager(page, totalPages, "fst.full-rankings", viewModel::goTo) },
+            fadeAboveFooter = true,
         ) {
             when {
                 swap.showsSpinner -> loadSwapSpinnerItem(swap, "Loading rankings", "fst.full-rankings.loading")
                 shown is LoadState.Failed -> item(key = "failed") {
                     Box(swap.contentModifier) { ServiceStatusInline(shown.issue, "Rankings unavailable", shown.countdown, viewModel::retry) }
                 }
-                else -> rankingRows(swap, entries, metric, selected, navigate)
+                else -> rankingRows(swap, entries, metric, selected, navigate) { rowWidth = it }
             }
+        }
+        }
         }
         }
     }
 }
+
+/** Widest the board grows (web page container / Windows list, about 1100), centred beyond it (issue #115). */
+private const val MAX_BOARD_WIDTH_DP = 1100
 
 /**
  * Page information above the rows: the population (web "868,901 ranked players"; the
@@ -151,6 +169,7 @@ private fun FullRankingsControls(current: RankingsPayload?) {
  * @param metric Selected metric.
  * @param selected Selected player.
  * @param navigate Push a route.
+ * @param onRowWidth Receives the rows' width in dp (the card's inner width) after layout.
  */
 private fun LazyListScope.rankingRows(
     swap: LoadSwap<*>,
@@ -158,10 +177,12 @@ private fun LazyListScope.rankingRows(
     metric: RankingMetric,
     selected: String?,
     navigate: (AppRoute) -> Unit,
+    onRowWidth: (Float) -> Unit,
 ) {
     item(key = "rows") {
+        val density = LocalDensity.current
         GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
-            Column(Modifier.padding(8.dp)) {
+            Column(Modifier.padding(8.dp).onSizeChanged { onRowWidth(with(density) { it.width.toDp().value }) }) {
                 when {
                     entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     else -> entries.forEachIndexed { index, entry ->

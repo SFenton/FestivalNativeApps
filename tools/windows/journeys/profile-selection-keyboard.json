@@ -1,0 +1,89 @@
+[
+  {
+    "name": "kb-profile-search-enter",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "key:enter",
+      "waitfor:id=fst.profile.search@5",
+      "assertfocus:name=Find Player@3",
+      "type:Fixture",
+      "waitfor:id=fst.profile.result.fixture-player-1@10",
+      "key:enter",
+      "waitgone:id=fst.profile.search@5",
+      "assertname:id=fst.player.name@15|Fixture Player 1",
+      "assertname:id=fst.player.select@15|Select Profile"
+    ]
+  },
+  {
+    "name": "kb-profile-results-arrows",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "key:enter",
+      "assertfocus:name=Find Player@5",
+      "type:Fixture",
+      "waitfor:id=fst.profile.result.fixture-player-2@10",
+      "key:tab",
+      "assertfocus:id=fst.profile.result.fixture-player-1@3",
+      "shot:{stem}-focus.png",
+      "key:down",
+      "assertfocus:id=fst.profile.result.fixture-player-2@3",
+      "key:enter",
+      "waitgone:id=fst.profile.search@5",
+      "assertname:id=fst.player.name@15|Fixture Player 2"
+    ]
+  },
+  {
+    "name": "kb-profile-bands-target",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "key:enter",
+      "assertfocus:name=Find Player@5",
+      "key:shift+tab",
+      "assertfocus:id=fst.profile.scope.players@3",
+      "key:right",
+      "assertfocus:id=fst.profile.scope.bands@3",
+      "key:space",
+      "assertname:id=fst.profile.search@3|Find Band",
+      "shot:{stem}-bands.png",
+      "key:esc",
+      "assertfocus:id=fst.shell.profile@3"
+    ]
+  },
+  {
+    "name": "kb-profile-deselect-cancel",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "key:enter",
+      "waitfor:id=fst.profile.deselect@5",
+      "focus:id=fst.profile.deselect",
+      "key:enter",
+      "waitfor:id=PrimaryButton@10",
+      "assertname:id=PrimaryButton|Deselect Profile",
+      "assertfocus:id=CloseButton@3",
+      "key:esc",
+      "waitgone:id=PrimaryButton@5",
+      "assertname:id=fst.shell.profile@5|Profile: Fixture Player 1"
+    ]
+  }
+]

@@ -32,7 +32,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -158,11 +157,12 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
             },
         onClick = if (rival.isNavigable) onClick else null,
     ) {
-        // The tint bar is drawn rather than laid out: `IntrinsicSize.Min` under-measures a
-        // wrapping FlowRow, which clipped the second pill at large text (issue #108).
+        // The tint bar is drawn behind the row rather than measured with IntrinsicSize.Min:
+        // FlowRow's intrinsic height ignores wrapped lines, so at large text (or narrow widths)
+        // the wrapped "songs behind" pill was clipped off the card.
         val tint = if (winning) BrandTokens.statusGreen else BrandTokens.statusRed
-        Row(Modifier.drawBehind { drawStartBar(tint) }) {
-            Column(Modifier.weight(1f).padding(start = 18.dp, end = 14.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.rivalTintBar(tint).padding(start = RIVAL_TINT_WIDTH)) {
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val nameColor = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted
                 if (isLargeText()) {
                     // Large text: the name wraps instead of being squeezed to an ellipsis.
@@ -189,18 +189,18 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
-/** Width of a row's leading result tint bar. */
-private val TintBarWidth = 4.dp
+private val RIVAL_TINT_WIDTH = 4.dp
 
 /**
- * Paints the full-height result tint bar on the leading edge (mirrored in RTL).
+ * Draws the row's win/lose bar along its start edge at the row's full measured height.
  *
  * @param color Bar color.
+ * @return The modifier with the bar drawn behind the content.
  */
-private fun DrawScope.drawStartBar(color: Color) {
-    val width = TintBarWidth.toPx()
-    val left = if (layoutDirection == LayoutDirection.Rtl) size.width - width else 0f
-    drawRect(color, topLeft = Offset(left, 0f), size = Size(width, size.height))
+private fun Modifier.rivalTintBar(color: Color): Modifier = drawBehind {
+    val width = RIVAL_TINT_WIDTH.toPx()
+    val x = if (layoutDirection == LayoutDirection.Rtl) size.width - width else 0f
+    drawRect(color, topLeft = Offset(x, 0f), size = Size(width, size.height))
 }
 
 // endregion
@@ -379,11 +379,7 @@ fun RivalSongRow(
     val rankText = RivalHeadToHead.formatRankDelta(delta.toLong())
     val scoreText = RivalHeadToHead.formatScoreDiff(song)
     val scoreDiff = RivalHeadToHead.scoreDiff(song)
-    val leader = when {
-        delta > 0 -> "you lead by $rankText ranks"
-        delta < 0 -> "$them leads by ${rankText.removePrefix("−")} ranks"
-        else -> "tied"
-    }
+    val leader = RivalHeadToHead.leaderPhrase(delta.toLong(), them)
     val description = "$title, ${song.chart?.label.orEmpty()}, $you rank ${format.format(song.userRank)}, " +
         "$them rank ${format.format(song.rivalRank)}, $leader, score difference $scoreText"
     val keyboard = catalogSong?.usesKeyboardIcon == true

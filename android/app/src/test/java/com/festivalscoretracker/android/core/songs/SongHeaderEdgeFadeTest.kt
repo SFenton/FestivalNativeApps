@@ -74,16 +74,38 @@ class SongHeaderEdgeFadeTest {
     }
 
     @Test
-    fun headersAboveTheCutAreThePinnedAndPushingOnes() {
+    fun headersOverTheEdgeAreThePinnedAndPushingOnes() {
         // Pinned header pushed up 12 px by the next one; a row and a later header sit lower.
         val pinned = header(9, "header:b", -12)
         val pushing = header(21, "header:c", 28)
         val items = listOf(pinned, row(20, -60), pushing, row(22, 72), header(30, "header:d", 400))
-        assertEquals(listOf(pinned, pushing), SongHeaderEdgeFade.headersAboveCut(items, 0, 40f))
-        // A header scrolled fully above the list's top edge, or starting at the cut, is not redrawn.
-        assertEquals(emptyList<EdgeFadeItem>(), SongHeaderEdgeFade.headersAboveCut(listOf(header(1, "header:a", -40), header(2, "header:e", 40)), 0, 40f))
+        assertEquals(listOf(pinned, pushing), SongHeaderEdgeFade.headersOverEdge(items, 0, 40f, depth))
+        // A header scrolled fully above the list's top edge, or starting below the band, is not redrawn.
+        assertEquals(emptyList<EdgeFadeItem>(), SongHeaderEdgeFade.headersOverEdge(listOf(header(1, "header:a", -40), header(2, "header:e", 68)), 0, 40f, depth))
         // Offsets are measured from the viewport start (content padding before the first item).
-        assertEquals(listOf(header(1, "header:a", -24)), SongHeaderEdgeFade.headersAboveCut(listOf(header(1, "header:a", -24), row(2, 20)), -24, 40f))
+        assertEquals(listOf(header(1, "header:a", -24)), SongHeaderEdgeFade.headersOverEdge(listOf(header(1, "header:a", -24), row(2, 20)), -24, 40f, depth))
+    }
+
+    @Test
+    fun incomingHeaderInsideTheBandIsRedrawnBeforeItReachesTheCut() {
+        // Issue #288: the next header is still wholly below the cut (40) but inside the 28 px band,
+        // so it is drawn opaque instead of fading out like a row, and keeps sliding up unfaded.
+        val pinned = header(9, "header:b", 0)
+        for (offset in 41..67) {
+            val incoming = header(21, "header:c", offset)
+            assertEquals(listOf(pinned, incoming), SongHeaderEdgeFade.headersOverEdge(listOf(pinned, row(20, offset - 84), incoming), 0, 40f, depth))
+        }
+        // Rows in the band are never redrawn.
+        assertEquals(listOf(pinned), SongHeaderEdgeFade.headersOverEdge(listOf(pinned, row(10, 44)), 0, 40f, depth))
+    }
+
+    @Test
+    fun hardEdgeRedrawsOnlyHeadersAboveTheCut() {
+        // Accessibility modes (depth 0): a header starting at the cut is drawn normally, unmasked.
+        val pinned = header(9, "header:b", -12)
+        val incoming = header(21, "header:c", 28)
+        assertEquals(listOf(pinned, incoming), SongHeaderEdgeFade.headersOverEdge(listOf(pinned, incoming), 0, 40f, 0f))
+        assertEquals(listOf(header(9, "header:b", 0)), SongHeaderEdgeFade.headersOverEdge(listOf(header(9, "header:b", 0), header(21, "header:c", 40)), 0, 40f, 0f))
     }
 
     @Test

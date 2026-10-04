@@ -35,6 +35,9 @@ DISPLAY_NAMES = {
     "microsoft.netcore.app.runtime.win-x64": ".NET Runtime",
     "microsoft.windows.sdk.net.ref": "C#/WinRT Windows SDK Projection",
 }
+# The SDK picks the runtime pack's patch (CI and the release build install the latest `9.0.x`), so the committed manifest
+# names its servicing band ("9.0.x") rather than whichever patch the generating machine had (issue #215: 9.0.8 vs 9.0.20).
+FLOATING_PATCH = {"microsoft.netcore.app.runtime.win-x64"}
 LICENSE_FILES = ("license.txt", "LICENSE.txt", "LICENSE.TXT", "License.md", "LICENSE.md", "LICENSE")
 MIT_TEMPLATE = """MIT License
 
@@ -101,6 +104,14 @@ def normalize(text: str) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
+def display_version(name: str, version: str) -> str:
+    """Return the version shown on the Licenses page: the servicing band (``9.0.x``) for SDK-chosen runtime packs."""
+    if name.lower() not in FLOATING_PATCH:
+        return version
+    parts = version.split("-")[0].split(".")
+    return ".".join(parts[:2]) + ".x" if len(parts) >= 2 else version
+
+
 def build_manifest() -> dict:
     """Build the manifest dictionary from the assets file."""
     assets = json.loads(ASSETS.read_text(encoding="utf-8"))
@@ -128,7 +139,7 @@ def build_manifest() -> dict:
         packages.append({
             "id": name,
             "name": DISPLAY_NAMES.get(name.lower(), name),
-            "version": version,
+            "version": display_version(name, version),
             "ecosystem": "NuGet",
             "license": label,
             "url": fields.get("projectUrl") or None,

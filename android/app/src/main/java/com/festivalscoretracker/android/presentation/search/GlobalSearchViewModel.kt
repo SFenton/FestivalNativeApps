@@ -41,6 +41,15 @@ enum class SectionPhase {
 }
 
 /**
+ * A centred empty state: a title, a subtitle and an optional Retry.
+ *
+ * @property title Bold title, e.g. "No players found".
+ * @property subtitle What to try next.
+ * @property canRetry Whether Retry is offered (an empty players envelope may be a server timeout).
+ */
+data class SearchEmptyState(val title: String, val subtitle: String, val canRetry: Boolean)
+
+/**
  * Everything the search surface renders; derived flags keep the view logic-free.
  *
  * @property query Field text.
@@ -85,24 +94,32 @@ data class GlobalSearchUiState(
         get() = showsResults && (scope == SearchScope.All || scope == SearchScope.Songs) &&
             (songs.isNotEmpty() || songsPhase == SectionPhase.Failed)
 
-    /** Whether the Players section is shown (progress, rows, failure or an empty envelope with Retry). */
+    /** Whether the Players section is shown (progress, rows or failure). An empty envelope never shows a
+     *  section: in All it is hidden like the web (`shouldRenderGlobalSection`), in Players it is [emptyState]. */
     val showPlayersSection: Boolean
         get() = showsResults && (scope == SearchScope.All || scope == SearchScope.Players) &&
-            playersPhase != SectionPhase.Idle && !(scope == SearchScope.All && allEmpty)
+            playersPhase != SectionPhase.Idle && playersPhase != SectionPhase.Empty
 
-    /** Centred message: short query, "No results found." or "No songs found.", else null. */
+    /** Centred short-query hint, else null. */
     val hint: String?
+        get() = if (!isBandsScope && isShortQuery) GlobalSearchResults.ENTER_QUERY_HINT else null
+
+    /**
+     * Centred title-and-subtitle empty state (issue #99): every scope empty in All, Songs with no
+     * match, or Players with an empty envelope; else null. Retry is offered whenever the players
+     * envelope is part of it, because an empty envelope may be a server timeout.
+     */
+    val emptyState: SearchEmptyState?
         get() = when {
-            isBandsScope -> null
-            isShortQuery -> GlobalSearchResults.ENTER_QUERY_HINT
-            settledQuery.isEmpty() -> null
-            scope == SearchScope.All && allEmpty -> GlobalSearchResults.NO_RESULTS
-            scope == SearchScope.Songs && songsPhase == SectionPhase.Empty -> GlobalSearchResults.NO_SONGS
+            !showsResults -> null
+            scope == SearchScope.All && allEmpty ->
+                SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE, canRetry = true)
+            scope == SearchScope.Songs && songsPhase == SectionPhase.Empty ->
+                SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE, canRetry = false)
+            scope == SearchScope.Players && playersPhase == SectionPhase.Empty ->
+                SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE, canRetry = true)
             else -> null
         }
-
-    /** Whether Retry sits under "No results found." (an empty players envelope may be a timeout). */
-    val canRetryAll: Boolean get() = scope == SearchScope.All && showsResults && allEmpty
 
     /** Whether nothing is on screen yet because the debounce or the catalogue is pending. */
     val isBusy: Boolean

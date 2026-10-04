@@ -312,18 +312,30 @@ public class GlobalSearchViewModelTests
         await Type(vm, time, "zzz");
         Assert.True(vm.PlayersEmpty);
         Assert.Equal(LoadState.Empty, vm.SongsState);
-        // All scope: both empty → one "No results found." with Retry.
-        Assert.Equal(GlobalSearchResults.NoResults, vm.Hint);
-        Assert.True(vm.CanRetryAll);
+        // All scope: both empty → one centred title and subtitle with Retry.
+        Assert.Equal("", vm.Hint);
+        Assert.True(vm.HasEmptyState);
+        Assert.Equal(GlobalSearchResults.EmptyAllTitle, vm.EmptyTitle);
+        Assert.Equal(GlobalSearchResults.EmptyAllSubtitle, vm.EmptySubtitle);
+        Assert.True(vm.CanRetryEmpty);
         Assert.False(vm.ShowPlayersSection || vm.ShowSongsSection);
         Assert.Equal("No results found.", vm.LastAnnouncement);
+        // Players scope: no section with an inline row, the centred empty state with Retry instead.
         vm.Scope = SearchScope.Players;
-        Assert.True(vm.ShowPlayersSection);
+        Assert.False(vm.ShowPlayersSection);
         Assert.Equal("", vm.Hint);
-        Assert.Equal(GlobalSearchResults.NoPlayers, vm.NoPlayersText);
-        Assert.False(vm.CanRetryAll);
+        Assert.Equal(GlobalSearchResults.EmptyPlayersTitle, vm.EmptyTitle);
+        Assert.Equal(GlobalSearchResults.EmptyPlayersSubtitle, vm.EmptySubtitle);
+        Assert.True(vm.CanRetryEmpty);
+        // Songs scope: local match, so no Retry.
         vm.Scope = SearchScope.Songs;
-        Assert.Equal(GlobalSearchResults.NoSongs, vm.Hint);
+        Assert.Equal(GlobalSearchResults.EmptySongsTitle, vm.EmptyTitle);
+        Assert.Equal(GlobalSearchResults.EmptySongsSubtitle, vm.EmptySubtitle);
+        Assert.False(vm.CanRetryEmpty);
+        // Bands scope never shows a search empty state.
+        vm.Scope = SearchScope.Bands;
+        Assert.False(vm.HasEmptyState);
+        Assert.Equal("", vm.EmptyTitle + vm.EmptySubtitle);
         body = """{"results":[{"accountId":"acc9","displayName":"Zzz Top"}]}""";
         vm.Scope = SearchScope.All;
         await vm.RetryCommand.ExecuteAsync(null);
@@ -331,17 +343,26 @@ public class GlobalSearchViewModelTests
         Assert.Equal(["acc9"], vm.Players.Select(p => p.AccountId));
         Assert.True(vm.ShowPlayersSection);
         Assert.False(vm.ShowSongsSection);
+        Assert.False(vm.HasEmptyState);
     }
 
     [Fact]
-    public async Task PlayersEmpty_WithSongs_KeepsPlayersSectionWithRetry()
+    public async Task PlayersEmpty_WithSongs_HidesPlayersSectionInAll()
     {
         var (_, time, session) = Create(_ => Wire.Ok("""{"results":[]}"""));
         var vm = new GlobalSearchViewModel(session);
         await Type(vm, time, "beta");
-        Assert.True(vm.ShowSongsSection && vm.ShowPlayersSection && vm.PlayersEmpty);
+        // Web parity (shouldRenderGlobalSection): no "Players" section with an inline "No players found." row.
+        Assert.True(vm.ShowSongsSection && vm.PlayersEmpty);
+        Assert.False(vm.ShowPlayersSection);
+        Assert.False(vm.HasEmptyState);
         Assert.Equal("", vm.Hint);
         Assert.Equal("1 song, 0 players", vm.LastAnnouncement);
+        vm.Scope = SearchScope.Players;
+        Assert.True(vm.HasEmptyState && vm.CanRetryEmpty);
+        Assert.Equal(GlobalSearchResults.EmptyPlayersTitle, vm.EmptyTitle);
+        vm.Scope = SearchScope.Songs;
+        Assert.False(vm.HasEmptyState);
     }
 
     [Fact]

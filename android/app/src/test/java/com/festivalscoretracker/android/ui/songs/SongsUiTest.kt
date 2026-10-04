@@ -16,6 +16,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -243,6 +245,28 @@ class SongsUiTest {
         click("fst.paths.close")
         settle()
 
+    }
+
+    @Test
+    fun songDetailToolbarHidesBehindTheBottomBarEdge() {
+        // Issue #102: hidden on scroll, the floating toolbar slid under the 96%-opaque bottom bar
+        // and ghosted through it; the content-area clip now cuts it off at the bar's top edge.
+        launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true))
+        waitForTag("fst.song-detail.list")
+        waitForTag("fst.song-detail.paths.open")
+        val barTop = rule.onNodeWithTag("fst.nav.tab.songs").fetchSemanticsNode().boundsInRoot.top
+        val shown = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot
+        assertTrue("shown $shown above bar $barTop", shown.height > 0f && shown.bottom <= barTop)
+        repeat(3) {
+            rule.onNodeWithTag("fst.song-detail.list").performTouchInput { swipeUp() }
+            settle()
+        }
+        val hidden = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot
+        assertTrue("hidden toolbar still visible: $hidden", hidden.height < 1f)
+        // Scrolling back brings it back above the bar.
+        rule.onNodeWithTag("fst.song-detail.list").performTouchInput { swipeDown() }
+        settle()
+        assertTrue(rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot.height > 0f)
     }
 
     @Test

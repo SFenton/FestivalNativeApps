@@ -9,12 +9,19 @@ namespace Festival.App.Controls;
 /// Adaptive card grid for <see cref="ItemsRepeater"/>: as many equal-width columns as fit
 /// <see cref="MinColumnWidth"/> (one at compact widths), each row as tall as its tallest card. Unlike
 /// <see cref="UniformGridLayout"/>, which sizes every item from the first, cards of different heights
-/// (spotlight rows, failures) never clip. Non-virtualizing: the overview has at most twelve cards.
+/// (spotlight rows, failures, three- and four-member band rows) never clip. Non-virtualizing: the Leaderboards
+/// overview has at most twelve cards and Song Detail at most one per instrument and band size.
 /// </summary>
 public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
 {
     /// <summary>Smallest column width in effective pixels.</summary>
     public double MinColumnWidth { get; set; } = 360;
+
+    /// <summary>
+    /// Multiplies <see cref="MinColumnWidth"/> by the Windows text size (issue #207), so cards whose rows grow with text
+    /// get fewer, wider columns instead of squeezing names out.
+    /// </summary>
+    public bool ScaleWithText { get; set; }
 
     /// <summary>Largest number of columns.</summary>
     public int MaxColumns { get; set; } = 4;
@@ -66,7 +73,10 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     /// <param name="width">Available width.</param>
     /// <returns>1…<see cref="MaxColumns"/>.</returns>
     private int Columns(double width) =>
-        Math.Clamp((int)Math.Floor((width + Spacing) / (MinColumnWidth + Spacing)), 1, Math.Max(1, MaxColumns));
+        Math.Clamp((int)Math.Floor((width + Spacing) / (EffectiveMinColumnWidth + Spacing)), 1, Math.Max(1, MaxColumns));
+
+    /// <summary>Minimum column width after text scaling.</summary>
+    private double EffectiveMinColumnWidth => ScaleWithText ? MinColumnWidth * TextScaleLayout.Factor : MinColumnWidth;
 
     /// <summary>Equal column width.</summary>
     /// <param name="width">Available width.</param>

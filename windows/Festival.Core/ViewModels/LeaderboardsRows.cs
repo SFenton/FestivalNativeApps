@@ -324,7 +324,12 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
 #endregion
 
 #region Pager
-/// <summary>First/Previous/"page / total"/Next/Last control shared by every paginated board.</summary>
+/// <summary>
+/// First/Previous/"page / total"/Next/Last control shared by every paginated board. The commands stay enabled while a
+/// page loads (only the page bounds disable them): a running async command reports CanExecute false, which disabled the
+/// focused button and made the pager hand keyboard focus to another (Enter on Next then jumped to the last page, issue
+/// #197). Boards drop superseded loads, so a second press during a load is safe.
+/// </summary>
 /// <param name="idPrefix">Automation ID prefix, e.g. <c>fst.full-rankings</c>.</param>
 /// <param name="move">Page change.</param>
 public sealed partial class RankingsPagerViewModel(string idPrefix, Func<int, Task> move) : ObservableObject, IBoardPager
@@ -370,22 +375,22 @@ public sealed partial class RankingsPagerViewModel(string idPrefix, Func<int, Ta
 
     /// <summary>Page 1.</summary>
     /// <returns>Move task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoBack))]
+    [RelayCommand(CanExecute = nameof(CanGoBack), AllowConcurrentExecutions = true)]
     private Task FirstAsync() => move(1);
 
     /// <summary>Previous page.</summary>
     /// <returns>Move task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoBack))]
+    [RelayCommand(CanExecute = nameof(CanGoBack), AllowConcurrentExecutions = true)]
     private Task PreviousAsync() => move(Page - 1);
 
     /// <summary>Next page.</summary>
     /// <returns>Move task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoForward))]
+    [RelayCommand(CanExecute = nameof(CanGoForward), AllowConcurrentExecutions = true)]
     private Task NextAsync() => move(Page + 1);
 
     /// <summary>Last page.</summary>
     /// <returns>Move task.</returns>
-    [RelayCommand(CanExecute = nameof(CanGoForward))]
+    [RelayCommand(CanExecute = nameof(CanGoForward), AllowConcurrentExecutions = true)]
     private Task LastAsync() => move(TotalPages);
 
     ICommand IBoardPager.FirstCommand => FirstCommand;

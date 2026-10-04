@@ -31,4 +31,4 @@
 
 ## Tests
 
-`AllRivalsUiTest` (Robolectric: leaderboard rank line and accessible rows, single chart without header and anonymous rows, Common with a failed chart, combo chart list, loading → rows, every chart failing → status → Retry, empty, unresolvable combo, wide two-column grid), `RivalRowUiTest.largeTextGrowsTheRowToHoldWrappedPills` (fails on the old `IntrinsicSize.Min` row), `RivalsViewModelTest.commonRivalsLeavesOutFailedChartsAndFailsOnlyWhenEveryChartFails`. Connected: `RivalsDeviceJourneyTest.allRivalsListFitsAndOpensDetail` on FST_Phone and FST_Book_Fold half-open.
+`AllRivalsUiTest` (Robolectric: leaderboard rank line and accessible rows, single chart without header and anonymous rows, Common with a failed chart, combo chart list, loading → rows, every chart failing → status → Retry, empty, unresolvable combo, wide two-column grid), `RivalRowUiTest.wrappedPillsGrowTheCardAtLargeText` (fails on the old `IntrinsicSize.Min` row; shared with issue #107), `RivalsViewModelTest.commonRivalsLeavesOutFailedChartsAndFailsOnlyWhenEveryChartFails`. Connected: `RivalsDeviceJourneyTest.allRivalsListFitsAndOpensDetail` on FST_Phone and FST_Book_Fold half-open.

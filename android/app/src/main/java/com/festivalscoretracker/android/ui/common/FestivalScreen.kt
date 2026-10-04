@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fitInside
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -39,12 +40,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.WindowInsetsRulers
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -119,6 +126,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   while the page scrolls instead of hiding it (Songs, Suggestions: issue #52).
  * @param actionsAboveKeyboard On compact windows, [actions] currently hold a focused text field,
  *   so the shell lifts the floating toolbar above the on-screen keyboard (Songs search, issue #84).
+ * @param actionsReadFirst On compact windows, TalkBack and keyboard focus reach the floating toolbar
+ *   holding [actions] right after the top app bar instead of after the content: an endless feed
+ *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112).
  * @param scrolled Content sits under the bar. No visual effect since batch 6.20 (the bar stays
  *   transparent); kept so screens can still report it without churn.
  * @param content Content given padding that clears the top bar and bottom chrome.
@@ -132,6 +142,7 @@ fun FestivalScreen(
     actions: @Composable RowScope.() -> Unit = {},
     pinActions: Boolean = false,
     actionsAboveKeyboard: Boolean = false,
+    actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -140,6 +151,9 @@ fun FestivalScreen(
     // Page actions move to a ⋮ overflow menu when the title would truncate at this pane width
     // (a list pane can be far narrower than the window), and return once the pane is wider.
     var widthPx by remember { mutableIntStateOf(0) }
+    // Gaps between this screen and the window's left/right edges (a list pane beside a detail pane).
+    var leftGapPx by remember { mutableIntStateOf(0) }
+    var rightGapPx by remember { mutableIntStateOf(0) }
     var collapsedAtPx by remember(title) { mutableStateOf<Int?>(null) }
     var pageActionsWidth by remember { mutableIntStateOf(0) }
     var titleTruncated by remember { mutableStateOf(false) }
@@ -149,18 +163,30 @@ fun FestivalScreen(
     }
     // Compact windows: page actions float over the bottom bar (web bottom dock); global search
     // stays in the top app bar on every window size (operator 2026-09-28).
+    val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard) { actions() }
+        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard, readFirst = actionsReadFirst) { actions() }
     }
     Scaffold(
         modifier = modifier
             .onSizeChanged { widthPx = it.width }
+            .onGloballyPositioned {
+                val left = it.positionInWindow().x.toInt()
+                leftGapPx = left
+                rightGapPx = it.findRootCoordinates().size.width - left - it.size.width
+            }
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
-                modifier = Modifier.testTag("fst.nav.top-bar"),
+                // A read-first toolbar (traversal index -1) would otherwise precede the bar's
+                // ungrouped items (index 0), so the bar becomes one group read before it.
+                modifier = Modifier
+                    .testTag("fst.nav.top-bar")
+                    .then(if (toolbarReadsFirst) Modifier.semantics { isTraversalGroup = true; traversalIndex = TOP_BAR_TRAVERSAL_INDEX } else Modifier),
+                // Only the cutout / system-bar insets this pane actually reaches (issue #101).
+                windowInsets = PaneInsets(TopAppBarDefaults.windowInsets, leftGapPx, rightGapPx),
                 title = {
                     Text(
                         title,
@@ -211,11 +237,13 @@ fun FestivalScreen(
         // Content starts (and is clipped) below the top app bar, whose own window insets
         // already cover the status bar / cutout, so scrolled rows never draw under the
         // transparent bar or the status bar on any width class, including after a
-        // programmatic scroll that no nested-scroll event reports.
+        // programmatic scroll that no nested-scroll event reports. Content also stays clear
+        // of a landscape camera cutout, only where this pane actually overlaps it (issue #101).
         Box(
             Modifier
                 .fillMaxSize()
                 .padding(top = inner.calculateTopPadding())
+                .fitInside(WindowInsetsRulers.DisplayCutout.current)
                 .clipToBounds()
                 .testTag("fst.nav.content"),
         ) {
