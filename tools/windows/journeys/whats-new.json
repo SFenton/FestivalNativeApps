@@ -6,31 +6,97 @@
     "extra": {"FST_DEBUG_FIRST_RUN": "force", "FST_DEBUG_WHATS_NEW": "force"},
     "steps": [
       "waitfor:id=fst.first-run.dialog@20",
+      "wait:1.5",
+      "waitgone:id=fst.whats-new.dialog@1",
       "shot:{shots}/first-run.png",
       "key:esc",
       "waitfor:id=fst.whats-new.dialog@10",
       "waitfor:id=fst.whats-new.list",
+      "waitfor:id=fst.whats-new.section.0",
+      "assertfocus:id=fst.whats-new.list@3",
       "shot:{shots}/whats-new.png",
       "key:esc",
+      "waitgone:id=fst.whats-new.dialog@5",
       "wait:1",
-      "click:id=fst.songs.sort",
+      "expand:id=fst.songs.sort",
       "waitfor:id=fst.songs.sort.reset@5",
       "key:esc"
     ]
   },
   {
-    "name": "outside-click-dismisses-first-run",
+    "name": "presented-dismiss-records",
     "route": "/songs",
     "preset": "medium",
-    "extra": {"FST_DEBUG_FIRST_RUN": "force"},
+    "extra": {"FST_DEBUG_WHATS_NEW": "fresh", "FST_DEBUG_DATA_DIR": "{shots}/whats-new-data"},
     "steps": [
-      "waitfor:id=fst.first-run.dialog@20",
-      "wait:1.5",
-      "click:1250,1000",
-      "wait:1",
-      "click:id=fst.songs.sort",
+      "waitfor:id=fst.whats-new.dialog@20",
+      "waitfor:id=fst.whats-new.section.0",
+      "assertstate:id=fst.whats-new.dismiss|name=Dismiss@3",
+      "assertfocus:id=fst.whats-new.list@3",
+      "key:tab",
+      "assertfocus:id=fst.whats-new.dismiss@3",
+      "key:enter",
+      "waitgone:id=fst.whats-new.dialog@5",
+      "waitfor:id=fst.songs.sort@10"
+    ]
+  },
+  {
+    "name": "dismissed-relaunch-hidden-seen",
+    "route": "/songs",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_WHATS_NEW": "on", "FST_DEBUG_DATA_DIR": "{shots}/whats-new-data"},
+    "steps": [
+      "waitfor:id=fst.songs.sort@20",
+      "wait:3",
+      "waitgone:id=fst.whats-new.dialog@1",
+      "expand:id=fst.songs.sort",
       "waitfor:id=fst.songs.sort.reset@5",
       "key:esc"
+    ]
+  },
+  {
+    "name": "presented-resize-across-breakpoints",
+    "route": "/songs",
+    "preset": "compact",
+    "extra": {"FST_DEBUG_WHATS_NEW": "force"},
+    "steps": [
+      "waitfor:id=fst.whats-new.dialog@20",
+      "waitfor:id=fst.whats-new.dismiss@5",
+      "resize:wide",
+      "wait:1",
+      "waitfor:id=fst.whats-new.section.0@5",
+      "waitfor:id=fst.whats-new.dismiss@5",
+      "resize:medium",
+      "wait:1",
+      "waitfor:id=fst.whats-new.dismiss@5",
+      "resize:compact",
+      "wait:1",
+      "waitfor:id=fst.whats-new.section.0@5",
+      "waitfor:id=fst.whats-new.dismiss@5",
+      "shot:{shots}/whats-new-compact-after-resize.png",
+      "key:esc",
+      "waitgone:id=fst.whats-new.dialog@5"
+    ]
+  },
+  {
+    "name": "replay-from-settings-keyboard",
+    "route": "/settings",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "wait:2",
+      "waitgone:id=fst.whats-new.dialog@1",
+      "scrollinto:id=fst.settings.whats-new",
+      "waitfor:id=fst.settings.whats-new@5",
+      "focus:id=fst.settings.whats-new",
+      "key:enter",
+      "waitfor:id=fst.whats-new.dialog@10",
+      "waitfor:id=fst.whats-new.section.0",
+      "assertfocus:id=fst.whats-new.list@3",
+      "shot:{shots}/whats-new-replay.png",
+      "key:esc",
+      "waitgone:id=fst.whats-new.dialog@5",
+      "assertfocus:id=fst.settings.whats-new@3"
     ]
   }
 ]
