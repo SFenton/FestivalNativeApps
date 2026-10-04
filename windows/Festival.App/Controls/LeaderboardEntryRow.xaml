@@ -6,7 +6,7 @@
     <!--
         The one leaderboard row (operator batch 7.7; web entryRow + LeaderboardEntry / RankingEntry): its own frosted
         48 epx row with a 12 epx radius, 4 epx apart in a list (no card around the rows). Columns, left to right:
-        rank · name · season or songs label · score or rating (+ Bayesian) · accuracy badge · stars · in-card chevron.
+        rank · name (scrolls when it doesn't fit) · season or songs label · score or rating (+ Bayesian) · accuracy badge · stars · in-card chevron.
         Which columns show and their widths come from one per-section plan (Festival.Core LeaderboardColumnLayout, issue
         #37), measured over every row of the section and its pinned row, so columns line up vertically like the web; a
         row without a value keeps the column's space. One UIA stop per row (Android one-stop learning): the Button's name reads
@@ -49,8 +49,9 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="RankText" Grid.RowSpan="3" AutomationProperties.AccessibilityView="Raw" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
-                <!-- Names truncate, never marquee (web colName; operator batch 7.14). -->
-                <TextBlock x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                <!-- A name that doesn't fit scrolls inside its column (issue #292, reversing batch 7.14's truncation); it
+                     ellipsizes, with the full name as the row's tooltip, when motion is off or the window is hidden. -->
+                <controls:MarqueeText x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
                 <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">

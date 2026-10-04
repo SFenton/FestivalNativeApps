@@ -39,6 +39,9 @@ struct FullRankingsScreen: View {
     @State private var titleHidden = false
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
+    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
+    /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
+    @State private var bottomFadeDistance = ScrollEdgeFade.distance
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -46,6 +49,8 @@ struct FullRankingsScreen: View {
 
     /// Coordinate space shared by the rows' fade mask and the pinned chrome.
     nonisolated private static let pageSpace = "fst.full-rankings.page"
+    /// Space between two rows, and between the last row and the pinned chrome.
+    nonisolated private static let rowGap: CGFloat = 6
 
     private struct SpotlightKey: Equatable {
         let instrument: Instrument
@@ -136,7 +141,7 @@ struct FullRankingsScreen: View {
                 }
             case let .loaded(payload):
                 ScrollView {
-                    LazyVStack(spacing: 6) {
+                    LazyVStack(spacing: Self.rowGap) {
                         RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .header)
                             .padding(.top, 8)
                             .onGeometryChange(for: Bool.self) { proxy in
@@ -167,15 +172,17 @@ struct FullRankingsScreen: View {
                     }
                     .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.top, 8)
+                    .padding(.bottom, Self.rowGap)
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
-                // The last row comes to rest above the fade, not inside it.
-                .contentMargins(.bottom, ScrollEdgeFade.distance, for: .scrollContent)
-                // Rows fade out over 36 pt above the pinned footer and pager and are not
-                // drawn beneath them, exactly like Song Leaderboard (issue #294; web
-                // `useScrollFade`, issue #93).
+                .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
+                // Rows fade out over up to 36 pt above the pinned footer and pager and
+                // are not drawn beneath them, exactly like Song Leaderboard (issue #294;
+                // web `useScrollFade`, issue #93). The fade shrinks away as the last row
+                // arrives, so the list ends one row gap above the chrome with no
+                // reserved margin (issue #293).
                 .mask { bottomChromeFadeMask(chromeTop: chromeTop) }
             }
         }
@@ -277,6 +284,8 @@ struct FullRankingsScreen: View {
         if showsPinnedTitle {
             RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .pinned)
                 .frame(maxWidth: 260)
+                // A bar title stays on one line at every text size.
+                .environment(\.marqueeWrapsAtAccessibilitySizes, false)
                 .transition(.opacity)
         } else {
             Color.clear
@@ -291,14 +300,17 @@ struct FullRankingsScreen: View {
     /// with no band behind them, exactly as on Song Leaderboard. Built from the last
     /// loaded page, so paging keeps both in place while only the rows reload.
     private var bottomChrome: some View {
-        VStack(spacing: 0) {
+        let spacing = chromeSpacing
+        return VStack(spacing: 0) {
             if let shownEntries {
                 spotlightFooter(entries: shownEntries)
+                    .padding(.top, spacing.footerTop)
+                    .padding(.bottom, spacing.footerBottom)
             }
             if let board {
                 RankingsPagerView(
                     page: page, totalPages: board.totalPages,
-                    idPrefix: "fst.full-rankings"
+                    idPrefix: "fst.full-rankings", topPadding: spacing.pagerTop
                 ) { destination in
                     page = destination
                 }
@@ -311,8 +323,31 @@ struct FullRankingsScreen: View {
         }
     }
 
-    /// Alpha mask for the rows: opaque, then a 36 pt fade ending at the pinned
-    /// chrome's top edge, clear beneath it. Extends into the top safe area so rows
+    /// Padding that rests the last row one row gap above the player's footer, or
+    /// above the pager without a footer, and the footer one row gap above the pager,
+    /// as on Song Leaderboard (issue #293).
+    private var chromeSpacing: PinnedChromeSpacing {
+        PinnedChromeSpacing.resolve(
+            rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
+            hasFooter: shownEntries.map { Self.showsFooter(spotlightPlacement(entries: $0)) } ?? false,
+            hasPager: board != nil && !layout.sectionChrome.isVerticalBar
+        )
+    }
+
+    /// Whether a spotlight placement draws a row in the pinned footer.
+    ///
+    /// - Parameter placement: The selected player's placement, nil without one.
+    /// - Returns: True for the pending, unranked and off-page footer rows.
+    private static func showsFooter(_ placement: RankingSpotlightPlacement?) -> Bool {
+        switch placement {
+        case .pending, .unranked, .footer: return true
+        case .some(.none), .inline, nil: return false
+        }
+    }
+
+    /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
+    /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
+    /// reaches its resting place (issue #293). Extends into the top safe area so rows
     /// still scroll under the navigation bar.
     ///
     /// - Parameter chromeTop: The chrome's measured top in ``pageSpace``; nil draws
@@ -323,7 +358,8 @@ struct FullRankingsScreen: View {
             let frame = proxy.frame(in: .named(Self.pageSpace))
             let stops = ScrollEdgeFade.bottom(
                 height: Double(frame.height),
-                obscured: chromeTop.map { Double(frame.maxY - $0) } ?? 0
+                obscured: chromeTop.map { Double(frame.maxY - $0) } ?? 0,
+                distance: bottomFadeDistance
             )
             if chromeTop == nil {
                 Color.black
@@ -418,13 +454,11 @@ struct FullRankingsScreen: View {
                     .padding(12)
                     .festivalGlass(.card, cornerRadius: 12)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
                 } else {
                     // The footer row's height, so it does not jump when the rank arrives.
                     RankingSpotlightLoadingRow()
                         .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
                         .accessibilityIdentifier("fst.full-rankings.spotlight-footer.loading")
                 }
             case .unranked:
@@ -433,7 +467,6 @@ struct FullRankingsScreen: View {
                     .padding(.vertical, 8)
                     .festivalGlassCapsule(.card)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
                     .accessibilityIdentifier("fst.full-rankings.spotlight-footer.unranked")
             case let .footer(entry):
                 HStack(spacing: 8) {
@@ -452,7 +485,6 @@ struct FullRankingsScreen: View {
                     .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
             }

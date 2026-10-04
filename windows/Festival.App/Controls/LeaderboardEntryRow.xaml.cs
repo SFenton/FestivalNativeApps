@@ -104,8 +104,9 @@ public sealed partial class LeaderboardEntryRow : UserControl
     }
 
     /// <summary>
-    /// Shows the full name as the row's tooltip only while the name is trimmed (narrow windows, large text sizes), so
-    /// mouse and keyboard users can read what the ellipsis hides; Narrator already reads the full name.
+    /// Shows the full name as the row's tooltip only while the name is ellipsized (Animation effects or Reduce Motion
+    /// off stops the marquee), so mouse and keyboard users can read what the ellipsis hides; Narrator already reads the
+    /// full name.
     /// </summary>
     private void UpdateNameToolTip() =>
         ToolTipService.SetToolTip(RowButton, NameText.IsTextTrimmed && NameText.Text.Length > 0 ? NameText.Text : null);
@@ -196,12 +197,13 @@ public sealed partial class LeaderboardEntryRow : UserControl
         if (selected)
         {
             var text = (Brush)resources["FSTPlayerRowTextBrush"];
-            RankText.Foreground = NameText.Foreground = MetaText.Foreground = BayesianText.Foreground = Chevron.Foreground = text;
+            RankText.Foreground = MetaText.Foreground = BayesianText.Foreground = Chevron.Foreground = text;
+            NameText.Foreground = text;
         }
         else
         {
             RankText.ClearValue(TextBlock.ForegroundProperty);
-            NameText.ClearValue(TextBlock.ForegroundProperty);
+            NameText.Foreground = null;
             MetaText.ClearValue(TextBlock.ForegroundProperty);
             BayesianText.ClearValue(TextBlock.ForegroundProperty);
             Chevron.ClearValue(IconElement.ForegroundProperty);
@@ -213,7 +215,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
         // The selected row's text and chevron are already the system HighlightText-on-Highlight pair under a contrast theme;
         // without this, WinUI's automatic adjustment repaints them as WindowText on white backplates inside the fill.
         var adjustment = selected ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
-        RankText.HighContrastAdjustment = NameText.HighContrastAdjustment = MetaText.HighContrastAdjustment =
+        RankText.HighContrastAdjustment = NameText.TextHighContrastAdjustment = MetaText.HighContrastAdjustment =
             BayesianText.HighContrastAdjustment = ValueText.HighContrastAdjustment = Chevron.HighContrastAdjustment = adjustment;
     }
 
