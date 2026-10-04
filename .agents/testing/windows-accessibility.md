@@ -39,7 +39,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Rival Detail | ✅✅✅ (+snap/max, #202) | 12/14/14 | ✅ | ✅ | ✅ (200% C/M/W; display 100%/150%, #202) |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
-| Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
+| Bands (Band not found, #211) | ✅✅✅ (+live) | 5/8/8 | ✅ | ✅ | ✅ (+200% C/M/W) |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
 | Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
@@ -88,6 +88,10 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Bands validation (issue #211, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 20` for `bands` at compact, medium, wide, snap-left and maximized; at medium under all four contrast themes, light and dark app mode, text 225%, display 100% and 150%, no animations and no transparency; and at text 200% at all three sizes. The live public service gave the same results for the five sizes, text 200%, Desert, Night sky, light mode and display 100%/150%. Axe reported 0 errors in every run. Keyboard journeys `kb-bands-not-found-back` and `kb-bands-not-found-back-button` pass at all sizes. Fixed: `fst.bands.screen`/`.not-found` were on panels with no UIA peer, and the failure was not announced on load. Results per configuration: [bands/windows.md](../pages/bands/windows.md#validation-issue-211-2026-10-03).
 
 ## Full Rankings validation (issue #208, 2026-10-03)
 

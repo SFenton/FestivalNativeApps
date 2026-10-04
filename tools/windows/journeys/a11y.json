@@ -270,7 +270,8 @@
     "route": "/bands",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
-      "waitfor:id=fst.bands.title@20"
+      "waitfor:id=fst.bands.title@20",
+      "waitfor:id=fst.bands.not-found@10"
     ]
   },
   {
