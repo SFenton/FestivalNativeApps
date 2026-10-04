@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
+import com.festivalscoretracker.android.testing.RankingsFixtures
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -37,6 +38,14 @@ class ShellAccessibilityJourneyTest {
         }
         ProfileFixtures.register(this)
     }
+
+    /** Songs and profile fixtures plus every rankings route, so Leaderboards shows populated cards. */
+    private val navigationTransport = RankingsFixtures.install(
+        FakeTransport.standard().apply {
+            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+            ProfileFixtures.register(this)
+        },
+    )
 
     @Test
     fun drawerAndProfileSheet() {
@@ -105,7 +114,7 @@ class ShellAccessibilityJourneyTest {
     @Test
     fun appNavigationAnonymousStates() {
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(stillBackground = true), transport)
+        h.launch(DebugLaunch(stillBackground = true), navigationTransport)
         h.waitForTag("fst.songs.row.s-alpha")
         rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
         h.assertNothingStraddles(*NAV_TAGS)
@@ -115,17 +124,23 @@ class ShellAccessibilityJourneyTest {
         h.waitForTag("fst.song-detail.intensity")
         h.tap("fst.nav.tab.leaderboards")
         h.waitForTag("fst.leaderboards")
+        h.waitGone("fst.songs.list")
+        h.awaitAccessibilityTree("fst.leaderboards", absent = "fst.songs.list")
         rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsSelected()
         h.readingOrder("nav-leaderboards")
         h.tap("fst.nav.tab.settings")
         h.waitForTag("fst.settings.list")
+        h.waitGone("fst.leaderboards")
+        h.awaitAccessibilityTree("fst.settings.list", absent = "fst.leaderboards")
         rule.onNodeWithTag("fst.nav.tab.settings").assertIsSelected()
         h.readingOrder("nav-settings")
         // Back to Songs restores its pushed detail; re-tapping Songs pops to the list root.
         h.tap("fst.nav.tab.songs")
         h.waitForTag("fst.song-detail.intensity")
+        h.waitGone("fst.settings.list")
         h.tap("fst.nav.tab.songs")
         h.waitForTag("fst.songs.row.s-alpha")
+        h.awaitAccessibilityTree("fst.songs.row.s-alpha", absent = "fst.settings.list")
         rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
         h.readingOrder("nav-reselect")
         h.assertAccessible()
@@ -138,7 +153,7 @@ class ShellAccessibilityJourneyTest {
     @Test
     fun appNavigationPlayerStates() {
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(profile = player, stillBackground = true), transport)
+        h.launch(DebugLaunch(profile = player, stillBackground = true), navigationTransport)
         h.waitForTag("fst.songs.list")
         h.waitForTag("fst.nav.tab.suggestions")
         h.waitForTag("fst.nav.tab.statistics")
@@ -147,11 +162,14 @@ class ShellAccessibilityJourneyTest {
         h.readingOrder("nav-player")
         h.tap("fst.nav.tab.statistics")
         h.waitForTag("fst.statistics")
+        h.waitGone("fst.songs.list")
+        h.awaitAccessibilityTree("fst.statistics", absent = "fst.songs.list")
         rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()
         h.readingOrder("nav-player-statistics")
         if (h.exists("fst.nav.drawer")) {
             h.tap("fst.nav.drawer")
             h.waitForTag("fst.nav.drawer.deselect")
+            h.awaitAccessibilityTree("fst.nav.drawer.deselect")
             h.readingOrder("nav-player-drawer")
         } else {
             h.waitForTag("fst.nav.drawer.deselect")
