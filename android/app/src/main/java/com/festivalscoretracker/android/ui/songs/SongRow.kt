@@ -98,17 +98,23 @@ internal object SongsTokens {
     val diffExpert = Color(0xFF7C3AED)
     val darkGlyph = Color(0xFF0B1220)
 
+    /** No-score chip ring on the selected (purple) row: light red, ≥3:1 there. */
+    val statusRedStrokeSelected = Color(0xFFE57373)
+
     /**
      * Fill and stroke for a chip status (color is the only visual cue; the row speaks the status).
+     * On the two-pane selected row the purple highlight drops the red fill/dark-red ring and the
+     * muted not-charted ring under the 3:1 non-text minimum, so those two rings lighten there.
      *
      * @param status Status.
+     * @param selected Chip sits on the highlighted (purple) row.
      * @return Fill to stroke.
      */
-    fun chip(status: SongInstrumentStatus): Pair<Color, Color> = when (status) {
-        SongInstrumentStatus.Unavailable -> BrandTokens.surfaceMuted to BrandTokens.textDisabled
+    fun chip(status: SongInstrumentStatus, selected: Boolean = false): Pair<Color, Color> = when (status) {
+        SongInstrumentStatus.Unavailable -> BrandTokens.surfaceMuted to if (selected) BrandTokens.textMuted else BrandTokens.textDisabled
         SongInstrumentStatus.FullCombo -> BrandTokens.gold to goldStroke
         SongInstrumentStatus.Scored -> BrandTokens.statusGreen to statusGreenStroke
-        SongInstrumentStatus.NoScore -> BrandTokens.statusRed to statusRedStroke
+        SongInstrumentStatus.NoScore -> BrandTokens.statusRed to if (selected) statusRedStrokeSelected else statusRedStroke
         SongInstrumentStatus.InconsistentFullCombo -> statusAmber to statusAmberStroke
     }
 
@@ -310,7 +316,7 @@ fun SongRow(
             row.pulse?.let { ShopBadge(it, song.songId, breathe) }
         },
         below = {
-            if (row.chips.isNotEmpty()) StatusChips(row.chips, song.songId, song.usesKeyboardIcon)
+            if (row.chips.isNotEmpty()) StatusChips(row.chips, song.songId, song.usesKeyboardIcon, selected)
             val rest = if (row.lastPlayed == null && row.maxScore == null) row.metadata.drop(1) else row.metadata
             if (rest.isNotEmpty() || row.maxScore != null) {
                 MetadataPills(rest, song.songId, row.maxScore)
@@ -443,9 +449,10 @@ private fun ScoreState(text: String, songId: String) {
  * @param badges Chips in service order.
  * @param songId Song (test tag).
  * @param keyboard Keys icon variant for Lead/Pro Lead.
+ * @param selected Row is highlighted (two-pane): lighter rings that clear 3:1 on purple.
  */
 @Composable
-fun StatusChips(badges: List<SongInstrumentBadge>, songId: String, keyboard: Boolean) {
+fun StatusChips(badges: List<SongInstrumentBadge>, songId: String, keyboard: Boolean, selected: Boolean = false) {
     val resources = LocalContext.current.resources
     val icons = remember(badges, keyboard) {
         badges.map { badge ->
@@ -453,7 +460,7 @@ fun StatusChips(badges: List<SongInstrumentBadge>, songId: String, keyboard: Boo
             BundledBitmaps.get(resources, instrumentIconRes(badge.instrument, keys))
         }
     }
-    val colors = remember(badges) { badges.map { SongsTokens.chip(it.status) } }
+    val colors = remember(badges, selected) { badges.map { SongsTokens.chip(it.status, selected) } }
     Spacer(
         Modifier
             .fillMaxWidth()
