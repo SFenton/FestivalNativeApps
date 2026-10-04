@@ -100,7 +100,7 @@ fun FirstRunHost(
     active?.let { carousel ->
         val demoCatalog = demoSongs?.let { rememberFirstRunDemoCatalog(it, settings.hideShop) } ?: FirstRunDemoCatalog()
         CompositionLocalProvider(LocalFirstRunDemoCatalog provides demoCatalog) {
-            FirstRunCarouselDialog(carousel, compact) { viewed -> scope.launch { center.complete(carousel, viewed) } }
+            FirstRunCarouselDialog(carousel) { viewed -> scope.launch { center.complete(carousel, viewed) } }
         }
     }
 }

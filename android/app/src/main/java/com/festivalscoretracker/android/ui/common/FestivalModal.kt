@@ -1,12 +1,16 @@
 package com.festivalscoretracker.android.ui.common
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,26 +28,47 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.festivalscoretracker.android.core.nav.DialogHinge
 import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // region Backdrop coverage
 
@@ -205,6 +230,8 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
  * @param compact Compact window: nearly full width with a 16 dp margin.
  * @param maxHeight Height cap ([Dp.Unspecified] for none).
  * @param titleStyle Header title style.
+ * @param avoidHinge Keep the dialog on one side of a separating fold or hinge
+ *   ([DialogHinge]) instead of centring it across the hinge.
  * @param content Dialog body below the header.
  */
 @Composable
@@ -218,18 +245,21 @@ fun FestivalModalDialog(
     compact: Boolean = false,
     maxHeight: Dp = Dp.Unspecified,
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
+    avoidHinge: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     CoversBackdrop()
-    Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
+    val hingeArea = if (avoidHinge) dialogHingeArea() else null
+    val surface: @Composable (Modifier) -> Unit = { placement ->
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = BrandTokens.cardBackground,
             modifier = Modifier
-                .padding(if (compact) 16.dp else 0.dp)
+                .padding(if (compact || hingeArea != null) 16.dp else 0.dp)
                 .widthIn(max = MODAL_DIALOG_MAX_WIDTH)
                 .heightIn(max = maxHeight)
                 .fillMaxWidth()
+                .then(placement)
                 .popupTestTags()
                 .then(modifier)
                 .semantics { this.paneTitle = paneTitle },
@@ -238,6 +268,95 @@ fun FestivalModalDialog(
                 FestivalModalHeader(title, closeTag, onDismissRequest, titleTag = titleTag, titleStyle = titleStyle)
                 content()
             }
+        }
+    }
+    // A display-size (density) change, such as moving between a phone and a tablet or desktop
+    // display, removes the dialog's window while the composition still holds it, leaving an
+    // invisible modal (issue #139); a fresh window per density keeps it on screen.
+    key(LocalConfiguration.current.densityDpi) {
+        if (hingeArea == null) {
+            Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
+                surface(Modifier)
+            }
+        } else {
+            Dialog(
+                onDismissRequest = onDismissRequest,
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+            ) {
+                HingeSideDialogLayout(hingeArea, onDismissRequest, surface)
+            }
+        }
+    }
+}
+
+/**
+ * The area beside a separating hinge to centre a dialog in, in screen pixels; read from the
+ * activity window (outside the dialog), or null without a separating hinge.
+ *
+ * @return The [DialogHinge] area, or null.
+ */
+@Composable
+private fun dialogHingeArea(): DialogHinge.Area? {
+    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return null
+    val root = LocalView.current.rootView
+    val density = LocalDensity.current
+    val direction = LocalLayoutDirection.current
+    val origin = IntArray(2).also(root::getLocationOnScreen)
+    val x = origin[0].toFloat()
+    val y = origin[1].toFloat()
+    val safe = WindowInsets.safeDrawing
+    val safeArea = DialogHinge.Area(
+        left = x + safe.getLeft(density, direction),
+        top = y + safe.getTop(density),
+        right = x + root.width - safe.getRight(density, direction),
+        bottom = y + root.height - safe.getBottom(density),
+    )
+    val bounds = hinge.bounds
+    return DialogHinge.area(
+        safe = safeArea,
+        hinge = DialogHinge.Area(x + bounds.left, y + bounds.top, x + bounds.right, y + bounds.bottom),
+        vertical = hinge.isVertical,
+        separating = true,
+        rtl = direction == LayoutDirection.Rtl,
+    )
+}
+
+/**
+ * Full-window dialog content that centres [surface] in [area] (screen pixels) and treats a tap
+ * anywhere outside the surface as an outside tap, like an ordinary dialog's scrim.
+ *
+ * @param area Area beside the hinge.
+ * @param onDismissRequest Called for a tap outside the surface.
+ * @param surface The dialog surface; apply the given modifier after its outer margin.
+ */
+@Composable
+private fun HingeSideDialogLayout(
+    area: DialogHinge.Area,
+    onDismissRequest: () -> Unit,
+    surface: @Composable (Modifier) -> Unit,
+) {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    var surfaceBounds by remember { mutableStateOf(Rect.Zero) }
+    Layout(
+        content = { surface(Modifier.onGloballyPositioned { surfaceBounds = it.boundsInRoot() }) },
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { origin = it.positionOnScreen() }
+            .pointerInput(onDismissRequest) {
+                detectTapGestures { if (!surfaceBounds.contains(it)) onDismissRequest() }
+            },
+    ) { measurables, constraints ->
+        val local = DialogHinge.Area(area.left - origin.x, area.top - origin.y, area.right - origin.x, area.bottom - origin.y)
+        val placeable = measurables.single().measure(
+            Constraints(
+                maxWidth = local.width.roundToInt().coerceIn(0, constraints.maxWidth),
+                maxHeight = local.height.roundToInt().coerceIn(0, constraints.maxHeight),
+            ),
+        )
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            val (left, top) = DialogHinge.place(local, placeable.width.toFloat(), placeable.height.toFloat())
+            placeable.place(left.roundToInt(), top.roundToInt())
         }
     }
 }
