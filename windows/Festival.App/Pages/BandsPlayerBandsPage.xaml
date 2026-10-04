@@ -36,7 +36,10 @@
                           AutomationProperties.AutomationId="fst.player-bands.list">
                 <ItemsRepeater x:Name="Cards" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Entries, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120" Margin="0,4,0,16" MaxWidth="1200">
                     <ItemsRepeater.Layout>
-                        <UniformGridLayout MinItemWidth="320" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
+                        <!-- Rows size to their tallest card: All Bands mixes two-, three- and four-member cards, which
+                             UniformGridLayout (every item sized from the first) clipped. Non-virtualizing (25 cards per
+                             page), so every card is realized for arrow keys and UI Automation. -->
+                        <controls:LeaderboardsCardGridLayout MinColumnWidth="320" MaxColumns="3" Spacing="12" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
@@ -57,8 +60,10 @@
 
             <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
                         controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                        Spacing="8" AutomationProperties.AutomationId="fst.player-bands.empty">
-                <TextBlock Text="No bands found" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                        Spacing="8">
+                <!-- The ID sits on the heading: a StackPanel has no UI Automation peer. -->
+                <TextBlock Text="No bands found" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.player-bands.empty" />
                 <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" HorizontalAlignment="Center" TextAlignment="Center"
                            TextWrapping="Wrap" />
             </StackPanel>
