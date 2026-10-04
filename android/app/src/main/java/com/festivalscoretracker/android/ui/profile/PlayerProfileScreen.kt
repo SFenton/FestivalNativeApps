@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
@@ -240,7 +241,7 @@ private fun LoadedProfile(
                 when (row) {
                     ProfileRow.Identity -> IdentityActions(state, onSelect = {
                         if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
-                    })
+                    }, onReload = viewModel::retry)
                     ProfileRow.Overview -> Column(Modifier.testTag("fst.player.overview")) {
                         SectionHeader("Overview")
                         StatGrid(state.overview, "overview", state::canRun, onAction)
@@ -301,12 +302,15 @@ private fun LoadedProfile(
 /**
  * Select/Switch, the paused-selection notice and the last action error, straight on the
  * page background. Issue #97: no avatar/name card; the top bar already names the player.
+ * When the notice or error asks for a reload, a 48 dp Reload text button re-reads the
+ * profile under the current publication (issue #133; the page has no pull-to-refresh).
  *
  * @param state Page state.
  * @param onSelect Select, or ask to confirm a switch.
+ * @param onReload Re-read the viewed profile.
  */
 @Composable
-private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit) {
+private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("fst.player.identity"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (state.identity) {
             PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
@@ -324,6 +328,9 @@ private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit) {
         }
         state.actionError?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("fst.player.action-error"))
+        }
+        if (state.offersReload) {
+            TextButton(onClick = onReload, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.reload")) { Text("Reload") }
         }
     }
 }
