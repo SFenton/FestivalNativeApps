@@ -44,7 +44,7 @@ HIG sources: `apple-hig/references/hig/toolbars.md`, `search-fields.md`, `search
 | Player, Statistics | Select/Switch/Deselect, Quick Links \| bell · avatar | Rail: `VerticalBarActionItem` |
 | Song Detail | Item Shop, Paths, Quick Links \| bell · avatar | Toolbar |
 | Leaderboards, Compete, Settings, Rivals, Band Detail | Page actions, Quick Links \| bell · avatar | Toolbar |
-| Full / Band Rankings | Instrument + rank-by menus \| bell · avatar; page-owned floating pager above the tab bar | `.bottomBar` pager |
+| Full / Band Rankings | Instrument + rank-by menus \| bell · avatar; page-owned pager above the tab bar (Full Rankings: shared pinned `RankingsPagerView`, issue #294; Band Rankings: floating pager) | `.bottomBar` pager |
 | Search tab | — (transient; system Close beside the field) | iPad sidebar Search: bell · avatar |
 
 ## Small widths

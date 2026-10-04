@@ -135,6 +135,22 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
     #expect(MacRankByCommands.accountOptions.first?.label == RankingMetric.adjusted.label)
 }
 
+/// View › Instrument lists the page's charts in order, keyed by wire id, and keeps
+/// every chart (disabled) when no rankings page is in front.
+@Test func macInstrumentOptions() {
+    let options = MacInstrumentCommands.options(for: [.drums, .lead])
+    #expect(options.map(\.id) == ["Solo_Drums", "Solo_Guitar"])
+    #expect(options.map(\.label) == [Instrument.drums.label, Instrument.lead.label])
+    #expect(MacInstrumentCommands.allOptions.map(\.id) == Instrument.allCases.map(\.rawValue))
+    #expect(MacInstrumentCommands.options(for: []).isEmpty)
+}
+
+/// Full Rankings' header, pinned title and window title share one "<Instrument> Rankings" string.
+@Test func fullRankingsTitleNamesInstrument() {
+    #expect(FullRankingsScreen.title(for: .lead) == "Lead Rankings")
+    #expect(FullRankingsScreen.title(for: .drums) == "\(Instrument.drums.label) Rankings")
+}
+
 // MARK: - Animation gate
 
 /// Continuous decoration runs only in an active scene whose window can be seen.

@@ -621,9 +621,12 @@ extension View {
 
 // MARK: - Pager (text footer)
 
-/// Discoverable first/previous/next/last text paging footer, still used by the
-/// song leaderboards and Player Bands (the overall Full/Band Rankings boards use
-/// ``RankingsFloatingBar`` instead, Lane PB 2026-09-28).
+/// Discoverable first/previous/next/last paging footer shared by the song
+/// leaderboards, Full Rankings (issue #294: one pager for every instrument and song
+/// board) and Player Bands. Band Rankings still uses ``RankingsFloatingBar``.
+///
+/// The `page / total` badge is one adjustable VoiceOver element ("Page, 2 of 48"):
+/// swipe up/down to page, as the floating glass pager allows.
 ///
 /// On the iPhone Duo vertical bar this footer alone ran ≈150 of 678 pt (B2,
 /// `.agents/design/apple/duo.md`), so it renders nothing there: the caller also adds
@@ -656,6 +659,19 @@ struct RankingsPagerView: View {
                     .padding(.horizontal, 14)
                     .frame(minHeight: 44)
                     .modifier(PagerPlate(cornerRadius: 12))
+                    .accessibilityElement()
+                    .accessibilityLabel("Page")
+                    .accessibilityValue(pagerState.accessibilityValue)
+                    .accessibilityAdjustableAction { direction in
+                        let action: RankingsPagerAction? = switch direction {
+                        case .increment: .next
+                        case .decrement: .previous
+                        @unknown default: nil
+                        }
+                        if let action, let destination = pagerState.destination(for: action) {
+                            onChange(destination)
+                        }
+                    }
                     .accessibilityIdentifier("\(idPrefix).page-info")
                 arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
                 arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
@@ -664,6 +680,11 @@ struct RankingsPagerView: View {
             .padding(.vertical, 8)
             .padding(.horizontal, 16)
         }
+    }
+
+    /// Clamped page facts for the spoken value and the adjustable action.
+    private var pagerState: RankingsPagerState {
+        RankingsPagerState(page: page, totalPages: totalPages)
     }
 
     /// A 44 pt frosted circle arrow (web `arrowBtnBase`), faded when disabled.
@@ -710,7 +731,7 @@ private struct PagerPlate: ViewModifier {
 
 // MARK: - Floating pager
 
-/// Floating bottom bar for the paginated rankings boards: a Liquid Glass pager
+/// Floating bottom bar for Band Rankings: a Liquid Glass pager
 /// capsule (`« ‹ 1 / 34,757 › »`) beside the board's switcher menu, mirroring the
 /// web's floating pagination pill and instrument pill (`FullRankingsPage.tsx`).
 ///
@@ -858,24 +879,6 @@ struct RankingsGlassPager: View {
         case .next: "Next Page"
         case .last: "Last Page"
         }
-    }
-}
-
-/// Instrument artwork for a board switcher (toolbar menu or floating pill), sized so
-/// its visible disc matches the height of the SF Symbols beside it.
-///
-/// The artwork's white disc fills about 84% of its square (the dark ring vanishes on
-/// dark glass), and toolbar symbols such as the rank-by `arrow.up.arrow.down` draw
-/// about 20 pt tall at the default size. A 24 pt square (scaled with Dynamic Type)
-/// therefore renders at the symbol's height; the surrounding pill grows sideways
-/// rather than shrinking the icon (operator, 2026-09-28, Duo toolbar).
-struct RankingsSwitcherInstrumentIcon: View {
-    let instrument: Instrument
-    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 24
-
-    var body: some View {
-        InstrumentIcon(instrument, size: size)
-            .fixedSize()
     }
 }
 

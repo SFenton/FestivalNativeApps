@@ -294,9 +294,9 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "First Page", "Lead"], timeout: .seconds(60))
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "First page", "Lead Rankings"], timeout: .seconds(60))
     _ = try nativeHostedPNG(image, filename: "full-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "First Page", "Lead"])
+    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "First page", "Lead Rankings"])
 }
 
 // MARK: - BandRankingsScreen
