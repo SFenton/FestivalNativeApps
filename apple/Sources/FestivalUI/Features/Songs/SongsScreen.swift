@@ -1153,6 +1153,10 @@ struct SongsScreen: View {
                 let ids = groups.map(\.id)
                 let rows = SongsScrollStress.rowOffsets(sectionSizes: groups.map(\.songs.count))
                 try? await Task.sleep(for: .seconds(3))
+                // A list replaced while it waited (the Mac window measures its width
+                // and swaps one column for the split) must not open the measured window:
+                // its early start mark pulled launch work into the pass.
+                guard !Task.isCancelled else { return }
                 MainThreadStallMonitor.count(SongsScrollStress.startCounter)
                 var current = 0
                 for step in SongsScrollStress.plan(groupCount: ids.count) {
