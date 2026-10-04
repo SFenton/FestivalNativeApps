@@ -97,6 +97,97 @@ struct SongsScrollChromeTests {
         chrome.resetHeaders()
         #expect(chrome.currentSectionIndex(in: keys) == 0)
     }
+
+    // MARK: - Section push (issue #288)
+
+    /// Normal landing line (2 + 28 pt fade) and bar title height.
+    private let landing: CGFloat = 30
+    private let bar: CGFloat = 32
+
+    @Test func pushBandStartsBelowTheLandingLineByOneBarHeight() {
+        let band = landing + bar
+        #expect(SongsScrollChrome.pushBandTop(titleTop: band + 0.5, landingOffset: landing, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.pushBandTop(titleTop: band, landingOffset: landing, barHeight: bar) == band)
+        #expect(SongsScrollChrome.pushBandTop(titleTop: 12, landingOffset: landing, barHeight: bar) == 12)
+        // Far above the bar it clamps, so pinned titles stop reporting every frame.
+        let floor = -(SongsScrollChrome.titleAlignment + 1)
+        #expect(SongsScrollChrome.pushBandTop(titleTop: -400, landingOffset: landing, barHeight: bar) == floor)
+        #expect(SongsScrollChrome.pushBandTop(titleTop: .nan, landingOffset: landing, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.pushBandTop(titleTop: 20, landingOffset: landing, barHeight: -5) == 20)
+    }
+
+    private func layout(
+        current: CGFloat?, passed: Bool = false, next: CGFloat?
+    ) -> SongsScrollChrome.SectionBarLayout {
+        SongsScrollChrome.sectionBarLayout(
+            currentTop: current, currentPassed: passed, nextTop: next,
+            landingOffset: landing, barHeight: bar
+        )
+    }
+
+    @Test func currentTitleRidesItsRowThenPins() {
+        let a = SongsScrollChrome.titleAlignment
+        #expect(layout(current: nil, next: nil) == .init(currentY: nil, nextY: nil))
+        #expect(layout(current: nil, passed: true, next: nil) == .init(currentY: 0, nextY: nil))
+        #expect(layout(current: 20, passed: true, next: nil) == .init(currentY: 20 + a, nextY: nil))
+        #expect(layout(current: -a - 1, passed: true, next: nil) == .init(currentY: 0, nextY: nil))
+    }
+
+    @Test func incomingTitlePushesThePinnedOneOut() {
+        let a = SongsScrollChrome.titleAlignment
+        // Entering the band: drawn at its row, the pinned title not yet moved.
+        #expect(layout(current: nil, passed: true, next: landing + bar) ==
+            .init(currentY: 0, nextY: landing + bar + a))
+        // Halfway: the pinned title moved up 1:1 with the scroll.
+        #expect(layout(current: nil, passed: true, next: landing + 16) ==
+            .init(currentY: -16, nextY: landing + 16 + a))
+        // At the landing line (where it becomes current and where jumps land) it is gone.
+        #expect(layout(current: nil, passed: true, next: landing).currentY == nil)
+        #expect(layout(current: nil, passed: true, next: landing + 0.5).currentY == -bar + 0.5)
+    }
+
+    @Test func pushIsContinuousAcrossTheBand() {
+        var previous: SongsScrollChrome.SectionBarLayout?
+        for step in stride(from: landing + bar + 4, through: landing - 4, by: -0.5) {
+            let top = SongsScrollChrome.pushBandTop(titleTop: step, landingOffset: landing, barHeight: bar)
+            let now = layout(current: nil, passed: true, next: top)
+            if let previous, let was = previous.currentY, let is_ = now.currentY {
+                #expect(abs(was - is_) <= 0.5)
+            }
+            if let was = previous?.nextY, let is_ = now.nextY {
+                #expect(abs(was - is_) <= 0.5)
+            }
+            previous = now
+        }
+    }
+
+    @Test func titleTopsWriteOnlyOnChange() {
+        let chrome = SongsScrollChrome()
+        #expect(invalidates(chrome, reading: { _ = $0.titleTops }) { $0.setTitleTop("A", top: 40) })
+        #expect(!invalidates(chrome, reading: { _ = $0.titleTops }) { $0.setTitleTop("A", top: 40.05) })
+        // A non-finite top counts as leaving the band.
+        #expect(chrome.setTitleTop("A", top: .nan))
+        #expect(chrome.titleTops["A"] == nil)
+        #expect(!chrome.setTitleTop("B", top: nil))
+        #expect(chrome.setTitleTop("B", top: 3))
+        #expect(chrome.setTitleTop("B", top: nil))
+        #expect(chrome.titleTops["B"] == nil)
+        #expect(!invalidates(chrome, reading: { _ = $0.listScrolled }) { $0.setTitleTop("C", top: 1) })
+    }
+
+    @Test func barMetricsSetTheMaskEdge() {
+        let chrome = SongsScrollChrome()
+        chrome.setBarMetrics(top: 100, height: 0)
+        #expect(chrome.barTop.value == 100)
+        #expect(chrome.barHeight.value == 0)
+        #expect(chrome.sectionBarBottom == 0)
+        chrome.setBarMetrics(top: 100, height: 32)
+        #expect(chrome.barHeight.value == 32)
+        #expect(chrome.sectionBarBottom == 132)
+        chrome.setBarMetrics(top: .nan, height: .infinity)
+        #expect(chrome.barTop.value == 100)
+        #expect(chrome.sectionBarBottom == 132)
+    }
 }
 
 /// Issue #9: an instant A–Z rail or Quick Links jump names its target in the section bar,
