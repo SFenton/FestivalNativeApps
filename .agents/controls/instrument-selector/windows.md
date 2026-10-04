@@ -9,3 +9,18 @@
 - Accessibility: each circle is a `ToggleButton` named by the instrument label (Toggle pattern = the web's `aria-pressed`); arrows are "Previous instrument" / "Next instrument". Both rows sit in an `AccessibleGroup` (`<IdPrefix>.group`, Group role, named by the control's `AutomationProperties.Name`, else "Instrument") so Narrator announces the context once. AutomationIds: `<IdPrefix>.<Solo_…>`, `<IdPrefix>.compact`, `<IdPrefix>.previous|next`, `<IdPrefix>.group`.
 - Keyboard: every circle stays a Tab stop (existing keyboard journeys and the web's button row rely on it) and Left/Right also move between circles (`XYFocusKeyboardNavigation`). Deliberate deviation from the WinUI design skill's single-tab-stop radio-group pattern: the circles are independent toggles that can all be off, not a radio group. When `CompactMode.Auto` flips layout while a circle or arrow has focus, focus moves to the equivalent button in the new layout (`InstrumentSelectorState.FocusTarget`: selection, else deferred preview, else first enabled) instead of falling to the window.
 - Consumers (web parity): Paths dialog, Suggestions filter, Song Detail score history. Songs filter and Leaderboards instrument picker belong to the Songs/Leaderboards lane.
+
+## Validation (issue #222)
+
+Run with `tools/windows/a11y_matrix.py --pages tools/windows/journeys/a11y-instrument-selector.json --scan --tabs N` (fixture service) plus `ui_journey.py tools/windows/journeys/instrument-selector.json` (every reachable state via `--control-lab instrument-selector`, [windows platform notes](../../platforms/windows.md)) and a live-service pass for evidence. Pages: the control lab (`lab`, `lab-states`, `lab-compact`) and the live consumers (Songs filter, Song Detail history, Paths).
+
+| Configuration | Result |
+| --- | --- |
+| Compact / medium / wide / maximized / snapped-left | Auto switches to previous/centre/next below the row width and back above it, keeping focus on the equivalent button; `Never` rows in the lab scroll horizontally instead of clipping. Paths shows the full row only when its dialog reaches 900 epx (scale 100/150). |
+| Dark (app default) / Light | The app is dark-only (`RequestedTheme="Dark"`), so the light-theme run renders the same; documented app-wide deviation. |
+| High contrast Desert / Night sky | `ButtonText` rings on every circle, `Highlight` disc, `GrayText` disabled ring; muted circles keep the full ring and add ItemStatus. |
+| Text 200% | Labels and the selected-instrument detail wrap; the row keeps fixed 64 epx circles (icon controls, not text). |
+| Display scale 100% / 150% | Layout identical in epx; icons decode at 72 px, slightly soft at 300% (out of scope). |
+| Animations off / in-app Reduce Motion | Disc scale and detail fade become instant (`Motion.Allowed`). |
+| Keyboard only | Tab reaches every circle and arrow once (lab walk: 0 repeats, 0 stops outside the app); Left/Right move between circles; Space/Enter toggle; focus visual is the system focus rectangle. |
+| Axe.Windows | 0 errors on every lab and consumer page in every mode, except (a) the WinUI tooltip `PopupHost` "obscures its container" artifact when a pointer or keyboard tooltip is open (known [#8](../../testing/windows-accessibility.md); the journey parks the pointer and presses Esc, which cleared it in 37 of 39 lab re-runs: the empty popup host still lingered once each in the dark-theme and animations-off lab-compact runs) and (b) the Songs filter's Pro Lead score-chart row clipped at the viewport edge in contrast themes at wide size (known clipping class, not this control). |
