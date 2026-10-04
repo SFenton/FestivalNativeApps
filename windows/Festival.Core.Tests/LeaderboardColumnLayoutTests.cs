@@ -109,6 +109,20 @@ public class LeaderboardColumnLayoutTests
     }
 
     [Fact]
+    public void LargeTextRankings_DropTheSongsLabelOnlyWhenTheNameWouldVanish()
+    {
+        // Issue #209: Band Rankings at 200% text in a 469 epx row. "#1", "29 / 50", "49,500,000": padding 24 + rank 56 +
+        // songs 98 + rating 190 + chevron 24 + gaps 72 + name 144 = 608 epx, so the songs label yields.
+        var bands = new LeaderboardSection(LeaderboardRowKind.Ranking, RankChars: 2, MetaChars: 7, ValueChars: 10, HasAccuracy: false, HasStars: false);
+        var squeezed = LeaderboardColumnLayout.Fit(bands, 469, 2);
+        Assert.Equal((false, 0d), (squeezed.ShowMeta, squeezed.MetaWidth));
+        Assert.True(LeaderboardColumnLayout.Fit(bands, 469).ShowMeta);
+        Assert.True(LeaderboardColumnLayout.Fit(bands, 608, 2).ShowMeta);
+        Assert.False(LeaderboardColumnLayout.Fit(bands, 607, 2).ShowMeta);
+        Assert.True(LeaderboardColumnLayout.Fit(bands, double.NaN, 2).ShowMeta);
+    }
+
+    [Fact]
     public void LabelledRows_HaveNoRankColumn()
     {
         Assert.Equal(0, LeaderboardColumnLayout.Fit(Scores with { RankChars = 0 }, 600).RankWidth);
@@ -133,5 +147,36 @@ public class LeaderboardColumnLayoutTests
         Assert.Equal(LeaderboardRowKind.Ranking,
             LeaderboardColumns.Measure([new RankingRowViewModel(RankingsWire.Account(7, "x"), RankingMetric.TotalScore, false)]).Kind);
         Assert.Equal(LeaderboardRowKind.Score, LeaderboardColumns.Measure([]).Kind);
+    }
+
+    [Fact]
+    public void UnopenableRow_KeepsTheChevronSlotWhileAnyRowOpens()
+    {
+        // Issue #209: a band without a team key sits beside openable bands; its values must stay in line with theirs.
+        var board = FestivalApiClient.Decode(System.Text.Encoding.UTF8.GetBytes(RankingsWire.BandBoard("Band_Duets", 1, 25, 2, [1, 2])),
+            RankingsJsonContext.Default.BandRankingsResponse);
+        var open = new BandRankingRowViewModel(board.Entries[0], BandType.Duets, BandRankingMetric.TotalScore);
+        var closed = new BandRankingRowViewModel(board.Entries[1] with { BandId = "", TeamKey = "" }, BandType.Duets, BandRankingMetric.TotalScore);
+        Assert.NotNull(open.Route);
+        Assert.Null(closed.Route);
+        var mixed = LeaderboardColumns.Measure([open, closed]);
+        Assert.True(mixed.HasRoutes);
+        Assert.True(LeaderboardColumnLayout.Fit(mixed, 600).ShowChevron);
+        var none = LeaderboardColumns.Measure([closed]);
+        Assert.False(none.HasRoutes);
+        Assert.False(LeaderboardColumnLayout.Fit(none, 600).ShowChevron);
+        Assert.True(LeaderboardColumns.Measure([]).HasRoutes);
+    }
+
+    [Fact]
+    public void SectionWithoutDestinations_GivesTheChevronSpaceToOptionalColumns()
+    {
+        // 225% text, no season: padding 24 + rank 76.5 + score 182.25 + badge 130.5 + stars 98 + gaps 72 + name 162
+        // = 745.25 epx, plus the chevron's 27 = 772.25. At 760 epx only a section without destinations keeps its stars.
+        var stars = Scores with { MetaChars = 0 };
+        var routed = LeaderboardColumnLayout.Fit(stars, 760, 2.25);
+        Assert.Equal((false, true), (routed.ShowStars, routed.ShowChevron));
+        var bare = LeaderboardColumnLayout.Fit(stars with { HasRoutes = false }, 760, 2.25);
+        Assert.Equal((true, false), (bare.ShowStars, bare.ShowChevron));
     }
 }

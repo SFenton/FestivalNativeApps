@@ -59,7 +59,8 @@
                 <Border x:Name="StarsHost" Grid.Column="5" VerticalAlignment="Center" Visibility="Collapsed">
                     <controls:StarRow x:Name="StarsView" StarSize="14" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
-                <!-- In-card chevron on rows with a destination (operator batch 7.3). -->
+                <!-- In-card chevron on rows with a destination (operator batch 7.3); a row without one keeps the slot blank
+                     when any row of its section opens (issue #209), so values stay in line. -->
                 <FontIcon x:Name="Chevron" Grid.Column="6" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                           AutomationProperties.AccessibilityView="Raw" />
             </Grid>

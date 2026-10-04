@@ -22,7 +22,12 @@ public enum LeaderboardRowKind
 /// <param name="ValueChars">Longest score or rating text.</param>
 /// <param name="HasAccuracy">Whether any score row has an accuracy badge.</param>
 /// <param name="HasStars">Whether any score row has stars.</param>
-public sealed record LeaderboardSection(LeaderboardRowKind Kind, int RankChars, int MetaChars, int ValueChars, bool HasAccuracy, bool HasStars)
+/// <param name="HasRoutes">
+/// Whether any row opens a destination: the chevron column is then reserved on every row, so a row that can't be opened
+/// (no account or team key) keeps its values in line with the rest (issue #209).
+/// </param>
+public sealed record LeaderboardSection(
+    LeaderboardRowKind Kind, int RankChars, int MetaChars, int ValueChars, bool HasAccuracy, bool HasStars, bool HasRoutes = true)
 {
     /// <summary>Whether any row has a season (score sections) or songs label (rankings sections).</summary>
     public bool HasMeta => MetaChars > 0;
@@ -44,9 +49,12 @@ public sealed record LeaderboardSection(LeaderboardRowKind Kind, int RankChars, 
 /// <param name="AccuracyWidth">Accuracy column width (0 when hidden).</param>
 /// <param name="ShowStars">Whether the stars column shows.</param>
 /// <param name="StarsWidth">Stars column width (0 when hidden).</param>
+/// <param name="ShowChevron">
+/// Whether the chevron column is reserved (any row of the section has a destination); a row without one leaves it blank.
+/// </param>
 public sealed record LeaderboardColumnPlan(
     double Gap, double RankWidth, bool ShowMeta, double MetaWidth, double ValueWidth,
-    bool ShowAccuracy, double AccuracyWidth, bool ShowStars, double StarsWidth)
+    bool ShowAccuracy, double AccuracyWidth, bool ShowStars, double StarsWidth, bool ShowChevron = true)
 {
     /// <summary>Whether the narrow (8 epx gap) layout applies.</summary>
     public bool Compact => Gap < LeaderboardColumnLayout.WideGap;
@@ -58,8 +66,8 @@ public sealed record LeaderboardColumnPlan(
 /// The one per-section column fitter for Windows leaderboard rows (issue #37). Ports the web's rules: the season column
 /// from a 520 epx row (<c>MEDIUM_BREAKPOINT</c>), stars from 700 epx (<c>MOBILE_BREAKPOINT</c> 768 less the page chrome),
 /// tighter gaps below 420 epx, the accuracy column always reserved in a section that has accuracy, and the rankings songs
-/// label never dropped. When the fixed columns would squeeze the name below its minimum (narrow rows or large text),
-/// stars go first, then the season.
+/// label kept (it yields only when large text would squeeze the name below its minimum). When the fixed columns would
+/// squeeze the name below its minimum (narrow rows or large text), stars go first, then the season.
 /// </summary>
 public static class LeaderboardColumnLayout
 {
@@ -138,13 +146,16 @@ public static class LeaderboardColumnLayout
         var showStars = score && section.HasStars && known && rowWidth >= StarsBreakpoint;
 
         double Required() => RowPadding + rank + (showMeta ? meta : 0) + value + accuracy + (showStars ? StarsWidth : 0) +
-                             ChevronWidth * scale + GapCount * gap + MinNameWidth * scale;
+                             (section.HasRoutes ? ChevronWidth * scale : 0) + GapCount * gap + MinNameWidth * scale;
 
         if (showStars && Required() > rowWidth) showStars = false;
         if (score && showMeta && !pinned && Required() > rowWidth) showMeta = false;
+        // Rankings keep their songs label like the web, unless large text would squeeze the name to nothing (issue #209;
+        // the spec lets accessibility text sizes change the columns). Narrator still reads the songs in the row's name.
+        if (!score && showMeta && Required() > rowWidth) showMeta = false;
         return new LeaderboardColumnPlan(
             gap, rank, showMeta, showMeta ? meta : 0, value,
-            accuracy > 0, accuracy, showStars, showStars ? StarsWidth : 0);
+            accuracy > 0, accuracy, showStars, showStars ? StarsWidth : 0, section.HasRoutes);
     }
 }
 #endregion
