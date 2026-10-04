@@ -58,6 +58,7 @@ public sealed partial class SongsPage : Page, IPageBack
     private string[] stickyLabels = [];
     private int stickyRowCount;
     private bool wideLayout;
+    private int trailingBand = -1;
     private readonly TopEdgeFade edgeFade;
     private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
@@ -92,6 +93,7 @@ public sealed partial class SongsPage : Page, IPageBack
         Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
         SizeChanged += OnSizeChanged;
         SongList.SelectionChanged += OnSongSelectionChanged;
+        SongList.SizeChanged += OnListSizeChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
         Zoom.ViewChangeCompleted += OnZoomViewChangeCompleted;
         edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
@@ -545,6 +547,35 @@ public sealed partial class SongsPage : Page, IPageBack
         if (GroupedSongs.Source is not null) RebindGroups();
     }
 
+    /// <summary>
+    /// Re-lays out the realized rows' trailing content when the list itself crosses a breakpoint. The page's own SizeChanged runs
+    /// before the list is re-measured, so <see cref="ApplyLayout"/> still reads the old list width there (a wide → compact
+    /// resize kept chips inline and squeezed the title out of the row).
+    /// </summary>
+    /// <param name="sender">List.</param>
+    /// <param name="e">Size change.</param>
+    private void OnListSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var band = TrailingBand(ListWidth());
+        if (band == trailingBand) return;
+        trailingBand = band;
+        wideLayout = ListWidth() >= InlineChipsWidth;
+        RefreshTrailing();
+    }
+
+    /// <summary>Rebuilds the realized rows' trailing content in place (keeps the scroll position; later rows build on realization).</summary>
+    private void RefreshTrailing()
+    {
+        if (SongList.ItemsPanelRoot is not Panel panel) return;
+        foreach (var child in panel.Children)
+            if (child is ListViewItem { ContentTemplateRoot: SongRowCard card, Content: SongRowItem row }) BuildTrailing(card, row);
+    }
+
+    /// <summary>Trailing-content layout for a list width: 0 chips/metadata wrap, 1 chips inline, 2 all metadata inline.</summary>
+    /// <param name="listWidth">List width in epx.</param>
+    /// <returns>Band index.</returns>
+    private static int TrailingBand(double listWidth) => listWidth >= InlineMetadataWidth ? 2 : listWidth >= InlineChipsWidth ? 1 : 0;
+
     /// <summary>Opens Song Detail, carrying the filtered chart.</summary>
     /// <param name="sender">List.</param>
     /// <param name="e">Clicked row.</param>
@@ -722,10 +753,15 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="instrument">Chart, or <see langword="null"/> when cleared.</param>
     private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
-    /// <summary>Re-resolves the Sort/Filter tints on the UI thread after a system colour change.</summary>
+    /// <summary>Re-resolves the Sort/Filter tints and rebuilds the rows on the UI thread after a system colour change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
-    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(() =>
+    {
+        UpdateButtonTints();
+        // Row chips and pills take their brushes and ring weights at build time: rebuild them for the new theme.
+        RefreshTrailing();
+    });
 
     /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
     private void UpdateButtonTints()
