@@ -183,8 +183,9 @@ object CompeteText {
  * Whether a Compete card's scope header stacks its instrument icons above the title.
  *
  * Side by side, the 36 dp icons and the optional "See All" link take a fixed width; in a
- * narrow lane (a half-open book fold's panel, a 360 dp cover screen) a four-instrument
- * combo title was left a few dp and broke after every word. Large text always stacks.
+ * narrow lane (a half-open book fold's panel, a 360 dp cover screen, a phone card with
+ * See All) a four-instrument combo title was left a few dp and broke after every word.
+ * Large text always stacks.
  */
 object CompeteHeaderLayout {
     /** Instrument icon size (web `InstrumentHeader` SM). */
@@ -196,8 +197,14 @@ object CompeteHeaderLayout {
     /** Gap between the icons, the title and the link. */
     const val GAP_DP = 8f
 
-    /** Narrowest width a title may wrap into beside the icons. */
+    /** Narrowest width a single-instrument title ("Pro Cymbals") may take beside its icon. */
     const val MIN_TITLE_DP = 100f
+
+    /**
+     * Narrowest width a combo title may take beside its icons: about half the longest name
+     * ("Lead + Bass + Drums + Tap Vocals", ~250 dp), so it wraps to two lines at most.
+     */
+    const val MIN_COMBO_TITLE_DP = 140f
 
     /** Width of the "See All ›" text button at the default font scale. */
     const val SEE_ALL_DP = 80f
@@ -215,7 +222,8 @@ object CompeteHeaderLayout {
         if (largeText) return true
         val icons = instruments * ICON_DP + (instruments - 1).coerceAtLeast(0) * ICON_GAP_DP
         val link = if (hasSeeAll) GAP_DP + SEE_ALL_DP else 0f
-        return widthDp < icons + GAP_DP + MIN_TITLE_DP + link
+        val title = if (instruments > 1) MIN_COMBO_TITLE_DP else MIN_TITLE_DP
+        return widthDp < icons + GAP_DP + title + link
     }
 }
 

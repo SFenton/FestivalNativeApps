@@ -105,17 +105,20 @@ class CompeteLogicTest {
 
     @Test
     fun scopeHeaderStacksInNarrowLanesAndLargeText() {
-        // Phone card (~379 dp): a four-instrument combo keeps its title beside the icons, with or without See All.
-        assertFalse(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = true, largeText = false))
+        // Phone card (~379 dp): a combo board without See All keeps its title beside the icons...
         assertFalse(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = false, largeText = false))
+        // ...but beside See All the title would wrap to three lines, so the icons stack.
+        assertTrue(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = true, largeText = false))
         // Half-open book fold panel (~260 dp): the combo title would get a few dp, so the icons stack above it.
         assertTrue(CompeteHeaderLayout.stacks(260f, 4, hasSeeAll = true, largeText = false))
         assertTrue(CompeteHeaderLayout.stacks(250f, 4, hasSeeAll = false, largeText = false))
         // One instrument plus See All still fits that panel.
         assertFalse(CompeteHeaderLayout.stacks(260f, 1, hasSeeAll = true, largeText = false))
-        // Boundary: icons 4×36 + 3×2, gap 8, title 100, gap 8 + link 80.
-        assertFalse(CompeteHeaderLayout.stacks(346f, 4, hasSeeAll = true, largeText = false))
-        assertTrue(CompeteHeaderLayout.stacks(345.9f, 4, hasSeeAll = true, largeText = false))
+        // Boundaries: combo icons 4×36 + 3×2, gap 8, combo title 140, gap 8 + link 80; single icon 36, gap 8, title 100, link 88.
+        assertFalse(CompeteHeaderLayout.stacks(386f, 4, hasSeeAll = true, largeText = false))
+        assertTrue(CompeteHeaderLayout.stacks(385.9f, 4, hasSeeAll = true, largeText = false))
+        assertFalse(CompeteHeaderLayout.stacks(232f, 1, hasSeeAll = true, largeText = false))
+        assertTrue(CompeteHeaderLayout.stacks(231.9f, 1, hasSeeAll = true, largeText = false))
         assertFalse(CompeteHeaderLayout.stacks(108f, 0, hasSeeAll = false, largeText = false))
         // Large text always stacks.
         assertTrue(CompeteHeaderLayout.stacks(2000f, 1, hasSeeAll = false, largeText = true))
