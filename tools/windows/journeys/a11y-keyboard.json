@@ -203,6 +203,42 @@
     ]
   },
   {
+    "name": "kb-player-bands",
+    "route": "/bands/player/fixture-player-1",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.player-bands.row.fixture-band-1@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.player-bands.group.all",
+      "key:tab",
+      "assertfocus:id=fst.player-bands.row.fixture-band-1@3",
+      "key:down",
+      "assertfocus:id=fst.player-bands.row.fixture-pband-duo-2@3",
+      "key:tab",
+      "assertfocus:id=fst.player-bands.page-next@3",
+      "key:enter",
+      "waitfor:id=fst.player-bands.row.fixture-pband-trio-8@15",
+      "focus:id=fst.player-bands.row.fixture-pband-trio-8",
+      "key:shift+tab",
+      "assertfocus:id=fst.player-bands.group.all@3",
+      "key:right",
+      "assertfocus:id=fst.player-bands.group.duos@3",
+      "waitfor:name=Duos · 18 bands@10",
+      "waitfor:id=fst.player-bands.row.fixture-pband-duo-2@10",
+      "wait:1.5",
+      "key:tab",
+      "assertfocus:id=fst.player-bands.row.fixture-band-1@5",
+      "key:enter",
+      "waitfor:id=fst.band.title@10",
+      "key:alt+left",
+      "waitfor:id=fst.player-bands.title@10"
+    ]
+  },
+  {
     "name": "kb-leaderboards-cards",
     "route": "/leaderboards",
     "tabs": 0,
