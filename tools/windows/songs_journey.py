@@ -200,9 +200,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "setvalue:id=fst.songs.search|zzzz",
             "waitfor:name=No Results@10",
             "waitgone:id=fst.songs.row.fixture-orbit",
+            # Hidden state: no rows, no sections, no Jump (issue #231).
+            "waitgone:id=fst.songs.section-index-button@5",
             "{shot:songs-search-empty}",
             "setvalue:id=fst.songs.search|",
             "waitfor:id=fst.songs.row.fixture-pulse@10",
+            "waitfor:id=fst.songs.section-index-button@5",
         ],
     ),
     "songs-sort": (
@@ -217,6 +220,13 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "collapse:id=fst.songs.sort",
             "waitgone:id=fst.songs.sort.mode@5",
             "waitfor:id=fst.songs.section-index-button@5",
+            # The artist state: the index lists artist initials and focuses the topmost one (issue #231).
+            "invoke:id=fst.songs.section-index-button",
+            "waitfor:id=fst.songs.section-index@5",
+            "assertfocus:class=GridViewItem",
+            "{shot:songs-jump-artist}",
+            "key:esc",
+            "waitgone:id=fst.songs.section-index@5",
             # No quick-jump under the Year sort (operator 2026-09-28): decade headers stay, Jump hides.
             "expand:id=fst.songs.sort",
             "select:name=Year@5",
@@ -370,13 +380,30 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
         PLAYER, "/songs", {},
         [
             "waitfor:id=fst.songs.row.fixture-pulse@20",
-            "invoke:id=fst.songs.section-index-button",
+            "assertname:id=fst.songs.section-header|F",
+            # Issue #231: opening the index moves focus onto the letter of the section at the top of the list.
+            "focus:id=fst.songs.section-index-button",
+            "key:enter",
             "waitfor:id=fst.songs.section-index@5",
+            "assertfocus:name=F",
             "waitgone:id=fst.songs.row.fixture-pulse@5",
             "{shot:songs-jump}",
+            # Escape also closes the index with focus back on the Jump button (not only from inside the letters).
+            "focus:id=fst.songs.section-index-button",
+            "key:esc",
+            "waitgone:id=fst.songs.section-index@5",
+            "assertfocus:id=fst.songs.section-index-button",
+            "invoke:id=fst.songs.section-index-button",
+            "waitfor:id=fst.songs.section-index@5",
+            "key:esc",
+            "waitgone:id=fst.songs.section-index@5",
+            "assertfocus:id=fst.songs.section-index-button",
+            "invoke:id=fst.songs.section-index-button",
+            "waitfor:id=fst.songs.section-index@5",
             "invoke:name=F",
             "waitfor:id=fst.songs.row.fixture-pulse@5",
             "waitgone:id=fst.songs.section-index@5",
+            "assertname:id=fst.songs.section-header|F",
         ],
     ),
     "songs-filter-empty": (

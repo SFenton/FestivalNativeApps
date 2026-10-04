@@ -7,6 +7,7 @@ No web equivalent exists to source line numbers from: the web app has no section
 ## When it appears
 
 - Only for sort modes with a meaningful, stable section key: **Title** and **Artist** (first letter) and **Year** (exact year). Duration, Item Shop and any score/band-based sort have no section key and show no index.
+  - Superseded for **Year** by the 2026-09-28 operator decision in [the Songs page spec](../../pages/songs/spec.md#operator-decisions-all-platforms): Year sort uses decade headers and Quick Links and shows **no** index.
 - Only once the current, already filtered and sorted row list produces **more than one** section; a single-section result (e.g. a narrow search match) hides it.
 - Must animate in and out as the active sort mode or the result set changes, never appear/disappear abruptly.
 
