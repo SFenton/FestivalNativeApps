@@ -1643,23 +1643,96 @@ private struct SongsSectionBar: View {
 
     let chrome: SongsScrollChrome
     let sections: [Entry]
+    @State private var top: CGFloat = 0
+    @State private var height: CGFloat = 0
 
     var body: some View {
-        if chrome.listScrolled,
-           let index = chrome.currentSectionIndex(in: sections.map(\.key)) {
-            SongsSectionBarLabel(
-                label: sections[index].label, spokenLabel: sections[index].spokenLabel
-            ) { chrome.setSectionBarBottom($0) }
+        // Always laid out (empty until scrolled), so the titles can measure against the
+        // bar's top before it first shows a title. While scrolled it covers the bar's
+        // height, so rows hidden under the bar never take a tap, even mid-push.
+        ZStack(alignment: .topLeading) {
+            Color.clear
+                .frame(height: chrome.listScrolled ? height : 0)
+                .contentShape(Rectangle())
+            if chrome.listScrolled, let layout {
+                if let previous = layout.previousY, let entry = entry(at: layout.current - 1) {
+                    // Still leaving: the current title passed a little before the landing
+                    // line. Hidden from VoiceOver, like any pushed-out header.
+                    SongsSectionBarLabel(label: entry.label, spokenLabel: entry.spokenLabel)
+                        .accessibilityHidden(true)
+                        .allowsHitTesting(false)
+                        .offset(y: previous)
+                }
+                if let current = layout.currentY, let entry = entry(at: layout.current) {
+                    SongsSectionBarLabel(label: entry.label, spokenLabel: entry.spokenLabel)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                            height = $0
+                            chrome.setBarMetrics(top: top, height: $0)
+                        }
+                        .accessibilityIdentifier("fst.songs.section-bar")
+                        .offset(y: current)
+                }
+                if let next = layout.nextY, let entry = entry(at: layout.current + 1) {
+                    // The incoming title, drawn where its row is: the in-list copy hides
+                    // while it is in the push band. VoiceOver reads the in-list title.
+                    SongsSectionBarLabel(label: entry.label, spokenLabel: entry.spokenLabel)
+                        .accessibilityHidden(true)
+                        .allowsHitTesting(false)
+                        .offset(y: next)
+                }
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        // Titles pushed up leave at the bar's top edge, like pinned List headers; the
+        // incoming title may sit below the bar's own frame.
+        .clipShape(BelowTopShape())
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
+            top = $0
+            chrome.setBarMetrics(top: $0, height: height)
+        }
+    }
+
+    /// Positions of the current and incoming titles (issue #288).
+    private var layout: (current: Int, previousY: CGFloat?, currentY: CGFloat?, nextY: CGFloat?)? {
+        let keys = sections.map(\.key)
+        guard let index = chrome.currentSectionIndex(in: keys) else { return nil }
+        let tops = chrome.titleTops
+        let landing = chrome.landingLine.value
+        let height = chrome.barHeight.value
+        let next = index + 1 < keys.count ? tops[keys[index + 1]] : nil
+        let layout = SongsScrollChrome.sectionBarLayout(
+            currentTop: tops[keys[index]],
+            currentPassed: chrome.passedHeaders.contains(keys[index]),
+            nextTop: next, landingOffset: landing, barHeight: height
+        )
+        // The title before the current one, pinned until the current one pushed it out.
+        let previous = index > 0 && chrome.passedHeaders.contains(keys[index]) ?
+            SongsScrollChrome.sectionBarLayout(
+                currentTop: nil, currentPassed: true, nextTop: tops[keys[index]],
+                landingOffset: landing, barHeight: height
+            ).currentY : nil
+        return (index, previous, layout.currentY, layout.nextY)
+    }
+
+    private func entry(at index: Int) -> Entry? {
+        sections.indices.contains(index) ? sections[index] : nil
     }
 }
 
-/// The floating section title itself.
+/// Everything from a frame's top edge down, reaching far past its bottom and sides.
+private struct BelowTopShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let far = RowMaskShape.far
+        return Path(CGRect(
+            x: rect.minX - far, y: rect.minY, width: rect.width + 2 * far, height: rect.height + far
+        ))
+    }
+}
+
+/// One floating section title.
 private struct SongsSectionBarLabel: View {
     let label: String
     let spokenLabel: String
-    /// Reports the label's bottom edge (global).
-    let bottomChanged: (CGFloat) -> Void
 
     var body: some View {
         Text(label)
@@ -1668,12 +1741,8 @@ private struct SongsSectionBarLabel: View {
             .padding(.horizontal, 20)
             .padding(.vertical, SongsScrollChrome.barTitlePadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
-                bottomChanged($0)
-            }
             .accessibilityLabel(spokenLabel)
             .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("fst.songs.section-bar")
     }
 }
 
@@ -1694,11 +1763,15 @@ private struct SongsInlineSectionTitle: View {
     let chrome: SongsScrollChrome
     /// This title has reached the landing line (its own geometry).
     @State private var passed = false
+    /// The floating bar draws this title (it is pushing the pinned one, issue #288).
+    @State private var inBand = false
 
     var body: some View {
         let topInset = chrome.listTopInset
         let line = chrome.landingLine
-        let blank = passed && chrome.listScrolled
+        let barTop = chrome.barTop
+        let barHeight = chrome.barHeight
+        let blank = (passed || inBand) && chrome.listScrolled
         Text(label)
             .font(.subheadline.bold())
             .foregroundStyle(FestivalText.primary.opacity(blank ? 0 : 1))
@@ -1723,6 +1796,16 @@ private struct SongsInlineSectionTitle: View {
             } action: { minY in
                 chrome.recordTitleTop(key, minY: minY)
             }
+            .onGeometryChange(for: CGFloat?.self) { proxy in
+                SongsScrollChrome.pushBandTop(
+                    titleTop: proxy.frame(in: .global).minY - barTop.value,
+                    landingOffset: line.value, barHeight: barHeight.value
+                )
+            } action: { top in
+                inBand = top != nil
+                chrome.setTitleTop(key, top: top)
+            }
+            .onDisappear { chrome.setTitleTop(key, top: nil) }
             .background(ListScrollViewLocator(nudger: chrome.listNudger))
     }
 }
