@@ -266,7 +266,6 @@ public sealed partial class BandRankingsViewModel : ObservableObject
             OnPropertyChanged(nameof(ShowRows));
             OnPropertyChanged(nameof(ShowEmpty));
             OnPropertyChanged(nameof(ShowError));
-            OnPropertyChanged(nameof(ShowContent));
         };
     }
 
@@ -346,8 +345,12 @@ public sealed partial class BandRankingsViewModel : ObservableObject
     /// <summary>Whether the full-page failure is shown.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
-    /// <summary>Whether the pager is shown.</summary>
-    public bool ShowContent => State is (LoadState.Loaded or LoadState.Empty) && LoadSwap.ContentVisible;
+    /// <summary>
+    /// Whether the pager is shown. It stays in place while another page loads, like the song leaderboard (issue #93):
+    /// <see cref="State"/> only changes when a load commits, so only the rows swap for the spinner and keyboard focus
+    /// stays on the pager button that paged (issue #209).
+    /// </summary>
+    public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
     /// <summary>Switches band size (resets to page 1).</summary>
     /// <param name="value">Band size.</param>
