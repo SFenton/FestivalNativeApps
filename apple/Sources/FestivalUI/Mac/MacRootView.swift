@@ -76,6 +76,10 @@ public struct MacRootView: View {
         .environment(\.songRowsAllowSingleLine, true)
         .environment(\.refreshCommandRegistry, model.refreshRegistry)
         .environment(\.openProfile, OpenProfileAction { navigation.profilePresented = true })
+        // The model reads its visible rows live, so the captured flag never goes stale.
+        .environment(\.profileButtonAction, ProfileButtonHandler(statisticsVisible: true) {
+            navigation.pressProfileButton(hasPlayer: session.selectedPlayer != nil)
+        })
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { navigation.searchPresented = true })
         .environment(\.pushRoute, PushRouteAction { navigation.push($0) })
         .environment(\.playerStatNavigator, PlayerStatNavigator(
@@ -366,8 +370,10 @@ struct MacGlobalToolbarItems: ToolbarContent {
                 }
                 .help("Notifications")
             }
-            RootProfileButton(session: model.session) { model.navigation.profilePresented = true }
-                .help(model.session.selectedPlayer.map { "Profile: \($0.displayName)" } ?? "Select Profile")
+            RootProfileButton(session: model.session) {
+                model.navigation.pressProfileButton(hasPlayer: model.session.selectedPlayer != nil)
+            }
+                .help(model.session.selectedPlayer.map { "Show Statistics for \($0.displayName)" } ?? "Select Profile")
         }
     }
 }

@@ -428,7 +428,7 @@ extension View {
 
 /// Implementation of `pageTrailingItems()`.
 struct PageTrailingItems: ViewModifier {
-    @Environment(\.openProfile) private var openProfile
+    @Environment(\.profileButtonAction) private var profileButtonAction
     @Environment(\.festivalSession) private var session
     @Environment(\.pushRoute) private var pushRoute
     @Environment(\.deviceLayout) private var layout
@@ -462,7 +462,7 @@ struct PageTrailingItems: ViewModifier {
                     }
                     #endif
                     ToolbarItem(placement: .primaryAction) {
-                        RootProfileButton(session: session) { openProfile() }
+                        RootProfileButton(session: session) { profileButtonAction() }
                     }
                 }
             }

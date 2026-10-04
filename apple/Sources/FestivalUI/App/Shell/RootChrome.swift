@@ -54,6 +54,9 @@ struct PushRouteAction: Equatable {
 extension EnvironmentValues {
     /// Opens the profile selection sheet owned by the root shell.
     @Entry var openProfile = OpenProfileAction(handler: {})
+    /// The profile button (avatar) press: the selected player's Statistics page, or the
+    /// profile selection sheet without a selection (``ProfileButtonAction``, issue #290).
+    @Entry var profileButtonAction = ProfileButtonHandler(statisticsVisible: false, handler: {})
     /// Opens the hamburger drawer; nil where the platform shows a permanent sidebar.
     @Entry var openDrawer: OpenDrawerAction? = nil
     /// Pushes on the current section's stack; nil outside the root shell (hosted tests).
@@ -281,7 +284,7 @@ struct FestivalRootChrome: ViewModifier {
 struct FestivalRootTrailingItems: ToolbarContent {
     let session: FestivalSession
     var showsNotifications: Bool = true
-    @Environment(\.openProfile) private var openProfile
+    @Environment(\.profileButtonAction) private var profileButtonAction
     /// Notification rows open their destination on the current tab (issue #75).
     @Environment(\.pushRoute) private var pushRoute
     @Environment(\.deviceLayout) private var layout
@@ -312,12 +315,12 @@ struct FestivalRootTrailingItems: ToolbarContent {
         }
         if #available(iOS 27.0, *) {
             ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { openProfile() }
+                RootProfileButton(session: session) { profileButtonAction() }
             }
             .railVisibilityPriority(.profile)
         } else {
             ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { openProfile() }
+                RootProfileButton(session: session) { profileButtonAction() }
             }
         }
         #else
@@ -328,7 +331,7 @@ struct FestivalRootTrailingItems: ToolbarContent {
                 }
             }
             ToolbarItem(placement: .primaryAction) {
-                RootProfileButton(session: session) { openProfile() }
+                RootProfileButton(session: session) { profileButtonAction() }
             }
         }
         #endif
@@ -534,11 +537,22 @@ private struct NotificationBadgeModifier: ViewModifier {
 /// `person.crop.circle.fill` titled "Profile: <name>" instead of the monogram: a
 /// custom-view item cannot go vertical, so the system would keep a horizontal top bar
 /// just for it (`.agents/design/apple/duo.md`, B1). Horizontal bars keep the monogram.
+///
+/// Callers pass `\.profileButtonAction` (``ProfileButtonAction``): with a selected
+/// player the button opens their Statistics page, not profile search (issue #290).
 struct RootProfileButton: View {
     let session: FestivalSession
     let action: () -> Void
     @Environment(\.deviceLayout) private var layout
     @Environment(\.displayScale) private var displayScale
+
+    /// VoiceOver hint describing where the button goes.
+    ///
+    /// - Parameter hasPlayer: Whether a player is selected.
+    /// - Returns: "Opens your statistics" with a selection, else "Opens profile selection".
+    static func accessibilityHint(hasPlayer: Bool) -> String {
+        hasPlayer ? "Opens your statistics" : "Opens profile selection"
+    }
 
     /// How the profile action is drawn for a player and section chrome.
     enum Presentation: Equatable {
@@ -579,7 +593,7 @@ struct RootProfileButton: View {
         .accessibilityLabel(session.selectedPlayer.map {
             "Profile: \($0.displayName)"
         } ?? "Choose Profile")
-        .accessibilityHint("Opens profile selection")
+        .accessibilityHint(Self.accessibilityHint(hasPlayer: session.selectedPlayer != nil))
         // Bar buttons keep their size at large text (HIG); the Large Content Viewer
         // shows the name instead of the fixed-size monogram.
         .accessibilityShowsLargeContentViewer {
