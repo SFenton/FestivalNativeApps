@@ -71,11 +71,12 @@ Artwork motion follows [artwork-background](../controls/artwork-background/windo
 | Emphasis text and outlines (`FSTEmphasis*`: FC badge, Top 5%, gold stars ring, active Sort/Filter tint, profile notices) | gold | WindowText (the FC badge keeps its skewed italic shape) |
 | Stat tile values (`FSTStatBlue/Green`), ratings | blue / green | WindowText |
 | Top 1% pill, current-season pill | gold / white fill | Highlight / HighlightText |
-| Accuracy, difficulty and plain percentile pills | red→green tint, difficulty hues | ButtonFace / ButtonText with a ButtonText outline |
+| Accuracy, difficulty and plain percentile pills (incl. Band Detail's purple `FSTPercentilePill*`, issue #212) | red→green tint, difficulty hues, purple | ButtonFace / ButtonText with a ButtonText outline |
 | Shop borders, Songs art bag, Shop badges and pulse (`FSTShop*`) | gold (New) / red (Leaving) | Highlight / HighlightText (the label and UIA name say which) |
 | Destructive buttons (Reset, Reset All Settings, Deselect; `FSTDanger*`) | `#C62828` | ButtonFace / ButtonText; hover and press Highlight / HighlightText |
+| Chart gridlines and axes (`FSTChartGridBrush`, `FSTChartAxisBrush`), bar outlines | 8% / 20% white, none | WindowText; bars get a 1 epx WindowText outline (Song Detail #195, rank history #212) |
 
-Open: charts (rank history bars, score history bars and line) keep brand hues; their values are on the axes and in each bar's UIA name.
+Open: charts (rank history bars, score history bars and line) keep brand data hues; their values are on the axes and in each bar's UIA name.
 - **Text size:** controls keep `IsTextScaleFactorEnabled`; at ≥150% the title-bar caption text is dropped so the global search box keeps its width.
 - **Motion and transparency:** system Animation effects off or in-app Reduce Motion → still artwork and no marquee; transparency off or in-app Less Transparency → opaque cards and the overlay pane's acrylic uses its solid fallback.
 - Results per page and open gaps: [testing/windows-accessibility.md](../testing/windows-accessibility.md).
