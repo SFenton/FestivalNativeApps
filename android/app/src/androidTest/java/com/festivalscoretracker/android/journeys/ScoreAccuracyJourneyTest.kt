@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.journeys
 
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -8,6 +9,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.ui.common.LARGE_TEXT_SCALE
 import kotlin.math.abs
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -47,15 +49,34 @@ class ScoreAccuracyJourneyTest {
         rule.onAllNodesWithTag(tag(id), useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow.let { (it.left + it.right) / 2 }
     }
 
-    private fun assertBadges(screen: String) {
+    /**
+     * Asserts the badge column, hinge clearance and TalkBack labels for the current screen.
+     *
+     * @param screen Name for the reading-order log.
+     * @param leftDetail A stop of the screen navigated away from that must no longer be read.
+     */
+    private fun assertBadges(screen: String, leftDetail: String? = null) {
         val badges = listOf(Fixtures.ACCOUNT_B, graded, missing, low)
         badges.forEach { h.waitForTag(tag(it)) }
         assertTrue("absent row drew a badge", !h.exists(tag(absent)))
-        val centres = badgeCentres(badges)
-        assertTrue("$screen badges ragged: $centres", centres.all { abs(it - centres.first()) < 1f })
+        // Below LARGE_TEXT_SCALE badges share a column (aligned-columns); at large text rows stack
+        // and each badge follows its score (large-text), so the column check applies only below it.
+        if (rule.activity.resources.configuration.fontScale < LARGE_TEXT_SCALE) {
+            val centres = badgeCentres(badges)
+            assertTrue("$screen badges ragged: $centres", centres.all { abs(it - centres.first()) < 1f })
+        }
         h.assertNothingStraddles(*badges.map(::tag).toTypedArray())
-        val order = h.readingOrder(screen)
-        listOf("Full combo, accuracy 100%", "Accuracy 87.3%", "Full combo; accuracy unavailable", "Accuracy 12%").forEach { label ->
+        val labels = listOf("Full combo, accuracy 100%", "Accuracy 87.3%", "Full combo; accuracy unavailable", "Accuracy 12%")
+        // The accessibility tree trails Compose's semantics after a navigation, so re-walk until it shows this screen.
+        fun settled(order: List<String>) = labels.all { label -> order.any { it.contains(label) } } && (leftDetail == null || order.none { it == leftDetail })
+        val deadline = SystemClock.uptimeMillis() + 10_000
+        var order = h.readingOrder(screen)
+        while (!settled(order) && SystemClock.uptimeMillis() < deadline) {
+            Thread.sleep(250)
+            order = h.readingOrder(screen)
+        }
+        leftDetail?.let { stale -> assertTrue("$screen still reads the outgoing \"$stale\" stop: $order", order.none { it == stale }) }
+        labels.forEach { label ->
             assertTrue("$screen: no stop reads \"$label\" in $order", order.any { it.contains(label) })
         }
     }
@@ -69,7 +90,10 @@ class ScoreAccuracyJourneyTest {
         assertBadges("score-accuracy-preview")
         h.tap("fst.song-detail.view-all.Solo_Guitar")
         h.waitForTag("fst.song-leaderboard.list")
-        assertBadges("score-accuracy-full-chart")
+        // The preview rows share badge tags with the chart's, so wait out the outgoing Song Detail.
+        h.waitGone("fst.song-detail.list")
+        h.waitForTag("fst.song-leaderboard.row.$low")
+        assertBadges("score-accuracy-full-chart", leftDetail = "Intensity")
         h.assertAccessible()
     }
 }

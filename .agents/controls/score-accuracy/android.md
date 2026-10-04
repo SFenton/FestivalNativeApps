@@ -52,4 +52,4 @@ Fixture-only states (`invalid`, `full-combo-no-accuracy`, `absent`) are not in l
 
 ## Tests
 
-`ScoreAccuracyBadgeTest`, `ScoreAccuracyContrastTest`, `ScoreAccuracyUiTest` (Robolectric), `LeaderboardColumnLayoutTest`, `BandsUiTest`; connected `journeys/ScoreAccuracyJourneyTest` (`device.py test com.festivalscoretracker.android.journeys.ScoreAccuracyJourneyTest --avd …`).
+`ScoreAccuracyBadgeTest`, `ScoreAccuracyContrastTest`, `ScoreAccuracyUiTest` (Robolectric), `LeaderboardColumnLayoutTest`, `BandsUiTest`; connected `journeys/ScoreAccuracyJourneyTest` (`device.py test com.festivalscoretracker.android.journeys.ScoreAccuracyJourneyTest --avd …`). It checks the shared badge column only below `LARGE_TEXT_SCALE` (rows stack at large text, so it passes at font scale 1.0 and 2.0), waits for the outgoing Song Detail before walking the full chart (the preview rows reuse the badge tags), and re-walks until the UiAutomation tree, which trails Compose semantics after navigation, no longer reads Song Detail.
