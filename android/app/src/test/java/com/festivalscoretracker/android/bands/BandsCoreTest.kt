@@ -320,6 +320,18 @@ class BandsCoreTest {
     }
 
     @Test
+    fun splitsIsOneDecisionForPanesAndQuickLinks() {
+        assertTrue(BandLayout.splits(1280f, separatingHinge = false, singleColumn = false))
+        assertTrue(BandLayout.splits(673f, separatingHinge = true, singleColumn = false))
+        assertFalse(BandLayout.splits(700f, separatingHinge = false, singleColumn = false))
+        // TalkBack or narrow large text: one column even on an expanded window.
+        assertFalse(BandLayout.splits(1280f, separatingHinge = true, singleColumn = true))
+        // A separating hinge outside the content still splits, into equal panes.
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(673f, 600f, null, split = true))
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(1280f, 1200f, null, split = false))
+    }
+
+    @Test
     fun songBandLeaderboardSplitsOnlyAcrossASeparatingHinge() {
         // Half-open book fold: controls pane ends at the fold, rows start after it.
         assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.listSplit(BandLayout.Hinge(452f, 452f, true)))

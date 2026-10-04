@@ -32,8 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -116,7 +116,9 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     val revealed = rememberRevealed(detail != null)
     // Quick Links (web BandPage) while the page is one scrolling column; two panes show everything side by side.
     val scroll = rememberScrollState()
-    var twoPane by remember { mutableStateOf(false) }
+    // One pane decision drives both the layout and the Quick Links action, so they cannot disagree.
+    val separatingHinge = currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isVertical && it.isSeparating }
+    val twoPane = BandLayout.splits(windowWidthDp(), separatingHinge, rememberSingleColumn())
     val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList())
     FestivalScreen(
         title = "Band",
@@ -138,7 +140,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
                 val failed = detailState as LoadState.Failed
                 ServiceStatusView(failed.issue, "Band Not Found", failed.countdown, viewModel::retry, Modifier.testTag("fst.band.error"), padding)
             }
-            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate, scroll, anchors) { twoPane = it }
+            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate, scroll, anchors, twoPane)
         }
     }
 }
@@ -155,7 +157,7 @@ private fun BandDetailContent(
     onNavigate: (AppRoute) -> Unit,
     scroll: ScrollState,
     anchors: ScrollQuickLinkSections,
-    onTwoPane: (Boolean) -> Unit,
+    twoPane: Boolean,
 ) {
     val metric by viewModel.metric.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
@@ -165,8 +167,7 @@ private fun BandDetailContent(
     val summary = remember(detail, type) { BandDetailProjection.summary(detail, type) }
     val statistics = remember(detail, type, metric, bestSong) { BandDetailProjection.statistics(detail, type, metric, bestSong) }
     var contentLeft by remember { mutableFloatStateOf(0f) }
-    var singlePane by remember { mutableStateOf(true) }
-    val mark: (String) -> Modifier = { id -> if (singlePane) with(anchors) { Modifier.section(id) } else Modifier }
+    val mark: (String) -> Modifier = { id -> if (!twoPane) with(anchors) { Modifier.section(id) } else Modifier }
     val leading: @Composable ColumnScope.() -> Unit = {
         BandPageHeader(title, "${type.label} · ${BandFormatting.appearances(detail.songsPlayed)}", "fst.band")
         Column(mark("members")) { MembersSection(detail.displayMembers, onNavigate) }
@@ -200,10 +201,7 @@ private fun BandDetailContent(
             .onGloballyPositioned { contentLeft = it.positionInWindow().x },
     ) {
         val hinge = rememberBandHinge(contentLeft, maxWidth)
-        // One column under TalkBack or at large text (rememberSingleColumn).
-        val panes = if (rememberSingleColumn()) BandLayout.panes(0f, maxWidth.value, null) else BandLayout.panes(windowWidthDp(), maxWidth.value, hinge)
-        singlePane = !panes.twoPane
-        LaunchedEffect(panes.twoPane) { onTwoPane(panes.twoPane) }
+        val panes = BandLayout.panes(windowWidthDp(), maxWidth.value, hinge, split = twoPane)
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)
         val bottom = padding.calculateBottomPadding() + 24.dp
         if (panes.twoPane) {

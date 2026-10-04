@@ -82,15 +82,28 @@ object BandLayout {
     }
 
     /**
+     * Whether Band Detail shows two panes: an expanded window or a separating vertical hinge,
+     * unless the page is forced to one column (screen reader, or large text on a narrow window).
+     * The page decides this once so its pane layout and its Quick Links action always agree.
+     *
+     * @param windowWidth Window width.
+     * @param separatingHinge Whether the window has a separating vertical hinge.
+     * @param singleColumn Whether the page must stay one column.
+     * @return True for two panes.
+     */
+    fun splits(windowWidth: Float, separatingHinge: Boolean, singleColumn: Boolean): Boolean =
+        !singleColumn && (windowWidth >= EXPANDED_WIDTH || separatingHinge)
+
+    /**
      * Whether and where Band Detail splits into panes.
      *
      * @param windowWidth Window width.
      * @param contentWidth Content width.
      * @param hinge Vertical hinge in content coordinates.
+     * @param split Whether to split; defaults to an expanded window or a separating [hinge].
      * @return Panes.
      */
-    fun panes(windowWidth: Float, contentWidth: Float, hinge: Hinge?): Panes {
-        val split = windowWidth >= EXPANDED_WIDTH || hinge?.separating == true
+    fun panes(windowWidth: Float, contentWidth: Float, hinge: Hinge?, split: Boolean = windowWidth >= EXPANDED_WIDTH || hinge?.separating == true): Panes {
         // A flat fold only anchors the split when both panes keep a balanced share (tri-fold outer folds do not).
         val anchor = hinge?.takeIf { it.separating || min(it.left, contentWidth - it.right) >= BALANCED_SHARE * contentWidth }
         return when {
