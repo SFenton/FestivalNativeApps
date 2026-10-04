@@ -9,7 +9,8 @@ namespace Festival.App.Controls;
 /// Adaptive card grid for <see cref="ItemsRepeater"/>: as many equal-width columns as fit
 /// <see cref="MinColumnWidth"/> (one at compact widths), each row as tall as its tallest card. Unlike
 /// <see cref="UniformGridLayout"/>, which sizes every item from the first, cards of different heights
-/// (spotlight rows, failures) never clip. Non-virtualizing: the overview has at most twelve cards.
+/// (spotlight rows, failures, three- and four-member band rows) never clip. Non-virtualizing: the Leaderboards
+/// overview has at most twelve cards and Song Detail at most one per instrument and band size.
 /// </summary>
 public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
 {

@@ -9,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.Icons
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.festivalscoretracker.android.AppContainer
@@ -257,7 +258,8 @@ private fun SongLeaderboardRow(
 ) {
     var modifier = Modifier.fillMaxWidth().selectedRowHighlight(isSelected)
     modifier = if (route != null) {
-        modifier.clickable(role = Role.Button, onClickLabel = "Open profile") { onOpen(route) }
+        // "Open your statistics" for the selected player's row and footer, "Open profile" otherwise.
+        modifier.clickable(role = Role.Button, onClickLabel = RankingNavigation.actionLabel(route)) { onOpen(route) }
     } else {
         modifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
     }
@@ -269,19 +271,28 @@ private fun SongLeaderboardRow(
 
 /**
  * The header's instrument (web instrument switcher): icon and name; with more
- * than one visible chart it opens a menu that switches the board.
+ * than one visible chart it is a 48 dp drop-down (TalkBack "drop down list") whose
+ * menu switches the board and checks the current chart. With a single chart it is
+ * plain text, not a disabled control (issue #104).
+ *
+ * @param current Board's chart.
+ * @param charts Settings-visible charts the song supports, in display order.
+ * @param onSelect Opens the board for another chart.
  */
 @Composable
-private fun InstrumentSwitcher(current: Instrument, charts: List<Instrument>, onSelect: (Instrument) -> Unit) {
+internal fun InstrumentSwitcher(current: Instrument, charts: List<Instrument>, onSelect: (Instrument) -> Unit) {
     var open by remember { mutableStateOf(false) }
     val switchable = charts.size > 1
     Box {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .padding(vertical = 8.dp)
+                .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable(enabled = switchable, onClickLabel = "Switch instrument") { open = true }
+                .then(
+                    if (switchable) Modifier.clickable(role = Role.DropdownList, onClickLabel = "Switch instrument") { open = true }
+                    else Modifier,
+                )
                 .padding(end = 8.dp)
                 .testTag("fst.song-leaderboard.instrument"),
         ) {
@@ -300,6 +311,8 @@ private fun InstrumentSwitcher(current: Instrument, charts: List<Instrument>, on
                 DropdownMenuItem(
                     text = { Text(chart.label, fontWeight = if (chart == current) FontWeight.Bold else null) },
                     leadingIcon = { InstrumentIcon(chart, size = 24.dp, decorative = true) },
+                    // Same single-choice cue as the rankings' top-bar pickers.
+                    trailingIcon = if (chart == current) ({ Icon(Icons.Filled.Check, contentDescription = null) }) else null,
                     onClick = {
                         open = false
                         if (chart != current) onSelect(chart)

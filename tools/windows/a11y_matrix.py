@@ -10,7 +10,9 @@ walk. System modes change the operator's real desktop, so they are applied insid
 previous values are always restored before it is released.
 
 Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` (contrast themes);
-``text-150``, ``text-225`` (text size); ``no-animations`` (Animation effects off); ``no-transparency``;
+``light-theme``, ``dark-theme`` (default app mode); ``scale-100``, ``scale-150`` (primary display scale);
+``text-150``, ``text-200``, ``text-225`` (text size);
+``no-animations`` (Animation effects off); ``no-transparency``;
 ``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data); ``app-contrast`` (in-app
 More Contrast + Less Transparency).
 
@@ -58,7 +60,12 @@ MODES: dict[str, dict] = {
     "hc-desert": {"system": {"high_contrast": "desert"}},
     "hc-dusk": {"system": {"high_contrast": "dusk"}},
     "hc-night-sky": {"system": {"high_contrast": "night-sky"}},
+    "light-theme": {"system": {"light_theme": True}},
+    "dark-theme": {"system": {"light_theme": False}},
+    "scale-100": {"system": {"display_scale": 100}},
+    "scale-150": {"system": {"display_scale": 150}},
     "text-150": {"system": {"text_scale": 150}},
+    "text-200": {"system": {"text_scale": 200}},
     "text-225": {"system": {"text_scale": 225}},
     "no-animations": {"system": {"animations": False}},
     "no-transparency": {"system": {"transparency": False}},

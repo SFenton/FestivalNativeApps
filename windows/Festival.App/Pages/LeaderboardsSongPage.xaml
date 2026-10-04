@@ -74,6 +74,11 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
+        <!-- Contrast themes turn the footer fade off; this window-colour plate (footer height, sized in code) hides the rows
+             between and behind the footer's controls instead of letting their text show through. Never hit-testable. -->
+        <Border x:Name="FooterPlate" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource FSTFloatingBackplateBrush}" />
+
         <!-- Web fixed footer: the pinned "your score" row is a full-width row like the list's, so its rank, name, score and
              accuracy line up with them (operator batch 7.9), then the pager; both float over the rows (BoardFooter).
              "Your Page" sits above the row instead of stealing its width. -->
@@ -90,7 +95,7 @@
                     </StackPanel>
                 </Button>
                 <controls:LeaderboardEntryRow Row="{x:Bind ViewModel.Spotlight, Mode=OneWay}" IsFloating="True"
-                                              AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-footer" />
+                                              RowAutomationId="fst.song-leaderboard.spotlight-footer" />
             </StackPanel>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
         </StackPanel>

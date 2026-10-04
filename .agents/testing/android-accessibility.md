@@ -34,6 +34,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | What's New row read title, button, then explanation | Settings | Title + explanation are one stop before the button |
 | Drawer profile row read only the name | Drawer | "Profile: <name>"; Deselect reads "Deselect profile" |
 | Side-by-side cards read row by row; half-open fold skipped the rest of a tall card | Two-column grids | `readingGroup()`; one column while TalkBack runs (`rememberSingleColumn`) |
+| Next item skipped a row wholly behind a floating footer and focused hidden rows around/below the pager instead of scrolling (Compose drops only fully covered nodes) | Song Leaderboard | Where the rows are drawn hidden beneath the footer, clip the list's reported size at the footer's top (`clipAboveFooter` in `RankingsBoardScaffold`) |
 
 ### Large text (200% + largest display size)
 
@@ -41,7 +42,10 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 |---|---|
 | Player names collapsed to "…" in leaderboard rows; Full Rankings songs/rating overlapped | Rows stack at ≥ 1.3× (`isLargeText()`): rank + wrapping name, then score/pill (song boards) or rating/songs (rankings) |
 | Titles, artists and names ended in an ellipsis (marquee under Remove animations) | `FestivalMarqueeText` wraps at ≥ 1.3×; plain one-line texts use `oneLineUnlessLarge()` (Shop, top songs, licenses, drawer, Intensity, band tiles) |
-| Nav bar labels cut to "Song Sugg Com Stati Setti" | Bar and rail go icon-only at ≥ 1.3×; icons carry the names |
+| Nav bar labels cut to "Song Sugg Com Stati Setti" | Bar and rail go icon-only at ≥ 1.3×; icons carry the names (rail Profile too since issue #101) |
+| Unread badge grew over the bell and avatar (issue #101) | Badge text capped at 1.3×; the count stays in the bell's description |
+| Permanent drawer labels broke mid-word (issue #101) | Drawer width scales with the font up to 360 dp; Deselect stacks under the name |
+| Songs pinned search placeholder wrapped to an 80 dp field (issue #101) | One line with ellipsis; TalkBack reads the full label |
 | Stat tiles broke words ("PLAYE D") | `StatGridColumns.count(width, fontScale)`: tiles widen with the scale; narrow grids may drop to one column (exception to the two-column phone minimum) |
 | Rival names squeezed out beside "N shared songs"; tabs broke mid-word | Name wraps at ≥ 1.3× (the shared count was later removed, issue #67); Rivals tabs scroll |
 | First-run Next/Done pushed off screen | Pager takes the remaining height; slides scroll |

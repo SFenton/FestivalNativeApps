@@ -22,16 +22,28 @@ internal sealed partial class Driver
     /// <param name="window">Target window (the scan root).</param>
     /// <param name="output">Directory for the <c>.a11ytest</c> file (saved only when there are errors).</param>
     /// <param name="scanId">Result file name.</param>
-    /// <returns><c>errors</c> count and <c>findings</c>.</returns>
+    /// <returns><c>errors</c> count and <c>findings</c> (<c>files_skipped</c> when no <c>.a11ytest</c> could be written).</returns>
     private static JsonNode Scan(Window window, string output, string scanId)
     {
         Directory.CreateDirectory(output);
-        var config = Config.Builder.ForProcessId(window.Properties.ProcessId.Value)
-            .WithOutputDirectory(output)
-            .WithOutputFileFormat(OutputFileFormat.A11yTest)
-            .Build();
-        var scanner = ScannerFactory.CreateScanner(config);
-        var result = scanner.Scan(new ScanOptions(scanId, window.Properties.NativeWindowHandle.Value));
+        ScanOutput Run(OutputFileFormat format) => ScannerFactory.CreateScanner(Config.Builder
+                .ForProcessId(window.Properties.ProcessId.Value)
+                .WithOutputDirectory(output)
+                .WithOutputFileFormat(format)
+                .Build())
+            .Scan(new ScanOptions(scanId, window.Properties.NativeWindowHandle.Value));
+        ScanOutput result;
+        var filesSkipped = false;
+        try
+        {
+            result = Run(OutputFileFormat.A11yTest);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // The .a11ytest file embeds a screen capture, which fails on the secure (locked) desktop; the rules still run.
+            result = Run(OutputFileFormat.None);
+            filesSkipped = true;
+        }
         var findings = new JsonArray();
         var total = 0;
         var files = new JsonArray();
@@ -53,7 +65,7 @@ internal sealed partial class Driver
                 });
             }
         }
-        return new JsonObject { ["errors"] = total, ["findings"] = findings, ["files"] = files };
+        return new JsonObject { ["errors"] = total, ["findings"] = findings, ["files"] = files, ["files_skipped"] = filesSkipped };
     }
 
     /// <summary><c>scan:&lt;dir/scan-id&gt;</c> drive step: runs <see cref="Scan"/> and appends the result to <c>scans</c>.</summary>
@@ -134,10 +146,11 @@ internal sealed partial class Driver
         string? previous = null;
         for (var i = 0; i < count; i++)
         {
-            if (reverse) Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.TAB);
+            if (postKeys) PostedInput.Press(window.Properties.NativeWindowHandle.Value, reverse ? [VirtualKeyShort.SHIFT, VirtualKeyShort.TAB] : [VirtualKeyShort.TAB]);
+            else if (reverse) Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.TAB);
             else Keyboard.Type(VirtualKeyShort.TAB);
             Thread.Sleep(180);
-            var focused = automation.FocusedElement();
+            var focused = Focused(window);
             var line = focused is null ? "(none)" : Line(focused);
             var entry = new JsonObject
             {
@@ -156,6 +169,19 @@ internal sealed partial class Driver
         }
     }
 
+    /// <summary>
+    /// The focused element: the system focus, or, while keys are posted (locked session, where the system focus is
+    /// the lock screen), the element inside the target window that has keyboard focus.
+    /// </summary>
+    /// <param name="window">Target window.</param>
+    /// <returns>Focused element, or <see langword="null"/>.</returns>
+    private AutomationElement? Focused(Window window)
+    {
+        if (!postKeys) return automation.FocusedElement();
+        var condition = new FlaUI.Core.Conditions.PropertyCondition(automation.PropertyLibrary.Element.HasKeyboardFocus, true);
+        return window.FindFirstDescendant(condition);
+    }
+
     /// <summary><c>assertfocus:&lt;selector&gt;</c>: fails unless the focused element matches the selector.</summary>
     /// <param name="window">Target window.</param>
     /// <param name="step">Step with <c>selector</c> (<c>id=</c>, <c>name=</c> or <c>class=</c>).</param>
@@ -167,7 +193,7 @@ internal sealed partial class Driver
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 2);
         while (true)
         {
-            var focused = automation.FocusedElement();
+            var focused = Focused(window);
             var actual = focused is null ? null : kind switch
             {
                 "id" => focused.Properties.AutomationId.ValueOrDefault,
