@@ -263,6 +263,7 @@ public class LaunchAndBackgroundTests
     {
         Assert.Equal("instrument-selector", LaunchOptions.Parse(["--control-lab", "Instrument-Selector"], Env()).ControlLab);
         Assert.Equal("instrument-selector", LaunchOptions.Parse([], Env(("FST_DEBUG_CONTROL_LAB", "instrument-selector"))).ControlLab);
+        Assert.Equal("service-status", LaunchOptions.Parse(["--control-lab=Service-Status"], Env()).ControlLab);
         Assert.Null(LaunchOptions.Parse([], Env()).ControlLab);
         var unknown = LaunchOptions.Parse(["--control-lab=nope"], Env());
         Assert.Null(unknown.ControlLab);
