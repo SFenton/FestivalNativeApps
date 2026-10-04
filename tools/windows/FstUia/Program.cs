@@ -581,6 +581,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertaligned":
                 AssertAligned(window, step);
                 break;
+            case "assertrow":
+                AssertRow(window, step);
+                break;
+            case "assertbelow":
+                AssertBelow(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -862,6 +868,36 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
         response["aligned"] ??= new JsonArray();
         response["aligned"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>Fails unless two on-screen elements share a vertical centre (one line) within 2 px.</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c> selectors.</param>
+    /// <exception cref="InvalidOperationException">The centres differ by more than 2 px.</exception>
+    private void AssertRow(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var a = first.Top + first.Height / 2.0;
+        var b = second.Top + second.Height / 2.0;
+        if (Math.Abs(a - b) > 2)
+            throw new InvalidOperationException($"vertical centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
+        response["rows"] ??= new JsonArray();
+        response["rows"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>Fails unless the first element starts at or below the second element's bottom edge (a wrapped line).</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (lower) and <c>other</c> (upper) selectors.</param>
+    /// <exception cref="InvalidOperationException">The first element starts above the second's bottom.</exception>
+    private void AssertBelow(Window window, JsonObject step)
+    {
+        var lower = Find(window, step).BoundingRectangle;
+        var upper = Find(window, step, "other").BoundingRectangle;
+        if (lower.Top < upper.Bottom - 1)
+            throw new InvalidOperationException($"top {lower.Top} px is above bottom {upper.Bottom} px ({(string)step["arg"]!})");
+        response["below"] ??= new JsonArray();
+        response["below"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["top"] = lower.Top, ["bottom"] = upper.Bottom });
     }
 
     #endregion
