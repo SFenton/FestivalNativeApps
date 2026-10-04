@@ -389,8 +389,9 @@ private fun BandTeamScore(entry: SongBandLeaderboardEntry) {
 @Composable
 private fun BandScoreBadges(entry: SongBandLeaderboardEntry) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
-        if ((entry.accuracy ?: 0.0) > 0 || entry.isFullCombo == true) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
+        // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11);
+        // a band's 0 accuracy is "not recorded", so an FC without it reads "FC", never "0%".
+        AccuracyPill(entry.accuracy?.takeIf { it > 0 }, entry.isFullCombo == true, id = entry.key)
         entry.stars?.takeIf { it > 0 }?.let { StarRating(it, size = 14.dp) }
     }
 }

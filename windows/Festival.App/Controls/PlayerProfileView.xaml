@@ -78,7 +78,11 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerInstrumentViewModel">
-                            <StackPanel Spacing="12" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
+                            <!-- Named group: its tiles and percentile rows repeat Overview/other-instrument names ("Songs Played: 2"),
+                                 which Axe flags as ambiguous focusable siblings without a per-instrument parent. -->
+                            <controls:AccessibleGroup controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}" AutomationProperties.Name="{x:Bind Label}"
+                                                      AutomationProperties.AutomationId="{x:Bind controls:PlayerProfileView.SectionId(AutomationKey)}">
+                            <StackPanel Spacing="12">
                                 <!-- Instrument header above its cards (web InstrumentHeader MD) -->
                                 <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
                                     <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Label}" Width="36" Height="36"
@@ -162,6 +166,7 @@
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
+                            </controls:AccessibleGroup>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>

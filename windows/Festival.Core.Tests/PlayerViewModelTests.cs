@@ -457,6 +457,12 @@ public class PlayerHistoryViewModelTests
         Assert.Equal(new StarRating(5, true), StarRating.From(row.StarCount));
         Assert.Equal(0, new ScoreHistoryRow(new ScoreHistoryEntry { ChangedAt = "x" }, false).StarCount);
         Assert.DoesNotContain("personal best", row.Announcement);
+        // Six stars read as the five gold images drawn (issue #221), and 0 / missing read nothing (no star images).
+        Assert.Contains(", 5 gold stars", row.Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain("6 stars", row.Announcement, StringComparison.Ordinal);
+        Assert.Contains(", 1 star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, Stars = 1, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain("star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, Stars = 0, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain("star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
     }
 }
 

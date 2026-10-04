@@ -96,6 +96,12 @@
                  Themes/*ButtonResources.xaml theme dictionaries so a live contrast switch re-resolves it. -->
             <SolidColorBrush x:Key="FSTReorderRowBrush" Color="#0DFFFFFF" />
             <SolidColorBrush x:Key="FSTReorderStrokeBrush" Color="#1AFFFFFF" />
+            <!-- Instrument Selector (issue #222): web statusGreen selected disc, white hover wash, no ring outside contrast themes. -->
+            <SolidColorBrush x:Key="FSTInstrumentSelectedBrush" Color="#FF2ECC71" />
+            <SolidColorBrush x:Key="FSTInstrumentHoverBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="FSTInstrumentRingBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="FSTInstrumentRingDisabledBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="FSTInstrumentRingHoverBrush" Color="Transparent" />
             <SolidColorBrush x:Key="FSTProgressFillBrush" Color="#FF7C3AED" />
             <SolidColorBrush x:Key="FSTProgressTrackBrush" Color="#FF223047" />
             <!-- CHOpt Paths text table (issue #223): muted captions and em dashes, unlit fret pills, Overdrive bar. Lit pills
@@ -211,6 +217,13 @@
             <!-- Settings reorder lists and Service Info progress bar. -->
             <SolidColorBrush x:Key="FSTReorderRowBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTReorderStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <!-- Instrument Selector: the selected disc is Highlight (selection), every circle gets a ButtonText ring (GrayText when
+                 disabled) so the targets have edges, and hover turns the ring Highlight; a hover fill would look selected. -->
+            <SolidColorBrush x:Key="FSTInstrumentSelectedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTInstrumentHoverBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="FSTInstrumentRingBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTInstrumentRingDisabledBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTInstrumentRingHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTProgressFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTProgressTrackBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <!-- CHOpt Paths table: lit pills are Highlight with a WindowText edge, unlit ones Window with a GrayText outline
