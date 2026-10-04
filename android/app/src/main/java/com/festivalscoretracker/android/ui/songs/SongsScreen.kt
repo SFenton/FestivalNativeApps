@@ -70,7 +70,6 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
@@ -443,15 +442,15 @@ private fun SongList(
             )
         }
     }
-    // Each bucket header records its drawing here; the list redraws them above the cut (issue #91).
+    // Each bucket header records its drawing here; the list redraws them over the cut and fade band (issues #91, #288).
     val headerLayers = remember { HashMap<Any, GraphicsLayer>() }
     val headerStart = with(density) { 16.dp.toPx() }
-    val headersAboveCut: (Float) -> List<Pair<GraphicsLayer, Float>> = remember(listState, headerLayers) {
+    val headersOverEdge: (Float) -> List<Pair<GraphicsLayer, Float>> = remember(listState, headerLayers, bandDepth) {
         { top ->
             val info = listState.layoutInfo
-            SongHeaderEdgeFade.headersAboveCut(
+            SongHeaderEdgeFade.headersOverEdge(
                 info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
-                info.viewportStartOffset, top,
+                info.viewportStartOffset, top, bandDepth,
             ).mapNotNull { item -> headerLayers[item.key]?.let { it to (item.offset - info.viewportStartOffset).toFloat() } }
         }
     }
@@ -474,7 +473,7 @@ private fun SongList(
                 ),
                 verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
                 modifier = Modifier.fillMaxSize()
-                    .pinnedHeaderEdgeFade({ edgeFade }, bandDepth, headerStart, headersAboveCut)
+                    .pinnedHeaderEdgeFade({ edgeFade }, bandDepth, headerStart, headersOverEdge)
                     .testTag("fst.songs.list"),
             ) {
                 state.notices.forEachIndexed { index, notice ->
@@ -641,15 +640,16 @@ private fun isHeaderKey(key: Any): Boolean = key is String && key.startsWith(HEA
  * Hides rows under the pinned section header and fades them out over a short eased band just
  * below it ([SongHeaderEdgeFade]), so the header needs no backing (issue #91). On an offscreen
  * layer it clears everything above the header's resting bottom edge, masks the band with a
- * vertical gradient (`BlendMode.DstIn`), then redraws the headers' recorded layers above the cut,
- * so their text stays fully opaque and no row ever shows behind it. Drawing only: hit testing,
- * semantics and TalkBack order are unchanged. Without an edge it draws nothing and skips the
- * offscreen layer.
+ * vertical gradient (`BlendMode.DstIn`), then redraws the recorded layers of the headers over the
+ * cut and band whole ([SongHeaderEdgeFade.headersOverEdge]), so their text stays fully opaque,
+ * the next header pushes the pinned one out without fading (issue #288) and no row ever shows
+ * behind a header. Drawing only: hit testing, semantics and TalkBack order are unchanged.
+ * Without an edge it draws nothing and skips the offscreen layer.
  *
  * @param edge Reads the current edge (draw phase only, so scrolling never recomposes).
  * @param depth Band depth in px; 0 keeps a hard edge.
  * @param headerStart Headers' start inset in px (the list's start content padding).
- * @param headers Header layers above a cut and their top offsets in px, for the cut's position.
+ * @param headers Header layers over a cut and its band, and their top offsets in px, for the cut's position.
  */
 private fun Modifier.pinnedHeaderEdgeFade(
     edge: () -> EdgeFade?,
@@ -673,12 +673,17 @@ private fun Modifier.pinnedHeaderEdgeFade(
                 blendMode = BlendMode.DstIn,
             )
         }
-        clipRect(bottom = fade.top) {
-            for ((layer, y) in headers(fade.top)) {
-                val x = if (layoutDirection == LayoutDirection.Ltr) headerStart else size.width - headerStart - layer.size.width
-                translate(x, y) { drawLayer(layer) }
-            }
+        // Headers are drawn whole and opaque over the cut and band, so the next header slides up and
+        // pushes the pinned one out instead of fading in the band (issue #288). Each header's own
+        // (partly faded) drawing is cleared first; list items never overlap a header there.
+        val placed = headers(fade.top).map { (layer, y) ->
+            val x = if (layoutDirection == LayoutDirection.Ltr) headerStart else size.width - headerStart - layer.size.width
+            Triple(layer, x, y)
         }
+        for ((layer, x, y) in placed) {
+            drawRect(Color.Transparent, Offset(x, y), Size(layer.size.width.toFloat(), layer.size.height.toFloat()), blendMode = BlendMode.Clear)
+        }
+        for ((layer, x, y) in placed) translate(x, y) { drawLayer(layer) }
     }
 
 @Composable
