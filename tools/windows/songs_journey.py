@@ -6,7 +6,8 @@ the Debug app with a throwaway settings file (``FST_SETTINGS_PATH``) and an in-m
 with Shop accents, Item Shop sort and Shop filter drafts, the Item Shop page (grid, list, Song Detail link),
 Song Detail with Paths image/text/not-generated states, no selected player, and a hidden Item Shop. Lock-tolerant
 Songs states (search match/no results, sort modes, Jump index, General filter empty result, syncing and denied
-players, damaged saved filter, service error) use only UIA patterns, so they also pass on a locked console. Official
+players, damaged saved filter, service error) and Item Shop states (filter groups, no-match reset, list/grid,
+compact-forced grid, failed feed, hidden) use only UIA patterns, so they also pass on a locked console. Official
 Shop links are never opened. With ``--shots DIR`` it also captures screenshots of each scenario.
 
 Usage: ``python tools/windows/songs_journey.py [--port 18751] [--shots DIR] [--only NAME[,NAME…]] [--sizes compact,medium,wide]``
@@ -290,11 +291,90 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "{shot:songs-error}",
         ],
     ),
+    # Lock-tolerant Item Shop states (#206): filter groups, no-match reset, both layouts and Song Detail by Invoke.
+    # Empty, failed-feed and catalogue-unavailable states need tools/windows/shop_fixture.py (a11y.json shop-* pages).
+    "shop-states": (
+        PLAYER, "/shop", {},
+        [
+            "waitfor:id=fst.shop.song.fixture-pulse@20",
+            "waitfor:id=fst.shop.badge.leaving.fixture-orbit",
+            "waitfor:name=2 songs",
+            "waitfor:id=fst.shop.view-toggle",
+            "expand:id=fst.shop.filter",
+            "waitfor:id=fst.shop.filter.new@5",
+            "toggle:id=fst.shop.filter.new",
+            "collapse:id=fst.shop.filter",
+            "waitgone:id=fst.shop.song.fixture-orbit@5",
+            "waitfor:id=fst.shop.song.fixture-pulse",
+            "waitfor:name=1 of 2 songs",
+            "{shot:shop-filter-new}",
+            "expand:id=fst.shop.filter",
+            "toggle:id=fst.shop.filter.new@5",
+            "toggle:id=fst.shop.filter.leaving",
+            "collapse:id=fst.shop.filter",
+            "waitgone:id=fst.shop.song.fixture-pulse@5",
+            "waitfor:id=fst.shop.song.fixture-orbit",
+            "expand:id=fst.shop.filter",
+            "toggle:id=fst.shop.filter.leaving@5",
+            "toggle:id=fst.shop.filter.available",
+            "collapse:id=fst.shop.filter",
+            "waitfor:id=fst.shop.filter.empty-reset@5",
+            "waitfor:name=0 of 2 songs",
+            "{shot:shop-filter-empty}",
+            "invoke:id=fst.shop.filter.empty-reset",
+            "waitfor:id=fst.shop.song.fixture-orbit@5",
+            "waitfor:id=fst.shop.song.fixture-pulse",
+            "waitfor:name=2 songs",
+            "invoke:id=fst.shop.view-toggle",
+            "waitfor:id=fst.shop.list@5",
+            "waitfor:id=fst.shop.badge.new.fixture-pulse@5",
+            "waitfor:id=fst.shop.external.fixture-orbit",
+            "{shot:shop-list}",
+            "invoke:id=fst.shop.view-toggle",
+            "waitfor:id=fst.shop.grid@5",
+            "invoke:id=fst.shop.song.fixture-pulse@5",
+            "waitfor:id=fst.song-detail.title@15",
+        ],
+    ),
+    "shop-compact-states": (
+        PLAYER, "/shop", {"shopViewMode": "List"},
+        [
+            # Compact forces the grid and hides the toggle, even with the List preference saved.
+            "waitfor:id=fst.shop.grid@20",
+            "waitfor:id=fst.shop.song.fixture-pulse",
+            "waitgone:id=fst.shop.view-toggle",
+            "waitgone:id=fst.shop.list",
+            "invoke:id=fst.shop.song.fixture-orbit",
+            "waitfor:id=fst.song-detail.title@15",
+        ],
+    ),
+    "shop-error": (
+        # A closed loopback port: the feed read fails; Filter and the view toggle leave with the offers.
+        {**PLAYER, "FST_BASE_URL": "http://127.0.0.1:9/"}, "/shop", {},
+        [
+            "waitfor:id=fst.service-status.retry@60",
+            "waitfor:id=fst.service-status.title",
+            "waitgone:id=fst.shop.filter",
+            "waitgone:id=fst.shop.view-toggle",
+            "waitgone:id=fst.shop.grid",
+            "{shot:shop-error}",
+        ],
+    ),
+    "shop-hidden-states": (
+        PLAYER, "/shop", {"hideShop": True},
+        [
+            "waitfor:id=fst.shop.hidden@20",
+            "waitgone:id=fst.shop.filter",
+            "waitgone:id=fst.shop.view-toggle",
+            "waitgone:id=fst.shop.grid",
+        ],
+    ),
 }
 
 
 # Scenarios that only make sense at some window sizes (compact windows force the Shop grid, without the toggle).
-SIZES = {"shop": {"medium", "wide"}, "shop-compact": {"compact"}}
+SIZES = {"shop": {"medium", "wide"}, "shop-compact": {"compact"}, "shop-states": {"medium", "wide"},
+         "shop-compact-states": {"compact"}}
 
 
 def uiwin(*args: str) -> None:

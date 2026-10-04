@@ -36,7 +36,7 @@ public sealed partial class ShopViewModel : ObservableObject
 
     /// <summary>Load lifecycle.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowOffers), nameof(ShowEmpty), nameof(ShowError), nameof(ShowGrid), nameof(ShowList), nameof(ShowNoMatches))]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowOffers), nameof(ShowEmpty), nameof(ShowError), nameof(ShowGrid), nameof(ShowList), nameof(ShowNoMatches), nameof(CanToggleView))]
     private LoadState state = LoadState.Idle;
 
     /// <summary>Offers in title order that pass <see cref="Filter"/>.</summary>
@@ -86,8 +86,11 @@ public sealed partial class ShopViewModel : ObservableObject
     /// <summary>Effective layout is the list.</summary>
     public bool ShowList => ShowOffers && !ShowGrid;
 
-    /// <summary>Whether the grid/list toggle is offered (not in compact windows).</summary>
-    public bool CanToggleView => !IsCompact;
+    /// <summary>
+    /// Whether the grid/list toggle is offered: offers are shown (like Filter; the empty, failed, loading and hidden
+    /// states have no layout to switch) and the window isn't compact.
+    /// </summary>
+    public bool CanToggleView => ShowOffers && !IsCompact;
 
     /// <summary>Toggle label naming the other layout.</summary>
     public string ToggleLabel => session.Settings.ShopViewMode == ShopViewMode.Grid ? "List View" : "Grid View";

@@ -16,6 +16,11 @@ Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` 
 ``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data); ``app-contrast`` (in-app
 More Contrast + Less Transparency).
 
+A page may name its own fixture wrapper and arguments (``"fixture": ["shop_fixture.py", "--shop", "empty"]``,
+relative to ``tools/windows``) for states the shared fixture cannot reach; it runs on its own port for that page.
+``--live`` drops ``--base-url`` so the app uses its default keyless public origin (evidence runs) and skips
+fixture-only pages (a ``fixture`` wrapper or a ``fixture-…`` player).
+
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
 or (with ``--scan``) any scan reported errors.
@@ -131,6 +136,36 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     return steps
 
 
+def launch_args(port: int | None, page: dict, settings: Path) -> list[str]:
+    """App arguments for one launch.
+
+    Args:
+        port: Loopback fixture port, or ``None`` for the app's default keyless public origin (``--live``).
+        page: Page definition (``first_run``).
+        settings: Isolated settings file.
+
+    Returns:
+        Command-line arguments.
+    """
+    base = [] if port is None else ["--base-url", f"http://127.0.0.1:{port}/"]
+    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}"]
+
+
+def live_pages(pages: list[dict]) -> list[dict]:
+    """Pages that can run against the live public service.
+
+    Fixture-only pages (a ``fixture`` wrapper or a ``fixture-…`` profile) are dropped: their states or players do
+    not exist in production, and evidence runs must not depend on them.
+
+    Args:
+        pages: Page definitions.
+
+    Returns:
+        The live-safe subset, in order.
+    """
+    return [p for p in pages if "fixture" not in p and not str(p.get("profile", "")).startswith("fixture-")]
+
+
 def summarize_focus(focus: list[dict]) -> dict:
     """Tab-walk statistics for one size.
 
@@ -172,11 +207,13 @@ def summary_table(results: list[dict]) -> str:
 # region Runner
 
 
-def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
-    """Start the anonymized fixture service on a free loopback port.
+def start_fixture(log: Path, script: Path = FIXTURE, extra: list[str] | None = None) -> tuple[subprocess.Popen, int]:
+    """Start a fixture service on a free loopback port.
 
     Args:
         log: Service output file.
+        script: Fixture wrapper (default: the anonymized ``rivals_fixture.py``).
+        extra: Extra wrapper arguments (e.g. ``shop_fixture.py``'s ``--shop empty``).
 
     Returns:
         Process and port.
@@ -185,7 +222,8 @@ def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
         RuntimeError: No port reported within 20 s.
     """
     handle = log.open("w", encoding="utf-8")
-    proc = subprocess.Popen([sys.executable, "-u", str(FIXTURE), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen([sys.executable, "-u", str(script), *(extra or []), "--port", "0"], stdout=handle,
+                            stderr=subprocess.STDOUT)
     for _ in range(200):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
@@ -195,7 +233,7 @@ def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
     raise RuntimeError(f"fixture service did not start; see {log}")
 
 
-def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out: Path, scan: bool,
+def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int | None, out: Path, scan: bool,
              tabs: int, hold: float) -> list[dict]:
     """Run one page at every size; each size is a fresh launch under its own desktop-lock hold.
 
@@ -206,7 +244,7 @@ def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out:
         mode: Mode name (``MODES``).
         sizes: Window presets.
         exe: App executable.
-        port: Fixture port.
+        port: Fixture port (``None``: live public service).
         out: Output directory.
         scan: Run Axe.Windows scans.
         tabs: Default Tab presses.
@@ -218,9 +256,9 @@ def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out:
     return [run_size(page, mode, size, exe, port, out, scan, tabs, hold) for size in sizes]
 
 
-def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, scan: bool, tabs: int,
+def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out: Path, scan: bool, tabs: int,
              hold: float) -> dict:
-    """Launch, check and close one page at one size (see :func:`run_page`)."""
+    """Launch, check and close one page at one size (see :func:`run_page`; ``port`` None = live service)."""
     spec = MODES[mode]
     suffix = "" if mode == "normal" else f"-{mode}"
     state = Path(tempfile.mkdtemp(prefix=f"fst-a11y-{page['name']}-"))
@@ -236,8 +274,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, 
     warning = uiwin.prepare_automation(exe, env)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
-    args = ["--base-url", f"http://127.0.0.1:{port}/", f"--first-run={page.get('first_run', 'off')}",
-            f"--settings-path={settings}"]
+    args = launch_args(port, page, settings)
     record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False}
     lock = uiwin.HostLock("desktop", purpose=f"a11y {page['name']} {size} {mode} [{REPO_ROOT.name}]",
                           hold_seconds=hold, wait_seconds=1800)
@@ -315,6 +352,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hold", type=float, default=300.0)
     parser.add_argument("--pages", type=Path, default=PAGES,
                         help="page list (e.g. journeys/a11y-keyboard.json: assertfocus journeys, run without --scan)")
+    parser.add_argument("--live", action="store_true",
+                        help="use the app's default keyless public origin (evidence runs); skips fixture-only pages")
     args = parser.parse_args(argv)
     if not args.exe.is_file():
         print(f"error: build first (tools/windows/build.ps1); no {args.exe}", file=sys.stderr)
@@ -326,17 +365,32 @@ def main(argv: list[str] | None = None) -> int:
         wanted = set(args.only.split(","))
         pages = [p for p in pages if p["name"] in wanted]
     sizes = [s for s in args.sizes.split(",") if s]
-    fixture, port = start_fixture(out / "fixture-service.log")
+    if args.live:
+        pages = live_pages(pages)
+        fixture, port = None, None
+    else:
+        fixture, port = start_fixture(out / "fixture-service.log")
     results: list[dict] = []
     try:
         # Driver step logs (every focus stop) go to a file; the console gets one line per page and size.
         with (out / "driver.log").open("a", encoding="utf-8") as log, contextlib.redirect_stderr(log):
             for page in pages:
                 page_sizes = [s for s in sizes if s in page.get("sizes", sizes)]
-                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), port, out, args.scan,
-                                        args.tabs, args.hold))
+                own = None
+                page_port = port
+                if page.get("fixture"):
+                    script, *extra = page["fixture"]
+                    own, page_port = start_fixture(out / f"fixture-{page['name']}.log",
+                                                   REPO_ROOT / "tools" / "windows" / script, extra)
+                try:
+                    results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), page_port, out,
+                                            args.scan, args.tabs, args.hold))
+                finally:
+                    if own:
+                        own.kill()
     finally:
-        fixture.kill()
+        if fixture:
+            fixture.kill()
     name = "results.json" if args.mode == "normal" else f"results-{args.mode}.json"
     (out / name).write_text(json.dumps(results, indent=2), encoding="utf-8")
     (out / name.replace(".json", ".md").replace("results", "summary")).write_text(summary_table(results),
