@@ -42,6 +42,8 @@ struct SongsScreen: View {
     /// edge). Never read in `body`: only the section bar and row mask observe it, so
     /// scrolling does not re-render the whole screen (issue #8).
     @State private var scrollChrome = SongsScrollChrome()
+    /// Far programmatic jumps teleport behind this fade (``ListJump``).
+    @State private var jumpFade = ListJumpFade()
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
@@ -1057,6 +1059,7 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
+                .modifier(ListJumpFadeEffect(fade: jumpFade))
                 // Mac: ↑/↓ walk every song in list order, built or not.
                 .macKeyboardRows((groups?.flatMap(\.songs) ?? visible).map {
                     MacKeyRow(id: $0.id, action: .route(.songDetail($0)))
@@ -1136,7 +1139,11 @@ struct SongsScreen: View {
             .onChange(of: reorderKey) { _, _ in
                 scrollChrome.resetHeaders()
                 let top: AnyHashable? = groups?.first?.id ?? visible.first.map { AnyHashable($0.id) }
-                if let top { scrollProxy.scrollTo(top, anchor: .top) }
+                // Instant: an animated scroll back from deep in the old order would
+                // build every row it passes (``ListJump``).
+                var instant = Transaction()
+                instant.disablesAnimations = true
+                if let top { withTransaction(instant) { scrollProxy.scrollTo(top, anchor: .top) } }
             }
             .task {
                 #if DEBUG
@@ -1144,12 +1151,21 @@ struct SongsScreen: View {
                 // without XCUITest's accessibility snapshots (issue #8 measurements).
                 guard SongsScrollStress.isRequested, let groups else { return }
                 let ids = groups.map(\.id)
+                let rows = SongsScrollStress.rowOffsets(sectionSizes: groups.map(\.songs.count))
                 try? await Task.sleep(for: .seconds(3))
                 MainThreadStallMonitor.count(SongsScrollStress.startCounter)
+                var current = 0
                 for step in SongsScrollStress.plan(groupCount: ids.count) {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        scrollProxy.scrollTo(ids[step.group], anchor: .top)
+                    let target = ids[step.group]
+                    if !SongsScrollStress.animatesFarJumps, jumpFade.isFar(rowDistance: rows[step.group] - rows[current]) {
+                        MainThreadStallMonitor.count(SongsScrollStress.teleportCounter)
+                        await jumpFade.teleport { scrollProxy.scrollTo(target, anchor: .top) }
+                    } else {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            scrollProxy.scrollTo(target, anchor: .top)
+                        }
                     }
+                    current = step.group
                     try? await Task.sleep(for: .seconds(step.pause))
                     if Task.isCancelled { return }
                 }

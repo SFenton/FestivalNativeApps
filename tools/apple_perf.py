@@ -557,13 +557,16 @@ def cmd_mac(args: argparse.Namespace) -> int:
         print(f"No build at {bundle}; run `apple_perf.py build mac` first.", file=sys.stderr)
         return 1
     mac_app.cmd_quit(argparse.Namespace(timeout=5.0))
-    extra = list(args.env or [])
+    extra: list[str] = []
     stall_log = None
     if args.stress:
         stall_log = Path(args.out_dir).expanduser() / f"{args.label or 'mac'}-stalls.json"
         stall_log.parent.mkdir(parents=True, exist_ok=True)
         stall_log.unlink(missing_ok=True)
         extra += ["FST_DEBUG_SONGS_SCROLL_STRESS=1", f"FST_DEBUG_STALL_LOG={stall_log}"]
+    # Last, so `--env` can override the stress defaults (e.g.
+    # `FST_DEBUG_SONGS_SCROLL_STRESS=animated` for the pre-`ListJump` A/B).
+    extra += list(args.env or [])
     env = mac_app.launch_environment(
         mac_app._env(), tab=args.tab, route=args.route, profile=mac_app.resolve_profile(args.profile),
         size=mac_app.parse_size(args.size) if args.size else None, extra=extra,
@@ -610,15 +613,16 @@ def cmd_ipad(args: argparse.Namespace) -> int:
         launch_env["SIMCTL_CHILD_FST_DEBUG_ROUTE"] = args.route
     if args.profile:
         launch_env["SIMCTL_CHILD_FST_DEBUG_PROFILE"] = mac_app.resolve_profile(args.profile)
-    for pair in args.env or []:
-        key, _, value = pair.partition("=")
-        launch_env[f"SIMCTL_CHILD_{key}"] = value
     if args.stress:
         stall_log = Path(args.out_dir).expanduser() / f"{args.label or 'ipad'}-stalls.json"
         stall_log.parent.mkdir(parents=True, exist_ok=True)
         stall_log.unlink(missing_ok=True)
         launch_env["SIMCTL_CHILD_FST_DEBUG_SONGS_SCROLL_STRESS"] = "1"
         launch_env["SIMCTL_CHILD_FST_DEBUG_STALL_LOG"] = str(stall_log)
+    # After the stress defaults, so `--env` can override them.
+    for pair in args.env or []:
+        key, _, value = pair.partition("=")
+        launch_env[f"SIMCTL_CHILD_{key}"] = value
     ios_sim.LOCK_PATH.touch(exist_ok=True)
     with open(ios_sim.LOCK_PATH, "w") as lock:
         print(f"waiting for simulator lock {ios_sim.LOCK_PATH} ...", file=sys.stderr)
