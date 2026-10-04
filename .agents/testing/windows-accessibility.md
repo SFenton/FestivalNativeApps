@@ -29,7 +29,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
+| Item Shop | ✅✅✅ | 6/10/10 | — | ✅ | ✅ |
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
@@ -73,6 +73,10 @@ Android learnings applied: every leaderboard row (and each score-history row) is
 ## Song Detail validation (issue #195, 2026-10)
 
 Scope: Song Detail only, fixture matrix plus the live public service (SFentonX on "Never Back Down": Leaving Tomorrow in the Shop, two Lead history bars, eight instrument cards, Duos/Trios/Quads). Results per configuration in [song-detail/windows.md](../pages/song-detail/windows.md#validation-issue-195). Axe 0 errors everywhere: compact, medium, wide, snap-left and maximized; light and dark system theme; Desert and Night sky; text 200%; display 100% and 150%; live and fixture. Keyboard journeys `kb-detail-back`, `kb-paths-dialog-esc` (all sizes) and `kb-detail-compact-previews` (compact: every card's row and View Full stop, arrows between rows, Shift+Tab back) pass. Fixed: Tab skipped virtualized cards at compact, Trios/Quads cards clipped (uniform grid), focus hidden under the pinned header (WCAG 2.4.11), High Contrast chart axes/selection and Item Shop surface, chart axis titles over the ticks at 200% text.
+
+## Item Shop validation (issue #224, 2026-10-04)
+
+Scope: the Shop Offers control only. Results per configuration are in [shop-offers/windows.md](../controls/shop-offers/windows.md#validation-issue-224-2026-10-04). `a11y_matrix.py --scan --tabs 30 --only shop` gave 0 Axe errors at compact, medium and wide (6/10/10 Tab stops: compact has no List/Grid toggle). At medium it also gave 0 Axe errors under Desert, Night sky, light and dark system theme, text 200%, and display 100% and 150%. No run had focus leaving the window or repeated stops. The live public service (anonymous) was checked at compact, medium, wide, maximized and snap-left, and under Desert, text 200% and display 150%. Fixed: under a contrast theme, WinUI's automatic adjustment had repainted the badge text as WindowText on a backplate inside the Highlight pill (`HighContrastAdjustment=None` while it is on, as `LeaderboardEntryRow` does). The active ProgressRing reads "Busy Loading Item Shop" (WinUI prefix), so tests use `fst.shop.loading`.
 
 ## Song Band Leaderboard validation (issue #196, 2026-10-03)
 
