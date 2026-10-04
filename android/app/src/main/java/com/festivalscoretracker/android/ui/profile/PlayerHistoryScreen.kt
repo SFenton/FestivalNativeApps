@@ -190,7 +190,7 @@ private fun HistoryRow(row: ScoreHistoryRow) {
                     color = if (row.isHighScore) BrandTokens.gold else BrandTokens.textPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                StarRating(row.stars, Modifier.testTag("fst.history.stars"))
+                if (row.stars > 0) StarRating(row.stars, Modifier.testTag("fst.history.stars"))
             }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(

@@ -399,7 +399,7 @@ private fun BandScoreBadges(entry: SongBandLeaderboardEntry) {
 /**
  * TalkBack description of a band score row: everything the card shows, in visual order —
  * rank, each member with instruments and member score, band score, full combo, accuracy and
- * stars (gold stars read as "Gold stars", not "6 stars").
+ * stars (gold stars read as "5 gold stars", like the star row, never "6 stars").
  *
  * @param entry Wire row.
  * @return Announcement.
