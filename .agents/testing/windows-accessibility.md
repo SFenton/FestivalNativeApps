@@ -34,7 +34,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
-| Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
+| Rivals / Compete | ✅✅✅ (#213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
@@ -109,6 +109,15 @@ Fixed:
 - View All's UIA name ("View All Lead Rankings") didn't contain its visible label "View All Rankings (3)" (WCAG 2.5.3); now "View All Rankings (3), Lead".
 - A failed card exposed an empty countdown text element.
 - Text 200%: names trimmed to "…" at compact and vanished at medium (rankings rows never drop their songs label). Cards now use fewer, wider columns as text grows, rankings rows move the songs label (then the rating) under the name as in #208, and score rows that still can't fit stack their values under the name (shared row: the song leaderboard and Score History benefit too).
+
+## Difficulty Meter validation (issue #216, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 12` for `song-detail` at compact, medium and wide, then at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150% (plus Aquatic at wide): 0 Axe errors and 12 tab stops in every run (the meter isn't a stop). UIA journeys `tools/windows/journeys/difficulty-meter.json` (`--large-catalogue`) cover levels 1–7 and the 99 sentinel. Live public-service screenshots at C/M/W, maximized, snap-left, Desert (switched while the app was open), Night sky, text 200% and 100%/150% scale. Per-configuration results: [difficulty-meter/windows.md](../controls/difficulty-meter/windows.md#validation-issue-216-2026-10-03).
+
+Fixed:
+- Desert's WindowText and GrayText bars were only ~1.8:1 apart; under contrast themes, unfilled bars are now GrayText outlines (shape, not colour alone).
+- The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
+- The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
 
 ## Open issues
 

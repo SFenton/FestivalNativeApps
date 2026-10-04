@@ -70,6 +70,12 @@ public static class QuickLinks
     public const double CompleteThreshold = 8;
 
     /// <summary>
+    /// Tops within this many epx count as one row of a multi-column layout: the 12-epx fade-in rise
+    /// (<see cref="FadeInTiming.OffsetY"/>) is staggered per card, so cards on the same row measure apart while it plays.
+    /// </summary>
+    public const double RowTolerance = FadeInTiming.OffsetY + 4;
+
+    /// <summary>
     /// Page-area width (epx) at which the persistent jump pane replaces the menu: the web rail appears at a 1440 px
     /// viewport; beside the 240 epx navigation pane that leaves about 1150 epx of page area.
     /// </summary>
@@ -143,9 +149,15 @@ public static class QuickLinks
         Math.Clamp(contentTop - landingOffset, 0, Math.Max(0, scrollableHeight));
 
     /// <summary>
-    /// The section a reader is "in": the last (display order) whose top crossed the activation line; unknown frames are
-    /// skipped; with none past the line, the first.
+    /// The section a reader is "in": the row whose top crossed the activation line most recently (greatest top at or
+    /// above the line), and in that row the earliest section in display order; unknown frames are skipped; with none
+    /// past the line, the first.
     /// </summary>
+    /// <remarks>
+    /// In a single column tops grow in display order, so this is the web's "last past the line" rule. Multi-column
+    /// masonry pages (Rivals, Leaderboards) put several sections on one row (tops within <see cref="RowTolerance"/>);
+    /// the row rule keeps the first card of the row current instead of its right-hand neighbour (#213).
+    /// </remarks>
     /// <param name="sections">Display-ordered sections.</param>
     /// <param name="frames">Known frames by ID.</param>
     /// <param name="activationOffset">Activation line below the viewport top.</param>
@@ -154,15 +166,14 @@ public static class QuickLinks
         IReadOnlyList<QuickLinkSection> sections, IReadOnlyDictionary<string, QuickLinkFrame> frames, double activationOffset = DefaultActivationOffset)
     {
         if (sections.Count == 0) return null;
-        var active = sections[0].Id;
         var threshold = activationOffset + 1;
+        var rowTop = double.NegativeInfinity;
         foreach (var section in sections)
-        {
-            if (!frames.TryGetValue(section.Id, out var frame)) continue;
-            if (frame.MinY > threshold) break;
-            active = section.Id;
-        }
-        return active;
+            if (frames.TryGetValue(section.Id, out var frame) && frame.MinY <= threshold && frame.MinY > rowTop) rowTop = frame.MinY;
+        if (double.IsNegativeInfinity(rowTop)) return sections[0].Id;
+        foreach (var section in sections)
+            if (frames.TryGetValue(section.Id, out var frame) && frame.MinY <= threshold && frame.MinY >= rowTop - RowTolerance) return section.Id;
+        return sections[0].Id;
     }
 }
 #endregion

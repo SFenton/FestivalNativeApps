@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,14 +25,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,11 +48,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,7 +84,10 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
@@ -87,8 +95,6 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.ScrollQuickLinkSections
 import com.festivalscoretracker.android.ui.quicklinks.rememberScrollQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
-import com.festivalscoretracker.android.ui.common.rememberSingleColumn
-import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Screen
 
@@ -110,7 +116,9 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     val revealed = rememberRevealed(detail != null)
     // Quick Links (web BandPage) while the page is one scrolling column; two panes show everything side by side.
     val scroll = rememberScrollState()
-    var twoPane by remember { mutableStateOf(false) }
+    // One pane decision drives both the layout and the Quick Links action, so they cannot disagree.
+    val separatingHinge = currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isVertical && it.isSeparating }
+    val twoPane = BandLayout.splits(windowWidthDp(), separatingHinge, rememberSingleColumn())
     val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList())
     FestivalScreen(
         title = "Band",
@@ -132,7 +140,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
                 val failed = detailState as LoadState.Failed
                 ServiceStatusView(failed.issue, "Band Not Found", failed.countdown, viewModel::retry, Modifier.testTag("fst.band.error"), padding)
             }
-            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate, scroll, anchors) { twoPane = it }
+            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate, scroll, anchors, twoPane)
         }
     }
 }
@@ -149,7 +157,7 @@ private fun BandDetailContent(
     onNavigate: (AppRoute) -> Unit,
     scroll: ScrollState,
     anchors: ScrollQuickLinkSections,
-    onTwoPane: (Boolean) -> Unit,
+    twoPane: Boolean,
 ) {
     val metric by viewModel.metric.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
@@ -159,8 +167,7 @@ private fun BandDetailContent(
     val summary = remember(detail, type) { BandDetailProjection.summary(detail, type) }
     val statistics = remember(detail, type, metric, bestSong) { BandDetailProjection.statistics(detail, type, metric, bestSong) }
     var contentLeft by remember { mutableFloatStateOf(0f) }
-    var singlePane by remember { mutableStateOf(true) }
-    val mark: (String) -> Modifier = { id -> if (singlePane) with(anchors) { Modifier.section(id) } else Modifier }
+    val mark: (String) -> Modifier = { id -> if (!twoPane) with(anchors) { Modifier.section(id) } else Modifier }
     val leading: @Composable ColumnScope.() -> Unit = {
         BandPageHeader(title, "${type.label} · ${BandFormatting.appearances(detail.songsPlayed)}", "fst.band")
         Column(mark("members")) { MembersSection(detail.displayMembers, onNavigate) }
@@ -169,9 +176,17 @@ private fun BandDetailContent(
             StatGrid(summary, onNavigate)
         }
         Column(mark("statistics")) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SectionHeader("Band Statistics", Modifier.weight(1f).testTag("fst.band.statistics-section"))
+            if (isLargeText()) {
+                // Large text: the heading and the Rank By button stack instead of squeezing the heading onto two lines.
+                SectionHeader("Band Statistics", Modifier.testTag("fst.band.statistics-section"))
                 RankByMenu(metric, viewModel::selectMetric)
+                Spacer(Modifier.height(8.dp))
+            } else {
+                // The 48 dp Rank By button is as tall as the heading row; the top inset keeps it off the tiles above.
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SectionHeader("Band Statistics", Modifier.weight(1f).testTag("fst.band.statistics-section"))
+                    RankByMenu(metric, viewModel::selectMetric)
+                }
             }
             StatGrid(statistics, onNavigate)
         }
@@ -186,10 +201,7 @@ private fun BandDetailContent(
             .onGloballyPositioned { contentLeft = it.positionInWindow().x },
     ) {
         val hinge = rememberBandHinge(contentLeft, maxWidth)
-        // One column under TalkBack or at large text (rememberSingleColumn).
-        val panes = if (rememberSingleColumn()) BandLayout.panes(0f, maxWidth.value, null) else BandLayout.panes(windowWidthDp(), maxWidth.value, hinge)
-        singlePane = !panes.twoPane
-        LaunchedEffect(panes.twoPane) { onTwoPane(panes.twoPane) }
+        val panes = BandLayout.panes(windowWidthDp(), maxWidth.value, hinge, split = twoPane)
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)
         val bottom = padding.calculateBottomPadding() + 24.dp
         if (panes.twoPane) {
@@ -230,13 +242,18 @@ private fun BandDetailContent(
 
 // region Members and stats
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> Unit) {
     SectionHeader("Members", Modifier.testTag("fst.band.members-section"))
+    val largeText = isLargeText()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = maxOf(1, (maxWidth / 260.dp).toInt())
+        val distinct = BandMember.distinct(members)
+        val instruments = distinct.maxOfOrNull { it.chartedInstruments.size } ?: 0
+        val columns = BandLayout.memberColumns(maxWidth.value, instruments, largeText)
+        val stacked = !BandLayout.memberInline(BandLayout.memberCardWidth(maxWidth.value, columns), instruments, largeText)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BandMember.distinct(members).chunked(columns).forEach { row ->
+            distinct.chunked(columns).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { member ->
                         val route = if (member.isLinkable) PlayerRoute(member.accountId, member.displayName?.takeIf { it.isNotBlank() }) else null
@@ -249,15 +266,26 @@ private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> 
                             onClick = route?.let { { onNavigate(it) } },
                         ) {
                             // The card's description is the announcement; the texts would repeat it.
-                            Row(Modifier.padding(12.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                FestivalMarqueeText(
-                                    member.resolvedName,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (route != null) BrandTokens.textPrimary else BrandTokens.textSecondary,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                member.chartedInstruments.forEach { InstrumentIcon(it, size = 28.dp, decorative = true) }
+                            val nameColor = if (route != null) BrandTokens.textPrimary else BrandTokens.textSecondary
+                            if (stacked) {
+                                // Large text or a narrow pane: the name gets the full width and the icons wrap under it.
+                                Column(Modifier.padding(12.dp).clearAndSetSemantics { }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FestivalMarqueeText(member.resolvedName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = nameColor)
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        member.chartedInstruments.forEach { InstrumentIcon(it, size = 28.dp, decorative = true) }
+                                    }
+                                }
+                            } else {
+                                Row(Modifier.padding(12.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    FestivalMarqueeText(
+                                        member.resolvedName,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = nameColor,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    member.chartedInstruments.forEach { InstrumentIcon(it, size = 28.dp, decorative = true) }
+                                }
                             }
                         }
                     }
@@ -270,8 +298,10 @@ private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> 
 
 @Composable
 private fun StatGrid(stats: List<BandStat>, onNavigate: (AppRoute) -> Unit) {
+    val fontScale = LocalDensity.current.fontScale
+    val largeText = isLargeText()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = maxOf(2, (maxWidth / 150.dp).toInt()).coerceAtMost(4)
+        val columns = BandLayout.statColumns(maxWidth.value, fontScale, largeText)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             stats.chunked(columns).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -291,7 +321,7 @@ private fun StatGrid(stats: List<BandStat>, onNavigate: (AppRoute) -> Unit) {
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = if (stat.route != null) BrandTokens.accentBlue else BrandTokens.textPrimary,
-                                    maxLines = 1,
+                                    maxLines = oneLineUnlessLarge(),
                                 )
                             }
                         }
@@ -317,15 +347,20 @@ private fun RankByMenu(metric: BandRankingMetric, onSelect: (BandRankingMetric) 
             Text(metric.label, maxLines = 1)
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        // Same single-choice menu as the rankings' Rank By (TopBarChoiceAction): check + state on the current metric.
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = BrandTokens.cardBackground) {
             BandRankingMetric.entries.forEach { option ->
+                val isSelected = option == metric
                 DropdownMenuItem(
-                    text = { Text(option.label) },
+                    text = { Text(option.label, color = BrandTokens.textPrimary) },
+                    trailingIcon = if (isSelected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = BrandTokens.textPrimary) }) else null,
                     onClick = {
-                        onSelect(option)
                         open = false
+                        if (!isSelected) onSelect(option)
                     },
-                    modifier = Modifier.testTag("fst.band.rank-by.${option.wireId}"),
+                    modifier = Modifier
+                        .testTag("fst.band.rank-by.${option.wireId}")
+                        .semantics { stateDescription = if (isSelected) "Selected" else "Not selected" },
                 )
             }
         }
@@ -352,7 +387,7 @@ private fun HistorySection(state: LoadState<BandRankHistoryResponse>, metric: Ba
         is LoadState.Loaded -> {
             val ranked = remember(state.value, metric) { BandDetailProjection.ranked(state.value.history, metric) }
             if (ranked.isEmpty()) {
-                Text("No band rank history yet.", color = BrandTokens.textSecondary, modifier = Modifier.padding(vertical = 8.dp).testTag("fst.band.history-empty"))
+                Text("No band rank history yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, modifier = Modifier.padding(vertical = 8.dp).testTag("fst.band.history-empty"))
                 return
             }
             val points = remember(ranked, metric) { BandDetailProjection.points(ranked, metric) }
@@ -442,9 +477,10 @@ private fun SongsSections(
 private fun SongList(rows: List<BandSongRow>, description: String, tag: String, artworkUrl: (String?) -> String?, onNavigate: (AppRoute) -> Unit) {
     Text(description, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, modifier = Modifier.padding(bottom = 8.dp))
     if (rows.isEmpty()) {
-        Text("No band songs yet.", color = BrandTokens.textSecondary, modifier = Modifier.padding(vertical = 8.dp))
+        Text("No band songs yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, modifier = Modifier.padding(vertical = 8.dp))
         return
     }
+    val largeText = isLargeText()
     Column(Modifier.testTag(tag), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         rows.forEach { row ->
             val rankText = "${BandFormatting.rank(row.performance.rank)} of ${BandFormatting.count(row.performance.totalEntries.toLong())}"
@@ -468,10 +504,19 @@ private fun SongList(rows: List<BandSongRow>, description: String, tag: String, 
                         if (row.subtitle.isNotEmpty()) {
                             FestivalMarqueeText(row.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
                         }
+                        if (largeText) {
+                            // Large text: the rank column moves under the title instead of squeezing it.
+                            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Pill(percentile)
+                                Text(rankText, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+                            }
+                        }
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Pill(percentile)
-                        Text(rankText, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+                    if (!largeText) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Pill(percentile)
+                            Text(rankText, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+                        }
                     }
                 }
             }

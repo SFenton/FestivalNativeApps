@@ -7,7 +7,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 <!-- BEGIN GENERATED: check_docs.py --fix -->
 | Control | Test ID | States | Status | Spec | Platform files |
 |---|---|---|---|---|---|
-| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) |
+| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) · [windows](difficulty-meter/windows.md) |
 | artwork-background | `fst.shell.artwork-background` | 5 | pending | [spec](artwork-background/spec.md) | [ios](artwork-background/ios.md) · [android](artwork-background/android.md) · [windows](artwork-background/windows.md) |
 | songs-sort | `fst.songs.sort` | 17 | pending | [spec](songs-sort/spec.md) | [ios](songs-sort/ios.md) · [ipados](songs-sort/ipados.md) · [android](songs-sort/android.md) · [windows](songs-sort/windows.md) |
 | songs-filter | `fst.songs.filter` | 29 | pending | [spec](songs-filter/spec.md) | [ios](songs-filter/ios.md) · [macos](songs-filter/macos.md) · [android](songs-filter/android.md) · [windows](songs-filter/windows.md) |
@@ -40,7 +40,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 <!-- BEGIN GENERATED: check_docs.py --fix -->
 | Control | Test ID | States | Status | Spec | Platform files |
 |---|---|---|---|---|---|
-| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) |
+| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) · [windows](difficulty-meter/windows.md) |
 | artwork-background | `fst.shell.artwork-background` | 5 | pending | [spec](artwork-background/spec.md) | [ios](artwork-background/ios.md) · [android](artwork-background/android.md) |
 | songs-sort | `fst.songs.sort` | 17 | pending | [spec](songs-sort/spec.md) | [ios](songs-sort/ios.md) · [ipados](songs-sort/ipados.md) |
 | songs-filter | `fst.songs.filter` | 29 | pending | [spec](songs-filter/spec.md) | [ios](songs-filter/ios.md) |
