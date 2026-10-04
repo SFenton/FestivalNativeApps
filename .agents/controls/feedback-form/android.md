@@ -30,7 +30,25 @@
   - Discard confirmation: title, message, Keep Editing, Discard.
   - Sent: title, Close, then the result.
   - Every target is at least 48 dp: Submit is 69×48 dp, Close is 48×48 dp, and the attachment remove target is 48 dp around a 24 dp glyph.
+- **Hinge:** on a separating hinge the dialog keeps to the start-side display area (left pane in book posture, lower pane in tabletop). The material-3 skill's layout guidance says: "Never place interactive content or critical information across the hinge area".
 - ATF's missing-label finding on a text field scrolled to a sliver (the label child is clipped) is a harness artifact. `JourneyHarness` drops it once the field is seen composed with a label.
+
+## Validation matrix (2026-10-04, #143)
+
+Each configuration was driven through invalid → dirty → discard → sending → sent, then error, against `tools/mock_service.py`, because the live service reports `feedback:false`. Each run used animator scale 0, a font-scale 2.0 pass, and portrait plus landscape. Every configuration passed.
+
+| AVD / posture | Layout | Findings |
+|---|---|---|
+| FST_Phone (portrait) | Full screen | All states correct. At font scale 2.0 the fields wrap and scroll without clipping. |
+| FST_Phone (landscape) | Centred card | Card of at most 640 dp. It scrolls at font scale 2.0. |
+| FST_Tablet | Centred card | All states correct in both orientations. |
+| FST_Resizable compact / medium (800 dp) / expanded | Full screen / card / card | Switches at a width of 600 dp. |
+| FST_Book_Fold folded / unfolded | Full screen / card | Folded matches the phone. |
+| FST_Book_Fold half | Start pane | Left pane in portrait and lower pane in landscape. It never crosses the hinge. |
+| FST_Passport_Fold folded / unfolded | Full screen / card | Folded landscape at font scale 2.0 leaves a short viewport, but it scrolls. |
+| FST_TriFold | Centred card | All states correct. |
+
+The app is dark-only, so system dark mode on or off renders the same. On the live service (FST_Phone, FST_Tablet) the Report an Issue and Request a Feature rows stay hidden (`unavailable`).
 
 ## Test IDs
 
@@ -51,4 +69,4 @@
   - `settings/FeedbackExpandedUiTest.kt` (1280 dp) checks the centred 640 dp card.
   - `FakeTransport.standard()` does not serve `/api/features`, so add it per test.
 - `androidTest/journeys/FeedbackFormJourneyTest.kt` (device, ATF on every interaction, TalkBack order per state): invalid → dirty → sending → discard while sending → filing → sent, and a feature request with a 503 error. Run `device.py test com.festivalscoretracker.android.journeys.FeedbackFormJourneyTest --avd FST_Phone`, and also `--avd FST_Book_Fold --posture half`.
-- Coverage (2026-10-02, `fst_android.py build --tests --coverage`): logic 98.0%, UI 94.1% overall. `FeedbackDialog.kt` alone is 62.2%: the picker and `ACTION_VIEW` paths need a device.
+- Coverage (2026-10-04, `fst_android.py build --tests --coverage`): logic 98.0%, UI 96.4% overall. `FeedbackDialog.kt` rose from 62.2% to 93.2%; only the real `ACTION_VIEW` launch and the system pickers' own UI stay device-only.
