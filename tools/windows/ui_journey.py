@@ -13,11 +13,16 @@ Journey file shape::
       "preset": "medium", "steps": ["waitfor:id=fst.player-bands.title@10", "..."]}]
 
 ``{shots}`` in a step expands to the ``--shots`` directory (Windows path). An optional
-``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks.
+``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks and
+``"args": ["--reduce-motion"]`` extra app arguments.
 
 Usage::
 
-    python tools/windows/ui_journey.py tools/windows/journeys/bands.json [--only NAME] [--shots DIR] [--exe aot]
+    python tools/windows/ui_journey.py tools/windows/journeys/bands.json [--only NAME] [--shots DIR] [--exe aot] [--large-catalogue]
+    python tools/windows/ui_journey.py tools/windows/journeys/star-rating.json --fixture tools/windows/star_rating_fixture.py
+
+``--fixture`` runs a wrapper script (which takes ``mock_service.py`` flags and prints the same ready line) instead of
+the plain mock service.
 """
 
 from __future__ import annotations
@@ -43,13 +48,15 @@ EXE = journey_exe.DEBUG_EXE
 # region Fixture service
 
 
-def start_mock(log: Path) -> tuple[subprocess.Popen, int]:
+def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | None = None) -> tuple[subprocess.Popen, int]:
     """Start the fixture service on a free loopback port, logging to a file.
 
     A file (not a pipe) keeps a chatty service from blocking on a full pipe buffer.
 
     Args:
         log: Service output file.
+        service_args: Extra ``mock_service.py`` flags (e.g. ``--large-catalogue``).
+        fixture: Optional wrapper script around ``mock_service.py`` (it raises the listen backlog itself).
 
     Returns:
         The process and its port.
@@ -61,8 +68,10 @@ def start_mock(log: Path) -> tuple[subprocess.Popen, int]:
     # Python's default listen backlog (5) overflows when the app's artwork burst and page reads arrive together;
     # Windows then resets queued connections (WSAECONNABORTED), which the app correctly reports as offline.
     bootstrap = ("import sys; sys.path.insert(0, sys.argv[1]); import mock_service as m; "
-                 "m.FixtureServer.request_queue_size = 128; sys.argv = ['mock_service', '--port', '0']; m.main()")
-    proc = subprocess.Popen([sys.executable, "-u", "-c", bootstrap, str(MOCK.parent)], stdout=handle, stderr=subprocess.STDOUT)
+                 "m.FixtureServer.request_queue_size = 128; sys.argv = ['mock_service', '--port', '0', *sys.argv[2:]]; m.main()")
+    command = ([sys.executable, "-u", str(fixture), "--port", "0", *service_args] if fixture is not None
+               else [sys.executable, "-u", "-c", bootstrap, str(MOCK.parent), *service_args])
+    proc = subprocess.Popen(command, stdout=handle, stderr=subprocess.STDOUT)
     for _ in range(200):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
@@ -102,6 +111,7 @@ def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:
     launch = uiwin("launch", str(EXE), "--route", journey["route"],
                    "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
                    "--preset", journey.get("preset", "medium"),
+                   *(f"--arg={arg}" for arg in journey.get("args", [])),
                    *(f"--extra={key}={value}" for key, value in journey.get("extra", {}).items()))
     if launch.returncode != 0:
         return False, "launch: " + launch.stderr.strip()
@@ -136,6 +146,10 @@ def main(argv: list[str] | None = None) -> int:
     journey_exe.add_argument(parser)
     parser.add_argument("--retries", type=int, default=1,
                         help="re-run a failed journey this many times; a later pass is reported as FLAKY")
+    parser.add_argument("--large-catalogue", action="store_true",
+                        help="also serve mock_service.py's synthetic 108-song catalogue (e.g. a raw-6 chart)")
+    parser.add_argument("--fixture", type=Path,
+                        help="fixture wrapper script taking mock_service.py flags (e.g. tools/windows/star_rating_fixture.py)")
     args = parser.parse_args(argv)
     global EXE
     EXE = args.exe
@@ -145,7 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     args.shots.mkdir(parents=True, exist_ok=True)
     journeys = json.loads(args.journeys.read_text(encoding="utf-8"))
     selected = [j for j in journeys if not args.only or j["name"] in args.only]
-    mock, port = start_mock(args.shots / "fixture-service.log")
+    mock, port = start_mock(args.shots / "fixture-service.log", ("--large-catalogue",) if args.large_catalogue else (),
+                            args.fixture)
     failures = 0
     try:
         for journey in selected:

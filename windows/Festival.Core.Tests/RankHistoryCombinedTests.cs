@@ -143,6 +143,22 @@ public sealed class RankHistoryCombinedTests
         Assert.False(single.CanOlder || single.CanNewer);
     }
 
+    [Theory]
+    [InlineData(30, 52, 52)]        // 100% text: "49.5M" fits the 52 epx value gutter
+    [InlineData(60.4, 52, 67)]      // 200% text: label + 6 epx gap, rounded up
+    [InlineData(20, 48, 48)]        // rank gutter minimum
+    [InlineData(-5, 48, 48)]        // a negative measure keeps the minimum
+    [InlineData(double.NaN, 52, 52)]
+    [InlineData(double.PositiveInfinity, 48, 48)]
+    public void AxisGutter_FitsTheWidestLabel(double widest, double minimum, double expected) =>
+        Assert.Equal(expected, RankHistoryCombinedChart.AxisGutter(widest, minimum));
+
+    [Theory]
+    [InlineData(16, 22)]            // 100% text keeps the 22 epx band
+    [InlineData(31.2, 32)]          // 200% text grows the band to the label
+    [InlineData(double.NaN, 22)]
+    public void DateBand_FitsTheDateLabel(double height, double expected) =>
+        Assert.Equal(expected, RankHistoryCombinedChart.DateBand(height));
     [Fact]
     public void ProfileModel_CarriesTheCombinedChart()
     {

@@ -63,8 +63,21 @@ public sealed record RivalRowItem(
     public string AccessibleName =>
         $"{Name}{(HasRank ? ", rank " + RankText[1..] : "")}, {(IsWinning ? "behind you" : "ahead of you")}, {AheadText}, {BehindText}";
 
+    /// <summary>
+    /// Whether the row has a rival to open. Anonymous leaderboard rows (empty account ID, issue #213) are shown but are
+    /// not interactive, like anonymous ranking rows.
+    /// </summary>
+    public bool HasProfile => ProfileText.IsValidAccountId(AccountId);
+
+    /// <summary>Rival Detail route, or <see langword="null"/> for an anonymous row.</summary>
+    public AppRoute.RivalDetail? ProfileRoute => HasProfile ? Route : null;
+
+    /// <summary>Stable row key: the account ID, or <c>rank-{n}</c> for an anonymous row.</summary>
+    public string RowKey => HasProfile ? AccountId
+        : "rank-" + (LeaderboardRank is { } rank ? rank.ToString(CultureInfo.InvariantCulture) : "unknown");
+
     /// <summary>UIA automation ID.</summary>
-    public string AutomationId => "fst.rivals.row." + AccountId;
+    public string AutomationId => "fst.rivals.row." + RowKey;
 }
 #endregion
 

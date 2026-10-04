@@ -8,7 +8,8 @@ namespace Festival.App.Controls;
 /// The full-row button behind <see cref="LeaderboardEntryRow"/>. A row with a destination is a normal UIA button
 /// (Invoke, Narrator "button"). A row without one (production serves some empty account IDs) is already not
 /// clickable or tabbable, and its automation peer reports it as plain text with no Invoke pattern, so assistive tech
-/// doesn't present it as actionable (issue #63; Android's "Profile unavailable" text row).
+/// doesn't present it as actionable (issue #63; Android's "Profile unavailable" text row). Rival rows on the Rivals hub
+/// reuse it for anonymous leaderboard rivals (issue #213).
 /// </summary>
 public sealed partial class LeaderboardRowButton : Button
 {

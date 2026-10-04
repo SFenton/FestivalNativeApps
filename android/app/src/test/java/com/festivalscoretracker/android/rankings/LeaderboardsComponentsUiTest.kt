@@ -169,16 +169,17 @@ class LeaderboardsComponentsUiTest {
         var stars by mutableIntStateOf(6)
         rule.setContent { StarRating(stars, Modifier.testTag("fst.stars")) }
         settle()
-        assertEquals(listOf("Gold stars"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
+        assertEquals(listOf("5 gold stars"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
         stars = 1
         settle()
         assertEquals(listOf("1 star"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
         stars = 4
         settle()
         assertEquals(listOf("4 stars"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
+        // Web `MiniStars` minimum: hosts that mean "no stars" don't compose the row.
         stars = 0
         settle()
-        assertTrue(!exists("fst.stars"))
+        assertEquals(listOf("1 star"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
     }
 
     @Test

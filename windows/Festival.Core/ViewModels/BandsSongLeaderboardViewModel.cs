@@ -242,7 +242,7 @@ public sealed record SongBandRow
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Names}, {Score} points" +
                                   (HasAccuracy ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") +
-                                  (Entry.Stars is > 0 ? $", {Entry.Stars} stars" : "");
+                                  (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 
     /// <summary>
     /// Song Band Leaderboard row name in visual order (rank, each member's name, instruments and per-song score, then the

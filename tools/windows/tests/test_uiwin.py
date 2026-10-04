@@ -68,6 +68,37 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertstate(self):
+        step = u.parse_step("assertstate:id=fst.instrument-selector.Solo_Guitar|toggle=On@3")
+        self.assertEqual(step["verb"], "assertstate")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.instrument-selector.Solo_Guitar"})
+        self.assertEqual((step["key"], step["value"], step["timeout"]), ("toggle", "on", 3.0))
+        named = u.parse_step("assertstate:id=x.value|name=Selected: Pro Drums + Cymbals")
+        self.assertEqual((named["key"], named["value"]), ("name", "Selected: Pro Drums + Cymbals"))
+        self.assertNotIn("timeout", named)
+        self.assertEqual(u.parse_step("assertstate:name=Lead|enabled=false")["value"], "false")
+        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
+                    "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
+                    "assertstate:id=x|name="):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+    def test_assertstatus(self):
+        step = u.parse_step("assertstatus:id=fst.shell.artwork-background|reduced-motion@20")
+        self.assertEqual(step["verb"], "assertstatus")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.artwork-background"})
+        self.assertEqual(step["status"], "reduced-motion")
+        self.assertEqual(step["timeout"], 20.0)
+        plain = u.parse_step("assertstatus:name=Backdrop|no-art")
+        self.assertEqual(plain["status"], "no-art")
+        self.assertNotIn("timeout", plain)
+        for bad in ("assertstatus:id=x", "assertstatus:id=x|", "assertstatus:@1,2|on"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_window_state_presets(self):
+        self.assertEqual(u.preset_op("minimized"), {"kind": "minimize"})
+        self.assertEqual(u.preset_op("restored"), {"kind": "restore"})
+
     def test_parse_steps(self):
         with tempfile.TemporaryDirectory() as tmp:
             script = Path(tmp) / "s.txt"
