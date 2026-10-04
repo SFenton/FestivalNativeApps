@@ -1,5 +1,10 @@
 package com.festivalscoretracker.android.ui.search
 
+import android.os.Build
+import android.view.View
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,12 +51,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -62,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
@@ -69,6 +77,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -85,6 +94,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.search.GlobalPlayerResult
@@ -327,13 +337,61 @@ fun GlobalSearchHost(
                 state = searchState,
                 inputField = inputField,
                 colors = colors,
+                // The popup's own Back/Escape handling is off: its overlay-priority Back callback
+                // closed the panel together with the keyboard, and it swallowed Escape before the
+                // field could clear the text. DockedPanelBack closes it once the keyboard is down.
+                properties = PopupProperties(focusable = true, clippingEnabled = false, dismissOnBackPress = false),
                 // A fixed height: the panel never shrinks or grows as results, progress and
                 // hints replace each other while typing.
                 modifier = surfaceModifier
                     .width(anchor.anchor.width.toDp())
-                    .then(dockedHeightPx?.let { Modifier.height(it.toDp()) } ?: Modifier),
-            ) { content() }
+                    .then(dockedHeightPx?.let { Modifier.height(it.toDp()) } ?: Modifier)
+                    // Before API 33 (and on hardware keys the system still delivers), Back arrives
+                    // as a key event once the keyboard has handled its own.
+                    .onKeyEvent { event ->
+                        if (event.key != Key.Back) return@onKeyEvent false
+                        if (event.type == KeyEventType.KeyUp) collapseThen {}
+                        true
+                    },
+            ) {
+                DockedPanelBack { collapseThen {} }
+                content()
+            }
         }
+    }
+}
+
+/**
+ * Back for the docked panel's popup window on API 33+, at default priority so the keyboard's
+ * own Back callback (registered when it shows, so newer) hides the keyboard first and the next
+ * Back closes the panel.
+ *
+ * @param onBack Close the panel.
+ */
+@Composable
+private fun DockedPanelBack(onBack: () -> Unit) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val view = LocalView.current
+    val latest by rememberUpdatedState(onBack)
+    DisposableEffect(view) {
+        val registration = DockedBackApi33.register(view) { latest() }
+        onDispose { registration?.invoke() }
+    }
+}
+
+/** API 33 window back-callback registration, kept apart for class verification on older releases. */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private object DockedBackApi33 {
+    /**
+     * Registers [onBack] on [view]'s window dispatcher at default priority.
+     *
+     * @return Unregister action, or null when the view has no window dispatcher yet.
+     */
+    fun register(view: View, onBack: () -> Unit): (() -> Unit)? {
+        val dispatcher = view.findOnBackInvokedDispatcher() ?: return null
+        val callback = OnBackInvokedCallback { onBack() }
+        dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+        return { dispatcher.unregisterOnBackInvokedCallback(callback) }
     }
 }
 

@@ -313,8 +313,8 @@ object GlobalSearchLayout {
     /**
      * Anchor for the expanded surface.
      *
-     * Full screen grows from the requester (the action icon), at the field's 56 dp height:
-     * Material measures the expanded input field at the collapsed height. Docked opens under the top
+     * Full screen grows from the requester (the action icon), at the field's height (56 dp, taller
+     * at large font scales): Material measures the expanded input field at the collapsed height. Docked opens under the top
      * bar, end-aligned to the requester, at most 720 dp wide and never across a separating
      * vertical hinge (clamped to the side that holds the requester). A separating horizontal (tabletop) hinge below the anchor caps the panel
      * height so no results sit under the fold.
@@ -326,6 +326,8 @@ object GlobalSearchLayout {
      * @param density Pixels per dp.
      * @param verticalHinge Separating vertical hinge bounds, if any.
      * @param horizontalHinge Separating horizontal hinge bounds, if any.
+     * @param fullScreenFieldHeight Full-screen field height in px for the current font scale
+     *   (see [fieldHeight]); never below the 56 dp minimum.
      * @return Anchor and optional height cap.
      */
     fun anchor(
@@ -336,14 +338,18 @@ object GlobalSearchLayout {
         density: Float,
         verticalHinge: PxRect? = null,
         horizontalHinge: PxRect? = null,
+        fullScreenFieldHeight: Int = 0,
     ): SearchAnchor {
         fun px(dp: Int) = (dp * density).toInt()
         val gap = px(EDGE_GAP_DP)
         val fieldHeight = px(FIELD_HEIGHT_DP)
         val anchor = when (presentation) {
             SearchPresentation.FullScreen -> {
-                val top = ((requester.top + requester.bottom - fieldHeight) / 2).coerceAtLeast(0)
-                PxRect(requester.left, top, requester.right, top + fieldHeight)
+                // Material measures the expanded full-screen field at exactly this height, so it
+                // grows with the font scale instead of clipping the typed text.
+                val height = fullScreenFieldHeight.coerceAtLeast(fieldHeight)
+                val top = ((requester.top + requester.bottom - height) / 2).coerceAtLeast(0)
+                PxRect(requester.left, top, requester.right, top + height)
             }
             SearchPresentation.Docked -> {
                 // The pane holding the requester: the whole window, or one side of a vertical hinge.
@@ -365,6 +371,21 @@ object GlobalSearchLayout {
             ?.let { it.top - anchor.top - gap }
         return SearchAnchor(anchor, cap ?: if (presentation == SearchPresentation.FullScreen) null else windowHeight * 2 / 3)
     }
+
+    /** Material text field vertical content padding (top plus bottom) around one line, in dp. */
+    const val FIELD_VERTICAL_PADDING_DP = 32
+
+    /**
+     * Search field height that fits one line of the field's text: Material's 56 dp minimum,
+     * or the scaled line height plus the text field's 16 dp top and bottom padding when larger
+     * (font scale 2.0).
+     *
+     * @param lineHeightPx Field text line height in px at the current font scale.
+     * @param density Pixels per dp.
+     * @return Field height in px.
+     */
+    fun fieldHeight(lineHeightPx: Float, density: Float): Int =
+        maxOf((FIELD_HEIGHT_DP * density).toInt(), kotlin.math.ceil(lineHeightPx + FIELD_VERTICAL_PADDING_DP * density).toInt())
 
     /**
      * How much of a fixed-height docked panel the keyboard covers, so its results can pad by

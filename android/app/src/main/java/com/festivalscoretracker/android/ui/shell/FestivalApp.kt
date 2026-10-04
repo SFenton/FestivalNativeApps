@@ -381,7 +381,10 @@ private fun FestivalShell(
     // Live bounds of the one search entry in the window. Structural equality means an
     // unchanged layout report is a no-op; a fold, rotation or resize re-anchors an open surface.
     var requester by remember { mutableStateOf<PxRect?>(null) }
-    val anchor = remember(presentation, requester, windowSize, verticalHinge, horizontalHinge, fallbackRequester) {
+    // The field's bodyLarge line at the current font scale (Material's InputField text style).
+    val fieldLineHeight = MaterialTheme.typography.bodyLarge.lineHeight
+    val fullScreenFieldHeight = with(density) { GlobalSearchLayout.fieldHeight(fieldLineHeight.toPx(), this.density) }
+    val anchor = remember(presentation, requester, windowSize, verticalHinge, horizontalHinge, fallbackRequester, fullScreenFieldHeight) {
         GlobalSearchLayout.anchor(
             presentation = presentation,
             requester = requester ?: fallbackRequester,
@@ -390,6 +393,7 @@ private fun FestivalShell(
             density = density.density,
             verticalHinge = verticalHinge?.pxRect(),
             horizontalHinge = horizontalHinge?.pxRect(),
+            fullScreenFieldHeight = fullScreenFieldHeight,
         )
     }
     val openSearch: (PxRect?) -> Unit = { rect ->
