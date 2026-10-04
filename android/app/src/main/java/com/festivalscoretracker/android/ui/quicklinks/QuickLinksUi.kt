@@ -117,7 +117,22 @@ internal interface QuickLinkScroller {
 
     /** The content can scroll further up. */
     val canScrollBackward: Boolean
+
+    /**
+     * Scroll position (a lazy layout's first visible index and offset, or a scroll state's value).
+     * Content resizing above the anchor leaves it unchanged; any scroll moves it.
+     */
+    val position: Long
 }
+
+/**
+ * Packs a lazy layout's first visible item and its scroll offset into one comparable position.
+ *
+ * @param index First visible item index.
+ * @param offset Scroll offset into that item.
+ * @return Position.
+ */
+private fun lazyPosition(index: Int, offset: Int): Long = (index.toLong() shl 32) or (offset.toLong() and 0xFFFF_FFFFL)
 
 /** [QuickLinkScroller] over a `LazyColumn`. */
 private class ListScroller(private val state: LazyListState) : QuickLinkScroller {
@@ -138,6 +153,7 @@ private class ListScroller(private val state: LazyListState) : QuickLinkScroller
     override val isScrollInProgress: Boolean get() = state.isScrollInProgress
     override val canScrollForward: Boolean get() = state.canScrollForward
     override val canScrollBackward: Boolean get() = state.canScrollBackward
+    override val position: Long get() = lazyPosition(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset)
 }
 
 /** [QuickLinkScroller] over a `LazyVerticalStaggeredGrid` (several items can share a row). */
@@ -159,6 +175,7 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
     override val isScrollInProgress: Boolean get() = state.isScrollInProgress
     override val canScrollForward: Boolean get() = state.canScrollForward
     override val canScrollBackward: Boolean get() = state.canScrollBackward
+    override val position: Long get() = lazyPosition(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset)
 }
 
 /**
@@ -252,20 +269,29 @@ class QuickLinksController internal constructor(
     /**
      * Keep a landed target on the landing line while the item above it (the lazy list's scroll anchor)
      * composes for the first time and grows (issue #106: Profile Rank History loads after the jump and
-     * pushed Top Songs half a screen down; #111: Statistics). Ends at the first user scroll, the next
-     * jump, after [QuickLinks.MAX_LANDING_CORRECTIONS] corrections or after [QuickLinks.LANDING_HOLD_MS].
+     * pushed Top Songs half a screen down; #111: Statistics). Ends at the first user scroll (a drag, or a
+     * programmatic scroll such as a TalkBack scroll-to-index or a page's scroll-to-top, which moves
+     * [QuickLinkScroller.position] between the hold's own landings), the next jump, after
+     * [QuickLinks.MAX_LANDING_CORRECTIONS] corrections or after [QuickLinks.LANDING_HOLD_MS].
      */
     private suspend fun keepLanded(id: String, index: Int, px: Int) {
         var corrections = 0
+        // The position the hold last saw; null right after its own landing, which moves it.
+        var expected: Long? = null
         withTimeoutOrNull(QuickLinks.LANDING_HOLD_MS) {
-            snapshotFlow { scroller.layout() }
-                .takeWhile { !scroller.isScrollInProgress && corrections < QuickLinks.MAX_LANDING_CORRECTIONS }
-                .collect { layout ->
+            snapshotFlow { scroller.layout() to scroller.position }
+                .takeWhile { (_, position) ->
+                    val unmoved = expected == null || expected == position
+                    expected = position
+                    unmoved && !scroller.isScrollInProgress && corrections < QuickLinks.MAX_LANDING_CORRECTIONS
+                }
+                .collect { (layout, _) ->
                     val top = layout.items.firstOrNull { it.index == index }?.top
                     val below = if (top == null) (layout.items.maxOfOrNull { it.index } ?: -1) < index else null
                     if (QuickLinks.needsReland(top, px, completeThreshold, scroller.canScrollForward, scroller.canScrollBackward, below)) {
                         corrections++
                         scroller.scrollTo(index, animate = false, landingPx = px)
+                        expected = null
                         tracker.beginJump(id)
                         settle()
                     }
