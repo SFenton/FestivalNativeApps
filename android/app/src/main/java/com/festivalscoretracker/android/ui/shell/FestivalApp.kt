@@ -57,7 +57,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -581,32 +580,41 @@ private fun FestivalShell(
             }
         }
     }
-    // One movable page tree for both chrome branches: rotating a tablet between the rail and
-    // the permanent drawer moves the NavHost instead of rebuilding it, so page state (an open
-    // license or Filter sheet, list scroll, picked filters) survives the change (issues #122, #126).
-    val latestContent = rememberUpdatedState(content)
-    val pages = remember { movableContentOf { latestContent.value() } }
-    if (layout == NavigationLayout.PermanentDrawer) {
-        pages()
-    } else {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            // Edge swipes belong to system back; the drawer opens from the menu button only.
-            gesturesEnabled = drawerState.isOpen,
-            // The drawerState overload adds M3's predictive back handling: system back closes
-            // the open drawer instead of leaving the app. Its corners follow the display corners
-            // (issue #55); without reported corners the shape is Material's default.
-            drawerContent = {
-                ChromeColors {
-                    ModalDrawerSheet(
-                        drawerState = drawerState,
-                        drawerShape = rememberConcentricDrawerShape(),
-                        drawerContainerColor = BrandTokens.cardBackground,
-                    ) { drawer(false) }
-                }
-            },
-        ) { pages() }
+    // One parent at every width: hosting the pages bare beside a permanent drawer but inside the
+    // modal drawer otherwise rebuilt the NavHost whenever the window crossed the expanded width
+    // (tablet rotation, unfolding, resizing) and reset page state: list scroll, an open license or
+    // Filter sheet, picked filters (issues #106, #122, #126). The permanent layout keeps the modal
+    // sheet closed and empty, so its anchors (sheet width) and system-back order stay those of the
+    // modal layouts. Moving the pages with movableContentOf instead let the moved NavHost's back
+    // callback outrank the drawer's (Back popped the page under an open drawer).
+    val permanent = layout == NavigationLayout.PermanentDrawer
+    // Material re-targets the drawer to the anchor nearest its old pixel offset when the sheet's
+    // width changes, so a closed drawer reopened after a display-size (density) change such as
+    // desktop → phone. Re-close it once the new anchors are laid out.
+    val keepDrawerClosed = remember(permanent, density.density) { permanent || drawerState.isClosed }
+    LaunchedEffect(permanent, density.density) {
+        if (keepDrawerClosed) {
+            withFrameNanos {}
+            drawerState.snapTo(DrawerValue.Closed)
+        }
     }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        // Edge swipes belong to system back; the drawer opens from the menu button only.
+        gesturesEnabled = drawerState.isOpen && !permanent,
+        // The drawerState overload adds M3's predictive back handling: system back closes
+        // the open drawer instead of leaving the app. Its corners follow the display corners
+        // (issue #55); without reported corners the shape is Material's default.
+        drawerContent = {
+            ChromeColors {
+                ModalDrawerSheet(
+                    drawerState = drawerState,
+                    drawerShape = rememberConcentricDrawerShape(),
+                    drawerContainerColor = BrandTokens.cardBackground,
+                ) { if (!permanent) drawer(false) }
+            }
+        },
+    ) { content() }
     GlobalSearchHost(
         viewModel = searchViewModel,
         searchState = searchState,
