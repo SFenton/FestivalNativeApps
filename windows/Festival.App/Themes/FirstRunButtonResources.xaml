@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lightweight Button styling for the Settings First Run Guides "Show" buttons (web btnPrimary: translucent blue chip
+     with a blue outline); merge into the card's scope. Theme dictionaries (not StaticResource aliases) so a contrast
+     theme switched on while the page is open re-resolves them: ButtonFace/ButtonText, Highlight/HighlightText on hover
+     and press. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+            <SolidColorBrush x:Key="ButtonBackground" Color="#662D82E6" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#8C2D82E6" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#4D2D82E6" />
+            <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF2D82E6" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FF4A95EC" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FF2D82E6" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="ButtonBackground" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ButtonForeground" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

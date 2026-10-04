@@ -53,7 +53,12 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  */
 @Stable
 class FloatingToolbarHost {
-    private class Entry(val content: State<@Composable RowScope.() -> Unit>, val pinned: Boolean, val aboveKeyboard: State<Boolean>)
+    private class Entry(
+        val content: State<@Composable RowScope.() -> Unit>,
+        val pinned: Boolean,
+        val aboveKeyboard: State<Boolean>,
+        val readFirst: Boolean,
+    )
 
     private val entries = mutableStateListOf<Entry>()
 
@@ -67,19 +72,27 @@ class FloatingToolbarHost {
     val aboveKeyboard: Boolean get() = entries.lastOrNull()?.aboveKeyboard?.value == true
 
     /**
+     * Whether the current owner's toolbar is read by TalkBack/keyboard right after the top app bar
+     * instead of after the page content (an endless feed would otherwise never reach it, issue #112).
+     */
+    val readFirst: Boolean get() = entries.lastOrNull()?.readFirst == true
+
+    /**
      * Register toolbar content.
      *
      * @param content Latest content (read on every recomposition).
      * @param pinned Keep the toolbar visible while content scrolls (no hide on scroll).
      * @param aboveKeyboard Latest "content holds a focused text field" flag (Songs search, issue #84).
+     * @param readFirst Read the toolbar before the page content rather than after it.
      * @return Unregister callback.
      */
     fun register(
         content: State<@Composable RowScope.() -> Unit>,
         pinned: Boolean = false,
         aboveKeyboard: State<Boolean> = NOT_ABOVE_KEYBOARD,
+        readFirst: Boolean = false,
     ): () -> Unit {
-        val entry = Entry(content, pinned, aboveKeyboard)
+        val entry = Entry(content, pinned, aboveKeyboard, readFirst)
         entries += entry
         return { entries.remove(entry) }
     }
@@ -97,15 +110,22 @@ class FloatingToolbarHost {
  *   toolbar) instead of the default hide on scroll.
  * @param aboveKeyboard The content holds a focused text field: the shell lifts the toolbar above
  *   the on-screen keyboard while this is true.
+ * @param readFirst TalkBack and keyboard focus reach the toolbar right after the top app bar,
+ *   before the page content (for pages whose content is an endless feed, issue #112).
  * @param content Toolbar items, typically `IconButton`s; global search is not added automatically here.
  */
 @Composable
-fun FloatingToolbarContent(pinned: Boolean = false, aboveKeyboard: Boolean = false, content: @Composable RowScope.() -> Unit) {
+fun FloatingToolbarContent(
+    pinned: Boolean = false,
+    aboveKeyboard: Boolean = false,
+    readFirst: Boolean = false,
+    content: @Composable RowScope.() -> Unit,
+) {
     val host = LocalShellActions.current.floatingToolbar ?: return
     val latest = rememberUpdatedState(content)
     val keyboard = rememberUpdatedState(aboveKeyboard)
-    DisposableEffect(host, pinned) {
-        val unregister = host.register(latest, pinned, keyboard)
+    DisposableEffect(host, pinned, readFirst) {
+        val unregister = host.register(latest, pinned, keyboard, readFirst)
         onDispose { unregister() }
     }
 }
@@ -167,6 +187,12 @@ const val FLOATING_TOOLBAR_HEIGHT_DP = 64
 /** Gap between the toolbar and the bottom bar. */
 const val FLOATING_TOOLBAR_MARGIN_DP = 16
 
+/** Traversal index of a read-first toolbar: after the top app bar, before the page content (0). */
+const val TOOLBAR_READ_FIRST_TRAVERSAL_INDEX = -1f
+
+/** Traversal index of the top app bar while the page's toolbar reads first, so the bar still leads. */
+const val TOP_BAR_TRAVERSAL_INDEX = -2f
+
 /**
  * The floating toolbar surface the shell draws over the bottom bar.
  *
@@ -197,8 +223,9 @@ fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier, sc
             }
             .heightIn(min = FLOATING_TOOLBAR_HEIGHT_DP.dp)
             .testTag("fst.nav.floating-toolbar")
-            // Read after the page content, before the bottom bar.
-            .semantics { isTraversalGroup = true; traversalIndex = 1f },
+            // Read after the page content, before the bottom bar; or, for an endless feed, between
+            // the top app bar (FestivalScreen gives it TOP_BAR_TRAVERSAL_INDEX) and the content.
+            .semantics { isTraversalGroup = true; traversalIndex = if (host.readFirst) TOOLBAR_READ_FIRST_TRAVERSAL_INDEX else 1f },
     ) {
         CompositionLocalProvider(LocalContentColor provides BrandTokens.textPrimary) {
             Row(

@@ -185,6 +185,17 @@ private func landedTop(anchorY: Double, viewportHeight: Double, sectionHeight: D
     #expect(try #require(QuickLinks.landingAnchorY(inset: 32, viewportHeight: 700, sectionHeight: 1_800)) < 0)
 }
 
+/// Issue #286: a `List` measures sections under the bars, so its line moves down by the
+/// List's top inset; a `ScrollView` (inset 0) keeps the plain offset.
+@Test func activationLineAddsAListsTopInset() {
+    #expect(QuickLinks.activationLine(offset: 32, listTopInset: 0) == 32)
+    #expect(QuickLinks.activationLine(offset: 30, listTopInset: 176) == 206)
+    #expect(QuickLinks.activationLine(offset: 2, listTopInset: 116) == 118)
+    #expect(QuickLinks.activationLine(offset: 32, listTopInset: -20) == 32)
+    #expect(QuickLinks.activationLine(offset: 32, listTopInset: .nan) == 32)
+    #expect(QuickLinks.activationLine(offset: 32, listTopInset: .infinity) == 32)
+}
+
 @Test func landingAnchorFallsBackToTopWhenItCannotOffset() {
     #expect(QuickLinks.landingAnchorY(inset: 0, viewportHeight: 700, sectionHeight: 200) == nil)
     #expect(QuickLinks.landingAnchorY(inset: 32, viewportHeight: 0, sectionHeight: 200) == nil)

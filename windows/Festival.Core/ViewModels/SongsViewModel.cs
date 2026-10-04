@@ -69,7 +69,7 @@ public sealed partial class SongsViewModel : ObservableObject
 
     /// <summary>Pause and status notices shown above the list (sort, Shop filter, score filter, player scores).</summary>
     [ObservableProperty]
-    private List<string> notices = [];
+    private List<SongNotice> notices = [];
 
     /// <summary>Whether the sections carry headers (false for a single unlabeled Shop bucket).</summary>
     [ObservableProperty]
@@ -109,11 +109,20 @@ public sealed partial class SongsViewModel : ObservableObject
         (session.HasPlayer && (session.Settings.SongFilter.IsActive ||
             (session.Settings.PlayerScoreFilter.IsValid && session.Settings.PlayerScoreFilter.AppliesTo(session.Settings.SongFilter.Instrument))));
 
+    /// <summary>Filter button status for UI Automation: "Filters applied" while <see cref="IsFilterActive"/>, else empty.</summary>
+    public string FilterStatus => IsFilterActive ? "Filters applied" : "";
+
     /// <summary>Whether the Filter button shows. General filters are available with or without a selected profile.</summary>
     public bool ShowFilterButton => true;
 
     /// <summary>Applied sort label, e.g. "Title ↑".</summary>
     public string SortSummary => session.Settings.SongSort.Label() + (session.Settings.SongSortAscending ? " ↑" : " ↓");
+
+    /// <summary>
+    /// Applied sort in words for UI Automation help text, e.g. "Title, ascending": the button's name stays "Sort Songs",
+    /// so screen readers would otherwise not hear <see cref="SortSummary"/>'s arrow label.
+    /// </summary>
+    public string SortDescription => session.Settings.SongSort.Label() + (session.Settings.SongSortAscending ? ", ascending" : ", descending");
 
     /// <summary>Whether a saved filter is corrupt (the list waits for an explicit Reset).</summary>
     private bool InvalidSavedFilter =>
@@ -240,8 +249,10 @@ public sealed partial class SongsViewModel : ObservableObject
         var settings = session.Settings;
         OnPropertyChanged(nameof(IsSortChanged));
         OnPropertyChanged(nameof(IsFilterActive));
+        OnPropertyChanged(nameof(FilterStatus));
         OnPropertyChanged(nameof(ShowFilterButton));
         OnPropertyChanged(nameof(SortSummary));
+        OnPropertyChanged(nameof(SortDescription));
         OnPropertyChanged(nameof(EmptyMessage));
         if (InvalidSavedFilter)
         {
@@ -277,15 +288,17 @@ public sealed partial class SongsViewModel : ObservableObject
         });
 
         var projector = new SongRowProjector(settings, catalog.CurrentSeason, offers, scores);
-        Sections = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)]))];
+        Sections = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)],
+            SongListPipeline.SectionAutomationId(result.EffectiveSort, s.Label)))];
         // No quick-jump under the Year sort (operator 2026-09-28): decade headers stay, the zoomed-out index does not.
         HasJumpIndex = settings.SongSort != SongSortMode.Year &&
                        (Sections.Count > 1 || (Sections.Count == 1 && Sections[0].Label.Length > 0));
         ResultCount = result.Count;
-        var notices = new List<string>();
-        if (scores.Notice is { } scoreNotice) notices.Add(scoreNotice);
-        foreach (var notice in new[] { result.SortPaused, result.ShopFilterPaused, result.ScoreFilterPaused })
-            if (notice is not null) notices.Add(notice);
+        var notices = new List<SongNotice>();
+        if (scores.Notice is { } scoreNotice) notices.Add(new(SongNotice.ProfilePausedId, scoreNotice));
+        if (result.SortPaused is { } sortPaused) notices.Add(new(SongNotice.SortPausedId, sortPaused));
+        if (result.ShopFilterPaused is { } shopPaused) notices.Add(new(SongNotice.ShopFilterPausedId, shopPaused));
+        if (result.ScoreFilterPaused is { } scorePaused) notices.Add(new(SongNotice.ScoreFilterPausedId, scorePaused));
         Notices = notices;
         OnPropertyChanged(nameof(HasNotices));
         State = result.Count == 0 ? LoadState.Empty : LoadState.Loaded;
@@ -367,7 +380,7 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
 
     /// <summary>Draft direction.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply), nameof(Descending))]
+    [NotifyPropertyChangedFor(nameof(CanApply), nameof(Descending), nameof(DirectionIndex))]
     private bool ascending = true;
 
     /// <summary>The Descending choice (the inverse of <see cref="Ascending"/>, for the second direction row).</summary>
@@ -375,6 +388,16 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
     {
         get => !Ascending;
         set => Ascending = !value;
+    }
+
+    /// <summary>Direction as an index for the Direction radio group: 0 Ascending, 1 Descending (other values are ignored).</summary>
+    public int DirectionIndex
+    {
+        get => Ascending ? 0 : 1;
+        set
+        {
+            if (value is 0 or 1) Ascending = value == 0;
+        }
     }
 
     /// <summary>Ascending row subtitle (web <c>sort.ascendingHintSongs</c> without the repeated word).</summary>
@@ -412,6 +435,7 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
         Mode = session.Settings.SongSort;
         Ascending = session.Settings.SongSortAscending;
         OnPropertyChanged(nameof(ModeIndex));
+        OnPropertyChanged(nameof(DirectionIndex));
         IsLive = true;
         OnPropertyChanged(nameof(CanApply));
     }

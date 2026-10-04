@@ -487,7 +487,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
             when (val current = state) {
                 LoadState.Loading -> RankingsSkeletonRows(5)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
-                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth)) {
+                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
                     if (entries.isEmpty()) {
                         Text("No ranked ${bandType.label.lowercase()} yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))

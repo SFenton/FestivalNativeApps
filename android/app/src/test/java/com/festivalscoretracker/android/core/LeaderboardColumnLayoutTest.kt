@@ -147,6 +147,10 @@ class LeaderboardColumnLayoutTest {
         assertTrue(LeaderboardColumnLayout.fit(rankings, 0f).showMeta)
         // Large text grows the name minimum.
         assertFalse(LeaderboardColumnLayout.fit(rankings, 284f, fontScale = 1.5f).showMeta)
+        // Band Rankings (#116) keep their songs label and stack instead.
+        val band = LeaderboardColumnLayout.fit(rankings.copy(stackNarrowNames = true), 283f)
+        assertTrue(band.showMeta)
+        assertTrue(band.stacked)
     }
 
     @Test
@@ -188,6 +192,74 @@ class LeaderboardColumnLayoutTest {
         assertEquals(LeaderboardColumnLayout.fit(scores, 600f), LeaderboardColumnLayout.fit(scores.copy(nameWidth = 400f), 600f))
     }
 
+    @Test
+    fun bandRowsStackOnlyWhenTheNameWouldDropBelowItsMinimum() {
+        val bands = rankings.copy(stackNarrowNames = true)
+        // 16 + 44 + 64 + 60 + 20 + 4 × 12 = 252 fixed, so the name gets exactly 72 dp at 324.
+        assertEquals(72f, LeaderboardColumnLayout.rankingNameRoom(bands, showMeta = true, rowWidth = 324f))
+        assertFalse(LeaderboardColumnLayout.fit(bands, 324f).stacked)
+        val narrow = LeaderboardColumnLayout.fit(bands, 323f)
+        assertTrue(narrow.stacked)
+        // The one-line columns are unchanged, so a wider pane switches straight back.
+        assertTrue(narrow.showMeta)
+        assertEquals(LeaderboardColumnLayout.fit(rankings, 323f), narrow.copy(stacked = false))
+    }
+
+    @Test
+    fun bandRowsStayOnOneLineBeforeTheFirstLayoutOrWhenNotOptedIn() {
+        val bands = rankings.copy(stackNarrowNames = true)
+        assertFalse(LeaderboardColumnLayout.fit(bands, Float.NaN).stacked)
+        assertFalse(LeaderboardColumnLayout.fit(bands, 0f).stacked)
+        assertFalse(LeaderboardColumnLayout.fit(rankings, 200f).stacked)
+        assertFalse(LeaderboardColumnLayout.fit(scores.copy(stackNarrowNames = true), 200f).stacked)
+    }
+
+    @Test
+    fun nameRoomDropsHiddenColumns() {
+        // Without songs or a rank: 16 + 60 + 20 + 2 × 12 = 120 fixed.
+        assertEquals(180f, LeaderboardColumnLayout.rankingNameRoom(rankings.copy(rankWidth = 0f), showMeta = false, rowWidth = 300f))
+    }
+
+    @Test
+    fun nameMinimumDropsSongsThenStacksRows() {
+        val full = rankings.copy(keepsNameMinimum = true)
+        // 16 + 44 + 72 + 64 + 60 + 20 + 4 × 12 = 324: the minimum name fits beside the songs label.
+        val wide = LeaderboardColumnLayout.fit(full, 324f)
+        assertTrue(wide.showMeta)
+        assertFalse(wide.stacked)
+        // Narrower: songs yield first, the row stays one line (16 + 44 + 72 + 60 + 20 + 3 × 12 = 248).
+        val noSongs = LeaderboardColumnLayout.fit(full, 323f)
+        assertFalse(noSongs.showMeta)
+        assertEquals(0f, noSongs.metaWidth)
+        assertFalse(noSongs.stacked)
+        assertFalse(LeaderboardColumnLayout.fit(full, 248f).stacked)
+        // Below that the name can't keep its minimum on one line, so rows stack.
+        assertTrue(LeaderboardColumnLayout.fit(full, 247f).stacked)
+    }
+
+    @Test
+    fun nameMinimumGrowsWithFontScale() {
+        val full = rankings.copy(keepsNameMinimum = true)
+        assertTrue(LeaderboardColumnLayout.fit(full, 324f).showMeta)
+        assertFalse(LeaderboardColumnLayout.fit(full, 324f, fontScale = 1.3f).showMeta)
+    }
+
+    @Test
+    fun nameMinimumWaitsForTheFirstLayoutAndIsOptIn() {
+        val full = rankings.copy(keepsNameMinimum = true)
+        val unknown = LeaderboardColumnLayout.fit(full, Float.NaN)
+        assertTrue(unknown.showMeta)
+        assertFalse(unknown.stacked)
+        // Without the opt-in a narrow row never stacks (Leaderboards cards); it only drops the
+        // songs label so names don't collapse (issue #114).
+        val plain = LeaderboardColumnLayout.fit(rankings, 200f)
+        assertFalse(plain.showMeta)
+        assertFalse(plain.stacked)
+        assertTrue(LeaderboardColumnLayout.fit(rankings, 300f).showMeta)
+        // Score sections never stack.
+        assertFalse(LeaderboardColumnLayout.fit(scores.copy(keepsNameMinimum = true), 100f).stacked)
+    }
+
     // endregion
 
     // region Section texts
@@ -218,6 +290,16 @@ class LeaderboardColumnLayoutTest {
         assertFalse(texts.hasStars)
         assertFalse(texts.hasAccuracy)
         assertTrue(texts.seasons.isEmpty())
+    }
+
+    @Test
+    fun aFullComboWithoutAccuracyKeepsTheAccuracyColumn() {
+        val rows = listOf(
+            LeaderboardEntry(accountId = "a", score = 1, rank = 1, isFullCombo = true),
+            LeaderboardEntry(accountId = "b", score = 1, rank = 2, isFullCombo = false),
+        )
+        assertTrue(ScoreSectionTexts.of(rows, Locale.US).hasAccuracy)
+        assertFalse(ScoreSectionTexts.of(rows.drop(1), Locale.US).hasAccuracy)
     }
 
     // endregion

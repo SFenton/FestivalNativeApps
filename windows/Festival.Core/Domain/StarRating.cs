@@ -17,16 +17,27 @@ public readonly record struct StarRating(int Count, bool Gold)
     public const int GoldValue = 6;
 
     /// <summary>Maps a wire star count to its drawing; <see langword="null"/> when there is nothing to draw.</summary>
-    /// <param name="stars">Service stars (1–6; anything else is missing or invalid).</param>
+    /// <remarks>
+    /// Six <em>or more</em> is gold (web <c>MiniStars</c>: <c>starsCount &gt;= 6</c>). Zero, negative and missing counts
+    /// draw nothing: every web call site guards <c>stars &gt; 0</c>, and Core uses 0 as its "no stars" sentinel, so the
+    /// web's <c>max(1, n)</c> floor only ever applies to 1.
+    /// </remarks>
+    /// <param name="stars">Service stars (1–5 white, 6 or more gold; anything else is missing).</param>
     /// <returns>Rating, or <see langword="null"/>.</returns>
     public static StarRating? From(int? stars) => stars switch
     {
         >= 1 and < GoldValue => new StarRating(stars.Value, false),
-        GoldValue => new StarRating(MaxDrawn, true),
+        >= GoldValue => new StarRating(MaxDrawn, true),
         _ => null,
     };
 
     /// <summary>Screen-reader text, e.g. "5 gold stars", "1 star", "4 stars".</summary>
     public string Announcement => Gold ? $"{Count} gold stars" : Count == 1 ? "1 star" : $"{Count} stars";
+
+    /// <summary>Contract state name (<c>contracts/product.json</c> star-rating): <c>white-1</c>…<c>white-5</c> or <c>gold-6</c>.</summary>
+    public string StateName => Gold ? $"gold-{GoldValue}" : $"white-{Count}";
+
+    /// <summary>UI Automation ID under the control's test ID root, e.g. <c>fst.star-rating.gold-6</c>.</summary>
+    public string AutomationId => $"fst.star-rating.{StateName}";
 }
 #endregion
