@@ -29,7 +29,7 @@ Debug build, single 3840×2160 monitor at 300%; `a11y_matrix.py --scan` (with a 
 | Maximized, snapped left/right | ✅ anonymous and selected p1 (fixture); live maximized and snap-left ✅ |
 | Light system theme | The app is dark-only by design (`App.xaml RequestedTheme="Dark"`, web parity); caption buttons follow. Deliberate deviation |
 | High contrast Aquatic / Desert / Dusk / Night sky | ✅ after the `FooterPlate` fix (rows showed through the footer gaps before); live Night sky ✅ |
-| Text size 200% (and 225%) | ✅ compact/medium/wide; names ellipsize (full name in the tooltip and Narrator name), no clipping, pager fits |
+| Text size 200% (and 225%) | ✅ compact/medium/wide; long names scroll inside the name column (issue #292; they ellipsize with motion off, full name in the tooltip and Narrator name), no clipping, pager fits |
 | Display scale 100% / 150% | ✅ compact/medium/wide; live 150% medium ✅ |
 | Keyboard | Tab order: title bar → pane → rows (one stop, Up/Down move between rows) → **Your Page** → pinned row → pager; Left/Right/Home/End page while focus is in the pager and focus stays put after the pager fix; focus visuals visible. Driven by posted key messages because the host console was locked (SendInput reached the lock screen) |
 | UIA | One Button per row with a full spoken name; pinned row `fst.song-leaderboard.spotlight-footer` (fixed); page text is a polite live region |
