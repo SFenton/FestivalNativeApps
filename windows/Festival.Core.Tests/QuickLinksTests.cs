@@ -116,6 +116,20 @@ public class QuickLinksTests
         Assert.Equal("a", QuickLinks.NaturalActive(Sections, Frames(("a", 50, 300))));
         Assert.Equal("c", QuickLinks.NaturalActive(Sections, Frames(("c", -40, 400), ("d", 500, 300))));
     }
+
+    [Fact]
+    public void NaturalActiveInMasonryRowsKeepsFirstOfRowAndFollowsLatestTop()
+    {
+        // Two columns: a|b on the first row, then d (right column, shorter b) above c (left column).
+        Assert.Equal("a", QuickLinks.NaturalActive(Sections, Frames(("a", 0, 500), ("b", 0, 400), ("c", 520, 300), ("d", 420, 300))));
+        Assert.Equal("a", QuickLinks.NaturalActive(Sections, Frames(("a", -300, 500), ("b", -300, 400), ("c", 220, 300), ("d", 120, 300))));
+        Assert.Equal("d", QuickLinks.NaturalActive(Sections, Frames(("a", -400, 500), ("b", -400, 400), ("c", 120, 300), ("d", 20, 300))));
+        Assert.Equal("c", QuickLinks.NaturalActive(Sections, Frames(("a", -500, 500), ("b", -500, 400), ("c", 20, 300), ("d", -80, 300))));
+        // Mid fade-in the staggered 12-epx rise puts later cards of a row lower; layout rounding splits them too.
+        Assert.Equal("a", QuickLinks.NaturalActive(Sections, Frames(("a", 9, 500), ("b", 14.1, 500), ("c", 542, 300), ("d", 542, 300))));
+        Assert.Equal("c", QuickLinks.NaturalActive(Sections, Frames(("a", -526.7, 500), ("b", -526.7, 500), ("c", 4.7, 300), ("d", 4, 300))));
+        Assert.Equal(16d, QuickLinks.RowTolerance);
+    }
     #endregion
 
     #region Tracker

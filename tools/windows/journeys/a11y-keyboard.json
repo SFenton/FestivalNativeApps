@@ -351,5 +351,32 @@
       "wait:0.5",
       "assertfocus:id=fst.shell.notifications@3"
     ]
+  },
+  {
+    "name": "kb-compete-order",
+    "route": "/compete",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rivals.section.common@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.rivals.findRival",
+      "key:tab",
+      "assertfocus:id=fst.rivals.tab.song",
+      "key:tab",
+      "assertfocus:name=Quick Links, current section Common Rivals",
+      "key:tab",
+      "assertfocus:name=See All Common Rivals",
+      "key:tab",
+      "assertfocus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "key:tab",
+      "assertfocus:name=View All Common Rivals",
+      "key:tab",
+      "assertfocus:name=See All Lead Rivals",
+      "key:shift+tab",
+      "assertfocus:name=View All Common Rivals"
+    ]
   }
 ]

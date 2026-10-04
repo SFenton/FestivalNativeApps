@@ -1,0 +1,85 @@
+[
+  {
+    "name": "ab-animated",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertstatus:id=fst.shell.artwork-background|animated@20"
+    ]
+  },
+  {
+    "name": "ab-reduced-motion",
+    "tab": "songs",
+    "settings": {
+      "reduceMotion": true
+    },
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertstatus:id=fst.shell.artwork-background|reduced-motion@20"
+    ]
+  },
+  {
+    "name": "ab-disable-animated",
+    "tab": "songs",
+    "settings": {
+      "disableAnimatedArtwork": true
+    },
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertstatus:id=fst.shell.artwork-background|reduced-motion@20"
+    ]
+  },
+  {
+    "name": "ab-save-data",
+    "tab": "songs",
+    "settings": {
+      "saveData": true
+    },
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "wait:3",
+      "assertstatus:id=fst.shell.artwork-background|save-data@5"
+    ]
+  },
+  {
+    "name": "ab-not-visible-dialog",
+    "tab": "settings",
+    "ready": [
+      "scrollinto:id=fst.settings.reset@20",
+      "assertstatus:id=fst.shell.artwork-background|animated@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.settings.reset",
+      "waitfor:id=fst.settings.reset.dialog@10",
+      "assertstatus:id=fst.shell.artwork-background|not-visible@5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.settings.reset.dialog@10",
+      "assertstatus:id=fst.shell.artwork-background|animated@10"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "ab-not-visible-minimized",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertstatus:id=fst.shell.artwork-background|animated@20"
+    ],
+    "teardown": [
+      "resize:minimized",
+      "assertstatus:id=fst.shell.artwork-background|not-visible@10",
+      "resize:restored",
+      "assertstatus:id=fst.shell.artwork-background|animated@10"
+    ]
+  },
+  {
+    "name": "ab-song-cover",
+    "route": "/songs/fixture-pulse",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "assertstatus:id=fst.shell.artwork-background|song-cover@20"
+    ]
+  }
+]

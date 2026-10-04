@@ -35,6 +35,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Drawer profile row read only the name | Drawer | "Profile: <name>"; Deselect reads "Deselect profile" |
 | Side-by-side cards read row by row; half-open fold skipped the rest of a tall card | Two-column grids | `readingGroup()`; one column while TalkBack runs (`rememberSingleColumn`) |
 | Next item skipped a row wholly behind a floating footer and focused hidden rows around/below the pager instead of scrolling (Compose drops only fully covered nodes) | Song Leaderboard | Where the rows are drawn hidden beneath the footer, clip the list's reported size at the footer's top (`clipAboveFooter` in `RankingsBoardScaffold`) |
+| TalkBack went silent for the next five focus moves after the Service Info card's polite live region announced (the card scrolled into view and its 5 s poll started); focus kept moving (issue #121) | Settings | The card is no longer a live region; focusing the state row reads the current state. FST_Phone walk at fs 1.0 and 2.0: 99 items, web order |
 
 ### Large text (200% + largest display size)
 
@@ -48,10 +49,12 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Songs pinned search placeholder wrapped to an 80 dp field (issue #101) | One line with ellipsis; TalkBack reads the full label |
 | Stat tiles broke words ("PLAYE D") | `StatGridColumns.count(width, fontScale)`: tiles widen with the scale; narrow grids may drop to one column (exception to the two-column phone minimum) |
 | Rival names squeezed out beside "N shared songs"; tabs broke mid-word | Name wraps at ≥ 1.3× (the shared count was later removed, issue #67); Rivals tabs scroll |
+| Rival rows dropped the "songs behind" pill at 200% and in a ~260 dp fold pane (issues #107, #120) | The tint bar draws behind the row (`drawBehind`) instead of `IntrinsicSize.Min`, which measured the wrapping pill `FlowRow` at one line (`CompeteLargeTextUiTest`) |
 | First-run Next/Done pushed off screen | Pager takes the remaining height; slides scroll |
 | Profile sheet "Deselect" one letter per line | Buttons wrap (`FlowRow`) |
 | Chart axis "100" clipped to "10" | Axis ticks keep their 100% size (`chartAxisTextStyle()`; decorative, values listed below each chart) |
 | Half-open fold: 130 dp list pane, half-width cards wrapping a few letters per line | Two panes need the expanded width in text-scaled dp (`showsTwoPanes(…, fontScale)`); grids, hinge splits and Band Detail use one column (`rememberSingleColumn`), unless the window stays expanded in text-scaled dp |
+| Settings Version "Service" title crushed to one letter per line beside the origin (fs 2.0 phone, 360 dp tri-fold cover; issue #121) | Adaptive `ValueRow`: inline only when title and value fit at their intrinsic widths, otherwise the value stacks under the title (`LargeTextSettingsValueRowUiTest`) |
 
 Accepted: top app bar titles still ellipsize at 200% (Material small top app bar is one line; the page heading below repeats them); the floating pager covers part of a row until scrolled.
 
