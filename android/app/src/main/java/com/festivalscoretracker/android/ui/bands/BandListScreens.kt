@@ -1,6 +1,12 @@
 package com.festivalscoretracker.android.ui.bands
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -40,6 +46,7 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 
 // region Shared grid
 
@@ -53,30 +60,83 @@ internal fun bandRouteFor(entry: PlayerBandEntry): AppRoute = BandRoute(entry.ke
 
 /**
  * Adaptive card grid with full-width header rows; with a vertical fold or hinge the
- * two columns meet exactly at it ([BandLayout.grid]).
+ * two columns meet exactly at it ([BandLayout.grid]). Across a **separating** hinge
+ * (half-open book or passport fold) the [controls] move to a leading pane that ends at
+ * the hinge and the cards fill a single column on the trailing side, so no segment,
+ * header or pager straddles the crease ([BandLayout.listSplit]). Under TalkBack or at
+ * large text the page is one centred column ([rememberSingleColumn]).
  *
  * @param padding Shell padding.
  * @param tag Test tag.
+ * @param controls Header and selectors, above the cards or in the leading pane.
+ * @param content Grid content (state rows, cards, pager).
+ */
+@Composable
+private fun BandGrid(padding: PaddingValues, tag: String, controls: @Composable () -> Unit, content: LazyGridScope.() -> Unit) {
+    var contentLeft by remember { mutableFloatStateOf(0f) }
+    // One column under TalkBack or at large text, like every other content grid (rememberSingleColumn).
+    val singleColumn = rememberSingleColumn()
+    BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
+        val hinge = rememberBandHinge(contentLeft, maxWidth).takeUnless { singleColumn }
+        val grid = if (singleColumn) BandLayout.Grid(1, BandLayout.EDGE, BandLayout.EDGE, BandLayout.GUTTER) else BandLayout.grid(maxWidth.value, hinge)
+        val layout: @Composable () -> Unit = { PlayerBandsLayout(BandLayout.listSplit(hinge), grid, padding, tag, controls, content) }
+        if (singleColumn) BandReadableWidth { layout() } else layout()
+    }
+}
+
+/**
+ * [BandGrid]'s layout for a given split and grid (separated for layout tests).
+ *
+ * @param split [BandLayout.listSplit] for the content box.
+ * @param grid [BandLayout.grid] for the content box (single-pane only).
+ * @param padding Shell padding.
+ * @param tag Test tag of the card grid.
+ * @param controls Header and selectors.
  * @param content Grid content.
  */
 @Composable
-private fun BandGrid(padding: PaddingValues, tag: String, content: LazyGridScope.() -> Unit) {
-    var contentLeft by remember { mutableFloatStateOf(0f) }
-    BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
-        val grid = BandLayout.grid(maxWidth.value, rememberBandHinge(contentLeft, maxWidth))
+internal fun PlayerBandsLayout(
+    split: BandLayout.Panes,
+    grid: BandLayout.Grid,
+    padding: PaddingValues,
+    tag: String,
+    controls: @Composable () -> Unit,
+    content: LazyGridScope.() -> Unit,
+) {
+    val top = padding.calculateTopPadding()
+    val bottom = padding.calculateBottomPadding() + 24.dp
+    val leading = split.leadingWidth
+    if (split.twoPane && leading != null) {
+        Row(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .width(leading.dp)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = BandLayout.EDGE.dp, end = BandLayout.EDGE.dp, top = top, bottom = bottom)
+                    .testTag("$tag.controls-pane"),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) { controls() }
+            Spacer(Modifier.width(split.gap.dp))
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(1),
+                contentPadding = PaddingValues(start = BandLayout.EDGE.dp, end = BandLayout.EDGE.dp, top = top + 8.dp, bottom = bottom),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f).fillMaxHeight().testTag(tag),
+                content = content,
+            )
+        }
+    } else {
         LazyVerticalGrid(
             columns = GridCells.Fixed(grid.columns),
-            contentPadding = PaddingValues(
-                start = grid.start.dp,
-                end = grid.end.dp,
-                top = padding.calculateTopPadding(),
-                bottom = padding.calculateBottomPadding() + 24.dp,
-            ),
+            contentPadding = PaddingValues(start = grid.start.dp, end = grid.end.dp, top = top, bottom = bottom),
             horizontalArrangement = Arrangement.spacedBy(grid.gutter.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize().testTag(tag),
-            content = content,
-        )
+        ) {
+            fullRow("controls") { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { controls() } }
+            content()
+        }
     }
 }
 
@@ -135,12 +195,12 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
         // page in (web stagger, issue #71); a return visit with the page ready shows it at once.
         val swap = rememberLoadSwap(state, state !is LoadState.Loading, key = group to page)
         val loaded = (swap.shown as? LoadState.Loaded)?.value
-        BandGrid(padding, "fst.player-bands.list") {
-            fullRow("header") {
+        BandGrid(
+            padding,
+            "fst.player-bands.list",
+            controls = {
                 val subtitle = loaded?.let { "${group.label} · ${BandFormatting.count(it.totalCount.toLong())} ${if (it.totalCount == 1) "band" else "bands"}" }
                 BandPageHeader(null, subtitle, "fst.player-bands")
-            }
-            fullRow("groups") {
                 BandSegmentedControl(
                     options = PlayerBandGroup.entries,
                     selected = group,
@@ -149,7 +209,8 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
                     onSelect = viewModel::selectGroup,
                     modifier = Modifier.testTag("fst.player-bands.group-picker"),
                 )
-            }
+            },
+        ) {
             val current = swap.shown
             if (swap.showsSpinner || current is LoadState.Loading) {
                 fullRow("loading") { LoadSwapSpinner(swap, "Loading bands", Modifier.fillMaxWidth().heightIn(min = 240.dp), "fst.player-bands.loading") }

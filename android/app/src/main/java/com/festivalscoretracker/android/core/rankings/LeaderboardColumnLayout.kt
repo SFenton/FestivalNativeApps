@@ -34,6 +34,9 @@ enum class LeaderboardRowKind {
  *   and songs) when the one-line columns leave the name less than
  *   [LeaderboardColumnLayout.MIN_NAME_WIDTH] (Band Rankings in a half-opened fold's pane,
  *   issue #116).
+ * @property keepsNameMinimum Whether a rankings section keeps at least
+ *   [LeaderboardColumnLayout.MIN_NAME_WIDTH] for names in a known row width: the songs label
+ *   yields first, then rows stack (Full Rankings in a narrow pane beside a hinge, issue #115).
  */
 data class LeaderboardSection(
     val kind: LeaderboardRowKind,
@@ -44,6 +47,7 @@ data class LeaderboardSection(
     val hasStars: Boolean = false,
     val nameWidth: Float = 0f,
     val stackNarrowNames: Boolean = false,
+    val keepsNameMinimum: Boolean = false,
 ) {
     /** Whether any row has a season (score sections) or songs label (rankings sections). */
     val hasMeta: Boolean get() = metaWidth > 0f
@@ -101,8 +105,8 @@ data class ScoreSectionTexts(
  * @property accuracyWidth Accuracy column width (0 when hidden).
  * @property showStars Whether the stars column shows.
  * @property starsWidth Stars column width (0 when hidden).
- * @property stacked Whether rankings rows stack instead of squeezing the name
- *   ([LeaderboardSection.stackNarrowNames]).
+ * @property stacked Whether rankings rows stack (rank and name, then rating and songs) instead of
+ *   squeezing the name ([LeaderboardSection.stackNarrowNames], [LeaderboardSection.keepsNameMinimum]).
  */
 data class LeaderboardColumnPlan(
     val gap: Float,
@@ -194,6 +198,11 @@ object LeaderboardColumnLayout {
      * every name fits in full beside it (rank · name · songs · rating · chevron at the rankings
      * row's own padding and spacing); otherwise, or before the first layout, the whole section
      * hides it so names are not truncated and the remaining columns stay aligned (issue #38).
+     * A section that [keeps a name minimum][LeaderboardSection.keepsNameMinimum] drops the songs
+     * label, then stacks its rows, rather than squeeze names below [MIN_NAME_WIDTH] (issue #115).
+     * A section that [stacks narrow names][LeaderboardSection.stackNarrowNames] keeps its songs
+     * label and stacks its rows when the one-line columns leave the name less than
+     * [MIN_NAME_WIDTH] (Band Rankings, issue #116).
      *
      * @param section Section content (every row plus the pinned row).
      * @param rowWidth Row width in dp, including its chrome; NaN or 0 before the first layout (no optional columns).
@@ -214,6 +223,15 @@ object LeaderboardColumnLayout {
             val columns = listOf(rank, section.nameWidth, section.metaWidth, section.valueWidth, CHEVRON_WIDTH).filter { it > 0f }
             showMeta = known && RANKING_ROW_CHROME + columns.sum() + RANKING_GAP * (columns.size - 1) <= rowWidth
         }
+        var stacked = false
+        if (!score && section.keepsNameMinimum && known) {
+            fun fitsName(withMeta: Boolean): Boolean {
+                val columns = listOf(rank, MIN_NAME_WIDTH * scale, if (withMeta) section.metaWidth else 0f, section.valueWidth, CHEVRON_WIDTH).filter { it > 0f }
+                return RANKING_ROW_CHROME + columns.sum() + RANKING_GAP * (columns.size - 1) <= rowWidth
+            }
+            if (showMeta && !fitsName(withMeta = true)) showMeta = false
+            stacked = !fitsName(withMeta = false)
+        }
 
         fun required(): Float {
             val columns = listOf(rank, MIN_NAME_WIDTH * scale, if (showMeta) section.metaWidth else 0f, section.valueWidth, accuracy,
@@ -223,7 +241,7 @@ object LeaderboardColumnLayout {
 
         if (showStars && required() > rowWidth) showStars = false
         if (score && showMeta && required() > rowWidth) showMeta = false
-        val stacked = !score && section.stackNarrowNames && known && rankingNameRoom(section, showMeta, rowWidth) < MIN_NAME_WIDTH
+        if (!score && section.stackNarrowNames && known && rankingNameRoom(section, showMeta, rowWidth) < MIN_NAME_WIDTH) stacked = true
         return LeaderboardColumnPlan(
             gap = gap,
             rankWidth = rank,
