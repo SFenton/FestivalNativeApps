@@ -151,6 +151,9 @@ struct RivalViewAllRow: View {
                 .foregroundStyle(BrandTokens.textPrimary)
             Spacer()
         }
+        // HIG Accessibility: 44×44 pt default control size on iOS/iPadOS (the audit
+        // reported the 18 pt row as "Hit area is too small").
+        .frame(minHeight: 44)
         .contentShape(Rectangle())
         .accessibilityAddTraits(.isButton)
     }

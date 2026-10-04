@@ -123,6 +123,28 @@ def take_band_rankings(argv: list[str]) -> tuple[str | None, list[str]]:
 # endregion
 
 
+def name_detail_bodies(names: dict[str, str]) -> None:
+    """Make each rival detail body carry the requested rival's demo name.
+
+    The mock serves one shared detail payload for every rival, so without this every rival opens as the
+    first demo name and a journey cannot tell which rival the detail column shows.
+
+    Args:
+        names: Account ID to demo name, as built by :func:`anonymize`.
+    """
+    for builder_name, id_index in (("_rival_detail_body", 1), ("_leaderboard_rival_detail_body", 2)):
+        original = getattr(mock_service, builder_name)
+
+        def build(*args, _original=original, _id_index=id_index):  # noqa: ANN002, ANN202 (mirrors the builder)
+            body = _original(*args)
+            rival_id = args[_id_index]
+            if rival_id in names:
+                body["rival"] = {**body["rival"], "displayName": names[rival_id]}
+            return body
+
+        setattr(mock_service, builder_name, build)
+
+
 def main() -> None:
     """Anonymize the Rivals fixtures, then hand over to the mock service's own CLI."""
     scenario, rest = take_band_rankings(sys.argv[1:])
@@ -137,6 +159,7 @@ def main() -> None:
         mock_service.LEADERBOARD_RIVAL_DETAIL_DEMO,
     ):
         anonymize(payload, names)
+    name_detail_bodies(names)
     # The app's carousel art plus up to four concurrent Rivals reads overflow socketserver's default backlog
     # of 5, and Windows refuses the excess connections (the app then shows "You're offline").
     mock_service.FixtureServer.request_queue_size = 128

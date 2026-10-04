@@ -430,7 +430,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var patterns = new List<string>();
         if (e.Patterns.Invoke.IsSupported) patterns.Add("Invoke");
         if (e.Patterns.Toggle.IsSupported) patterns.Add("Toggle");
-        if (e.Patterns.SelectionItem.IsSupported) patterns.Add("SelectionItem");
+        if (e.Patterns.SelectionItem.IsSupported)
+        {
+            patterns.Add("SelectionItem");
+            if (e.Patterns.SelectionItem.PatternOrDefault?.IsSelected.ValueOrDefault == true) flags.Add("selected");
+        }
         if (e.Patterns.ExpandCollapse.IsSupported) patterns.Add("ExpandCollapse");
         if (e.Patterns.Value.IsSupported) patterns.Add("Value");
         if (e.Patterns.RangeValue.IsSupported) patterns.Add("RangeValue");

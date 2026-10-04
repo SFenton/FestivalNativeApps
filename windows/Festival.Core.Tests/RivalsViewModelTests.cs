@@ -402,9 +402,12 @@ public class RivalsViewModelTests
         Assert.Equal("Lead Rivals", lead.Title);
         Assert.True(lead.HasIcon);
         Assert.Equal(6, lead.Rows.Count);
+        Assert.Equal("", lead.Subtitle);
+        Assert.False(lead.HasSubtitle);
 
         var board = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.Leaderboard(Instrument.Bass, RankingMetric.TotalScore))));
         Assert.Equal("Ranked by Total Score · You are #1", board.Subtitle);
+        Assert.True(board.HasSubtitle);
         Assert.Equal("instrument_bass.png", board.IconFile);
 
         var common = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common))));
@@ -646,6 +649,8 @@ public class RivalsViewModelTests
         Assert.Equal("fixture-echo", rivalry.Rows[0].Comparison.SongId);
         rivalry.SortIndex = 42;
         Assert.Equal(RivalrySort.YouLead, rivalry.Sort);
+        rivalry.SortIndex = (int)RivalrySort.Title;
+        Assert.Equal(rivalry.Rows.Select(r => r.Title).Order(StringComparer.CurrentCultureIgnoreCase), rivalry.Rows.Select(r => r.Title));
 
         rivalry.RefreshCommand.Execute(null);
         await Async.Until(() => fake.Count($"/api/player/{Me}/rivals/Solo_Guitar/{Rival}") == 2);

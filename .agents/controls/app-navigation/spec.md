@@ -1,6 +1,6 @@
 # App navigation (`fst.nav.*`) — spec
 
-> **What:** platform-neutral web tab/shell rules and the cross-cutting shell controls. **Read when:** changing tabs, sidebars, drawers, deep links or shell chrome on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md). Per-platform chrome: [design/](../../design/README.md).
+> **What:** platform-neutral web tab/shell rules and the cross-cutting shell controls. **Read when:** changing tabs, sidebars, drawers, deep links or shell chrome on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md) · [windows.md](windows.md). Per-platform chrome: [design/](../../design/README.md).
 
 Source: `FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:45-100`, `src/hooks/ui/useTabNavigation.ts:12-35,151-179`. Audit refs: `BottomNav.tsx:41-100`, `MobileHeader.tsx:53-131`, `App.tsx:1011-1107`; header/sidebar profile actions `FortniteFestivalWeb/src/components/shell/HeaderActions.tsx:59-105`, `FortniteFestivalWeb/src/components/shell/desktop/PinnedSidebar.tsx:85-113`.
 
