@@ -330,6 +330,19 @@ class BandsCoreTest {
         assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.listSplit(null))
     }
 
+    @Test
+    fun statColumnsDropToOneAtLargeText() {
+        // 100%: two to four 150 dp tiles.
+        assertEquals(2, BandLayout.statColumns(379f, 1f, largeText = false))
+        assertEquals(2, BandLayout.statColumns(200f, 1f, largeText = false))
+        assertEquals(4, BandLayout.statColumns(1000f, 1f, largeText = false))
+        // 200% phone: one full-width tile per row; a wide pane still fits two.
+        assertEquals(1, BandLayout.statColumns(379f, 2f, largeText = true))
+        assertEquals(2, BandLayout.statColumns(640f, 2f, largeText = true))
+        assertEquals(4, BandLayout.statColumns(2000f, 1.3f, largeText = true))
+        assertEquals(1, BandLayout.statColumns(100f, 0.5f, largeText = true))
+    }
+
     // endregion
 
     // region Song band leaderboard rows

@@ -137,6 +137,24 @@ object BandLayout {
         }
         return Grid(fit, EDGE, EDGE, GUTTER)
     }
+
+    /** Statistics tile width at 100% text. */
+    const val STAT_TILE_MIN = 150f
+
+    /**
+     * Band Statistics tile columns: two to four [STAT_TILE_MIN] tiles normally; at large
+     * text the tile minimum grows with the font scale and one column is allowed, so a
+     * score such as "839,892,184" is never clipped.
+     *
+     * @param contentWidth Grid width.
+     * @param fontScale System font scale.
+     * @param largeText Whether large-text reflow applies.
+     * @return Column count (1–4).
+     */
+    fun statColumns(contentWidth: Float, fontScale: Float, largeText: Boolean): Int {
+        if (!largeText) return max(2, (contentWidth / STAT_TILE_MIN).toInt()).coerceAtMost(4)
+        return max(1, (contentWidth / (STAT_TILE_MIN * max(1f, fontScale))).toInt()).coerceAtMost(4)
+    }
 }
 
 // endregion
