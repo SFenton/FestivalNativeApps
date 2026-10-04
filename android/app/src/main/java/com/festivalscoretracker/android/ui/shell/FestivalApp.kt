@@ -126,10 +126,13 @@ import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.core.shell.FloatingToolbarLift
 import com.festivalscoretracker.android.core.shell.ListDetailLayout
 import com.festivalscoretracker.android.core.shell.ListDetailPolicy
 import com.festivalscoretracker.android.core.shell.ListHead
+import com.festivalscoretracker.android.core.shell.ProfileChipAction
+import com.festivalscoretracker.android.core.shell.ProfileChipPolicy
 import com.festivalscoretracker.android.core.shell.ProfileRoutePolicy
 import com.festivalscoretracker.android.data.notifications.playerNotifications
 import com.festivalscoretracker.android.data.serviceinfo.serviceInfo
@@ -443,6 +446,17 @@ private fun FestivalShell(
     )
     // Only the phone top bar shows a hamburger; the rail header owns it on medium widths.
     val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.BottomBar) ({ scope.launch { drawerState.open() } }) else null
+    // Issue #290 (web getProfileClickDestination): with a profile selected the chip opens its
+    // page, Statistics, like the drawer's profile row; only without one does it open the sheet.
+    val profileChip: () -> Unit = {
+        when (val action = ProfileChipPolicy.action(shellViewModel.profileKind(settings), sections)) {
+            ProfileChipAction.ChooseProfile -> showProfile = true
+            is ProfileChipAction.Open -> when (val target = action.target) {
+                is DrawerTarget.Section -> navController.selectSection(target.section, selected)
+                is DrawerTarget.Push -> navController.navigate(target.route) { launchSingleTop = true }
+            }
+        }
+    }
     val actions = ShellActions(
         navigate = { route ->
             scope.launch { drawerState.close() }
@@ -453,6 +467,7 @@ private fun FestivalShell(
         back = { navController.popBackStack() },
         openDrawer = openDrawer,
         openProfile = { showProfile = true },
+        profileChip = profileChip,
         selectedPlayer = settings.selectedPlayer,
         bottomPadding = bottomPadding,
         search = SearchChrome(presentation = presentation, open = openSearch, report = { requester = it }),
@@ -515,7 +530,7 @@ private fun FestivalShell(
                     player = settings.selectedPlayer,
                     onSection = { navController.selectSection(it, selected) },
                     onOpenDrawer = { scope.launch { drawerState.open() } },
-                    onOpenProfile = { showProfile = true },
+                    onOpenProfile = profileChip,
                 )
             } else {
                 NavigationSuite(

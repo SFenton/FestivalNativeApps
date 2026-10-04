@@ -347,6 +347,27 @@ class ShopOffersStatesUiTest {
         rule.waitUntil(10_000) { settle(100); bounds("fst.shop.song.s-alpha").let { it.left < hinge && it.right > hinge } }
     }
 
+    /**
+     * Large text: the list goes full width (one column, as on every page), but the grid keeps
+     * its columns, so its cards still split at the fold instead of straddling it (issue #113).
+     */
+    @Test
+    @Config(qualifiers = "w790dp-h840dp-xhdpi", fontScale = 2f)
+    fun halfOpenBookFoldAtLargeTextSplitsTheGridButNotTheList() {
+        launch()
+        fold(State.HALF_OPENED)
+        waitForTag("fst.shop.grid")
+        waitForTag("fst.shop.song.s-beta")
+        val offers = listOf("s-alpha", "s-x", "s-beta").map { "fst.shop.song.$it" }
+        assertOffHinge(offers)
+        val hinge = hingeX()
+        assertTrue("cards on both sides", offers.any { bounds(it).right <= hinge } && offers.any { bounds(it).left >= hinge })
+        click("fst.shop.view-toggle")
+        waitForTag("fst.shop.list")
+        waitForTag("fst.shop.song.s-alpha")
+        rule.waitUntil(10_000) { settle(100); bounds("fst.shop.song.s-alpha").let { it.left < hinge && it.right > hinge } }
+    }
+
     @Test
     @Config(qualifiers = "w790dp-h840dp-xhdpi")
     fun halfOpenBookFoldKeepsCentredStatesOnTheLeadingPane() {

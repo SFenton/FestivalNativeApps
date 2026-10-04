@@ -113,14 +113,14 @@ public sealed partial class AllRivalsPage : Page
     {
         if (!split || RivalList.SelectedItem is not RivalRowItem row) return;
         if (row.HasProfile) Show(row);
-        else RivalList.SelectedItem = e.RemovedItems.Count > 0 ? e.RemovedItems[0] : null;
+        else RivalList.SelectedItem = ViewModel.Rows.FirstOrDefault(r => r.HasProfile && r.AccountId == detailAccountId);
     }
 
     /// <summary>Opens a rival in the detail column (once per rival).</summary>
     /// <param name="row">Row.</param>
     private void Show(RivalRowItem row)
     {
-        if (row.AccountId == detailAccountId && DetailFrame.Content is not null) return;
+        if (!row.HasProfile || (row.AccountId == detailAccountId && DetailFrame.Content is not null)) return;
         detailAccountId = row.AccountId;
         DetailFrame.Navigate(typeof(RivalDetailPage), row.Route, new SuppressNavigationTransitionInfo());
     }
@@ -134,6 +134,7 @@ public sealed partial class AllRivalsPage : Page
         if (args.InRecycleQueue || args.Item is not RivalRowItem row) return;
         AutomationProperties.SetName(args.ItemContainer, row.AccessibleName);
         AutomationProperties.SetAutomationId(args.ItemContainer, "fst.all-rivals.row." + row.RowKey);
+        // Anonymous production rows (issues #200, #213) stay readable list items but open nothing.
         args.ItemContainer.IsHitTestVisible = row.HasProfile;
         args.ItemContainer.IsTabStop = row.HasProfile;
     }

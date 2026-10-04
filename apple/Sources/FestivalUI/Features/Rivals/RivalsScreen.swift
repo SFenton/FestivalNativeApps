@@ -35,6 +35,8 @@ struct RivalsScreen: View {
     @State private var dualSelection: AppRoute?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
     private var visible = VisibleInstrumentsReader()
 
     enum Tab: String, CaseIterable, Identifiable {
@@ -53,6 +55,17 @@ struct RivalsScreen: View {
         self.showsRootTrailingItems = showsRootTrailingItems
     }
 
+    /// Opens the Find Rival sheet.
+    private var findRivalButton: some View {
+        Button {
+            findRivalPresented = true
+        } label: {
+            Label("Find Rival", systemImage: Self.findRivalSymbol)
+        }
+        .help("Find Rival")
+        .accessibilityIdentifier("fst.rivals.findRival")
+    }
+
     var body: some View {
         Group {
             if session.selectedPlayer == nil {
@@ -68,25 +81,25 @@ struct RivalsScreen: View {
             // comes from `.pageTrailingItems()`). As a tab root (iPad, Duo
             // unfolded) the toolbar ends with `FestivalRootTrailingItems`. Either way
             // Find Rival precedes the avatar (`.agents/controls/app-navigation/ios.md`).
-            ToolbarItem(placement: .festivalPageAction) {
-                Button {
-                    findRivalPresented = true
-                } label: {
-                    Label("Find Rival", systemImage: Self.findRivalSymbol)
+            if pageTools == nil {
+                ToolbarItem(placement: .festivalPageAction) {
+                    findRivalButton
                 }
-                .help("Find Rival")
-                .accessibilityIdentifier("fst.rivals.findRival")
+                // `/duo` R1 (operator, 2026-10-02): the page's own action stays in the
+                // iPhone Duo rail and global Search overflows into "…" (HIG Designing for
+                // iPhone Duo: "Set visibility priority … to preserve frequent actions").
+                .rivalsRailPriority(isVerticalBar: layout.sectionChrome.isVerticalBar)
             }
-            // `/duo` R1 (operator, 2026-10-02): the page's own action stays in the
-            // iPhone Duo rail and global Search overflows into "…" (HIG Designing for
-            // iPhone Duo: "Set visibility priority … to preserve frequent actions").
-            .rivalsRailPriority(isVerticalBar: layout.sectionChrome.isVerticalBar)
             QuickLinksToolbarItem(quickLinks)
             if showsRootTrailingItems {
                 FestivalRootTrailingItems(session: session)
             }
         }
         .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
+        // iPhone tab-bar accessory (issue #92): Find Rival before Quick Links.
+        .festivalPageTool(token: "findRival", order: PageToolOrder.primary) {
+            findRivalButton
+        }
         .macPageCommands(MacPageCommands(findRival: { findRivalPresented = true }))
         .sheet(isPresented: $findRivalPresented) {
             FindRivalSheet(session: session)

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.data.RequestGate
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -75,8 +76,23 @@ class ProfileSelectionDeviceTest {
         h.tap("fst.player.select")
         h.waitForTag("fst.nav.tab.statistics")
 
-        // The selected sheet views and deselects (confirmed) the player.
+        // Issue #290: with a profile selected the chip opens it (Statistics), not the sheet.
         h.tap(if (h.exists("fst.nav.profile")) "fst.nav.profile" else "fst.nav.rail.profile")
+        h.waitForTag("fst.statistics")
+        assertTrue(!h.exists("fst.profile.sheet"))
+
+        transport.requests.forEach { request ->
+            RequestGate.validateKeyless(request)
+            assertTrue(request.headers.keys.none { it.lowercase().startsWith("x-fst-selected") })
+        }
+        h.assertAccessible()
+    }
+
+    @Test
+    fun selectedSheetViewsAndDeselectsAccessibly() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), opensProfileSheet = true, stillBackground = true), transport)
+        // The selected sheet views and deselects (confirmed) the player.
         h.waitForTag("fst.profile.selected")
         val selected = h.readingOrder("profile-sheet-selected")
         before(selected, "Selected Profile", "Synthetic Player")

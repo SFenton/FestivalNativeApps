@@ -67,6 +67,8 @@ import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
 import com.festivalscoretracker.android.ui.leaderboards.LEADERBOARD_ROW_MIN_HEIGHT
+import com.festivalscoretracker.android.ui.leaderboards.LeaderboardNameText
+import androidx.compose.material3.LocalTextStyle
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
 import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import androidx.compose.ui.unit.dp
@@ -753,7 +755,7 @@ internal fun Modifier.selectedRowHighlight(selected: Boolean): Modifier {
 
 /**
  * One leaderboard row, the unified design shared with the rankings boards (7.7): rank,
- * name, season, score, the web accuracy pill (gold italic outline for an FC, 7.11), stars
+ * name (scrolling inside its column when it doesn't fit, issue #292), season, score, the web accuracy pill (gold italic outline for an FC, 7.11), stars
  * and an in-card chevron on navigable rows (7.3). Which of these show and their widths come
  * from the section's shared [LeaderboardColumnPlan] (issue #37), so every row of a card,
  * including the pinned player row, lines up; a row without a value keeps its column's slot.
@@ -786,13 +788,11 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
         if (plan.rankWidth > 0f) {
             Text(RankingFormatting.rankLabel(entry.rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, modifier = Modifier.width(plan.rankWidth.dp))
         }
-        Text(
+        LeaderboardNameText(
             entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
-            color = BrandTokens.textPrimary,
+            Modifier.weight(1f),
+            style = LocalTextStyle.current,
             fontWeight = weight,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
         if (plan.showMeta) SeasonCell(entry.season, plan.metaWidth)
         Box(Modifier.widthIn(min = plan.valueWidth.dp).testTag("fst.score"), contentAlignment = Alignment.CenterEnd) {

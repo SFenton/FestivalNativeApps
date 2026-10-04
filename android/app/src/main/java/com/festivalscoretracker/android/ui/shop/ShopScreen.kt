@@ -25,10 +25,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.unit.LayoutDirection
 import com.festivalscoretracker.android.core.shop.ShopColumnPolicy
 import com.festivalscoretracker.android.core.shop.ShopColumns
 import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import androidx.compose.material3.ButtonDefaults
@@ -52,6 +56,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -86,7 +91,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
@@ -106,6 +110,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Route
@@ -161,11 +166,15 @@ fun ShopScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilter by rememberSaveable { mutableStateOf(false) }
     // Book/passport posture: content splits at a separating vertical hinge (issue #131).
-    val split = rememberHingeSplit()
+    val split = rememberHingeSplit(keepWhenSingleColumn = true)
+    val singleColumn = rememberSingleColumn()
     BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
-        val hinge = split.value
         val compact = maxWidth < COMPACT_WIDTH
         val effective = if (compact) ShopViewMode.List else viewMode
+        // TalkBack / large text: the list and centred states go full width (as on every page), but the
+        // grid keeps its columns, so it still splits at the fold rather than putting cards across it (#113).
+        val hinge = split.value.takeUnless { singleColumn }
+        val contentHinge = if (effective == ShopViewMode.Grid) split.value else hinge
         FestivalScreen(
             title = "Item Shop",
             isRoot = false,
@@ -204,7 +213,7 @@ fun ShopScreen(
                     // fade/stagger again (web `useViewTransition`, operator 6.10).
                     is LoadState.Loaded -> key(effective) {
                         val switched = rememberViewSwitch(effective)
-                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched, hinge)
+                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched, contentHinge)
                     }
                 }
             }
@@ -240,9 +249,6 @@ private fun rememberViewSwitch(mode: ShopViewMode): Boolean {
 /** Gap between grid cells and between list rows across a hinge. */
 private val SHOP_GUTTER = 10.dp
 
-/** Side padding of the grid and list. */
-private val SHOP_SIDE = 16.dp
-
 /** A hinge leaving less than this on either side does not split the content. */
 private val SHOP_MIN_PANE = 240.dp
 
@@ -272,6 +278,7 @@ private fun StartPane(hinge: Pair<Float, Float>?, content: @Composable () -> Uni
  * @property minPanePx Smallest pane worth splitting for, in pixels.
  * @property densityValue Pixels per dp (grid columns are chosen in dp).
  * @property grid True for the card grid (web columns per pane), false for the one-cell-per-pane list.
+ * @property capExtraPx Width the 1040 dp cap removed from an unsplit row; its columns still follow the page width (web).
  */
 private data class ShopCells(
     val hinge: Pair<Int, Int>?,
@@ -279,6 +286,7 @@ private data class ShopCells(
     val minPanePx: Int,
     val densityValue: Float,
     val grid: Boolean,
+    val capExtraPx: Int = 0,
 ) : GridCells, Arrangement.Horizontal {
     override val spacing: Dp get() = (gutterPx / densityValue).dp
 
@@ -289,7 +297,7 @@ private data class ShopCells(
         hingeEnd = hinge?.second,
         minPane = minPanePx,
         uniform = grid,
-        columnsFor = { px -> if (grid) ShopColumnPolicy.gridColumns(px / densityValue) else 1 },
+        columnsFor = { px -> if (grid) ShopColumnPolicy.gridColumns((px + if (px >= available) capExtraPx else 0) / densityValue) else 1 },
     )
 
     override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> = resolve(availableSize).sizes
@@ -302,6 +310,22 @@ private data class ShopCells(
         }
     }
 }
+
+/** Widest Shop grid/list (web `min(window, 1080) - 40`; M3 "constrain body content to 840–1040 dp"). */
+internal const val SHOP_CONTENT_MAX_WIDTH_DP = 1040f
+
+/** Minimum side margin of the Shop content (M3 compact margin). */
+private const val SHOP_SIDE_MARGIN_DP = 16f
+
+/**
+ * Side margin that keeps the Shop content at most [SHOP_CONTENT_MAX_WIDTH_DP] wide and
+ * centred (M3 large-screen layout), while the list/grid still scrolls edge to edge.
+ *
+ * @param widthDp Width available to the page.
+ * @return Start/end content padding in dp: 16, or half the space beyond the cap.
+ */
+internal fun shopSideMargin(widthDp: Float): Float =
+    maxOf(SHOP_SIDE_MARGIN_DP, (widthDp - SHOP_CONTENT_MAX_WIDTH_DP) / 2f)
 
 @Composable
 private fun HiddenView(padding: PaddingValues) {
@@ -332,13 +356,15 @@ private fun ShopContent(
     val uri = LocalUriHandler.current
     val openOfficial: (ShopOfferItem) -> Unit = { item -> item.officialUrl?.let(uri::openUri) }
     val openDetail: (ShopOfferItem) -> Unit = { item -> item.detailSongId?.let { shell.navigate(SongDetailRoute(it)) } }
-    val contentPadding = PaddingValues(start = SHOP_SIDE, end = SHOP_SIDE, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
     val pulse = rememberShopPulse(active = state.offers.any { it.highlight != null })
     if (state.offers.isEmpty()) {
         StartPane(hinge) {
-            Column(Modifier.fillMaxSize().padding(contentPadding)) {
-                if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
-                if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val side = shopSideMargin(maxWidth.value).dp
+                Column(Modifier.fillMaxSize().padding(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)) {
+                    if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
+                    if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
+                }
             }
         }
         return
@@ -347,19 +373,24 @@ private fun ShopContent(
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-        val side = with(density) { SHOP_SIDE.roundToPx() }
+        // Wide windows centre the content at SHOP_CONTENT_MAX_WIDTH_DP (M3 large-screen body width).
+        val sideDp = shopSideMargin(maxWidth.value).dp
+        val side = with(density) { sideDp.roundToPx() }
         val pageWidth = constraints.maxWidth
+        val contentPadding = PaddingValues(start = sideDp, end = sideDp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
         // The hinge in the content's leading-edge coordinates (the cells mirror back for RTL).
         val contentHinge = hinge?.let { (start, width) ->
             val left = start.roundToInt()
             val right = (start + width).roundToInt()
             if (rtl) (pageWidth - right - side) to (pageWidth - left - side) else (left - side) to (right - side)
         }
-        val cells = remember(contentHinge, density, grid) {
-            ShopCells(contentHinge, with(density) { SHOP_GUTTER.roundToPx() }, with(density) { SHOP_MIN_PANE.roundToPx() }, density.density, grid)
+        // Columns follow the page width (web window width) while tiles fill the capped content.
+        val capExtra = with(density) { (sideDp - SHOP_SIDE_MARGIN_DP.dp).roundToPx() } * 2
+        val cells = remember(contentHinge, density, grid, capExtra) {
+            ShopCells(contentHinge, with(density) { SHOP_GUTTER.roundToPx() }, with(density) { SHOP_MIN_PANE.roundToPx() }, density.density, grid, capExtra)
         }
         // The Details warning spans the row but stays on the leading pane (its Retry never sits on the fold).
-        val leadingWidth = remember(cells, pageWidth) {
+        val leadingWidth = remember(cells, pageWidth, side) {
             val columns = ShopColumnPolicy.resolve(pageWidth - 2 * side, cells.gutterPx, contentHinge?.first, contentHinge?.second, cells.minPanePx) { 1 }
             if (columns.split) with(density) { (columns.positions[0] + columns.sizes[0]).toDp() } else null
         }
@@ -437,13 +468,18 @@ private fun DetailsUnavailable(onRetry: () -> Unit) {
  *
  * @param highlight Accent.
  * @param songId Song (test tag).
+ * @param wordPerLine Large text in a narrow tile: one word per line, each shrunk only as far as
+ *   needed to fit, so a word is never broken across lines ("Tomorro / w").
  */
 @Composable
-fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier = Modifier) {
+fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier = Modifier, wordPerLine: Boolean = false) {
     val leaving = highlight == ShopHighlight.LeavingTomorrow
+    val style = MaterialTheme.typography.labelMedium
     Text(
-        highlight.label,
-        style = MaterialTheme.typography.labelMedium,
+        shopBadgeText(highlight.label, wordPerLine),
+        style = style,
+        softWrap = !wordPerLine,
+        autoSize = if (wordPerLine) TextAutoSize.StepBased(minFontSize = SHOP_BADGE_MIN_SP.sp, maxFontSize = style.fontSize) else null,
         fontWeight = FontWeight.Bold,
         color = if (leaving) BrandTokens.textPrimary else BrandTokens.gold,
         modifier = modifier
@@ -489,7 +525,10 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
     val offer = item.offer
     val shape = RoundedCornerShape(12.dp)
     val open = if (item.officialUrl != null) onOfficial else onDetail
-    Box(
+    val titleStyle = MaterialTheme.typography.titleSmall
+    val artistStyle = MaterialTheme.typography.bodySmall
+    val density = LocalDensity.current
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
@@ -506,6 +545,13 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
         if (artUrl != null) {
             AsyncImage(model = artUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
+        // Large text wraps inside a fixed square: split the room so both texts end in "…" rather than clip.
+        val lines = shopCardTextHeights(
+            tile = maxHeight,
+            titleLine = with(density) { titleStyle.lineHeight.takeIf { it.isSp }?.toDp() ?: 20.dp },
+            artistLine = with(density) { artistStyle.lineHeight.takeIf { it.isSp }?.toDp() ?: 16.dp },
+            badge = item.highlight == ShopHighlight.LeavingTomorrow && isLargeText(),
+        )
         Column(
             Modifier
                 .align(Alignment.BottomStart)
@@ -514,12 +560,14 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
                 .padding(horizontal = 12.dp, vertical = 10.dp)
                 .clearAndSetSemantics { },
         ) {
-            Text(offer.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis)
-            Text(offer.artist, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            Text(offer.title, style = titleStyle, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.heightIn(max = lines.first))
+            Text(offer.artist, style = artistStyle, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).heightIn(max = lines.second))
         }
         if (item.highlight == ShopHighlight.LeavingTomorrow) {
             // The card's description already says "Leaving Tomorrow".
-            ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.align(Alignment.TopEnd).padding(10.dp).clearAndSetSemantics { })
+            Box(Modifier.align(Alignment.TopEnd).padding(10.dp).testTag("fst.shop.badge.leaving.${offer.songId}")) {
+                ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.clearAndSetSemantics { }, wordPerLine = isLargeText())
+            }
         }
         if (item.officialUrl != null) Box(Modifier.size(0.dp).testTag("fst.shop.external.${offer.songId}"))
     }

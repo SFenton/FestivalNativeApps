@@ -10,6 +10,8 @@ import FestivalDesign
 struct LeaderboardsScreen: View {
     let session: FestivalSession
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -129,13 +131,19 @@ struct LeaderboardsScreen: View {
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands(rankByBinding)
         .toolbar {
-            ToolbarItem(placement: .festivalPageAction) {
-                RankByMenu(selection: rankByBinding)
+            if pageTools == nil {
+                ToolbarItem(placement: .festivalPageAction) {
+                    RankByMenu(selection: rankByBinding)
+                }
             }
             QuickLinksToolbarItem(quickLinks)
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
+        // iPhone tab-bar accessory (issue #92): Rank By before Quick Links.
+        .festivalPageTool(token: rankByRaw, order: PageToolOrder.primary) {
+            RankByMenu(selection: rankByBinding)
+        }
         .task(id: reloadKey) {
             // `.task` restarts on every reappearance (e.g. Back from a player). Reloading
             // then reset all cards and re-rendered the page and its toolbar for ~0.5 s,

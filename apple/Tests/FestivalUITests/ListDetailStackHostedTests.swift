@@ -103,7 +103,10 @@ private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: 
     )
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], excluding: ["Select a Rival"]
+        host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], excluding: ["Select a Rival"],
+        // Generous: under a loaded parallel suite the 120 ms auto-select window and the
+        // detail's first load outlasted the default 20 s.
+        timeout: .seconds(90)
     )
     _ = try nativeHostedPNG(image, filename: "list-detail-rivals-autoselected.png", environment: "FST_SHELL_RENDER_OUT")
     #expect(recorder.path == [fixtureRival])

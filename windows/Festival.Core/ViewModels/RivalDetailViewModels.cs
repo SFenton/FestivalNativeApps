@@ -115,8 +115,29 @@ public sealed record RivalSongItem
         $"{Title}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}, {RivalName} ranks {Comparison.RivalRank:N0}, " +
         (Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => "they lead", _ => "tied" });
 
+    /// <summary>
+    /// Screen-reader name of the full (Rivalry) row, which also shows artist, year and both scores. The row's parts are
+    /// hidden from UI Automation, so this one stop reads everything it shows.
+    /// </summary>
+    public string FullAccessibleName
+    {
+        get
+        {
+            var subtitle = Subtitle.Length == 0 ? "" : $", {Subtitle.Replace(" · ", ", ", StringComparison.Ordinal)}";
+            var outcome = Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => "they lead", _ => "tied" };
+            return string.Create(CultureInfo.CurrentCulture,
+                $"{Title}{subtitle}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}{Points(UserScoreText)}, " +
+                $"{RivalName} ranks {Comparison.RivalRank:N0}{Points(RivalScoreText)}, {outcome}");
+        }
+    }
+
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => $"fst.rivalry.song.{Comparison.SongId}.{Comparison.Instrument}";
+
+    /// <summary>Spoken score suffix.</summary>
+    /// <param name="score">Formatted score, or empty when unknown.</param>
+    /// <returns><c>, with N points</c>, or empty.</returns>
+    private static string Points(string score) => score.Length == 0 ? "" : $" with {score} points";
 }
 #endregion
 
@@ -579,7 +600,7 @@ public sealed partial class RivalryViewModel : RivalPageViewModel
     /// <summary>Applies <see cref="Sort"/> to the loaded category.</summary>
     private void ApplySort()
     {
-        Rows = RivalHeadToHead.Sort(categorySongs, s => s.Comparison, Sort);
+        Rows = RivalHeadToHead.Sort(categorySongs, s => s.Comparison, Sort, s => s.Title);
     }
 }
 #endregion

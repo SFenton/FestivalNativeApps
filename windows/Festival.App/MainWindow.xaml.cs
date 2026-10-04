@@ -130,8 +130,26 @@ public sealed partial class MainWindow : Window
         frames[current].Navigate(PageFor(route), route);
     }
 
-    /// <summary>Opens the title-bar profile picker (pages' "Select Player" actions).</summary>
+    /// <summary>Opens the title-bar profile picker (pages' "Select Player" actions, the context menu and Ctrl+Shift+P).</summary>
     public void OpenProfilePicker() => ProfileFlyout.ShowAt(ProfileButton);
+
+    /// <summary>The avatar's click: the selected player's Statistics, or the picker when anonymous (issue #290).</summary>
+    /// <param name="sender">Profile button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnProfileButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (Shell.ProfileButtonAction == ProfileButtonAction.ShowStatistics) Show(AppSection.Statistics);
+        else OpenProfilePicker();
+    }
+
+    /// <summary>Right-click, Shift+F10 or the Menu key on the avatar opens the picker anchored to it.</summary>
+    /// <param name="sender">Profile button.</param>
+    /// <param name="e">Request.</param>
+    private void OnProfileButtonContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        e.Handled = true;
+        OpenProfilePicker();
+    }
 
     /// <summary>Page type for a route; unported routes use the placeholder page.</summary>
     /// <param name="route">Route.</param>

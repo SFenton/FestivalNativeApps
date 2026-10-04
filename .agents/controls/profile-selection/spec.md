@@ -8,6 +8,7 @@ Source: `FortniteFestivalWeb/src/hooks/data/useUnifiedSearch.ts:41-160`, `packag
 
 - Search waits for two characters, debounces 250 ms, loads players and bands independently, and shows errors separately from empty results. Mobile puts the Players/Bands target row **below** results with a custom bottom transition.
 - Opening a result **views** the player/band route; **selecting** it as the current profile is a distinct action. Mobile header uses an icon-only profile action; wide layouts name the selected account in the sidebar.
+- The header profile action opens search **only without a selection**: a selected player (or a band with type and team key) goes to Statistics, their own profile (`FortniteFestivalWeb/src/utils/profileNavigation.ts` `getProfileClickDestination`, `App.tsx:760-773`). Natives match this on every platform (issue #290).
 - Switching/deselecting changes available tabs, song scores and filters (song filters clear on confirmed deselect, not on player-to-player switch). A selected band keeps type, team key and validated members, not just a name.
 
 ## Wire
@@ -27,7 +28,8 @@ Source: `FortniteFestivalWeb/src/hooks/data/useUnifiedSearch.ts:41-160`, `packag
 
 | State | Native acceptance |
 |---|---|
-| No profile | Profile action in every root and wide sidebar |
+| No profile | Profile action in every root and wide sidebar; it opens search |
+| Profile action, player selected | Opens the selected player's Statistics, never search (issue #290) |
 | Search | 250 ms debounce, loading, empty envelope, 403, Retry (only for error/empty) |
 | Viewed result | Preview vs separate confirmed Select |
 | Player selected | Identity persists; scores re-fetched; dependent Songs/Settings update |

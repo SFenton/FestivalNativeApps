@@ -549,11 +549,6 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "focus":
                 Find(window, step).Focus();
                 break;
-            case "reveal":
-                // Scrolls an element (on screen or not) into view through UIA ScrollItem: no real input, so it also
-                // works on a locked console.
-                Find(window, step, onScreen: false).Patterns.ScrollItem.Pattern.ScrollIntoView();
-                break;
             case "waitfor":
                 Find(window, step);
                 break;
@@ -570,6 +565,14 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 var amount = (double?)step["amount"] ?? -3;
                 if (step["selector"] is not null) Mouse.MoveTo(Find(window, step).GetClickablePoint());
                 Mouse.Scroll(amount);
+                break;
+            case "scrollto":
+                var scroller = Find(window, step);
+                if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollto target has no Scroll pattern");
+                scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
+                break;
+            case "reveal":
+                Reveal(window, step);
                 break;
             case "wait":
                 Thread.Sleep(TimeSpan.FromSeconds(double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
@@ -607,6 +610,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertaligned":
                 AssertAligned(window, step);
                 break;
+            case "assertbelow":
+            case "assertlevel":
+                AssertVertical(window, step, verb == "assertbelow");
+                break;
+            case "assertgap":
+                AssertGap(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -620,6 +630,59 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     private void Click(Window window, JsonObject step, MouseButton button) => Mouse.Click(ScreenPoint(window, step), button);
+
+    /// <summary>
+    /// Brings the target on screen without real input (works on a locked console): an existing target is scrolled into view
+    /// through UIA ScrollItem; otherwise (or if that is not enough) its vertical scroller is stepped through the UIA Scroll
+    /// pattern from the top, a viewport at a time. Virtualized targets need not exist yet: the window's first vertically
+    /// scrollable element is used then.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector and an optional timeout (at most 2 s is spent waiting for the target to appear).</param>
+    /// <exception cref="InvalidOperationException">No scroller, or the target never came on screen.</exception>
+    private void Reveal(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var raw = IsRaw(step);
+        bool OnScreen(out AutomationElement? found)
+        {
+            found = InView(raw, () => window.FindFirstDescendant(condition));
+            return found is not null && !found.Properties.IsOffscreen.ValueOrDefault;
+        }
+        // Give a loading page a moment to create the target; a virtualized target that is never realized falls through to stepping.
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds(Math.Min((double?)step["timeout"] ?? 5, 2));
+        AutomationElement? target;
+        while (!OnScreen(out target) && target is null && DateTime.UtcNow < until) Thread.Sleep(200);
+        if (target is not null && !target.Properties.IsOffscreen.ValueOrDefault) return;
+        if (target is not null && target.Patterns.ScrollItem.IsSupported)
+        {
+            target.Patterns.ScrollItem.Pattern.ScrollIntoView();
+            Thread.Sleep(250);
+            if (OnScreen(out var scrolled)) return;
+            target = scrolled ?? target;
+        }
+        AutomationElement? scroller = null;
+        var walker = automation.TreeWalkerFactory.GetControlViewWalker();
+        for (var parent = target is null ? null : walker.GetParent(target); parent is not null; parent = walker.GetParent(parent))
+        {
+            if (parent.Patterns.Scroll.IsSupported && parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) { scroller = parent; break; }
+        }
+        scroller ??= window.FindAllDescendants(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Pane))
+            .FirstOrDefault(e => e.Patterns.Scroll.IsSupported && e.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+            ?? throw new InvalidOperationException("reveal found no vertical scroller");
+        var scroll = scroller.Patterns.Scroll.Pattern;
+        // Step by most of a viewport (VerticalViewSize is the visible share of the extent, which grows as items realize).
+        for (var percent = 0.0; percent <= 100; percent += Math.Clamp(scroll.VerticalViewSize.ValueOrDefault * 0.8, 0.5, 5))
+        {
+            scroll.SetScrollPercent(-1, percent);
+            Thread.Sleep(250);
+            if (OnScreen(out _)) return;
+        }
+        scroll.SetScrollPercent(-1, 100);
+        Thread.Sleep(250);
+        if (OnScreen(out _)) return;
+        throw new InvalidOperationException($"reveal could not bring {label} on screen");
+    }
 
     /// <summary>Writes text through the UIA Value pattern, so no keyboard input is needed (works on a locked console).</summary>
     /// <param name="element">The field, or a container (e.g. an AutoSuggestBox) whose first editable descendant takes the text.</param>
@@ -686,7 +749,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
 
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
-    /// (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -712,6 +775,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                         _ => null,
                     },
                     "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
+                    "selected" => element.Patterns.SelectionItem.PatternOrDefault is { } item
+                        ? item.IsSelected.ValueOrDefault ? "true" : "false"
+                        : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
@@ -750,6 +816,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        var sweepDown = true;
         while (true)
         {
             var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
@@ -757,7 +824,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             {
                 if (!found.Properties.IsOffscreen.ValueOrDefault) return;
                 if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
-                else PageTowards(found);
+                else sweepDown = PageTowards(found, sweepDown);
             }
             else PageDown(window);
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
@@ -783,9 +850,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         target?.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
     }
 
-    /// <summary>Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element.</summary>
+    /// <summary>
+    /// Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element. An element with no
+    /// bounds (e.g. a list footer that has never been laid out in view) gives no direction, so the ancestor is swept
+    /// down to its end and then back up.
+    /// </summary>
     /// <param name="element">Element to bring closer to its viewport.</param>
-    private void PageTowards(AutomationElement element)
+    /// <param name="sweepDown">Sweep direction for an element without bounds.</param>
+    /// <returns>The sweep direction for the next call.</returns>
+    private bool PageTowards(AutomationElement element, bool sweepDown)
     {
         var walker = automation.TreeWalkerFactory.GetControlViewWalker();
         for (var parent = walker.GetParent(element); parent is not null; parent = walker.GetParent(parent))
@@ -793,12 +866,21 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             if (!parent.Patterns.Scroll.IsSupported || !parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) continue;
             var target = element.BoundingRectangle;
             var viewport = parent.BoundingRectangle;
-            var amount = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom
-                ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement
-                : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement;
-            parent.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, amount);
-            return;
+            var scroll = parent.Patterns.Scroll.Pattern;
+            bool down;
+            if (target.IsEmpty)
+            {
+                var percent = scroll.VerticalScrollPercent.ValueOrDefault;
+                if (sweepDown && percent >= 100) sweepDown = false;
+                else if (!sweepDown && percent <= 0) sweepDown = true;
+                down = sweepDown;
+            }
+            else down = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom;
+            scroll.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount,
+                down ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement);
+            return sweepDown;
         }
+        return sweepDown;
     }
 
     private (ConditionBase Condition, string Label) Condition(JsonObject step, string key = "selector")
@@ -888,6 +970,45 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
         response["aligned"] ??= new JsonArray();
         response["aligned"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>
+    /// Compares two elements' vertical centres: <c>assertbelow</c> needs the first at least 8 px lower (e.g. a chip wrapped
+    /// under its row's text), <c>assertlevel</c> needs them within 4 px (e.g. a chip inline on its row's centre line).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c> selectors.</param>
+    /// <param name="below">Whether the first must be lower (else level).</param>
+    /// <exception cref="InvalidOperationException">The relation does not hold.</exception>
+    private void AssertVertical(Window window, JsonObject step, bool below)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var a = first.Top + first.Height / 2.0;
+        var b = second.Top + second.Height / 2.0;
+        if (below ? a - b < 8 : Math.Abs(a - b) > 4)
+            throw new InvalidOperationException($"vertical centres {a:0.#} vs {b:0.#} px are not {(below ? "below" : "level")} ({(string)step["arg"]!})");
+        response["vertical"] ??= new JsonArray();
+        response["vertical"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>
+    /// Fails unless the vertical gap from the first element's bottom edge to the second's top edge is
+    /// <c>epx</c> effective pixels (window DPI), within 1 epx: list-end and footer spacing checks.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c>, <c>other</c> and <c>epx</c>.</param>
+    private void AssertGap(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var gap = (second.Top - first.Bottom) / scale;
+        var expected = (double)step["epx"]!;
+        if (Math.Abs(gap - expected) > 1)
+            throw new InvalidOperationException($"vertical gap {gap:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
+        response["gaps"] ??= new JsonArray();
+        response["gaps"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(gap, 1) });
     }
 
     #endregion

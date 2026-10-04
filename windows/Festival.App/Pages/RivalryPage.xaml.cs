@@ -46,7 +46,7 @@ public sealed partial class RivalryPage : Page
     private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.InRecycleQueue || args.Item is not RivalSongItem row) return;
-        AutomationProperties.SetName(args.ItemContainer, row.AccessibleName);
+        AutomationProperties.SetName(args.ItemContainer, row.FullAccessibleName);
         AutomationProperties.SetAutomationId(args.ItemContainer, row.AutomationId);
     }
 

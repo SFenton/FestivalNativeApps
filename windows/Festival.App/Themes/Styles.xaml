@@ -12,6 +12,10 @@
             <!-- Mutated at runtime to opaque when Windows transparency effects are off. -->
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
+            <!-- Linked card buttons (Player Profile stat cards): hover/press surfaces and the hover outline. -->
+            <SolidColorBrush x:Key="FSTCardSurfacePointerOverBrush" Color="#D91C2436" />
+            <SolidColorBrush x:Key="FSTCardSurfacePressedBrush" Color="#D9161D2C" />
+            <SolidColorBrush x:Key="FSTCardStrokePointerOverBrush" Color="#33FFFFFF" />
             <!-- Hairline between the rows of a multi-row card (operator batch 6.5) and the row hover/press fills, which
                  cover the whole row from card edge to card edge (6.2). -->
             <SolidColorBrush x:Key="FSTRowSeparatorBrush" Color="#1FFFFFFF" />
@@ -67,9 +71,15 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
+            <!-- Gold-outline pill (Player Profile Top 1–5% rows): no fill over the card; Window under a contrast theme so
+                 the pill stays readable on the Highlight row hover. -->
+            <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="#00000000" />
             <!-- Band Detail song rows' "Top N%" pill (web purple percentile badge). -->
             <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="#FF7C3AED" />
             <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="#FFFFFFFF" />
+            <!-- Notifications flag pill (issue #229): white text and the web's translucent ring around the FLAG_COLORS fill. -->
+            <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="#2EFFFFFF" />
             <!-- Rank History chart gridlines (web CartesianGrid stroke; the glass border tint). -->
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="#FF223047" />
@@ -162,6 +172,10 @@
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <!-- The card keeps its Window surface (its texts are WindowText) and shows interaction with a Highlight outline. -->
+            <SolidColorBrush x:Key="FSTCardSurfacePointerOverBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTCardSurfacePressedBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTCardStrokePointerOverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTRowSeparatorBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTRowHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTRowPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
@@ -191,7 +205,7 @@
             <SolidColorBrush x:Key="FSTStatusMissingFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTStatusMissingStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTStatusAmberFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTStatusNoneFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTStatusNoneStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTEmphasisBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
@@ -205,9 +219,13 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <!-- Percentile pills become plain system pills (outlined by FSTNeutralPillStrokeBrush). -->
             <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <!-- Notification flags become outlined system pills; the flag word, not its hue, carries the meaning. -->
+            <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTMutedPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />

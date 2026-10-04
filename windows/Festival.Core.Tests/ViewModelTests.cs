@@ -376,6 +376,36 @@ public class ShellViewModelTests
     }
 
     [Fact]
+    public void ProfileButton_ShowsSelectedPlayersStatistics_AndOpensPickerOnlyWhenAnonymous()
+    {
+        // Issue #290: select a player, go back to Songs, press the avatar: Statistics, never the search flyout.
+        var session = new FakeService().Session();
+        var shell = new ShellViewModel(session);
+        var changed = new List<string?>();
+        shell.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.Equal(ProfileButtonAction.OpenPicker, shell.ProfileButtonAction);
+        Assert.Equal("Opens profile selection.", shell.ProfileButtonHelp);
+        Assert.Equal("Select Player (Ctrl+Shift+P)", shell.ProfileButtonToolTip);
+
+        session.SelectPlayer(new PlayerSearchResult("acc", "Jane Doe"));
+        Assert.Equal(ProfileButtonAction.ShowStatistics, shell.ProfileButtonAction);
+        Assert.Contains(AppSection.Statistics, shell.Sections);
+        Assert.Contains(nameof(ShellViewModel.ProfileButtonAction), changed);
+        Assert.Contains(nameof(ShellViewModel.ProfileButtonHelp), changed);
+        Assert.Contains(nameof(ShellViewModel.ProfileButtonToolTip), changed);
+        Assert.StartsWith("Opens your statistics.", shell.ProfileButtonHelp);
+        Assert.Equal("Show Statistics for Jane Doe\nSwitch profile: Ctrl+Shift+P", shell.ProfileButtonToolTip);
+
+        session.SelectPlayer(new PlayerSearchResult("acc2", "John Roe"));
+        Assert.Equal(ProfileButtonAction.ShowStatistics, shell.ProfileButtonAction);
+        Assert.StartsWith("Show Statistics for John Roe", shell.ProfileButtonToolTip);
+
+        shell.DeselectProfileCommand.Execute(null);
+        Assert.Equal(ProfileButtonAction.OpenPicker, shell.ProfileButtonAction);
+        Assert.Equal("Opens profile selection.", shell.ProfileButtonHelp);
+    }
+
+    [Fact]
     public async Task ProfileSearch_DebouncesAndShowsResults()
     {
         var service = new FakeService();

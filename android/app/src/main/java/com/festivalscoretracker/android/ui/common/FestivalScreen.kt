@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -45,6 +47,7 @@ import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -54,6 +57,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
@@ -71,6 +75,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property back Pop the current tab stack.
  * @property openDrawer Open the modal drawer from the top bar (phone layout only), else null.
  * @property openProfile Open profile selection.
+ * @property profileChip The profile chip's action: the selected profile's page (Statistics), or
+ *   profile selection when none is selected ([com.festivalscoretracker.android.core.shell.ProfileChipPolicy]).
  * @property selectedPlayer Current selected player.
  * @property bottomPadding Space reserved by the bottom bar / system navigation.
  * @property search Global search entry point (`.agents/controls/global-search/android.md`).
@@ -84,6 +90,7 @@ data class ShellActions(
     val back: () -> Unit = {},
     val openDrawer: (() -> Unit)? = null,
     val openProfile: () -> Unit = {},
+    val profileChip: () -> Unit = openProfile,
     val selectedPlayer: SelectedPlayer? = null,
     val bottomPadding: PaddingValues = PaddingValues(),
     val search: SearchChrome = SearchChrome(),
@@ -131,6 +138,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112).
  * @param scrolled Content sits under the bar. No visual effect since batch 6.20 (the bar stays
  *   transparent); kept so screens can still report it without churn.
+ * @param titleIcon Decorative icon drawn before the title (Instrument Leaderboards, issue #294),
+ *   given the title's line height so it scales with the font size. It must not add its own
+ *   accessibility label: the title already names what it shows.
  * @param content Content given padding that clears the top bar and bottom chrome.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,6 +154,7 @@ fun FestivalScreen(
     actionsAboveKeyboard: Boolean = false,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
+    titleIcon: (@Composable (size: Dp) -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val shell = LocalShellActions.current
@@ -188,13 +199,21 @@ fun FestivalScreen(
                 // Only the cutout / system-bar insets this pane actually reaches (issue #101).
                 windowInsets = PaneInsets(TopAppBarDefaults.windowInsets, leftGapPx, rightGapPx),
                 title = {
-                    Text(
-                        title,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        onTextLayout = { titleTruncated = it.hasVisualOverflow || (it.lineCount > 0 && it.isLineEllipsized(0)) },
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (titleIcon != null) {
+                            // The bar's title style (M3 Title Large, 28 sp line), so the icon follows the font scale.
+                            val iconSize = with(LocalDensity.current) { LocalTextStyle.current.lineHeight.toDp() }
+                            Box(Modifier.padding(end = 12.dp).testTag("fst.nav.title-icon")) { titleIcon(iconSize) }
+                        }
+                        Text(
+                            title,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { titleTruncated = it.hasVisualOverflow || (it.lineCount > 0 && it.isLineEllipsized(0)) },
+                            modifier = Modifier.weight(1f, fill = false).testTag("fst.nav.title"),
+                        )
+                    }
                 },
                 navigationIcon = {
                     when {
@@ -211,7 +230,7 @@ fun FestivalScreen(
                         GlobalSearchEntry(shell.search)
                         shell.notifications?.invoke()
                         // Every page, pushed pages included (operator batch 7.12).
-                        ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
+                        ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
                     }
                     if (shell.floatingToolbar == null) {
                         AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
@@ -263,7 +282,7 @@ fun FestivalScreen(
  * Top-right profile avatar: initials when a player is selected, otherwise a person glyph.
  *
  * @param player Selected player.
- * @param onClick Opens profile selection.
+ * @param onClick The profile chip action ([ShellActions.profileChip]).
  */
 @Composable
 fun ProfileAvatarButton(player: SelectedPlayer?, onClick: () -> Unit) {

@@ -136,6 +136,9 @@ struct FestivalTabStack<Root: View>: View {
     var body: some View {
         NavigationStack(path: $path) {
             root
+                // Each page's tools show in the iPhone tab-bar accessory only while it
+                // is the front page (issue #92).
+                .pageToolsScope()
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.isEmpty)
                 .navigationDestination(for: AppRoute.self) { route in
@@ -145,6 +148,7 @@ struct FestivalTabStack<Root: View>: View {
                 )
                 // The bell and profile on every pushed page (issue #92).
                 .pageTrailingItems()
+                .pageToolsScope()
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.last == route)
             }
