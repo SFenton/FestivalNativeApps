@@ -40,6 +40,12 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["timeout"], 10.0)
         self.assertNotIn("timeout", u.parse_step("invoke:id=fst.songs.refresh"))
 
+    def test_reveal_takes_a_selector(self):
+        step = u.parse_step("reveal:id=fst.history.view-all@3")
+        self.assertEqual((step["verb"], step["selector"]["value"], step["timeout"]), ("reveal", "fst.history.view-all", 3.0))
+        with self.assertRaises(ValueError):
+            u.parse_step("reveal:5,6")
+
     def test_coordinates_only_for_clicks(self):
         self.assertEqual(u.parse_step("click:5,6")["selector"]["kind"], "xy")
         self.assertEqual(u.parse_step("hover:5,6")["selector"]["kind"], "xy")
