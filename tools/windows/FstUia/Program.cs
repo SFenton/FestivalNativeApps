@@ -431,12 +431,30 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (e.Patterns.Value.IsSupported) patterns.Add("Value");
         if (e.Patterns.RangeValue.IsSupported) patterns.Add("RangeValue");
         if (e.Patterns.Scroll.IsSupported) patterns.Add("Scroll");
-        return $"{p.ControlType.ValueOrDefault} \"{p.Name.ValueOrDefault}\" id={p.AutomationId.ValueOrDefault} " +
+        return $"{Role(e)} \"{p.Name.ValueOrDefault}\" id={p.AutomationId.ValueOrDefault} " +
                $"class={p.ClassName.ValueOrDefault} rect={r.X},{r.Y},{r.Width},{r.Height}" +
                (p.HelpText.ValueOrDefault is { Length: > 0 } help ? $" help=\"{help}\"" : "") +
                A11yFlags(e) +
                (flags.Count > 0 ? $" [{string.Join(",", flags)}]" : "") +
                (patterns.Count > 0 ? $" patterns={string.Join(",", patterns)}" : "");
+    }
+
+    /// <summary>
+    /// The element's control type name. FlaUI throws <see cref="NotSupportedException"/> for control type ids newer
+    /// than its enum (e.g. inside WinUI's FlipView/PipsPager), so those fall back to the localized type.
+    /// </summary>
+    /// <param name="e">Element.</param>
+    /// <returns>Control type name, or <c>Unknown(localized type)</c>.</returns>
+    internal static string Role(AutomationElement e)
+    {
+        try
+        {
+            return e.Properties.ControlType.ValueOrDefault.ToString();
+        }
+        catch (NotSupportedException)
+        {
+            return $"Unknown({e.Properties.LocalizedControlType.ValueOrDefault})";
+        }
     }
 
     #endregion

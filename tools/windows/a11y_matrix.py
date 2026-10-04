@@ -108,7 +108,9 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
 
     Args:
         page: Page definition: ``ready`` steps, optional ``setup`` (before ready), ``after_ready``
-            (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``.
+            (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``. ``{stem}`` in any step is
+            replaced by the output path stem for this page/size/mode, so extra shots such as
+            ``shot:{stem}-footer.png`` stay distinct per run.
         size: Window preset.
         out: Output directory.
         suffix: File-name suffix for the mode (``""`` for normal).
@@ -128,7 +130,7 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     if count:
         steps.append(f"tabwalk:{count}")
     steps.extend(page.get("teardown", []))
-    return steps
+    return [s.replace("{stem}", str(out / stem)) for s in steps]
 
 
 def summarize_focus(focus: list[dict]) -> dict:
