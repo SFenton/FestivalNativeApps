@@ -402,9 +402,12 @@ public class RivalsViewModelTests
         Assert.Equal("Lead Rivals", lead.Title);
         Assert.True(lead.HasIcon);
         Assert.Equal(6, lead.Rows.Count);
+        Assert.Equal("", lead.Subtitle);
+        Assert.False(lead.HasSubtitle);
 
         var board = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.Leaderboard(Instrument.Bass, RankingMetric.TotalScore))));
         Assert.Equal("Ranked by Total Score · You are #1", board.Subtitle);
+        Assert.True(board.HasSubtitle);
         Assert.Equal("instrument_bass.png", board.IconFile);
 
         var common = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common))));
@@ -463,7 +466,7 @@ public class RivalsViewModelTests
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
         var closest = detail.Categories[0];
         Assert.Equal("View All 4 Songs", closest.SeeAllText);
-        Assert.Equal("View 1 song", detail.Categories[1].SeeAllText);
+        Assert.Equal("View 1 Song", detail.Categories[1].SeeAllText);
         Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "Fixture Rival Golf", scope), closest.SeeAllRoute);
         Assert.Equal("fst.rival-detail.category.closest_battles", closest.AutomationId);
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);

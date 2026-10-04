@@ -1,0 +1,32 @@
+[
+  {
+    "name": "nav-anonymous",
+    "tab": "songs",
+    "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20", "waitfor:id=fst.shell.profile@5"]
+  },
+  {
+    "name": "nav-player",
+    "tab": "statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": ["waitfor:id=fst.player.name@20"]
+  },
+  {
+    "name": "nav-band",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "ready": ["waitfor:id=fst.band.title@20"]
+  },
+  {
+    "name": "nav-settings",
+    "tab": "settings",
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"]
+  },
+  {
+    "name": "nav-pane-open",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": ["compact"],
+    "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
+    "after_ready": ["key:esc", "wait:0.5", "invoke:id=PART_PaneToggleButton", "waitfor:id=fst.nav.statistics@5"],
+    "teardown": ["key:esc", "wait:0.5"]
+  }
+]

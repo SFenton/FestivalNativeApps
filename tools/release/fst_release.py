@@ -826,34 +826,66 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
         "type": "appStoreVersions", "id": version_id, "attributes": attributes,
         "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
 
-    # After App Review rejects a version its submission stays open (UNRESOLVED_ISSUES) and still owns the
-    # version; resubmitting means submitting that same submission again.
-    reusable = client.get("/v1/apps/%s/reviewSubmissions" % app_id, {
-        "filter[platform]": asc_platform, "filter[state]": "READY_FOR_REVIEW,UNRESOLVED_ISSUES", "limit": "1"})
-    open_subs = reusable.get("data") or []
-    if open_subs:
-        submission_id = str(open_subs[0]["id"])
-    else:
-        sub = client.request("POST", "/v1/reviewSubmissions", body={"data": {
-            "type": "reviewSubmissions", "attributes": {"platform": asc_platform},
-            "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}})
-        submission_id = str(sub["data"]["id"])
-    items = client.get("/v1/reviewSubmissions/%s/items" % submission_id, {"limit": "50"}) \
-        if open_subs else {}
-    already = any(
-        (((i.get("relationships") or {}).get("appStoreVersion") or {}).get("data") or {}).get("id")
-        == version_id for i in (items.get("data") or []))
-    if not already:
-        client.request("POST", "/v1/reviewSubmissionItems", body={"data": {
-            "type": "reviewSubmissionItems",
-            "relationships": {
-                "reviewSubmission": {"data": {"type": "reviewSubmissions", "id": submission_id}},
-                "appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}}}}})
+    submission_id, items = _submission_for(client, app_id, asc_platform, version_id)
+    try:
+        if version_id not in items:
+            _add_item(client, submission_id, version_id)
+    except AscError as err:
+        owner = re.search(r"reviewSubmission with id ([0-9a-f-]{36})", err.detail or "")
+        if not owner or owner.group(1) == submission_id:
+            raise
+        submission_id = owner.group(1)  # ASC names the submission that already owns the version: submit that one
     client.request("PATCH", "/v1/reviewSubmissions/%s" % submission_id, body={"data": {
         "type": "reviewSubmissions", "id": submission_id, "attributes": {"submitted": True}}})
     return {"submitted": not client.dry_run, "dry_run": client.dry_run, "version": marketing,
             "build": str(build_number), "version_id": version_id,
             "submission_id": submission_id, "whats_new": whats_new}
+
+
+def _submission_items(client: AscClient, submission_id: str) -> List[str]:
+    """``appStoreVersion`` ids already in review submission ``submission_id``."""
+    items = client.get("/v1/reviewSubmissions/%s/items" % submission_id, {"limit": "50"})
+    return [str((((i.get("relationships") or {}).get("appStoreVersion") or {}).get("data") or {}).get("id"))
+            for i in (items.get("data") or [])]
+
+
+def _submission_for(client: AscClient, app_id: str, asc_platform: str, version_id: str) -> Tuple[str, List[str]]:
+    """The review submission to submit ``version_id`` with.
+
+    After App Review rejects a version, its submission stays open (``UNRESOLVED_ISSUES``) and still owns the
+    version, so resubmitting means submitting that same submission. Prefer an open submission that already
+    contains the version (rejected first), then an empty draft (``READY_FOR_REVIEW`` without items, e.g. left by
+    an earlier failed attempt), and only then create a new one, so failed retries never pile up drafts.
+
+    Returns:
+        ``(submission id, appStoreVersion ids already in it)``.
+    """
+    open_subs = client.get("/v1/apps/%s/reviewSubmissions" % app_id, {
+        "filter[platform]": asc_platform, "filter[state]": "READY_FOR_REVIEW,UNRESOLVED_ISSUES",
+        "limit": "50"}).get("data") or []
+    ranked = sorted(open_subs, key=lambda sub: ((sub.get("attributes") or {}).get("state") != "UNRESOLVED_ISSUES"))
+    empty: Optional[str] = None
+    for sub in ranked:
+        items = _submission_items(client, str(sub["id"]))
+        if version_id in items:
+            return str(sub["id"]), items
+        if not items and empty is None:
+            empty = str(sub["id"])
+    if empty is not None:
+        return empty, []
+    created = client.request("POST", "/v1/reviewSubmissions", body={"data": {
+        "type": "reviewSubmissions", "attributes": {"platform": asc_platform},
+        "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}})
+    return str(created["data"]["id"]), []
+
+
+def _add_item(client: AscClient, submission_id: str, version_id: str) -> None:
+    """Add ``version_id`` to review submission ``submission_id``."""
+    client.request("POST", "/v1/reviewSubmissionItems", body={"data": {
+        "type": "reviewSubmissionItems",
+        "relationships": {
+            "reviewSubmission": {"data": {"type": "reviewSubmissions", "id": submission_id}},
+            "appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}}}}})
 
 
 def beta_notes(client: AscClient, group: str, bundle_id: str, build_number: str, notes: str,

@@ -192,6 +192,44 @@ class RivalsViewModelTest {
         advanceUntilIdle()
     }
 
+    @Test
+    fun commonRivalsLeavesOutFailedChartsAndFailsOnlyWhenEveryChartFails() = runTest(main.dispatcher) {
+        val partial = RivalsFixtures.transport().apply {
+            onRaw("/api/player/$player/rivals/Solo_Drums") {
+                HttpResult(503, ByteArray(0), mapOf("Retry-After" to "30", "X-FST-Public-Read-Freeze-Reason" to "post-process"))
+            }
+        }
+        val charts = listOf(Instrument.Lead, Instrument.Bass, Instrument.Drums)
+        val common = AllRivalsViewModel(player, RivalScopes.song(charts), charts.toSet(), repository(partial), ServiceRetryBackoff())
+        advanceUntilIdle()
+        val content = common.state.value.valueOrNull!!
+        // Lead ∩ Bass, as if Drums had no data (web and hub Common card behaviour).
+        assertEquals(listOf(ids[0], ids[1]), content.entries.map { it.rival.accountId })
+        assertEquals("Lead · Bass · Drums", content.subtitle)
+
+        var frozen = true
+        val down = RivalsFixtures.transport().apply {
+            listOf("Solo_Guitar", "Solo_Bass").forEach { chart ->
+                onRaw("/api/player/$player/rivals/$chart") {
+                    if (frozen) {
+                        HttpResult(503, ByteArray(0), mapOf("Retry-After" to "30", "X-FST-Public-Read-Freeze-Reason" to "scrape"))
+                    } else {
+                        HttpResult(200, RivalsFixtures.list(chart, listOf(RivalsFixtures.rival(ids[0], "Synthetic Alpha")), emptyList()).toByteArray())
+                    }
+                }
+            }
+        }
+        val failed = AllRivalsViewModel(player, RivalScopes.song(listOf(Instrument.Lead, Instrument.Bass)), leadBass, repository(down), ServiceRetryBackoff())
+        runCurrent()
+        val state = failed.state.value
+        assertTrue(state is LoadState.Failed)
+        assertTrue((state as LoadState.Failed).issue is ServiceIssue.ScrapeInProgress)
+        frozen = false
+        advanceTimeBy(31_000)
+        runCurrent()
+        assertEquals(listOf(ids[0]), failed.state.value.valueOrNull!!.entries.map { it.rival.accountId })
+    }
+
     // endregion
 
     // region Detail
