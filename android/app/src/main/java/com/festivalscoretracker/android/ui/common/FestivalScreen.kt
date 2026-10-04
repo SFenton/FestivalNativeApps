@@ -71,6 +71,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property back Pop the current tab stack.
  * @property openDrawer Open the modal drawer from the top bar (phone layout only), else null.
  * @property openProfile Open profile selection.
+ * @property profileChip The profile chip's action: the selected profile's page (Statistics), or
+ *   profile selection when none is selected ([com.festivalscoretracker.android.core.shell.ProfileChipPolicy]).
  * @property selectedPlayer Current selected player.
  * @property bottomPadding Space reserved by the bottom bar / system navigation.
  * @property search Global search entry point (`.agents/controls/global-search/android.md`).
@@ -84,6 +86,7 @@ data class ShellActions(
     val back: () -> Unit = {},
     val openDrawer: (() -> Unit)? = null,
     val openProfile: () -> Unit = {},
+    val profileChip: () -> Unit = openProfile,
     val selectedPlayer: SelectedPlayer? = null,
     val bottomPadding: PaddingValues = PaddingValues(),
     val search: SearchChrome = SearchChrome(),
@@ -211,7 +214,7 @@ fun FestivalScreen(
                         GlobalSearchEntry(shell.search)
                         shell.notifications?.invoke()
                         // Every page, pushed pages included (operator batch 7.12).
-                        ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
+                        ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
                     }
                     if (shell.floatingToolbar == null) {
                         AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
@@ -263,7 +266,7 @@ fun FestivalScreen(
  * Top-right profile avatar: initials when a player is selected, otherwise a person glyph.
  *
  * @param player Selected player.
- * @param onClick Opens profile selection.
+ * @param onClick The profile chip action ([ShellActions.profileChip]).
  */
 @Composable
 fun ProfileAvatarButton(player: SelectedPlayer?, onClick: () -> Unit) {
