@@ -44,6 +44,27 @@ import Testing
     #expect(ScrollEdgeFade.bottomDistance(lastRowOverflow: 5, distance: -1) == 0)
 }
 
+/// Overflow is the content left below the unobscured bottom: positive mid-list, 0 at
+/// the end, negative for a short or overscrolled list.
+@Test func contentOverflowTracksListEnd() {
+    // 1,500 pt of rows in a 800 pt view with 120 pt chrome and a 100 pt top inset.
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1500, offsetY: -100, containerHeight: 800, bottomInset: 120
+    ) == 920)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1500, offsetY: 820, containerHeight: 800, bottomInset: 120
+    ) == 0)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1500, offsetY: 850, containerHeight: 800, bottomInset: 120
+    ) == -30)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 300, offsetY: -100, containerHeight: 800, bottomInset: 120
+    ) == -280)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: .nan, offsetY: 0, containerHeight: 800, bottomInset: 0
+    ) == nil)
+}
+
 /// The last row rests one row gap above the footer, or above the pager when the
 /// player has no score; the footer rests one row gap above the pager.
 @Test func pinnedChromeKeepsRowGap() {

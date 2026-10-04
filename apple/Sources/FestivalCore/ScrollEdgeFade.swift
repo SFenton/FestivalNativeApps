@@ -52,7 +52,8 @@ public enum ScrollEdgeFade {
     ///
     /// - Parameters:
     ///   - lastRowOverflow: Points the last row's bottom sits below its resting
-    ///     position; nil while the last row is not laid out (far from the end).
+    ///     position (``contentOverflow(contentHeight:offsetY:containerHeight:bottomInset:)``);
+    ///     nil when unknown.
     ///   - distance: Full fade height.
     /// - Returns: A fade height between 0 and `distance`.
     public static func bottomDistance(lastRowOverflow: Double?, distance: Double = distance) -> Double {
@@ -60,6 +61,28 @@ public enum ScrollEdgeFade {
         guard let lastRowOverflow else { return full }
         guard lastRowOverflow.isFinite else { return lastRowOverflow > 0 ? full : 0 }
         return min(max(lastRowOverflow, 0), full)
+    }
+
+    /// How far a scroll view's content still runs below its unobscured bottom edge:
+    /// positive while there is more to scroll, 0 at the end, negative when the content
+    /// is shorter than the view or overscrolled past its end (issue #293).
+    ///
+    /// Measured from the scroll view itself rather than from the last row: a row in a
+    /// `List` did not report its moving frame while scrolling, so the fade stayed on it.
+    ///
+    /// - Parameters:
+    ///   - contentHeight: Height of the scrollable content (including its last row's
+    ///     bottom inset).
+    ///   - offsetY: Vertical content offset (negative under a top inset).
+    ///   - containerHeight: Height of the scroll view.
+    ///   - bottomInset: Content inset at the bottom (pinned chrome and safe area).
+    /// - Returns: Points of content past the unobscured bottom, or nil for a
+    ///   non-finite input.
+    public static func contentOverflow(
+        contentHeight: Double, offsetY: Double, containerHeight: Double, bottomInset: Double
+    ) -> Double? {
+        let overflow = contentHeight - (offsetY + containerHeight - bottomInset)
+        return overflow.isFinite ? overflow : nil
     }
 }
 

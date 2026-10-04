@@ -33,9 +33,9 @@ struct SoloLeaderboardScreen: View {
     @State private var shownPayload: LeaderboardPayload?
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
-    /// Bottom edge of the page's last row in ``pageSpace``; nil while it is not laid
-    /// out. Shrinks the bottom fade at the end of the list (issue #293).
-    @State private var lastRowBottom: CGFloat?
+    /// Height of the rows' bottom fade: full mid-list (and before iOS 18 / macOS 15),
+    /// shrinking to 0 as the list reaches its end (issue #293).
+    @State private var bottomFadeDistance = ScrollEdgeFade.distance
 
     /// Row insets: two rows sit ``rowGap`` apart.
     nonisolated private static let rowInset: CGFloat = 4
@@ -155,10 +155,6 @@ struct SoloLeaderboardScreen: View {
                                 "fst.song-leaderboard.row.\(entry.accountId)"
                             )
                             .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-                            .modifier(LastRowBottomReader(
-                                isLast: index == payload.leaderboard.entries.count - 1,
-                                space: Self.pageSpace, bottom: $lastRowBottom
-                            ))
                             .listRowInsets(EdgeInsets(
                                 top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
                             ))
@@ -169,6 +165,7 @@ struct SoloLeaderboardScreen: View {
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                     .rankingsListRailClearance(layout)
+                    .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
                     // Rows fade out over up to 36 pt above the pinned footer and pager
                     // and are not drawn beneath them (web `useScrollFade`, issue #93),
                     // so the chrome floats over the page background with no opaque
@@ -309,13 +306,6 @@ struct SoloLeaderboardScreen: View {
         )
     }
 
-    /// How far the last row's bottom sits below its resting place (its bottom inset
-    /// above the chrome); nil while it is not laid out or there is no chrome.
-    private var lastRowOverflow: Double? {
-        guard let lastRowBottom, let bottomChromeTop else { return nil }
-        return Double(lastRowBottom + Self.rowInset - bottomChromeTop)
-    }
-
     /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
     /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
     /// reaches its resting place, one row gap above the chrome (issue #293). Extends
@@ -326,7 +316,7 @@ struct SoloLeaderboardScreen: View {
             let stops = ScrollEdgeFade.bottom(
                 height: Double(frame.height),
                 obscured: bottomChromeTop.map { Double(frame.maxY - $0) } ?? 0,
-                distance: ScrollEdgeFade.bottomDistance(lastRowOverflow: lastRowOverflow)
+                distance: bottomFadeDistance
             )
             if bottomChromeTop == nil {
                 Color.black
@@ -573,24 +563,29 @@ struct SoloLeaderboardScreen: View {
 
 }
 
-// MARK: - Last row reader
+// MARK: - Bottom fade distance reader
 
-/// Reports the bottom edge of a list's last row in a named coordinate space while it
-/// is laid out, and nil once it leaves (issue #293). Other rows are untouched.
-private struct LastRowBottomReader: ViewModifier {
-    let isLast: Bool
-    let space: String
-    @Binding var bottom: CGFloat?
+/// Reports the bottom fade height for how far a `List`'s rows still run below its
+/// pinned chrome (iOS 18 / macOS 15 and later; nothing before, which keeps the full
+/// fade). Read from the scroll view: a last-row frame reader did not update while the
+/// List scrolled, so the fade stayed on the resting last row (issue #293). The value
+/// is clamped before it reaches the screen, so only the last fade-height of scrolling
+/// re-renders it.
+private struct BottomFadeDistanceReader: ViewModifier {
+    let changed: (Double) -> Void
 
     func body(content: Content) -> some View {
-        if isLast {
-            content
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.frame(in: .named(space)).maxY
-                } action: { maxY in
-                    bottom = maxY
-                }
-                .onDisappear { bottom = nil }
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.onScrollGeometryChange(for: Double.self) { geometry in
+                ScrollEdgeFade.bottomDistance(lastRowOverflow: ScrollEdgeFade.contentOverflow(
+                    contentHeight: Double(geometry.contentSize.height),
+                    offsetY: Double(geometry.contentOffset.y),
+                    containerHeight: Double(geometry.containerSize.height),
+                    bottomInset: Double(geometry.contentInsets.bottom)
+                )).rounded()
+            } action: { _, distance in
+                changed(distance)
+            }
         } else {
             content
         }
