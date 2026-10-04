@@ -128,7 +128,8 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 MetaText.FontSize = 14;
                 ValueText.Text = score.Score;
                 BayesianText.Visibility = Visibility.Collapsed;
-                PillText.Text = score.Accuracy;
+                PillText.Text = score.BadgeText;
+                AutomationProperties.SetAutomationId(PillText, BadgeAutomationId(score));
                 Pill.Background = ScoreBadge.Fill(score.IsFullCombo, score.AccuracyValue);
                 Pill.BorderBrush = ScoreBadge.Stroke(score.IsFullCombo);
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
@@ -143,6 +144,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 BayesianText.Text = ranking.BayesianText;
                 BayesianText.Visibility = ranking.BayesianText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 StarsView.Stars = 0;
+                PillText.ClearValue(AutomationProperties.AutomationIdProperty);
                 break;
         }
         AutomationProperties.SetName(RowButton, row.Announcement);
@@ -155,6 +157,16 @@ public sealed partial class LeaderboardEntryRow : UserControl
         ApplySurface();
         UpdateColumns();
     }
+
+    /// <summary>
+    /// The badge's UIA ID: the model's <c>fst.score.accuracy.…</c>, or one derived from <see cref="RowAutomationId"/> so a
+    /// pinned copy of a listed row doesn't repeat the listed badge's ID.
+    /// </summary>
+    /// <param name="score">Score row.</param>
+    /// <returns>Automation ID.</returns>
+    private string BadgeAutomationId(ILeaderboardScoreRow score) =>
+        string.IsNullOrEmpty(rowAutomationId) ? score.BadgeAutomationId
+            : "fst.score.accuracy." + rowAutomationId[(rowAutomationId.LastIndexOf('.') + 1)..];
 
     /// <summary>
     /// Bold for the selected player (web <c>isPlayer</c>; operator batch 6.42): rank and name on score rows, plus the songs
@@ -224,7 +236,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
         ValueColumn.MinWidth = plan.Stacked ? 0 : plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
-        Pill.Visibility = plan.ShowAccuracy && score is { HasAccuracy: true } ? Visibility.Visible : Visibility.Collapsed;
+        Pill.Visibility = plan.ShowAccuracy && score is { BadgeText.Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         StarsColumn.MinWidth = plan.StarsWidth;
         StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         PlaceColumns(plan, RankText.Text.Length > 0);
