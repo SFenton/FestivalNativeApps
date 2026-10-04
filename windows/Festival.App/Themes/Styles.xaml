@@ -87,6 +87,12 @@
             <SolidColorBrush x:Key="FSTDangerBorderBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTDangerBorderPointerOverBrush" Color="#FFD84343" />
             <SolidColorBrush x:Key="FSTDangerBorderPressedBrush" Color="#FFA82020" />
+            <!-- Settings (issue #214): reorder-list rows and stroke, Service Info progress bar. Its scoped button styling lives in
+                 Themes/*ButtonResources.xaml theme dictionaries so a live contrast switch re-resolves it. -->
+            <SolidColorBrush x:Key="FSTReorderRowBrush" Color="#0DFFFFFF" />
+            <SolidColorBrush x:Key="FSTReorderStrokeBrush" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="FSTProgressFillBrush" Color="#FF7C3AED" />
+            <SolidColorBrush x:Key="FSTProgressTrackBrush" Color="#FF223047" />
             <!--
                 Shell chrome over the artwork backdrop (MainWindow): the docked pane and the content area are transparent,
                 so the backdrop's dim scrim is the only layer (no Mica, no LayerFill, no 1 px content border). The pane
@@ -184,6 +190,11 @@
             <SolidColorBrush x:Key="FSTDangerBorderBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTDangerBorderPointerOverBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="FSTDangerBorderPressedBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <!-- Settings reorder lists and Service Info progress bar. -->
+            <SolidColorBrush x:Key="FSTReorderRowBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTReorderStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTProgressFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTProgressTrackBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
