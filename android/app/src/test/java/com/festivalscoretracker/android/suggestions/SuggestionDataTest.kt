@@ -15,6 +15,7 @@ import com.festivalscoretracker.android.data.suggestions.suggestionRivals
 import com.festivalscoretracker.android.data.suggestions.suggestionScores
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.SuggestionFixtures
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest

@@ -1,0 +1,33 @@
+[
+  {
+    "name": "stars-leaderboard",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "stars-gold-average",
+    "route": "/player/fixture-player-1",
+    "ready": [
+      "waitfor:id=fst.player.stat.overview.songs-played@30",
+      "scrollinto:id=fst.player.stat.Solo_Guitar.avg-stars@30",
+      "waitfor:name=Avg Stars: 5 gold stars@5",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "stars-gold-average-quick-links",
+    "route": "/player/fixture-player-1",
+    "ready": [
+      "waitfor:id=fst.player.stat.overview.songs-played@30",
+      "invoke:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Guitar@5",
+      "toggle:id=fst.quick-links.item.instrument:Solo_Guitar",
+      "scrollinto:id=fst.player.stat.Solo_Guitar.avg-stars@30",
+      "waitfor:name=Avg Stars: 5 gold stars@5",
+      "wait:1"
+    ]
+  }
+]

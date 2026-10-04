@@ -14,7 +14,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 
 ## Selected vs viewed
 
-- `SelectedProfileStore` (`AppContainer.selectedProfile`, started by `FestivalApp`) owns the selected player's process-only scores: it reloads on a switch or a publication advance, clears on deselect, drops late reads for a previous account and counts down a scrape freeze. Songs and Suggestions read `state.scoreIndex` + `observedPublicationId` instead of reading again.
+- `SelectedProfileStore` (`AppContainer.selectedProfile`, started by `FestivalApp`) owns the selected player's process-only scores: it reloads on a switch or a publication advance, clears on deselect, drops late reads for a previous account and counts down a scrape freeze. Its read runs in the scope `FestivalApp` passes to `start()`, so an activity recreation mid-read (font scale is not in `configChanges`) cancels it; the next `start()` resumes an interrupted `Loading` or counting-down `Failed` read instead of treating the same account as current (issue #111: Statistics used to spin forever). Songs and Suggestions read `state.scoreIndex` + `observedPublicationId` instead of reading again.
 - The page mirrors the store when the shown account is the selected one, else runs its own read. Select seeds the store from the same read (no second GET) and persists through `ShellViewModel.selectPlayer`; a deselect (from the drawer) keeps showing the read as a viewed profile.
 
 | Read state | Identity row |
@@ -23,13 +23,15 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 | Header-verified and current, nothing selected | **Select Profile**, immediate |
 | Another player selected | **Switch to This Profile** → confirmation |
 | No `X-FST-Publication-Id` | "Selection is paused" notice |
-| Publication advanced since the read | "Reload this page before selecting" notice |
+| Publication advanced since the read | "Reload this page before selecting" notice + **Reload** (`fst.player.reload`, re-reads the page; issue #133) |
+
+A failed select (`fst.player.action-error`) also offers Reload, which clears the error and reads again (`PlayerProfileUiState.offersReload`). The page has no pull-to-refresh, so without the button the notice was a dead end.
 
 None of these navigate. Selecting adds the profile tabs in place; deselecting (drawer) on the Statistics tab removes that tab, so the shell falls back to Songs (as on Windows).
 
 ## Layout
 
-- `ProfileGrid` (`ui/profile/ProfileGrid.kt`): a `LazyVerticalStaggeredGrid` whose columns come from `ProfileColumns` (`core/profile/ProfileLayout.kt`, reusing the Rivals lane's `HingeColumns`): one column per 340 dp (max 3), or one column per panel with the gaps on every separating vertical hinge (book fold half-open; a partly folded tri-fold). When split at a fold, the full-width rows (identity row, Overview, Top Songs heading, Bands) become single-lane so nothing straddles the hinge; flat folds (unfolded book, FST_TriFold) are not separating and use width rules.
+- `ProfileGrid` (`ui/profile/ProfileGrid.kt`): a `LazyVerticalStaggeredGrid` whose columns come from `ProfileColumns` (`core/profile/ProfileLayout.kt`, reusing the Rivals lane's `HingeColumns`): one column per 340 dp (max 3), or one column per panel with the gaps on every separating vertical hinge (book fold half-open; a partly folded tri-fold). When split at a fold, the full-width rows (identity row, Overview, Top Songs heading, Bands) become single-lane so nothing straddles the hinge; flat folds (unfolded book, FST_TriFold) are not separating and use width rules. The page reports the split (`onSplitChange`) and `ProfileScaffold` keys its grid state on it (`rememberProfileGridState`): the span change keeps the lane count, so the old state's lane cache left a gap beside Overview after a later jump to Global (issue #111).
 - Rows (`ProfileSections.rows`, web `PlayerContent.tsx` order): identity row (only when it has content), Overview, one card per Settings-visible chart, "Top Songs Per Instrument", one top-songs card per chart, Bands link.
 - No avatar/name card (issue #97): the top bar already shows the player's name, so the page starts at Overview. A plain full-width identity row (`fst.player.identity`, no card) leads only while it has something to show: the Select/Switch button, the paused-selection notice or the action error (`PlayerProfileUiState.showsIdentityRow`). The selected player's page has none (Deselect lives in the drawer). TalkBack's first heading is the Overview section header. Selection state shows only through the Select/Switch control (the web header has no "This Is Me"/"Public Profile" line).
 - Text is white (`textPrimary`/onSurface) by default; gray (`textSecondary`/`textMuted`) only for de-emphasis: section descriptions, top-song subtitles, history dates, chart axes.
@@ -77,7 +79,7 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## IDs
 
-`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,identity,select,identity-notice,action-error,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.stats.<wire>`, `fst.player.global-rank.<wire>.error`, `fst.player.rank-history.<wire>[.loading]`, `fst.player.rank-history.{plot,detail,back-page,back-entry,forward-entry,forward-page}`, `fst.player.rank-history.row.<yyyy-MM-dd>`, `fst.player.percentiles.<wire>`, `fst.player.percentile-row.<topPercent>`, `fst.player.tile.<overview|wire>.<tile id>` (ids: `songs-played`, `full-combos`, `gold-stars`, `stars-<6..1>`, `avg-accuracy`, `avg-stars`, `best-rank`, `global-rank`, `percentile`, `songs-played-percentile`), `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
+`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,identity,select,identity-notice,action-error,reload,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.stats.<wire>`, `fst.player.global-rank.<wire>.error`, `fst.player.rank-history.<wire>[.loading]`, `fst.player.rank-history.{plot,detail,back-page,back-entry,forward-entry,forward-page}`, `fst.player.rank-history.row.<yyyy-MM-dd>`, `fst.player.percentiles.<wire>`, `fst.player.percentile-row.<topPercent>`, `fst.player.tile.<overview|wire>.<tile id>` (ids: `songs-played`, `full-combos`, `gold-stars`, `stars-<6..1>`, `avg-accuracy`, `avg-stars`, `best-rank`, `global-rank`, `percentile`, `songs-played-percentile`), `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
 
 ## Tests
 

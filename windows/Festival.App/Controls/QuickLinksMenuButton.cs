@@ -15,6 +15,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
 {
     private QuickLinksViewModel? model;
     private bool suppressed;
+    private bool chosen;
 
     /// <summary>Fluent's minimum touch target in epx, matching the <c>FSTMinTargetSize</c> resource.</summary>
     public const double MinTargetSize = 40;
@@ -72,6 +73,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
     private void Populate()
     {
         var menu = (MenuFlyout)Flyout;
+        chosen = false;
         menu.Items.Clear();
         if (model is null) return;
         foreach (var item in model.Items)
@@ -87,9 +89,25 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
             AutomationProperties.SetAutomationId(entry, item.AutomationId);
             AutomationProperties.SetName(entry, item.AccessibleName);
             var id = item.Section.Id;
-            entry.Click += (_, _) => model.Jump(id);
+            entry.Click += (_, _) => Choose(id);
+            // A radio item's UIA peer offers Toggle, not Invoke: Narrator's default action and other UIA clients check it
+            // without raising Click, so a newly checked item jumps too.
+            entry.RegisterPropertyChangedCallback(ToggleMenuFlyoutItem.IsCheckedProperty, (sender, _) =>
+            {
+                if (sender is ToggleMenuFlyoutItem { IsChecked: true }) Choose(id);
+            });
             menu.Items.Add(entry);
         }
+    }
+
+    /// <summary>Jumps once per menu opening (a pointer or keyboard pick both checks the item and clicks it).</summary>
+    /// <param name="id">Section ID.</param>
+    private void Choose(string id)
+    {
+        if (chosen) return;
+        chosen = true;
+        Flyout.Hide();
+        model?.Jump(id);
     }
 
     /// <summary>Tracks availability and the accessible name.</summary>

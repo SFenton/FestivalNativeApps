@@ -139,3 +139,45 @@ object DifficultyMeterSpec {
 }
 
 // endregion
+
+// region Star rating
+
+/**
+ * What a star row draws and speaks (`.agents/controls/star-rating/spec.md`; web
+ * `MiniStars.tsx`/`GoldStars.tsx` and `en.json` `common.starCount`/`goldStarCount`).
+ */
+object StarRatingSpec {
+    /** Service value of a gold (top) result. */
+    const val GOLD = 6
+
+    /** Most star images drawn; a gold result draws this many gold stars. */
+    const val MAX_IMAGES = 5
+
+    /**
+     * A resolved star row.
+     *
+     * @property count Star images to draw, `1..5`.
+     * @property gold Whether they are the gold images.
+     */
+    data class Display(val count: Int, val gold: Boolean) {
+        /** Spoken label, e.g. "1 star", "4 stars" or "5 gold stars". */
+        val label: String
+            get() {
+                val noun = if (count == 1) "star" else "stars"
+                return if (gold) "$count gold $noun" else "$count $noun"
+            }
+    }
+
+    /**
+     * Resolve a service star count: 6 or more is five gold stars, anything else that
+     * many white stars with a minimum of one (web `Math.max(1, starsCount)`).
+     *
+     * @param stars Service stars (0–6).
+     * @param gold Force the gold treatment (a perfect average of six).
+     * @return Images to draw and whether they are gold.
+     */
+    fun display(stars: Int, gold: Boolean = false): Display =
+        if (gold || stars >= GOLD) Display(MAX_IMAGES, true) else Display(stars.coerceIn(1, MAX_IMAGES), false)
+}
+
+// endregion

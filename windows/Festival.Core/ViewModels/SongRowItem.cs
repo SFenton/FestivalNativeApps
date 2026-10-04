@@ -73,5 +73,24 @@ public sealed class SongRowItem
 /// <summary>A grouped list section of row items.</summary>
 /// <param name="Label">Header ("" hides the header).</param>
 /// <param name="Rows">Rows.</param>
-public sealed record SongRowSection(string Label, IReadOnlyList<SongRowItem> Rows);
+/// <param name="AutomationId">Heading automation ID (Item Shop buckets), or empty.</param>
+public sealed record SongRowSection(string Label, IReadOnlyList<SongRowItem> Rows, string AutomationId = "");
+
+/// <summary>A notice above the Songs list: a saved choice that can't apply right now, or the player-score state.</summary>
+/// <param name="AutomationId">Cross-platform test ID (<c>fst.songs.sort-paused</c>, <c>fst.songs.filter-paused</c>, …).</param>
+/// <param name="Message">Readable text.</param>
+public sealed record SongNotice(string AutomationId, string Message)
+{
+    /// <summary>Player scores unavailable (syncing, denied, publication mismatch).</summary>
+    public const string ProfilePausedId = "fst.songs.profile-paused";
+
+    /// <summary>A saved Item Shop sort shows Title order.</summary>
+    public const string SortPausedId = "fst.songs.sort-paused";
+
+    /// <summary>A saved Item Shop filter isn't applied.</summary>
+    public const string ShopFilterPausedId = "fst.songs.filter-paused";
+
+    /// <summary>Saved player score filters aren't applied.</summary>
+    public const string ScoreFilterPausedId = "fst.songs.score-filter-paused";
+}
 #endregion

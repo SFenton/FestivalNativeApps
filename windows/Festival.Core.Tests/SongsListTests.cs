@@ -487,7 +487,7 @@ public class SongsViewModelPlayerTests
         session.UpdateSettings(s => s.WithInstrumentVisible(Instrument.Drums, false));
         vm.FilterDraft.Begin();
         Assert.True(vm.FilterDraft.HasHiddenScoreChecks);
-        Assert.Contains(vm.Notices, n => n.Contains("hidden in Settings"));
+        Assert.Contains(vm.Notices, n => n.Message.Contains("hidden in Settings") && n.AutomationId == SongNotice.ScoreFilterPausedId);
         vm.FilterDraft.ShopAvailable = true;
         vm.FilterDraft.ShopUnavailable = false;
         vm.ApplyFilterCommand.Execute(null);
@@ -504,12 +504,12 @@ public class SongsViewModelPlayerTests
     {
         var (_, _, syncing) = await Loaded(profiles: new() { [PlayerWire.Id] = (HttpStatusCode.Accepted, PlayerWire.Syncing()) });
         Assert.Equal("Scores syncing", Row(syncing, "s1").ScoreState);
-        Assert.Contains(syncing.Notices, n => n.Contains("still syncing"));
+        Assert.Contains(syncing.Notices, n => n.Message.Contains("still syncing") && n.AutomationId == SongNotice.ProfilePausedId);
         Assert.Empty(Row(syncing, "s1").Chips);
 
         var (_, _, failed) = await Loaded(profiles: new() { [PlayerWire.Id] = (HttpStatusCode.InternalServerError, "{}") });
         Assert.Equal("Scores unavailable", Row(failed, "s1").ScoreState);
-        Assert.Contains(failed.Notices, n => n.StartsWith("Player scores unavailable", StringComparison.Ordinal));
+        Assert.Contains(failed.Notices, n => n.Message.StartsWith("Player scores unavailable", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -521,7 +521,7 @@ public class SongsViewModelPlayerTests
             : null;
         service.PublicationId = 8;
         await session.Api.GetPublicationAsync(force: true);
-        await Async.Until(() => vm.Notices.Any(n => n.Contains("same update")));
+        await Async.Until(() => vm.Notices.Any(n => n.Message.Contains("same update")));
         Assert.Contains("Player scores paused until songs update", Row(vm, "s1").ScoreState);
         Assert.Null(Row(vm, "s2").Highlight);
     }
@@ -540,6 +540,17 @@ public class SongsViewModelPlayerTests
     }
 
     [Fact]
+    public void SectionAutomationId_NamesOnlyShopBuckets()
+    {
+        Assert.Equal("fst.songs.shop-section.leaving-tomorrow", SongListPipeline.SectionAutomationId(SongSortMode.Shop, SongListPipeline.LeavingTomorrowLabel));
+        Assert.Equal("fst.songs.shop-section.in-shop", SongListPipeline.SectionAutomationId(SongSortMode.Shop, SongListPipeline.InShopLabel));
+        Assert.Equal("fst.songs.shop-section.not-in-shop", SongListPipeline.SectionAutomationId(SongSortMode.Shop, SongListPipeline.NotInShopLabel));
+        Assert.Equal("", SongListPipeline.SectionAutomationId(SongSortMode.Shop, "")); // single bucket: unlabeled
+        Assert.Equal("", SongListPipeline.SectionAutomationId(SongSortMode.Title, SongListPipeline.InShopLabel));
+        Assert.Equal("", SongListPipeline.SectionAutomationId(SongSortMode.Year, "2020s"));
+    }
+
+    [Fact]
     public async Task SortDraft_HidesShopWhenHidden_AndShopSortGroups()
     {
         var (_, session, vm) = await Loaded(player: false);
@@ -548,10 +559,14 @@ public class SongsViewModelPlayerTests
         vm.SortDraft.ModeIndex = vm.SortDraft.Modes.IndexOf(SongSortMode.Shop);
         vm.ApplySortCommand.Execute(null);
         Assert.Equal(["In Shop", "Leaving Tomorrow", "Not In Shop"], vm.Sections.Select(s => s.Label)); // first-seen buckets
+        Assert.Equal(["fst.songs.shop-section.in-shop", "fst.songs.shop-section.leaving-tomorrow", "fst.songs.shop-section.not-in-shop"],
+            vm.Sections.Select(s => s.AutomationId));
         Assert.True(vm.HasJumpIndex);
         Assert.Equal("Item Shop ↑", vm.SortSummary);
+        Assert.Equal("Item Shop, ascending", vm.SortDescription);
         session.UpdateSettings(s => s with { HideShop = true });
-        Assert.Contains(vm.Notices, n => n.Contains("sort paused"));
+        Assert.Contains(vm.Notices, n => n.Message.Contains("sort paused") && n.AutomationId == SongNotice.SortPausedId);
+        Assert.All(vm.Sections, s => Assert.Equal("", s.AutomationId)); // paused: Title order, letter headings carry no ID
         vm.SortDraft.Begin();
         Assert.DoesNotContain("Item Shop", vm.SortDraft.ModeLabels);
         Assert.Equal(-1, vm.SortDraft.ModeIndex);
@@ -586,7 +601,8 @@ public class SongsViewModelPlayerTests
         }, player: false);
         Assert.True(anonymous.ShowFilterButton);
         Assert.True(anonymous.IsFilterActive);
-        Assert.DoesNotContain(anonymous.Notices, n => n.Contains("Player score filters"));
+        Assert.Equal("Filters applied", anonymous.FilterStatus);
+        Assert.DoesNotContain(anonymous.Notices, n => n.Message.Contains("Player score filters"));
 
         var (_, _, hiddenShopOnly) = await Loaded(new AppSettings
         {
@@ -594,9 +610,31 @@ public class SongsViewModelPlayerTests
             HideShop = true,
         }, player: false);
         Assert.False(hiddenShopOnly.IsFilterActive);
+        Assert.Equal("", hiddenShopOnly.FilterStatus);
 
         var (_, _, withPlayer) = await Loaded(new AppSettings { SongFilter = new SongFilter(Instrument.Lead, [1]) });
         Assert.True(withPlayer.IsFilterActive);
+    }
+
+    [Fact]
+    public async Task ShopUnavailable_PausesSavedShopSortAndFilter_WithNoticeIds()
+    {
+        var (service, session, vm) = await Loaded(new AppSettings
+        {
+            SongSort = SongSortMode.Shop,
+            ShopFilter = new SongShopFilter(available: true, unavailable: false),
+        }, player: false);
+        Assert.Contains(vm.Sections, s => s.AutomationId.StartsWith("fst.songs.shop-section.", StringComparison.Ordinal));
+        Assert.Empty(vm.Notices);
+        // The catalogue refetch fails, so the retained songs stay on publication 7 while the Shop feed moves to 8.
+        var inner = service.Override;
+        service.Override = r => r.RequestUri!.AbsolutePath == "/api/songs" ? Wire.Response(HttpStatusCode.ServiceUnavailable) : inner?.Invoke(r);
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.Notices.Count >= 2);
+        Assert.Equal([SongNotice.SortPausedId, SongNotice.ShopFilterPausedId], vm.Notices.Select(n => n.AutomationId));
+        Assert.All(vm.Sections, s => Assert.Equal("", s.AutomationId));
+        Assert.Equal("Item Shop ↑", vm.SortSummary); // the saved choice stays; only its application pauses
     }
 
     [Fact]

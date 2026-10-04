@@ -31,6 +31,16 @@ public static class LeaderboardPaging
     /// <param name="totalPages">Board page count.</param>
     /// <returns>Page in <c>1…totalPages</c>.</returns>
     public static int Corrected(int requested, int totalPages) => Math.Clamp(requested, 1, Math.Max(1, totalPages));
+
+    /// <summary>
+    /// Grows a bring-into-view target downwards by the floating footer's height (WCAG 2.4.11, focus not obscured): the
+    /// pinned row and pager overlay the bottom of the rows, so a row scrolled only to the bottom edge would sit under them.
+    /// </summary>
+    /// <param name="height">Target height.</param>
+    /// <param name="footerHeight">Footer's measured height plus its gap (0 while collapsed or unknown).</param>
+    /// <returns>Expanded height.</returns>
+    public static double RevealAboveFooter(double height, double footerHeight) =>
+        Math.Max(0, double.IsFinite(height) ? height : 0) + Math.Max(0, double.IsFinite(footerHeight) ? footerHeight : 0);
 }
 #endregion
 
