@@ -127,6 +127,16 @@ The backdrop stays `AccessibilityView.Raw` (decorative: no Narrator stop, no Tab
 
 Fixed: without art the dim scrim darkened the brand surface to near-black (the web shows the undimmed purple); a late crossfade completion could blank the shown cover after a dialog or occlusion resumed playback.
 
+## Star Rating validation (issue #221, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --tabs 20 --fixture tools/windows/star_rating_fixture.py` with `journeys/a11y-star-rating.json` (song leaderboard with 1, 3, 5, 6, 7, 0 and missing stars; profile gold Avg Stars) at compact, medium, wide, maximized and snap-left; Desert, Night sky, Aquatic, light and dark theme, display 100%/150% at compact and wide; text 200% at C/M/W. 0 Axe errors in every run after the fixes; the stars are never a Tab stop. UIA journeys `journeys/star-rating.json` assert each state's `fst.star-rating.<state>` ID, ItemStatus and the row names. Live public-service screenshots at the same sizes and themes. Per-configuration results: [star-rating/windows.md](../controls/star-rating/windows.md#validation-issue-221-2026-10-04).
+
+Fixed:
+- Six-star scores were read as "6 stars" or "gold stars"; every site now reads "5 gold stars" (`StarRating.Announcement`), and 7+ draws gold.
+- `StarRow` had no automation peer; it is now one `Image` named with the count.
+- The gold ring kept its old brush after a contrast-theme switch.
+- Profile: the instrument tiles were focusable siblings of the Overview tiles with the same names ("Songs Played: 2", Axe `SiblingUniqueAndFocusable` at wide, display 100%/150%); each instrument section is now a named group.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
