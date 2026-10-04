@@ -87,6 +87,8 @@ From Git Bash, pass Windows paths (`C:/…`) inside `--steps`: MSYS converts onl
 
 Compose `testTag`s appear as resource ids only when the app sets `testTagsAsResourceId`. Under TalkBack, `input tap` explores rather than activates.
 
+`rotate:` writes `user_rotation`, which did not rotate FST_Phone in issue #111 (2026-10-03). Use `shell:wm user-rotation lock 1` for landscape and `shell:wm user-rotation lock 0` to restore portrait.
+
 ## Emulator lock
 
 - One product emulator per host, shared by every lane through the `emulator` host lock (`tools/android/hostlock.py`). It is an OS byte-range lock on `~/.fst-locks/emulator.lock`, released automatically if the holder dies, plus a FIFO ticket queue in `~/.fst-locks/emulator.queue/`. `holder.json` records the command and the caller's worktree.
