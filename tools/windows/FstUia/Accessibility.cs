@@ -221,33 +221,26 @@ internal sealed partial class Driver
     {
         var p = e.Properties;
         var parts = new List<string>();
-        // Each property is read on its own: one a provider rejects (e.g. HeadingLevel on some WinUI peers) must not
-        // drop the annotations after it, such as a navigation item's accelerator and access key.
-        Annotate(parts, () => p.HeadingLevel.TryGetValue(out var heading) && (int)heading is > 80050 and < 80060
-            ? $"heading={(int)heading - 80050}" : null);
-        Annotate(parts, () => p.LandmarkType.TryGetValue(out var landmark) && (int)landmark != 0
-            ? $"landmark={p.LocalizedLandmarkType.ValueOrDefault}" : null);
-        Annotate(parts, () => p.LiveSetting.TryGetValue(out var live) && (int)live != 0 ? $"live={live}" : null);
-        Annotate(parts, () => p.AcceleratorKey.ValueOrDefault is { Length: > 0 } accel ? $"accel={accel}" : null);
-        Annotate(parts, () => p.AccessKey.ValueOrDefault is { Length: > 0 } access ? $"access={access}" : null);
-        Annotate(parts, () => p.ItemStatus.ValueOrDefault is { Length: > 0 } status ? $"status=\"{status}\"" : null);
-        Annotate(parts, () => p.FullDescription.ValueOrDefault is { Length: > 0 } description ? $"desc=\"{description}\"" : null);
+        // Each read is guarded alone: a provider that rejects one property (e.g. landmark on older peers) must not hide the rest.
+        void Add(Func<string?> read)
+        {
+            try
+            {
+                if (read() is { } part) parts.Add(part);
+            }
+            catch (Exception)
+            {
+                // Unsupported property on this provider; the tree line stays without it.
+            }
+        }
+        Add(() => p.HeadingLevel.TryGetValue(out var heading) && (int)heading is > 80050 and < 80060 ? $"heading={(int)heading - 80050}" : null);
+        Add(() => p.LandmarkType.TryGetValue(out var landmark) && (int)landmark != 0 ? $"landmark={p.LocalizedLandmarkType.ValueOrDefault}" : null);
+        Add(() => p.LiveSetting.TryGetValue(out var live) && (int)live != 0 ? $"live={live}" : null);
+        Add(() => p.AcceleratorKey.ValueOrDefault is { Length: > 0 } accel ? $"accel={accel}" : null);
+        Add(() => p.AccessKey.ValueOrDefault is { Length: > 0 } access ? $"access={access}" : null);
+        Add(() => p.ItemStatus.ValueOrDefault is { Length: > 0 } status ? $"status=\"{status}\"" : null);
+        Add(() => p.FullDescription.ValueOrDefault is { Length: > 0 } description ? $"desc=\"{description}\"" : null);
         return parts.Count > 0 ? " " + string.Join(" ", parts) : "";
-    }
-
-    /// <summary>Adds one tree annotation, skipping it when the provider does not expose the property.</summary>
-    /// <param name="parts">Annotations so far.</param>
-    /// <param name="read">Reads the annotation, or returns <see langword="null"/> when unset.</param>
-    private static void Annotate(List<string> parts, Func<string?> read)
-    {
-        try
-        {
-            if (read() is { } part) parts.Add(part);
-        }
-        catch (Exception)
-        {
-            // Older UIA providers may not expose this property; the tree line stays without it.
-        }
     }
 
     #endregion

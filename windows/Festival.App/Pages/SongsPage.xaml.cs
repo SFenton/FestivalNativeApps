@@ -338,7 +338,11 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Re-evaluates the fade when Windows transparency effects or the contrast theme change (any thread).</summary>
     /// <param name="sender">Settings source.</param>
     /// <param name="args">Ignored.</param>
-    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(UpdateStickyHeader);
+    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(() =>
+    {
+        UpdateStickyHeader();
+        UpdateButtonTints();
+    });
 
     /// <summary>Realized row containers with their edges relative to the list viewport's top.</summary>
     /// <param name="panel">Items panel.</param>
@@ -727,20 +731,70 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="e">Unused.</param>
     private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
 
-    /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
+    /// <summary>
+    /// Marks Sort/Filter when a non-default choice is applied and reports the Filter state to UI Automation (Narrator
+    /// reads the item status after the button's name; the tint alone was silent).
+    /// </summary>
     private void UpdateButtonTints()
     {
-        var gold = Brush("FSTEmphasisBrush");
-        SortButton.ClearValue(ForegroundProperty);
-        FilterButton.ClearValue(ForegroundProperty);
-        if (ViewModel.IsSortChanged) SortButton.Foreground = gold;
-        if (ViewModel.IsFilterActive) FilterButton.Foreground = gold;
+        MarkApplied(SortButton, ViewModel.IsSortChanged);
+        MarkApplied(FilterButton, ViewModel.IsFilterActive);
+        AutomationProperties.SetItemStatus(FilterButton, ViewModel.FilterStatus);
+    }
+
+    /// <summary>
+    /// Gold text by default. Under a contrast theme gold resolves to WindowText (invisible), so an applied button takes
+    /// the system Highlight / HighlightText pair, like a checked toggle, and its icon/label drop the automatic
+    /// Window-colored text backplate that would otherwise cover the Highlight fill.
+    /// </summary>
+    /// <param name="button">Sort or Filter button.</param>
+    /// <param name="applied">Whether a non-default choice is applied.</param>
+    private static void MarkApplied(ContentControl button, bool applied)
+    {
+        button.ClearValue(ForegroundProperty);
+        button.ClearValue(BackgroundProperty);
+        var highlighted = applied && ContrastTheme.IsOn;
+        if (button.Content is Panel content)
+        {
+            foreach (var child in content.Children)
+                child.HighContrastAdjustment = highlighted ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
+        }
+        if (FindNamed(button, "ChevronIcon") is IconElement chevron)
+        {
+            chevron.ClearValue(IconElement.ForegroundProperty);
+            if (highlighted) chevron.Foreground = Brush("SystemColorHighlightTextColorBrush");
+        }
+        if (!applied) return;
+        if (highlighted)
+        {
+            button.Background = Brush("SystemColorHighlightColorBrush");
+            button.Foreground = Brush("SystemColorHighlightTextColorBrush");
+        }
+        else
+        {
+            button.Foreground = Brush("FSTEmphasisBrush");
+        }
     }
 
     /// <summary>Looks up an app brush.</summary>
     /// <param name="key">Resource key.</param>
     /// <returns>Brush.</returns>
     private static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
+
+    /// <summary>Finds a named template part (e.g. the DropDownButton <c>ChevronIcon</c>) below an element.</summary>
+    /// <param name="root">Element whose visual tree is searched.</param>
+    /// <param name="name">Template part name.</param>
+    /// <returns>The part, or <see langword="null"/> before the template applies.</returns>
+    private static FrameworkElement? FindNamed(DependencyObject root, string name)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is FrameworkElement { Name: var childName } element && childName == name) return element;
+            if (FindNamed(child, name) is { } found) return found;
+        }
+        return null;
+    }
     #endregion
 
     #region Perf scenario

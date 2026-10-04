@@ -1,6 +1,6 @@
 # Profile discovery and selection (`fst.profile.*`) — spec
 
-> **What:** platform-neutral web behavior, wire contracts and client rules for searching, viewing and selecting a player or band. **Read when:** touching search, selected identity or anything that depends on it, on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md). Endpoint safety: [service-safety](../../platforms/service-safety.md).
+> **What:** platform-neutral web behavior, wire contracts and client rules for searching, viewing and selecting a player or band. **Read when:** touching search, selected identity or anything that depends on it, on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md) · [windows.md](windows.md). Endpoint safety: [service-safety](../../platforms/service-safety.md).
 
 Source: `FortniteFestivalWeb/src/hooks/data/useUnifiedSearch.ts:41-160`, `packages/theme/src/animation.ts:7`, `FortniteFestivalWeb/src/components/search/SearchModal.tsx:495-525,838-917`, `FortniteFestivalWeb/src/state/selectedProfile.ts:10-175`, `FortniteFestivalWeb/src/App.tsx:760-785`. Audit refs: `App.tsx:760-834`, `SearchModal.tsx:495-590`. Layout refs: `FortniteFestivalWeb/src/components/search/SearchModal.tsx:29-41,529-592`, `FortniteFestivalWeb/src/components/shell/HeaderActions.tsx:59-105`, `FortniteFestivalWeb/src/components/shell/desktop/PinnedSidebar.tsx:85-113`.
 
