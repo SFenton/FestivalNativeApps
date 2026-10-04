@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.assertTouchWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -160,6 +161,8 @@ class SongPathsSheetUiTest {
         gate.complete(Unit)
         waitForStatus("Lead Expert path image loaded")
         waitForTag("fst.paths.image")
+        // The bitmap decodes on Dispatchers.Default after the container appears; wait for the image itself.
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithContentDescription("Lead Expert CHOpt path").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("100%").assertExists()
         rule.onNodeWithContentDescription("Lead Expert CHOpt path").assertExists()
 

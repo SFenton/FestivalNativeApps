@@ -106,6 +106,24 @@ class QuickLinksControllerUiTest {
     }
 
     @Test
+    fun aProgrammaticScrollAfterTheJumpEndsTheLandingHold() {
+        setGrowingList()
+        rule.runOnIdle { controller.jump("s6") }
+        rule.waitForIdle()
+
+        // A scroll-to-top (Suggestions' new mix, TalkBack scroll-to-index) is instant: no drag is in
+        // progress when the hold sees it, but the scroll position moved, so the hold must not undo it.
+        rule.runOnIdle { kotlinx.coroutines.runBlocking { listState.scrollToItem(0) } }
+        rule.waitForIdle()
+        grown.value = true
+        rule.waitForIdle()
+
+        assertEquals(0, listState.firstVisibleItemIndex)
+        assertEquals(0, listState.firstVisibleItemScrollOffset)
+        assertEquals("s0", controller.activeId)
+    }
+
+    @Test
     fun landingHoldEndsAfterItsWindow() {
         setGrowingList()
         rule.runOnIdle { controller.jump("s6") }
