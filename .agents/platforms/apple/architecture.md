@@ -60,7 +60,7 @@ Never put several default-style `Button`s or `NavigationLink`s in **one** `List`
 | Explicit scaled `frame` inside shared badges | SwiftUI `padding` inside the fixed score badge | Padding caused an iPad split-view layout loop ([score-accuracy](../../controls/score-accuracy/ipados.md)) |
 | `InstrumentSelector` (`Design/InstrumentSelector.swift`, rules in Core `InstrumentSelection`; [instrument-selector](../../controls/instrument-selector/ios.md)) | A `Picker`/menu of instrument names | Operator batch 6.36: the web's selector with all its modes, everywhere the web uses it |
 | `PurpleActionLabel` (`Features/Leaderboards/PurpleActionButton.swift`) for every "View full leaderboard" / "View all …" | Per-screen purple surfaces | Operator batch 6.29/7.6: one purple button |
-| `RankingRowSurface` (48 pt glass row, web `purpleHighlight` player row) for every leaderboard row | A card around rows, or a purple stroke only | Operator batch 7.4: one leaderboard design (web `entryRow`) |
+| `RankingRowSurface` (48 pt material row card, web `purpleHighlight` player row; glass until issue #295) for every leaderboard row | A card around rows, or a purple stroke only | Operator batch 7.4: one leaderboard design (web `entryRow`) |
 | Page-level gate: spinner until the page's reads settle, then `festivalFadeIn(isLoaded:index:)` (Profile `ProfileExtrasLoader`, Song Detail `SongDetailPreloader`, `LeaderboardsPreloader`) | Cards popping in one by one | Operator batch 6.41 (web `useLoadPhase`) |
 | Accessibility IDs from the `product.json` registry | Ad-hoc IDs | `tools/verify_product.py` checks the registry |
 
