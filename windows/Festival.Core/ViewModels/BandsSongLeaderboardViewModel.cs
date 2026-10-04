@@ -242,6 +242,16 @@ public sealed record SongBandRow
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Names}, {Score} points" +
                                   (HasAccuracy ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") +
-                                  (Entry.Stars is > 0 ? $", {Entry.Stars} stars" : "");
+                                  (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
+
+    /// <summary>
+    /// Song Band Leaderboard row name in visual order (rank, each member's name, instruments and per-song score, then the
+    /// team footer), so the single Narrator stop carries everything the card shows.
+    /// </summary>
+    public string PageAnnouncement =>
+        $"Rank {Entry.Rank}. " +
+        string.Concat(Members.Select(m => $"{m.Name}, {m.InstrumentsText}" + (m.HasScore ? $", {m.ScoreText} points" : "") + ". ")) +
+        $"Team score {Score} points" + (IsFullCombo ? ", full combo" : "") + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
+        (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

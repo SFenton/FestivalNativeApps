@@ -78,7 +78,7 @@
                            controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
-                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="4" Spacing="16" />
+                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" ScaleWithText="True" MaxColumns="4" Spacing="16" />
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:RankingCardViewModel">
@@ -101,7 +101,7 @@
                                                     AutomationProperties.AutomationId="fst.service-status.inline">
                                             <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                             <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
+                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Visibility="{x:Bind pages:LeaderboardsPage.VisibleWhenText(Status.CountdownText), Mode=OneWay}"
                                                        AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
@@ -119,7 +119,7 @@
                                         <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
                                                                         Visibility="{x:Bind ShowRows, Mode=OneWay}" />
                                         <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}" Margin="0,4,0,0"
-                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
                             </StackPanel>
@@ -139,7 +139,7 @@
                            controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
-                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="3" Spacing="16" />
+                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" ScaleWithText="True" MaxColumns="3" Spacing="16" />
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:BandRankingCardViewModel">
@@ -161,7 +161,7 @@
                                                     AutomationProperties.AutomationId="fst.service-status.inline">
                                             <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                             <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
+                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Visibility="{x:Bind pages:LeaderboardsPage.VisibleWhenText(Status.CountdownText), Mode=OneWay}"
                                                        AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
@@ -177,7 +177,7 @@
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
                                         <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}" Margin="0,4,0,0"
-                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
                             </StackPanel>

@@ -31,12 +31,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsPropertyKey
@@ -52,6 +54,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -69,6 +72,7 @@ import com.festivalscoretracker.android.presentation.notifications.Notifications
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
+import com.festivalscoretracker.android.ui.common.LARGE_TEXT_SCALE
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
@@ -114,16 +118,22 @@ fun NotificationsBell(viewModel: NotificationsViewModel, onOpen: () -> Unit) {
             Icon(Icons.Outlined.Notifications, contentDescription = null)
         }
         if (unread > 0) {
-            Badge(
-                containerColor = BrandTokens.gold,
-                contentColor = BrandTokens.cardBackground,
-                // M3 large badge: starts at the icon's horizontal centre, top 2 dp above the glyph.
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(x = BELL_BADGE_START_DP.dp, y = BELL_BADGE_TOP_DP.dp)
-                    .clearAndSetSemantics { }
-                    .testTag("fst.shell.notifications.badge"),
-            ) { Text(NotificationsViewModel.badgeText(unread)) }
+            // The count is decoration (the bell's description announces it), so its text stops
+            // growing at LARGE_TEXT_SCALE: at 200% a "10" badge hid the bell and ran into the
+            // profile avatar (issue #101).
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, minOf(density.fontScale, LARGE_TEXT_SCALE))) {
+                Badge(
+                    containerColor = BrandTokens.gold,
+                    contentColor = BrandTokens.cardBackground,
+                    // M3 large badge: starts at the icon's horizontal centre, top 2 dp above the glyph.
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(x = BELL_BADGE_START_DP.dp, y = BELL_BADGE_TOP_DP.dp)
+                        .testTag("fst.shell.notifications.badge")
+                        .clearAndSetSemantics { },
+                ) { Text(NotificationsViewModel.badgeText(unread)) }
+            }
         }
     }
 }

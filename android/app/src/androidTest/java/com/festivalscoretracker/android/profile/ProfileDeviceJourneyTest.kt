@@ -152,6 +152,8 @@ class ProfileDeviceJourneyTest {
     fun historySortSheet() {
         launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerHistoryRoute("s-alpha", "Solo_Guitar"), stillBackground = true))
         waitForTag("fst.history.rows")
+        // Half-open book fold: the subtitle and chart sit on one panel, the rows on the other.
+        assertNothingStraddles("fst.history.subtitle", "fst.history.chart", "fst.history.row")
         tap("fst.history.sort.open")
         tap("fst.history.sort.mode.date")
         tap("fst.history.sort.direction.ascending")

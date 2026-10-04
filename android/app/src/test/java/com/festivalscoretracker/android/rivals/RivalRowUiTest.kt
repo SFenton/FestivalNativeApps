@@ -1,6 +1,14 @@
 package com.festivalscoretracker.android.rivals
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -16,6 +24,7 @@ import com.festivalscoretracker.android.core.rivals.RivalEntry
 import com.festivalscoretracker.android.core.rivals.RivalSongComparison
 import com.festivalscoretracker.android.core.rivals.RivalSummary
 import com.festivalscoretracker.android.testing.RivalsFixtures
+import com.festivalscoretracker.android.ui.rivals.RivalPill
 import com.festivalscoretracker.android.ui.rivals.RivalRow
 import com.festivalscoretracker.android.ui.rivals.RivalSectionHeader
 import com.festivalscoretracker.android.ui.rivals.RivalSongRow
@@ -27,6 +36,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * Rival row content (issue #67, Android port of #40): ahead/behind pills stay, the
@@ -122,10 +132,42 @@ class RivalRowUiTest {
             description("fst.rivals.song.s-ahead.Solo_Guitar"),
         )
         assertEquals(
-            "Tied Song, $lead, Player rank 4, Rival rank 4, tied on rank, same score",
+            "Tied Song, $lead, Player rank 4, Rival rank 4, tied, same score",
             description("fst.rivals.song.s-tied.Solo_Guitar"),
         )
         rule.onNodeWithTag("fst.rivals.song.s-behind.Solo_Guitar").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, opened)
+    }
+
+    /**
+     * Issue #107: at font scale 2.0 the wrapped "songs behind" pill was clipped off the card
+     * (FlowRow's intrinsic height under the row's old IntrinsicSize.Min ignored wrapped lines).
+     * Native graphics measure text with real fonts; the legacy stub (~1 px per character)
+     * never wraps.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun wrappedPillsGrowTheCardAtLargeText() {
+        val narrow = RivalsFixtures.RIVALS[0]
+        val wide = RivalsFixtures.RIVALS[1]
+        fun entry(id: String) = RivalEntry(RivalSummary(id, "Ann", 1.0, sharedSongCount = 162, aheadCount = 110, behindCount = 52), RivalDirection.Above)
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
+                FestivalTheme {
+                    Column {
+                        Box(Modifier.requiredWidth(300.dp)) { RivalRow(entry(narrow), onClick = {}) }
+                        Box(Modifier.requiredWidth(720.dp)) { RivalRow(entry(wide), onClick = {}) }
+                        RivalPill("110 songs behind", win = false, modifier = Modifier.testTag("pill"))
+                    }
+                }
+            }
+        }
+
+        fun height(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().size.height
+        val pill = height("pill")
+        val oneLine = height("fst.rivals.row.$wide")
+        val wrapped = height("fst.rivals.row.$narrow")
+        assertTrue("wrapped row $wrapped px should fit a second pill line ($oneLine + $pill px)", wrapped >= oneLine + pill)
     }
 }

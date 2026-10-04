@@ -314,6 +314,23 @@ public static class SongDetailLayout
     /// <returns>Columns.</returns>
     public static int IntensityColumns(double width, int count) =>
         count > 3 && double.IsFinite(width) && width + 16 >= count * IntensityCell ? count : 3;
+
+    /// <summary>Smallest space kept above a focused element, so the pinned header never covers it before it is measured.</summary>
+    public const double MinFocusTopInset = 64;
+
+    /// <summary>
+    /// Grows a bring-into-view target upwards by the pinned header's height (WCAG 2.4.11, focus not obscured): the
+    /// header overlays the scroller, so an element scrolled to the top edge would sit under it.
+    /// </summary>
+    /// <param name="top">Target top in the element's coordinates.</param>
+    /// <param name="height">Target height.</param>
+    /// <param name="pinnedHeaderHeight">Pinned header's measured height (0 while collapsed or unknown).</param>
+    /// <returns>Expanded top and height.</returns>
+    public static (double Top, double Height) RevealBelowPinnedHeader(double top, double height, double pinnedHeaderHeight)
+    {
+        var inset = Math.Max(double.IsFinite(pinnedHeaderHeight) ? pinnedHeaderHeight : 0, MinFocusTopInset);
+        return (top - inset, Math.Max(0, height) + inset);
+    }
 }
 
 /// <summary>One Intensity row: icon, meter and spoken level.</summary>
@@ -593,8 +610,13 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     /// <summary>Where the row leads (player profile, or the full board for the player's own row eleven).</summary>
     public AppRoute? Route { get; init; }
 
+    /// <summary>Badge UIA ID (<c>fst.score.accuracy.preview.&lt;instrument&gt;.&lt;accountId&gt;</c>), unique across chart cards.</summary>
+    public string BadgeAutomationId => $"fst.score.accuracy.preview.{InstrumentId}." +
+                                       (string.IsNullOrEmpty(Entry.AccountId) ? "rank-" + Entry.Rank : Entry.AccountId);
+
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Name}, {Score} points" +
-                                  (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") + (IsSelectedPlayer ? ", you" : "");
+                                  (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") +
+                                  (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") + (IsSelectedPlayer ? ", you" : "");
 }
 #endregion

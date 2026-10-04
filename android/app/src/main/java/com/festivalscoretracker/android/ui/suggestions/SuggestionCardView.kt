@@ -233,7 +233,8 @@ private fun RowMetadata(p: SuggestionRowPresentation, keyboard: Boolean) {
                 }
                 SuggestionRowLayout.Season -> p.seasonText?.let { SeasonPill(it) }
                 SuggestionRowLayout.Percentile -> p.percentileText?.let { PercentilePill(it, p.percentileTier) }
-                SuggestionRowLayout.SingleInstrument -> StarRating(if (p.goldStars) 6 else p.starCount, size = 20.dp)
+                // Web `RightContent`: stars only when the category shows them (`starCount > 0`).
+                SuggestionRowLayout.SingleInstrument -> if (p.goldStars || p.starCount > 0) StarRating(if (p.goldStars) 6 else p.starCount, size = 20.dp)
                 else -> Unit
             }
             p.instrument?.let { InstrumentIcon(it, keyboard = keyboard, size = 28.dp, decorative = true) }

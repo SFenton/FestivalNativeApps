@@ -57,5 +57,20 @@ public sealed class LicenseRowViewModel(LicensePackage package, string text)
 
     /// <summary>Narrator name.</summary>
     public string AccessibleName => $"{Name}, {Subtitle}, {License}";
+
+    /// <summary>Detail dialog title: "Name · License".</summary>
+    public string DetailTitle => $"{Name} · {License}";
+
+    /// <summary>Detail dialog caption: "NuGet · 1.2.3 · License".</summary>
+    public string DetailCaption => $"{Subtitle} · {License}";
+
+    /// <summary>Visible project link text (host and path, no scheme or trailing slash), or empty without a link.</summary>
+    public string LinkText => Url is { } url ? url.Host + url.AbsolutePath.TrimEnd('/') : "";
+
+    /// <summary>Narrator name of the project link.</summary>
+    public string LinkAccessibleName => $"Project page for {Name}";
+
+    /// <summary>Narrator name of the license text scroller (a tab stop, so arrow and Page keys scroll it).</summary>
+    public string TextAccessibleName => $"{Name} license text";
 }
 #endregion

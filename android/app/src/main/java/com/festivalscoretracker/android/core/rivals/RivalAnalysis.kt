@@ -210,6 +210,22 @@ object RivalHeadToHead {
     }
 
     /**
+     * Spoken rank lead for a song row's accessibility label: the exact unsigned gap with a
+     * singular/plural unit (the visible pill keeps the web's signed, abbreviated form).
+     *
+     * @param delta Signed rank delta (positive: the player leads).
+     * @param rivalName Rival's display name.
+     * @param locale Number locale.
+     * @return Text such as `you lead by 1 rank`, `Rival leads by 12,345 ranks` or `tied`.
+     */
+    fun leaderPhrase(delta: Long, rivalName: String, locale: Locale = Locale.getDefault()): String {
+        if (delta == 0L) return "tied"
+        val magnitude = abs(delta)
+        val gap = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " rank" else " ranks"
+        return if (delta > 0) "you lead by $gap" else "$rivalName leads by $gap"
+    }
+
+    /**
      * Signed score difference, player minus rival (missing scores count as zero).
      *
      * @param song Comparison.
@@ -228,25 +244,6 @@ object RivalHeadToHead {
      * @return Player minus rival.
      */
     fun scoreDiff(song: RivalSongComparison): Long = (song.userScore ?: 0) - (song.rivalScore ?: 0)
-
-    /**
-     * Spoken rank lead for TalkBack: the full count (the visual pill abbreviates to `12K`),
-     * no sign and a singular/plural noun.
-     *
-     * @param delta Signed rank delta (positive: the player leads).
-     * @param rivalName Rival's display name.
-     * @param locale Number locale.
-     * @return "you lead by 2 ranks", "Name leads by 1 rank" or "tied on rank".
-     */
-    fun spokenRankLead(delta: Long, rivalName: String, locale: Locale = Locale.getDefault()): String {
-        val magnitude = abs(delta)
-        val count = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " rank" else " ranks"
-        return when {
-            delta > 0 -> "you lead by $count"
-            delta < 0 -> "$rivalName leads by $count"
-            else -> "tied on rank"
-        }
-    }
 
     /**
      * Spoken score gap for TalkBack, player minus rival (missing scores count as zero).

@@ -274,7 +274,8 @@ class PresentationTest {
         assertEquals(BackgroundMode.Still, BackgroundPolicy.mode(false, false, false, visible = false))
         assertEquals(BackgroundMode.Animated, BackgroundPolicy.mode(false, false, false, true))
         assertEquals(10, BackgroundPolicy.PRESETS.size)
-        assertTrue(BackgroundPolicy.PRESETS.all { it.scale <= 1.18f && kotlin.math.abs(it.dx) <= 18f && kotlin.math.abs(it.dy) <= 18f })
+        assertTrue(BackgroundPolicy.PRESETS.all { maxOf(it.fromScale, it.toScale) <= 1.18f && minOf(it.fromScale, it.toScale) >= 1f })
+        assertTrue(BackgroundPolicy.PRESETS.all { listOf(it.fromX, it.fromY, it.toX, it.toY).all { d -> kotlin.math.abs(d) <= 18f } })
         val many = (0 until 150).map { Fixtures.song("s$it", "T$it").copy(albumArt = "art$it.jpg") } + Fixtures.song("dup", "D").copy(albumArt = "art1.jpg")
         val covers = BackgroundPolicy.pickCovers(many, { it?.let { raw -> "https://cdn/$raw" } }, Random(1))
         assertEquals(100, covers.size)
@@ -291,6 +292,70 @@ class PresentationTest {
         assertEquals(1_500, BackgroundPolicy.remainingZoomMs(0.75f))
         assertEquals(1, BackgroundPolicy.remainingZoomMs(1f))
         assertEquals(6_000, BackgroundPolicy.remainingZoomMs(-1f))
+    }
+
+    @Test
+    fun backgroundStateFollowsTheContractPrecedence() {
+        fun state(
+            reduce: Boolean = false,
+            app: Boolean = false,
+            saver: Boolean = false,
+            visible: Boolean = true,
+            covered: Boolean = false,
+            art: Boolean = true,
+            focused: Boolean = false,
+        ) = BackgroundPolicy.state(reduce, app, saver, visible, covered, art, focused).id
+        assertEquals("animated", state())
+        assertEquals("save-data", state(saver = true, art = false, visible = false))
+        assertEquals("no-art", state(art = false, reduce = true))
+        assertEquals("not-visible", state(visible = false, reduce = true, covered = true))
+        assertEquals("song", state(focused = true, reduce = true))
+        assertEquals("reduced-motion", state(reduce = true, covered = true))
+        assertEquals("reduced-motion", state(app = true))
+        assertEquals("covered", state(covered = true))
+        assertEquals(
+            listOf("no-art", "animated", "reduced-motion", "save-data", "not-visible", "covered", "song"),
+            BackgroundState.entries.map { it.id },
+        )
+    }
+
+    @Test
+    fun kenBurnsPresetsAreTheWebMotionPresetsDrawnLikeCss() {
+        val zoomIn = BackgroundPolicy.PRESETS[0]
+        assertEquals(1f, zoomIn.scaleAt(0f), 0f)
+        assertEquals(1.06f, zoomIn.scaleAt(0.5f), 1e-6f)
+        assertEquals(1.12f, zoomIn.scaleAt(1f), 1e-6f)
+        assertEquals(1.12f, BackgroundPolicy.PRESETS[1].scaleAt(0f), 0f)
+        val panLeft = BackgroundPolicy.PRESETS[2]
+        // CSS scale(1.18) translate(18px): the visible offset is 1.18 × 18.
+        assertEquals(21.24f, panLeft.offsetXAt(0f), 1e-4f)
+        assertEquals(0f, panLeft.offsetXAt(0.5f), 1e-6f)
+        assertEquals(-21.24f, panLeft.offsetXAt(1f), 1e-4f)
+        assertEquals(0f, panLeft.offsetYAt(0.3f), 0f)
+        val diagonal = BackgroundPolicy.PRESETS[6]
+        assertEquals(-14f * 1.18f, diagonal.offsetYAt(0f), 1e-4f)
+        assertEquals(14f * 1.18f, diagonal.offsetXAt(1f), 1e-4f)
+        assertEquals(10, BackgroundPolicy.PRESETS.toSet().size)
+        assertEquals(0.3f, BackgroundPolicy.ART_LIGHTNESS, 1e-6f)
+    }
+
+    @Test
+    fun coverFailurePacerAllowsThreeAttemptsPerDeadlineAndFivePerPool() {
+        val pacer = CoverFailurePacer()
+        // Three 404s: the first two skip at once, the third waits for the deadline.
+        assertTrue(pacer.onFailure())
+        assertTrue(pacer.onFailure())
+        assertFalse(pacer.onFailure())
+        assertFalse(pacer.exhausted)
+        // The deadline brings a fourth (here also failing) and one more immediate attempt.
+        pacer.onDeadline()
+        assertTrue(pacer.onFailure())
+        assertEquals(4, pacer.failureCount)
+        // The fifth failure spends the pool: no more attempts, even after a deadline.
+        assertFalse(pacer.onFailure())
+        assertTrue(pacer.exhausted)
+        pacer.onDeadline()
+        assertFalse(pacer.onFailure())
     }
 
     @Test

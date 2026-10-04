@@ -6,11 +6,14 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -227,6 +230,61 @@ class RivalsUiTest {
         rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.quick-links.item.leaderboard.Solo_Guitar")
         assertTrue(rule.onAllNodesWithTag("fst.quick-links.item.common").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun rivalryKnownCategoryWithoutSongsShowsEmpty() {
+        listOf("Solo_Guitar", "Solo_Bass", "03").forEach { combo ->
+            transport.on("/api/player/${RivalsFixtures.PLAYER}/rivals/$combo/${ids[3]}") { RivalsFixtures.detail(ids[3], deltas = emptyList()) }
+        }
+        launch(DebugLaunch(route = com.festivalscoretracker.android.core.nav.RivalryRoute(ids[3], "closest_battles"), profile = player, section = FestivalSection.Songs, stillBackground = true))
+        waitForTag("fst.rivalry.empty")
+        assertEquals(0, rule.onAllNodesWithTag("fst.rivalry.list").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun rivalryFailureShowsStatusAndRetries() {
+        var failing = true
+        listOf("Solo_Guitar", "Solo_Bass", "03").forEach { combo ->
+            transport.onRaw("/api/player/${RivalsFixtures.PLAYER}/rivals/$combo/${ids[3]}") {
+                if (failing) {
+                    com.festivalscoretracker.android.data.HttpResult(500, ByteArray(0))
+                } else {
+                    com.festivalscoretracker.android.data.HttpResult(200, RivalsFixtures.detail(ids[3]).toByteArray())
+                }
+            }
+        }
+        launch(DebugLaunch(route = com.festivalscoretracker.android.core.nav.RivalryRoute(ids[3], "closest_battles"), profile = player, section = FestivalSection.Songs, stillBackground = true))
+        waitForTag("fst.service-status.retry")
+        assertEquals(0, rule.onAllNodesWithTag("fst.rivalry.title").fetchSemanticsNodes().size)
+        failing = false
+        rule.onNodeWithTag("fst.service-status.retry").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivalry.title")
+    }
+
+    @Test
+    fun rivalrySortMenuExposesTheSelectedChoice() {
+        launch(DebugLaunch(route = com.festivalscoretracker.android.core.nav.RivalryRoute(ids[3], "almost_passed"), profile = player, section = FestivalSection.Songs, stillBackground = true))
+        waitForTag("fst.rivalry.title")
+        val labels = rule.onAllNodes(
+            androidx.compose.ui.test.SemanticsMatcher("rivalry song row") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rivals.song.") == true
+            },
+        ).fetchSemanticsNodes().mapNotNull { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.firstOrNull() }
+        assertTrue(labels.isNotEmpty())
+        // Spoken gap is unsigned with a singular/plural unit (the pill keeps the signed form).
+        assertTrue(labels.toString(), labels.all { Regex("""(lead|leads) by \d[\d,]* ranks?,|, tied,""").containsMatchIn(it) })
+        rule.onNodeWithTag("fst.rivalry.sort").performClick()
+        waitForTag("fst.rivalry.sort.menu")
+        rule.onNodeWithTag("fst.rivalry.sort.category").assertIsSelected()
+        rule.onNodeWithTag("fst.rivalry.sort.title").assertIsNotSelected()
+        rule.onNodeWithTag("fst.rivalry.sort.title").performClick()
+        settle()
+        rule.onNodeWithContentDescription("Sort: Title").assertExists()
+        rule.onNodeWithTag("fst.rivalry.sort").performClick()
+        waitForTag("fst.rivalry.sort.menu")
+        rule.onNodeWithTag("fst.rivalry.sort.title").assertIsSelected()
+        rule.onNodeWithTag("fst.rivalry.sort.category").assertIsNotSelected()
     }
 
     @Test

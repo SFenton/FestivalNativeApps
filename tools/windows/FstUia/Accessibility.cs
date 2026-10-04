@@ -22,16 +22,28 @@ internal sealed partial class Driver
     /// <param name="window">Target window (the scan root).</param>
     /// <param name="output">Directory for the <c>.a11ytest</c> file (saved only when there are errors).</param>
     /// <param name="scanId">Result file name.</param>
-    /// <returns><c>errors</c> count and <c>findings</c>.</returns>
+    /// <returns><c>errors</c> count and <c>findings</c> (<c>files_skipped</c> when no <c>.a11ytest</c> could be written).</returns>
     private static JsonNode Scan(Window window, string output, string scanId)
     {
         Directory.CreateDirectory(output);
-        var config = Config.Builder.ForProcessId(window.Properties.ProcessId.Value)
-            .WithOutputDirectory(output)
-            .WithOutputFileFormat(OutputFileFormat.A11yTest)
-            .Build();
-        var scanner = ScannerFactory.CreateScanner(config);
-        var result = scanner.Scan(new ScanOptions(scanId, window.Properties.NativeWindowHandle.Value));
+        ScanOutput Run(OutputFileFormat format) => ScannerFactory.CreateScanner(Config.Builder
+                .ForProcessId(window.Properties.ProcessId.Value)
+                .WithOutputDirectory(output)
+                .WithOutputFileFormat(format)
+                .Build())
+            .Scan(new ScanOptions(scanId, window.Properties.NativeWindowHandle.Value));
+        ScanOutput result;
+        var filesSkipped = false;
+        try
+        {
+            result = Run(OutputFileFormat.A11yTest);
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // The .a11ytest file embeds a screen capture, which fails on the secure (locked) desktop; the rules still run.
+            result = Run(OutputFileFormat.None);
+            filesSkipped = true;
+        }
         var findings = new JsonArray();
         var total = 0;
         var files = new JsonArray();
@@ -53,7 +65,7 @@ internal sealed partial class Driver
                 });
             }
         }
-        return new JsonObject { ["errors"] = total, ["findings"] = findings, ["files"] = files };
+        return new JsonObject { ["errors"] = total, ["findings"] = findings, ["files"] = files, ["files_skipped"] = filesSkipped };
     }
 
     /// <summary><c>scan:&lt;dir/scan-id&gt;</c> drive step: runs <see cref="Scan"/> and appends the result to <c>scans</c>.</summary>
@@ -134,10 +146,11 @@ internal sealed partial class Driver
         string? previous = null;
         for (var i = 0; i < count; i++)
         {
-            if (reverse) Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.TAB);
+            if (postKeys) PostedInput.Press(window.Properties.NativeWindowHandle.Value, reverse ? [VirtualKeyShort.SHIFT, VirtualKeyShort.TAB] : [VirtualKeyShort.TAB]);
+            else if (reverse) Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.TAB);
             else Keyboard.Type(VirtualKeyShort.TAB);
             Thread.Sleep(180);
-            var focused = automation.FocusedElement();
+            var focused = Focused(window);
             var line = focused is null ? "(none)" : Line(focused);
             var entry = new JsonObject
             {
@@ -145,7 +158,7 @@ internal sealed partial class Driver
                 ["line"] = line,
                 ["id"] = focused?.Properties.AutomationId.ValueOrDefault ?? "",
                 ["name"] = focused?.Properties.Name.ValueOrDefault ?? "",
-                ["type"] = focused?.Properties.ControlType.ValueOrDefault.ToString() ?? "",
+                ["type"] = focused is null ? "" : Role(focused),
                 ["width_epx"] = WidthEpx(window),
                 ["in_window"] = focused is not null && focused.Properties.ProcessId.ValueOrDefault == window.Properties.ProcessId.Value,
             };
@@ -154,6 +167,19 @@ internal sealed partial class Driver
             Log($"focus[{focus.Count - 1}]: {line}");
             previous = line;
         }
+    }
+
+    /// <summary>
+    /// The focused element: the system focus, or, while keys are posted (locked session, where the system focus is
+    /// the lock screen), the element inside the target window that has keyboard focus.
+    /// </summary>
+    /// <param name="window">Target window.</param>
+    /// <returns>Focused element, or <see langword="null"/>.</returns>
+    private AutomationElement? Focused(Window window)
+    {
+        if (!postKeys) return automation.FocusedElement();
+        var condition = new FlaUI.Core.Conditions.PropertyCondition(automation.PropertyLibrary.Element.HasKeyboardFocus, true);
+        return window.FindFirstDescendant(condition);
     }
 
     /// <summary><c>assertfocus:&lt;selector&gt;</c>: fails unless the focused element matches the selector.</summary>
@@ -167,7 +193,7 @@ internal sealed partial class Driver
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 2);
         while (true)
         {
-            var focused = automation.FocusedElement();
+            var focused = Focused(window);
             var actual = focused is null ? null : kind switch
             {
                 "id" => focused.Properties.AutomationId.ValueOrDefault,
@@ -195,22 +221,25 @@ internal sealed partial class Driver
     {
         var p = e.Properties;
         var parts = new List<string>();
-        try
+        // Each read is guarded alone: a provider that rejects one property (e.g. landmark on older peers) must not hide the rest.
+        void Add(Func<string?> read)
         {
-            if (p.HeadingLevel.TryGetValue(out var heading) && (int)heading is > 80050 and < 80060)
-                parts.Add($"heading={(int)heading - 80050}");
-            if (p.LandmarkType.TryGetValue(out var landmark) && (int)landmark != 0)
-                parts.Add($"landmark={p.LocalizedLandmarkType.ValueOrDefault}");
-            if (p.LiveSetting.TryGetValue(out var live) && (int)live != 0) parts.Add($"live={live}");
-            if (p.AcceleratorKey.ValueOrDefault is { Length: > 0 } accel) parts.Add($"accel={accel}");
-            if (p.AccessKey.ValueOrDefault is { Length: > 0 } access) parts.Add($"access={access}");
-            if (p.ItemStatus.ValueOrDefault is { Length: > 0 } status) parts.Add($"status=\"{status}\"");
-            if (p.FullDescription.ValueOrDefault is { Length: > 0 } description) parts.Add($"desc=\"{description}\"");
+            try
+            {
+                if (read() is { } part) parts.Add(part);
+            }
+            catch (Exception)
+            {
+                // Unsupported property on this provider; the tree line stays without it.
+            }
         }
-        catch (Exception)
-        {
-            // Older UIA providers may not expose these properties; the tree line stays without them.
-        }
+        Add(() => p.HeadingLevel.TryGetValue(out var heading) && (int)heading is > 80050 and < 80060 ? $"heading={(int)heading - 80050}" : null);
+        Add(() => p.LandmarkType.TryGetValue(out var landmark) && (int)landmark != 0 ? $"landmark={p.LocalizedLandmarkType.ValueOrDefault}" : null);
+        Add(() => p.LiveSetting.TryGetValue(out var live) && (int)live != 0 ? $"live={live}" : null);
+        Add(() => p.AcceleratorKey.ValueOrDefault is { Length: > 0 } accel ? $"accel={accel}" : null);
+        Add(() => p.AccessKey.ValueOrDefault is { Length: > 0 } access ? $"access={access}" : null);
+        Add(() => p.ItemStatus.ValueOrDefault is { Length: > 0 } status ? $"status=\"{status}\"" : null);
+        Add(() => p.FullDescription.ValueOrDefault is { Length: > 0 } description ? $"desc=\"{description}\"" : null);
         return parts.Count > 0 ? " " + string.Join(" ", parts) : "";
     }
 

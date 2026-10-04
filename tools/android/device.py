@@ -833,8 +833,9 @@ class Device:
         """
         cmd = [adb_path(), "-s", serial or self.serial, *args]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=not binary,
-                                    timeout=self._timeout(cap))
+            # Explicit UTF-8: Windows' default code page fails on logcat/TalkBack text and leaves stdout None.
+            text_args = {} if binary else {"text": True, "encoding": "utf-8", "errors": "replace"}
+            result = subprocess.run(cmd, capture_output=True, timeout=self._timeout(cap), **text_args)
         except subprocess.TimeoutExpired as exc:
             raise DeviceError(f"timeout: {' '.join(cmd)}") from exc
         if check and result.returncode != 0:

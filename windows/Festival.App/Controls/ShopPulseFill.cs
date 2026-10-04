@@ -26,14 +26,26 @@ public sealed partial class ShopPulseFill : Grid
     private bool pulses;
     private bool running;
     private bool live = true;
+    private readonly Windows.UI.ViewManagement.UISettings uiSettings = new();
 
     /// <summary>Creates the fill (hidden from UI Automation, not hit-testable).</summary>
     public ShopPulseFill()
     {
         IsHitTestVisible = false;
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
-        Loaded += (_, _) => { Motion.Changed += OnMotionChanged; Update(); };
-        Unloaded += (_, _) => { Motion.Changed -= OnMotionChanged; Stop(); };
+        Loaded += (_, _) =>
+        {
+            Motion.Changed += OnMotionChanged;
+            uiSettings.ColorValuesChanged -= OnColorValuesChanged;
+            uiSettings.ColorValuesChanged += OnColorValuesChanged;
+            Update();
+        };
+        Unloaded += (_, _) =>
+        {
+            Motion.Changed -= OnMotionChanged;
+            uiSettings.ColorValuesChanged -= OnColorValuesChanged;
+            Stop();
+        };
     }
 
     /// <summary>Sets the status and whether it breathes.</summary>
@@ -70,6 +82,15 @@ public sealed partial class ShopPulseFill : Grid
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
     private void OnMotionChanged(object? sender, EventArgs e) => Update();
+
+    /// <summary>Re-resolves the status colour when a contrast theme is switched on or off (ColorValuesChanged).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="args">Unused.</param>
+    private void OnColorValuesChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (Background is not null) Apply(highlight, pulses);
+        });
 
     /// <summary>Starts or stops the breathe for the current state.</summary>
     private void Update()

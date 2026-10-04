@@ -26,8 +26,6 @@ import com.festivalscoretracker.android.core.bands.BandPaging
 
 // region Destinations
 
-/** Rows in the Bands landing preview (web `BandsPage` preview size). */
-
 /**
  * Register the Bands routes: `/bands` (Band not found, web parity), player bands, band detail and the per-song
  * band leaderboard. The single registration point in `FestivalApp`'s `NavHost`.
