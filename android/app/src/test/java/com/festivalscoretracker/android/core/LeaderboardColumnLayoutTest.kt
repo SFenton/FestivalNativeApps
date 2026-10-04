@@ -270,5 +270,15 @@ class LeaderboardColumnLayoutTest {
         assertTrue(texts.seasons.isEmpty())
     }
 
+    @Test
+    fun aFullComboWithoutAccuracyKeepsTheAccuracyColumn() {
+        val rows = listOf(
+            LeaderboardEntry(accountId = "a", score = 1, rank = 1, isFullCombo = true),
+            LeaderboardEntry(accountId = "b", score = 1, rank = 2, isFullCombo = false),
+        )
+        assertTrue(ScoreSectionTexts.of(rows, Locale.US).hasAccuracy)
+        assertFalse(ScoreSectionTexts.of(rows.drop(1), Locale.US).hasAccuracy)
+    }
+
     // endregion
 }

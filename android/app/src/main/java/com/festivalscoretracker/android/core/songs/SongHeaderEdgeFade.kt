@@ -29,11 +29,11 @@ data class EdgeFade(val top: Float, val strength: Float)
  *
  * The header has no backing (issue #91, iOS operator batch 7): rows never show through it
  * because the list hides everything above [EdgeFade.top] and redraws only the headers there
- * ([headersAboveCut]).
+ * ([headersOverEdge]).
  *
  * The band starts at the pinned header's resting bottom, which does not move while the next
- * header pushes the current one away, so headers and rows pass through the same band without
- * any jump. It appears gradually over the first [DEPTH_DP] of scrolling after the first header
+ * header pushes the current one away. Rows fade through it; headers in it are redrawn opaque,
+ * so the next header slides up and pushes the pinned one out without fading or jumping. It appears gradually over the first [DEPTH_DP] of scrolling after the first header
  * pins, so the rows below it never fade at once. Pure geometry: the UI reads it in the draw
  * phase only.
  */
@@ -84,16 +84,20 @@ object SongHeaderEdgeFade {
     }
 
     /**
-     * Headers that reach above the cut at [top] and are redrawn there, over the hidden rows:
-     * the pinned header (also while it is pushed away) and the next header pushing it.
+     * Headers that reach above the bottom of the fade band and are redrawn whole and opaque over
+     * the cut and the band: the pinned header (also while it is pushed away) and the next header
+     * on its way up to push it. Without this the incoming header faded out inside the band like a
+     * row and popped back opaque as it crossed the cut, instead of sliding up and pushing the
+     * pinned one out (issue #288).
      *
      * @param items Visible items.
      * @param viewportStart Viewport start offset.
      * @param top The cut ([EdgeFade.top]) in px from the list's top edge.
-     * @return Headers with any part between the list's top edge and [top], in list order.
+     * @param depth Fade band depth in px below the cut (0 for a hard edge).
+     * @return Headers with any part between the list's top edge and `top + depth`, in list order.
      */
-    fun headersAboveCut(items: List<EdgeFadeItem>, viewportStart: Int, top: Float): List<EdgeFadeItem> =
-        items.filter { it.isHeader && it.offset - viewportStart < top && it.offset - viewportStart + it.size > 0 }
+    fun headersOverEdge(items: List<EdgeFadeItem>, viewportStart: Int, top: Float, depth: Float): List<EdgeFadeItem> =
+        items.filter { it.isHeader && it.offset - viewportStart < top + depth && it.offset - viewportStart + it.size > 0 }
 
     /**
      * Mask alpha at a stop, scaled by the fade strength (1 = unchanged row).

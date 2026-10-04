@@ -853,7 +853,7 @@ class PlayerProfileViewModel(
     /** Web "Avg Stars": five gold star images at a perfect 6, else two trimmed decimals. */
     private fun averageStarsTile(stats: PlayerStats): PlayerStatTile {
         val average = stats.averageStars ?: return PlayerStatTile("avg-stars", "Avg Stars", "—")
-        if (average >= 6.0) return PlayerStatTile("avg-stars", "Avg Stars", "Gold stars", tint = StatTints.GOLD, stars = 6)
+        if (average >= 6.0) return PlayerStatTile("avg-stars", "Avg Stars", "5 gold stars", tint = StatTints.GOLD, stars = 6)
         return PlayerStatTile("avg-stars", "Avg Stars", ProfileFormatting.twoDecimals(average))
     }
 

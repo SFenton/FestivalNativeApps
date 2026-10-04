@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -20,6 +21,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -131,8 +133,10 @@ fun FestivalModalHeader(
 
 /**
  * Shared modal bottom sheet: Material's `ModalBottomSheet` on the card colour, kept below
- * the status bar ([festivalSheetTop]), titled for TalkBack (`paneTitle`) and headed by
- * [FestivalModalHeader]. The close button slides the sheet away (instantly under Reduce
+ * the status bar ([festivalSheetTop]) and on one side of a separating hinge
+ * ([festivalSheetHingeSide]), titled for TalkBack (`paneTitle`) and headed by
+ * [FestivalModalHeader]. Material's drag handle keeps a 48 dp touch target. The close button
+ * slides the sheet away (instantly under Reduce
  * Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
  *
  * @param title Header and pane title.
@@ -171,7 +175,9 @@ fun FestivalModalSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().popupTestTags().then(modifier).semantics { paneTitle = title },
+        modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
+        // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
+        dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
     ) {
         FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
         content()

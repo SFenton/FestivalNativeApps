@@ -158,7 +158,7 @@ internal sealed partial class Driver
                 ["line"] = line,
                 ["id"] = focused?.Properties.AutomationId.ValueOrDefault ?? "",
                 ["name"] = focused?.Properties.Name.ValueOrDefault ?? "",
-                ["type"] = focused?.Properties.ControlType.ValueOrDefault.ToString() ?? "",
+                ["type"] = focused is null ? "" : Role(focused),
                 ["width_epx"] = WidthEpx(window),
                 ["in_window"] = focused is not null && focused.Properties.ProcessId.ValueOrDefault == window.Properties.ProcessId.Value,
             };

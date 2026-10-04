@@ -290,7 +290,7 @@ class ProfileParityUiTest {
         }
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B), stillBackground = true))
         journey.scrollTo("fst.player.tile.Solo_Guitar.avg-stars")
-        rule.onNodeWithTag("fst.player.tile.Solo_Guitar.avg-stars").assert(hasContentDescription("Avg Stars: Gold stars"))
+        rule.onNodeWithTag("fst.player.tile.Solo_Guitar.avg-stars").assert(hasContentDescription("Avg Stars: 5 gold stars"))
     }
 
     @Test

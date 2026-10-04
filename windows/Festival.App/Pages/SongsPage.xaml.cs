@@ -2,11 +2,13 @@ using System.ComponentModel;
 using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
@@ -59,6 +61,18 @@ public sealed partial class SongsPage : Page, IPageBack
     private readonly TopEdgeFade edgeFade;
     private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
+    /// <summary>Content position that leaves the pinned title unpushed (no incoming title).</summary>
+    private const float RestingTitle = 1e6f;
+
+    /// <summary>Push geometry for the compositor: C (incoming title's content top), V (viewport top in PushLayer) and H (bar height).</summary>
+    private CompositionPropertySet? pushProps;
+
+    /// <summary>The in-list title made transparent while PushLayer draws it.</summary>
+    private TextBlock? hiddenTitle;
+
+    /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
+    private int pendingPin = -1;
+
     /// <summary>Creates the page.</summary>
     public SongsPage()
     {
@@ -68,6 +82,14 @@ public sealed partial class SongsPage : Page, IPageBack
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
             () => ViewModel.ShowList || ViewModel.ShowEmpty ? ViewModel.CountText : null, "Loading songs");
         Loaded += (_, _) => UpdateButtonTints();
+        // The gold tint is set from code, so a contrast-theme switch must re-resolve it (theme-accessibility: inline brush
+        // assignments do not follow {ThemeResource}).
+        Loaded += (_, _) =>
+        {
+            ContrastTheme.Changed -= OnColorsChanged;
+            ContrastTheme.Changed += OnColorsChanged;
+        };
+        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
         SizeChanged += OnSizeChanged;
         SongList.SelectionChanged += OnSongSelectionChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
@@ -106,7 +128,7 @@ public sealed partial class SongsPage : Page, IPageBack
                 RebindGroups();
                 // A new sort starts at the top of the list (operator batch 5; web and every sortable list).
                 if (appliedSort is not null && appliedSort != ViewModel.SortSummary)
-                    (scroller ??= FindScrollViewer(SongList))?.ChangeView(null, 0, null, true);
+                    EnsureScroller()?.ChangeView(null, 0, null, true);
                 appliedSort = ViewModel.SortSummary;
                 if (split) EnsureSplitSelection();
                 else ApplySplit(ActualWidth >= SplitWidth);
@@ -132,7 +154,9 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Rebuilds the grouped source and the sticky header's section offsets.</summary>
     private void RebindGroups()
     {
-        var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0)).ToList();
+        ShowIncoming(null);
+        pendingPin = -1;
+        var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0, s.AutomationId)).ToList();
         groupStarts = new int[groups.Count];
         for (int i = 0, start = 0; i < groups.Count; start += groups[i].Count, i++) groupStarts[i] = start;
         stickyLabels = groups.Select(g => g.Label).ToArray();
@@ -142,30 +166,134 @@ public sealed partial class SongsPage : Page, IPageBack
     }
 
     /// <summary>
-    /// Shows the label of the section holding the first visible row in the bar above the list. Runs on scroll view
-    /// changes only (no per-frame work while idle). The first visible row comes from the realized rows' geometry:
-    /// <see cref="ItemsStackPanel.FirstVisibleIndex"/> can still describe the layout before a jump-index pick (issue #48:
-    /// R → B kept "A" pinned).
+    /// Names the section holding the first visible row in the bar above the list, and lets the next section's title
+    /// push it out like a plain list's pinned headers (issue #288; <see cref="SongSectionHeader.Push"/>). Runs on scroll
+    /// view changes only (no per-frame work while idle); the push positions follow the scroll on the compositor. The
+    /// first visible row comes from the realized rows' geometry: <see cref="ItemsStackPanel.FirstVisibleIndex"/> can
+    /// still describe the layout before a jump-index pick (issue #48: R → B kept "A" pinned).
     /// </summary>
     private void UpdateStickyHeader()
     {
-        if (scroller is null && (scroller = FindScrollViewer(SongList)) is not null)
-            scroller.ViewChanged += (_, _) => UpdateStickyHeader();
+        EnsureScroller();
         var panel = SongList.ItemsPanelRoot as ItemsStackPanel;
         var fallback = panel is { FirstVisibleIndex: >= 0 } ? panel.FirstVisibleIndex : 0;
-        var label = SongSectionHeader.Label(groupStarts, stickyLabels, fallback, stickyRowCount, RealizedRows(panel),
+        var row = SongSectionHeader.FirstVisibleRow(fallback, stickyRowCount, RealizedRows(panel),
             scroller?.ViewportHeight ?? SongList.ActualHeight);
-        ShowStickyHeader(label);
+        var section = SongSectionHeader.SectionAt(groupStarts, row);
+        var own = TitleAt(section);
+        var next = TitleAt(section + 1);
+        var push = SongSectionHeader.Push(section, stickyLabels.Length, own?.Top, next?.Top, StickyBar.ActualHeight,
+            SongHeaderEdgeFade.Depth);
+        var incoming = push.Incoming < 0 ? null : push.Incoming == section ? own : next;
+        ShowStickyHeader(push.Current >= 0 ? stickyLabels[push.Current] : "", incoming);
     }
 
     /// <summary>Sets the pinned header's text and visibility.</summary>
     /// <param name="label">Section label ("" hides the bar).</param>
-    private void ShowStickyHeader(string label)
+    /// <param name="incoming">The next section's in-list title pushing it out, if any.</param>
+    private void ShowStickyHeader(string label, (TextBlock Text, double Top)? incoming = null)
     {
         StickyHeader.Text = label;
         var shown = label.Length > 0 && Zoom.IsZoomedInViewActive && ViewModel.ShowList && Zoom.Opacity > 0;
         StickyHeader.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        ShowIncoming(shown ? incoming : null);
         UpdateEdgeFade(shown);
+    }
+
+    /// <summary>
+    /// Finds the list's scroll viewer once, following its view changes for the pinned header and starting the push
+    /// animations (every lookup goes through here so none skips the subscription).
+    /// </summary>
+    /// <returns>The scroll viewer, or <see langword="null"/> before the list's template applies.</returns>
+    private ScrollViewer? EnsureScroller()
+    {
+        if (scroller is null && (scroller = FindScrollViewer(SongList)) is not null)
+        {
+            scroller.ViewChanged += (_, _) => UpdateStickyHeader();
+            StartPushAnimations(scroller);
+        }
+        return scroller;
+    }
+
+    /// <summary>A section's visible in-list title and its text top relative to the list viewport's top.</summary>
+    /// <param name="section">Section index.</param>
+    /// <returns>The title, or <see langword="null"/> when it has none (the first section) or is not realized.</returns>
+    private (TextBlock Text, double Top)? TitleAt(int section)
+    {
+        if (scroller is null || section <= 0 || section >= groupStarts.Length) return null;
+        var end = section + 1 < groupStarts.Length ? groupStarts[section + 1] : stickyRowCount;
+        if (end <= groupStarts[section] || SongList.ContainerFromIndex(groupStarts[section]) is not ListViewItem item) return null;
+        if (SongList.GroupHeaderContainerFromItemContainer(item) is not ListViewHeaderItem
+            { ContentTemplateRoot: TextBlock { Visibility: Visibility.Visible } text }) return null;
+        return (text, text.TransformToVisual(scroller).TransformPoint(default).Y);
+    }
+
+    /// <summary>
+    /// Ties the pinned title's and the incoming copy's offsets to the scroll position on the compositor, so they move
+    /// with the rows in the same frame (live title top t = C + scroll translation): the pinned title moves up by
+    /// Clamp(t, -H, 0) and the copy sits at Max(0, V + t), its own place until it lands at the bar's top.
+    /// </summary>
+    /// <param name="viewer">The list's scroll viewer.</param>
+    private void StartPushAnimations(ScrollViewer viewer)
+    {
+        var scroll = ElementCompositionPreview.GetScrollViewerManipulationPropertySet(viewer);
+        pushProps = scroll.Compositor.CreatePropertySet();
+        pushProps.InsertScalar("C", RestingTitle);
+        pushProps.InsertScalar("V", 0);
+        pushProps.InsertScalar("H", 0);
+        StartTranslation(StickyHeader, "Vector3(0, Clamp(p.C + s.Translation.Y, -p.H, 0), 0)", scroll, pushProps);
+        StartTranslation(IncomingHeader, "Vector3(0, Max(0, p.V + p.C + s.Translation.Y), 0)", scroll, pushProps);
+    }
+
+    /// <summary>Drives an element's Translation with an expression over the scroll and push property sets.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="expression">Vector3 expression.</param>
+    /// <param name="scroll">The scroll viewer's manipulation property set (s).</param>
+    /// <param name="props">Push geometry (p).</param>
+    private static void StartTranslation(UIElement element, string expression, CompositionPropertySet scroll, CompositionPropertySet props)
+    {
+        ElementCompositionPreview.SetIsTranslationEnabled(element, true);
+        var visual = ElementCompositionPreview.GetElementVisual(element);
+        var animation = visual.Compositor.CreateExpressionAnimation(expression);
+        animation.SetReferenceParameter("s", scroll);
+        animation.SetReferenceParameter("p", props);
+        visual.StartAnimation("Translation", animation);
+    }
+
+    /// <summary>
+    /// Draws the incoming section title in PushLayer over its in-list place (made transparent, still the UIA heading),
+    /// or hides the copy and restores the in-list title.
+    /// </summary>
+    /// <param name="incoming">The incoming title, or <see langword="null"/>.</param>
+    private void ShowIncoming((TextBlock Text, double Top)? incoming)
+    {
+        var title = incoming is { } shown && scroller is not null && pushProps is not null ? shown.Text : null;
+        if (hiddenTitle is not null && hiddenTitle != title) hiddenTitle.Opacity = 1;
+        hiddenTitle = title;
+        if (title is null || pushProps is null || scroller is null)
+        {
+            IncomingHeader.Visibility = Visibility.Collapsed;
+            pushProps?.InsertScalar("C", RestingTitle);
+            return;
+        }
+        var top = incoming!.Value.Top;
+        var origin = title.TransformToVisual(PushLayer).TransformPoint(default);
+        IncomingHeader.Text = title.Text;
+        Canvas.SetLeft(IncomingHeader, origin.X);
+        pushProps.InsertScalar("V", (float)(origin.Y - top));
+        pushProps.InsertScalar("H", (float)StickyBar.ActualHeight);
+        pushProps.InsertScalar("C", (float)(top + scroller.VerticalOffset));
+        IncomingHeader.Visibility = Visibility.Visible;
+        title.Opacity = 0;
+    }
+
+    /// <summary>Keeps the bar clipped to its own row (the pushed title leaves through its top) and re-lays the push.</summary>
+    /// <param name="sender">Bar.</param>
+    /// <param name="e">New size.</param>
+    private void OnStickyBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        StickyBar.Clip = new RectangleGeometry { Rect = new(0, 0, e.NewSize.Width, e.NewSize.Height) };
+        UpdateStickyHeader();
     }
 
     /// <summary>
@@ -233,22 +361,46 @@ public sealed partial class SongsPage : Page, IPageBack
     }
 
     /// <summary>
-    /// A jump-index pick names its section in the pinned header at once, then re-reads the rows once layout settles
-    /// (a section that cannot reach the top, such as Z, leaves the previous section there).
+    /// A jump-index pick names its section in the pinned header at once, then re-reads the rows once layout settles and
+    /// scrolls the picked title up under the bar so the section's first row sits at the top (a section that cannot reach
+    /// the top, such as Z, leaves the previous section there).
     /// </summary>
     /// <param name="sender">Semantic zoom.</param>
     /// <param name="e">View change.</param>
     private void OnZoomViewChangeCompleted(object sender, SemanticZoomViewChangedEventArgs e)
     {
-        if (Zoom.IsZoomedInViewActive && e.DestinationItem?.Item is SongGroup group) ShowStickyHeader(group.Label);
+        pendingPin = -1;
+        if (Zoom.IsZoomedInViewActive && e.DestinationItem?.Item is SongGroup group)
+        {
+            ShowStickyHeader(group.Label);
+            if (GroupedSongs.Source is IList<SongGroup> groups) pendingPin = groups.IndexOf(group);
+        }
         else UpdateStickyHeader();
         void Settle(object? _, object __)
         {
             SongList.LayoutUpdated -= Settle;
+            PinJumpedSection();
             UpdateStickyHeader();
         }
         SongList.LayoutUpdated += Settle;
-        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, UpdateStickyHeader);
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            PinJumpedSection();
+            pendingPin = -1;
+            UpdateStickyHeader();
+        });
+    }
+
+    /// <summary>Scrolls a jumped-to section's title under the bar once its header is realized (<see cref="SongSectionHeader.JumpPinDelta"/>).</summary>
+    private void PinJumpedSection()
+    {
+        if (pendingPin < 0 || pendingPin >= groupStarts.Length || scroller is null) return;
+        if (SongList.ContainerFromIndex(groupStarts[pendingPin]) is not ListViewItem item ||
+            SongList.GroupHeaderContainerFromItemContainer(item) is not FrameworkElement header) return;
+        pendingPin = -1;
+        var bottom = header.TransformToVisual(scroller).TransformPoint(default).Y + header.ActualHeight;
+        var delta = SongSectionHeader.JumpPinDelta(bottom, scroller.ViewportHeight);
+        if (delta > 0) scroller.ChangeView(null, scroller.VerticalOffset + delta, null, true);
     }
 
     /// <summary>First-paint gate: decode the first rows' art (bounded), then fade the list in.</summary>
@@ -574,6 +726,11 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="instrument">Chart, or <see langword="null"/> when cleared.</param>
     private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
+    /// <summary>Re-resolves the Sort/Filter tints on the UI thread after a system colour change.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
+
     /// <summary>
     /// Marks Sort/Filter when a non-default choice is applied and reports the Filter state to UI Automation (Narrator
     /// reads the item status after the button's name; the tint alone was silent).
@@ -641,19 +798,27 @@ public sealed partial class SongsPage : Page, IPageBack
     #endregion
 
     #region Perf scenario
-    /// <summary>Continuously scrolls the list (<c>--auto-scroll</c>) to measure frame delivery.</summary>
+    /// <summary>
+    /// Continuously scrolls the list (<c>--auto-scroll</c>) to measure frame delivery; <c>--auto-scroll-speed</c> sets a
+    /// steady pace in epx/s and <c>--auto-scroll-span</c> turns back early (slow section-boundary checks, issue #288).
+    /// </summary>
     private void StartAutoScroll()
     {
         if (autoScroll is not null) return;
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         autoScroll = DispatcherQueue.CreateTimer();
         autoScroll.Interval = TimeSpan.FromMilliseconds(16);
         autoScroll.Tick += (_, _) =>
         {
-            scroller ??= FindScrollViewer(SongList);
-            if (scroller is null) return;
-            var next = scroller.VerticalOffset + scrollStep;
-            if (next >= scroller.ScrollableHeight || next <= 0) scrollStep = -scrollStep;
-            scroller.ChangeView(null, Math.Clamp(next, 0, scroller.ScrollableHeight), null, true);
+            var elapsed = clock.Elapsed.TotalSeconds;
+            clock.Restart();
+            if (EnsureScroller() is not { } viewer) return;
+            if (App.Options.AutoScrollSpeed is { } speed)
+                scrollStep = Math.CopySign(speed * Math.Min(elapsed, 0.1), scrollStep);
+            var end = Math.Min(viewer.ScrollableHeight, App.Options.AutoScrollSpan ?? double.MaxValue);
+            var next = viewer.VerticalOffset + scrollStep;
+            if (next >= end || next <= 0) scrollStep = -scrollStep;
+            viewer.ChangeView(null, Math.Clamp(next, 0, end), null, true);
         };
         autoScroll.Start();
     }
@@ -681,14 +846,19 @@ public sealed partial class SongGroup : List<SongRowItem>
     /// <param name="label">Header ("" hides it).</param>
     /// <param name="rows">Rows.</param>
     /// <param name="isFirst">Whether it is the list's first section (the sticky bar names it, so it has no in-list header).</param>
-    public SongGroup(string label, IEnumerable<SongRowItem> rows, bool isFirst = false) : base(rows)
+    /// <param name="automationId">Heading automation ID (Item Shop buckets), or empty.</param>
+    public SongGroup(string label, IEnumerable<SongRowItem> rows, bool isFirst = false, string automationId = "") : base(rows)
     {
         Label = label;
         ShowInlineHeader = HasLabel && !isFirst;
+        AutomationId = automationId;
     }
 
     /// <summary>White Title Case header.</summary>
     public string Label { get; }
+
+    /// <summary>Heading automation ID (<c>fst.songs.shop-section.*</c> for Item Shop buckets), or empty.</summary>
+    public string AutomationId { get; }
 
     /// <summary>Whether the header shows (a single Shop bucket has none).</summary>
     public bool HasLabel => Label.Length > 0;

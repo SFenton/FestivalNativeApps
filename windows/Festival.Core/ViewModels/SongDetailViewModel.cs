@@ -610,8 +610,13 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     /// <summary>Where the row leads (player profile, or the full board for the player's own row eleven).</summary>
     public AppRoute? Route { get; init; }
 
+    /// <summary>Badge UIA ID (<c>fst.score.accuracy.preview.&lt;instrument&gt;.&lt;accountId&gt;</c>), unique across chart cards.</summary>
+    public string BadgeAutomationId => $"fst.score.accuracy.preview.{InstrumentId}." +
+                                       (string.IsNullOrEmpty(Entry.AccountId) ? "rank-" + Entry.Rank : Entry.AccountId);
+
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Name}, {Score} points" +
-                                  (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") + (IsSelectedPlayer ? ", you" : "");
+                                  (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") +
+                                  (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") + (IsSelectedPlayer ? ", you" : "");
 }
 #endregion
