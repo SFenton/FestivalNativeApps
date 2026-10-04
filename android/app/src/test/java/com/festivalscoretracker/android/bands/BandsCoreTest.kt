@@ -343,6 +343,25 @@ class BandsCoreTest {
         assertEquals(1, BandLayout.statColumns(100f, 0.5f, largeText = true))
     }
 
+    @Test
+    fun memberColumnsLeaveRoomForNamesBesideIcons() {
+        // Seven instruments need 358 dp: an 800 dp tablet's ~650 dp column keeps one card per row.
+        assertEquals(1, BandLayout.memberColumns(650f, 7, largeText = false))
+        assertEquals(2, BandLayout.memberColumns(775f, 7, largeText = false))
+        // Few instruments fall back to the 260 dp minimum.
+        assertEquals(2, BandLayout.memberColumns(650f, 2, largeText = false))
+        // Large text stacks the icons under the name, so the 260 dp minimum applies.
+        assertEquals(2, BandLayout.memberColumns(650f, 7, largeText = true))
+        assertEquals(1, BandLayout.memberColumns(100f, 0, largeText = true))
+        assertEquals(383.5f, BandLayout.memberCardWidth(775f, 2))
+        assertEquals(650f, BandLayout.memberCardWidth(650f, 1))
+        // A 379 dp phone keeps the one-row card; a ~290 dp fold pane or large text stacks it.
+        assertTrue(BandLayout.memberInline(379f, 7, largeText = false))
+        assertTrue(!BandLayout.memberInline(290f, 7, largeText = false))
+        assertTrue(!BandLayout.memberInline(650f, 7, largeText = true))
+        assertTrue(BandLayout.memberInline(290f, 2, largeText = false))
+    }
+
     // endregion
 
     // region Song band leaderboard rows

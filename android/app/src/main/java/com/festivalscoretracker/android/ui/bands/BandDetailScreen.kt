@@ -181,7 +181,8 @@ private fun BandDetailContent(
                 RankByMenu(metric, viewModel::selectMetric)
                 Spacer(Modifier.height(8.dp))
             } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The 48 dp Rank By button is as tall as the heading row; the top inset keeps it off the tiles above.
+                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     SectionHeader("Band Statistics", Modifier.weight(1f).testTag("fst.band.statistics-section"))
                     RankByMenu(metric, viewModel::selectMetric)
                 }
@@ -249,9 +250,12 @@ private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> 
     SectionHeader("Members", Modifier.testTag("fst.band.members-section"))
     val largeText = isLargeText()
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = maxOf(1, (maxWidth / 260.dp).toInt())
+        val distinct = BandMember.distinct(members)
+        val instruments = distinct.maxOfOrNull { it.chartedInstruments.size } ?: 0
+        val columns = BandLayout.memberColumns(maxWidth.value, instruments, largeText)
+        val stacked = !BandLayout.memberInline(BandLayout.memberCardWidth(maxWidth.value, columns), instruments, largeText)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BandMember.distinct(members).chunked(columns).forEach { row ->
+            distinct.chunked(columns).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     row.forEach { member ->
                         val route = if (member.isLinkable) PlayerRoute(member.accountId, member.displayName?.takeIf { it.isNotBlank() }) else null
@@ -265,8 +269,8 @@ private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> 
                         ) {
                             // The card's description is the announcement; the texts would repeat it.
                             val nameColor = if (route != null) BrandTokens.textPrimary else BrandTokens.textSecondary
-                            if (largeText) {
-                                // Large text: the name gets the full width and the icons wrap under it.
+                            if (stacked) {
+                                // Large text or a narrow pane: the name gets the full width and the icons wrap under it.
                                 Column(Modifier.padding(12.dp).clearAndSetSemantics { }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     FestivalMarqueeText(member.resolvedName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = nameColor)
                                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

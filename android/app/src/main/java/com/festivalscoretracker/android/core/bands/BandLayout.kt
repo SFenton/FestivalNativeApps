@@ -141,6 +141,56 @@ object BandLayout {
     /** Statistics tile width at 100% text. */
     const val STAT_TILE_MIN = 150f
 
+    /** Member card column width at large text (name above wrapping icons). */
+    const val MEMBER_CARD_MIN = 260f
+
+    /** Narrowest member name beside the instrument icons before the card stacks them under it. */
+    const val MEMBER_NAME_MIN = 96f
+
+    /** Instrument icon (28 dp) plus its 6 dp gap on a member card. */
+    const val MEMBER_ICON_SLOT = 34f
+
+    /** Member card horizontal padding (12 dp each side). */
+    const val MEMBER_CARD_PADDING = 24f
+
+    /**
+     * Whether a member card fits its name ([MEMBER_NAME_MIN]) and every instrument icon on one
+     * row; otherwise (large text, a half-width fold pane) the icons wrap under the name.
+     *
+     * @param cardWidth Card width.
+     * @param instruments Most charted instruments on any member.
+     * @param largeText Whether large-text reflow applies.
+     * @return True for the one-row card.
+     */
+    fun memberInline(cardWidth: Float, instruments: Int, largeText: Boolean): Boolean =
+        !largeText && cardWidth >= MEMBER_CARD_PADDING + MEMBER_NAME_MIN + instruments * MEMBER_ICON_SLOT
+
+    /**
+     * Members grid columns: as many cards as fit at the one-row width (a 7-instrument member
+     * needs ≈ 358 dp), never narrower than [MEMBER_CARD_MIN].
+     *
+     * @param contentWidth Grid width.
+     * @param instruments Most charted instruments on any member.
+     * @param largeText Whether large-text reflow applies.
+     * @return Column count (≥ 1).
+     */
+    fun memberColumns(contentWidth: Float, instruments: Int, largeText: Boolean): Int {
+        val min = if (largeText) MEMBER_CARD_MIN else max(MEMBER_CARD_MIN, MEMBER_CARD_PADDING + MEMBER_NAME_MIN + instruments * MEMBER_ICON_SLOT)
+        return max(1, ((contentWidth + GUTTER_MEMBERS) / (min + GUTTER_MEMBERS)).toInt())
+    }
+
+    /**
+     * Width of each card in a [columns]-wide members grid.
+     *
+     * @param contentWidth Grid width.
+     * @param columns Column count.
+     * @return Card width.
+     */
+    fun memberCardWidth(contentWidth: Float, columns: Int): Float = (contentWidth - GUTTER_MEMBERS * (columns - 1)) / columns
+
+    /** Gap between member cards. */
+    private const val GUTTER_MEMBERS = 8f
+
     /**
      * Band Statistics tile columns: two to four [STAT_TILE_MIN] tiles normally; at large
      * text the tile minimum grows with the font scale and one column is allowed, so a
