@@ -92,7 +92,7 @@ class BandsUiTest {
     fun bandsWithoutAnIdShowsBandNotFound() {
         launch("bands")
         waitForTag("fst.bands.not-found")
-        rule.onNodeWithText("Band Not Found").assertIsDisplayed()
+        rule.onNodeWithText("Band not found").assertIsDisplayed()
         assertTrue(transport.requests.none { it.url.contains("/api/bands") })
     }
 
