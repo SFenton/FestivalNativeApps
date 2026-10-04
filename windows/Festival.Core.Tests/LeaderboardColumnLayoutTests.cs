@@ -114,13 +114,19 @@ public class LeaderboardColumnLayoutTests
     {
         // Issue #208: Full Rankings at 200% text in a ~470 epx row left the name an ellipsis; the label moves under it.
         var rankings = new LeaderboardSection(LeaderboardRowKind.Ranking, RankChars: 3, MetaChars: 7, ValueChars: 10, HasAccuracy: false, HasStars: false);
-        var squeezed = LeaderboardColumnLayout.Fit(rankings, 470, 2);
-        Assert.Equal((false, 0d, true), (squeezed.ShowMeta, squeezed.MetaWidth, squeezed.MetaBelowName));
+        var squeezed = LeaderboardColumnLayout.Fit(rankings, 560, 2);
+        Assert.Equal((false, 0d, true, false), (squeezed.ShowMeta, squeezed.MetaWidth, squeezed.MetaBelowName, squeezed.ValueBelowName));
+        // Live Pro Lead "#1,450" with "38,267,723" at 200% in a ~470 epx row: still no room, so the row stacks.
+        var stacked = LeaderboardColumnLayout.Fit(rankings with { RankChars = 6 }, 470, 2);
+        Assert.Equal((true, true), (stacked.MetaBelowName, stacked.ValueBelowName));
+        Assert.True(LeaderboardColumnLayout.Fit(rankings with { MetaChars = 0 }, 470, 2).ValueBelowName);
         var roomy = LeaderboardColumnLayout.Fit(rankings, 1200, 2);
-        Assert.Equal((true, 98d, false), (roomy.ShowMeta, roomy.MetaWidth, roomy.MetaBelowName));
+        Assert.Equal((true, 98d, false, false), (roomy.ShowMeta, roomy.MetaWidth, roomy.MetaBelowName, roomy.ValueBelowName));
         // Before the first layout nothing moves; score rows drop the season instead.
         Assert.False(LeaderboardColumnLayout.Fit(rankings, double.NaN, 2).MetaBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, double.NaN, 2).ValueBelowName);
         Assert.False(LeaderboardColumnLayout.Fit(Scores, 470, 2).MetaBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 300, 2).ValueBelowName);
         Assert.False(LeaderboardColumnLayout.Fit(rankings with { MetaChars = 0 }, 470, 2).MetaBelowName);
     }
 

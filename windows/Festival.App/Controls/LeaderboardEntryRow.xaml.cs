@@ -221,7 +221,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.MetaWidth;
-        PlaceMeta(plan.MetaBelowName);
+        PlaceMeta(plan.MetaBelowName, plan.ValueBelowName);
         MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ValueColumn.MinWidth = plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
@@ -233,18 +233,28 @@ public sealed partial class LeaderboardEntryRow : UserControl
 
     /// <summary>
     /// Puts the songs label in its own right-aligned column, or under the name when the column would squeeze the name away
-    /// (issue #208: 200% text in a compact window left only an ellipsis).
+    /// (issue #208: 200% text in a compact window left only an ellipsis). When the name is still squeezed the row stacks:
+    /// rank and name (across the rating's column) on the first line, the songs label from the rank's edge and the rating
+    /// on the second.
     /// </summary>
     /// <param name="below">Whether the label goes under the name.</param>
-    private void PlaceMeta(bool below)
+    /// <param name="stacked">Whether the rating goes under the name too.</param>
+    private void PlaceMeta(bool below, bool stacked)
     {
+        var nameColumn = Grid.GetColumn(NameText);
+        var ranked = RankText.Visibility == Visibility.Visible;
+        Grid.SetRowSpan(RankText, stacked ? 1 : 2);
         Grid.SetRow(NameText, 0);
-        Grid.SetRowSpan(NameText, below ? 1 : 2);
-        NameText.VerticalAlignment = below ? VerticalAlignment.Bottom : VerticalAlignment.Center;
+        Grid.SetRowSpan(NameText, below || stacked ? 1 : 2);
+        Grid.SetColumnSpan(NameText, (ranked ? 1 : 2) + (stacked ? 2 : 0));
+        NameText.VerticalAlignment = below || stacked ? VerticalAlignment.Bottom : VerticalAlignment.Center;
+        Grid.SetRow(ValueStack, stacked ? 1 : 0);
+        Grid.SetRowSpan(ValueStack, stacked ? 1 : 2);
+        ValueStack.VerticalAlignment = stacked ? VerticalAlignment.Top : VerticalAlignment.Center;
         Grid.SetRow(MetaText, below ? 1 : 0);
         Grid.SetRowSpan(MetaText, below ? 1 : 2);
-        Grid.SetColumn(MetaText, below ? Grid.GetColumn(NameText) : 2);
-        Grid.SetColumnSpan(MetaText, below ? Grid.GetColumnSpan(NameText) : 1);
+        Grid.SetColumn(MetaText, !below ? 2 : stacked ? 0 : nameColumn);
+        Grid.SetColumnSpan(MetaText, !below ? 1 : stacked ? 2 : (ranked ? 1 : 2));
         MetaText.VerticalAlignment = below ? VerticalAlignment.Top : VerticalAlignment.Center;
         MetaText.HorizontalAlignment = below ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         MetaText.TextAlignment = below ? TextAlignment.Left : TextAlignment.Right;

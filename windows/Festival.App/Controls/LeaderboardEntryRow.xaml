@@ -31,7 +31,8 @@
                 <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
             </controls:LeaderboardRowButton.Resources>
             <Grid x:Name="RowGrid" ColumnSpacing="12">
-                <!-- A second row only holds a rankings songs label moved under the name (large text in a narrow row). -->
+                <!-- A second row only holds a rankings songs label (and, when even that leaves no room, the rating) moved
+                     under the name (large text in a narrow row; issue #208). -->
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -49,8 +50,8 @@
                 <!-- Names truncate, never marquee (web colName; operator batch 7.14). -->
                 <TextBlock x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="2" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                 <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
-                <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
-                <StackPanel Grid.Column="3" Grid.RowSpan="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="2" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
                     <TextBlock x:Name="BayesianText" AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
                                Visibility="Collapsed" />
