@@ -47,7 +47,7 @@ Per configuration (fixture runs use `notifications_journey` and `a11y_matrix --s
 | Medium, wide, maximized | the flyout keeps a 380 epx width under the bell; all 10 scenarios pass at medium and the 8 contract ones at compact and wide; 0 Axe errors |
 | Light / dark system theme | the app keeps its dark brand surface ([design/windows.md](../../design/windows.md)); 0 Axe errors |
 | Desert, Night sky | fixed: flag pills kept their web colours and white text, and the "New"/"Older" headers stayed white. Pills are now outlined ButtonFace/ButtonText and the headers use WindowText; 0 Axe errors |
-| Text 200% | titles and sentences wrap and rows grow; the last row is reachable by scrolling (`notifications-loaded-end`); 0 Axe errors at compact and medium |
+| Text 200% | titles and sentences wrap and rows grow; the last row is reachable by scrolling (`notifications-loaded-end`); 0 Axe errors at compact and medium. Fixed: the unread count spilled out of the 16 epx badge and hid the bell, so the `InfoBadge` ignores text scaling (its count is a glanceable indicator; the bell's UIA name carries the number) |
 | Display 100% / 150% | layout identical in epx; 0 Axe errors |
 | Keyboard | Enter on the bell opens the flyout with focus on the first row (visible focus rectangle), arrows move between rows, Enter opens Song Detail, and Esc closes it and returns focus to the bell. Each list is one Tab stop, so with only unread rows Tab stays on the list; Retry is the only stop when the read fails (`kb-notifications-rows`, `kb-notifications-esc` at C/M/W) |
 

@@ -60,8 +60,9 @@
         <Grid MinWidth="36" Height="32">
             <FontIcon Glyph="&#xEA8F;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
                       AutomationProperties.AccessibilityView="Raw" />
+            <!-- A fixed 16 epx indicator: scaled text would spill out of it and hide the bell (the count is in the bell's UIA name). -->
             <InfoBadge Value="{x:Bind Model.UnreadCount, Mode=OneWay}" Visibility="{x:Bind Model.HasUnread, Mode=OneWay}"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" MaxHeight="16"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" MaxHeight="16" IsTextScaleFactorEnabled="False"
                        AutomationProperties.AccessibilityView="Raw" />
         </Grid>
         <Button.Flyout>

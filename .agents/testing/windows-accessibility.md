@@ -87,6 +87,7 @@ Fixed:
 - State IDs sat on panels, which have no UIA peer, so they now sit on text.
 - Under contrast themes the flag pills kept their web colours and the section headers stayed white.
 - With nothing focusable (loading, empty, not generated), focus rested on an unnamed "Popup" window, which is now named "Notifications".
+- At 200% text the unread `InfoBadge` count outgrew its 16 epx circle and covered the bell glyph. The badge now keeps a fixed text size (`IsTextScaleFactorEnabled="False"`), like the system's own badges.
 
 ## Song Band Leaderboard validation (issue #196, 2026-10-03)
 
