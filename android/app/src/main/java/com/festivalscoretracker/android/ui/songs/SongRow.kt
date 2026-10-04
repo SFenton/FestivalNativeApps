@@ -67,6 +67,7 @@ import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.StarRating
+import com.festivalscoretracker.android.ui.design.StarRatingStyle
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlin.math.ceil
@@ -586,7 +587,10 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
             SongPercentileTier.Ordinary -> PillBox(pill.text, BrandTokens.surfaceMuted, null, BrandTokens.textPrimary, tag)
         }
         // Stars and the intensity meter sit in a pill-height box so every pill in a row shares one height (7.18).
-        MetadataField.Stars -> Box(Modifier.heightIn(min = PILL_HEIGHT), contentAlignment = Alignment.Center) { StarRating(if (pill.goldStars) 6 else pill.starCount, tag) }
+        // Web `MiniStars`: 20 dp stars in pill-height (24 dp) circles, gold-ringed when gold.
+        MetadataField.Stars -> Box(Modifier.heightIn(min = PILL_HEIGHT), contentAlignment = Alignment.Center) {
+            StarRating(if (pill.goldStars) 6 else pill.starCount, tag, size = PILL_HEIGHT / 1.2f, style = StarRatingStyle.Mini)
+        }
         MetadataField.Season -> PillBox(
             pill.text,
             if (pill.currentSeason) BrandTokens.textPrimary else BrandTokens.surfaceMuted,

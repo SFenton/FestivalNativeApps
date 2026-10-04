@@ -18,7 +18,8 @@
 | Window | Layout |
 |---|---|
 | Compact (< 600 dp: phone, folded book/passport, tri-fold one panel) | List forced; toggle hidden |
-| Medium / expanded (unfolded, tablet, resizable desktop) | Grid with the web's column counts (`shopGridColumns`: 3 from 600, 4 from 860, 5 from 1100 dp content) or list; **Grid View / List View** toggle (`fst.shop.view-toggle`) persisted in `fst.shop.viewMode` |
+| Medium / expanded (unfolded, tablet, resizable desktop) | Grid with the web's column counts (`ShopColumnPolicy.gridColumns`: 3 from 600, 4 from 860, 5 from 1100 dp content) or list; **Grid View / List View** toggle (`fst.shop.view-toggle`) persisted in `fst.shop.viewMode` |
+| Half-open book / passport (separating vertical hinge, issue #131) | `rememberHingeSplit` + `ShopColumnPolicy.resolve`: one `LazyVerticalGrid` whose custom `GridCells`/`Arrangement` (`ShopCells`) leaves a gap of max(hinge, gutter) on the fold. Each pane gets its own column count (grid: `gridColumns(pane)`, uniform card width = the narrower pane's; list: one row per pane, flowing leading → trailing in title order). Header, empty, no-match, loading, failed and hidden states stay in the start pane (`fst.shop.start-pane`). Under TalkBack or large text (`rememberSingleColumn`) there is no split, as on every page: one full-width column. |
 
 ## Open
 

@@ -146,6 +146,38 @@ class SelectedProfileStoreTest {
     }
 
     @Test
+    fun readInterruptedByARecreatedOwnerResumesInTheNextOwner() = runTest {
+        val reads = mutableListOf<String>()
+        val gate = CompletableDeferred<Unit>()
+        val store = SelectedProfileStore({ reads += it; if (reads.size == 1) gate.await(); payload(it) }, MutableStateFlow(7), ServiceRetryBackoff())
+        val players = MutableStateFlow<SelectedPlayer?>(playerA)
+        val first = Job()
+        store.start(CoroutineScope(coroutineContext + first), players)
+        runCurrent()
+        assertEquals(SelectedProfileStatus.Loading, store.state.value.status)
+
+        first.cancel()
+        runCurrent()
+        val second = Job()
+        try {
+            store.start(CoroutineScope(coroutineContext + second), players)
+            advanceUntilIdle()
+            assertEquals(2, reads.size)
+            assertEquals(SelectedProfileStatus.Available, store.state.value.status)
+
+            // A settled read is kept by the next owner (no third read).
+            second.cancel()
+            val third = Job()
+            store.start(CoroutineScope(coroutineContext + third), players)
+            advanceUntilIdle()
+            assertEquals(2, reads.size)
+            third.cancel()
+        } finally {
+            second.cancel()
+        }
+    }
+
+    @Test
     fun lateReadForAPreviousAccountIsDropped() = runTest {
         val h = Harness(this).also { harness = it }
         val gate = CompletableDeferred<Unit>()

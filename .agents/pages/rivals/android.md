@@ -35,18 +35,37 @@ Native correction: the web sends the Settings combo for **every** Song Rivals ro
 ## Layout
 
 - Hub (`RivalsTab` at ≥ 600 dp, `RivalsRoute` from the drawer): `PrimaryTabRow` Song Rivals / Leaderboard Rivals (leaderboard reads start on first selection; a tab switch runs the shared load swap, issue #71: the old tab fades out, the spinner `fst.rivals.loading` shows until the new tab settles, then its cards stagger in), toolbar Find Rival + Quick Links (shared `QuickLinksAction`, 7.15: web `RivalsPage` items for the current tab once it settles, one per card that loaded rivals — Common Rivals (people), the combo (notes), each chart (its icon); the Leaderboard Rivals tab lists each chart; section IDs are the card IDs, `RivalQuickLinks.hub`). Cards: Common, Combined/Pro Drums Family, then one per visible chart; 3 above + 3 below, **See All** (bold white with a chevron, shared `SeeAllButton`, 6.22) + the shared purple **View All Rivals** button (6.29). Rival rows truncate names with an ellipsis like the web `RivalRow` (never a marquee, 7.14) and end with an in-card chevron when navigable (7.3). Loaded-empty cards are removed; everything empty → web empty copy.
-- Rows: 4 dp win/lose tint bar, name (anonymous → "Unknown User", not tappable), "N songs ahead / N songs behind" pills (web `RivalRow`). One merged TalkBack label ("Name, you lead|ahead of you, N songs ahead, N songs behind") with an explicit click action.
+- Rows: 4 dp win/lose tint bar, name (anonymous → "Unknown User", not tappable), "N songs ahead / N songs behind" pills (web `RivalRow`) in a `FlowRow` that wraps the second pill at large text. The tint bar is drawn behind the row (`Modifier.rivalTintBar`, start edge, RTL-aware), **not** sized with `IntrinsicSize.Min`: `FlowRow`'s min intrinsic height ignores wrapped lines, so the row was capped at one pill line and the wrapped "songs behind" pill was dropped at font scale 2.0 (issue #107; `RivalRowUiTest.wrappedPillsGrowTheCardAtLargeText` with native graphics, `RivalsDeviceJourneyTest.largeTextRowShowsBothPills` with device fonts). One merged TalkBack label ("Name, you lead|ahead of you, N songs ahead, N songs behind") with an explicit click action.
 - **No "N shared songs" count (owner decision, issue #67 / iOS #40, 2026-10-02):** `RivalRow` deliberately omits the web `RivalRow`'s `sharedSongCount` text and its TalkBack phrase: the count is always ahead + behind. Hub, All Rivals and Compete share this row. `RivalRowUiTest` asserts the label has ahead/behind and never "shared". The Rival Detail summary ("N shared songs · X ahead / Y behind") is unchanged.
 - `AdaptiveCardGrid` (`ui/rivals`): `LazyVerticalStaggeredGrid` with ≥ 360 dp columns (1–3; lists 1–2). With a separating vertical hinge (book/passport half-open) exactly two columns meet at the hinge (`HingeColumns`, unit-tested), so no card straddles the fold. Only WindowManager hinge bounds and the grid's window position are used.
 - Rival Detail: "You vs. Name" + web `rivals.detail.summary`, category cards (5 songs, sentiment-tinted headings, See All → Rivalry), toolbar View Profile + Quick Links. Rivalry: category songs with a native sort menu (Default, Closest Gap, Your/Their Biggest Leads, Title).
 
 ## IDs
 
-`fst.rivals.tab[.song|.leaderboard]`, `.findRival`, `.find.sheet|search|result.<id>`, Quick Links `fst.quick-links.item.<sectionId>`, `.grid`, `.section.<common|combo|Solo_*|leaderboard.Solo_*>`, `.see-all.<sectionId>`, `.row.<accountId>|anonymous`, `.song.<songId>.<instrument>`, `.empty`, `.loading`, `.chooseProfile[.action]`; `fst.all-rivals.list|title|empty|unresolved`; `fst.rival-detail.grid|title|summary|category.<key>|see-all.<key>|view-profile|empty` (Quick Links `fst.quick-links.item.rival-category:<key>`); `fst.rivalry.list|title|sort[.<option>]|empty`.
+`fst.rivals.tab[.song|.leaderboard]`, `.findRival`, `.find.sheet|search|result.<id>`, Quick Links `fst.quick-links.item.<sectionId>`, `.grid`, `.section.<common|combo|Solo_*|leaderboard.Solo_*>`, `.see-all.<sectionId>`, `.row.<accountId>|anonymous`, `.song.<songId>.<instrument>`, `.empty`, `.loading`, `.chooseProfile[.action]`; `fst.all-rivals.list|title|empty|unresolved`; `fst.rival-detail.grid|title|summary|category.<key>|see-all.<key>|view-profile|empty` (Quick Links `fst.quick-links.item.rival-category:<key>`); `fst.rivalry.list|title|sort[.menu|.<option>]|empty`.
 
 ## Tests
 
 `src/test/.../rivals/`: `RivalsCoreTest` (scopes, combos, common rivals, categories, formatting, columns, routes), `RivalsDataTest` (URLs, 404/503, live-fallback flag, cache), `RivalsViewModelTest`, `RivalsUiTest` (Robolectric: hub → detail → rivalry → song, See All, leaderboard tab, Find Rival, deep link, no player, freeze, unresolvable list). Fixture screenshots: `android/reports/screenshots/rivals-*.png` from `tools/windows/rivals_fixture.py` (anonymized names) with `FST_DEBUG_PROFILE=fixture-player-1:Demo Player`.
+
+## Validation (issue #107, 2026-10, live service, `SFentonX`)
+
+Each AVD was driven with `fst_android.py device drive` (dark/light system theme: the app is dark-only per [design/android.md](../../design/android.md); font scale 1.0/2.0; animator scale 0 unless recording). After the row fix every configuration passed:
+
+| Configuration | Layout | Finding |
+|---|---|---|
+| FST_Phone portrait | 1 column, `PrimaryTabRow` (scrollable at large text) | Before the fix, font 2.0 dropped every "songs behind" pill; fixed |
+| FST_Phone landscape | 2 columns at 1.0; 1 column at 2.0 | At 2.0 the shared app bar + tabs leave ~⅓ of the height for cards; content still scrolls (shell, not Rivals) |
+| FST_Tablet portrait / landscape | Rail + 1 column / drawer + 2 columns | Drawer labels wrap at 2.0 ("Leaderboard s", shell) |
+| FST_Resizable phone / foldable / tablet / desktop | 1 / 1 / 2 / 3 columns | Desktop showed a live "Scores are updating" card (503 retry countdown) correctly |
+| FST_Book_Fold folded / half / unfolded | 1 / 2 split at the hinge / 1 | At 2.0 half-open uses one column across the hinge: deliberate `rememberSingleColumn` rule ([android-accessibility](../../testing/android-accessibility.md)), deviating from M3 "never place interactive content … across the hinge" because half-pane cards wrapped names a few letters per line |
+| FST_Passport_Fold folded / half / unfolded | 1 / 2 split / 1 | Font-scale change recreates the activity (fontScale is not in `configChanges`), so the hub briefly shows the spinner while the live read repeats |
+| FST_TriFold folded / partial / unfolded | 1 / 1 / 2 | Folded at 2.0 wraps the section title "Lead Rivals" to two lines (no clipping) |
+
+- **TalkBack** (`talkback_walk.py`, phone): top-bar actions → "selected. Song Rivals. Tab. 1 of 2" → "Leaderboard Rivals. Tab. 2 of 2" → per section: heading, "See All: <section>. Button", each row "<name>, you lead|ahead of you, N songs ahead, N songs behind. Button", "View All Rivals. Button".
+- **Targets/contrast:** every clickable is ≥ 48 dp (tree bounds); pill text 6.2–6.7:1 on its tinted background.
+- **Shell findings (not Rivals):** at font 2.0 the bell's unread badge overlaps the profile avatar in the top bar.
+- **M3 review:** primary tabs for top-level content switching, scrollable at large text; 12 dp glass cards and the shared purple buttons follow the repo's design tokens (repo rules win over M3 colour roles).
 
 ## Open
 

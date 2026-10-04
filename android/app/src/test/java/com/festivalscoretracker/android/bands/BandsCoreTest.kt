@@ -399,7 +399,7 @@ class BandsCoreTest {
         )
         val text = com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry)
         assertTrue(text, text.startsWith("Rank 1, Rekayy, Lead, 156,912, Unknown User, No observed instrument, band score 931,020, full combo, "))
-        assertTrue(text, text.endsWith("% accuracy, Gold stars"))
+        assertTrue(text, text.endsWith("% accuracy, 5 gold stars"))
         assertFalse(text, text.contains("6 stars"))
         // No accuracy, FC or stars: only rank, members and score.
         val bare = com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry.copy(accuracy = 0.0, isFullCombo = false, stars = 0, members = entry.members.take(1)))

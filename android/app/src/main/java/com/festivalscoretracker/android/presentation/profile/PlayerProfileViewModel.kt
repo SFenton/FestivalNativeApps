@@ -319,6 +319,13 @@ data class PlayerProfileUiState(
             else -> null
         }
 
+    /**
+     * Whether the identity row offers Reload: the notice or action error asks the user to
+     * reload, and the page has no pull-to-refresh (issue #133).
+     */
+    val offersReload: Boolean
+        get() = !isSelected && (identity == PlayerIdentityAction.Changed || actionError != null)
+
     /** Whether the page needs its identity row: a Select/Switch button, a paused-selection notice or an action error. */
     val showsIdentityRow: Boolean
         get() = identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch ||
@@ -429,6 +436,7 @@ class PlayerProfileViewModel(
         if (current.isSelected) {
             store.retry()
         } else if (current.accountId.isNotEmpty()) {
+            actionError.value = null
             viewedAccount = null
             startViewed(current.accountId)
         }
@@ -853,7 +861,7 @@ class PlayerProfileViewModel(
     /** Web "Avg Stars": five gold star images at a perfect 6, else two trimmed decimals. */
     private fun averageStarsTile(stats: PlayerStats): PlayerStatTile {
         val average = stats.averageStars ?: return PlayerStatTile("avg-stars", "Avg Stars", "—")
-        if (average >= 6.0) return PlayerStatTile("avg-stars", "Avg Stars", "Gold stars", tint = StatTints.GOLD, stars = 6)
+        if (average >= 6.0) return PlayerStatTile("avg-stars", "Avg Stars", "5 gold stars", tint = StatTints.GOLD, stars = 6)
         return PlayerStatTile("avg-stars", "Avg Stars", ProfileFormatting.twoDecimals(average))
     }
 
