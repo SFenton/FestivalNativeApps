@@ -9,6 +9,7 @@ namespace Festival.App;
 public partial class App : Application
 {
     private MainWindow? window;
+    private ControlLabWindow? labWindow;
 
     /// <summary>Loads XAML resources.</summary>
     public App()
@@ -68,6 +69,12 @@ public partial class App : Application
         if (Options.InMemorySettings)
             store = new InMemorySettingsStore(store.Load() with { SelectedPlayer = Options.DebugProfile });
         Session = new FestivalSession(api, store) { AppStateFolder = AppDataPaths.Folder };
+        if (HooksEnabled && Options.ControlLab is { } lab)
+        {
+            labWindow = new ControlLabWindow(lab, Options);
+            labWindow.Activate();
+            return;
+        }
         window = new MainWindow(Session, Options);
         window.Activate();
         PerfLog.Mark("window-activated");
