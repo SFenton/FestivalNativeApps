@@ -90,6 +90,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  * @param tag Test tag root.
  * @param onReset Restore defaults.
  * @param onDismiss Close.
+ * @param titleTag Header title test tag (Sort passes `.heading`: its `.title` is the Title choice).
  * @param content Form.
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -99,6 +100,7 @@ internal fun LiveSheet(
     tag: String,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
+    titleTag: String = "$tag.title",
     content: @Composable () -> Unit,
 ) {
     // The shared header's Close replaces the former Done (changes are already applied); it
@@ -106,7 +108,7 @@ internal fun LiveSheet(
     FestivalModalSheet(
         title = title,
         closeTag = "$tag.done",
-        titleTag = "$tag.title",
+        titleTag = titleTag,
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(tag),
     ) {
@@ -147,7 +149,7 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
     }
     val chartModes = SongSortDraft.chartModes(state.hasPlayer, state.sortChart, state.visibleMetadata)
     val priority = if (state.hasPlayer && state.sortChart != null) SongSortDraft.visiblePriority(draft.metadataOrder, state.visibleMetadata) else emptyList()
-    LiveSheet(title = "Sort Songs", tag = "fst.songs.sort", onReset = { change(draft.reset()) }, onDismiss = onDismiss) {
+    LiveSheet(title = "Sort Songs", tag = "fst.songs.sort", onReset = { change(draft.reset()) }, onDismiss = onDismiss, titleTag = "fst.songs.sort.heading") {
         Column(Modifier.selectableGroup().testTag("fst.songs.sort.mode")) {
             SongSortDraft.modes(state.hideShop, state.hasPlayer).forEach { option ->
                 RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { change(draft.copy(mode = option)) }

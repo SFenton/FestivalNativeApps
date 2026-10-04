@@ -298,7 +298,8 @@ fun SongsScreen(
 @Composable
 private fun SongsPageTools(state: SongsUiState, quickLinks: QuickLinksController, windowWidthDp: Int, onSort: () -> Unit, onFilter: () -> Unit) {
     QuickLinksAction(quickLinks, windowWidthDp)
-    IconButton(onClick = onSort, modifier = Modifier.testTag("fst.songs.sort.open")) {
+    val sortState = SongSortDraft.describe(state.sort, state.ascending)
+    IconButton(onClick = onSort, modifier = Modifier.testTag("fst.songs.sort.open").semantics { stateDescription = sortState }) {
         Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
     }
     IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open")) {
@@ -478,7 +479,7 @@ private fun SongList(
                     .testTag("fst.songs.list"),
             ) {
                 state.notices.forEachIndexed { index, notice ->
-                    item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
+                    item(key = "notice-$index", contentType = "notice") { Notice(notice, if (notice == state.sortPaused) "fst.songs.sort-paused" else "fst.songs.notice.$index") }
                 }
                 // Web full-page EmptyState, vertically centred in the viewport (6.33).
                 if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
@@ -682,8 +683,8 @@ private fun Modifier.pinnedHeaderEdgeFade(
     }
 
 @Composable
-private fun Notice(text: String, index: Int) {
-    GlassCard(Modifier.fillMaxWidth().padding(bottom = 4.dp).testTag("fst.songs.notice.$index")) {
+private fun Notice(text: String, tag: String) {
+    GlassCard(Modifier.fillMaxWidth().padding(bottom = 4.dp).testTag(tag)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(12.dp)) {
             Icon(Icons.Filled.Info, contentDescription = null, tint = BrandTokens.gold, modifier = Modifier.size(20.dp))
             Text(text, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 10.dp))
