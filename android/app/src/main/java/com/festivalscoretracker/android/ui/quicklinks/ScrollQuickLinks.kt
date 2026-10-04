@@ -68,6 +68,10 @@ internal class ScrollQuickLinkSections(private val scrollState: ScrollState) : Q
         val target = QuickLinks.scrollLandingTarget(top, landingPx, scrollState.maxValue)
         if (animate) scrollState.animateScrollTo(target) else scrollState.scrollTo(target)
     }
+
+    override val isScrollInProgress: Boolean get() = scrollState.isScrollInProgress
+    override val canScrollForward: Boolean get() = scrollState.canScrollForward
+    override val canScrollBackward: Boolean get() = scrollState.canScrollBackward
 }
 
 /**

@@ -94,6 +94,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.material3.LocalTextStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
@@ -109,6 +113,11 @@ import com.festivalscoretracker.android.presentation.songs.PathSwapTiming
 import com.festivalscoretracker.android.presentation.songs.SongPathsState
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
+import androidx.compose.foundation.layout.ColumnScope
+import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
+import androidx.compose.ui.platform.LocalDensity
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -129,7 +138,9 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  * control row — instrument, difficulty and view buttons, each expanding its panel
  * above the row (the shared Instrument Selector, a 2×2 difficulty grid, Image/Text).
  * Karaoke's missing paths are announced once in a native alert (OK / Don't Show
- * Again), not a banner. The sheet is modal and focus returns on close.
+ * Again), not a banner. The sheet is modal and focus returns on close. When a
+ * separating vertical hinge crosses the sheet (book posture), the path sits before
+ * the hinge and the control row with its panels after it, so nothing straddles the fold.
  *
  * @param viewModel Paths logic (one per opening).
  * @param songTitle Song title (sheet description for TalkBack).
@@ -158,15 +169,21 @@ fun SongPathsSheet(
     val fade: AnimationSpec<Float> = if (reduceMotion) snap() else tween(PathSwapTiming.FADE_MILLIS.toInt(), easing = LinearEasing)
     val contentAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Content) 1f else 0f, fade, label = "paths-content")
     val spinnerAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Spinner) 1f else 0f, fade, label = "paths-spinner")
+    // Read in the activity's composition: the sheet is its own full-screen window.
+    val split = rememberHingeSplit()
     FestivalModalSheet(
         title = "Paths",
         closeTag = "fst.paths.close",
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("fst.song-detail.paths").semantics { contentDescription = "Paths for $songTitle" },
     ) {
-        BoxWithConstraints(Modifier.fillMaxHeight()) {
-            val wide = maxWidth >= PATH_TABLE_WIDE
-            Column(Modifier.fillMaxHeight().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+        val density = LocalDensity.current
+        BoxWithConstraints(Modifier.fillMaxHeight().then(split.modifier)) {
+            val hinge = split.value
+            // Book posture: the path before a separating hinge, the controls and their panels after it.
+            val pathWidth = hinge?.let { with(density) { it.first.toDp() } } ?: maxWidth
+            val wide = usesPathGrid(pathWidth.value, density.fontScale)
+            val path: @Composable ColumnScope.() -> Unit = {
                 if (wide && state.load is PathLoad.Text) Box(Modifier.graphicsLayer { alpha = contentAlpha }) { PathTableHeader(columns) }
                 // Polite live region: "Loading <chart> path", then what loaded (web swap has no announcement).
                 Box(Modifier.size(1.dp).testTag("fst.paths.status").semantics { contentDescription = state.status; liveRegion = LiveRegionMode.Polite })
@@ -191,7 +208,21 @@ fun SongPathsSheet(
                         }
                     }
                 }
+            }
+            val controls: @Composable () -> Unit = {
                 PathControls(state.instrument, state.difficulty, state.display, viewModel, panel, keyboard) { panel = it }
+            }
+            if (hinge == null) {
+                Column(Modifier.fillMaxHeight().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                    path()
+                    controls()
+                }
+            } else {
+                Row(Modifier.fillMaxHeight().padding(bottom = 12.dp).testTag("fst.paths.hinge-split")) {
+                    Column(Modifier.width(pathWidth).fillMaxHeight().padding(horizontal = 16.dp), content = path)
+                    Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
+                    Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 16.dp), verticalArrangement = Arrangement.Bottom) { controls() }
+                }
             }
         }
     }
@@ -215,8 +246,20 @@ fun SongPathsSheet(
 /** Which bottom-row panel is open. */
 private enum class PathPanel { Instrument, Difficulty, Display }
 
-/** Pane widths from which the table uses the web's desktop grid with a column header. */
-private val PATH_TABLE_WIDE = 600.dp
+/** Pane width (at 100% text) from which the table uses the web's desktop grid with a column header. */
+internal const val PATH_TABLE_WIDE_DP = 600f
+
+/**
+ * Whether the text view uses the desktop grid rather than the stacked mobile cards. The
+ * width is measured in 100%-text dp: at 200% the five weighted grid columns clipped
+ * "01:34:534" to "01:34:" inside the 640 dp sheet, so large text keeps the cards.
+ *
+ * @param widthDp Sheet content width in dp.
+ * @param fontScale System font scale.
+ * @return True when the grid's columns fit their values.
+ */
+internal fun usesPathGrid(widthDp: Float, fontScale: Float): Boolean =
+    widthDp / fontScale.coerceAtLeast(1f) >= PATH_TABLE_WIDE_DP
 
 /**
  * Web mobile controls: a row of three frosted buttons (instrument icon, difficulty,
@@ -256,13 +299,71 @@ private fun PathControls(
                 if (choice == display) onPanel(null) else viewModel.selectDisplay(choice)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            ControlButton(panel == PathPanel.Instrument, "Instrument: ${instrument.label}", "fst.paths.instrument.open", Modifier, onClick = { toggle(PathPanel.Instrument) }) { InstrumentIcon(instrument, keyboard = keyboard, size = 28.dp, decorative = true) }
-            ControlButton(panel == PathPanel.Difficulty, "Difficulty: ${difficulty.label}", "fst.paths.difficulty.open", Modifier.weight(1f), onClick = { toggle(PathPanel.Difficulty) }) { Text(difficulty.label, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) }
-            ControlButton(panel == PathPanel.Display, "View: ${display.label}", "fst.paths.display.open", Modifier, onClick = { toggle(PathPanel.Display) }) { Icon(if (display == PathDisplayMode.Image) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.Article, contentDescription = null, tint = BrandTokens.textPrimary) }
+        val labelStyle = LocalTextStyle.current.merge(TextStyle(fontWeight = FontWeight.SemiBold))
+        val measurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        val labelWidth = remember(labelStyle, density) {
+            with(density) { PathDifficulty.entries.maxOf { measurer.measure(it.label, labelStyle).size.width }.toDp() }
+        }
+        val instrumentButton: @Composable (Modifier) -> Unit = { modifier ->
+            ControlButton(panel == PathPanel.Instrument, "Instrument: ${instrument.label}", "fst.paths.instrument.open", modifier, onClick = { toggle(PathPanel.Instrument) }) {
+                InstrumentIcon(instrument, keyboard = keyboard, size = INSTRUMENT_ICON, decorative = true)
+            }
+        }
+        val difficultyButton: @Composable (Modifier) -> Unit = { modifier ->
+            ControlButton(panel == PathPanel.Difficulty, "Difficulty: ${difficulty.label}", "fst.paths.difficulty.open", modifier, onClick = { toggle(PathPanel.Difficulty) }) {
+                Text(difficulty.label, color = BrandTokens.textPrimary, style = labelStyle, modifier = Modifier.weight(1f))
+            }
+        }
+        val displayButton: @Composable (Modifier) -> Unit = { modifier ->
+            ControlButton(panel == PathPanel.Display, "View: ${display.label}", "fst.paths.display.open", modifier, onClick = { toggle(PathPanel.Display) }) {
+                Icon(if (display == PathDisplayMode.Image) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.Article, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(DISPLAY_ICON))
+            }
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (controlRowFits(maxWidth, labelWidth)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP), modifier = Modifier.fillMaxWidth()) {
+                    instrumentButton(Modifier)
+                    difficultyButton(Modifier.weight(1f))
+                    displayButton(Modifier)
+                }
+            } else {
+                // Narrow panes (a book fold's end pane, ~288 dp): one row wrapped "Expert" to "Expe / rt".
+                Column(verticalArrangement = Arrangement.spacedBy(CONTROL_GAP), modifier = Modifier.fillMaxWidth().testTag("fst.paths.selectors.stacked")) {
+                    difficultyButton(Modifier.fillMaxWidth())
+                    Row(horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP), modifier = Modifier.fillMaxWidth()) {
+                        instrumentButton(Modifier.weight(1f))
+                        displayButton(Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
+
+// region Control row sizing
+
+private val CONTROL_GAP = 12.dp
+private val CONTROL_PADDING = 16.dp
+private val CHEVRON = 18.dp
+private val CHEVRON_GAP = 8.dp
+private val INSTRUMENT_ICON = 28.dp
+private val DISPLAY_ICON = 24.dp
+
+/**
+ * Whether the instrument, difficulty and view buttons fit on one row without wrapping
+ * the difficulty label (each button: padding, content, chevron).
+ *
+ * @param width Row width.
+ * @param labelWidth Widest difficulty label at the current text size.
+ * @return False when the difficulty button should take its own line above the icon buttons.
+ */
+internal fun controlRowFits(width: Dp, labelWidth: Dp): Boolean {
+    fun button(content: Dp) = CONTROL_PADDING * 2 + content + CHEVRON_GAP + CHEVRON
+    return width >= button(INSTRUMENT_ICON) + button(labelWidth) + button(DISPLAY_ICON) + CONTROL_GAP * 2
+}
+
+// endregion
 
 /** One frosted control with a chevron that points down while its panel is open. */
 @Composable
@@ -270,19 +371,19 @@ private fun ControlButton(open: Boolean, label: String, tag: String, modifier: M
     val rotation by animateFloatAsState(if (open) 0f else 180f, label = "pathsChevron")
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(CHEVRON_GAP, Alignment.CenterHorizontally),
         modifier = modifier
             .heightIn(min = 52.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(BrandTokens.surfaceFrosted)
             .border(1.dp, BrandTokens.glassBorder, RoundedCornerShape(12.dp))
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = CONTROL_PADDING)
             .semantics(mergeDescendants = true) { contentDescription = label; stateDescription = if (open) "Expanded" else "Collapsed" }
             .testTag(tag),
     ) {
         content()
-        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = BrandTokens.textMuted, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation })
+        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = BrandTokens.textMuted, modifier = Modifier.size(CHEVRON).graphicsLayer { rotationZ = rotation })
     }
 }
 
@@ -443,10 +544,19 @@ private fun PathCardRow(row: PathActivationRow) {
                 MobileLabel("Activation")
                 Frets(row.frets, Arrangement.Start)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f)) { MobileLabel("Beat"); Cell(row.beatText()) }
-                Column(Modifier.weight(1f)) { MobileLabel("Time"); Cell(row.timeText) }
-                Column(Modifier.weight(1f)) { MobileLabel("Score"); ScoreCell(row) }
+            // At large text three 107 dp columns clip "01:34:534" to "01:34:53": stack them.
+            if (isLargeText()) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column { MobileLabel("Beat"); Cell(row.beatText()) }
+                    Column { MobileLabel("Time"); Cell(row.timeText) }
+                    Column { MobileLabel("Score"); ScoreCell(row) }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f)) { MobileLabel("Beat"); Cell(row.beatText()) }
+                    Column(Modifier.weight(1f)) { MobileLabel("Time"); Cell(row.timeText) }
+                    Column(Modifier.weight(1f)) { MobileLabel("Score"); ScoreCell(row) }
+                }
             }
             Column {
                 MobileLabel("Overdrive %")
@@ -507,7 +617,7 @@ private fun MobileLabel(text: String) {
 
 @Composable
 private fun Cell(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1)
+    Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge())
 }
 
 @Composable

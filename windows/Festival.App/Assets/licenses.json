@@ -13,7 +13,7 @@
     {
       "id": "Microsoft.NETCore.App.Runtime.win-x64",
       "name": ".NET Runtime",
-      "version": "9.0.8",
+      "version": "9.0.x",
       "ecosystem": "NuGet",
       "license": "MIT",
       "url": "https://dot.net/",

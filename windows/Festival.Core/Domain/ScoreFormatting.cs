@@ -17,6 +17,25 @@ public static class ScoreFormatting
         return rounded.ToString(format, CultureInfo.CurrentCulture) + "%";
     }
 
+    /// <summary>Visible text of a full combo that has no accuracy (never an invented <c>0%</c>).</summary>
+    public const string FullComboBadge = "FC";
+
+    /// <summary>
+    /// Accuracy badge text (score-accuracy control): the accuracy, <see cref="FullComboBadge"/> for an explicit full combo
+    /// without one, or empty for no badge. A full combo is never inferred from the accuracy number.
+    /// </summary>
+    /// <param name="accuracy">Formatted accuracy (<see cref="Accuracy"/>), empty when missing or non-finite.</param>
+    /// <param name="fullCombo">Explicit service FC flag.</param>
+    /// <returns>Badge text, or an empty string.</returns>
+    public static string BadgeText(string accuracy, bool fullCombo) =>
+        accuracy.Length > 0 ? accuracy : fullCombo ? FullComboBadge : "";
+
+    /// <summary>Spoken FC/accuracy fragment for a row's one UIA name when accuracy is missing.</summary>
+    /// <param name="hasAccuracy">Whether an accuracy is shown.</param>
+    /// <returns><c>full combo</c>, or <c>full combo, accuracy unavailable</c> without an accuracy.</returns>
+    public static string FullComboAnnouncement(bool hasAccuracy) =>
+        hasAccuracy ? "full combo" : "full combo, accuracy unavailable";
+
     /// <summary>Formats a score with grouping separators.</summary>
     /// <param name="score">Score.</param>
     /// <returns>Grouped digits.</returns>

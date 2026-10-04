@@ -103,7 +103,57 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
     "compete": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
         "/compete",
-        ["waitfor:id=fst.rivals.title@20", "waitfor:id=fst.rivals.section.common@20"],
+        [
+            "waitfor:id=fst.rivals.title@20",
+            "waitfor:id=fst.rivals.section.common@20",
+            f"waitfor:id=fst.rivals.row.{RIVAL}@10",
+            # Masonry rows share a top: the first card of the row is current, not its right-hand neighbour (#213).
+            "waitfor:name=Quick Links, current section Common Rivals@10",
+            "{shot:compete}",
+        ],
+    ),
+    "compete-no-player": (
+        {"FST_DEBUG_ANONYMOUS": "1"},
+        "/compete",
+        # Like /rivals, the player-only /compete route lands on the Songs root without a profile.
+        ["waitfor:id=fst.songs.search@20", "waitfor:id=fst.songs.list@20", "{shot:compete-no-player}"],
+    ),
+    # Rival Detail's own states and edges (issue #202): no shared songs, then every way off the page.
+    "detail-empty": (
+        {"FST_DEBUG_PROFILE": "fixture-player-empty:Demo Player"},
+        f"/rivals/{RIVAL}?scope=song%3ASolo_Guitar",
+        ["waitfor:id=fst.rivals.page-empty@20", "waitgone:id=fst.rival-detail.summary@5", "{shot:detail-empty}"],
+    ),
+    "detail-nav": (
+        {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+        f"/rivals/{RIVAL}",
+        [
+            # Compact: header stacks and Quick Links is a menu (the web offers it on mobile only).
+            "resize:compact",
+            "waitfor:id=fst.rival-detail.summary@20",
+            "waitfor:id=fst.rival-detail.category.closest_battles@10",
+            "invoke:id=fst.quick-links.open",
+            "waitfor:id=fst.quick-links.item.rival-category:pulling_forward@10",
+            # Toggle, as Narrator's default action does: radio menu items expose no Invoke pattern.
+            "toggle:id=fst.quick-links.item.rival-category:pulling_forward",
+            "waitfor:id=fst.rival-detail.category.pulling_forward@10",
+            "{shot:detail-quick-links}",
+            # Song row -> Song Detail on the compared chart, Back returns to the detail.
+            "scrollinto:id=fst.rivalry.song.fixture-echo.Solo_Guitar@10",
+            "invoke:id=fst.rivalry.song.fixture-echo.Solo_Guitar",
+            # The rivals fixture serves no song catalogue, so Song Detail opens in its "Song unavailable" state.
+            "waitfor:name=Song unavailable@15",
+            "key:alt+left",
+            "waitfor:id=fst.rival-detail.title@10",
+            # View Profile -> the rival's player page.
+            "scrollinto:id=fst.rival-detail.view-profile@10",
+            "invoke:id=fst.rival-detail.view-profile",
+            # Nor player profiles: the Player page opens in its "Profile unavailable" state.
+            "waitfor:id=fst.player@20",
+            "waitfor:name=Profile unavailable@10",
+            "key:alt+left",
+            "waitfor:id=fst.rival-detail.title@10",
+        ],
     ),
 }
 

@@ -84,6 +84,11 @@ class NavigationPolicyTest {
         assertEquals(NavigationLayout.PermanentDrawer, AdaptiveLayoutPolicy.navigationLayout(1280, 800))
         assertTrue(AdaptiveLayoutPolicy.isRegularWidth(600))
         assertFalse(AdaptiveLayoutPolicy.isRegularWidth(599))
+        // Issue #126: sheets move Reset into the header below 480 dp of height.
+        assertTrue(AdaptiveLayoutPolicy.isCompactHeight(340))
+        assertTrue(AdaptiveLayoutPolicy.isCompactHeight(479))
+        assertFalse(AdaptiveLayoutPolicy.isCompactHeight(480))
+        assertFalse(AdaptiveLayoutPolicy.isCompactHeight(891))
         assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(840, false))
         assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(700, true))
         assertFalse(AdaptiveLayoutPolicy.showsTwoPanes(700, false))
