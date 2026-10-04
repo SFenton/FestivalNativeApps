@@ -69,7 +69,10 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
@@ -105,7 +108,31 @@ internal interface QuickLinkScroller {
      * @param landingPx Landing line below the visible viewport top, in pixels.
      */
     suspend fun scrollTo(index: Int, animate: Boolean, landingPx: Int)
+
+    /** A scroll is running (a user drag or fling while no jump is scrolling). */
+    val isScrollInProgress: Boolean
+
+    /** The content can scroll further down. */
+    val canScrollForward: Boolean
+
+    /** The content can scroll further up. */
+    val canScrollBackward: Boolean
+
+    /**
+     * Scroll position (a lazy layout's first visible index and offset, or a scroll state's value).
+     * Content resizing above the anchor leaves it unchanged; any scroll moves it.
+     */
+    val position: Long
 }
+
+/**
+ * Packs a lazy layout's first visible item and its scroll offset into one comparable position.
+ *
+ * @param index First visible item index.
+ * @param offset Scroll offset into that item.
+ * @return Position.
+ */
+private fun lazyPosition(index: Int, offset: Int): Long = (index.toLong() shl 32) or (offset.toLong() and 0xFFFF_FFFFL)
 
 /** [QuickLinkScroller] over a `LazyColumn`. */
 private class ListScroller(private val state: LazyListState) : QuickLinkScroller {
@@ -122,6 +149,11 @@ private class ListScroller(private val state: LazyListState) : QuickLinkScroller
         val offset = QuickLinks.lazyLandingScrollOffset(landingPx, state.layoutInfo.beforeContentPadding)
         if (animate) state.animateScrollToItem(index, offset) else state.scrollToItem(index, offset)
     }
+
+    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
+    override val canScrollForward: Boolean get() = state.canScrollForward
+    override val canScrollBackward: Boolean get() = state.canScrollBackward
+    override val position: Long get() = lazyPosition(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset)
 }
 
 /** [QuickLinkScroller] over a `LazyVerticalStaggeredGrid` (several items can share a row). */
@@ -139,6 +171,11 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
         val offset = QuickLinks.lazyLandingScrollOffset(landingPx, state.layoutInfo.beforeContentPadding)
         if (animate) state.animateScrollToItem(index, offset) else state.scrollToItem(index, offset)
     }
+
+    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
+    override val canScrollForward: Boolean get() = state.canScrollForward
+    override val canScrollBackward: Boolean get() = state.canScrollBackward
+    override val position: Long get() = lazyPosition(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset)
 }
 
 /**
@@ -161,9 +198,17 @@ class QuickLinksController internal constructor(
     private val landingPx: Float,
     activationPx: Float,
     bandPx: Float,
-    completePx: Float,
+    private val completePx: Float,
 ) {
     private val tracker = QuickLinkTracker(activationOffset = activationPx, band = bandPx, completeThreshold = completePx)
+    private val completeThreshold = completePx.roundToInt()
+    private var landing: Job? = null
+
+    /**
+     * Whether a landed jump keeps its target on the landing line while content above it resizes
+     * (off for sticky-header lists, whose fixed rows cannot shift a landed header).
+     */
+    internal var holdLanding: Boolean = true
 
     /**
      * Title Case title (Songs: "<Sort> Quick Links"). Snapshot state, so a page keeps one controller
@@ -195,6 +240,10 @@ class QuickLinksController internal constructor(
 
     /**
      * Jump to a section: it becomes active immediately and owns the viewport after landing.
+     * The landing is held for [QuickLinks.LANDING_HOLD_MS] (or until the user scrolls): content that
+     * starts loading once the jump composes it (a profile's rank history above Top Songs, its bands
+     * below the Bands heading) would otherwise push the section off the landing line, because a lazy
+     * list keeps its first visible item where it is when that item grows.
      *
      * @param id Section ID.
      */
@@ -202,11 +251,51 @@ class QuickLinksController internal constructor(
         val index = indexOf(id) ?: return
         tracker.beginJump(id)
         activeId = tracker.activeId
-        scope.launch {
-            scroller.scrollTo(index, animate, landingPx.roundToInt())
-            val layout = scroller.layout()
-            tracker.settle(sections, frames(layout), layout.viewportHeight)
-            activeId = tracker.activeId
+        landing?.cancel()
+        landing = scope.launch {
+            val px = landingPx.roundToInt()
+            scroller.scrollTo(index, animate, px)
+            settle()
+            if (holdLanding) keepLanded(id, index, px)
+        }
+    }
+
+    private fun settle() {
+        val layout = scroller.layout()
+        tracker.settle(sections, frames(layout), layout.viewportHeight)
+        activeId = tracker.activeId
+    }
+
+    /**
+     * Keep a landed target on the landing line while the item above it (the lazy list's scroll anchor)
+     * composes for the first time and grows (issue #106: Profile Rank History loads after the jump and
+     * pushed Top Songs half a screen down; #111: Statistics). Ends at the first user scroll (a drag, or a
+     * programmatic scroll such as a TalkBack scroll-to-index or a page's scroll-to-top, which moves
+     * [QuickLinkScroller.position] between the hold's own landings), the next jump, after
+     * [QuickLinks.MAX_LANDING_CORRECTIONS] corrections or after [QuickLinks.LANDING_HOLD_MS].
+     */
+    private suspend fun keepLanded(id: String, index: Int, px: Int) {
+        var corrections = 0
+        // The position the hold last saw; null right after its own landing, which moves it.
+        var expected: Long? = null
+        withTimeoutOrNull(QuickLinks.LANDING_HOLD_MS) {
+            snapshotFlow { scroller.layout() to scroller.position }
+                .takeWhile { (_, position) ->
+                    val unmoved = expected == null || expected == position
+                    expected = position
+                    unmoved && !scroller.isScrollInProgress && corrections < QuickLinks.MAX_LANDING_CORRECTIONS
+                }
+                .collect { (layout, _) ->
+                    val top = layout.items.firstOrNull { it.index == index }?.top
+                    val below = if (top == null) (layout.items.maxOfOrNull { it.index } ?: -1) < index else null
+                    if (QuickLinks.needsReland(top, px, completeThreshold, scroller.canScrollForward, scroller.canScrollBackward, below)) {
+                        corrections++
+                        scroller.scrollTo(index, animate = false, landingPx = px)
+                        expected = null
+                        tracker.beginJump(id)
+                        settle()
+                    }
+                }
         }
     }
 
@@ -299,6 +388,7 @@ internal fun rememberQuickLinks(
     controller.indexOf = indexOf
     // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.
     controller.animate = false
+    controller.holdLanding = !pinnedHeaders
     LaunchedEffect(controller) {
         snapshotFlow { scroller.layout() }.collect(controller::onLayout)
     }
@@ -340,6 +430,30 @@ private fun SectionIcon(section: QuickLinkSection) {
     if (instrument != null) InstrumentIcon(instrument, size = 24.dp, decorative = true) else Icon(quickLinkIcon(section.icon), contentDescription = null)
 }
 
+/**
+ * A menu item's visible label: the title, bold with a "Current" line beneath it for the current
+ * section. "Current" sits under the title rather than trailing it because menu items are capped
+ * at 280 dp: a trailing label squeezed long titles until words broke mid-word at 2.0 font scale
+ * (issue #137, FST_Tablet). TalkBack reads the item's own label and state instead.
+ *
+ * @param title Section title.
+ * @param current Whether this is the current section.
+ * @param modifier Modifier (the caller clears its semantics).
+ */
+@Composable
+internal fun QuickLinkMenuLabel(title: String, current: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(title, fontWeight = if (current) FontWeight.Bold else null, modifier = Modifier.testTag(MENU_TITLE_TAG))
+        if (current) Text(QUICK_LINKS_CURRENT, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary, modifier = Modifier.testTag(MENU_CURRENT_TAG))
+    }
+}
+
+/** Test tag of a menu label's title (only reachable where the caller keeps semantics). */
+internal const val MENU_TITLE_TAG = "fst.quick-links.menu-label.title"
+
+/** Test tag of a menu label's "Current" line. */
+internal const val MENU_CURRENT_TAG = "fst.quick-links.menu-label.current"
+
 // endregion
 
 // region Entry point
@@ -354,6 +468,9 @@ private fun SectionIcon(section: QuickLinkSection) {
  */
 /** Quick Links button glyph size. */
 private const val QUICK_LINKS_ICON_DP = 30
+
+/** Visible marker under the current section in the menu. */
+private const val QUICK_LINKS_CURRENT = "Current"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -375,9 +492,11 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
                 controller.sections.forEach { section ->
                     val current = section.id == controller.activeId
                     DropdownMenuItem(
-                        text = { Text(section.title, fontWeight = if (current) FontWeight.Bold else null, modifier = Modifier.clearAndSetSemantics {}) },
+                        // "Current" sits under the title rather than trailing it: menu items are capped at
+                        // 280 dp, so a trailing label squeezed long titles until words broke mid-word at
+                        // 2.0 font scale (issue #137, FST_Tablet).
+                        text = { QuickLinkMenuLabel(section.title, current, Modifier.clearAndSetSemantics {}) },
                         leadingIcon = { SectionIcon(section) },
-                        trailingIcon = if (current) ({ Text("Current", style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary, modifier = Modifier.clearAndSetSemantics {}) }) else null,
                         onClick = {
                             open = false
                             controller.jump(section.id)
@@ -422,7 +541,9 @@ private fun SectionList(controller: QuickLinksController, modifier: Modifier, pa
                     selectedIconColor = BrandTokens.textPrimary,
                     unselectedIconColor = BrandTokens.textSecondary,
                 ),
-                modifier = Modifier.padding(start = (12 + 16 * section.depth).dp).testTag(section.testTag).currentSection(section, current),
+                // Indicator inset 24 dp on both sides (12 dp list padding + 12 dp), lining up with the
+                // sheet title and close glyph; depth indents only the start.
+                modifier = Modifier.padding(start = (12 + 16 * section.depth).dp, end = 12.dp).testTag(section.testTag).currentSection(section, current),
             )
         }
     }

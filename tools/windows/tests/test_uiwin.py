@@ -40,6 +40,12 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["timeout"], 10.0)
         self.assertNotIn("timeout", u.parse_step("invoke:id=fst.songs.refresh"))
 
+    def test_reveal_takes_a_selector(self):
+        step = u.parse_step("reveal:id=fst.history.view-all@3")
+        self.assertEqual((step["verb"], step["selector"]["value"], step["timeout"]), ("reveal", "fst.history.view-all", 3.0))
+        with self.assertRaises(ValueError):
+            u.parse_step("reveal:5,6")
+
     def test_coordinates_only_for_clicks(self):
         self.assertEqual(u.parse_step("click:5,6")["selector"]["kind"], "xy")
         self.assertEqual(u.parse_step("hover:5,6")["selector"]["kind"], "xy")
@@ -57,6 +63,16 @@ class StepTests(unittest.TestCase):
             u.parse_step("scroll:sideways")
         with self.assertRaises(ValueError):
             u.parse_step("wait:soon")
+
+    def test_scrollto_uses_the_scroll_pattern_selector(self):
+        step = u.parse_step("scrollto:id=fst.player.available,62.5")
+        self.assertEqual((step["selector"]["value"], step["percent"]), ("fst.player.available", 62.5))
+        self.assertEqual(u.parse_step("reveal:id=fst.player.percentiles.Solo_Guitar@10")["timeout"], 10.0)
+        with self.assertRaises(ValueError):
+            u.parse_step("reveal:5,6")
+        for bad in ("scrollto:id=x", "scrollto:id=x,101", "scrollto:id=x,down", "scrollto:5,6,10", "scrollto:,50"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
 
     def test_paths_resize_and_errors(self):
         shot = u.parse_step("shot:out/a.png@screen")
@@ -77,9 +93,11 @@ class StepTests(unittest.TestCase):
         self.assertEqual((named["key"], named["value"]), ("name", "Selected: Pro Drums + Cymbals"))
         self.assertNotIn("timeout", named)
         self.assertEqual(u.parse_step("assertstate:name=Lead|enabled=false")["value"], "false")
+        selected = u.parse_step("assertstate:id=fst.quick-links.item.licenses|selected=True@4")
+        self.assertEqual((selected["key"], selected["value"], selected["timeout"]), ("selected", "true", 4.0))
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
-                    "assertstate:id=x|name="):
+                    "assertstate:id=x|name=", "assertstate:id=x|selected=on"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
     def test_assertstatus(self):

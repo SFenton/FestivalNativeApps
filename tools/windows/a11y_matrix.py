@@ -2,8 +2,8 @@
 """Windows accessibility matrix: Axe.Windows scans, Tab walks and screenshots per page, size and mode.
 
 Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, optional ``env``
-launch hooks such as ``FST_DEBUG_CONTROL_LAB``, readiness
-``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
+launch hooks such as ``FST_DEBUG_CONTROL_LAB``, optional ``fixture`` flags such as ``["--band-rankings", "empty"]``,
+readiness ``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
 shared ``desktop`` lock once (≤300 s), optionally applies a system accessibility mode, launches this
 worktree's build against the anonymized loopback fixture (``rivals_fixture.py``) with isolated settings
 and app data, then for each window size: resize → setup → ready → screenshot → Axe.Windows scan → Tab
@@ -15,7 +15,8 @@ Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` 
 ``text-150``, ``text-200``, ``text-225`` (text size);
 ``no-animations`` (Animation effects off); ``no-transparency``;
 ``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data); ``app-contrast`` (in-app
-More Contrast + Less Transparency).
+More Contrast + Less Transparency). Join modes with ``+`` to combine them (``hc-desert+scale-150``: a contrast
+theme on a page area wide enough for the Quick Links pane on a high-scale host).
 
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
@@ -73,6 +74,30 @@ MODES: dict[str, dict] = {
     "app-reduced": {"app": {"reduceMotion": True, "disableAnimatedArtwork": True, "saveData": True}},
     "app-contrast": {"app": {"moreContrast": True, "lessTransparency": True}},
 }
+
+
+def mode_spec(mode: str) -> dict:
+    """Merged settings for a mode or a ``+``-joined combination (e.g. ``hc-desert+scale-150``).
+
+    A combination lets a check that needs a wide page area (the Quick Links pane at ≥ 1150 epx) run in a contrast
+    theme or at a larger text size on a high-scale host; later parts win on a shared key.
+
+    Args:
+        mode: A ``MODES`` key, or keys joined with ``+``.
+
+    Returns:
+        ``{"system": {...}, "app": {...}}`` with only the non-empty parts.
+
+    Raises:
+        ValueError: A part is not a known mode.
+    """
+    merged: dict = {}
+    for part in mode.split("+"):
+        if part not in MODES:
+            raise ValueError(f"unknown mode {part!r}; use {', '.join(sorted(MODES))} (join with +)")
+        for kind, values in MODES[part].items():
+            merged.setdefault(kind, {}).update(values)
+    return merged
 
 
 def restore_values(previous: dict, applied: dict) -> dict:
@@ -175,11 +200,12 @@ def summary_table(results: list[dict]) -> str:
 # region Runner
 
 
-def start_fixture(log: Path, fixture: Path = FIXTURE) -> tuple[subprocess.Popen, int]:
+def start_fixture(log: Path, extra: tuple[str, ...] = (), fixture: Path = FIXTURE) -> tuple[subprocess.Popen, int]:
     """Start the anonymized fixture service on a free loopback port.
 
     Args:
         log: Service output file.
+        extra: Additional fixture flags (a page's ``fixture`` list, e.g. ``--band-rankings empty``).
         fixture: Fixture script taking ``mock_service.py`` flags (default ``rivals_fixture.py``).
 
     Returns:
@@ -189,7 +215,8 @@ def start_fixture(log: Path, fixture: Path = FIXTURE) -> tuple[subprocess.Popen,
         RuntimeError: No port reported within 20 s.
     """
     handle = log.open("w", encoding="utf-8")
-    proc = subprocess.Popen([sys.executable, "-u", str(fixture), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen([sys.executable, "-u", str(fixture), "--port", "0", *extra], stdout=handle,
+                            stderr=subprocess.STDOUT)
     for _ in range(200):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
@@ -245,7 +272,7 @@ def page_env(page: dict, data_dir: Path) -> dict[str, str]:
 def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, scan: bool, tabs: int,
              hold: float) -> dict:
     """Launch, check and close one page at one size (see :func:`run_page`)."""
-    spec = MODES[mode]
+    spec = mode_spec(mode)
     suffix = "" if mode == "normal" else f"-{mode}"
     state = Path(tempfile.mkdtemp(prefix=f"fst-a11y-{page['name']}-"))
     settings = state / "settings.json"
@@ -327,7 +354,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--only", help="comma-separated page names")
     parser.add_argument("--sizes", default="compact,medium,wide")
-    parser.add_argument("--mode", default="normal", choices=sorted(MODES))
+    parser.add_argument("--mode", default="normal",
+                        help=f"one of {', '.join(sorted(MODES))}, or several joined with + (e.g. hc-desert+scale-150)")
     parser.add_argument("--scan", action="store_true", help="run Axe.Windows at every page/size")
     parser.add_argument("--tabs", type=int, default=0, help="Tab presses per page/size (0: no walk)")
     journey_exe.add_argument(parser)
@@ -337,6 +365,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fixture", type=Path, default=FIXTURE,
                         help="fixture service script (e.g. tools/windows/rankings_fixture.py for every Full Rankings state)")
     args = parser.parse_args(argv)
+    try:
+        mode_spec(args.mode)
+    except ValueError as error:
+        parser.error(str(error))
     if not args.exe.is_file():
         print(f"error: build first (tools/windows/build.ps1); no {args.exe}", file=sys.stderr)
         return 1
@@ -347,17 +379,23 @@ def main(argv: list[str] | None = None) -> int:
         wanted = set(args.only.split(","))
         pages = [p for p in pages if p["name"] in wanted]
     sizes = [s for s in args.sizes.split(",") if s]
-    fixture, port = start_fixture(out / "fixture-service.log", args.fixture.resolve())
+    # One fixture service per distinct page ``fixture`` flag list (most pages share the default one).
+    fixtures: dict[tuple[str, ...], tuple[subprocess.Popen, int]] = {}
     results: list[dict] = []
     try:
         # Driver step logs (every focus stop) go to a file; the console gets one line per page and size.
         with (out / "driver.log").open("a", encoding="utf-8") as log, contextlib.redirect_stderr(log):
             for page in pages:
+                extra = tuple(page.get("fixture", ()))
+                if extra not in fixtures:
+                    fixtures[extra] = start_fixture(out / f"fixture-service-{len(fixtures)}.log", extra,
+                                                    args.fixture.resolve())
                 page_sizes = [s for s in sizes if s in page.get("sizes", sizes)]
-                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), port, out, args.scan,
-                                        args.tabs, args.hold))
+                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), fixtures[extra][1], out,
+                                        args.scan, args.tabs, args.hold))
     finally:
-        fixture.kill()
+        for fixture, _ in fixtures.values():
+            fixture.kill()
     name = "results.json" if args.mode == "normal" else f"results-{args.mode}.json"
     (out / name).write_text(json.dumps(results, indent=2), encoding="utf-8")
     (out / name.replace(".json", ".md").replace("results", "summary")).write_text(summary_table(results),

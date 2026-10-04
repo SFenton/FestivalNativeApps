@@ -121,6 +121,7 @@ class MatrixTests(unittest.TestCase):
     def test_modes_and_restore(self):
         self.assertEqual(m.MODES["hc-desert"]["system"], {"high_contrast": "desert"})
         self.assertTrue(m.MODES["app-reduced"]["app"]["reduceMotion"])
+        self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         previous = {"high_contrast": "off", "animations": True, "transparency": True, "text_scale": 100}
         self.assertEqual(m.restore_values(previous, {"text_scale": 225}), {"text_scale": 100})
         self.assertEqual(m.restore_values(previous, {}), {})
@@ -129,6 +130,16 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.MODES["scale-150"]["system"], {"display_scale": 150})
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
+
+    def test_mode_spec_combines(self):
+        self.assertEqual(m.mode_spec("normal"), {})
+        self.assertEqual(m.mode_spec("hc-desert"), {"system": {"high_contrast": "desert"}})
+        self.assertEqual(m.mode_spec("hc-desert+scale-150"),
+                         {"system": {"high_contrast": "desert", "display_scale": 150}})
+        self.assertEqual(m.mode_spec("text-200+app-contrast")["app"], {"moreContrast": True, "lessTransparency": True})
+        self.assertEqual(m.mode_spec("scale-100+scale-150"), {"system": {"display_scale": 150}})
+        with self.assertRaises(ValueError):
+            m.mode_spec("hc-desert+bogus")
 
     def test_pending_restore(self):
         import tempfile

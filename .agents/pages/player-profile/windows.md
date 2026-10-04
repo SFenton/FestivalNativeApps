@@ -17,7 +17,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 - One `ScrollViewer` (max 1280 epx): the name title row, **Overview** heading + stat cards, then per Settings-visible instrument a header (36 epx icon + title, above its cards), its **Rank History** card, its stat cards and its **Percentiles** table card, then the Bands link. Unplayed charts show a single empty-state card.
 - **Stat cards** (`Controls/PlayerStatTileView`, web `StatBox` in the `autoFitDetailCards` grid): every stat is its own card in an `ItemsRepeater` + `UniformGridLayout` (min 180 × 88 epx, max 4 columns): **2 columns at compact (500 epx), 4 at medium/wide** (Apple AP3 `StatGridColumns`). Value (20 epx bold, web colour: accent blue, gold, green when every catalogue song is played) over an uppercase label. A **linked** card is a `Button` with an in-card trailing chevron and a help text naming the destination; a plain card has no chevron and is one static element.
 - Instrument card order follows the web `InstrumentStatsSection`: Songs Played, Full Combos (only when > 0), Gold / 5 / 4 / 3 / 2 / 1 Stars (non-zero only), Avg Accuracy, Avg Stars, Best Rank, then **Global Rank / Total Score / Percentile**, which sit in the grid from the first frame as dimmed "—" placeholders and update in place (`PlayerStatTile` is observable; tiles keep their identity), "Unranked" on 404, "—" plus a Retry line on failure.
-- **Rank History card**: the combined chart (`Controls/RankHistoryGraph` + Core `RankHistoryCombinedChart`, web `RankHistoryChart`/`GraphCard`: Total Score bars coloured by placement, the `#4C7DFF` rank line on a reversed right axis — best rank at the top, padded like `getRankHistoryDomain` — legend, and pages of 96 epx bars with older/newer buttons `fst.player.rank-history.<chart>.older|newer`, arrow keys, wheel and swipe). While the read runs the card shows a spinner in a 376 epx area (the loaded chart's height) so nothing below moves; it hides for charts with no ranked snapshots and shows Retry on failure.
+- **Rank History card**: the combined chart (`Controls/RankHistoryGraph` + Core `RankHistoryCombinedChart`, web `RankHistoryChart`/`GraphCard`: Total Score bars coloured by placement, the `#4C7DFF` rank line on a reversed right axis — best rank at the top, padded like `getRankHistoryDomain` — legend, and pages of 96 epx bars with older/newer buttons `fst.player.rank-history.<chart>.older|newer`, arrow keys, wheel and swipe). Axis gutters are measured from the scaled tick labels (RankHistoryCombined.AxisGutter); in contrast themes the bars are opaque with a WindowText outline and the gridlines use WindowText (issue #204). While the read runs the card shows a spinner in a 376 epx area (the loaded chart's height) so nothing below moves; it hides for charts with no ranked snapshots and shows Retry on failure.
 - **Percentiles card** (`Controls/PlayerPercentileRowView`, web `PlayerPercentileTable`): PERCENTILE | SONGS header, one row per non-empty band with a "Top N%" pill (gold outline for the top 5%), the count and a chevron, hairline separators.
 - Charts are static XAML shapes redrawn only on data or size change. Sections live in a virtualizing repeater: rank/history reads start when a section is realized (near the viewport); unplayed charts read nothing.
 - Motion (web page load): spinner until the profile read lands, then the title row, Overview heading and Overview grid fade up 125 ms apart (`FadeIn.Play`) while instrument sections stagger through `FadeIn.Stagger`; nothing runs when motion is off.
@@ -60,7 +60,32 @@ UIA gotcha: `Border`, `StackPanel`, `ItemsRepeater` and `UserControl` are not in
 ## Tests
 
 - Core: `PlayerDataTests.cs` (wire decode/validation, client reads, session selection), `PlayerViewModelTests.cs` (page/instrument/history view models, charts, flyout, launch options), `PlayerStatLinksTests.cs` (presets vs. the web updaters, link routes, select-first policy, tile/row state, follow flows) and `SongScoreBandFilterTests.cs` (band maths, Songs pipeline/draft/deselect).
-- UI journeys: `python tools/windows/journeys/profile.py [--exe …] [--shots dir]`: search → view → select → Statistics → deselect, restart persistence, **links** (a viewed player's Songs Played selects them and opens filtered Songs), history sort and states, syncing, Bands scope.
+- UI journeys: `python tools/windows/journeys/profile.py [names…] [--exe …] [--shots dir]`. All are UIA-only (`invoke`/`select`/`reveal`), so they run on a locked console:
+  - **select**: route-launch a player → select → Statistics → deselect.
+  - **restart**: selection persists across a restart.
+  - **links**: a viewed player's Songs Played selects them and opens filtered Songs.
+  - **rank-history**: Older/Newer page the Lead chart's date range.
+  - **instrument-links**: a revealed percentile row opens the Songs Filter preset.
+  - **syncing**: the syncing state.
+  - **bands-scope**: the Bands scope.
+  - **statistics-\***: the Statistics page journeys ([statistics/windows.md](../statistics/windows.md#validation-issue-204)).
+- The `history*` journeys in the same file drive the Song Detail score history (`AppRoute.PlayerHistory` opens Song Detail, history sort and states); they belong to that page's validation.
+- Accessibility pages in `journeys/a11y.json`: `player`, `statistics`, `player-lead` (the Lead section, revealed) and `player-empty` (an empty instrument).
+
+## Validation (issue #199, 2026-10-03)
+
+The live public service was viewed as `SFentonX` with no selected-profile headers. Statistics was checked with that player selected. The fixture is `rivals_fixture.py`. The host console was locked, so actions ran through UIA patterns and screenshots used PrintWindow.
+
+| Configuration | Result |
+|---|---|
+| Compact 500, medium 900 and wide 1440 epx; maximized; snapped left and right | ✅ Live and fixture: 0 Axe errors. Cards reflow from 1 to 2 to 3 columns; the Lead section and percentile table are reachable by scrolling |
+| Light / Dark | Dark ✅. The app is dark-only (`RequestedTheme="Dark"`), so the system Light theme doesn't apply. This is a deliberate brand decision |
+| Contrast themes Aquatic, Desert, Dusk and Night sky | ✅ (fixed) 0 Axe errors. Card hover/press surfaces and percentile pills used hard-coded brushes; they now use theme resources with system colours. Charts keep their brand data hues (accessibility Open issue 2) |
+| Text 200% (compact and medium) and 225% (medium) | ✅ 0 Axe errors. Tiles wrap and scale |
+| Display 100% / 150% | The host runs at a fixed 300% scale. Layout is in epx, so breakpoints match at every scale |
+| Keyboard | UIA only (as in #196): every tile, row, chart pager and link is a focusable Button or Image, and SendInput Tab walks can't run on a locked console |
+| Narrator / UIA | ✅ (fixed) Each stat tile and percentile row is one stop whose name holds the value. The child texts are Raw: they used to be read twice in scan mode. The Lead chart's Older/Newer buttons kept the previous instrument's IDs after the section repeater recycled them; the IDs are now re-forwarded when they change |
+| Automated | Core 1549 tests, coverage 98.9% logic / 97.9% UX; 7/7 player journeys |
 
 ## Gaps
 

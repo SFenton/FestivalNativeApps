@@ -349,6 +349,20 @@ final class MacNavigationModel {
         }
     }
 
+    /// The toolbar profile button (avatar), issue #290: with a selected player it shows
+    /// Statistics, their own profile (web `getProfileClickDestination`, the sidebar
+    /// footer's name); without one it opens profile selection. Profile › Select/Switch
+    /// Profile… (⇧⌘P) still always opens the sheet.
+    ///
+    /// - Parameter hasPlayer: Whether a player is selected.
+    func pressProfileButton(hasPlayer: Bool) {
+        if hasPlayer, visible.contains(.statistics) {
+            select(.statistics)
+        } else {
+            profilePresented = true
+        }
+    }
+
     /// Push a route on the selected destination.
     ///
     /// - Parameter route: Route to open.

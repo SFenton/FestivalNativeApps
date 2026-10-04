@@ -46,13 +46,13 @@ struct FestivalSidebar: View {
     var body: some View {
         List(selection: selection) {
             if onSearch != nil {
-                Label("Search", systemImage: "magnifyingglass")
+                SidebarRowLabel(title: "Search", symbol: "magnifyingglass")
                     .accessibilityElement(children: .combine)
                     .tag(RootTab.search)
                     .accessibilityIdentifier("fst.nav.sidebar.search")
             }
             ForEach(browse) { section in
-                Label(section.title, systemImage: section.symbol)
+                SidebarRowLabel(title: section.title, symbol: section.symbol)
                     // One element per row, so the identifier names the row, not its icon.
                     .accessibilityElement(children: .combine)
                     .tag(RootTab.section(section))
@@ -123,7 +123,7 @@ struct FestivalSidebar: View {
                     onOpenPlayer(.player(accountId: player.accountId, displayName: player.displayName))
                 } label: {
                     HStack(spacing: 10) {
-                        ProfileAvatar(name: player.displayName, size: 28)
+                        ProfileAvatarImage(name: player.displayName, size: 28)
                         MarqueeText(player.displayName)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(BrandTokens.textPrimary)
@@ -151,6 +151,28 @@ struct FestivalSidebar: View {
                 action: onChooseProfile
             )
             .accessibilityIdentifier("fst.profile.sidebar")
+        }
+    }
+}
+
+/// A sidebar row's label: the title in standard (white) text and the symbol in the
+/// system's selection tint.
+///
+/// The iPadOS 26 sidebar draws an unfocused selected row as tinted text on a gray
+/// platter; with the brand accent that measured 3.56:1 (rendered (45, 130, 230) on
+/// (47, 44, 51)), below WCAG AA 4.5:1 for 17 pt text (HIG Accessibility contrast
+/// table). Standard text on gray is what HIG Focus and selection prescribes for an
+/// unfocused selection ("standard text on gray when not"); the tinted symbol (3.56:1,
+/// above the 3:1 for graphics) still marks the row.
+private struct SidebarRowLabel: View {
+    let title: String
+    let symbol: String
+
+    var body: some View {
+        Label {
+            Text(title).foregroundStyle(BrandTokens.textPrimary)
+        } icon: {
+            Image(systemName: symbol)
         }
     }
 }

@@ -99,15 +99,18 @@ VK = {
 STEP_VERBS = {
     "click": "selector", "rightclick": "selector", "hover": "selector", "invoke": "selector",
     "toggle": "selector", "select": "selector", "expand": "selector",
-    "collapse": "selector", "focus": "selector", "waitfor": "selector", "waitgone": "selector", "scrollinto": "selector",
+    "collapse": "selector", "focus": "selector", "reveal": "selector", "waitfor": "selector", "waitgone": "selector",
+    "scrollinto": "selector",
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
-    "assertname": "setvalue", "assertaligned": "pair", "assertstatus": "status", "assertstate": "state",
+    "scrollto": "scrollto",
+    "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertstatus": "status", "assertstate": "state",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
-STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "name": None}
+STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
+              "name": None}
 
 # endregion
 
@@ -177,12 +180,18 @@ def parse_step(step: str) -> dict:
     ``scan:<dir>/<scan-id>`` runs an Axe.Windows scan (results in the ``scans`` output);
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
+    ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
+    Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
+    stepping its scroller from the top), with no input, so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text;
-    ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column).
+    ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
+    ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
+    and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line).
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
-    (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``) or ``name`` equals ``<value>``.
+    (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
+    ``IsSelected``: ``true``/``false``, e.g. a list's current item) or ``name`` equals ``<value>``.
 
     Args:
         step: A step string.
@@ -236,7 +245,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|name=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -265,6 +274,14 @@ def parse_step(step: str) -> dict:
             if not re.fullmatch(r"-?\d+", amount):
                 raise ValueError(f"bad scroll amount {amount!r}")
             result["amount"] = int(amount)
+    elif shape == "scrollto":
+        target, _, percent = arg.rpartition(",")
+        if not target or not re.fullmatch(r"\d+(\.\d+)?", percent.strip()) or float(percent) > 100:
+            raise ValueError(f"bad scrollto {arg!r}; use <selector>,<0-100>")
+        result["selector"] = parse_selector(target)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("scrollto needs an element selector, not coordinates")
+        result["percent"] = float(percent)
     elif shape == "seconds":
         result["arg"] = str(float(arg))
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):

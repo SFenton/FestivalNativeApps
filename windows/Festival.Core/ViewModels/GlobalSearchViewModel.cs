@@ -422,9 +422,11 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Raises the count announcement once the query settles.</summary>
     private void Announce()
     {
-        LastAnnouncement = GlobalSearchResults.Announcement(
-            SongsState == LoadState.Failed ? null : Songs.Count,
-            PlayersState == LoadState.Failed ? null : Players.Count);
+        LastAnnouncement = playersOnly
+            ? GlobalSearchResults.PlayersAnnouncement(PlayersState == LoadState.Failed ? null : Players.Count, PlayersHint)
+            : GlobalSearchResults.Announcement(
+                SongsState == LoadState.Failed ? null : Songs.Count,
+                PlayersState == LoadState.Failed ? null : Players.Count);
         ResultsAnnounced?.Invoke(this, LastAnnouncement);
     }
 

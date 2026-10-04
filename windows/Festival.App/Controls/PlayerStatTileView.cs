@@ -61,8 +61,12 @@ public sealed partial class PlayerStatTileView : ContentControl
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;
         label.Foreground = (Brush)Application.Current.Resources["FSTSecondaryTextBrush"];
+        // The tile's card or button carries "Label: value"; its parts would make Narrator read the stat twice.
+        AutomationProperties.SetAccessibilityView(value, AccessibilityView.Raw);
+        AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(stars, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(chevron, AccessibilityView.Raw);
+        chevron.Foreground = (Brush)Application.Current.Resources["FSTSecondaryTextBrush"];
         body.Children.Add(value);
         body.Children.Add(stars);
         body.Children.Add(label);
@@ -150,9 +154,10 @@ public sealed partial class PlayerStatTileView : ContentControl
             BorderThickness = new Thickness(1),
             CornerRadius = (CornerRadius)Application.Current.Resources["OverlayCornerRadius"],
         };
-        created.Resources["ButtonBackgroundPointerOver"] = new SolidColorBrush(Windows.UI.Color.FromArgb(0xD9, 0x1C, 0x24, 0x36));
-        created.Resources["ButtonBackgroundPressed"] = new SolidColorBrush(Windows.UI.Color.FromArgb(0xD9, 0x16, 0x1D, 0x2C));
-        created.Resources["ButtonBorderBrushPointerOver"] = new SolidColorBrush(Windows.UI.Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        var resources = Application.Current.Resources;
+        created.Resources["ButtonBackgroundPointerOver"] = resources["FSTCardSurfacePointerOverBrush"];
+        created.Resources["ButtonBackgroundPressed"] = resources["FSTCardSurfacePressedBrush"];
+        created.Resources["ButtonBorderBrushPointerOver"] = resources["FSTCardStrokePointerOverBrush"];
         created.Click += (_, _) =>
         {
             if (Tile is { IsLinked: true, Link: { } link }) PlayerProfileView.OwnerOf(this)?.Follow(link);

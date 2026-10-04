@@ -64,7 +64,10 @@
                             <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
                                 <StackPanel Spacing="8" Padding="0,0,0,12">
                                     <!-- Web Accordions start collapsed. -->
+                                    <!-- A panel header gives the Expander no UIA name (Axe NameNotNull): name it explicitly. -->
                                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              AutomationProperties.Name="Instruments"
+                                              AutomationProperties.HelpText="Choose which instruments appear in your suggestions."
                                               AutomationProperties.AutomationId="fst.suggestions.filter.instruments">
                                         <Expander.Header>
                                             <StackPanel Padding="0,8">
@@ -92,6 +95,8 @@
                                     </Expander>
 
                                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              AutomationProperties.Name="General"
+                                              AutomationProperties.HelpText="Toggle broad suggestion types on or off."
                                               AutomationProperties.AutomationId="fst.suggestions.filter.general">
                                         <Expander.Header>
                                             <StackPanel Padding="0,8">
@@ -149,7 +154,8 @@
         <Grid Grid.Row="1">
             <!-- One virtualized list of category cards; the third-from-last realized card loads the next batch. -->
             <ListView x:Name="CardList" ItemsSource="{x:Bind ViewModel.Cards}" SelectionMode="None" IsItemClickEnabled="False"
-                      ContainerContentChanging="OnCardContainerChanging" Padding="0,0,12,24"
+                      ContainerContentChanging="OnCardContainerChanging" PreviewKeyDown="OnCardListPreviewKeyDown" Padding="0,0,12,24"
+                      TabNavigation="Local"
                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="360"
                       Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}"
                       AutomationProperties.Name="Suggestions" AutomationProperties.AutomationId="fst.suggestions.list">
@@ -181,7 +187,8 @@
                                                          Width="36" Height="36" VerticalAlignment="Center" Visibility="{x:Bind HasHeaderIcon}" />
                             </Grid>
                             <Border Style="{StaticResource FSTCardStyle}" Padding="0">
-                                <ItemsControl ItemsSource="{x:Bind Rows}" IsTabStop="False">
+                                <!-- A card's rows are one Tab stop with Up/Down between rows (design/windows.md Collections). -->
+                                <ItemsControl ItemsSource="{x:Bind Rows}" IsTabStop="False" TabFocusNavigation="Once" XYFocusKeyboardNavigation="Enabled">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:SuggestionRowItem">
                                             <controls:SuggestionSongRow Item="{x:Bind}" />
@@ -208,17 +215,20 @@
             <ProgressRing IsActive="{x:Bind ViewModel.ShowLoading, Mode=OneWay}" Width="48" Height="48"
                           AutomationProperties.Name="Loading suggestions" AutomationProperties.AutomationId="fst.suggestions.loading" />
 
+            <!-- Layout panels have no UIA peer, so each state's AutomationId sits on its Level 2 heading (like Rivals). -->
             <StackPanel Visibility="{x:Bind ViewModel.ShowSyncing, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Spacing="12" MaxWidth="420" AutomationProperties.AutomationId="fst.suggestions.syncing">
-                <ProgressRing IsActive="{x:Bind ViewModel.ShowSyncing, Mode=OneWay}" Width="32" Height="32" />
-                <TextBlock Text="Syncing Scores" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                        Spacing="12" MaxWidth="420">
+                <ProgressRing IsActive="{x:Bind ViewModel.ShowSyncing, Mode=OneWay}" Width="32" Height="32" AutomationProperties.Name="Syncing scores" />
+                <TextBlock Text="Syncing Scores" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.suggestions.syncing" />
                 <TextBlock Text="This player's scores are still being prepared. Suggestions will appear once they're ready."
                            TextWrapping="Wrap" TextAlignment="Center" />
             </StackPanel>
 
             <StackPanel Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Spacing="12" MaxWidth="420" AutomationProperties.AutomationId="fst.suggestions.choose-profile">
-                <TextBlock Text="Select a Player" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                        Spacing="12" MaxWidth="420">
+                <TextBlock Text="Select a Player" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.suggestions.choose-profile" />
                 <TextBlock Text="Choose a player profile from the title bar to get suggestions based on their scores."
                            TextWrapping="Wrap" TextAlignment="Center" />
             </StackPanel>
@@ -228,8 +238,9 @@
                                         AutomationProperties.AutomationId="fst.suggestions.error" />
 
             <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
-                        Spacing="12" MaxWidth="420" AutomationProperties.AutomationId="fst.suggestions.no-results">
-                <TextBlock Text="No Suggestions" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                        Spacing="12" MaxWidth="420">
+                <TextBlock Text="No Suggestions" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.suggestions.no-results" />
                 <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" TextWrapping="Wrap" TextAlignment="Center" />
                 <Button Content="Reset Filters" HorizontalAlignment="Center" Click="OnResetFilters"
                         Visibility="{x:Bind ViewModel.IsFilterActive, Mode=OneWay}"

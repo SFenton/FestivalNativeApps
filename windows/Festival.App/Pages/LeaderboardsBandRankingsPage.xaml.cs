@@ -27,6 +27,7 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     private int shownPage;
     private bool split;
     private AppRoute.Band? detailRoute;
+    private readonly Windows.UI.ViewManagement.UISettings plateUiSettings = new();
 
     /// <summary>Creates the page.</summary>
     public LeaderboardsBandRankingsPage()
@@ -34,6 +35,14 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
         InitializeComponent();
         BoardFooter.Inset(Footer, RowsRepeater);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
+        Footer.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateFooterPlate());
+        // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
+        Loaded += (_, _) =>
+        {
+            plateUiSettings.ColorValuesChanged += OnPlateColorsChanged;
+            UpdateFooterPlate();
+        };
+        Unloaded += (_, _) => plateUiSettings.ColorValuesChanged -= OnPlateColorsChanged;
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -80,6 +89,30 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     /// <param name="e">Unused.</param>
     private void OnContentRevealed(object? sender, EventArgs e) =>
         DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
+
+    #region Contrast footer plate
+    /// <summary>
+    /// Under a Windows contrast theme, shows the window-colour plate behind the floating pager at its height so rows
+    /// scrolling beneath don't show through between its buttons (issue #209); hidden otherwise and with a single page.
+    /// </summary>
+    private void UpdateFooterPlate()
+    {
+        var on = ContrastTheme.IsOn && Footer.Visibility == Visibility.Visible && Footer.ActualHeight > 0;
+        FooterPlate.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        if (on) FooterPlate.Height = Footer.ActualHeight;
+    }
+
+    /// <summary>Follows the pager's height (it collapses to nothing with a single page).</summary>
+    /// <param name="sender">Pager.</param>
+    /// <param name="e">Unused.</param>
+    private void OnFooterSizeChanged(object sender, SizeChangedEventArgs e) => UpdateFooterPlate();
+
+    /// <summary>Re-evaluates the plate when the contrast theme changes (any thread).</summary>
+    /// <param name="sender">Settings.</param>
+    /// <param name="args">Ignored.</param>
+    private void OnPlateColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(UpdateFooterPlate);
+    #endregion
 
     #region Split layout
     /// <summary>

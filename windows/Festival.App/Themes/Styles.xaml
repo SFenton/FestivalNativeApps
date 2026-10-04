@@ -12,6 +12,10 @@
             <!-- Mutated at runtime to opaque when Windows transparency effects are off. -->
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
+            <!-- Linked card buttons (Player Profile stat cards): hover/press surfaces and the hover outline. -->
+            <SolidColorBrush x:Key="FSTCardSurfacePointerOverBrush" Color="#D91C2436" />
+            <SolidColorBrush x:Key="FSTCardSurfacePressedBrush" Color="#D9161D2C" />
+            <SolidColorBrush x:Key="FSTCardStrokePointerOverBrush" Color="#33FFFFFF" />
             <!-- Hairline between the rows of a multi-row card (operator batch 6.5) and the row hover/press fills, which
                  cover the whole row from card edge to card edge (6.2). -->
             <SolidColorBrush x:Key="FSTRowSeparatorBrush" Color="#1FFFFFFF" />
@@ -67,6 +71,9 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
+            <!-- Gold-outline pill (Player Profile Top 1–5% rows): no fill over the card; Window under a contrast theme so
+                 the pill stays readable on the Highlight row hover. -->
+            <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="#00000000" />
             <!-- Band Detail song rows' "Top N%" pill (web purple percentile badge). -->
             <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="#FF7C3AED" />
             <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="#FFFFFFFF" />
@@ -76,6 +83,7 @@
             <!-- Rank History chart gridlines (web CartesianGrid stroke; the glass border tint). -->
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="#FF223047" />
+            <SolidColorBrush x:Key="FSTMutedPillFillBrush" Color="#FF223047" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="#FFFFFFFF" />
@@ -85,9 +93,6 @@
             <SolidColorBrush x:Key="FSTShopTileCaptionBrush" Color="Transparent" />
             <!-- Song Detail's Item Shop button surface under its breathing status fill (web shopButton). -->
             <SolidColorBrush x:Key="FSTShopButtonSurfaceBrush" Color="#F5121826" />
-            <!-- Song Detail score-history chart chrome (web ScoreHistoryChart axis stroke, selected-bar purple). -->
-            <SolidColorBrush x:Key="FSTChartAxisBrush" Color="#33FFFFFF" />
-            <SolidColorBrush x:Key="FSTChartSelectedStrokeBrush" Color="#FF7C3AED" />
             <SolidColorBrush x:Key="FSTDangerBackgroundBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPointerOverBrush" Color="#FFD84343" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPressedBrush" Color="#FFA82020" />
@@ -99,6 +104,19 @@
             <SolidColorBrush x:Key="FSTDangerBorderBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTDangerBorderPointerOverBrush" Color="#FFD84343" />
             <SolidColorBrush x:Key="FSTDangerBorderPressedBrush" Color="#FFA82020" />
+            <!-- Score History chart (Controls/SongScoreHistoryChart): axis hairlines, the blue score line, the purple selected-bar
+                 stroke, gold FC bars and the red→green accuracy legend (bars are coloured by accuracy in code). -->
+            <SolidColorBrush x:Key="FSTChartAxisBrush" Color="#33FFFFFF" />
+            <SolidColorBrush x:Key="FSTChartLineBrush" Color="#FF4C7DFF" />
+            <SolidColorBrush x:Key="FSTChartDotStrokeBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="FSTChartSelectedStrokeBrush" Color="#FF7C3AED" />
+            <SolidColorBrush x:Key="FSTChartFcBrush" Color="#FFFFD700" />
+            <SolidColorBrush x:Key="FSTChartBarBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="FSTChartBarStrokeBrush" Color="Transparent" />
+            <LinearGradientBrush x:Key="FSTChartAccuracyLegendBrush" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#FFDC2828" Offset="0" />
+                <GradientStop Color="#FF2ECC71" Offset="1" />
+            </LinearGradientBrush>
             <!-- Settings (issue #214): reorder-list rows and stroke, Service Info progress bar. Its scoped button styling lives in
                  Themes/*ButtonResources.xaml theme dictionaries so a live contrast switch re-resolves it. -->
             <SolidColorBrush x:Key="FSTReorderRowBrush" Color="#0DFFFFFF" />
@@ -154,6 +172,10 @@
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <!-- The card keeps its Window surface (its texts are WindowText) and shows interaction with a Highlight outline. -->
+            <SolidColorBrush x:Key="FSTCardSurfacePointerOverBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTCardSurfacePressedBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTCardStrokePointerOverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTRowSeparatorBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTRowHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTRowPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
@@ -183,7 +205,7 @@
             <SolidColorBrush x:Key="FSTStatusMissingFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTStatusMissingStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTStatusAmberFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTStatusNoneFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTStatusNoneStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTEmphasisBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
@@ -197,6 +219,7 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <!-- Percentile pills become plain system pills (outlined by FSTNeutralPillStrokeBrush). -->
             <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
@@ -205,6 +228,7 @@
             <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTMutedPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
@@ -214,9 +238,6 @@
             <SolidColorBrush x:Key="FSTShopTileCaptionBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <!-- Same Highlight as the status fill, so the breathe never exposes a non-system surface under HighlightText. -->
             <SolidColorBrush x:Key="FSTShopButtonSurfaceBrush" Color="{ThemeResource SystemColorHighlightColor}" />
-            <!-- Chart axes and bar outlines in the text colour; the selected bar in Highlight. -->
-            <SolidColorBrush x:Key="FSTChartAxisBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="FSTChartSelectedStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTDangerBackgroundBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPointerOverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTDangerBackgroundPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
@@ -228,6 +249,16 @@
             <SolidColorBrush x:Key="FSTDangerBorderBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTDangerBorderPointerOverBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="FSTDangerBorderPressedBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <!-- Chart: WindowText axes and outlined bars, FC bars filled in WindowText, the selection and score line in Highlight
+                 (dots ringed in Window so they show over a filled bar). Values are also in each bar's UIA name and the list. -->
+            <SolidColorBrush x:Key="FSTChartAxisBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTChartLineBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTChartDotStrokeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTChartSelectedStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTChartFcBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTChartBarBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTChartBarStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTChartAccuracyLegendBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <!-- Settings reorder lists and Service Info progress bar. -->
             <SolidColorBrush x:Key="FSTReorderRowBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTReorderStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />

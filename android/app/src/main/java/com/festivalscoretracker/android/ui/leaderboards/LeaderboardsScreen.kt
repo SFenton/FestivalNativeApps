@@ -27,11 +27,14 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
@@ -367,11 +370,14 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         CardHeader(instrument.label) { InstrumentIcon(instrument, size = 40.dp, decorative = true) }
         GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
+        // Rows fill this column, so its inner width is the width their names must not collapse in (issue #114).
+        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        val density = LocalDensity.current
+        Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
                 LoadState.Loading -> RankingsSkeletonRows(5)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${instrument.label} rankings unavailable", current.countdown, { viewModel.retryCard(instrument) }, Modifier.padding(horizontal = 8.dp))
-                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(current.value.rankings.entries + pinnedEntry(viewModel, instrument, selected), metric)) {
+                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(current.value.rankings.entries + pinnedEntry(viewModel, instrument, selected), metric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
                     if (entries.isEmpty()) {
                         Text("No ranked ${instrument.label} players yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
@@ -475,11 +481,13 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         CardHeader(bandType.label)
         GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
+        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        val density = LocalDensity.current
+        Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
                 LoadState.Loading -> RankingsSkeletonRows(5)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
-                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric)) {
+                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
                     if (entries.isEmpty()) {
                         Text("No ranked ${bandType.label.lowercase()} yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))

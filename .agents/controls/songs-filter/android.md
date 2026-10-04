@@ -19,7 +19,7 @@ Emulator API 37, debug build, live public service with SFentonX selected (keyles
 | FST_Phone portrait, font 1.0 and 2.0; system light and dark | OK. At 2.0 the toggles' rows wrap without clipping. |
 | FST_Phone landscape, font 1.0 | OK |
 | FST_Phone landscape, font 2.0 | **Fixed**: the pinned header and Reset footer left about 120 dp of form. Reset now moves to the header on compact height. |
-| FST_Tablet portrait ⇄ landscape (PermanentDrawer ⇄ Rail) | **Fixed**: rotating closed the open sheet and lost its draft. The shell now hosts content through `movableContentOf`. |
+| FST_Tablet portrait ⇄ landscape (PermanentDrawer ⇄ Rail) | **Fixed**: rotating closed the open sheet and lost its draft. The shell now keeps its page tree under one parent at every width ([app-navigation](../app-navigation/android.md)). |
 | FST_Resizable phone / foldable / tablet / desktop presets | OK; the sheet stays open across resizes, centred at 640 dp max. |
 | FST_Book_Fold unfolded / folded | OK, continuity kept. |
 | FST_Book_Fold half-open (separating vertical hinge at x=1038 px) | **Fixed**: the sheet straddled the hinge. It now sits in the start pane (shared `festivalSheetHingeSide`, also from #125). |
