@@ -12,7 +12,8 @@ namespace Festival.Core.Domain;
 /// auto-scroll), <c>--auto-scroll-span N</c> (turn back at N epx), <c>--drift-fps N</c> (background drift steps/s),
 /// <c>--frame-stats</c> (UI-thread frame intervals in the perf log), <c>--profile accountId:Name</c> (select a player in memory
 /// only, never persisted), <c>--anonymous</c> (no player, in memory only), <c>--settings-path file</c> (isolated settings file).
-/// <c>--automation</c> is resolved separately by <see cref="AutomationLaunch"/> and only accepted here as a flag.
+/// <c>--control-lab instrument-selector</c> (<c>FST_DEBUG_CONTROL_LAB</c>; opens a control's state lab instead of the shell, honoured only
+/// in Debug and automation launches). <c>--automation</c> is resolved separately by <see cref="AutomationLaunch"/> and only accepted here as a flag.
 /// </summary>
 public sealed record LaunchOptions
 {
@@ -64,6 +65,12 @@ public sealed record LaunchOptions
     /// <summary>Settings file replacing the per-user default (<c>FST_SETTINGS_PATH</c>), so automation never touches real settings.</summary>
     public string? SettingsPath { get; init; }
 
+    /// <summary>Control state lab to open instead of the shell (one of <see cref="ControlLabs"/>), or <see langword="null"/>.</summary>
+    public string? ControlLab { get; init; }
+
+    /// <summary>Control labs the app can open (UI-automation harnesses for states no page reaches, e.g. disabled instruments).</summary>
+    public static IReadOnlyList<string> ControlLabs { get; } = ["instrument-selector"];
+
     /// <summary>Whether settings must stay in memory (a debug profile or anonymous launch).</summary>
     public bool InMemorySettings => DebugProfile is not null || Anonymous;
 
@@ -84,6 +91,7 @@ public sealed record LaunchOptions
             ["perf-log"] = environment("FST_PERF_LOG"),
             ["profile"] = environment("FST_DEBUG_PROFILE"),
             ["settings-path"] = environment("FST_SETTINGS_PATH"),
+            ["control-lab"] = environment("FST_DEBUG_CONTROL_LAB"),
         };
         var flags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (environment("FST_DEBUG_ANONYMOUS") == "1") flags.Add("anonymous");
@@ -143,9 +151,16 @@ public sealed record LaunchOptions
             if (candidate is { IsValid: true }) profile = candidate;
             else warnings.Add("Debug profile must be 'accountId:Display Name'.");
         }
+        string? controlLab = null;
+        if (values.GetValueOrDefault("control-lab") is { Length: > 0 } labText)
+        {
+            controlLab = ControlLabs.FirstOrDefault(l => string.Equals(l, labText.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (controlLab is null) warnings.Add($"Unknown control lab '{labText}'.");
+        }
         var speed = Bounded(values.GetValueOrDefault("auto-scroll-speed"), 1, 2000);
         return new LaunchOptions
         {
+            ControlLab = controlLab,
             DebugProfile = profile,
             Anonymous = flags.Contains("anonymous") && profile is null,
             SettingsPath = values.GetValueOrDefault("settings-path") is { Length: > 0 } settingsPath ? settingsPath : null,
