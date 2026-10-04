@@ -244,6 +244,24 @@ object RivalHeadToHead {
      * @return Player minus rival.
      */
     fun scoreDiff(song: RivalSongComparison): Long = (song.userScore ?: 0) - (song.rivalScore ?: 0)
+
+    /**
+     * Spoken score gap for TalkBack, player minus rival (missing scores count as zero).
+     *
+     * @param song Comparison.
+     * @param locale Number locale.
+     * @return "your score is 200 points higher", "… 1 point lower" or "same score".
+     */
+    fun spokenScoreDiff(song: RivalSongComparison, locale: Locale = Locale.getDefault()): String {
+        val diff = scoreDiff(song)
+        val magnitude = abs(diff)
+        val points = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " point" else " points"
+        return when {
+            diff > 0 -> "your score is $points higher"
+            diff < 0 -> "your score is $points lower"
+            else -> "same score"
+        }
+    }
 }
 
 // endregion

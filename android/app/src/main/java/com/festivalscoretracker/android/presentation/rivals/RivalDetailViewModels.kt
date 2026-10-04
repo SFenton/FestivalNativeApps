@@ -13,6 +13,7 @@ import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes
 import com.festivalscoretracker.android.core.rivals.RivalSongComparison
 import com.festivalscoretracker.android.core.rivals.RivalrySort
+import com.festivalscoretracker.android.core.rivals.RivalsListResponse
 import com.festivalscoretracker.android.core.rivals.rivalEntries
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.CatalogPayload
@@ -89,7 +90,7 @@ class AllRivalsViewModel(
             AllRivalsContent(scope, rivalEntries(list.above, list.below), rank)
         }
         is RivalScope.Song -> if (scope.isCommon) {
-            val lists = coroutineScope { scope.instruments.map { async { repository.list(accountId, it.wireId, refresh) } }.awaitAll() }
+            val lists = loadCommonLists(scope.instruments, refresh)
             val (above, below) = RivalCommonRivals.intersect(lists)
             AllRivalsContent(scope, rivalEntries(above, below), scope.instruments.joinToString(" · ") { it.label })
         } else {
@@ -101,6 +102,35 @@ class AllRivalsViewModel(
             AllRivalsContent(scope, rivalEntries(list.above, list.below), scope.instruments.joinToString(" · ") { it.label })
         }
         is RivalScope.FromSettings -> error("Settings scopes are resolved before loading")
+    }
+
+    /**
+     * Every chart's full list for Common Rivals. Like the hub's Common card and the web, a
+     * chart that fails (for example a 503 during publication) is left out of the
+     * intersection instead of failing the page; only when every chart fails does the
+     * first failure surface (issue #108).
+     *
+     * @param instruments Charts to intersect.
+     * @param refresh Bypass the read cache.
+     * @return The lists that loaded.
+     */
+    private suspend fun loadCommonLists(instruments: List<Instrument>, refresh: Boolean): List<RivalsListResponse> {
+        val results = coroutineScope {
+            instruments.map { chart ->
+                async {
+                    try {
+                        Result.success(repository.list(accountId, chart.wireId, refresh))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (failure: Exception) {
+                        Result.failure(failure)
+                    }
+                }
+            }.awaitAll()
+        }
+        val loaded = results.mapNotNull { it.getOrNull() }
+        if (loaded.isEmpty()) results.firstNotNullOfOrNull { it.exceptionOrNull() }?.let { throw it }
+        return loaded
     }
 }
 

@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -230,7 +231,9 @@ fun RivalSectionHeader(
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (instrument != null) InstrumentIcon(instrument, size = 36.dp, decorative = true)
-        Column(Modifier.weight(1f)) {
+        // Traversal group: TalkBack reads the title and its description before the
+        // vertically centred See All, which otherwise sorts between them.
+        Column(Modifier.weight(1f).semantics { isTraversalGroup = true }) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleLarge,
@@ -381,7 +384,7 @@ fun RivalSongRow(
     val scoreDiff = RivalHeadToHead.scoreDiff(song)
     val leader = RivalHeadToHead.leaderPhrase(delta.toLong(), them)
     val description = "$title, ${song.chart?.label.orEmpty()}, $you rank ${format.format(song.userRank)}, " +
-        "$them rank ${format.format(song.rivalRank)}, $leader, score difference $scoreText"
+        "$them rank ${format.format(song.rivalRank)}, $leader, ${RivalHeadToHead.spokenScoreDiff(song)}"
     val keyboard = catalogSong?.usesKeyboardIcon == true
     GlassCard(
         modifier = modifier
