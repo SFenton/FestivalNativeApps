@@ -115,6 +115,7 @@ class GlobalSearchDeviceTest {
         // Let the keyboard finish showing so its inset is final.
         Thread.sleep(1_500)
         rule.waitForIdle()
+        h.awaitAccessibilityTree(GlobalSearchTags.EMPTY)
         before(h.readingOrder("global-search-empty"), GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE)
         rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_SUBTITLE).assertIsDisplayed()
 
