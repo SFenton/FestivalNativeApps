@@ -1,0 +1,131 @@
+[
+  {
+    "name": "feedback-unavailable",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py", "--features", "off"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": ["scrollinto:id=fst.settings.licenses@20", "wait:1", "waitgone:id=fst.settings.feedback.bug@2"]
+  },
+  {
+    "name": "feedback-editing-empty",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
+      "waitfor:id=fst.settings.feedback.title@10", "assertname:id=fst.settings.feedback.validation|Add a title after the prefix.",
+      "assertstate:id=PrimaryButton|enabled=false@5"
+    ]
+  },
+  {
+    "name": "feedback-invalid",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
+      "assertname:id=fst.settings.feedback.validation|Add a description."
+    ]
+  },
+  {
+    "name": "feedback-editing-dirty",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
+      "setvalue:id=fst.settings.feedback.description|Scrolling stops after the A-Z jump.",
+      "waitgone:id=fst.settings.feedback.validation@5", "assertstate:id=PrimaryButton|enabled=true@5"
+    ]
+  },
+  {
+    "name": "feedback-attachments",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
+      "setvalue:id=fst.settings.feedback.description|Scrolling stops after the A-Z jump.",
+      "scrollinto:id=fst.settings.feedback.attach@5", "invoke:id=fst.settings.feedback.attach",
+      "waitfor:id=1148&class=Edit@15",
+      "setvalue:id=1148&class=Edit|\"{repo}\\windows\\Festival.App\\Assets\\Store\\Square150x150Logo.scale-100.png\" \"{repo}\\windows\\Festival.App\\Assets\\Store\\Square44x44Logo.scale-200.png\"",
+      "invoke:id=1&class=Button", "waitgone:id=1148&class=Edit@10", "waitfor:id=fst.settings.feedback.attachment@10",
+      "assertstate:id=PrimaryButton|enabled=true@5"
+    ]
+  },
+  {
+    "name": "feedback-discard-confirm",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
+      "invoke:id=fst.settings.feedback.cancel", "waitfor:id=fst.settings.feedback.keep-editing@5", "wait:1",
+      "assertfocus:id=fst.settings.feedback.keep-editing"
+    ]
+  },
+  {
+    "name": "feedback-sending",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py", "--post", "hold"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
+      "setvalue:id=fst.settings.feedback.description|Scrolling stops after the A-Z jump.",
+      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.progress@10",
+      "assertname:id=fst.settings.feedback.progress|Sending your report…", "assertstate:id=PrimaryButton|enabled=false@5"
+    ]
+  },
+  {
+    "name": "feedback-filing",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py", "--status", "hold"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20", "invoke:id=fst.settings.feedback.feature",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] Compare two players",
+      "setvalue:id=fst.settings.feedback.description|Side by side scores.",
+      "invoke:id=PrimaryButton", "assertname:id=fst.settings.feedback.progress@15|Filing your request on GitHub…"
+    ]
+  },
+  {
+    "name": "feedback-sent",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20", "invoke:id=fst.settings.feedback.feature",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] Compare two players",
+      "setvalue:id=fst.settings.feedback.description|Side by side scores.",
+      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.sent@20",
+      "assertname:id=fst.settings.feedback.sent|Thanks! Your request was filed as issue #1."
+    ]
+  },
+  {
+    "name": "feedback-error",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20", "invoke:id=fst.settings.feedback.feature",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] fixture-unavailable compare",
+      "setvalue:id=fst.settings.feedback.description|Side by side scores.",
+      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.error@15", "assertstate:id=PrimaryButton|enabled=true@5"
+    ]
+  }
+]
