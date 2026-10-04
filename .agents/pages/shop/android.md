@@ -20,6 +20,30 @@
 | Compact (< 600 dp: phone, folded book/passport, tri-fold one panel) | List forced; toggle hidden |
 | Medium / expanded (unfolded, tablet, resizable desktop) | Grid with the web's column counts (`shopGridColumns`: 3 from 600, 4 from 860, 5 from 1100 dp content) or list; **Grid View / List View** toggle (`fst.shop.view-toggle`) persisted in `fst.shop.viewMode` |
 
+Grid and list are capped at 1040 dp and centred (`shopSideMargin`, issue #113). The cap matches the web (`min(window, 1080) - 40`) and Windows (`ShopGridMetrics.MaxContentWidth`), and follows M3 layout guidance: *"Constrain body content to a max width (typically 840–1040dp) and center it"*. The side padding is content padding, so the list still scrolls edge to edge. Columns follow the page width, so a 1920 dp desktop window shows five 200 dp tiles instead of 300 dp posters, and list rows stay readable instead of being about 1,500 dp wide. Pure test: `ShopLayoutTest`. UI test: `ShopUiTest.desktopWidthCentresAFiveColumnGridNoWiderThan1040dp`.
+
+**Hinge split** (issue #113). A separating vertical hinge, such as a book or passport fold half-open, splits the grid at the fold (`ShopGridLayout.kt`: `shopGridSplit`, `ShopSplitCells`, `ShopSplitArrangement`). Before the fix, the middle column's cards straddled the fold. M3 says never to place interactive content across a hinge, and the Profile, Rivals and Suggestions grids already split. The panels share one square tile size (at least 120 dp). Each panel packs its tiles against the hinge, so the halves mirror, and the hinge (or the 10 dp gap, whichever is wider) becomes the gutter. Hinge bounds come from `currentWindowAdaptiveInfo().windowPosture.hingeList`, never from device names. A flat (non-separating) fold keeps the normal grid: M3 allows a scrolling feed across a flat fold.
+
+**Card text at large font sizes** (issue #113). A grid card is a fixed square. At 2.0× a long title used to push the artist line out of the tile's bottom edge. `shopCardTextHeights` now caps the title at about two thirds of the scrim room and the artist at the rest, each at least one line, so both end in "…". TalkBack still reads the full title and artist from the card's description.
+
+## Validation (issue #113, 2026-10-03, live public service)
+
+Debug APK checked on each AVD with `device.py drive --route shop --extra FST_DEBUG_STILL_BACKGROUND=1`. Live data: 125 offers, 1 Leaving Tomorrow, 0 New. Screenshots stay outside git.
+
+| Configuration | Finding |
+|---|---|
+| FST_Phone portrait/landscape, 1.0×/2.0× | Compact list (landscape is 923 dp: grid with 3 columns and a toggle). At 2.0× titles and artists wrap inside the row with no clipping, and the cart button stays a 48 dp touch target (40 dp IconButton container padded by `minimumInteractiveComponentSize`). At rest the floating Filter toolbar covers the lowest visible row's cart button. This is deliberate: the shell's shared M3 floating toolbar hides when you scroll (`FestivalApp` `toolbarScroll`), and the list reserves its height at the end. |
+| Light vs dark system theme | Identical: the app is dark-only by design ([design/android.md](../../design/android.md)). |
+| FST_Tablet landscape 1280 dp / portrait 800 dp | Drawer and 4 columns; rail and 3 columns. List/Grid toggle and filter sheet work. At 2.0× the grid scrims grow to four lines inside the tiles. |
+| FST_Resizable phone / foldable (+rotated) / tablet / desktop | Compact list, medium rail and grid, then expanded. Desktop was full-width before the fix and is now a centred 1040 dp grid/list (fixed). |
+| FST_Book_Fold folded / unfolded / half-open, 1.0×/2.0× | Folded (CLOSED) is the compact list; 2.0× wraps without clipping. Unfolded (OPENED, flat fold at x = 1038 px) is a 3-column grid with the rail. Half-open (HALF_OPENED, separating) used to put the middle column across the fold; it now shows 2 + 2 tiles that mirror around the fold (**fixed**). At 2.0× long titles and artists used to run off the tile; they now end in "…" (**fixed**). |
+| FST_Passport_Fold folded / unfolded / half-open, 1.0×/2.0× | Folded is the compact list (2.0× wraps cleanly). Unfolded is 3 columns. Half-open shows 2 + 2 tiles split at the fold (x = 1104 px). |
+| FST_TriFold folded / partial / unfolded, 1.0×/2.0× | Folded (720 px) is the compact list. Partial is 2 columns and unfolded is 4 columns with the rail. The emulator reports no `FoldingFeature` in any posture, so the grid never splits; the split code is driven only by WindowManager hinges. At 2.0× unfolded, the card-text caps keep the long artists inside the tile. |
+| Connected tests | `device.py test SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone and FST_Tablet: reading order, the toggled view, and the Accessibility Test Framework checks on touch-target size, labels and contrast. |
+| TalkBack | Walk on FST_Phone (`talkback_walk.py --route shop`): Item Shop, Search, Choose profile, then each row ("Title. Artist · Year", the first one adding "In list. 126 items"), followed by "Open … in the Fortnite Item Shop. Button". Grid cards read "Title, Artist[, Leaving Tomorrow]. Opens the Fortnite Item Shop" with a **Song Details** custom action. Reduced motion: all drives ran with animator scale 0, and the pulse holds its colour (`rememberShopPulse`). |
+
+Robolectric `ShopUiTest` covers loading, the compact list (badges, labelled 48 dp link, opening the official URL), highlighting off, the medium grid (description, custom action, card tap, Details), the desktop cap and 2.0× text in the list, grid and filter sheet. `ShopLayoutTest` covers the column counts, the side margin, the hinge split (book fold, wide hinge, tri-fold, no hinge), the split cells and arrangement (including the RTL mirror and fallbacks) and the card-text caps. `SongsUiTest` keeps the empty, failure, filter, no-match and hidden states.
+
 ## Open
 
 The drawer still lists Item Shop while Hide Item Shop is on (shell-owned `ShellChrome.kt`); rotation push updates; Quick Links; device journey for the toggle (never open the real link in automation).
