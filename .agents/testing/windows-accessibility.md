@@ -95,6 +95,15 @@ Fixed:
 - The percentile pill kept its purple fill and white text under contrast themes (now ButtonFace/ButtonText with an outline).
 - The shared `RankHistoryGraph` (Band Detail, Player Profile) clipped its left tick labels at 200% text and drew gridlines in an 8% white that disappears under contrast themes. Gutters and the date band are now measured from the scaled labels, gridlines/axes/bar outlines use WindowText under contrast themes, and the chart redraws on `ColorValuesChanged`/`TextScaleFactorChanged`. History rows grow with the text.
 
+## Difficulty Meter validation (issue #216, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 12` for `song-detail` at compact, medium and wide, then at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150% (plus Aquatic at wide): 0 Axe errors and 12 tab stops in every run (the meter isn't a stop). UIA journeys `tools/windows/journeys/difficulty-meter.json` (`--large-catalogue`) cover levels 1–7 and the 99 sentinel. Live public-service screenshots at C/M/W, maximized, snap-left, Desert (switched while the app was open), Night sky, text 200% and 100%/150% scale. Per-configuration results: [difficulty-meter/windows.md](../controls/difficulty-meter/windows.md#validation-issue-216-2026-10-03).
+
+Fixed:
+- Desert's WindowText and GrayText bars were only ~1.8:1 apart; under contrast themes, unfilled bars are now GrayText outlines (shape, not colour alone).
+- The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
+- The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
