@@ -41,7 +41,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
 | Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
-| Band Detail | ✅✅✅ | 10/14/14 | — | ✅ | ✅ |
+| Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
 | Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
 | Settings | ✅✅✅ | 30/30/30 | ✅ | ✅ | ✅ |
 | Licenses | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
@@ -85,10 +85,20 @@ Fixed:
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
 
+## Band Detail validation (issue #212, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` for `band-detail` at compact, medium, wide, snap-left and maximized, then at medium under Desert, Night sky, light and dark system theme, display 100% (wide) and 150%, and text 200% (C+M): 0 Axe errors in every run. The live public service (temp wrapper without `--base-url`) gave 0 Axe errors at C/M/W, Desert and text 200%. The keyboard journey `kb-band-detail-stats` passes at all three sizes; wheel scrolling can't run on the locked console, so deep shots use `scrollinto`. Per-configuration results: [band-detail/windows.md](../pages/band-detail/windows.md#validation-issue-212).
+
+Fixed:
+- Tab never reached the linked Best Song Rank card: the stat `ItemsRepeater` lacked `TabFocusNavigation="Local"` (Tab stops 10/14/14 → 12/15/15).
+- The Rank By `ComboBox` had no visible label; it now has a `Header`, which is also its UIA name.
+- The percentile pill kept its purple fill and white text under contrast themes (now ButtonFace/ButtonText with an outline).
+- The shared `RankHistoryGraph` (Band Detail, Player Profile) clipped its left tick labels at 200% text and drew gridlines in an 8% white that disappears under contrast themes. Gutters and the date band are now measured from the scaled labels, gridlines/axes/bar outlines use WindowText under contrast themes, and the chart redraws on `ColorValuesChanged`/`TextScaleFactorChanged`. History rows grow with the text.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
-2. (Resolved 2026-09-29, win-unify.) Contrast themes now map status chips, emphasis text, pills, Shop borders/badges and destructive buttons to system colours ([design/windows.md](../design/windows.md) contrast roles; Axe 0 errors under Desert and Night sky on Songs, Song Detail, song leaderboard, Leaderboards, Suggestions, Player, Shop and the Songs Filter). Charts keep their brand data hues; since issue #195 the Song Detail score chart draws axes and bar outlines in WindowText and the selected bar in Highlight.
+2. (Resolved 2026-09-29, win-unify.) Contrast themes now map status chips, emphasis text, pills, Shop borders/badges and destructive buttons to system colours ([design/windows.md](../design/windows.md) contrast roles; Axe 0 errors under Desert and Night sky on Songs, Song Detail, song leaderboard, Leaderboards, Suggestions, Player, Shop and the Songs Filter). Charts keep their brand data hues; since issue #195 the Song Detail score chart draws axes and bar outlines in WindowText and the selected bar in Highlight, and since issue #212 the rank-history chart (Band Detail, Player Profile) does the same for gridlines, axes and bar outlines.
 3. (Resolved 2026-09-29, no repro.) Player Bands at compact: the row sitting exactly on the viewport's bottom edge reports a zero-height, not-offscreen UIA rectangle (Axe `BoundingRectangleSizeReasonable`). This is WinUI clipping, not app layout, and it doesn't occur at medium or wide.
 4. The XAML choice menus (Rank By, Instrument, Band Size, Jump, Sort) share the implicit presenter name "Options". The invoking button names the choice, but per-menu names would read better.
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
