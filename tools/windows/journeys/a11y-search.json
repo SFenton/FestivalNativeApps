@@ -1,0 +1,80 @@
+[
+  {
+    "name": "search-closed",
+    "tab": "songs",
+    "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
+    "after_ready": ["waitfor:id=fst.global-search.open@5", "waitgone:id=fst.global-search.field"]
+  },
+  {
+    "name": "search-suggestions",
+    "tab": "songs",
+    "tabs": 0,
+    "sizes": ["medium", "wide", "maximized"],
+    "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
+    "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs and players@3", "type:fix",
+                    "waitfor:name=Player, Fixture Player 1@10"],
+    "teardown": ["key:esc", "key:esc", "key:esc"]
+  },
+  {
+    "name": "search-open-hint",
+    "route": "/search",
+    "ready": ["waitfor:id=fst.global-search.field@20"],
+    "after_ready": ["waitfor:id=fst.global-search.hint@5", "waitgone:id=fst.global-search.result.song"]
+  },
+  {
+    "name": "search-loading",
+    "route": "/search",
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.global-search.field@20"],
+    "after_ready": ["setvalue:id=fst.global-search.field|rollover", "waitfor:class=Microsoft.UI.Xaml.Controls.ProgressRing@5",
+                    "shot:{stem}-ring.png", "waitgone:class=Microsoft.UI.Xaml.Controls.ProgressRing@15",
+                    "waitfor:id=fst.global-search.result.player@5"]
+  },
+  {
+    "name": "search-results-all",
+    "route": "/search?q=fixture",
+    "ready": ["waitfor:id=fst.global-search.result.player@20"],
+    "after_ready": ["waitfor:id=fst.global-search.result.song@5"]
+  },
+  {
+    "name": "search-results-songs",
+    "route": "/search?q=fixture",
+    "ready": ["waitfor:id=fst.global-search.result.player@20"],
+    "after_ready": ["select:id=fst.global-search.scope.songs", "waitfor:id=fst.global-search.result.song@5",
+                    "waitgone:id=fst.global-search.result.player@5"]
+  },
+  {
+    "name": "search-results-players",
+    "route": "/search?q=fixture",
+    "ready": ["waitfor:id=fst.global-search.result.player@20"],
+    "after_ready": ["select:id=fst.global-search.scope.players", "waitfor:id=fst.global-search.result.player@5",
+                    "waitgone:id=fst.global-search.result.song@5"]
+  },
+  {
+    "name": "search-empty",
+    "route": "/search?q=zzzz",
+    "ready": ["waitfor:id=fst.global-search.empty.title@20"],
+    "after_ready": ["waitfor:id=fst.global-search.empty.subtitle@5", "waitgone:id=fst.global-search.result.song"]
+  },
+  {
+    "name": "search-error",
+    "route": "/search?q=busy",
+    "ready": ["waitfor:id=fst.service-status.title@20"],
+    "after_ready": ["waitgone:id=fst.global-search.result.player"]
+  },
+  {
+    "name": "search-bands-unavailable",
+    "route": "/search?q=fixture",
+    "ready": ["waitfor:id=fst.global-search.result.player@20"],
+    "after_ready": ["select:id=fst.global-search.scope.bands", "waitfor:id=fst.global-search.bands-unavailable.rankings@5",
+                    "waitgone:id=fst.global-search.result.song@5"]
+  },
+  {
+    "name": "search-navigated",
+    "route": "/search?q=fixture",
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.global-search.result.song@20"],
+    "after_ready": ["invoke:id=fst.global-search.result.song", "waitfor:id=fst.song-detail.title@15",
+                    "waitgone:id=fst.global-search.field@5"]
+  }
+]

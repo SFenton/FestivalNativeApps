@@ -72,7 +72,7 @@ Ctrl+E / Ctrl+F are `KeyboardAccelerator`s on `RootGrid` (work from any page; `R
 
 ## Narrator
 
-- The box is an `Edit` with a name; suggestion list items expose names as above. After the model settles a query, raise `AutomationPeer.RaiseNotificationEvent(ActionCompleted, ImportantMostRecent, "{n} songs, {m} players", "fst.global-search.results")` from the box's peer (Search page: from the list); `AutomationProperties.LiveSetting` alone does not announce, the peer must raise the event. [RaiseNotificationEvent](https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml.automation.peers.automationpeer.raisenotificationevent)
+- The box is an `Edit` with a name; suggestion list items expose names as above. The compact button, the box and its inner `TextBox` report UIA `AcceleratorKey` "Control+E" (`MainWindow.Accessibility.cs` `ExposeSearchAccelerator`; the accelerator itself lives on `RootGrid`, so WinUI exposes it on neither entry point, issue #234). After the model settles a query, raise `AutomationPeer.RaiseNotificationEvent(ActionCompleted, ImportantMostRecent, "{n} songs, {m} players", "fst.global-search.results")` from the box's peer (Search page: from the list); `AutomationProperties.LiveSetting` alone does not announce, the peer must raise the event. [RaiseNotificationEvent](https://learn.microsoft.com/windows/windows-app-sdk/api/winrt/microsoft.ui.xaml.automation.peers.automationpeer.raisenotificationevent)
 - Section headers: `AutomationProperties.HeadingLevel=Level2`. Retry, InfoBar and Band Rankings link are in tab order after the list.
 - Focus: Ctrl+E focus ring on the box; closing the Search page by Back restores focus to the previous page's last focused element (Frame navigation default); Escape from the box returns focus to the element that had it before Ctrl+E.
 - High contrast: the box and `SelectorBar` are system controls; section headers use the existing `FSTSectionHeaderStyle`.
@@ -98,6 +98,37 @@ Order: model + tests → title-bar box + suggestions → Search page + scopes �
 | Unit tests | `Festival.Core.Tests/GlobalSearchTests.cs` |
 | Journeys | `python tools/windows/search_journey.py [--axe]`: `journeys/search.json` at wide, medium (from a detail page; select a player, then its suggestion opens Statistics), compact (button, hint, centred empty `fst.global-search.empty.title` + Retry, player → Back), snap-left (players 503 + Retry) and 683×768. The fixture logs request paths and the run fails on any `/api/bands/search`; each journey uses an isolated settings file. `--axe` scans the Search page (`tools/windows/axe_scan.ps1`) |
 | Last measured | 5/5 journeys on Debug and NativeAOT Release (`--exe windows/.artifacts/app/Release-aot/FestivalScoreTracker.exe`); 0 band searches; Axe.Windows 0 errors; model/results 100% / ViewModel ≥95% lines |
+
+## Validation (issue #234, 2026-10-04)
+
+State matrix: `python tools/windows/a11y_matrix.py --pages tools/windows/journeys/a11y-search.json --fixture tools/windows/profile_fixture.py --scan --tabs 30 [--mode …] [--sizes …]`. It covers `search-closed`, `search-suggestions` (title-bar popup; medium and up), `search-open-hint`, `search-loading` (`rollover` is answered after 4 s; waits for `class=Microsoft.UI.Xaml.Controls.ProgressRing`, not `class=ProgressRing`), `search-results-all/-songs/-players`, `search-empty`, `search-error` (503), `search-bands-unavailable` and `search-navigated`. Pattern and keyboard steps only, so it runs on a locked console. `tools/windows/tests/test_a11y.py` checks that every state page exists and parses.
+
+| Configuration | Result |
+|---|---|
+| Compact, medium, wide, maximized, snapped (normal) | Pass at every size, Axe 0 errors. Tab walks: 6–9 distinct stops, none outside the window or repeated. On this 300%-scale host, `wide` is clamped to ~1270 epx and `snap-left` (640 epx) is compact (button + Search page). |
+| Display 100% (wide, snapped) and 150% (medium, wide, maximized) | Pass, Axe 0. At 100%, snapped is 1920 epx: title-bar box and centred column. At 150%, the full nav pane is open. |
+| High contrast (Desert; compact, medium) | Pass, Axe 0: system colours for the box, the `SelectorBar`, focus rings, the ring and the cards; artwork hidden. |
+| Light and dark theme (medium) | Pass, Axe 0. The app stays dark under the system light theme (dark-only deviation, [platforms/windows.md](../../platforms/windows.md)). |
+| Text 200% (compact, medium) | Pass, Axe 0. The title, field, scopes, rows, the service-status card and the bands InfoBar wrap with no clipping; the title-bar box keeps its placeholder. |
+| Keyboard | `a11y-keyboard.json` `kb-global-search` (Ctrl+E → type → Enter → Alt+Left) at compact/medium/wide, `kb-titlebar-order(-compact)` pass. Tab order on the page: scopes → rows → shell, with a visible focus rect on a keyboard-selected scope. |
+| Suggestion popup (every mode) | Axe reports 2 `BoundingRectangleCompletelyObscuresContainer` errors on WinUI's `PopupHost`/`InputSiteWindowClass`: the framework issue in [windows-accessibility.md](../../testing/windows-accessibility.md#open-issues) item 8, with no app element involved. |
+| Live public service | `--live` screenshots of closed, hint, results (All, Songs, Players), empty, Bands and navigated at compact/medium/maximized/snapped, plus Desert, text 200% and 150%. |
+
+Fixed: no entry point exposed Ctrl+E to UI Automation, so Narrator didn't announce it (navigation items already reported Ctrl+1…). The compact button's tooltip said "Search (Ctrl+E)" instead of the documented "Search songs and players (Ctrl+E)".
+
+The `winui-design` review (WinApp CLI 0.7.1) is aligned:
+- `find-ui` shows the Gallery title-bar sample with an `AutoSuggestBox` in `TitleBar.Content`, and its suggestions are filtered on `UserInput` like `MainWindow.Search.cs`.
+- "2–3 modes → SelectorBar" matches the scopes.
+- "Error – cause + retry affordance" matches the service-status card.
+- `find-api` confirms the AutoSuggestBox/TitleBar properties used.
+
+Deliberate deviations:
+- The title-bar box has no visible label (placeholder plus accessible name), following the Gallery/File Explorer title-bar convention. The Search page has a visible "Search" heading.
+- The app is dark only.
+
+Pending PR #199 (issue #299), not changed here: on `master` the page still shows section titles, a top-anchored `IsBusy` ring plus an inline "Searching players" ring, and Retry under the empty state. The spec's native contract asks for none of these, and PR #199 rewrites `SearchPage.xaml`.
+
+The motion and suggestion popup couldn't be captured as screen shots or recordings: the console was locked, and the popup is a separate window. The popup is asserted through UIA instead (`Player, Fixture Player 1`).
 
 ## Open
 
