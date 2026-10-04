@@ -132,6 +132,34 @@ class MatrixTests(unittest.TestCase):
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
 
+    def test_launch_args_and_live_pages(self):
+        page = {"name": "shop", "first_run": "on"}
+        fixture = m.launch_args(8765, page, Path("/s.json"))
+        self.assertEqual(fixture[:2], ["--base-url", "http://127.0.0.1:8765/"])
+        self.assertIn("--first-run=on", fixture)
+        live = m.launch_args(None, {"name": "shop"}, Path("/s.json"))
+        self.assertFalse(any(a.startswith("--base-url") or "127.0.0.1" in a for a in live))
+        self.assertIn("--first-run=off", live)
+        pages = [{"name": "shop"}, {"name": "shop-empty", "fixture": ["shop_fixture.py", "--shop", "empty"]},
+                 {"name": "songs-selected", "profile": "fixture-player-1:Demo Player"},
+                 {"name": "real", "profile": "abc:Real Player"}]
+        self.assertEqual([p["name"] for p in m.live_pages(pages)], ["shop", "real"])
+
+    def test_page_fixtures_exist(self):
+        import json
+        for name in ("a11y.json", "a11y-keyboard.json"):
+            for page in json.loads((m.PAGES.parent / name).read_text(encoding="utf-8")):
+                if "fixture" in page:
+                    script, _ = m.page_fixture(page)
+                    self.assertTrue(script.is_file(), page["name"])
+
+    def test_page_fixture(self):
+        self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))
+        self.assertEqual(m.page_fixture({"fixture": ["--band-rankings", "empty"]}),
+                         (m.FIXTURE, ("--band-rankings", "empty")))
+        self.assertEqual(m.page_fixture({"fixture": ["shop_fixture.py", "--shop", "empty"]}),
+                         (m.REPO_ROOT / "tools" / "windows" / "shop_fixture.py", ("--shop", "empty")))
+
     def test_mode_spec_combines(self):
         self.assertEqual(m.mode_spec("normal"), {})
         self.assertEqual(m.mode_spec("hc-desert"), {"system": {"high_contrast": "desert"}})

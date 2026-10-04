@@ -127,6 +127,99 @@
     ]
   },
   {
+    "name": "shop-list",
+    "route": "/shop",
+    "settings": {
+      "shopViewMode": "List"
+    },
+    "sizes": [
+      "medium",
+      "wide"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.list@20",
+      "wait:2"
+    ]
+  },
+  {
+    "name": "shop-filter",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.count@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "expand:id=fst.shop.filter",
+      "waitfor:id=fst.shop.filter.reset@5"
+    ],
+    "teardown": [
+      "collapse:id=fst.shop.filter",
+      "waitgone:id=fst.shop.filter.reset@5"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "shop-filter-empty",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.count@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "expand:id=fst.shop.filter",
+      "waitfor:id=fst.shop.filter.available@5",
+      "toggle:id=fst.shop.filter.available",
+      "collapse:id=fst.shop.filter",
+      "waitfor:id=fst.shop.filter.empty-reset@5"
+    ]
+  },
+  {
+    "name": "shop-hidden",
+    "route": "/shop",
+    "settings": {
+      "hideShop": true
+    },
+    "ready": [
+      "waitfor:id=fst.shop.hidden@20"
+    ]
+  },
+  {
+    "name": "shop-empty",
+    "route": "/shop",
+    "fixture": [
+      "shop_fixture.py",
+      "--shop",
+      "empty"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.empty@20"
+    ]
+  },
+  {
+    "name": "shop-error",
+    "route": "/shop",
+    "fixture": [
+      "shop_fixture.py",
+      "--shop",
+      "error"
+    ],
+    "ready": [
+      "waitfor:id=fst.service-status.retry@30"
+    ]
+  },
+  {
+    "name": "shop-details-unavailable",
+    "route": "/shop",
+    "fixture": [
+      "shop_fixture.py",
+      "--songs-fail"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.song-details-error@30",
+      "wait:2"
+    ]
+  },
+  {
     "name": "suggestions",
     "route": "/suggestions",
     "profile": "fixture-player-1:Demo Player",

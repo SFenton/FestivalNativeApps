@@ -111,7 +111,7 @@
             </StackPanel>
         </Grid>
 
-        <InfoBar Grid.Row="1" IsOpen="{x:Bind ViewModel.HasSongDetailsIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
+        <InfoBar x:Name="DetailsNotice" Grid.Row="1" IsOpen="{x:Bind ViewModel.HasSongDetailsIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
                  Message="{x:Bind ViewModel.SongDetailsIssue, Mode=OneWay}" Margin="0,0,12,0"
                  AutomationProperties.AutomationId="fst.shop.song-details-error" />
 
@@ -122,7 +122,9 @@
                  extra button (operator batch 6.9). New/Leaving tiles pulse gold/red like the web's ShopCard. -->
             <ScrollViewer x:Name="GridScroller" Visibility="{x:Bind ViewModel.ShowGrid, Mode=OneWay}" Padding="0,0,12,24"
                           SizeChanged="OnGridSizeChanged" AutomationProperties.AutomationId="fst.shop.grid">
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Local" x:Name="OfferGrid" controls:FadeIn.Stagger="True"
+                <!-- One Tab stop for the whole grid (like Fluent's GridView); arrow keys move between tiles. The live Shop has
+                     well over a hundred tiles, so a stop per tile (TabFocusNavigation="Local") made the page unusable by keyboard. -->
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Once" x:Name="OfferGrid" controls:FadeIn.Stagger="True"
                                HorizontalAlignment="Left"
                                controls:FadeIn.RowHeight="220" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}"
                                ElementPrepared="OnGridPrepared" ElementClearing="OnElementClearing">
@@ -170,9 +172,11 @@
                                         </Border>
                                     </Grid>
                                 </Button>
+                                <!-- Wraps rather than clipping at large text sizes (a compact tile at 200% text cut it to "Leaving Tomorro"). -->
                                 <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16" Padding="8,3"
                                         CornerRadius="10" Visibility="{x:Bind IsLeaving}" IsHitTestVisible="False">
-                                    <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold" />
+                                    <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold"
+                                               TextWrapping="WrapWholeWords" TextAlignment="Center" />
                                 </Border>
                                 <controls:ShopPulseRing x:Name="ShopRing" />
                             </Grid>
