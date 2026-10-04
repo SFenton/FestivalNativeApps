@@ -414,7 +414,7 @@
     "name": "search",
     "route": "/search?q=Fixture",
     "ready": [
-      "waitfor:id=fst.global-search.section.songs@20"
+      "waitfor:id=fst.global-search.result.song@20"
     ]
   },
   {

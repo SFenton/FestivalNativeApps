@@ -124,8 +124,16 @@ public static class GlobalSearchResults
     public const string Placeholder = "Search songs or players";
     /// <summary>Field accessible name.</summary>
     public const string FieldName = "Search songs and players";
-    /// <summary>Short-query hint (web <c>search.enterQuery</c>).</summary>
+    /// <summary>Short-query hint of the players-only pickers (web <c>search.enterQuery</c>).</summary>
     public const string EnterQueryHint = "Enter at least two characters to search.";
+    /// <summary>Search page short-query hint in All (issue #299: every scope names what it searches).</summary>
+    public const string EnterQueryHintAll = "Enter at least two characters to search for songs, players, or bands.";
+    /// <summary>Search page short-query hint in Songs.</summary>
+    public const string EnterQueryHintSongs = "Enter at least two characters to search for songs.";
+    /// <summary>Search page short-query hint in Players.</summary>
+    public const string EnterQueryHintPlayers = "Enter at least two characters to search for players.";
+    /// <summary>Search page short-query hint in Bands.</summary>
+    public const string EnterQueryHintBands = "Enter at least two characters to search for bands.";
     /// <summary>Spoken announcement when every scope is empty.</summary>
     public const string NoResults = "No results found.";
     /// <summary>Players-only picker empty text (an empty envelope may be a server timeout, so Retry is offered).</summary>
@@ -154,6 +162,17 @@ public static class GlobalSearchResults
 
     /// <summary>Band Rankings destination offered by the Bands explanation.</summary>
     public static AppRoute BandRankingsRoute { get; } = new AppRoute.BandRankings("Band_Duets");
+
+    /// <summary>Search page short-query hint for a scope (issue #299).</summary>
+    /// <param name="scope">Selected scope.</param>
+    /// <returns>The hint ending in what that scope searches.</returns>
+    public static string EnterQueryHintFor(SearchScope scope) => scope switch
+    {
+        SearchScope.Songs => EnterQueryHintSongs,
+        SearchScope.Players => EnterQueryHintPlayers,
+        SearchScope.Bands => EnterQueryHintBands,
+        _ => EnterQueryHintAll,
+    };
 
     /// <summary>Trimmed query.</summary>
     /// <param name="query">User text.</param>
