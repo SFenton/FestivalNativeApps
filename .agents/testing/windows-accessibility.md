@@ -38,7 +38,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ (+snap/max, #202) | 12/14/14 | ✅ | ✅ | ✅ (200% C/M/W; display 100%/150%, #202) |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
-| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
+| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ (#204 chart outlines) | ✅ (tiles scale; #204 chart gutters) |
 | Bands (Band not found, #211) | ✅✅✅ (+live) | 5/8/8 | ✅ | ✅ | ✅ (+200% C/M/W) |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
@@ -192,6 +192,10 @@ Fixed:
 - The chart and table scrollers weren't Tab stops, so keyboard users couldn't scroll a long chart or table.
 
 Gotcha: a `UserControl` hosted in a `ContentDialog` gets one `Loaded` and then spurious `Unloaded` events while the dialog is still shown (`IsLoaded` stays true). Subscribe to system events for the dialog's lifetime, not on Loaded/Unloaded.
+
+## Statistics validation (issue #204, 2026-10)
+
+Ran 11y_matrix.py --scan for statistics and statistics-chart at compact, medium, wide, snap-left, snap-right and maximized, then at compact/medium/wide under light and dark theme, Desert, Night sky, text 200% and display 100%/150%. The live public service (SFentonX) gave the same results at C/M/W, Desert and text 200%. Axe reported 0 errors in every run. Fixed: the Rank History chart under contrast themes (opaque outlined bars, WindowText gridlines) and its axis labels clipped at 200% text (measured gutters). Per-configuration results: [statistics/windows.md](../pages/statistics/windows.md#validation-issue-204).
 
 ## Player Bands validation (issue #210, 2026-10)
 

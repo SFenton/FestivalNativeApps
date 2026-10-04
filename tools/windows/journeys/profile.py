@@ -222,6 +222,83 @@ JOURNEYS = [
         expect=[["Find Band", "Band search isn"]],
         forbid=[["fst.profile.retry"]],
     ),
+    # Statistics (.agents/pages/statistics/windows.md): every state reachable with fixtures. Rank-history read failures
+    # have no fixture; Festival.Core.Tests covers that state (PlayerViewModelTests).
+    Journey(
+        name="statistics-content",
+        launch=["--tab", "statistics", *_profile("fixture-player-1:Fixture Player 1")],
+        steps=[
+            ["waitfor:id=fst.statistics@15", "waitfor:id=fst.player.overview@15",
+             "waitfor:id=fst.player.rank-history.Solo_Guitar@15"],
+            ["scrollinto:id=fst.player.rank-history.Solo_Guitar.older@5", "invoke:id=fst.player.rank-history.Solo_Guitar.older",
+             "wait:1"],
+            ["invoke:id=fst.player.rank-history.Solo_Guitar.newer", "wait:1"],
+        ],
+        expect=[
+            ["fst.statistics", "fst.player.deselect", "fst.player.stat.overview.songs-played",
+             "fst.player.instrument.Solo_Guitar", "fst.player.stat.Solo_Guitar.global-rank",
+             "fst.player.rank-history.Solo_Guitar", "fst.player.percentiles.Solo_Guitar", "fst.player.bands-link",
+             "fst.quick-links.open"],
+            ["fst.player.rank-history.Solo_Guitar.newer"],
+            ["fst.player.rank-history.Solo_Guitar.older"],
+        ],
+        forbid=[["fst.player.select", "fst.player.syncing", "fst.service-status.title"], [], []],
+    ),
+    Journey(
+        name="statistics-quick-links",
+        launch=["--tab", "statistics", *_profile("fixture-player-1:Fixture Player 1")],
+        # One phase: the menu flyout light-dismisses between phases, so its items are asserted with waitfor.
+        steps=[
+            ["waitfor:id=fst.player.overview@15", "invoke:id=fst.quick-links.open",
+             "waitfor:id=fst.quick-links.item.global@5", "waitfor:id=fst.quick-links.item.instrument:Solo_Guitar@5",
+             "waitfor:id=fst.quick-links.item.bands@5", "toggle:id=fst.quick-links.item.bands", "wait:1.5"],
+        ],
+        expect=[["current section Bands"]],
+        forbid=[["fst.quick-links.item.global"]],
+    ),
+    Journey(
+        name="statistics-link",
+        launch=["--tab", "statistics", *_profile("fixture-player-1:Fixture Player 1")],
+        steps=[["waitfor:id=fst.player.overview@15", "scrollinto:id=fst.player.stat.Solo_Guitar.songs-played@10", "wait:1",
+                "invoke:id=fst.player.stat.Solo_Guitar.songs-played@5", "waitfor:id=fst.songs.filter@10", "wait:2"]],
+        expect=[["fst.songs.filter", "fst.nav.statistics"]],
+        forbid=[["fst.statistics"]],
+    ),
+    Journey(
+        name="statistics-syncing",
+        launch=["--tab", "statistics", *_profile("fixture-syncing:Syncing Player")],
+        steps=[["waitfor:id=fst.player.syncing@15"]],
+        expect=[["Scores Are Syncing", "Retry"]],
+        forbid=[["fst.player.overview", "fst.service-status.title"]],
+    ),
+    Journey(
+        name="statistics-denied",
+        launch=["--tab", "statistics", *_profile("fixture-denied:Denied Player")],
+        steps=[["waitfor:id=fst.service-status.title@15"]],
+        expect=[["fst.service-status.retry"]],
+        forbid=[["fst.player.overview", "fst.player.syncing"]],
+    ),
+    Journey(
+        name="statistics-empty",
+        launch=["--tab", "statistics", *_profile("fixture-empty:Empty Player")],
+        steps=[["waitfor:id=fst.player.overview@15", "wait:2"]],
+        expect=[["fst.statistics", "fst.player.deselect"]],
+        forbid=[["fst.player.rank-history.", "fst.player.percentiles.", "fst.service-status.title"]],
+    ),
+    Journey(
+        name="statistics-unranked",
+        launch=["--tab", "statistics", *_profile("fixture-rank-unranked:Fixture Rank Unranked")],
+        steps=[["waitfor:id=fst.player.stat.Solo_Guitar.global-rank@15", "wait:2"]],
+        expect=[["Unranked"]],
+        forbid=[["Global rank unavailable", "fst.player.rank-history.Solo_Guitar"]],
+    ),
+    Journey(
+        name="statistics-rank-fail",
+        launch=["--tab", "statistics", *_profile("fixture-rank-fail:Fixture Rank Fail")],
+        steps=[["waitfor:id=fst.player.instrument.Solo_Guitar@15", "waitfor:name=Retry@10", "wait:1"]],
+        expect=[["Global rank unavailable", "Retry"]],
+        forbid=[["fst.service-status.title"]],
+    ),
 ]
 
 # endregion
