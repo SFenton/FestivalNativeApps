@@ -852,7 +852,10 @@ struct RankingsGlassPager: View {
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, 6)
-                .frame(minHeight: buttonSize)
+                .frame(minWidth: buttonSize, minHeight: buttonSize)
+                // The shape makes the 44 pt frame the element's frame; without it the
+                // audit measured the bare text (31 × 18 pt, "Hit area is too small").
+                .contentShape(Rectangle())
                 .accessibilityElement()
                 .accessibilityLabel("Page")
                 .accessibilityValue(state.accessibilityValue)
