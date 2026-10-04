@@ -1,0 +1,218 @@
+[
+  {
+    "name": "ql-hidden-single-section",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "settings": {
+      "visibleInstruments": [
+        "Lead"
+      ]
+    },
+    "tabs": 12,
+    "ready": [
+      "waitfor:id=fst.rivals.section.Solo_Guitar@20",
+      "waitgone:id=fst.rivals.section.common@3",
+      "waitgone:id=fst.quick-links.open@3",
+      "waitgone:id=fst.quick-links.pane@3"
+    ]
+  },
+  {
+    "name": "ql-menu-closed",
+    "route": "/settings",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left",
+      "maximized"
+    ],
+    "tabs": 12,
+    "setup": [
+      "scrollinto:id=fst.quick-links.open@20"
+    ],
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5",
+      "assertstate:id=fst.quick-links.open|enabled=true",
+      "waitgone:id=fst.quick-links.pane@3",
+      "waitgone:id=fst.quick-links.item.app-settings@3"
+    ]
+  },
+  {
+    "name": "ql-menu-open",
+    "route": "/settings",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left",
+      "maximized"
+    ],
+    "tabs": 0,
+    "setup": [
+      "scrollinto:id=fst.quick-links.open@20"
+    ],
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.reset@5",
+      "assertfocus:id=fst.quick-links.item.app-settings@3",
+      "assertstate:id=fst.quick-links.item.app-settings|toggle=on",
+      "assertstate:id=fst.quick-links.item.app-settings|name=App Settings, current section",
+      "assertstate:id=fst.quick-links.item.licenses|toggle=off",
+      "assertstate:id=fst.quick-links.item.licenses|name=Licenses",
+      "key:down",
+      "assertfocus:id=fst.quick-links.item.diagnostics@3",
+      "shot:{stem}-menu.png@screen"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.quick-links.item.reset@3",
+      "assertfocus:id=fst.quick-links.open@3"
+    ]
+  },
+  {
+    "name": "ql-jumped",
+    "route": "/settings",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left",
+      "maximized"
+    ],
+    "tabs": 0,
+    "setup": [
+      "scrollinto:id=fst.quick-links.open@20"
+    ],
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
+    ],
+    "after_ready": [
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.licenses@5",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "assertfocus:id=fst.quick-links.item.licenses@3",
+      "key:enter",
+      "waitgone:id=fst.quick-links.item.licenses@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Licenses@5",
+      "waitfor:id=fst.settings.licenses@3",
+      "assertfocus:id=fst.settings.licenses@3",
+      "waitgone:id=fst.quick-links.open@3",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Licenses"
+    ],
+    "teardown": [
+      "scrollinto:id=fst.quick-links.open@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
+    ]
+  },
+  {
+    "name": "ql-active-section",
+    "route": "/settings",
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "tabs": 0,
+    "setup": [
+      "scrollinto:id=fst.quick-links.open@20"
+    ],
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.reset@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section First Run Guides@5"
+    ],
+    "teardown": [
+      "scrollinto:id=fst.quick-links.open@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
+    ]
+  },
+  {
+    "name": "ql-pane-active-section",
+    "route": "/settings",
+    "sizes": [
+      "wide"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "waitgone:id=fst.quick-links.open@3",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=true@5",
+      "assertstate:id=fst.quick-links.item.app-settings|name=App Settings"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.app-version@5",
+      "assertstate:id=fst.quick-links.item.show-metadata|selected=true@5",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=false"
+    ]
+  },
+  {
+    "name": "ql-pane-jumped",
+    "route": "/settings",
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "tabs": 16,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=true@5"
+    ],
+    "after_ready": [
+      "focus:id=fst.quick-links.item.licenses",
+      "key:enter",
+      "assertstate:id=fst.quick-links.item.licenses|selected=true@5",
+      "waitfor:id=fst.settings.licenses@3",
+      "assertfocus:id=fst.settings.licenses@3",
+      "assertstate:id=fst.quick-links.item.licenses|selected=true",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=false",
+      "invoke:id=fst.quick-links.item.version",
+      "assertstate:id=fst.quick-links.item.version|selected=true@5",
+      "waitfor:id=fst.settings.app-version@3",
+      "assertfocus:id=fst.settings.whats-new@3",
+      "waitfor:id=fst.quick-links.pane"
+    ]
+  },
+  {
+    "name": "ql-pane-keyboard",
+    "route": "/settings",
+    "sizes": [
+      "1440x560"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=true@5"
+    ],
+    "after_ready": [
+      "focus:id=fst.quick-links.item.app-settings",
+      "key:down",
+      "assertfocus:id=fst.quick-links.item.diagnostics@3",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=true",
+      "assertstate:id=fst.quick-links.item.diagnostics|selected=false",
+      "key:end",
+      "assertfocus:id=fst.quick-links.item.reset@3",
+      "waitfor:id=fst.quick-links.item.reset@3",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=true",
+      "key:space",
+      "assertstate:id=fst.quick-links.item.reset|selected=true@5",
+      "waitfor:id=fst.settings.reset@3",
+      "assertfocus:id=fst.settings.reset@3",
+      "waitfor:id=fst.quick-links.item.reset@3"
+    ]
+  }
+]

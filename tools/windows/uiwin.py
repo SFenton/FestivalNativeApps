@@ -107,7 +107,8 @@ STEP_VERBS = {
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
-STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "name": None}
+STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
+              "name": None}
 
 # endregion
 
@@ -182,7 +183,8 @@ def parse_step(step: str) -> dict:
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
-    (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``) or ``name`` equals ``<value>``.
+    (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
+    ``IsSelected``: ``true``/``false``, e.g. a list's current item) or ``name`` equals ``<value>``.
 
     Args:
         step: A step string.
@@ -236,7 +238,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|name=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
