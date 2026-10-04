@@ -296,6 +296,23 @@ public sealed partial class LeaderboardEntryRow : UserControl
         Grid.SetColumnSpan(element, columnSpan);
         element.VerticalAlignment = vertical;
     }
+    /// <summary>
+    /// Fits the columns to the width offered in the measure pass, before the grid measures, so a newly realized row
+    /// reports its stacked height at once (issue #220). Waiting for <see cref="OnSizeChanged"/> measured it on one line
+    /// first, and the virtualizing list could keep that height after the row stacked, drawing its values over the next row.
+    /// </summary>
+    /// <param name="availableSize">Space offered by the list.</param>
+    /// <returns>Desired size.</returns>
+    protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size availableSize)
+    {
+        if (double.IsFinite(availableSize.Width) && availableSize.Width != width)
+        {
+            width = availableSize.Width;
+            UpdateColumns();
+        }
+        return base.MeasureOverride(availableSize);
+    }
+
     /// <summary>Re-evaluates the width-dependent columns.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">New size.</param>
