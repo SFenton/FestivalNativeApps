@@ -13,6 +13,8 @@
 
 Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk reports (`<device>-<screen>.md`, `.log` with every spoken fragment) are in the showcase folder `and-a11y2/talkback/`; large-text captures (before `phone-*.png`, after `*-v2`/`-v3`/`-v4`) in `and-a11y2/bigtext/`.
 
+Statistics re-check (issue #111, 2026-10-03, live service, SFentonX): the `talkback_walk.py` walk on FST_Phone read Search, Notifications ("10 unread"), Profile, then Overview (heading) and its tiles, the Lead heading, the Rank History heading, hint, one chart summary, the pager (forward buttons "disabled") and the snapshot rows, then the tiles and percentile rows, in visual order with no duplicate stops. `ProfileDeviceJourneyTest` and `PlayerAccessibilityJourneyTest#statisticsProfile` (ATF) pass on FST_Phone, and `ProfileDeviceJourneyTest` on FST_Book_Fold `--posture half`. 200% text was checked on every AVD in [statistics/android.md](../pages/statistics/android.md#validation-issue-111-2026-10-03), and reduced motion (all scales 0) is fine.
+
 ## Findings and fixes
 
 | Finding | Where | Fix |
