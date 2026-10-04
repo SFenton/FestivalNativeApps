@@ -79,7 +79,8 @@
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                       AutomationProperties.AutomationId="fst.full-rankings.list">
             <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
-                           ElementPrepared="OnRowPrepared" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                           ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
+                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
                            ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
                 <ItemsRepeater.Layout>
                     <StackLayout Spacing="4" />
@@ -102,9 +103,16 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
+        <!-- Contrast themes: this window-colour plate (footer height, sized in code) hides the rows between and behind the
+             floating footer's controls instead of letting their text show through (issue #208, as the song leaderboard).
+             Never hit-testable; other themes keep the web's rows-under-footer look. -->
+        <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource FSTFloatingBackplateBrush}" />
+
         <!-- Web fixed footer: the pinned "your rank" row, then the pager, floating over the rows. -->
         <StackPanel x:Name="Footer" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
-            <controls:LeaderboardsSpotlight Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
+            <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
+                                            FocusedJump="OnFocusedJump"
                                             IdPrefix="fst.full-rankings.spotlight-footer"
                                             JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True"
                                             Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}" />

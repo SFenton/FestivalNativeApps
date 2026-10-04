@@ -375,6 +375,13 @@ class SongsCoreTest {
     }
 
     @Test
+    fun sortButtonStateNamesModeAndDirection() {
+        assertEquals("Title, ascending", SongSortDraft.describe(SongSortMode.Title, true))
+        assertEquals("Item Shop, descending", SongSortDraft.describe(SongSortMode.Shop, false))
+        assertEquals("Max Score %, ascending", SongSortDraft.describe(SongSortMode.MaxDistance, true))
+    }
+
+    @Test
     fun filterDraftTracksChangesAndSanitizesHiddenCharts() {
         val visible = setOf(Instrument.Lead, Instrument.Bass)
         val saved = SongPlayerScoreFilter(hasScores = setOf(Instrument.Drums, Instrument.Lead))
@@ -470,7 +477,8 @@ class SongsCoreTest {
         assertEquals(3.0, byKind.getValue(MetadataField.Intensity).intensityRaw!!, 0.0)
         assertEquals("X", byKind.getValue(MetadataField.Difficulty).text)
         assertEquals("Expert difficulty", byKind.getValue(MetadataField.Difficulty).announcement)
-        assertEquals("Last played 1 Sep 2026", byKind.getValue(MetadataField.LastPlayed).text)
+        assertEquals("1 Sep 2026", byKind.getValue(MetadataField.LastPlayed).text)
+        assertEquals("Last played 1 Sep 2026", byKind.getValue(MetadataField.LastPlayed).announcement)
         assertTrue(SongMetadataPolicy.pills(detail(0), Instrument.Lead, a, 15, order).isEmpty())
     }
 
@@ -490,7 +498,8 @@ class SongsCoreTest {
         assertEquals(listOf(MetadataField.Score, MetadataField.Percentile, MetadataField.Stars, MetadataField.LastPlayed), pills.map { it.kind })
         assertEquals("Top 30%", pills[1].text)
         assertEquals("1 star", pills[2].announcement)
-        assertEquals("Last played date unavailable", pills[3].text)
+        assertEquals("Date unavailable", pills[3].text)
+        assertEquals("Last played date unavailable", pills[3].announcement)
         assertEquals(SongPercentileTier.TopFive, SongMetadataPolicy.pills(detail(10).copy(rank = 50), Instrument.Lead, a, null, listOf(MetadataField.Percentile)).single().percentile)
         assertEquals("3 stars", SongMetadataPolicy.pills(detail(10).copy(stars = 3), Instrument.Lead, a, null, listOf(MetadataField.Stars)).single().announcement)
         assertNull(SongMetadataPolicy.percentileBucket(0, 10))

@@ -79,6 +79,16 @@
     ]
   },
   {
+    "name": "songs-filter-applied",
+    "tab": "songs",
+    "settings": {"songShopFilter": {"available": false, "unavailable": true}},
+    "ready": [
+      "waitfor:id=fst.songs.filter@20",
+      "wait:2"
+    ],
+    "tabs": 6
+  },
+  {
     "name": "song-detail",
     "route": "/songs/fixture-pulse",
     "profile": "fixture-player-1:Demo Player",
@@ -132,6 +142,59 @@
     ]
   },
   {
+    "name": "leaderboards-selected",
+    "route": "/leaderboards",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "waitgone:name=Loading your rank@10"
+    ]
+  },
+  {
+    "name": "leaderboards-unranked",
+    "route": "/leaderboards",
+    "profile": "fixture-rank-unranked:Unranked Player",
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight.unranked@20"
+    ]
+  },
+  {
+    "name": "leaderboards-spotlight-failed",
+    "route": "/leaderboards",
+    "profile": "fixture-rank-fail:Failing Player",
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "ready": [
+      "waitfor:name=Your rank unavailable@20"
+    ]
+  },
+  {
+    "name": "leaderboards-rank-by-menu",
+    "route": "/leaderboards",
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20"
+    ],
+    "after_ready": [
+      "expand:id=fst.rankings.rank-by-menu",
+      "waitfor:id=fst.rankings.rank-by.fcrate@5"
+    ],
+    "teardown": [
+      "collapse:id=fst.rankings.rank-by-menu",
+      "wait:0.5"
+    ]
+  },
+  {
     "name": "full-rankings",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "ready": [
@@ -150,7 +213,8 @@
     "route": "/compete",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
-      "wait:4"
+      "waitfor:id=fst.rivals.section.common@20",
+      "wait:2"
     ]
   },
   {
@@ -227,6 +291,19 @@
     ]
   },
   {
+    "name": "statistics-chart",
+    "route": "/statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.player.name@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.player.percentiles.Solo_Guitar@10",
+      "scrollinto:id=fst.player.rank-history.Solo_Guitar@10",
+      "wait:1"
+    ]
+  },
+  {
     "name": "player",
     "route": "/player/fixture-player-2",
     "profile": "fixture-player-1:Demo Player",
@@ -239,7 +316,8 @@
     "route": "/bands",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
-      "waitfor:id=fst.bands.title@20"
+      "waitfor:id=fst.bands.title@20",
+      "waitfor:id=fst.bands.not-found@10"
     ]
   },
   {
@@ -374,8 +452,7 @@
       "waitfor:id=fst.full-rankings.list@20"
     ],
     "after_ready": [
-      "focus:id=fst.rankings.rank-by-menu",
-      "key:enter",
+      "expand:id=fst.rankings.rank-by-menu",
       "waitfor:id=fst.rankings.rank-by.fcrate@5"
     ],
     "teardown": [

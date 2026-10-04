@@ -100,7 +100,7 @@ public class SongsScoreBandTests
 
         session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Lead), FilterInvalidScores = true });
         // Filter Invalid Scores no longer pauses player filters: scores resolve to valid fallbacks (web substitution).
-        Assert.DoesNotContain(vm.Notices, n => n.StartsWith("Player score filters paused", StringComparison.Ordinal));
+        Assert.DoesNotContain(vm.Notices, n => n.Message.StartsWith("Player score filters paused", StringComparison.Ordinal));
         session.UpdateSettings(s => s with { FilterInvalidScores = false });
         session.DeselectPlayer();
         Assert.False(session.Settings.PlayerScoreFilter.IsActive);
@@ -115,7 +115,7 @@ public class SongsScoreBandTests
             SongFilter = new SongFilter(Instrument.Lead),
             PlayerScoreFilter = SongPlayerScoreFilter.None.Only(SongBucketKind.Percentile, 1),
         });
-        Assert.DoesNotContain(vm.Notices, n => n.Contains("Player score filters", StringComparison.Ordinal));
+        Assert.DoesNotContain(vm.Notices, n => n.Message.Contains("Player score filters", StringComparison.Ordinal));
         Assert.True(vm.ResultCount > 1);
         Assert.False(vm.IsFilterActive);
     }

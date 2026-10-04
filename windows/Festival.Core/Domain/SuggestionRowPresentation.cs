@@ -211,7 +211,7 @@ public sealed record SuggestionRowPresentation
                 var stars = item.Stars ?? 0;
                 var showStars = category.Key.StartsWith("star_gains", StringComparison.Ordinal) && stars > 0;
                 result = result with { Instrument = item.Instrument, StarCount = showStars ? (stars >= 6 ? 5 : stars) : 0, GoldStars = showStars && stars >= 6 };
-                if (showStars) details.Add(stars >= 6 ? "gold stars" : stars == 1 ? "1 star" : $"{stars} stars");
+                if (showStars) details.Add(StarRating.From(stars)!.Value.Announcement);
                 break;
             case SuggestionRowLayout.InstrumentChips:
                 result = result with

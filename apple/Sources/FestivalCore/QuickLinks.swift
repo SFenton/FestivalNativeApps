@@ -156,6 +156,23 @@ public enum QuickLinks {
         frame.minY >= -reachableBand && frame.minY <= activationOffset + reachableBand
     }
 
+    /// The activation line in a container's section-frame space (issue #286).
+    ///
+    /// A `ScrollView` measures its sections from the visible top, but a `List` measures
+    /// them from its own top under the bars, so a `List`'s line moves down by its top
+    /// content inset. Without that, Songs' line sat under the navigation bar and a
+    /// section became active only well after the floating section bar named it.
+    ///
+    /// - Parameters:
+    ///   - offset: The page's activation offset below the visible top.
+    ///   - listTopInset: A `List`'s top content inset; 0 for a `ScrollView`. Negative or
+    ///     non-finite values count as 0.
+    /// - Returns: The line's distance from the frames' origin.
+    public static func activationLine(offset: Double, listTopInset: Double) -> Double {
+        guard listTopInset.isFinite, listTopInset > 0 else { return offset }
+        return offset + listTopInset
+    }
+
     /// Vertical scroll anchor that lands a section's top `inset` points below the
     /// visible region's top.
     ///
@@ -163,7 +180,9 @@ public enum QuickLinks {
     /// section with the same unit point of the visible region, so the section's top
     /// lands at `anchor × (viewportHeight − sectionHeight)`. Solving for `inset` gives
     /// `inset / (viewportHeight − sectionHeight)`; sections taller than the viewport
-    /// get a negative anchor. There is no offset parameter on iOS 17.
+    /// get a negative anchor. There is no offset parameter on iOS 17. A `List` centres
+    /// the row for any such anchor, so Lists land with `.top` and then move by the
+    /// remainder (`ListScrollNudger`, issue #286).
     ///
     /// - Parameters:
     ///   - inset: Wanted distance from the visible top to the section's top.

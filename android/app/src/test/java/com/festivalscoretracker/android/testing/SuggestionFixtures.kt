@@ -1,7 +1,4 @@
-package com.festivalscoretracker.android.suggestions
-
-import com.festivalscoretracker.android.testing.FakeTransport
-import com.festivalscoretracker.android.testing.Fixtures
+package com.festivalscoretracker.android.testing
 
 /** Synthetic Suggestions fixtures: made-up titles and account IDs only. */
 object SuggestionFixtures {

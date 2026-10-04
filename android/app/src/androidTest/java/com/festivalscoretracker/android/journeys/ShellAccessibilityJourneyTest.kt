@@ -1,13 +1,17 @@
 package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
+import com.festivalscoretracker.android.testing.RankingsFixtures
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +38,14 @@ class ShellAccessibilityJourneyTest {
         }
         ProfileFixtures.register(this)
     }
+
+    /** Songs and profile fixtures plus every rankings route, so Leaderboards shows populated cards. */
+    private val navigationTransport = RankingsFixtures.install(
+        FakeTransport.standard().apply {
+            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+            ProfileFixtures.register(this)
+        },
+    )
 
     @Test
     fun drawerAndProfileSheet() {
@@ -92,5 +104,84 @@ class ShellAccessibilityJourneyTest {
         h.waitForTag("fst.whats-new.sheet")
         h.readingOrder("whats-new")
         h.assertAccessible()
+    }
+
+    /**
+     * App Navigation (issue #132), anonymous: `songs`, `leaderboards`, `settings` and `reselect`
+     * on whichever chrome (bar, rail or permanent drawer) the AVD's window gets, with ATF on
+     * every state and nothing across a separating hinge.
+     */
+    @Test
+    fun appNavigationAnonymousStates() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(stillBackground = true), navigationTransport)
+        h.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
+        h.assertNothingStraddles(*NAV_TAGS)
+        h.readingOrder("nav-songs")
+        // Narrow and medium windows push the detail; expanded windows show it beside the list.
+        h.tap("fst.songs.row.s-alpha")
+        h.waitForTag("fst.song-detail.intensity")
+        h.tap("fst.nav.tab.leaderboards")
+        h.waitForTag("fst.leaderboards")
+        h.waitGone("fst.songs.list")
+        h.awaitAccessibilityTree("fst.leaderboards", absent = "fst.songs.list")
+        rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsSelected()
+        h.readingOrder("nav-leaderboards")
+        h.tap("fst.nav.tab.settings")
+        h.waitForTag("fst.settings.list")
+        h.waitGone("fst.leaderboards")
+        h.awaitAccessibilityTree("fst.settings.list", absent = "fst.leaderboards")
+        rule.onNodeWithTag("fst.nav.tab.settings").assertIsSelected()
+        h.readingOrder("nav-settings")
+        // Back to Songs restores its pushed detail; re-tapping Songs pops to the list root.
+        h.tap("fst.nav.tab.songs")
+        h.waitForTag("fst.song-detail.intensity")
+        h.waitGone("fst.settings.list")
+        h.tap("fst.nav.tab.songs")
+        h.waitForTag("fst.songs.row.s-alpha")
+        h.awaitAccessibilityTree("fst.songs.row.s-alpha", absent = "fst.settings.list")
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
+        h.readingOrder("nav-reselect")
+        h.assertAccessible()
+    }
+
+    /**
+     * App Navigation (issue #132), selected player: the player tab set (Compete on compact
+     * widths, Leaderboards + Rivals on regular ones), Statistics, and the drawer's player row.
+     */
+    @Test
+    fun appNavigationPlayerStates() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, stillBackground = true), navigationTransport)
+        h.waitForTag("fst.songs.list")
+        h.waitForTag("fst.nav.tab.suggestions")
+        h.waitForTag("fst.nav.tab.statistics")
+        assertTrue(h.exists("fst.nav.tab.compete") != h.exists("fst.nav.tab.rivals"))
+        h.assertNothingStraddles(*NAV_TAGS)
+        h.readingOrder("nav-player")
+        h.tap("fst.nav.tab.statistics")
+        h.waitForTag("fst.statistics")
+        h.waitGone("fst.songs.list")
+        h.awaitAccessibilityTree("fst.statistics", absent = "fst.songs.list")
+        rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()
+        h.readingOrder("nav-player-statistics")
+        if (h.exists("fst.nav.drawer")) {
+            h.tap("fst.nav.drawer")
+            h.waitForTag("fst.nav.drawer.deselect")
+            h.awaitAccessibilityTree("fst.nav.drawer.deselect")
+            h.readingOrder("nav-player-drawer")
+        } else {
+            h.waitForTag("fst.nav.drawer.deselect")
+        }
+        h.assertAccessible()
+    }
+
+    private companion object {
+        /** Navigation chrome that must never straddle a hinge. */
+        val NAV_TAGS = arrayOf(
+            "fst.nav.bar", "fst.nav.rail", "fst.nav.permanent-drawer",
+            "fst.nav.tab.songs", "fst.nav.tab.leaderboards", "fst.nav.tab.settings", "fst.nav.tab.statistics",
+        )
     }
 }

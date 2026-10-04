@@ -389,8 +389,17 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     /// <summary>History rows open nothing.</summary>
     public AppRoute? Route => null;
 
-    /// <summary>UIA automation ID (<c>fst.song-detail.history.row.&lt;yyyyMMddHHmmss&gt;</c>).</summary>
-    public string AutomationId => "fst.song-detail.history.row." + Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+    /// <summary>
+    /// UIA automation ID: <c>fst.history.detail</c> for the selected bar's detail row (it may show the same score as a list
+    /// row, whose ID must stay unique), else <c>fst.song-detail.history.row.&lt;yyyyMMddHHmmss&gt;</c>.
+    /// </summary>
+    public string AutomationId => IsDetail
+        ? "fst.history.detail"
+        : "fst.song-detail.history.row." + Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+
+    /// <summary>Badge UIA ID (<c>fst.score.accuracy.history.&lt;yyyyMMddHHmmss&gt;</c>; <c>.detail</c> on the tapped bar's row).</summary>
+    public string BadgeAutomationId => "fst.score.accuracy.history." +
+                                       Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + (IsDetail ? ".detail" : "");
 
     /// <summary>Date label.</summary>
     public string Date => Point.LongDate;
@@ -419,7 +428,7 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     /// <summary>Screen-reader text.</summary>
     public string Announcement => string.Join(", ", new[]
     {
-        Date, $"score {Score}", HasAccuracy ? $"accuracy {Accuracy}" : "", IsFullCombo ? "full combo" : "",
+        Date, $"score {Score}", HasAccuracy ? $"accuracy {Accuracy}" : "", IsFullCombo ? ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "",
         Point.Entry.Season is { } s ? $"season {s}" : "", IsBest ? "personal best" : "",
     }.Where(p => p.Length > 0));
 }

@@ -36,9 +36,11 @@ public sealed partial class ArtworkBackground : Grid
     private ArtworkMode mode = ArtworkMode.Static;
     private string? songArt;
     private bool showingSong;
+    private bool songImageShown;
     private bool hasFrontImage;
     private bool frozen;
     private float coverOpacity;
+    private float dimOpacity;
     private CancellationTokenSource loadCancellation = new();
     #endregion
 
@@ -46,7 +48,10 @@ public sealed partial class ArtworkBackground : Grid
     public ArtworkBackground()
     {
         IsHitTestVisible = false;
+        // Raw view only: screen readers and the control view skip it; UI tests read its state from ItemStatus.
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
+        AutomationProperties.SetAutomationId(this, "fst.shell.artwork-background");
+        AutomationProperties.SetItemStatus(this, ArtworkBackgroundStatus.NoArt);
         Background = (Brush)Application.Current.Resources["FSTAppBackgroundBrush"];
         timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
         timer.Interval = ArtworkCarousel.Dwell;
@@ -57,6 +62,13 @@ public sealed partial class ArtworkBackground : Grid
 
     /// <summary>Current resolved mode.</summary>
     public ArtworkMode Mode => mode;
+
+    /// <summary>Whether a cover is drawn: the song cover on Song Detail, else the front carousel cover.</summary>
+    private bool ImageShown => showingSong ? songImageShown : slots[front]?.Brush is not null;
+
+    /// <summary>A panel has no peer by default; this one exposes the raw-view state element for UI tests.</summary>
+    /// <returns>Automation peer.</returns>
+    protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
 
     /// <summary>Number of cover swaps performed (perf diagnostics).</summary>
     public int SwapCount { get; private set; }
@@ -118,7 +130,7 @@ public sealed partial class ArtworkBackground : Grid
         root.Children.InsertAtTop(cover);
         dim = compositor.CreateSpriteVisual();
         dim.Brush = compositor.CreateColorBrush(Colors.Black);
-        dim.Opacity = (float)ArtworkCarousel.DimOpacity;
+        dim.Opacity = 0;
         root.Children.InsertAtTop(dim);
         ElementCompositionPreview.SetElementChildVisual(this, root);
         Layout();
@@ -157,6 +169,7 @@ public sealed partial class ArtworkBackground : Grid
         if (hidden)
         {
             ReleaseImages();
+            UpdateState(TimeSpan.Zero);
             return;
         }
         if (showingSong)
@@ -166,6 +179,7 @@ public sealed partial class ArtworkBackground : Grid
             return;
         }
         FadeCover(0, TimeSpan.FromMilliseconds(450));
+        songImageShown = false;
         switch (mode)
         {
             case ArtworkMode.Paused:
@@ -182,6 +196,7 @@ public sealed partial class ArtworkBackground : Grid
                 timer.Start();
                 break;
         }
+        UpdateState(TimeSpan.FromMilliseconds(450));
     }
 
     /// <summary>Loads the next cover (up to three immediate attempts) and crossfades to it.</summary>
@@ -212,12 +227,13 @@ public sealed partial class ArtworkBackground : Grid
     {
         var incoming = slots[1 - front]!;
         var outgoing = slots[front]!;
+        StopAnimations(incoming);
+        if ((incoming.Brush as CompositionSurfaceBrush)?.Surface is IDisposable stale) stale.Dispose();
         incoming.Brush = brush;
         root!.Children.Remove(incoming);
         root.Children.InsertAbove(incoming, outgoing);
         var animate = mode == ArtworkMode.Animated;
         var baseOffset = new Vector3(-Bleed, -Bleed, 0);
-        StopAnimations(incoming);
         if (animate)
         {
             var fade = compositor!.CreateScalarKeyFrameAnimation();
@@ -229,7 +245,9 @@ public sealed partial class ArtworkBackground : Grid
             batch.End();
             batch.Completed += (_, _) =>
             {
-                if (incoming.Brush == brush) Retire(outgoing);
+                // Completion is delivered later: a freeze (which stops the fade) and a resumed swap can reuse the
+                // outgoing slot as the new front first, and retiring it then would blank the shown cover.
+                if (incoming.Brush == brush && ReferenceEquals(slots[front], incoming)) Retire(outgoing);
             };
 
             var scale = compositor.CreateVector3KeyFrameAnimation();
@@ -256,6 +274,7 @@ public sealed partial class ArtworkBackground : Grid
         front = 1 - front;
         hasFrontImage = true;
         SwapCount++;
+        UpdateState(animate ? ArtworkCarousel.Crossfade : TimeSpan.Zero);
         Services.PerfLog.Event(animate ? "backdrop-swap-animated" : "backdrop-swap-still");
     }
 
@@ -306,7 +325,37 @@ public sealed partial class ArtworkBackground : Grid
         cover!.Brush = brush is null ? compositor!.CreateColorBrush(((SolidColorBrush)Background).Color) : brush;
         cover.Scale = Vector3.One;
         cover.Offset = new Vector3(-Bleed, -Bleed, 0);
+        songImageShown = brush is not null;
         FadeCover(1, TimeSpan.FromMilliseconds(500));
+        UpdateState(TimeSpan.FromMilliseconds(500));
+    }
+
+    /// <summary>
+    /// Shows the dim layer only over a cover (fading it with the cover change) and publishes the reachable state as the
+    /// UI Automation item status.
+    /// </summary>
+    /// <param name="fade">Dim fade length; zero cuts.</param>
+    private void UpdateState(TimeSpan fade)
+    {
+        if (dim is null) return;
+        var to = ArtworkBackgroundStatus.DimShown(mode, ImageShown) ? (float)ArtworkCarousel.DimOpacity : 0f;
+        if (Math.Abs(dimOpacity - to) >= 0.001f)
+        {
+            dimOpacity = to;
+            dim.StopAnimation("Opacity");
+            if (fade <= TimeSpan.Zero)
+            {
+                dim.Opacity = to;
+            }
+            else
+            {
+                var animation = compositor!.CreateScalarKeyFrameAnimation();
+                animation.InsertKeyFrame(1, to);
+                animation.Duration = fade;
+                dim.StartAnimation("Opacity", animation);
+            }
+        }
+        AutomationProperties.SetItemStatus(this, ArtworkBackgroundStatus.Resolve(mode, ImageShown, showingSong));
     }
 
     /// <summary>Fades the cover layer (opacity-only, so it is also used under reduced motion).</summary>
@@ -360,6 +409,7 @@ public sealed partial class ArtworkBackground : Grid
             cover.Opacity = 0;
             coverOpacity = 0;
         }
+        songImageShown = false;
         hasFrontImage = false;
     }
 

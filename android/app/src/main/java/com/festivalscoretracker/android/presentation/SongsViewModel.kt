@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.stateIn
  * @property sections Scrubber sections (Title/Artist/Year only).
  * @property headers In-list headers (Shop buckets).
  * @property notices Pause/status notices shown above the list.
+ * @property sortPaused The saved sort's pause notice (one of [notices]; test ID `fst.songs.sort-paused`).
  * @property prefs Saved filters.
  * @property sort Saved sort mode.
  * @property ascending Saved direction.
@@ -72,6 +73,7 @@ data class SongsUiState(
     val sections: List<SongSection> = emptyList(),
     val headers: List<SongListHeader> = emptyList(),
     val notices: List<String> = emptyList(),
+    val sortPaused: String? = null,
     val prefs: SongsPreferencesState = SongsPreferencesState(),
     val sort: SongSortMode = SongSortMode.Title,
     val ascending: Boolean = true,
@@ -238,6 +240,7 @@ class SongsViewModel(
             sections = result.sections,
             headers = result.headers,
             notices = listOfNotNull(source.notice) + result.notices,
+            sortPaused = result.sortPaused,
             effectiveSort = result.effectiveSort,
             filtersApplied = result.filtersApplied,
             totalSongs = payload.catalog.songs.size,

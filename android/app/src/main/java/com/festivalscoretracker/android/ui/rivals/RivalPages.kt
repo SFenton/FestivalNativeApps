@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.outlined.Person
@@ -25,9 +26,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +60,7 @@ import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -112,18 +118,20 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                     maxColumns = 2,
                     testTag = "fst.all-rivals.list",
                 ) {
-                    item(key = "header", span = StaggeredGridItemSpan.FullLine) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 4.dp)) {
-                            RivalScopes.singleInstrument(scope)?.let { InstrumentIcon(it, size = 28.dp, decorative = true) }
-                            Column {
-                                Text(
-                                    viewModel.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = BrandTokens.textPrimary,
-                                    modifier = Modifier.testTag("fst.all-rivals.title").semantics { heading() },
-                                )
-                                content.subtitle?.let { Text(it, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium) }
+                    // The top app bar already names the list (M3: the top app bar holds the
+                    // screen title), so the header only adds context: the chart icon and the
+                    // rank line or chart list. A single-chart song list has neither (issue #108).
+                    val icon = RivalScopes.singleInstrument(scope)
+                    val subtitle = content.subtitle
+                    if (subtitle != null) {
+                        item(key = "header", span = StaggeredGridItemSpan.FullLine) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(bottom = 4.dp).testTag("fst.all-rivals.subtitle"),
+                            ) {
+                                icon?.let { InstrumentIcon(it, size = 28.dp, decorative = true) }
+                                Text(subtitle, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyLarge)
                             }
                         }
                     }
@@ -280,16 +288,28 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                 IconButton(onClick = { sortOpen = true }, modifier = Modifier.testTag("fst.rivalry.sort")) {
                     Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort: ${sort.label}")
                 }
-                DropdownMenu(expanded = sortOpen, onDismissRequest = { sortOpen = false }) {
+                DropdownMenu(
+                    expanded = sortOpen,
+                    onDismissRequest = { sortOpen = false },
+                    modifier = Modifier.popupTestTags().selectableGroup().testTag("fst.rivalry.sort.menu"),
+                ) {
                     RivalrySort.entries.forEach { option ->
+                        val isSelected = option == sort
                         DropdownMenuItem(
                             text = { Text(option.label) },
-                            leadingIcon = { RadioButton(selected = option == sort, onClick = null) },
+                            leadingIcon = { RadioButton(selected = isSelected, onClick = null) },
                             onClick = {
                                 sortOpen = false
                                 viewModel.setSort(option)
                             },
-                            modifier = Modifier.testTag("fst.rivalry.sort.${option.name.lowercase()}"),
+                            // A RadioButton without onClick adds no semantics; expose the
+                            // choice on the item so TalkBack announces checked/not checked.
+                            modifier = Modifier
+                                .testTag("fst.rivalry.sort.${option.name.lowercase()}")
+                                .semantics {
+                                    role = Role.RadioButton
+                                    selected = isSelected
+                                },
                         )
                     }
                 }

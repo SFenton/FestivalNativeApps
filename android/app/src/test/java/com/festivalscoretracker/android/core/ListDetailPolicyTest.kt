@@ -71,4 +71,20 @@ class ListDetailPolicyTest {
         assertFalse(host.pinned)
         assertNull(host.current)
     }
+
+    @Test
+    fun latestToolbarOwnerDecidesWhetherItReadsFirst() {
+        val host = FloatingToolbarHost()
+        val content = mutableStateOf<@Composable RowScope.() -> Unit>({})
+        assertFalse(host.readFirst)
+        // Suggestions' endless feed reads its toolbar first (issue #112); a pushed page does not.
+        val suggestions = host.register(content, pinned = true, readFirst = true)
+        assertTrue(host.readFirst)
+        val detail = host.register(content)
+        assertFalse(host.readFirst)
+        detail()
+        assertTrue(host.readFirst)
+        suggestions()
+        assertFalse(host.readFirst)
+    }
 }

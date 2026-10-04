@@ -29,9 +29,12 @@
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="MinHeight" Value="56" />
-            <Setter Property="Padding" Value="0,8,4,8" />
+            <!-- A 1 epx border (transparent until a contrast theme's hover outline) sits in the -1 margin, so content
+                 keeps the 0,8,4,8 inset. -->
+            <Setter Property="Margin" Value="-1,0" />
+            <Setter Property="Padding" Value="0,7,4,7" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style x:Key="SettingSwitchStyle" TargetType="ToggleSwitch">
             <Setter Property="OnContent" Value="" />
@@ -43,8 +46,8 @@
         <!-- Web ReorderList row: grip dots + semibold label on a subtle surface; drag anywhere on the row to reorder.
              Move Up/Down stay for keyboard and Narrator users (the web's keyboard sensor). -->
         <DataTemplate x:Key="ReorderRowTemplate" x:DataType="vm:ReorderItemViewModel">
-            <Grid ColumnSpacing="16" MinHeight="48" Padding="16,0,8,0" Background="#0DFFFFFF"
-                  BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1"
+            <Grid ColumnSpacing="16" MinHeight="48" Padding="16,0,8,0" Background="{ThemeResource FSTReorderRowBrush}"
+                  BorderBrush="{ThemeResource FSTReorderStrokeBrush}" BorderThickness="0,0,0,1"
                   AutomationProperties.Name="{x:Bind AccessibleName}"
                   AutomationProperties.AutomationId="{x:Bind AutomationId}">
                 <Grid.Resources>
@@ -96,7 +99,7 @@
             <Setter Property="CanReorderItems" Value="True" />
             <Setter Property="AllowDrop" Value="True" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="BorderBrush" Value="#1AFFFFFF" />
+            <Setter Property="BorderBrush" Value="{ThemeResource FSTReorderStrokeBrush}" />
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Margin" Value="0,8,0,0" />
             <Setter Property="ScrollViewer.VerticalScrollMode" Value="Disabled" />
@@ -233,10 +236,11 @@
                             <!-- Feedback (issue #78): shown only when /api/features reports feedback; each row opens its form dialog (.agents/controls/feedback-form/windows.md). -->
                             <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.FeedbackAvailable, Mode=OneWay}">
                                 <StackPanel.Resources>
-                                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#14FFFFFF" />
-                                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0AFFFFFF" />
-                                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                                    <ResourceDictionary>
+                                        <ResourceDictionary.MergedDictionaries>
+                                            <ResourceDictionary Source="ms-appx:///Themes/NavRowButtonResources.xaml" />
+                                        </ResourceDictionary.MergedDictionaries>
+                                    </ResourceDictionary>
                                 </StackPanel.Resources>
                             <Button Style="{StaticResource FeedbackRowStyle}" Click="OnFeedbackClick" Tag="Bug"
                                     AutomationProperties.Name="Report an Issue"
@@ -549,7 +553,7 @@
                                 <TextBlock Text="{x:Bind ViewModel.ServiceInfo.PhaseTitle, Mode=OneWay}" Style="{StaticResource SettingTitleStyle}" />
                                 <!-- Unknown totals show an empty track rather than a looping shimmer (no idle animation). -->
                                 <ProgressBar Height="8" MinHeight="8" CornerRadius="4" Maximum="100" Value="{x:Bind ViewModel.ServiceInfo.BarPercent, Mode=OneWay}"
-                                             Foreground="#FF7C3AED" Background="#FF223047"
+                                             Foreground="{ThemeResource FSTProgressFillBrush}" Background="{ThemeResource FSTProgressTrackBrush}"
                                              Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
                                 <TextBlock Text="{x:Bind ViewModel.ServiceInfo.AttemptText, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                            Visibility="{x:Bind ViewModel.ServiceInfo.HasAttempt, Mode=OneWay}"
@@ -569,17 +573,14 @@
                     <TextBlock Text="First Run Guides" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Re-visit the first run experience for each page." Style="{StaticResource SectionSubtitleStyle}" />
                     <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
-                        <!-- Web btnPrimary: translucent blue chip with a blue outline (lightweight styling scoped to this card). -->
+                        <!-- Web btnPrimary: translucent blue chip with a blue outline (lightweight styling scoped to this card);
+                             system button colours under a contrast theme. -->
                         <Border.Resources>
-                            <SolidColorBrush x:Key="ButtonBackground" Color="#662D82E6" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#8C2D82E6" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#4D2D82E6" />
-                            <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
-                            <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF2D82E6" />
-                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FF4A95EC" />
-                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FF2D82E6" />
+                            <ResourceDictionary>
+                                <ResourceDictionary.MergedDictionaries>
+                                    <ResourceDictionary Source="ms-appx:///Themes/FirstRunButtonResources.xaml" />
+                                </ResourceDictionary.MergedDictionaries>
+                            </ResourceDictionary>
                         </Border.Resources>
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.FirstRunPages}">
                             <ItemsRepeater.ItemTemplate>
@@ -603,15 +604,16 @@
 
                 <!-- Licenses: web navigation row — the section header itself is the link, with a trailing chevron (no card). -->
                 <StackPanel controls:QuickLinkAnchor.Id="licenses" Margin="0,8,0,0">
-                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,4,4,4" Click="OnLicensesClick"
-                            Background="Transparent" BorderThickness="0" CornerRadius="{StaticResource ControlCornerRadius}"
+                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="-1,0" Padding="0,3,4,3" Click="OnLicensesClick"
+                            Background="Transparent" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}"
                             AutomationProperties.Name="Licenses" AutomationProperties.HelpText="Open source package license details."
                             AutomationProperties.AutomationId="fst.settings.licenses">
                         <Button.Resources>
-                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#14FFFFFF" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0AFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                            <ResourceDictionary>
+                                <ResourceDictionary.MergedDictionaries>
+                                    <ResourceDictionary Source="ms-appx:///Themes/NavRowButtonResources.xaml" />
+                                </ResourceDictionary.MergedDictionaries>
+                            </ResourceDictionary>
                         </Button.Resources>
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
@@ -629,15 +631,16 @@
 
                 <!-- Privacy Policy (issue #98): the same navigation row; opens the shared policy in a ContentDialog. -->
                 <StackPanel controls:QuickLinkAnchor.Id="privacy-policy" Margin="0,8,0,0">
-                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,4,4,4" Click="OnPrivacyPolicyClick"
-                            Background="Transparent" BorderThickness="0" CornerRadius="{StaticResource ControlCornerRadius}"
+                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="-1,0" Padding="0,3,4,3" Click="OnPrivacyPolicyClick"
+                            Background="Transparent" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}"
                             AutomationProperties.Name="Privacy Policy" AutomationProperties.HelpText="How Festival Score Tracker handles your information."
                             AutomationProperties.AutomationId="fst.settings.privacy-policy">
                         <Button.Resources>
-                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#14FFFFFF" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0AFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                            <ResourceDictionary>
+                                <ResourceDictionary.MergedDictionaries>
+                                    <ResourceDictionary Source="ms-appx:///Themes/NavRowButtonResources.xaml" />
+                                </ResourceDictionary.MergedDictionaries>
+                            </ResourceDictionary>
                         </Button.Resources>
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
@@ -668,15 +671,11 @@
                             FontWeight="SemiBold" CornerRadius="4" Padding="16,8" MinWidth="180"
                             AutomationProperties.AutomationId="fst.settings.reset">
                         <Button.Resources>
-                            <StaticResource x:Key="ButtonBackground" ResourceKey="FSTDangerBackgroundBrush" />
-                            <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
-                            <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
-                            <StaticResource x:Key="ButtonForeground" ResourceKey="FSTDangerForegroundBrush" />
-                            <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
-                            <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
-                            <StaticResource x:Key="ButtonBorderBrush" ResourceKey="FSTDangerBorderBrush" />
-                            <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
-                            <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
+                            <ResourceDictionary>
+                                <ResourceDictionary.MergedDictionaries>
+                                    <ResourceDictionary Source="ms-appx:///Themes/DangerButtonResources.xaml" />
+                                </ResourceDictionary.MergedDictionaries>
+                            </ResourceDictionary>
                         </Button.Resources>
                     </Button>
                 </Grid>

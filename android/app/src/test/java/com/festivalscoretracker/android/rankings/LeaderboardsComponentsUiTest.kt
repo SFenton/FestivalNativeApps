@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasTestTag
@@ -82,6 +83,14 @@ class LeaderboardsComponentsUiTest {
 
     private fun text(value: String) = rule.onAllNodesWithText(value, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
+    /** TalkBack reads each Rank History picker tab as its instrument, a tab and its selection. */
+    private fun assertPickerTab(wireId: String, label: String, selected: Boolean) {
+        val config = rule.onNodeWithTag("fst.leaderboards.rank-history.picker.$wireId").fetchSemanticsNode().config
+        assertEquals(listOf(label), config[SemanticsProperties.ContentDescription])
+        assertEquals(Role.Tab, config[SemanticsProperties.Role])
+        assertEquals(selected, config[SemanticsProperties.Selected])
+    }
+
     private fun overview(): LeaderboardsViewModel {
         val viewModel = LeaderboardsViewModel(fake.reads, settings, rankBy, { rankBy.value = it }, ServiceRetryBackoff())
         rule.setContent { LeaderboardsScreen(viewModel, isRoot = true) }
@@ -127,6 +136,21 @@ class LeaderboardsComponentsUiTest {
     }
 
     @Test
+    fun selectedPlayerInTheTopTenIsHighlightedInPlace() {
+        val inTopTen = RankingsFixtures.accountId(5)
+        settings.value = settings.value!!.copy(selectedPlayer = SelectedPlayer(inTopTen, "Synthetic Player 5"))
+        overview()
+        val row = "fst.rankings.row.$inTopTen"
+        rule.waitUntil(5_000) { settle(); exists(row) }
+        val config = rule.onAllNodesWithTag(row, useUnmergedTree = true)[0].fetchSemanticsNode().config
+        assertTrue(config[SemanticsProperties.ContentDescription].single().startsWith("Your rank, #5. Synthetic Player 5."))
+        assertEquals("Open your statistics", config[SemanticsActions.OnClick].label)
+        // Highlighted in place: no pinned row or loading row below the top ten.
+        val card = "fst.leaderboards.card.Solo_Guitar"
+        assertTrue(!exists("$card.spotlight") && !exists("$card.spotlight.loading") && !exists("$card.spotlight.unranked"))
+    }
+
+    @Test
     fun rankHistoryCardDrawsTheChartAndSwitchesCharts() {
         settings.value = settings.value!!.copy(visibleInstruments = setOf(Instrument.Lead, Instrument.Bass))
         rankBy.value = RankingMetric.TotalScore
@@ -144,8 +168,12 @@ class LeaderboardsComponentsUiTest {
         assertTrue(exists("fst.leaderboards.rank-history.detail"))
         rule.onNodeWithTag("fst.leaderboards.rank-history.plot").performTouchInput { swipeRight() }
         settle()
+        assertPickerTab("Solo_Guitar", "Lead", selected = true)
+        assertPickerTab("Solo_Bass", "Bass", selected = false)
         rule.onNodeWithTag("fst.leaderboards.rank-history.picker.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(5_000) { settle(); fake.count("history:Solo_Bass:") == 1 }
+        assertPickerTab("Solo_Guitar", "Lead", selected = false)
+        assertPickerTab("Solo_Bass", "Bass", selected = true)
         // The header sits above (outside) its card.
         rule.onNodeWithTag("fst.leaderboards").performScrollToNode(hasTestTag("fst.leaderboards.card.Solo_Guitar"))
         settle()
@@ -169,16 +197,17 @@ class LeaderboardsComponentsUiTest {
         var stars by mutableIntStateOf(6)
         rule.setContent { StarRating(stars, Modifier.testTag("fst.stars")) }
         settle()
-        assertEquals(listOf("Gold stars"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
+        assertEquals(listOf("5 gold stars"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
         stars = 1
         settle()
         assertEquals(listOf("1 star"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
         stars = 4
         settle()
         assertEquals(listOf("4 stars"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
+        // Web `MiniStars` minimum: hosts that mean "no stars" don't compose the row.
         stars = 0
         settle()
-        assertTrue(!exists("fst.stars"))
+        assertEquals(listOf("1 star"), rule.onNodeWithTag("fst.stars").fetchSemanticsNode().config[SemanticsProperties.ContentDescription])
     }
 
     @Test
