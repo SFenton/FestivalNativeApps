@@ -47,7 +47,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Licenses | ✅✅✅ (+dialog, #215) | 21/23/23 (dialog 3) | ✅ (#215 journey) | ✅ | ✅ (+200% C/M/W, display 100%/150%, #215) |
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ | 1 (list) | ✅ | ✅ | ✅ |
-| Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ |
+| Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ (pane titles wrap, #230) |
 | First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
 
 ## Fixed in this pass
@@ -177,6 +177,18 @@ Fixed:
 - The chart and table scrollers weren't Tab stops, so keyboard users couldn't scroll a long chart or table.
 
 Gotcha: a `UserControl` hosted in a `ContentDialog` gets one `Loaded` and then spurious `Unloaded` events while the dialog is still shown (`IsLoaded` stays true). Subscribe to system events for the dialog's lifetime, not on Loaded/Unloaded.
+
+## Quick Links validation (issue #230, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan` with `journeys/quick-links.json` (every reachable state on Settings) at compact, medium, snap-left, maximized and wide (pane at display 150%/100%, and a short 1440×560 window); Desert, Night sky, light and dark theme, text 200% (combined with `scale-150` for the pane) and display 100%/150%; keyboard journeys `kb-quick-links-menu`/`kb-quick-links-pane`. Axe 0 everywhere except open item 8 while the menu is open. Live public service checked the same way. Per-configuration results: [quick-links/windows.md](../controls/quick-links/windows.md#validation-issue-230-2026-10-04).
+
+Fixed (all in the wide pane, `Controls/QuickLinksPane.xaml`):
+- Rows were 36 epx tall; now `FSTMinTargetSize` (40).
+- In a short window the list was clipped: Privacy Policy and Reset couldn't be reached and a focused row was off screen. The list now scrolls.
+- Arrow keys moved the "current section" selection without jumping (`SingleSelectionFollowsFocus`).
+- At 200% text, long titles ("Show Instrument Metadata") were cut mid-word; titles now wrap.
+
+Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mode` accepts `+`-joined modes. Gotcha: `shot:…@screen` shows the lock screen on a locked console, so open-menu screenshots need an unlocked session; UIA assertions and window `print` shots still work.
 
 ## Open issues
 
