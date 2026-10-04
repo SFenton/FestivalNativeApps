@@ -511,8 +511,11 @@ def detect_pose(udid: str) -> str:
     with tempfile.TemporaryDirectory() as folder:
         for panel, display in DUO_PANELS.items():
             path = Path(folder) / f"{panel}.bmp"
-            result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
-                           f"--display={display}", str(path)], check=False, capture_output=True)
+            try:
+                result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                               f"--display={display}", str(path)], check=False, capture_output=True, timeout=30)
+            except subprocess.TimeoutExpired:
+                return "unknown"
             if result.returncode or not path.exists():
                 return "unknown"
             dark[panel] = bmp_is_dark(path.read_bytes())
@@ -1296,8 +1299,11 @@ def _panel_digest(udid: str) -> str | None:
         return None
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "panel.bmp"
-        _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
-              f"--display={DUO_PANELS[panel]}", str(path)], check=False, capture_output=True)
+        try:
+            _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                  f"--display={DUO_PANELS[panel]}", str(path)], check=False, capture_output=True, timeout=30)
+        except subprocess.TimeoutExpired:
+            return None
         return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
 
 
@@ -1429,6 +1435,7 @@ class HostBridge:
                 except (DeviceHubError, RuntimeError, ValueError, OSError) as error:
                     reply = f"error: {error}"
                     print(f"host step failed: {error}", file=sys.stderr)
+                print(f"host step done: {reply}", file=sys.stderr)
                 done = request.with_suffix(".done")
                 done.with_suffix(".tmp").write_text(reply, encoding="utf-8")
                 done.with_suffix(".tmp").rename(done)

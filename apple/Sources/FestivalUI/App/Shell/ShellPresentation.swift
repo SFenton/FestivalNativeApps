@@ -95,8 +95,39 @@ struct FestivalShellContent<Content: View>: View {
     @ViewBuilder let content: (ShellPresentation, DeviceLayout) -> Content
 
     @Environment(\.deviceLayout) private var layout
+    /// The section set the tabs currently show; trails the resolved one by a run-loop turn.
+    @State private var appliedRegularSet: Bool?
 
     var body: some View {
-        content(ShellPresentation.resolve(layout: layout, usesSidebarShell: usesSidebarShell), layout)
+        let resolved = ShellPresentation.resolve(layout: layout, usesSidebarShell: usesSidebarShell)
+        content(ShellPresentation.applying(resolved, regularSet: appliedRegularSet), layout)
+            .onChange(of: resolved.usesRegularSectionSet, initial: true) { _, regular in
+                guard appliedRegularSet != nil else {
+                    appliedRegularSet = regular
+                    return
+                }
+                // Folding iPhone Duo from inner portrait crashed UIKit
+                // (`-[UITabBarController _tabs_rebuildTabBarItemsAnimated:]` inserting
+                // out of bounds, 2026-10-04) when the tab set changed in the same update
+                // that pushed the new size class into the tab bar controller. Changing
+                // the tabs one turn later keeps the two updates apart.
+                DispatchQueue.main.async { appliedRegularSet = regular }
+            }
+    }
+}
+
+extension ShellPresentation {
+    /// The presentation with the section set the shell has applied so far.
+    ///
+    /// - Parameters:
+    ///   - resolved: The presentation resolved for the current layout.
+    ///   - regularSet: The applied section set, or nil before the first one is applied.
+    /// - Returns: `resolved`, keeping the applied section set while a change is pending.
+    static func applying(_ resolved: ShellPresentation, regularSet: Bool?) -> ShellPresentation {
+        ShellPresentation(
+            navigation: resolved.navigation,
+            usesRegularSectionSet: resolved.navigation == .sidebar
+                ? resolved.usesRegularSectionSet : (regularSet ?? resolved.usesRegularSectionSet)
+        )
     }
 }

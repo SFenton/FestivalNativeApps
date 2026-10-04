@@ -427,10 +427,21 @@ struct ListDetailStack<Root: View>: View {
     private func splitView(_ split: ListDetailPolicy.Split) -> some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             listStack(split)
+                // Both columns stay populated (`/duo` D1), so there is nothing to toggle.
+                .toolbar(removing: .sidebarToggle)
+                // Pin the width ListDetailPolicy.detailColumnWidth assumes (J3); unpinned,
+                // the forced portrait split squeezed the list and clipped its rows.
+                .navigationSplitViewColumnWidth(ListDetailPolicy.splitListColumnWidth)
         } detail: {
             detailStack(split)
         }
         .navigationSplitViewStyle(.balanced)
+        // In inner-display portrait (669 pt) the system collapses the list to an
+        // overlay and writes `.detailOnly` back, even when launched there (captured
+        // live, 2026-10-04). D1 wants two columns flat or half-open in both orientations.
+        .onChange(of: columnVisibility, initial: true) { _, visibility in
+            if visibility != .all { columnVisibility = .all }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.nav.list-detail")
     }
