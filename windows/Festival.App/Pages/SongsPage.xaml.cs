@@ -894,63 +894,8 @@ public sealed partial class SongsPage : Page, IPageBack
     /// </summary>
     private void UpdateButtonTints()
     {
-        MarkApplied(SortButton, ViewModel.IsSortChanged);
-        MarkApplied(FilterButton, ViewModel.IsFilterActive);
-        AutomationProperties.SetItemStatus(FilterButton, ViewModel.FilterStatus);
-    }
-
-    /// <summary>
-    /// Gold text by default. Under a contrast theme gold resolves to WindowText (invisible), so an applied button takes
-    /// the system Highlight / HighlightText pair, like a checked toggle, and its icon/label drop the automatic
-    /// Window-colored text backplate that would otherwise cover the Highlight fill.
-    /// </summary>
-    /// <param name="button">Sort or Filter button.</param>
-    /// <param name="applied">Whether a non-default choice is applied.</param>
-    private static void MarkApplied(ContentControl button, bool applied)
-    {
-        button.ClearValue(ForegroundProperty);
-        button.ClearValue(BackgroundProperty);
-        var highlighted = applied && ContrastTheme.IsOn;
-        if (button.Content is Panel content)
-        {
-            foreach (var child in content.Children)
-                child.HighContrastAdjustment = highlighted ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
-        }
-        if (FindNamed(button, "ChevronIcon") is IconElement chevron)
-        {
-            chevron.ClearValue(IconElement.ForegroundProperty);
-            if (highlighted) chevron.Foreground = Brush("SystemColorHighlightTextColorBrush");
-        }
-        if (!applied) return;
-        if (highlighted)
-        {
-            button.Background = Brush("SystemColorHighlightColorBrush");
-            button.Foreground = Brush("SystemColorHighlightTextColorBrush");
-        }
-        else
-        {
-            button.Foreground = Brush("FSTEmphasisBrush");
-        }
-    }
-
-    /// <summary>Looks up an app brush.</summary>
-    /// <param name="key">Resource key.</param>
-    /// <returns>Brush.</returns>
-    private static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
-
-    /// <summary>Finds a named template part (e.g. the DropDownButton <c>ChevronIcon</c>) below an element.</summary>
-    /// <param name="root">Element whose visual tree is searched.</param>
-    /// <param name="name">Template part name.</param>
-    /// <returns>The part, or <see langword="null"/> before the template applies.</returns>
-    private static FrameworkElement? FindNamed(DependencyObject root, string name)
-    {
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is FrameworkElement { Name: var childName } element && childName == name) return element;
-            if (FindNamed(child, name) is { } found) return found;
-        }
-        return null;
+        AppliedButtonState.Apply(SortButton, ViewModel.IsSortChanged);
+        AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
     }
     #endregion
 
