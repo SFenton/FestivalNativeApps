@@ -184,7 +184,7 @@
       "assertfocus:name=Search songs and players@3",
       "type:Fixture",
       "key:enter",
-      "waitfor:id=fst.global-search.section.songs@15",
+      "waitfor:id=fst.global-search.result.song@15",
       "key:alt+left",
       "waitfor:id=fst.songs.row.fixture-pulse@10"
     ]
@@ -478,6 +478,89 @@
       "key:esc",
       "wait:0.5",
       "assertfocus:id=fst.shell.notifications@3"
+    ]
+  },
+  {
+    "name": "kb-shop-grid",
+    "route": "/shop",
+    "tabs": 0,
+    "sizes": [
+      "medium"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.song.fixture-pulse@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.filter",
+      "key:tab",
+      "assertfocus:id=fst.shop.view-toggle",
+      "key:tab",
+      "assertfocus:id=fst.shop.song.fixture-orbit",
+      "key:right",
+      "assertfocus:id=fst.shop.song.fixture-pulse",
+      "key:left",
+      "assertfocus:id=fst.shop.song.fixture-orbit",
+      "key:right",
+      "key:shift+tab",
+      "assertfocus:id=fst.shop.view-toggle",
+      "key:shift+tab",
+      "assertfocus:id=fst.shop.filter",
+      "key:enter",
+      "waitfor:id=fst.shop.filter.reset@5",
+      "key:esc",
+      "assertfocus:id=fst.shop.filter@3"
+    ]
+  },
+  {
+    "name": "kb-shop-grid-open",
+    "route": "/shop",
+    "tabs": 0,
+    "sizes": [
+      "compact"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.song.fixture-pulse@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.filter",
+      "key:tab",
+      "assertfocus:id=fst.shop.song.fixture-orbit",
+      "key:right",
+      "assertfocus:id=fst.shop.song.fixture-pulse",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@20",
+      "key:alt+left",
+      "waitfor:id=fst.shop.song.fixture-pulse@20"
+    ]
+  },
+  {
+    "name": "kb-shop-list",
+    "route": "/shop",
+    "settings": {
+      "shopViewMode": "List"
+    },
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.song.fixture-pulse@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.view-toggle",
+      "key:tab",
+      "assertfocus:id=fst.shop.song.fixture-orbit",
+      "key:down",
+      "assertfocus:id=fst.shop.song.fixture-pulse",
+      "key:up",
+      "assertfocus:id=fst.shop.song.fixture-orbit",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@20",
+      "key:alt+left",
+      "waitfor:id=fst.shop.list@20"
     ]
   },
   {

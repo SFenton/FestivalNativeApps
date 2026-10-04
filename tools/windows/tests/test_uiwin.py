@@ -113,6 +113,18 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertgap(self):
+        step = u.parse_step("assertgap:id=fst.song-leaderboard.row.p-25|id=fst.song-leaderboard.page-first|4")
+        self.assertEqual(step["verb"], "assertgap")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.song-leaderboard.row.p-25"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.song-leaderboard.page-first"})
+        self.assertEqual(step["epx"], 4.0)
+        self.assertEqual(u.parse_step("assertgap:name=A|name=B|2.5")["epx"], 2.5)
+        for bad in ("assertgap:id=a|id=b", "assertgap:id=a|id=b|x", "assertgap:id=a|4", "assertgap:1,2|id=b|4",
+                    "assertgap:id=a|id=b|-4"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_window_state_presets(self):
         self.assertEqual(u.preset_op("minimized"), {"kind": "minimize"})
         self.assertEqual(u.preset_op("restored"), {"kind": "restore"})

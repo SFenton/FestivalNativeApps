@@ -42,6 +42,7 @@ struct FestivalSidebar: View {
     var onExtentChange: (CGFloat) -> Void = { _ in }
 
     @State private var deselectPending = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         List(selection: selection) {
@@ -118,7 +119,12 @@ struct FestivalSidebar: View {
 
     @ViewBuilder private var profileRow: some View {
         if let player = session.selectedPlayer {
-            HStack(spacing: 8) {
+            // Accessibility sizes stack Deselect under the name (HIG Typography: "consider
+            // stacking text above secondary items"); side by side the AX5 name read "Fi…"
+            // and Deselect broke into "De-se-lect".
+            let footerLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(spacing: 8))
+            footerLayout {
                 Button {
                     onOpenPlayer(.player(accountId: player.accountId, displayName: player.displayName))
                 } label: {
@@ -144,6 +150,7 @@ struct FestivalSidebar: View {
                     .accessibilityIdentifier("fst.nav.sidebar.deselect-profile")
             }
             .padding(.horizontal, 10)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
             .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         } else {
             SidebarFooterRow(

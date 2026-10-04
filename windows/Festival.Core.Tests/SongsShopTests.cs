@@ -233,7 +233,9 @@ public class ShopViewModelTests
         SongsWire.Install(service);
         var session = service.Session();
         var vm = new ShopViewModel(session);
+        Assert.False(vm.CanToggleView);
         await vm.LoadAsync();
+        Assert.True(vm.CanToggleView);
         Assert.Equal("List View", vm.ToggleLabel);
         vm.ToggleViewCommand.Execute(null);
         Assert.Equal(ShopViewMode.List, session.Settings.ShopViewMode);
@@ -287,6 +289,7 @@ public class ShopViewModelTests
         var vm = new ShopViewModel(session);
         await vm.LoadAsync();
         Assert.True(vm.ShowEmpty);
+        Assert.False(vm.CanToggleView);
         Assert.Equal("0 songs", vm.CountText);
 
         var failing = new FakeService();
@@ -295,15 +298,21 @@ public class ShopViewModelTests
         await failed.LoadAsync();
         Assert.True(failed.ShowError);
         Assert.False(failed.ShowEmpty);
+        Assert.False(failed.CanToggleView);
 
         body = SongsWire.Shop(SongsWire.Offer("s2", "Beta", isNew: true));
         await vm.LoadAsync(force: true);
         Assert.Equal("1 song", vm.CountText);
+        Assert.True(vm.CanToggleView);
         session.UpdateSettings(s => s with { DisableShopHighlighting = true });
         Assert.False(vm.Offers[0].HasBadge);
+        var notified = new List<string?>();
+        vm.PropertyChanged += (_, e) => notified.Add(e.PropertyName);
         session.UpdateSettings(s => s with { HideShop = true });
         Assert.True(vm.IsHidden);
         Assert.False(vm.ShowOffers);
+        Assert.False(vm.CanToggleView);
+        Assert.Contains(nameof(ShopViewModel.CanToggleView), notified);
         await vm.LoadAsync();
         Assert.Equal(LoadState.Idle, vm.State);
         session.UpdateSettings(s => s with { HideShop = false });

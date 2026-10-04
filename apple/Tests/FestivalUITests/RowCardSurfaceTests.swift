@@ -9,6 +9,20 @@ import FestivalDesign
 
 // MARK: - Fixtures
 
+/// A leaderboard-row-sized ``RankingRowSurface`` over a white page.
+private struct RankingRowProbe: View {
+    var body: some View {
+        ZStack {
+            Color.white
+            Text("Row")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(width: 280, height: 64)
+                .modifier(RankingRowSurface(isSelected: false))
+        }
+    }
+}
+
 /// A Song-row-sized card with one bright label over a white page.
 private struct RowCardProbe: View {
     var body: some View {
@@ -113,6 +127,18 @@ private func hostBlendsMaterials() throws -> Bool {
                 #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
             }
         }
+    }
+
+    @Test("Leaderboard rows draw the material card, not per-row Liquid Glass (issue #295)")
+    func rankingRowUsesMaterialCard() throws {
+        // A per-row `glassEffect` skipped the staggered load-in fade, so the selected
+        // player's non-glass row arrived last. Live tinted glass blanks this capture;
+        // the shared material card keeps the page and label.
+        let host = nativeHostedView(
+            RankingRowProbe().defaultAppStorage(rowCardDefaults(nil)),
+            size: CGSize(width: 320, height: 96), forceGlassFallback: false
+        )
+        #expect(nativeHostedControlPixels(try nativeHostedImage(host)).bright > 0)
     }
 }
 #endif

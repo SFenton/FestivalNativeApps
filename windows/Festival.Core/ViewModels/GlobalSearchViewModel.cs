@@ -6,8 +6,9 @@ namespace Festival.Core.ViewModels;
 #region Global search
 /// <summary>
 /// The one global-search engine (global-search spec): trimmed query, 2-character minimum, 250 ms debounce, local
-/// song matches shown as soon as the debounce fires, players from the keyless account search with their own
-/// progress, per-scope empty/error states, cancellation of superseded queries and a polite count announcement.
+/// song matches ready as soon as the debounce fires (title-bar suggestions and the Songs scope), players from the
+/// keyless account search, one page spinner that waits for every read the scope shows (issue #299), per-scope
+/// empty/error states without Retry, cancellation of superseded queries and a polite count announcement.
 /// Bands are shown but never requested (the service's band search GET can write). <see cref="ForPlayers"/> is the same
 /// engine limited to players for the compact pickers (the title-bar profile flyout and Find Rival).
 /// </summary>
@@ -142,8 +143,14 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Whether both live scopes finished with nothing (All view shows one "No results found.").</summary>
     private bool AllEmpty => SongsState == LoadState.Empty && PlayersState == LoadState.Empty;
 
-    /// <summary>Whether results for the current text are on screen (not short, not replaced by the bands block).</summary>
-    private bool ShowsResults => !IsShortQuery && !IsBandsScope && SettledQuery.Length > 0;
+    /// <summary>Whether the band explanation is shown: Bands with a searchable query (a short one shows the hint).</summary>
+    public bool ShowBandsExplanation => IsBandsScope && !IsShortQuery;
+
+    /// <summary>
+    /// Whether results for the current text are on screen (not short, not replaced by the bands block and not behind
+    /// the one centred spinner).
+    /// </summary>
+    private bool ShowsResults => !IsShortQuery && !IsBandsScope && SettledQuery.Length > 0 && !IsBusy;
 
     /// <summary>Whether the Songs section is shown.</summary>
     public bool ShowSongsSection => ShowsResults && Scope is SearchScope.All or SearchScope.Songs &&
@@ -159,13 +166,14 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     public bool SongsFailed => SongsState == LoadState.Failed;
 
     /// <summary>
-    /// Whether the Players section is shown (loading, rows or failure). An empty envelope never shows a section: in All
-    /// it is hidden like the web (<c>shouldRenderGlobalSection</c>), in Players it is the centred empty state.
+    /// Whether the Players section is shown (rows or failure; progress is the one centred spinner). An empty envelope
+    /// never shows a section: in All it is hidden like the web (<c>shouldRenderGlobalSection</c>), in Players it is the
+    /// centred empty state.
     /// </summary>
     public bool ShowPlayersSection => ShowsResults && Scope is SearchScope.All or SearchScope.Players &&
-                                      PlayersState is not (LoadState.Idle or LoadState.Empty);
+                                      PlayersState is LoadState.Loaded or LoadState.Failed;
 
-    /// <summary>Whether the Players section shows its inline progress.</summary>
+    /// <summary>Whether the account search is running (the pickers' "Searching…"; the page's spinner waits for it).</summary>
     public bool PlayersLoading => PlayersState == LoadState.Loading;
 
     /// <summary>Whether the Players section shows the service-status card.</summary>
@@ -177,8 +185,8 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Songs failure text.</summary>
     public string SongsFailedText => GlobalSearchResults.SongsFailed;
 
-    /// <summary>Centred short-query hint, else empty.</summary>
-    public string Hint => !IsBandsScope && IsShortQuery ? GlobalSearchResults.EnterQueryHint : "";
+    /// <summary>Centred short-query hint naming the scope (issue #299), else empty.</summary>
+    public string Hint => IsShortQuery ? GlobalSearchResults.EnterQueryHintFor(Scope) : "";
 
     /// <summary>Whether <see cref="Hint"/> has text.</summary>
     public bool HasHint => Hint.Length > 0;
@@ -211,10 +219,6 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         _ => "",
     };
 
-    /// <summary>Whether Retry sits under the empty state: whenever the players envelope is part of it, since an empty
-    /// envelope may be a server timeout.</summary>
-    public bool CanRetryEmpty => EmptyScope is SearchScope.All or SearchScope.Players;
-
     /// <summary>
     /// One-line status for the players-only pickers: the short-query prompt, "Searching…" (debounce or read), the
     /// failure message, "No players found." or nothing while rows are shown.
@@ -228,8 +232,15 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Whether a picker offers Retry (after a failure or an empty envelope, which never proves there is no match).</summary>
     public bool CanRetryPlayers => !IsShortQuery && !IsDebouncing && SettledQuery.Length > 0 && (PlayersFailed || PlayersEmpty);
 
-    /// <summary>Whether the page shows anything busy (debounce or a pending read) before the first rows.</summary>
-    public bool IsBusy => !IsShortQuery && !IsBandsScope && (IsDebouncing || SettledQuery.Length == 0 || SongsState == LoadState.Loading);
+    /// <summary>
+    /// Whether the page shows its one centred spinner instead of results (issue #299, web <c>SearchModal</c>): during
+    /// the debounce, and until every read the scope shows has settled. All waits for songs and players; Songs never
+    /// waits for players.
+    /// </summary>
+    public bool IsBusy => !IsShortQuery && !IsBandsScope &&
+                          (IsDebouncing || SettledQuery.Length == 0 ||
+                           Scope is SearchScope.All or SearchScope.Songs && SongsState == LoadState.Loading ||
+                           Scope is SearchScope.All or SearchScope.Players && PlayersLoading);
     #endregion
 
     #region Commands
@@ -242,7 +253,8 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         Pending = Start(text, debounce: false);
     }
 
-    /// <summary>Runs the current text again (players empty envelope, failure or scrape-freeze countdown).</summary>
+    /// <summary>Runs the current text again (the pickers' Retry and the players freeze countdown; the Search page has no
+    /// Retry and re-runs through <see cref="SubmitCommand"/>).</summary>
     /// <returns>Search task.</returns>
     [RelayCommand]
     private Task RetryAsync()
@@ -441,7 +453,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     [
         nameof(IsShortQuery), nameof(IsBandsScope), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
         nameof(PlayersLoading), nameof(PlayersFailed), nameof(PlayersEmpty), nameof(Hint), nameof(HasHint),
-        nameof(HasEmptyState), nameof(EmptyTitle), nameof(EmptySubtitle), nameof(CanRetryEmpty),
+        nameof(HasEmptyState), nameof(EmptyTitle), nameof(EmptySubtitle), nameof(ShowBandsExplanation),
         nameof(IsBusy), nameof(IsSettled), nameof(HasSongRows), nameof(HasPlayerRows), nameof(PlayersHint), nameof(CanRetryPlayers),
     ];
     #endregion

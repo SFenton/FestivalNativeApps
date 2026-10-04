@@ -137,7 +137,7 @@ object SongQuickLinkBuckets {
 
     private fun alpha(text: String): SongBucket {
         val token = SongSectionIndex.firstLetter(text)
-        return if (token == "#") SongBucket("#", "#", "Numbers and symbols") else SongBucket(token.lowercase(), token)
+        return if (token == "#") SongBucket("#", "#", SongSectionIndex.NON_LETTER_SPOKEN) else SongBucket(token.lowercase(), token)
     }
 
     private fun year(year: Int?): SongBucket {

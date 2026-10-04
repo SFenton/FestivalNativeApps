@@ -299,6 +299,7 @@ struct FestivalDrawer: View {
 
     @State private var dragOffset: CGFloat = 0
     @State private var deselectPending = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
 
@@ -445,7 +446,11 @@ struct FestivalDrawer: View {
             // Web: the player's name links to their profile, with Deselect beside it.
             // Same metrics as `DrawerRow` (avatar in the symbol column, body text) so the
             // name lines up with the other rows; the "Selected Player" role is spoken only.
-            HStack(spacing: 8) {
+            // Accessibility sizes stack Deselect under the name (HIG Typography: "consider
+            // stacking text above secondary items").
+            let footerLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(spacing: 8))
+            footerLayout {
                 Button {
                     onIntent(.push(.player(
                         accountId: player.accountId, displayName: player.displayName

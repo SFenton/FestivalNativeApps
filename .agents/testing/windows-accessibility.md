@@ -29,7 +29,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop | ✅✅✅ | 6/10/10 | — | ✅ | ✅ |
+| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
 | Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
@@ -99,6 +99,17 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Item Shop validation (issue #206, 2026-10-03)
+
+Scope: the Item Shop only. Results per configuration in [shop/windows.md](../pages/shop/windows.md#validation-issue-206). `a11y_matrix.py --scan --tabs 30` on `shop`, `shop-list`, `shop-filter`, `shop-filter-empty`, `shop-hidden`, `shop-empty`, `shop-error` and `shop-details-unavailable` at compact/medium/wide; Desert and Night sky, light and dark system theme, display 100% and 150%, text 200% (C+M), snap-left and maximized; and `--live` against the public service. 0 Axe errors in every run, no focus outside the window, no repeated stops. `kb-shop-grid`, `kb-shop-grid-open` and `kb-shop-list` pass.
+
+Fixed:
+- The tile grid (`ItemsRepeater`, `TabFocusNavigation="Local"`) was one Tab stop per tile: 124 on the live Shop. It is now one stop with arrow keys inside (Fluent `GridView` model; [design/windows.md](../design/windows.md#accessibility) Collections rule updated).
+- The List/Grid View toggle stayed on the error, empty and hidden states.
+- The toggle was 32 epx next to the 40 epx Filter button.
+- The Leaving Tomorrow pill was clipped at 200% text in compact windows.
+- "Item Shop Is Hidden" was not a heading.
 
 ## Player Profile validation (issue #199, 2026-10-03)
 
@@ -173,7 +184,7 @@ Fixed:
 
 A run on this shared host left the Desert contrast theme on system-wide with no pending restore, so later modes rendered under it. Check `sysset` state before trusting light-theme/text/scale screenshots, and re-run them after restoring.
 
-Seen, out of scope: with live data (three Shop buckets) at the medium preset, the Songs **Jump** zoomed-out index truncates "Leaving Tomorrow" and "Not In Shop" to "Leavi…" and "Not I…". The Songs Jump index owns that layout, not Sort.
+Seen, out of scope: with live data (three Shop buckets) at the medium preset, the Songs **Jump** zoomed-out index truncates "Leaving Tomorrow" and "Not In Shop" to "Leavi…" and "Not I…". The Songs Jump index owns that layout, not Sort. Fixed by issue #231: cells are sized to the widest label ([songs-section-index/windows.md](../controls/songs-section-index/windows.md)).
 
 ## Artwork Background validation (issue #217, 2026-10-03)
 

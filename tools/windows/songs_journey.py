@@ -6,7 +6,8 @@ the Debug app with a throwaway settings file (``FST_SETTINGS_PATH``) and an in-m
 with Shop accents, Item Shop sort and Shop filter drafts, the Item Shop page (grid, list, Song Detail link),
 Song Detail with Paths image/text/not-generated states, no selected player, and a hidden Item Shop. Lock-tolerant
 Songs states (search match/no results, sort modes, Jump index, General filter empty result, syncing and denied
-players, damaged saved filter, service error) use only UIA patterns, so they also pass on a locked console. Official
+players, damaged saved filter, service error) and Item Shop states (filter groups, no-match reset, list/grid,
+compact-forced grid, failed feed, hidden) use only UIA patterns, so they also pass on a locked console. Official
 Shop links are never opened. With ``--shots DIR`` it also captures screenshots of each scenario.
 
 Songs Sort states (issue #218, ``songs-sort-*``): default/changed/reset/applied with a player (Last Played), a
@@ -199,9 +200,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "setvalue:id=fst.songs.search|zzzz",
             "waitfor:name=No Results@10",
             "waitgone:id=fst.songs.row.fixture-orbit",
+            # Hidden state: no rows, no sections, no Jump (issue #231).
+            "waitgone:id=fst.songs.section-index-button@5",
             "{shot:songs-search-empty}",
             "setvalue:id=fst.songs.search|",
             "waitfor:id=fst.songs.row.fixture-pulse@10",
+            "waitfor:id=fst.songs.section-index-button@5",
         ],
     ),
     "songs-sort": (
@@ -216,6 +220,13 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "collapse:id=fst.songs.sort",
             "waitgone:id=fst.songs.sort.mode@5",
             "waitfor:id=fst.songs.section-index-button@5",
+            # The artist state: the index lists artist initials and focuses the topmost one (issue #231).
+            "invoke:id=fst.songs.section-index-button",
+            "waitfor:id=fst.songs.section-index@5",
+            "assertfocus:class=GridViewItem",
+            "{shot:songs-jump-artist}",
+            "key:esc",
+            "waitgone:id=fst.songs.section-index@5",
             # No quick-jump under the Year sort (operator 2026-09-28): decade headers stay, Jump hides.
             "expand:id=fst.songs.sort",
             "select:name=Year@5",
@@ -369,13 +380,30 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
         PLAYER, "/songs", {},
         [
             "waitfor:id=fst.songs.row.fixture-pulse@20",
-            "invoke:id=fst.songs.section-index-button",
+            "assertname:id=fst.songs.section-header|F",
+            # Issue #231: opening the index moves focus onto the letter of the section at the top of the list.
+            "focus:id=fst.songs.section-index-button",
+            "key:enter",
             "waitfor:id=fst.songs.section-index@5",
+            "assertfocus:name=F",
             "waitgone:id=fst.songs.row.fixture-pulse@5",
             "{shot:songs-jump}",
+            # Escape also closes the index with focus back on the Jump button (not only from inside the letters).
+            "focus:id=fst.songs.section-index-button",
+            "key:esc",
+            "waitgone:id=fst.songs.section-index@5",
+            "assertfocus:id=fst.songs.section-index-button",
+            "invoke:id=fst.songs.section-index-button",
+            "waitfor:id=fst.songs.section-index@5",
+            "key:esc",
+            "waitgone:id=fst.songs.section-index@5",
+            "assertfocus:id=fst.songs.section-index-button",
+            "invoke:id=fst.songs.section-index-button",
+            "waitfor:id=fst.songs.section-index@5",
             "invoke:name=F",
             "waitfor:id=fst.songs.row.fixture-pulse@5",
             "waitgone:id=fst.songs.section-index@5",
+            "assertname:id=fst.songs.section-header|F",
         ],
     ),
     "songs-filter-empty": (
@@ -436,11 +464,90 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "{shot:songs-error}",
         ],
     ),
+    # Lock-tolerant Item Shop states (#206): filter groups, no-match reset, both layouts and Song Detail by Invoke.
+    # Empty, failed-feed and catalogue-unavailable states need tools/windows/shop_fixture.py (a11y.json shop-* pages).
+    "shop-states": (
+        PLAYER, "/shop", {},
+        [
+            "waitfor:id=fst.shop.song.fixture-pulse@20",
+            "waitfor:id=fst.shop.badge.leaving.fixture-orbit",
+            "waitfor:name=2 songs",
+            "waitfor:id=fst.shop.view-toggle",
+            "expand:id=fst.shop.filter",
+            "waitfor:id=fst.shop.filter.new@5",
+            "toggle:id=fst.shop.filter.new",
+            "collapse:id=fst.shop.filter",
+            "waitgone:id=fst.shop.song.fixture-orbit@5",
+            "waitfor:id=fst.shop.song.fixture-pulse",
+            "waitfor:name=1 of 2 songs",
+            "{shot:shop-filter-new}",
+            "expand:id=fst.shop.filter",
+            "toggle:id=fst.shop.filter.new@5",
+            "toggle:id=fst.shop.filter.leaving",
+            "collapse:id=fst.shop.filter",
+            "waitgone:id=fst.shop.song.fixture-pulse@5",
+            "waitfor:id=fst.shop.song.fixture-orbit",
+            "expand:id=fst.shop.filter",
+            "toggle:id=fst.shop.filter.leaving@5",
+            "toggle:id=fst.shop.filter.available",
+            "collapse:id=fst.shop.filter",
+            "waitfor:id=fst.shop.filter.empty-reset@5",
+            "waitfor:name=0 of 2 songs",
+            "{shot:shop-filter-empty}",
+            "invoke:id=fst.shop.filter.empty-reset",
+            "waitfor:id=fst.shop.song.fixture-orbit@5",
+            "waitfor:id=fst.shop.song.fixture-pulse",
+            "waitfor:name=2 songs",
+            "invoke:id=fst.shop.view-toggle",
+            "waitfor:id=fst.shop.list@5",
+            "waitfor:id=fst.shop.badge.new.fixture-pulse@5",
+            "waitfor:id=fst.shop.external.fixture-orbit",
+            "{shot:shop-list}",
+            "invoke:id=fst.shop.view-toggle",
+            "waitfor:id=fst.shop.grid@5",
+            "invoke:id=fst.shop.song.fixture-pulse@5",
+            "waitfor:id=fst.song-detail.title@15",
+        ],
+    ),
+    "shop-compact-states": (
+        PLAYER, "/shop", {"shopViewMode": "List"},
+        [
+            # Compact forces the grid and hides the toggle, even with the List preference saved.
+            "waitfor:id=fst.shop.grid@20",
+            "waitfor:id=fst.shop.song.fixture-pulse",
+            "waitgone:id=fst.shop.view-toggle",
+            "waitgone:id=fst.shop.list",
+            "invoke:id=fst.shop.song.fixture-orbit",
+            "waitfor:id=fst.song-detail.title@15",
+        ],
+    ),
+    "shop-error": (
+        # A closed loopback port: the feed read fails; Filter and the view toggle leave with the offers.
+        {**PLAYER, "FST_BASE_URL": "http://127.0.0.1:9/"}, "/shop", {},
+        [
+            "waitfor:id=fst.service-status.retry@60",
+            "waitfor:id=fst.service-status.title",
+            "waitgone:id=fst.shop.filter",
+            "waitgone:id=fst.shop.view-toggle",
+            "waitgone:id=fst.shop.grid",
+            "{shot:shop-error}",
+        ],
+    ),
+    "shop-hidden-states": (
+        PLAYER, "/shop", {"hideShop": True},
+        [
+            "waitfor:id=fst.shop.hidden@20",
+            "waitgone:id=fst.shop.filter",
+            "waitgone:id=fst.shop.view-toggle",
+            "waitgone:id=fst.shop.grid",
+        ],
+    ),
 }
 
 
 # Scenarios that only make sense at some window sizes (compact windows force the Shop grid, without the toggle).
-SIZES = {"shop": {"medium", "wide"}, "shop-compact": {"compact"}}
+SIZES = {"shop": {"medium", "wide"}, "shop-compact": {"compact"}, "shop-states": {"medium", "wide"},
+         "shop-compact-states": {"compact"}}
 
 # Scenarios whose /api/shop read carries a mock_service.py ``scenario`` query (through ShopScenarioProxy).
 SHOP_FEEDS = {
