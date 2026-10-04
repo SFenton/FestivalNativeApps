@@ -172,6 +172,44 @@ class LeaderboardColumnLayoutTest {
         assertEquals(LeaderboardColumnLayout.fit(scores, 600f), LeaderboardColumnLayout.fit(scores.copy(nameWidth = 400f), 600f))
     }
 
+    @Test
+    fun nameMinimumDropsSongsThenStacksRows() {
+        val full = rankings.copy(keepsNameMinimum = true)
+        // 16 + 44 + 72 + 64 + 60 + 20 + 4 × 12 = 324: the minimum name fits beside the songs label.
+        val wide = LeaderboardColumnLayout.fit(full, 324f)
+        assertTrue(wide.showMeta)
+        assertFalse(wide.stacked)
+        // Narrower: songs yield first, the row stays one line (16 + 44 + 72 + 60 + 20 + 3 × 12 = 248).
+        val noSongs = LeaderboardColumnLayout.fit(full, 323f)
+        assertFalse(noSongs.showMeta)
+        assertEquals(0f, noSongs.metaWidth)
+        assertFalse(noSongs.stacked)
+        assertFalse(LeaderboardColumnLayout.fit(full, 248f).stacked)
+        // Below that the name can't keep its minimum on one line, so rows stack.
+        assertTrue(LeaderboardColumnLayout.fit(full, 247f).stacked)
+    }
+
+    @Test
+    fun nameMinimumGrowsWithFontScale() {
+        val full = rankings.copy(keepsNameMinimum = true)
+        assertTrue(LeaderboardColumnLayout.fit(full, 324f).showMeta)
+        assertFalse(LeaderboardColumnLayout.fit(full, 324f, fontScale = 1.3f).showMeta)
+    }
+
+    @Test
+    fun nameMinimumWaitsForTheFirstLayoutAndIsOptIn() {
+        val full = rankings.copy(keepsNameMinimum = true)
+        val unknown = LeaderboardColumnLayout.fit(full, Float.NaN)
+        assertTrue(unknown.showMeta)
+        assertFalse(unknown.stacked)
+        // Without the opt-in a narrow row keeps every column (Band Rankings, Leaderboards cards).
+        val plain = LeaderboardColumnLayout.fit(rankings, 200f)
+        assertTrue(plain.showMeta)
+        assertFalse(plain.stacked)
+        // Score sections never stack.
+        assertFalse(LeaderboardColumnLayout.fit(scores.copy(keepsNameMinimum = true), 100f).stacked)
+    }
+
     // endregion
 
     // region Section texts
