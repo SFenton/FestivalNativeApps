@@ -255,7 +255,7 @@ struct RivalCommonSection: View {
             + result.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's glass card, with its optional "View All Rivals" button below
+    /// The section's material card, with its optional "View All Rivals" button below
     /// the card (not a row inside it), like "View Full Leaderboard" (#41).
     ///
     /// - Parameters:
@@ -365,7 +365,7 @@ struct RivalComboSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's glass card, with its optional "View All Rivals" button below
+    /// The section's material card, with its optional "View All Rivals" button below
     /// the card (not a row inside it), like "View Full Leaderboard" (#41).
     ///
     /// - Parameters:
@@ -496,7 +496,7 @@ struct RivalInstrumentSongSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's glass card, with its optional "View All Rivals" button below
+    /// The section's material card, with its optional "View All Rivals" button below
     /// the card (not a row inside it), like "View Full Leaderboard" (#41).
     ///
     /// - Parameters:
@@ -618,7 +618,7 @@ struct RivalInstrumentLeaderboardSection: View {
             + response.below.prefix(previewCount).map { Row(rival: $0, direction: .below) }
     }
 
-    /// The section's glass card, with its optional "View All Rivals" button below
+    /// The section's material card, with its optional "View All Rivals" button below
     /// the card (not a row inside it), like "View Full Leaderboard" (#41).
     ///
     /// - Parameters:

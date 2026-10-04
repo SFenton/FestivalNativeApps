@@ -36,7 +36,7 @@ struct PlayerPercentileTableCard: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .festivalGlass(.card, cornerRadius: 16)
+            .festivalCard(cornerRadius: 16)
             // `.contain` first, or the identifier replaces every row's own.
             .accessibilityElement(children: .contain)
             .accessibilityLabel(title)

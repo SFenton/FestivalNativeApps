@@ -124,7 +124,7 @@ struct SoloLeaderboardScreen: View {
                         ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
                             let isSelectedRow = isSelectedAccount(entry.accountId)
                             // One design with every leaderboard (web `entryRow`): each row
-                            // its own glass card, the player's purple, with the chevron
+                            // its own material card, the player's purple, with the chevron
                             // inside the card. A button that pushes onto the tab's path
                             // rather than a NavigationLink, so the List draws no second
                             // disclosure indicator outside the card.

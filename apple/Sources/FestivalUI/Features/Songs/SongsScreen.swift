@@ -1375,7 +1375,7 @@ struct SongsScreen: View {
     }
 
     /// A pinned section title: full-width, fully opaque backing (a flat surface with a
-    /// hairline, matching the glass cards' border) so scrolling rows never show through,
+    /// hairline, matching the cards' border) so scrolling rows never show through,
     /// and the jump target for the scrubber or Quick Links.
     @ViewBuilder private func groupHeader(_ group: SongListGroup) -> some View {
         let label = Text(group.label)

@@ -66,8 +66,8 @@ struct RivalsChooseProfileState: View {
 // MARK: - Rival row content
 
 /// Flat row content for one rival, meant to sit inside a `FestivalGlassSection`
-/// card (per `.agents/design/apple/liquid-glass.md`: Rivals groups get one glass
-/// card per group, with flat rows inside — never per-row glass).
+/// card (per `.agents/design/apple/liquid-glass.md`: Rivals groups get one material
+/// card per group, with flat rows inside — never a card per row).
 ///
 /// Field placement mirrors the web's `RivalRow.tsx`, including its slightly
 /// surprising pairing: the "ahead" pill shows `behindCount` and the "behind"

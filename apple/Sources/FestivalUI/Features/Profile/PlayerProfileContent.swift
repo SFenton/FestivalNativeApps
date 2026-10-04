@@ -360,6 +360,7 @@ struct PlayerProfileContent: View {
         // On the scroll view itself: after `.quickLinks` it would land on the
         // `ScrollViewReader` wrapper, which UI tests cannot find.
         .accessibilityIdentifier("fst.player.available")
+        .debugPageScrollStress()
         .quickLinks(quickLinks, title: "Quick Links")
     }
 

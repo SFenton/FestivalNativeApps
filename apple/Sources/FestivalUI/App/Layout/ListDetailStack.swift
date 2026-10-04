@@ -588,7 +588,7 @@ private struct ListDetailSelectableRow: ViewModifier {
     func body(content: Content) -> some View {
         let selected = selection == route
         content
-            // An overlay, not a background: Song rows are opaque glass cards. The
+            // An overlay, not a background: Song rows are opaque material cards. The
             // translucent fill keeps the row's own Shop highlight stroke readable.
             .overlay {
                 #if os(macOS)

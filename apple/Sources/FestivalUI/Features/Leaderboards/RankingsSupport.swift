@@ -21,10 +21,10 @@ enum RankLoadState<Value> {
 
 /// One account-rankings row, shared by the overview cards and the full board.
 ///
-/// A compact single-line glass row (rank, name, `728 / 729`, accent-coloured value),
+/// A compact single-line card row (rank, name, `728 / 729`, accent-coloured value),
 /// matching the web client's `RankingEntry` inside `RankingCard.tsx`: every row is
-/// its own frosted card there, so each row here carries its own glass surface and
-/// the surrounding page adds none (no glass on glass).
+/// its own frosted card there, so each row here carries its own material card and
+/// the surrounding page adds none (no card in a card).
 ///
 /// Navigates to the viewed player's profile, matching the web client's row link
 /// to `/player/:accountId` (or Statistics for the signed-in player, which native
@@ -38,9 +38,9 @@ struct AccountRankingRow: View {
     /// the web client's `isPlayer` accent treatment
     /// (`RankingCard.tsx`'s `playerEntryRow` style: a tinted fill plus border).
     var isSelected: Bool = false
-    /// Draw the row as its own glass card (Leaderboards, Full Rankings). Off where
-    /// the row already sits inside a glass card (Compete previews): no glass on glass.
-    var glassSurface: Bool = false
+    /// Draw the row as its own material card (Leaderboards, Full Rankings). Off where
+    /// the row already sits inside a card (Compete previews): no card in a card.
+    var cardSurface: Bool = false
 
     private var displayName: String { Self.displayName(entry) }
 
@@ -116,7 +116,7 @@ struct AccountRankingRow: View {
             emphasized: isSelected,
             showsChevron: entry.hasAccount
         )
-        .modifier(RankingRowSurface(isSelected: isSelected, card: glassSurface))
+        .modifier(RankingRowSurface(isSelected: isSelected, card: cardSurface))
     }
 }
 
@@ -476,14 +476,14 @@ struct RankingRowWidthProbe: View {
 
 // MARK: - Row surface
 
-/// Per-row card, with the selected player's accent fill and border on top
+/// Per-row material card, with the selected player's accent fill and border on top
 /// (web `entryRow` / `playerEntryRow`: `purpleHighlight` rgba(75,15,99,0.75) and a
 /// `purpleHighlightBorder` rgba(124,58,237,0.5) hairline). The one leaderboard row design
 /// for Song Detail cards, song leaderboards, Leaderboards, Full Rankings and Compete
 /// (operator batch 7.4).
 ///
-/// Other rows sit on the Song row's material card (`festivalRowCard(cornerRadius:)`),
-/// fitted to the tinted Liquid Glass card these rows used to draw. Under a live
+/// Other rows sit on the shared material card (`festivalRowCard(cornerRadius:)`),
+/// fitted to the tinted Liquid Glass card these rows used to draw (issue #291). Under a live
 /// `glassEffect` a row skipped its staggered load-in fade (it showed with the page's
 /// reveal), so the selected player's row, which never had glass, faded in last
 /// (issue #295). HIG Materials: "Don't use Liquid Glass in the content layer. Use
@@ -577,7 +577,7 @@ private struct OptionalRowCard: ViewModifier {
 // MARK: - Band ranking row
 
 /// One band-rankings row, shared by the overview cards and the full board, in the
-/// same compact glass layout as ``AccountRankingRow``.
+/// same compact card layout as ``AccountRankingRow``.
 ///
 /// Navigates to the band's detail page, matching the web client's row link
 /// to `/bands/:bandId`.
@@ -588,8 +588,8 @@ struct BandRankingRow: View {
     /// instead of the side-effecting `/api/bands/{bandId}` lookup — see
     /// `Bands.swift`'s `BandDetail` documentation (Lane Bands, 2026-09-27).
     let bandType: BandType
-    /// Draw the row as its own glass card; see ``AccountRankingRow/glassSurface``.
-    var glassSurface: Bool = false
+    /// Draw the row as its own material card; see ``AccountRankingRow/cardSurface``.
+    var cardSurface: Bool = false
 
     /// The band a row opens.
     ///
@@ -633,7 +633,7 @@ struct BandRankingRow: View {
                 bayesian: entry.bayesianValue(for: metric).map(RankingFormatting.bayesian),
                 showsChevron: true
             )
-            .modifier(RankingRowSurface(isSelected: false, card: glassSurface))
+            .modifier(RankingRowSurface(isSelected: false, card: cardSurface))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("fst.band-rankings.row.\(entry.teamKey)")
@@ -642,13 +642,13 @@ struct BandRankingRow: View {
 
 // MARK: - Skeleton
 
-/// Redacted placeholder rows shown while a rankings request is in flight; glass
-/// rows where the loaded rows are glass, at the loaded rows' height so nothing jumps
+/// Redacted placeholder rows shown while a rankings request is in flight; card
+/// rows where the loaded rows are cards, at the loaded rows' height so nothing jumps
 /// when the data arrives (issue #90).
 struct RankingsSkeletonRows: View {
     let count: Int
-    /// Match glass rows (Leaderboards) instead of plain rows inside a card.
-    var glassRows: Bool = false
+    /// Match card rows (Leaderboards) instead of plain rows inside a card.
+    var cardRows: Bool = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -660,9 +660,9 @@ struct RankingsSkeletonRows: View {
                     Capsule().frame(width: 56, height: 14)
                 }
                 .foregroundStyle(BrandTokens.surfaceMuted)
-                .padding(.horizontal, glassRows ? 14 : 0)
-                .frame(minHeight: glassRows ? LeaderboardRowMetrics.minHeight : nil)
-                .modifier(RankingRowSurface(isSelected: false, card: glassRows))
+                .padding(.horizontal, cardRows ? 14 : 0)
+                .frame(minHeight: cardRows ? LeaderboardRowMetrics.minHeight : nil)
+                .modifier(RankingRowSurface(isSelected: false, card: cardRows))
             }
         }
         .redacted(reason: .placeholder)
@@ -698,7 +698,7 @@ extension View {
 /// board) and Player Bands. Band Rankings still uses ``RankingsFloatingBar``.
 ///
 /// The `page / total` badge is one adjustable VoiceOver element ("Page, 2 of 48"):
-/// swipe up/down to page, as the floating glass pager allows.
+/// swipe up/down to page, as the floating pager allows.
 ///
 /// On the iPhone Duo vertical bar this footer alone ran ≈150 of 678 pt (B2,
 /// `.agents/design/apple/duo.md`), so it renders nothing there: the caller also adds
@@ -807,7 +807,7 @@ private struct PagerPlate: ViewModifier {
 
 // MARK: - Floating pager
 
-/// Floating bottom bar for Band Rankings: a Liquid Glass pager
+/// Floating bottom bar for Band Rankings: a material pager
 /// capsule (`« ‹ 1 / 34,757 › »`) beside the board's switcher menu, mirroring the
 /// web's floating pagination pill and instrument pill (`FullRankingsPage.tsx`).
 ///
@@ -832,7 +832,7 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
         if layout.sectionChrome.isVerticalBar {
             EmptyView()
         } else {
-            FestivalGlassGroup(spacing: 8) {
+            Group {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) {
                         pagerView
@@ -862,7 +862,7 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
     }
 }
 
-/// The glass pager capsule: First, Previous, the `page / total` label, Next, Last.
+/// The material pager capsule (``View/festivalCardCapsule()``): First, Previous, the `page / total` label, Next, Last.
 ///
 /// Buttons are SF Symbols with spoken titles ("First Page" …) and keep their
 /// existing `<idPrefix>.page-*` identifiers. The label is one adjustable element
@@ -903,7 +903,7 @@ struct RankingsGlassPager: View {
             button(.last)
         }
         .padding(.horizontal, 4)
-        .festivalGlassCapsule(.control)
+        .festivalCardCapsule()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("\(idPrefix).pager")
     }
@@ -961,7 +961,7 @@ struct RankingsGlassPager: View {
     }
 }
 
-/// Glass pill label for a board switcher menu in ``RankingsFloatingBar``: the
+/// Material pill label for a board switcher menu in ``RankingsFloatingBar``: the
 /// board's icon, plus its name when there is room (web instrument pill).
 struct RankingsSwitcherPillLabel<Icon: View>: View {
     let title: String
@@ -984,7 +984,7 @@ struct RankingsSwitcherPillLabel<Icon: View>: View {
         .padding(.trailing, showsTitle ? 14 : 0)
         .frame(minWidth: height, minHeight: height)
         .contentShape(Capsule())
-        .festivalGlassCapsule(.control, interactive: true)
+        .festivalCardCapsule()
     }
 }
 
