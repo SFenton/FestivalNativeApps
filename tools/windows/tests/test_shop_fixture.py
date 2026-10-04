@@ -1,5 +1,6 @@
-"""``shop_fixture.py``: forced Item Shop scenarios for launched builds.
+"""``shop_fixture.py``: the issue #206 extras (``shop-single``, ``--songs-fail``) used by ``a11y_matrix.py`` pages.
 
+Mode switching and the control route are covered in ``test_shop_journey.py`` (issue #224).
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
 
@@ -12,30 +13,34 @@ import shop_fixture as s  # noqa: E402  (sibling tool)
 
 
 class ShopFixtureTests(unittest.TestCase):
-    """Flag parsing and request rewriting."""
+    """Flag parsing, the one-offer mode and handler patching."""
 
-    def test_take_options(self):
-        self.assertEqual(s.take_options(["--port", "0"]), ("demo", False, ["--port", "0"]))
-        self.assertEqual(s.take_options(["--shop", "empty", "--port", "0"]), ("empty", False, ["--port", "0"]))
-        self.assertEqual(s.take_options(["--shop=error", "--songs-fail"]), ("error", True, []))
+    def test_parse_options(self):
+        options, rest = s.parse_options(["--port", "0"])
+        self.assertEqual((options.shop, options.songs, rest), ("demo", "ok", ["--port", "0"]))
+        options, rest = s.parse_options(["--shop", "empty", "--port", "0"])
+        self.assertEqual((options.shop, options.songs, rest), ("empty", "ok", ["--port", "0"]))
+        options, rest = s.parse_options(["--shop=error", "--songs-fail"])
+        self.assertEqual((options.shop, options.songs, rest), ("error", "error", []))
+        options, _ = s.parse_options(["--songs", "error"])
+        self.assertEqual(options.songs, "error")
         with self.assertRaises(SystemExit):
-            s.take_options(["--shop", "bogus"])
+            s.parse_options(["--shop", "bogus"])
         with self.assertRaises(SystemExit):
-            s.take_options(["--shop"])
+            s.parse_options(["--shop"])
 
-    def test_rewrite(self):
-        self.assertEqual(s.rewrite("/api/shop", "empty", False), "/api/shop?scenario=empty")
-        self.assertEqual(s.rewrite("/api/shop?x=1", "error", False), "/api/shop?scenario=error")
-        self.assertEqual(s.rewrite("/api/shop", "demo", False), "/api/shop")
-        self.assertIsNone(s.rewrite("/api/songs", "demo", True))
-        self.assertEqual(s.rewrite("/api/songs", "empty", False), "/api/songs")
-        self.assertEqual(s.rewrite("/api/shop-art/x.jpg", "empty", True), "/api/shop-art/x.jpg")
+    def test_shop_single_routes_to_mock_scenario(self):
+        state = s.ShopState(shop="shop-single")
+        self.assertEqual(state.route("/api/shop"), "shop-shop-single")
+        self.assertIsNone(state.route("/api/songs"))
+        self.assertIsNone(state.route("/api/shop-art/x.jpg"))
+        self.assertTrue(state.released.is_set())
 
     def test_install_patches_handler(self):
         handler = s.mock_service.FixtureHandler
         original = handler.do_GET
         try:
-            s.install("empty", True)
+            s.install(s.ShopState(shop="empty", songs="error"))
             self.assertIsNot(handler.do_GET, original)
         finally:
             handler.do_GET = original

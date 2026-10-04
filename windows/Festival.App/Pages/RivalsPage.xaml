@@ -142,11 +142,13 @@
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:RivalRowItem">
-                                                    <Button Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind Route}" Click="OnRouteClick"
+                                                    <!-- Anonymous leaderboard rows (empty account ID, #213) read as text and don't open anything. -->
+                                                    <controls:LeaderboardRowButton Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind ProfileRoute}" Click="OnRouteClick"
+                                                            IsActionable="{x:Bind HasProfile}" IsTabStop="{x:Bind HasProfile}" IsHitTestVisible="{x:Bind HasProfile}"
                                                             AutomationProperties.Name="{x:Bind AccessibleName}"
                                                             AutomationProperties.AutomationId="{x:Bind AutomationId}">
                                                         <controls:RivalRowView Item="{x:Bind}" />
-                                                    </Button>
+                                                    </controls:LeaderboardRowButton>
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>

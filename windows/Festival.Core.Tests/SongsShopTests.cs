@@ -248,6 +248,38 @@ public class ShopViewModelTests
     }
 
     [Fact]
+    public async Task ViewToggle_OfferedOnlyWithOffersOnScreen()
+    {
+        var service = new FakeService();
+        var body = SongsWire.Shop();
+        SongsWire.Install(service, () => body);
+        var session = service.Session();
+        var vm = new ShopViewModel(session);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.False(vm.CanToggleView);
+        await vm.LoadAsync();
+        Assert.True(vm.ShowEmpty);
+        Assert.False(vm.CanToggleView);
+
+        body = SongsWire.Shop(SongsWire.Offer("s2", "Beta", isNew: true));
+        await vm.LoadAsync(force: true);
+        Assert.True(vm.CanToggleView);
+        Assert.Contains(nameof(ShopViewModel.CanToggleView), changed);
+
+        session.UpdateSettings(s => s with { HideShop = true });
+        Assert.True(vm.IsHidden);
+        Assert.False(vm.CanToggleView);
+
+        var failing = new FakeService();
+        SongsWire.Install(failing, shopStatus: HttpStatusCode.ServiceUnavailable);
+        var failed = new ShopViewModel(failing.Session());
+        await failed.LoadAsync();
+        Assert.True(failed.ShowError);
+        Assert.False(failed.CanToggleView);
+    }
+
+    [Fact]
     public async Task EmptyErrorHiddenAndHighlightStates()
     {
         var service = new FakeService();

@@ -229,6 +229,50 @@ public class ModelAndSongsTests
         Assert.Equal("Difficulty unavailable", DifficultyScale.Announcement(double.PositiveInfinity));
     }
 
+    [Theory]
+    [InlineData(0, "one", 1)]
+    [InlineData(1.5, "two", 2)]
+    [InlineData(2, "three", 3)]
+    [InlineData(3.99, "four", 4)]
+    [InlineData(4, "five", 5)]
+    [InlineData(5.9, "six", 6)]
+    [InlineData(6, "seven", 7)]
+    [InlineData(99, "seven", 7)]
+    [InlineData(-3, "one", 1)]
+    public void DifficultyMeterState_LevelStates(double raw, string name, int bars)
+    {
+        var state = DifficultyScale.State(raw);
+        Assert.True(state.IsAvailable);
+        Assert.Equal(name, state.StateName);
+        Assert.Equal(bars, state.FilledBars);
+        Assert.Equal("fst.songs.difficulty-meter", state.AutomationId);
+        Assert.Equal($"Difficulty {bars} of 7", state.Name);
+        Assert.Equal(Enumerable.Range(0, 7).Select(i => i < bars), Enumerable.Range(0, 7).Select(state.IsFilled));
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void DifficultyMeterState_InvalidShowsTextNotBars(double raw)
+    {
+        var state = DifficultyScale.State(raw);
+        Assert.False(state.IsAvailable);
+        Assert.Equal("invalid", state.StateName);
+        Assert.Equal(0, state.FilledBars);
+        Assert.Equal("fst.songs.difficulty-unavailable", state.AutomationId);
+        Assert.Equal("Difficulty unavailable", state.Name);
+        Assert.DoesNotContain(true, Enumerable.Range(0, 7).Select(state.IsFilled));
+    }
+
+    [Fact]
+    public void DifficultyMeterState_RecycledMeterReturnsToMeterId()
+    {
+        // A recycled row can go invalid → valid; the ID must follow the state, not stick at "unavailable".
+        Assert.Equal("fst.songs.difficulty-unavailable", DifficultyScale.State(double.NaN).AutomationId);
+        Assert.Equal("fst.songs.difficulty-meter", DifficultyScale.State(2).AutomationId);
+    }
+
     [Fact]
     public void ScoreFormatting_Formats()
     {

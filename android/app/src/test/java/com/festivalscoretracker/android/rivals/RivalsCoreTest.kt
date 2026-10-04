@@ -316,6 +316,15 @@ class RivalsCoreTest {
         assertEquals(-7000L, RivalHeadToHead.scoreDiff(song(0).copy(userScore = 1000, rivalScore = 8000)))
     }
 
+    @Test
+    fun leaderPhraseIsSpokenUnsignedAndPluralised() {
+        assertEquals("you lead by 1 rank", RivalHeadToHead.leaderPhrase(1, "Rival", Locale.US))
+        assertEquals("you lead by 12,345 ranks", RivalHeadToHead.leaderPhrase(12_345, "Rival", Locale.US))
+        assertEquals("Rival leads by 1 rank", RivalHeadToHead.leaderPhrase(-1, "Rival", Locale.US))
+        assertEquals("Rival leads by 3 ranks", RivalHeadToHead.leaderPhrase(-3, "Rival", Locale.US))
+        assertEquals("tied", RivalHeadToHead.leaderPhrase(0, "Rival", Locale.US))
+    }
+
     // endregion
 
     // region Columns

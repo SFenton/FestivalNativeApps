@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.ui.compete
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
+import com.festivalscoretracker.android.core.compete.CompeteHeaderLayout
 import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.compete.CompeteText
 import com.festivalscoretracker.android.core.nav.AppRoute
@@ -131,13 +133,17 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
 
 private fun LazyStaggeredGridScope.groupHeader(id: String, title: String) {
     item(key = "header:$id", span = StaggeredGridItemSpan.FullLine) {
-        Text(
-            title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
-        )
+        // A full-line item spans a separating hinge; the Box lets the heading (and its TalkBack
+        // focus) hug the text in the first panel instead.
+        Box {
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = BrandTokens.textPrimary,
+                modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
+            )
+        }
     }
 }
 
@@ -160,16 +166,19 @@ private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: Strin
         // The shared "See All ›" link (white, bold, chevron; read once as "See All: <scope>").
         if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, modifier = Modifier.testTag(tag), spokenLabel = "${RivalText.SEE_ALL}: ${scope.label}")
     }
-    if (isLargeText()) {
-        // Large text: a four-instrument combo name needs the full width below its icons.
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-            icons()
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = titleAndLink)
-        }
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            icons()
-            titleAndLink()
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val stacked = CompeteHeaderLayout.stacks(maxWidth.value, scope.instruments.size, onSeeAll != null, isLargeText())
+        if (stacked) {
+            // Large text or a narrow lane: a four-instrument combo name needs the full width below its icons.
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth().testTag("fst.compete.scope-header.stacked")) {
+                icons()
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = titleAndLink)
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().testTag("fst.compete.scope-header.row")) {
+                icons()
+                titleAndLink()
+            }
         }
     }
 }

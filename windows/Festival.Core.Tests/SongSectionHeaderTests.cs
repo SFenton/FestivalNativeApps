@@ -91,4 +91,81 @@ public class SongSectionHeaderTests
         Assert.Equal(0, SongSectionHeader.FirstVisibleRow(5, 0, [], Viewport));
         Assert.Equal("", SongSectionHeader.Label([], [], 0, 0, [], Viewport));
     }
+
+    private const double Bar = 35;
+    private const double Band = SongHeaderEdgeFade.Depth;
+
+    private static SongSectionHeader.PushState Push(int rowSection, double? own, double? next) =>
+        SongSectionHeader.Push(rowSection, Labels.Length, own, next, Bar, Band);
+
+    [Fact]
+    public void Push_NextTitleOutsideTheBand_LeavesTheBarAtRest()
+    {
+        Assert.Equal(SongSectionHeader.PushState.Resting(3), Push(3, null, null));
+        Assert.Equal(SongSectionHeader.PushState.Resting(3), Push(3, -200, Band + 0.5));
+        // The first section has no in-list title: its (absent) top never makes another section current.
+        Assert.Equal(SongSectionHeader.PushState.Resting(0), Push(0, 10, null));
+    }
+
+    [Fact]
+    public void Push_ScrollingDown_TheIncomingTitlePushesTheCurrentOneOut()
+    {
+        // Rows of A still visible, B's title entering the band below the viewport top.
+        Assert.Equal(new SongSectionHeader.PushState(1, 2, Band), Push(1, -400, Band));
+        // A's last row has scrolled away, B's title is under the bar: A stays current and is being pushed.
+        Assert.Equal(new SongSectionHeader.PushState(1, 2, -10), Push(2, -10, null));
+        // B's title reaches its pinned place: B is current at rest.
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), Push(2, -Bar, null));
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), Push(2, null, 500));
+    }
+
+    [Fact]
+    public void Push_PositionsFollowTheTitleContinuously()
+    {
+        // Step a title from inside the band to its pinned place, 1 epx at a time, in both directions.
+        double? lastPushed = null, lastIncoming = null;
+        foreach (var top in Enumerable.Range(0, (int)(Band + Bar) + 1).Select(i => Band - i)
+                     .Concat(Enumerable.Range(0, (int)(Band + Bar) + 1).Select(i => -Bar + i)))
+        {
+            var state = Push(2, top, null);
+            var pushed = state.Incoming < 0 ? 0 : SongSectionHeader.PushedOffset(state.IncomingTop, Bar);
+            var incoming = state.Incoming < 0 ? 0 : SongSectionHeader.IncomingBarTop(state.IncomingTop, Bar);
+            // The hand-off happens where the pushed title is fully out and the incoming one sits at the bar's top.
+            if (state.Incoming < 0) Assert.Equal(2, state.Current);
+            else Assert.Equal(1, state.Current);
+            if (lastPushed is { } p && state.Incoming >= 0) Assert.InRange(Math.Abs(pushed - p), 0, 1.0001);
+            if (lastIncoming is { } n && state.Incoming >= 0) Assert.InRange(Math.Abs(incoming - n), 0, 1.0001);
+            if (state.Incoming >= 0) (lastPushed, lastIncoming) = (pushed, incoming);
+        }
+        Assert.Equal(0, SongSectionHeader.PushedOffset(5, Bar));
+        Assert.Equal(-12, SongSectionHeader.PushedOffset(-12, Bar));
+        Assert.Equal(-Bar, SongSectionHeader.PushedOffset(-90, Bar));
+        Assert.Equal(Bar + 20, SongSectionHeader.IncomingBarTop(20, Bar));
+        Assert.Equal(0, SongSectionHeader.IncomingBarTop(-Bar - 3, Bar));
+        // The pinned title leaves exactly as the incoming one lands, keeping the bar's spacing between them.
+        Assert.Equal(-Bar, SongSectionHeader.PushedOffset(-Bar, Bar));
+        Assert.Equal(0, SongSectionHeader.IncomingBarTop(-Bar, Bar));
+    }
+
+    [Fact]
+    public void Push_UnmeasuredBarOrSections_RestsSafely()
+    {
+        Assert.Equal(SongSectionHeader.PushState.Resting(-1), Push(-1, null, null));
+        Assert.Equal(SongSectionHeader.PushState.Resting(-1), Push(Labels.Length, null, null));
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), SongSectionHeader.Push(2, Labels.Length, -5, null, 0, Band));
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), SongSectionHeader.Push(2, Labels.Length, double.NaN, double.NaN, Bar, Band));
+        // A stale first-visible row with its title far below the band names the section above it, drawn in place.
+        Assert.Equal(SongSectionHeader.PushState.Resting(1), Push(2, 300, null));
+        // The last section has nothing after it to push it out.
+        Assert.Equal(SongSectionHeader.PushState.Resting(26), Push(26, null, 0));
+    }
+
+    [Fact]
+    public void JumpPinDelta_ScrollsAJumpedTitleUnderTheBar()
+    {
+        Assert.Equal(46, SongSectionHeader.JumpPinDelta(46, Viewport));
+        Assert.Equal(0, SongSectionHeader.JumpPinDelta(SongSectionHeader.Tolerance, Viewport));
+        Assert.Equal(0, SongSectionHeader.JumpPinDelta(-20, Viewport));
+        Assert.Equal(0, SongSectionHeader.JumpPinDelta(Viewport + 1, Viewport));
+    }
 }

@@ -60,6 +60,7 @@ public class HitTargetMarkupTests
     [InlineData("Pages/LeaderboardsPage.xaml", "fst.rankings.rank-by-menu", false)]
     [InlineData("Pages/ShopPage.xaml", "fst.shop.filter", false)]
     [InlineData("Pages/ShopPage.xaml", "fst.shop.view-toggle", false)]
+    [InlineData("Pages/RivalDetailPage.xaml", "fst.rival-detail.view-profile", false)]
     public void ToolButtons_UseMinTarget(string file, string id, bool iconOnly)
     {
         var button = Assert.Single(ById(Load(file), id));

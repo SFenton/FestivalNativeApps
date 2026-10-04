@@ -124,6 +124,7 @@ public sealed partial class ShopPage : Page
         var grid = ViewModel.ShowGrid;
         UIElement target = grid ? GridScroller : OfferList;
         target.Opacity = 0;
+        RevealRing.Visibility = Visibility.Visible;
         RevealRing.IsActive = true;
         if (!App.Session.Settings.SaveData && !App.Options.NoArt)
         {
@@ -135,6 +136,7 @@ public sealed partial class ShopPage : Page
         }
         if (generation != revealGeneration) return;
         RevealRing.IsActive = false;
+        RevealRing.Visibility = Visibility.Collapsed;
         target.Opacity = 1;
         if (grid) FadeIn.StaggerRealized(OfferGrid);
         else FadeIn.StaggerRealized(OfferList);
@@ -249,8 +251,11 @@ public sealed partial class ShopPage : Page
     private static void ApplyBadge(Border badge, TextBlock text, ShopOfferItem item)
     {
         badge.Background = item.IsLeaving ? Brush("FSTShopLeavingBrush")
-            : Services.ContrastTheme.IsOn ? Brush("FSTShopNewBrush") : new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, 0x12, 0x18, 0x26));
+            : Brush("FSTShopNewBadgeSurfaceBrush");
         text.Foreground = item.IsLeaving || Services.ContrastTheme.IsOn ? Brush("FSTShopBadgeTextBrush") : Brush("FSTShopNewBrush");
+        // Under a contrast theme the badge is already the system HighlightText-on-Highlight pair; without this, WinUI's
+        // automatic adjustment repaints the text as WindowText on a Window backplate inside the pill.
+        text.HighContrastAdjustment = Services.ContrastTheme.IsOn ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
         AutomationProperties.SetAutomationId(text, item.IsLeaving ? $"fst.shop.badge.leaving.{item.Offer.SongId}" : $"fst.shop.badge.new.{item.Offer.SongId}");
     }
 

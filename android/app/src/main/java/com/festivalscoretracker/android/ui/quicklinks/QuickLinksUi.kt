@@ -69,7 +69,10 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
@@ -105,6 +108,15 @@ internal interface QuickLinkScroller {
      * @param landingPx Landing line below the visible viewport top, in pixels.
      */
     suspend fun scrollTo(index: Int, animate: Boolean, landingPx: Int)
+
+    /** A scroll is running (a user drag or fling while no jump is scrolling). */
+    val isScrollInProgress: Boolean
+
+    /** The content can scroll further down. */
+    val canScrollForward: Boolean
+
+    /** The content can scroll further up. */
+    val canScrollBackward: Boolean
 }
 
 /** [QuickLinkScroller] over a `LazyColumn`. */
@@ -122,6 +134,10 @@ private class ListScroller(private val state: LazyListState) : QuickLinkScroller
         val offset = QuickLinks.lazyLandingScrollOffset(landingPx, state.layoutInfo.beforeContentPadding)
         if (animate) state.animateScrollToItem(index, offset) else state.scrollToItem(index, offset)
     }
+
+    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
+    override val canScrollForward: Boolean get() = state.canScrollForward
+    override val canScrollBackward: Boolean get() = state.canScrollBackward
 }
 
 /** [QuickLinkScroller] over a `LazyVerticalStaggeredGrid` (several items can share a row). */
@@ -139,6 +155,10 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
         val offset = QuickLinks.lazyLandingScrollOffset(landingPx, state.layoutInfo.beforeContentPadding)
         if (animate) state.animateScrollToItem(index, offset) else state.scrollToItem(index, offset)
     }
+
+    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
+    override val canScrollForward: Boolean get() = state.canScrollForward
+    override val canScrollBackward: Boolean get() = state.canScrollBackward
 }
 
 /**
@@ -164,6 +184,8 @@ class QuickLinksController internal constructor(
     completePx: Float,
 ) {
     private val tracker = QuickLinkTracker(activationOffset = activationPx, band = bandPx, completeThreshold = completePx)
+    private val completeThreshold = completePx.roundToInt()
+    private var landing: Job? = null
 
     /**
      * Title Case title (Songs: "<Sort> Quick Links"). Snapshot state, so a page keeps one controller
@@ -195,6 +217,10 @@ class QuickLinksController internal constructor(
 
     /**
      * Jump to a section: it becomes active immediately and owns the viewport after landing.
+     * The landing is held for [QuickLinks.LANDING_HOLD_MS] (or until the user scrolls): content that
+     * starts loading once the jump composes it (a profile's rank history above Top Songs, its bands
+     * below the Bands heading) would otherwise push the section off the landing line, because a lazy
+     * list keeps its first visible item where it is when that item grows.
      *
      * @param id Section ID.
      */
@@ -202,11 +228,33 @@ class QuickLinksController internal constructor(
         val index = indexOf(id) ?: return
         tracker.beginJump(id)
         activeId = tracker.activeId
-        scope.launch {
-            scroller.scrollTo(index, animate, landingPx.roundToInt())
-            val layout = scroller.layout()
-            tracker.settle(sections, frames(layout), layout.viewportHeight)
-            activeId = tracker.activeId
+        landing?.cancel()
+        landing = scope.launch {
+            val px = landingPx.roundToInt()
+            scroller.scrollTo(index, animate, px)
+            settle()
+            holdLanding(id, index, px)
+        }
+    }
+
+    private fun settle() {
+        val layout = scroller.layout()
+        tracker.settle(sections, frames(layout), layout.viewportHeight)
+        activeId = tracker.activeId
+    }
+
+    private suspend fun holdLanding(id: String, index: Int, px: Int) {
+        withTimeoutOrNull(QuickLinks.LANDING_HOLD_MS) {
+            snapshotFlow { scroller.layout() }
+                .takeWhile { !scroller.isScrollInProgress }
+                .collect { layout ->
+                    val top = layout.items.firstOrNull { it.index == index }?.top
+                    if (QuickLinks.needsReland(top, px, completeThreshold, scroller.canScrollForward, scroller.canScrollBackward)) {
+                        scroller.scrollTo(index, animate = false, landingPx = px)
+                        tracker.beginJump(id)
+                        settle()
+                    }
+                }
         }
     }
 

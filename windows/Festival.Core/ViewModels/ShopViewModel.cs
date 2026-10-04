@@ -87,8 +87,8 @@ public sealed partial class ShopViewModel : ObservableObject
     public bool ShowList => ShowOffers && !ShowGrid;
 
     /// <summary>
-    /// Whether the grid/list toggle is offered: offers are shown (like Filter; the empty, failed, loading and hidden
-    /// states have no layout to switch) and the window isn't compact.
+    /// Whether the grid/list toggle is offered: only with offers on screen (like Filter; loading, empty, failed and
+    /// hidden have no layout to switch) and not in compact windows.
     /// </summary>
     public bool CanToggleView => ShowOffers && !IsCompact;
 

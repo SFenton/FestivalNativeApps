@@ -1,0 +1,66 @@
+[
+  {
+    "name": "settings-expanded",
+    "tab": "settings",
+    "profile": "fixture-player-1:Demo Player",
+    "settings": {"enableVisualOrder": true, "filterInvalidScores": true, "hideShop": true},
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.song-row-order",
+      "wait:0.5",
+      "shot:{stem}-reorder.png",
+      "scrollinto:id=fst.settings.leeway",
+      "wait:0.5",
+      "shot:{stem}-leeway.png",
+      "scrollinto:id=fst.settings.feedback.bug",
+      "wait:0.5",
+      "shot:{stem}-feedback.png",
+      "scrollinto:id=fst.settings.hide-shop",
+      "wait:0.5",
+      "shot:{stem}-shop.png",
+      "scrollinto:id=fst.settings.reduce-motion",
+      "wait:0.5",
+      "shot:{stem}-appearance.png",
+      "scrollinto:id=fst.settings.whats-new",
+      "wait:0.5",
+      "shot:{stem}-version.png",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "shot:{stem}-firstrun.png",
+      "scrollinto:id=fst.settings.reset",
+      "wait:0.5"
+    ]
+  },
+  {
+    "name": "settings-keyboard",
+    "tab": "settings",
+    "tabs": 0,
+    "sizes": ["compact", "wide"],
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.settings.enable-visual-order",
+      "key:space",
+      "waitfor:id=fst.settings.song-row-order@5",
+      "assertfocus:id=fst.settings.enable-visual-order@3",
+      "focus:name=Move Score down",
+      "key:enter",
+      "waitfor:name=Score, position 2 of 8@5",
+      "shot:{stem}-reordered.png",
+      "focus:id=fst.settings.enable-visual-order",
+      "key:space",
+      "waitgone:id=fst.settings.song-row-order@5",
+      "scrollinto:id=fst.settings.reset",
+      "focus:id=fst.settings.reset",
+      "key:enter",
+      "waitfor:id=fst.settings.reset.dialog@5",
+      "shot:{stem}-reset-dialog.png",
+      "key:esc",
+      "waitgone:id=fst.settings.reset.dialog@5",
+      "assertfocus:id=fst.settings.reset@3"
+    ]
+  }
+]
