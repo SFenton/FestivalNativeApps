@@ -56,6 +56,9 @@ public sealed class QuickLinksBinder
     /// <summary>Whether a repeater realized or recycled a section since the last <see cref="Collect"/>.</summary>
     private bool stale;
 
+    /// <summary>Scrolled content whose size changes trigger a re-measure (see <see cref="WatchContent"/>).</summary>
+    private FrameworkElement? watchedContent;
+
     /// <summary>Attaches to a scroller.</summary>
     /// <param name="scroller">Page scroller.</param>
     /// <param name="model">Quick Links model.</param>
@@ -69,10 +72,27 @@ public sealed class QuickLinksBinder
         scroller.SizeChanged += (_, _) => Report(false);
         scroller.Loaded += (_, _) =>
         {
+            WatchContent();
             Collect();
             Report(false);
         };
+        WatchContent();
         model.JumpRequested += (_, id) => Jump(id);
+    }
+
+    /// <summary>
+    /// Re-measures when the scrolled content changes size without a scroll (cards replacing their loading rings with
+    /// rows reflow the masonry columns): otherwise the frames stay those of an earlier layout and the current section
+    /// can be wrong until the reader scrolls (#213).
+    /// </summary>
+    private void WatchContent()
+    {
+        if (scroller.Content is not FrameworkElement content || content == watchedContent) return;
+        watchedContent = content;
+        content.SizeChanged += (_, _) =>
+        {
+            if (landing is null) Report(false);
+        };
     }
 
     /// <summary>
