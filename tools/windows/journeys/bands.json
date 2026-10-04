@@ -102,8 +102,15 @@
     "preset": "medium",
     "steps": [
       "waitfor:id=fst.bands.title@15",
-      "waitfor:name=Band not found@10",
-      "shot:{shots}\\bands-not-found.png"
+      "waitfor:id=fst.bands.screen@5",
+      "waitfor:id=fst.bands.not-found@10",
+      "waitfor:name=Band not found@5",
+      "waitfor:id=fst.bands.not-found.message@5",
+      "waitfor:name=This band link is missing an ID and cannot be resolved.@5",
+      "shot:{shots}\\bands-not-found.png",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.leaderboards@10",
+      "waitgone:id=fst.bands.not-found@5"
     ]
   }
 ]
