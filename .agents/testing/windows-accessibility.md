@@ -224,3 +224,9 @@ Tooling finding: after a UIA `focus:` step on a `SelectorBarItem`, arrow keys do
 ## Settings validation (issue #214, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan --tabs 60 --pages journeys/settings-states.json` (expanded states, a shot per section) at compact and wide under normal, light and dark theme, Desert, Night sky, text 200%, display 100% and 150%, plus snap-right and maximized: 0 Axe errors, 53/55 distinct Tab stops, none outside the window or repeated. `settings-keyboard` (Space/Enter/Esc with focus kept) and the `journeys/settings.py` journeys pass. Fixed: Settings ignored contrast themes in its reorder lists, First Run chips, link-row hover and progress bar, and kept stale brushes when a contrast theme was switched on while the page was open. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-issue-214-2026-10-03).
+
+## App Navigation validation (issue #225, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --tabs 30 --pages journeys/a11y-navigation.json` (anonymous, player, band page, Settings, pane open at compact) at compact, medium, wide, snap-left, snap-right and maximized, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%: 0 Axe errors except the open minimal pane (WinUI popup-host finding, open issue 8). `journeys/navigation.py` covers `songs`, `leaderboards`, `settings`, `player`, `band`, `reselect`, the compact pane and keyboard use (8/8 pass). Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#validation-issue-225-2026-10-04).
+
+Fixed: keyboard focus entering the pane from the title bar (Tab from profile) or the minimal pane opening from the toggle landed on Songs rather than the selected section; NavigationView only does this for a Tab that passes through itself.
