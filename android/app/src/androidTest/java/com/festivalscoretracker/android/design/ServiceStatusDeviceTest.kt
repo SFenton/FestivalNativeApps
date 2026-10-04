@@ -41,7 +41,7 @@ import org.junit.runner.RunWith
 /**
  * The service status control's reachable states on a real device (issue #140): TalkBack's
  * linear order, the full page's polite live region, inline silence, 48 dp Retry and double
- * text. Run with `device.py test com.festivalscoretracker.android.design.ServiceStatusDeviceTest
+ * text, and nothing across a half-open fold (`--posture half`). Run with `device.py test com.festivalscoretracker.android.design.ServiceStatusDeviceTest
  * --avd <AVD>`; reading orders go to logcat `FST_A11Y`.
  */
 @RunWith(AndroidJUnit4::class)
@@ -87,6 +87,7 @@ class ServiceStatusDeviceTest {
             assertInOrder(s.id, expected, order)
             rule.onNodeWithTag("fst.service-status.retry").assertHeightIsAtLeast(48.dp).assertWidthIsAtLeast(48.dp)
             assertTrue("${s.id}: full page is a live region", nodes().any { it.liveRegion != 0 })
+            h.assertNothingStraddles("fst.service-status.title", "fst.service-status.countdown", "fst.service-status.retry")
         }
         h.assertAccessible()
     }

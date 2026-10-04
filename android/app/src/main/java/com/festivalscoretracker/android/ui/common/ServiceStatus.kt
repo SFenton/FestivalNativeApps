@@ -33,6 +33,18 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.absolutePadding
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -131,6 +143,34 @@ val COMPACT_STATUS_HEIGHT = 320.dp
  */
 fun isCompactStatusHeight(height: Dp): Boolean = height < COMPACT_STATUS_HEIGHT
 
+/**
+ * Absolute padding (px) around the full page.
+ *
+ * @property left Left padding.
+ * @property top Top padding.
+ * @property right Right padding.
+ * @property bottom Bottom padding.
+ */
+data class HingeSide(val left: Float = 0f, val top: Float = 0f, val right: Float = 0f, val bottom: Float = 0f)
+
+/**
+ * Padding along one axis that confines a page of [size] to one side of a hinge spanning
+ * [hingeStart]…[hingeEnd] (page coordinates): the larger side, or [preferEnd]'s side on a tie.
+ *
+ * @param size Page extent on this axis.
+ * @param hingeStart Hinge's near edge.
+ * @param hingeEnd Hinge's far edge.
+ * @param preferEnd Tie-break toward the end (trailing / lower) side.
+ * @return (start padding, end padding); zeros when the hinge misses the page.
+ */
+fun hingeSidePadding(size: Float, hingeStart: Float, hingeEnd: Float, preferEnd: Boolean): Pair<Float, Float> {
+    if (size <= 0f || hingeEnd <= 0f || hingeStart >= size) return 0f to 0f
+    val before = hingeStart.coerceAtLeast(0f)
+    val after = (size - hingeEnd).coerceAtLeast(0f)
+    val useEnd = if (before == after) preferEnd else after > before
+    return if (useEnd) hingeEnd.coerceAtMost(size) to 0f else 0f to (size - before)
+}
+
 // endregion
 
 // region Full page
@@ -154,17 +194,47 @@ fun ServiceStatusView(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    BoxWithConstraints(modifier.fillMaxSize().padding(contentPadding)) {
-        val compact = isCompactStatusHeight(maxHeight)
+    var origin by remember { mutableStateOf(Offset.Unspecified) }
+    BoxWithConstraints(modifier.fillMaxSize().padding(contentPadding).onGloballyPositioned { origin = it.positionInWindow() }) {
+        val side = rememberHingeSide(origin, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+        val density = LocalDensity.current
+        val compact = isCompactStatusHeight(maxHeight - with(density) { (side.top + side.bottom).toDp() })
         Box(
             Modifier
                 .fillMaxSize()
+                .then(with(density) { Modifier.absolutePadding(side.left.toDp(), side.top.toDp(), side.right.toDp(), side.bottom.toDp()) })
                 .verticalScroll(rememberScrollState())
                 .padding(if (compact) 16.dp else 24.dp),
             contentAlignment = Alignment.Center,
         ) {
             ServiceStatusContent(issue, fallbackTitle, countdown, onRetry, compact)
         }
+    }
+}
+
+/**
+ * Padding (px) that keeps the full page on one side of the window's separating hinge, if it
+ * crosses this page: Material 3 "Never place interactive content or critical information across
+ * the hinge area". Book posture uses the wider side (leading on a tie), tabletop the lower half,
+ * matching [festivalSheetHingeSide].
+ *
+ * @param origin Page's top-left in the window, or unspecified before the first layout.
+ * @param width Page width (px).
+ * @param height Page height (px).
+ * @return Side padding.
+ */
+@Composable
+private fun rememberHingeSide(origin: Offset, width: Float, height: Float): HingeSide {
+    if (!origin.isSpecified) return HingeSide()
+    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return HingeSide()
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    return if (hinge.isVertical) {
+        val (before, after) = hingeSidePadding(width, hinge.bounds.left - origin.x, hinge.bounds.right - origin.x, preferEnd = rtl)
+        HingeSide(left = before, right = after)
+    } else {
+        val (before, after) = hingeSidePadding(height, hinge.bounds.top - origin.y, hinge.bounds.bottom - origin.y, preferEnd = true)
+        HingeSide(top = before, bottom = after)
     }
 }
 

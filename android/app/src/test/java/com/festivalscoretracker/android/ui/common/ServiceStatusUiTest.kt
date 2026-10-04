@@ -14,7 +14,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.adaptive.HingeInfo
+import androidx.compose.material3.adaptive.Posture
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -98,9 +102,59 @@ class ServiceStatusUiTest {
         assertFalse(isCompactStatusHeight(600.dp))
     }
 
+    @Test
+    fun hingePaddingKeepsThePageOnTheWiderSide() {
+        assertEquals(0f to 0f, hingeSidePadding(1000f, 1100f, 1120f, preferEnd = false))
+        assertEquals(0f to 0f, hingeSidePadding(1000f, -40f, -10f, preferEnd = false))
+        assertEquals(0f to 0f, hingeSidePadding(0f, 0f, 10f, preferEnd = false))
+        // Hinge right of centre: content stays left of it.
+        assertEquals(0f to 400f, hingeSidePadding(1000f, 600f, 620f, preferEnd = false))
+        // Hinge left of centre: content starts after it.
+        assertEquals(420f to 0f, hingeSidePadding(1000f, 400f, 420f, preferEnd = false))
+        // A centred hinge follows the tie-break.
+        assertEquals(0f to 510f, hingeSidePadding(1000f, 490f, 510f, preferEnd = false))
+        assertEquals(510f to 0f, hingeSidePadding(1000f, 490f, 510f, preferEnd = true))
+        // A hinge overlapping the page's start edge.
+        assertEquals(20f to 0f, hingeSidePadding(1000f, -10f, 20f, preferEnd = false))
+    }
+
     // endregion
 
     // region Full page
+
+    @Test
+    fun separatingHingeKeepsThePageOffTheFold() {
+        lateinit var hingeLeft: () -> Float
+        rule.setContent {
+            val width = LocalView.current.rootView.width.toFloat()
+            hingeLeft = { width * 0.4f }
+            val hinge = HingeInfo(Rect(width * 0.4f, 0f, width * 0.42f, 5000f), isFlat = false, isVertical = true, isSeparating = true, isOccluding = true)
+            CompositionLocalProvider(LocalShellPosture provides Posture(isTabletop = false, hingeList = listOf(hinge))) {
+                FestivalTheme { ServiceStatusView(ServiceIssue.ScrapeInProgress(30), "Leaderboards unavailable", 30, onRetry = {}) }
+            }
+        }
+        rule.waitForIdle()
+        for (tag in listOf("fst.service-status.title", "fst.service-status.countdown", "fst.service-status.retry")) {
+            val bounds = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+            assertTrue("$tag clears the fold", bounds.left >= hingeLeft() * 1.05f - 1f)
+        }
+    }
+
+    @Test
+    fun tabletopHingeKeepsThePageBelowTheFold() {
+        var foldBottom = 0f
+        rule.setContent {
+            val height = LocalView.current.rootView.height.toFloat()
+            foldBottom = height * 0.5f
+            val hinge = HingeInfo(Rect(0f, height * 0.48f, 5000f, foldBottom), isFlat = false, isVertical = false, isSeparating = true, isOccluding = true)
+            CompositionLocalProvider(LocalShellPosture provides Posture(isTabletop = true, hingeList = listOf(hinge))) {
+                FestivalTheme { ServiceStatusView(ServiceIssue.Offline, "Leaderboards unavailable", null, onRetry = {}) }
+            }
+        }
+        rule.waitForIdle()
+        val title = rule.onNodeWithTag("fst.service-status.title").fetchSemanticsNode().boundsInWindow
+        assertTrue("Title is below the fold", title.top >= foldBottom - 1f)
+    }
 
     @Test
     fun compactHeightDropsTheIconButKeepsRetry() {
