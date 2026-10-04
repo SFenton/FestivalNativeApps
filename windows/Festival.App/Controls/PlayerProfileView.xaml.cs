@@ -74,6 +74,11 @@ public sealed partial class PlayerProfileView : UserControl
     /// <returns><c>fst.player.instrument.&lt;key&gt;</c>.</returns>
     public static string InstrumentId(string key) => "fst.player.instrument." + key;
 
+    /// <summary>Instrument section group ID.</summary>
+    /// <param name="key">Service instrument ID.</param>
+    /// <returns><c>fst.player.section.&lt;key&gt;</c>.</returns>
+    public static string SectionId(string key) => "fst.player.section." + key;
+
     /// <summary>Empty-instrument footnote ID.</summary>
     /// <param name="key">Service instrument ID.</param>
     /// <returns>Automation ID.</returns>
