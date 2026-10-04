@@ -8,10 +8,10 @@
         <!-- Web NotificationRow (operator batch 6.34/7.20, issue #76): 64 epx leading media rail (54 epx song art; 44 epx art
              above a two-column grid of 18 epx instrument icons when the row touches several charts; else a 36 epx instrument
              icon), bold title, white sentence with the web's bold values, colour-coded flag pill + time, then the unread dot
-             beside the chevron on the trailing edge. Media is decorative (Raw); the row's name carries the text. -->
+             beside the chevron on the trailing edge. Media is decorative (Raw); the row's ListViewItem carries the name and
+             AutomationId (OnContainerContentChanging), so Narrator reads one item instead of an item plus a nested group. -->
         <DataTemplate x:Key="RowTemplate" x:DataType="vm:NotificationRowViewModel">
-            <Grid ColumnSpacing="12" Padding="0,8" AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}"
-                  AutomationProperties.AutomationId="{x:Bind AutomationId}">
+            <Grid ColumnSpacing="12" Padding="0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="64" />
                     <ColumnDefinition Width="*" />
@@ -31,9 +31,10 @@
                     <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
                     <TextBlock controls:NotificationRowVisuals.Parts="{x:Bind MessageParts}" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Border Background="{x:Bind controls:NotificationRowVisuals.FlagBrush(FlagArgb)}" BorderBrush="#2EFFFFFF" BorderThickness="2"
+                        <Border Background="{x:Bind controls:NotificationRowVisuals.FlagBrush(FlagArgb)}" BorderBrush="{ThemeResource FSTNotificationFlagStrokeBrush}" BorderThickness="2"
                                 CornerRadius="4" Padding="6,1" Visibility="{x:Bind HasFlag}">
-                            <TextBlock Text="{x:Bind Flag}" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold" Foreground="White" />
+                            <TextBlock Text="{x:Bind Flag}" Style="{StaticResource CaptionTextBlockStyle}" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource FSTNotificationFlagTextBrush}" />
                         </Border>
                         <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center"
                                    Foreground="{ThemeResource FSTDeemphasisTextBrush}" />
@@ -65,42 +66,47 @@
         </Grid>
         <Button.Flyout>
             <Flyout x:Name="Panel" Placement="BottomEdgeAlignedRight" Opening="OnOpening" Closed="OnClosed">
-                <Grid Width="380" MaxHeight="560" RowSpacing="8" AutomationProperties.AutomationId="fst.notifications.sheet">
+                <Grid Width="380" MaxHeight="560" RowSpacing="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Notifications" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0" AutomationProperties.HeadingLevel="Level2" />
+                    <!-- Panels have no UIA peer, so the state IDs sit on each state's first text (like the Shop's empty/hidden headings). -->
+                    <TextBlock Text="Notifications" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0" AutomationProperties.HeadingLevel="Level2"
+                               AutomationProperties.AutomationId="fst.notifications.sheet" />
 
-                    <StackPanel Grid.Row="1" Spacing="12" Visibility="{x:Bind Model.IsNoPlayer, Mode=OneWay}" Padding="0,8"
-                                AutomationProperties.AutomationId="fst.notifications.no-player">
-                        <TextBlock Text="Select a player profile to see their notifications." TextWrapping="Wrap" />
+                    <StackPanel Grid.Row="1" Spacing="12" Visibility="{x:Bind Model.IsNoPlayer, Mode=OneWay}" Padding="0,8">
+                        <TextBlock Text="Select a player profile to see their notifications." TextWrapping="Wrap"
+                                   AutomationProperties.AutomationId="fst.notifications.no-player" />
                     </StackPanel>
                     <ProgressRing Grid.Row="1" IsActive="{x:Bind Model.IsLoading, Mode=OneWay}" Visibility="{x:Bind Model.IsLoading, Mode=OneWay}"
-                                  HorizontalAlignment="Center" Margin="0,24" AutomationProperties.Name="Loading notifications" />
-                    <StackPanel Grid.Row="1" Spacing="12" Visibility="{x:Bind Model.IsFailed, Mode=OneWay}" Padding="0,8"
-                                AutomationProperties.AutomationId="fst.notifications.failed">
-                        <TextBlock Text="{x:Bind Model.ErrorText, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                                  HorizontalAlignment="Center" Margin="0,24" AutomationProperties.Name="Loading notifications"
+                                  AutomationProperties.AutomationId="fst.notifications.loading" />
+                    <StackPanel Grid.Row="1" Spacing="12" Visibility="{x:Bind Model.IsFailed, Mode=OneWay}" Padding="0,8">
+                        <TextBlock Text="{x:Bind Model.ErrorText, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.AutomationId="fst.notifications.failed" />
                         <Button Content="Retry" Command="{x:Bind Model.RefreshCommand}" Style="{StaticResource AccentButtonStyle}"
                                 AutomationProperties.AutomationId="fst.notifications.retry" />
                     </StackPanel>
-                    <StackPanel Grid.Row="1" Spacing="6" Visibility="{x:Bind Model.IsEmpty, Mode=OneWay}" Padding="0,8"
-                                AutomationProperties.AutomationId="fst.notifications.empty">
-                        <TextBlock Text="{x:Bind Model.EmptyTitle}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <StackPanel Grid.Row="1" Spacing="6" Visibility="{x:Bind Model.IsEmpty, Mode=OneWay}" Padding="0,8">
+                        <TextBlock Text="{x:Bind Model.EmptyTitle}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   AutomationProperties.AutomationId="fst.notifications.empty" />
                         <TextBlock Text="{x:Bind Model.EmptyBody, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                     </StackPanel>
                     <ScrollViewer Grid.Row="1" Visibility="{x:Bind Model.IsLoaded, Mode=OneWay}" Padding="0,0,12,0"
                                   AutomationProperties.AutomationId="fst.notifications.list">
                         <StackPanel Spacing="4">
-                            <TextBlock Text="New" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White" Visibility="{x:Bind Model.HasNew, Mode=OneWay}"
+                            <TextBlock Text="New" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTSectionHeaderBrush}" Visibility="{x:Bind Model.HasNew, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
                             <ListView ItemsSource="{x:Bind Model.NewItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
                                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ScrollViewer.VerticalScrollMode="Disabled"
+                                      ContainerContentChanging="OnContainerContentChanging"
                                       Visibility="{x:Bind Model.HasNew, Mode=OneWay}" AutomationProperties.Name="New notifications" />
-                            <TextBlock Text="Older" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White" Visibility="{x:Bind Model.HasOlder, Mode=OneWay}"
+                            <TextBlock Text="Older" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTSectionHeaderBrush}" Visibility="{x:Bind Model.HasOlder, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
                             <ListView ItemsSource="{x:Bind Model.OlderItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
                                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ScrollViewer.VerticalScrollMode="Disabled"
+                                      ContainerContentChanging="OnContainerContentChanging"
                                       Visibility="{x:Bind Model.HasOlder, Mode=OneWay}" AutomationProperties.Name="Older notifications" />
                         </StackPanel>
                     </ScrollViewer>

@@ -70,6 +70,9 @@
             <!-- Band Detail song rows' "Top N%" pill (web purple percentile badge). -->
             <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="#FF7C3AED" />
             <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="#FFFFFFFF" />
+            <!-- Notifications flag pill (issue #229): white text and the web's translucent ring around the FLAG_COLORS fill. -->
+            <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="#2EFFFFFF" />
             <!-- Rank History chart gridlines (web CartesianGrid stroke; the glass border tint). -->
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="#FF223047" />
@@ -197,6 +200,9 @@
             <!-- Percentile pills become plain system pills (outlined by FSTNeutralPillStrokeBrush). -->
             <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <!-- Notification flags become outlined system pills; the flag word, not its hue, carries the meaning. -->
+            <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />

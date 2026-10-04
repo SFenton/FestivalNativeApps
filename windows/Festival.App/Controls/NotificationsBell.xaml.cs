@@ -1,3 +1,5 @@
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Festival.App.Controls;
@@ -41,9 +43,24 @@ public sealed partial class NotificationsBell : UserControl
     /// <param name="e">Clicked row.</param>
     private void OnRowClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not NotificationRowViewModel row || Model.Activate(row) is not { } destination) return;
+        if (e.ClickedItem is not NotificationRowViewModel row) return;
+        var destination = Model.Activate(row);
+        // The row stays on screen when it has no destination: drop "Unread." from its Narrator name.
+        if (sender is ListViewBase list && list.ContainerFromItem(row) is DependencyObject container)
+            AutomationProperties.SetName(container, row.AccessibleName);
+        if (destination is null) return;
         Panel.Hide();
         Navigate(destination);
+    }
+
+    /// <summary>Names each row's ListViewItem for UI Automation (one Narrator stop per row).</summary>
+    /// <param name="sender">List.</param>
+    /// <param name="args">Container.</param>
+    private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.InRecycleQueue || args.Item is not NotificationRowViewModel row) return;
+        AutomationProperties.SetName(args.ItemContainer, row.AccessibleName);
+        AutomationProperties.SetAutomationId(args.ItemContainer, row.AutomationId);
     }
 }
 #endregion
