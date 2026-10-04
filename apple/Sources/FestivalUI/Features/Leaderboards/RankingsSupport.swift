@@ -116,7 +116,7 @@ struct AccountRankingRow: View {
             emphasized: isSelected,
             showsChevron: entry.hasAccount
         )
-        .modifier(RankingRowSurface(isSelected: isSelected, glass: glassSurface))
+        .modifier(RankingRowSurface(isSelected: isSelected, card: glassSurface))
     }
 }
 
@@ -476,11 +476,18 @@ struct RankingRowWidthProbe: View {
 
 // MARK: - Row surface
 
-/// Per-row glass card, with the selected player's accent fill and border on top
+/// Per-row card, with the selected player's accent fill and border on top
 /// (web `entryRow` / `playerEntryRow`: `purpleHighlight` rgba(75,15,99,0.75) and a
 /// `purpleHighlightBorder` rgba(124,58,237,0.5) hairline). The one leaderboard row design
 /// for Song Detail cards, song leaderboards, Leaderboards, Full Rankings and Compete
 /// (operator batch 7.4).
+///
+/// Other rows sit on the Song row's material card (`festivalRowCard(cornerRadius:)`),
+/// fitted to the tinted Liquid Glass card these rows used to draw. Under a live
+/// `glassEffect` a row skipped its staggered load-in fade (it showed with the page's
+/// reveal), so the selected player's row, which never had glass, faded in last
+/// (issue #295). HIG Materials: "Don't use Liquid Glass in the content layer. Use
+/// standard materials for content-layer elements".
 struct RankingRowSurface: ViewModifier {
     /// Web `Colors.purpleHighlight`.
     static let playerFill = Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75)
@@ -489,7 +496,7 @@ struct RankingRowSurface: ViewModifier {
 
     let isSelected: Bool
     /// False keeps only the selected-row accent, for rows already inside a card.
-    var glass: Bool = true
+    var card: Bool = true
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -499,7 +506,7 @@ struct RankingRowSurface: ViewModifier {
                     shape.fill(Self.playerFill)
                 }
             }
-            .modifier(OptionalGlass(enabled: glass && !isSelected))
+            .modifier(OptionalRowCard(enabled: card && !isSelected))
             .overlay {
                 if isSelected {
                     shape.stroke(Self.playerBorder, lineWidth: 1)
@@ -554,13 +561,13 @@ struct RankingSpotlightUnrankedRow: View {
     }
 }
 
-/// Applies the row glass only when enabled.
-private struct OptionalGlass: ViewModifier {
+/// Applies the material row card only when enabled.
+private struct OptionalRowCard: ViewModifier {
     let enabled: Bool
 
     func body(content: Content) -> some View {
         if enabled {
-            content.festivalGlass(.card, cornerRadius: 12)
+            content.festivalRowCard(cornerRadius: 12)
         } else {
             content
         }
@@ -626,7 +633,7 @@ struct BandRankingRow: View {
                 bayesian: entry.bayesianValue(for: metric).map(RankingFormatting.bayesian),
                 showsChevron: true
             )
-            .modifier(RankingRowSurface(isSelected: false, glass: glassSurface))
+            .modifier(RankingRowSurface(isSelected: false, card: glassSurface))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("fst.band-rankings.row.\(entry.teamKey)")
@@ -655,7 +662,7 @@ struct RankingsSkeletonRows: View {
                 .foregroundStyle(BrandTokens.surfaceMuted)
                 .padding(.horizontal, glassRows ? 14 : 0)
                 .frame(minHeight: glassRows ? LeaderboardRowMetrics.minHeight : nil)
-                .modifier(RankingRowSurface(isSelected: false, glass: glassRows))
+                .modifier(RankingRowSurface(isSelected: false, card: glassRows))
             }
         }
         .redacted(reason: .placeholder)
