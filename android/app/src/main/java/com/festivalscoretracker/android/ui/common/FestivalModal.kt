@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.common
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -25,6 +24,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -183,8 +183,8 @@ object ModalSheetHinge {
 /**
  * Shared modal bottom sheet: Material's `ModalBottomSheet` on the card colour, kept below
  * the status bar ([festivalSheetTop]), titled for TalkBack (`paneTitle`) and headed by
- * [FestivalModalHeader]. The close button slides the sheet away (instantly under Reduce
- * Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
+ * [FestivalModalHeader]. Material's drag handle keeps a 48 dp touch target. The close
+ * button slides the sheet away (instantly under Reduce Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
  * With a separating vertical hinge (book posture) the sheet sits in the wider pane
  * ([ModalSheetHinge]) instead of straddling the fold.
  *
@@ -231,17 +231,14 @@ fun FestivalModalSheet(
         sheetState = sheetState,
         sheetMaxWidth = maxWidth,
         containerColor = BrandTokens.cardBackground,
-        // Material's handle is 32 dp wide and TalkBack-actionable (collapse/dismiss); widen the
-        // actionable area to the 48 dp minimum without changing the drawn pill (issue #126).
-        dragHandle = {
-            Box(Modifier.widthIn(min = SHEET_HANDLE_MIN_TARGET), contentAlignment = Alignment.Center) { BottomSheetDefaults.DragHandle() }
-        },
         modifier = Modifier
             .offset { IntOffset(hingeOffset, 0) }
             .festivalSheetTop()
             .popupTestTags()
             .then(modifier)
             .semantics { paneTitle = title },
+        // Material's handle is 32 dp wide and TalkBack-actionable; keep a 48 dp touch target.
+        dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
     ) {
         FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
         content()
@@ -251,9 +248,6 @@ fun FestivalModalSheet(
 // endregion
 
 // region Dialog
-
-/** Minimum width of the sheet drag handle's actionable area (Material 48 dp touch target). */
-internal val SHEET_HANDLE_MIN_TARGET: Dp = 48.dp
 
 /** Widest a Festival modal dialog grows. */
 val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp

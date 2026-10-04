@@ -57,9 +57,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -580,13 +580,13 @@ private fun FestivalShell(
             }
         }
     }
-    // One composition for the content in every layout: a permanent drawer ↔ rail switch
-    // (tablet rotation, window resize) moves it rather than recreating the nav host, so
-    // saved state such as an open Filter sheet or the list position survives (issue #126).
-    val currentContent by rememberUpdatedState(content)
-    val shellContent = remember { movableContentOf { currentContent() } }
+    // One movable page tree for both chrome branches: rotating a tablet between the rail and
+    // the permanent drawer moves the NavHost instead of rebuilding it, so page state (an open
+    // license or Filter sheet, list scroll, picked filters) survives the change (issues #122, #126).
+    val latestContent = rememberUpdatedState(content)
+    val pages = remember { movableContentOf { latestContent.value() } }
     if (layout == NavigationLayout.PermanentDrawer) {
-        shellContent()
+        pages()
     } else {
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -604,7 +604,7 @@ private fun FestivalShell(
                     ) { drawer(false) }
                 }
             },
-        ) { shellContent() }
+        ) { pages() }
     }
     GlobalSearchHost(
         viewModel = searchViewModel,
