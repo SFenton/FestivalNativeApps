@@ -98,6 +98,15 @@
             <SolidColorBrush x:Key="FSTReorderStrokeBrush" Color="#1AFFFFFF" />
             <SolidColorBrush x:Key="FSTProgressFillBrush" Color="#FF7C3AED" />
             <SolidColorBrush x:Key="FSTProgressTrackBrush" Color="#FF223047" />
+            <!-- CHOpt Paths text table (issue #223): muted captions and em dashes, unlit fret pills, Overdrive bar. Lit pills
+                 keep the web FRET_COLORS (SongPathsView), so FSTPathFretOnBrush only applies under a contrast theme. -->
+            <SolidColorBrush x:Key="FSTPathCaptionBrush" Color="#FF8899AA" />
+            <SolidColorBrush x:Key="FSTPathFretOnStrokeBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="FSTPathFretOnBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTPathFretOffBrush" Color="#FF223047" />
+            <SolidColorBrush x:Key="FSTPathFretOffStrokeBrush" Color="#FF1E2A3A" />
+            <SolidColorBrush x:Key="FSTPathOdTrackBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTPathOdFillBrush" Color="#FFF5A623" />
             <!--
                 Shell chrome over the artwork backdrop (MainWindow): the docked pane and the content area are transparent,
                 so the backdrop's dim scrim is the only layer (no Mica, no LayerFill, no 1 px content border). The pane
@@ -204,6 +213,15 @@
             <SolidColorBrush x:Key="FSTReorderStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTProgressFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTProgressTrackBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <!-- CHOpt Paths table: lit pills are Highlight with a WindowText edge, unlit ones Window with a GrayText outline
+                 (told apart by fill, not hue); the Overdrive bar is Highlight on a GrayText track. -->
+            <SolidColorBrush x:Key="FSTPathCaptionBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTPathFretOnStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTPathFretOnBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTPathFretOffBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTPathFretOffStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTPathOdTrackBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTPathOdFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

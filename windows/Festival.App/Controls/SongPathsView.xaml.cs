@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Festival.App.Services;
-using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -21,7 +20,7 @@ namespace Festival.App.Controls;
 /// </summary>
 public sealed partial class SongPathsView : UserControl
 {
-    /// <summary>Web <c>FRET_COLORS</c> (the open-note chip is a native addition).</summary>
+    /// <summary>Web <c>FRET_COLORS</c> (the open-note chip is a native addition); a contrast theme uses role brushes.</summary>
     private static readonly (string Name, Color Color)[] Frets =
     [
         ("green", Color.FromArgb(255, 0x2E, 0xCC, 0x71)),
@@ -31,17 +30,8 @@ public sealed partial class SongPathsView : UserControl
         ("orange", Color.FromArgb(255, 0xE6, 0x7E, 0x22)),
     ];
 
-    private static readonly SolidColorBrush FretInactive = new(Color.FromArgb(255, 0x22, 0x30, 0x47));
-    private static readonly SolidColorBrush FretInactiveBorder = new(Color.FromArgb(255, 0x1E, 0x2A, 0x3A));
-    private static readonly SolidColorBrush OdTrack = new(Color.FromArgb(255, 0x16, 0x21, 0x33));
-    private static readonly SolidColorBrush OdFill = new(Color.FromArgb(255, 0xF5, 0xA6, 0x23));
-    private static readonly SolidColorBrush Muted = new(Color.FromArgb(255, 0x88, 0x99, 0xAA));
-
     /// <summary>Width below which the chart fills the sheet and the pickers share one bottom row.</summary>
     private const double CompactWidth = 900;
-
-    /// <summary>Table width below which each activation card stacks its values (web mobile rows).</summary>
-    private const double StackedTableWidth = 640;
 
     private bool applyingZoom;
     private bool stacked;
@@ -70,9 +60,14 @@ public sealed partial class SongPathsView : UserControl
         Loaded += (_, _) =>
         {
             Motion.Changed += OnMotionChanged;
+            ContrastTheme.Changed += OnColorsChanged;
             ApplySwapTransitions();
         };
-        Unloaded += (_, _) => Motion.Changed -= OnMotionChanged;
+        Unloaded += (_, _) =>
+        {
+            Motion.Changed -= OnMotionChanged;
+            ContrastTheme.Changed -= OnColorsChanged;
+        };
     }
 
     /// <summary>Paths model.</summary>
@@ -129,6 +124,11 @@ public sealed partial class SongPathsView : UserControl
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
     private void OnMotionChanged(object? sender, EventArgs e) => DispatcherQueue.TryEnqueue(ApplySwapTransitions);
+
+    /// <summary>Rebuilds the code-built table so a contrast theme switched on or off re-resolves its role brushes.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(RebuildTable);
 
     /// <summary>Decodes a loaded image while the spinner is up so the new chart is ready when it fades in.</summary>
     /// <param name="picture">Loaded PNG.</param>
@@ -246,16 +246,14 @@ public sealed partial class SongPathsView : UserControl
     #endregion
 
     #region Table
-    /// <summary>Web <c>COLUMN_WIDTHS</c>: note minmax(190, 1fr), beat 80, time 110, Overdrive 1fr, score 100.</summary>
+    /// <summary>Web <c>COLUMN_WIDTHS</c> (note minmax(190, 1fr), beat 80, time 110, Overdrive 1fr, score 100), text columns scaled by text size.</summary>
     /// <param name="key">Column.</param>
     /// <returns>Column definition.</returns>
     private static ColumnDefinition Column(PathColumnKey key) => key switch
     {
-        PathColumnKey.Note => new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 190 },
-        PathColumnKey.Beat => new ColumnDefinition { Width = new GridLength(80) },
-        PathColumnKey.Time => new ColumnDefinition { Width = new GridLength(110) },
+        PathColumnKey.Note => new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = PathTableLayout.NoteMinWidth },
         PathColumnKey.Od => new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
-        _ => new ColumnDefinition { Width = new GridLength(100) },
+        _ => new ColumnDefinition { Width = new GridLength(PathTableLayout.Width(key, TextScaleLayout.Factor) ?? 0) },
     };
 
     /// <summary>Uppercase muted column caption (web <c>paths.col*</c> header cells and mobile labels).</summary>
@@ -272,7 +270,7 @@ public sealed partial class SongPathsView : UserControl
         FontSize = 11,
         FontWeight = FontWeights.SemiBold,
         CharacterSpacing = 50,
-        Foreground = Muted,
+        Foreground = ContrastTheme.Brush("FSTPathCaptionBrush"),
     };
 
     /// <summary>Builds the column header row in the saved order (hidden while cards stack).</summary>
@@ -297,11 +295,16 @@ public sealed partial class SongPathsView : UserControl
     /// <param name="e">Size change.</param>
     private void OnTableSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var next = e.NewSize.Width < StackedTableWidth;
+        var next = PathTableLayout.Stacks(e.NewSize.Width, TextScaleLayout.Factor);
         if (next == stacked) return;
         stacked = next;
+        RebuildTable();
+    }
+
+    /// <summary>Rebuilds the header and re-prepares every realized card (layout or theme change).</summary>
+    private void RebuildTable()
+    {
         BuildHeader();
-        // Re-prepare every realized card in the new layout.
         Activations.ItemsSource = null;
         Activations.ItemsSource = ViewModel.Rows;
     }
@@ -381,14 +384,16 @@ public sealed partial class SongPathsView : UserControl
         {
             case PathColumnKey.Note:
                 var frets = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+                var contrast = ContrastTheme.IsOn;
                 foreach (var (name, color) in Frets)
                 {
                     var on = row.HasFret(name);
                     frets.Children.Add(new Border
                     {
                         Width = 22, Height = 22, CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(2),
-                        BorderBrush = on ? new SolidColorBrush(Colors.Transparent) : FretInactiveBorder,
-                        Background = on ? new SolidColorBrush(color) : FretInactive,
+                        BorderBrush = ContrastTheme.Brush(on ? "FSTPathFretOnStrokeBrush" : "FSTPathFretOffStrokeBrush"),
+                        Background = !on ? ContrastTheme.Brush("FSTPathFretOffBrush")
+                            : contrast ? ContrastTheme.Brush("FSTPathFretOnBrush") : new SolidColorBrush(color),
                     });
                 }
                 if (row.HasFret("open"))
@@ -400,12 +405,12 @@ public sealed partial class SongPathsView : UserControl
                 return Text(row.TimeText);
             case PathColumnKey.Od when row.OdFill is { } fill:
                 var bar = new Grid { ColumnSpacing = 8 };
-                bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 80 });
-                bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MinWidth = 32 });
-                var track = new Grid { Height = 8, CornerRadius = new CornerRadius(4), Background = OdTrack, VerticalAlignment = VerticalAlignment.Center };
+                bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = PathTableLayout.OdBarMinWidth });
+                bar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MinWidth = PathTableLayout.OdLabelMinWidth(TextScaleLayout.Factor) });
+                var track = new Grid { Height = 8, CornerRadius = new CornerRadius(4), Background = ContrastTheme.Brush("FSTPathOdTrackBrush"), VerticalAlignment = VerticalAlignment.Center };
                 track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(fill, GridUnitType.Star) });
                 track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100 - fill, GridUnitType.Star) });
-                track.Children.Add(new Border { Background = OdFill, CornerRadius = new CornerRadius(4) });
+                track.Children.Add(new Border { Background = ContrastTheme.Brush("FSTPathOdFillBrush"), CornerRadius = new CornerRadius(4) });
                 bar.Children.Add(track);
                 var label = Text(row.OdText);
                 label.TextAlignment = TextAlignment.Right;
@@ -426,7 +431,7 @@ public sealed partial class SongPathsView : UserControl
     private static TextBlock Text(string text, bool missing = false)
     {
         var block = new TextBlock { Text = text, FontSize = 14, FontWeight = FontWeights.SemiBold };
-        if (missing) block.Foreground = Muted;
+        if (missing) block.Foreground = ContrastTheme.Brush("FSTPathCaptionBrush");
         return block;
     }
     #endregion
