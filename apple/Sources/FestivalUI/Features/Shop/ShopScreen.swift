@@ -28,6 +28,8 @@ struct ShopScreen: View {
     let isVisible: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
@@ -137,21 +139,24 @@ struct ShopScreen: View {
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Item Shop")
         .toolbar {
-            ToolbarItem(placement: .festivalPageAction) { filterButton }
-            if sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize {
-                ToolbarItem(placement: .festivalPageAction) {
-                    Button {
-                        staggerSettled = false
-                        preferredMode = viewMode == .grid ? .list : .grid
-                    } label: {
-                        Label(
-                            viewMode == .grid ? "List View" : "Grid View",
-                            systemImage: viewMode == .grid ? "list.bullet" : "square.grid.2x2"
-                        )
-                    }
-                    .accessibilityIdentifier("fst.shop.view-toggle")
+            if pageTools == nil {
+                ToolbarItem(placement: .festivalPageAction) { filterButton }
+                if showsViewToggle {
+                    ToolbarItem(placement: .festivalPageAction) { viewToggle }
                 }
             }
+        }
+        // iPhone tab-bar accessory (issue #92): Filter, then List/Grid where offered.
+        .festivalPageTool(
+            token: [Self.filterAccessibilityValue(appliedFilter), String(appliedFilter.isActive)],
+            order: PageToolOrder.primary
+        ) {
+            filterButton
+        }
+        .festivalPageTool(
+            token: viewMode == .grid, order: PageToolOrder.secondary, isEnabled: showsViewToggle
+        ) {
+            viewToggle
         }
         .sheet(isPresented: $filterPresented) {
             ShopFilterSheet(applied: appliedFilter, onApply: applyFilter)
@@ -354,6 +359,26 @@ struct ShopScreen: View {
     // MARK: - Filter
 
     /// The toolbar Filter button: Songs' icon, gold while a filter is on.
+    /// The List/Grid switch is offered only where both layouts fit (not compact width or
+    /// accessibility text sizes).
+    private var showsViewToggle: Bool {
+        sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize
+    }
+
+    /// Switches between the List and Grid layouts.
+    private var viewToggle: some View {
+        Button {
+            staggerSettled = false
+            preferredMode = viewMode == .grid ? .list : .grid
+        } label: {
+            Label(
+                viewMode == .grid ? "List View" : "Grid View",
+                systemImage: viewMode == .grid ? "list.bullet" : "square.grid.2x2"
+            )
+        }
+        .accessibilityIdentifier("fst.shop.view-toggle")
+    }
+
     private var filterButton: some View {
         Button {
             filterPresented = true

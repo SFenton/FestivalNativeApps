@@ -38,6 +38,20 @@ struct OpenDrawerAction: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
+/// Environment action that opens the root shell's notifications sheet.
+///
+/// The iPhone tab-bar accessory (issue #92) cannot present a sheet of its own: its
+/// content is hosted outside the page hierarchy, and a `sheet` attached there never
+/// appears. Equatable for the same reason as ``OpenProfileAction``.
+struct OpenNotificationsAction: Equatable {
+    let handler: @MainActor () -> Void
+
+    /// Present the notifications sheet.
+    @MainActor func callAsFunction() { handler() }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
 /// Environment action that pushes a route on the currently selected section's stack
 /// (the root-owned path), for chrome presented above it such as the notifications sheet.
 ///
@@ -59,6 +73,8 @@ extension EnvironmentValues {
     @Entry var profileButtonAction = ProfileButtonHandler(statisticsVisible: false, handler: {})
     /// Opens the hamburger drawer; nil where the platform shows a permanent sidebar.
     @Entry var openDrawer: OpenDrawerAction? = nil
+    /// Opens the root shell's notifications sheet; nil outside the iOS root shell.
+    @Entry var openNotifications: OpenNotificationsAction? = nil
     /// Pushes on the current section's stack; nil outside the root shell (hosted tests).
     @Entry var pushRoute: PushRouteAction? = nil
     /// The shared session, so pushed pages' shared chrome (the persistent avatar) can
@@ -273,6 +289,10 @@ struct FestivalRootChrome: ViewModifier {
 /// and apply `.festivalProvidesRootTrailingItems()`, so the avatar stays rightmost.
 /// Global search is the Search tab, not a bar button.
 ///
+/// Where the iPhone tab-bar accessory hosts the account group (``PageToolsRegistry``,
+/// iOS 26.1+) this adds nothing: the accessory draws the bell and profile after the
+/// page's tools.
+///
 /// In horizontal bars a `ToolbarSpacer(.fixed)` separates this account group from the
 /// page tools before it (Sort, Filter, Quick Links), so the bar shows two Liquid Glass
 /// groups (``RootChromeTrailingGroups``); the Duo vertical bar relies on system spacing.
@@ -288,6 +308,8 @@ struct FestivalRootTrailingItems: ToolbarContent {
     /// Notification rows open their destination on the current tab (issue #75).
     @Environment(\.pushRoute) private var pushRoute
     @Environment(\.deviceLayout) private var layout
+    /// Set where the account group lives in the iPhone tab-bar accessory instead.
+    @Environment(\.pageToolsRegistry) private var pageTools
     #if !os(iOS)
     @Environment(\.openGlobalSearch) private var openGlobalSearch
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
@@ -295,6 +317,26 @@ struct FestivalRootTrailingItems: ToolbarContent {
 
     var body: some ToolbarContent {
         #if os(iOS)
+        if pageTools == nil {
+            barItems
+        }
+        #else
+        if !shellOwnsGlobalToolbar {
+            if let openGlobalSearch {
+                ToolbarItem(placement: .primaryAction) {
+                    GlobalSearchButton { openGlobalSearch() }
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                RootProfileButton(session: session) { profileButtonAction() }
+            }
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    /// The bell and profile as navigation-bar items.
+    @ToolbarContentBuilder private var barItems: some ToolbarContent {
         if #available(iOS 26.0, *) {
             if RootChromeTrailingGroups.separatesAccount(chrome: layout.sectionChrome) {
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
@@ -323,19 +365,8 @@ struct FestivalRootTrailingItems: ToolbarContent {
                 RootProfileButton(session: session) { profileButtonAction() }
             }
         }
-        #else
-        if !shellOwnsGlobalToolbar {
-            if let openGlobalSearch {
-                ToolbarItem(placement: .primaryAction) {
-                    GlobalSearchButton { openGlobalSearch() }
-                }
-            }
-            ToolbarItem(placement: .primaryAction) {
-                RootProfileButton(session: session) { profileButtonAction() }
-            }
-        }
-        #endif
     }
+    #endif
 }
 
 // MARK: - Page action placement
@@ -476,6 +507,9 @@ struct NotificationsButton: View {
     /// Opens a sheet owned by the presenter instead of this button's own (the macOS
     /// shell, whose View menu also opens it); nil presents locally.
     var open: (() -> Void)?
+    /// Draws the count on the bell glyph itself: outside a toolbar (the iPhone tab-bar
+    /// accessory, issue #92) the system item badge is not shown.
+    var drawsBadgeOnIcon = false
     @State private var presented = false
     private var center: NotificationsCenter { session.notificationsCenter }
 
@@ -484,10 +518,21 @@ struct NotificationsButton: View {
         Button {
             if let open { open() } else { presented = true }
         } label: {
-            Label("Notifications", systemImage: "bell")
+            if drawsBadgeOnIcon {
+                Label {
+                    Text("Notifications")
+                } icon: {
+                    Image(systemName: "bell")
+                        .overlay(alignment: .topTrailing) {
+                            if let badge { NotificationBadgeCapsule(text: badge) }
+                        }
+                }
+            } else {
+                Label("Notifications", systemImage: "bell")
+            }
         }
         .tint(BrandTokens.textPrimary)
-        .modifier(NotificationBadgeModifier(text: badge))
+        .modifier(NotificationBadgeModifier(text: drawsBadgeOnIcon ? nil : badge))
         .accessibilityLabel(NotificationBadge.accessibilityLabel(unreadCount: center.unreadCount))
         // The system badge also publishes its count as the accessibility value, which stays
         // stale after the badge clears; the label alone announces "N unread".
@@ -515,19 +560,28 @@ private struct NotificationBadgeModifier: ViewModifier {
             content.badge(text.map { Text($0) })
         } else {
             content.overlay(alignment: .topTrailing) {
-                if let text {
-                    Text(text)
-                        .font(.caption2.weight(.bold).monospacedDigit())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .frame(minWidth: 16, minHeight: 16)
-                        .background(Capsule().fill(.red))
-                        .fixedSize()
-                        .offset(x: 8, y: -6)
-                        .accessibilityHidden(true)
-                }
+                if let text { NotificationBadgeCapsule(text: text) }
             }
         }
+    }
+}
+
+/// The small numeric capsule drawn over the bell where no system badge shows (before
+/// iOS 26, and in the tab-bar accessory). Hidden from VoiceOver: the bell's label
+/// carries the count.
+private struct NotificationBadgeCapsule: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption2.weight(.bold).monospacedDigit())
+            .foregroundStyle(.white)
+            .padding(.horizontal, 4)
+            .frame(minWidth: 16, minHeight: 16)
+            .background(Capsule().fill(.red))
+            .fixedSize()
+            .offset(x: 8, y: -6)
+            .accessibilityHidden(true)
     }
 }
 

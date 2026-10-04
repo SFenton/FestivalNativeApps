@@ -47,6 +47,8 @@ struct SongDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
     @Environment(\.deviceLayout) private var deviceLayout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// What the page's first-appearance reads depend on.
     private struct GateKey: Hashable {
@@ -177,6 +179,18 @@ struct SongDetailScreen: View {
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar { detailToolbar }
+        // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
+        .festivalPageTool(
+            token: [shopOffer?.shopUrl.absoluteString ?? "", shopTone.map { "\($0)" } ?? ""],
+            order: PageToolOrder.primary, isEnabled: shopOffer != nil
+        ) {
+            if let offer = shopOffer { shopAction(offer, fillsSlot: true) }
+        }
+        .festivalPageTool(
+            token: "paths", order: PageToolOrder.secondary, isEnabled: !pathInstruments.isEmpty
+        ) {
+            pathsButton
+        }
         .macSongCommands(macSongCommands)
         #if os(macOS)
         #if DEBUG
@@ -241,24 +255,29 @@ struct SongDetailScreen: View {
             }
         }
         #endif
-        if let offer = shopOffer {
+        if pageTools == nil, let offer = shopOffer {
             ToolbarItem(placement: .festivalPageAction) {
                 shopAction(offer)
             }
             .songDetailPagePriority()
         }
-        if !pathInstruments.isEmpty {
+        if pageTools == nil, !pathInstruments.isEmpty {
             ToolbarItem(placement: .festivalPageAction) {
-                Button {
-                    pathsPresented = true
-                } label: {
-                    Label("Paths", systemImage: "map")
-                }
-                .accessibilityIdentifier("fst.song-detail.paths")
+                pathsButton
             }
             .songDetailPagePriority()
         }
         QuickLinksToolbarItem(quickLinks)
+    }
+
+    /// Opens the Paths sheet.
+    private var pathsButton: some View {
+        Button {
+            pathsPresented = true
+        } label: {
+            Label("Paths", systemImage: "map")
+        }
+        .accessibilityIdentifier("fst.song-detail.paths")
     }
 
     /// The loaded page: header, Intensity, Score History, then the chart cards, fading
@@ -464,10 +483,13 @@ extension SongDetailScreen {
     /// Official Item Shop action. While Shop highlighting is on, its circle breathes
     /// in the song's Shop status colour like the web's `shopBreathe*` button.
     ///
-    /// - Parameter offer: Validated Shop row for this song.
+    /// - Parameters:
+    ///   - offer: Validated Shop row for this song.
+    ///   - fillsSlot: In the tab-bar accessory: the breathing glyph's hit target fills
+    ///     its slot (at least 44×44 pt).
     /// - Returns: Toolbar link with a spoken status.
     @ViewBuilder
-    private func shopAction(_ offer: ShopSong) -> some View {
+    private func shopAction(_ offer: ShopSong, fillsSlot: Bool = false) -> some View {
         switch SongDetailShopActionStyle.resolve(tone: shopTone, chrome: deviceLayout.sectionChrome) {
         case let .breathing(tone):
             Link(destination: offer.shopUrl) {
@@ -476,6 +498,10 @@ extension SongDetailScreen {
                     .foregroundStyle(FestivalText.primary)
                     .frame(width: 34, height: 34)
                     .modifier(ShopStatusBreathe(tone: tone))
+                    // In the tab-bar accessory the whole slot is the hit target (44 pt+).
+                    .frame(maxWidth: fillsSlot ? .infinity : nil, maxHeight: fillsSlot ? .infinity : nil)
+                    .frame(minWidth: fillsSlot ? 44 : nil, minHeight: fillsSlot ? 44 : nil)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel("Item Shop, \(tone.spokenStatus)")
             .accessibilityIdentifier("fst.song-detail.shop")

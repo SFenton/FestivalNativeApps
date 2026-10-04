@@ -88,6 +88,23 @@ public extension View {
     }
 }
 
+// MARK: - Accessory tool
+
+/// Offers the page's Quick Links menu to the iPhone tab-bar accessory while it has
+/// sections (``PageToolsRegistry``); a no-op where Quick Links is a toolbar item.
+struct QuickLinksPageTool: ViewModifier {
+    let controller: QuickLinksController
+
+    func body(content: Content) -> some View {
+        let available = controller.isAvailable
+        content.festivalPageTool(
+            token: available, order: PageToolOrder.quickLinks, isEnabled: available
+        ) {
+            QuickLinksMenu(controller: controller)
+        }
+    }
+}
+
 // MARK: - Container
 
 /// Implementation of `.quickLinks(_:title:sections:activationOffset:listNudger:)`.
@@ -140,6 +157,8 @@ struct QuickLinksContainerModifier: ViewModifier {
         .onChange(of: sections) { configure() }
         .onChange(of: activationOffset) { configure() }
         .onChange(of: listTopInset) { configure() }
+        // iPhone tab-bar accessory (issue #92): Quick Links after the page's actions.
+        .modifier(QuickLinksPageTool(controller: controller))
         // Go › Quick Links / Next Section / Previous Section (HIG Toolbars › macOS:
         // "Every toolbar item must also be a menu-bar command"; iPadOS menu bar too).
         .modifier(MacQuickLinksPublisher(controller: controller))

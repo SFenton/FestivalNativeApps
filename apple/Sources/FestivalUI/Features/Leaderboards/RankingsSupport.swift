@@ -1098,7 +1098,7 @@ struct RankByMenu: View {
     @Binding var selection: RankingMetric
 
     var body: some View {
-        Menu {
+        PageToolMenu("Rank By", choices: choices) {
             Picker("Rank By", selection: $selection) {
                 ForEach(RankingMetric.allCases) { metric in
                     Text(metric.label).tag(metric)
@@ -1109,6 +1109,16 @@ struct RankByMenu: View {
         }
         .accessibilityIdentifier("fst.rankings.rank-by-menu")
     }
+
+    /// The metrics for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        RankingMetric.allCases.map { metric in
+            PageToolMenuChoice(
+                id: "fst.rankings.rank-by.\(metric.rawValue)", label: AnyView(Text(metric.label)),
+                isSelected: metric == selection, action: { selection = metric }
+            )
+        }
+    }
 }
 
 /// Native toolbar menu for the band-safe rank-by metrics (no Max Score).
@@ -1116,7 +1126,7 @@ struct BandRankByMenu: View {
     @Binding var selection: BandRankingMetric
 
     var body: some View {
-        Menu {
+        PageToolMenu("Rank By", choices: choices) {
             Picker("Rank By", selection: $selection) {
                 ForEach(BandRankingMetric.allCases) { metric in
                     Text(metric.label).tag(metric)
@@ -1126,5 +1136,15 @@ struct BandRankByMenu: View {
             Label(selection.label, systemImage: "arrow.up.arrow.down")
         }
         .accessibilityIdentifier("fst.band-rankings.rank-by-menu")
+    }
+
+    /// The metrics for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        BandRankingMetric.allCases.map { metric in
+            PageToolMenuChoice(
+                id: "fst.band-rankings.rank-by.\(metric.rawValue)", label: AnyView(Text(metric.label)),
+                isSelected: metric == selection, action: { selection = metric }
+            )
+        }
     }
 }
