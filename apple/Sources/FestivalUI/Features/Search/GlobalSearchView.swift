@@ -388,11 +388,13 @@ struct GlobalSearchField: View {
 
 /// The header Search button (every layout; operator 2026-09-28: search lives in the header).
 struct GlobalSearchButton: View {
+    /// Visible and spoken title ("Search"; the Mac toolbar says "Search Festival").
+    var title = "Search"
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Label("Search", systemImage: "magnifyingglass")
+            Label(title, systemImage: "magnifyingglass")
         }
         .tint(BrandTokens.textPrimary)
         .accessibilityHint("Searches songs, players and bands")
@@ -428,7 +430,7 @@ extension View {
 
 /// Implementation of `pageTrailingItems()`.
 struct PageTrailingItems: ViewModifier {
-    @Environment(\.openProfile) private var openProfile
+    @Environment(\.profileButtonAction) private var profileButtonAction
     @Environment(\.festivalSession) private var session
     @Environment(\.pushRoute) private var pushRoute
     @Environment(\.deviceLayout) private var layout
@@ -438,6 +440,8 @@ struct PageTrailingItems: ViewModifier {
     @State private var pageProvidesAccount = false
     /// The macOS shell shows the account items once for the whole window.
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
+    /// Set where the tab-bar accessory draws the account group instead (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     func body(content: Content) -> some View {
         content
@@ -448,7 +452,7 @@ struct PageTrailingItems: ViewModifier {
                 // This outer modifier's items are laid out before the page's, so on iOS
                 // they are the only `.primaryAction` items (pinned to the trailing edge),
                 // in their own glass group after the page's tools (issue #85).
-                if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar {
+                if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar, pageTools == nil {
                     #if os(iOS)
                     if #available(iOS 26.0, *) {
                         if RootChromeTrailingGroups.separatesAccount(chrome: layout.sectionChrome) {
@@ -462,7 +466,7 @@ struct PageTrailingItems: ViewModifier {
                     }
                     #endif
                     ToolbarItem(placement: .primaryAction) {
-                        RootProfileButton(session: session) { openProfile() }
+                        RootProfileButton(session: session) { profileButtonAction() }
                     }
                 }
             }

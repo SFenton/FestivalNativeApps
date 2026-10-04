@@ -57,7 +57,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.style.TextAlign
@@ -84,12 +83,34 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
 import androidx.compose.foundation.layout.RowScope
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.isLargeText
 
 // region Rows
 
 /** Rating text (web `Colors.accentBlueBright` #4C7DFF). */
 private val RatingBlue = Color(0xFF4C7DFF)
+
+/**
+ * A leaderboard row's player or band name (issue #292): one line in the row's flexible name
+ * column that scrolls like the web `MarqueeText` when it doesn't fit and stays still when it
+ * does, so a long name never spills over the rank, songs, value or chevron columns. Under
+ * Remove animations or in-app Reduce Motion it tail-truncates instead ([FestivalMarqueeText]).
+ * Rows switch to their stacked, wrapping layout at large font scales before reaching this.
+ * The full name stays in the text (and in the rows' spoken descriptions) for TalkBack.
+ *
+ * @param name Display name, roster or "Unknown User".
+ * @param modifier Modifier; give it the row's flexible width (`Modifier.weight(1f)`).
+ * @param style Text style.
+ * @param fontWeight Optional weight (bold for the selected player's row).
+ */
+@Composable
+internal fun LeaderboardNameText(
+    name: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
+    fontWeight: FontWeight? = null,
+) = FestivalMarqueeText(name, modifier, style = style, color = BrandTokens.textPrimary, fontWeight = fontWeight)
 
 /**
  * Minimum height of every leaderboard row, its loading skeleton and pinned rows (web
@@ -226,7 +247,8 @@ fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetr
 
 /**
  * The one-line rank · name · "X / Y" · rating layout shared by account and band rows
- * (web `RankingEntry`: accent-blue rating, songs as a bare fraction).
+ * (web `RankingEntry`: accent-blue rating, songs as a bare fraction). A long name scrolls
+ * inside its column ([LeaderboardNameText], issue #292) rather than truncating.
  *
  * @param rank One-based rank.
  * @param name Display name or roster.
@@ -291,8 +313,8 @@ private fun RankingRowLayout(
             maxLines = 1,
             modifier = columns?.let { Modifier.width(it.rank) } ?: Modifier.widthIn(min = 44.dp),
         )
-        Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        // Hidden for the whole section when it would truncate or collapse a name (issues #38, #114); still spoken in `description`.
+        LeaderboardNameText(name, Modifier.weight(1f), fontWeight = weight)
+        // Hidden for the whole section when a name wouldn't fit beside it or would collapse (issues #38, #114); still spoken in `description`.
         if (columns?.showSongs != false) {
             Text(
                 songs,

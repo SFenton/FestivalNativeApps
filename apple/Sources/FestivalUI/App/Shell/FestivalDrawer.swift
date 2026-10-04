@@ -452,7 +452,7 @@ struct FestivalDrawer: View {
                     )))
                 } label: {
                     HStack(spacing: DrawerRow.iconSpacing) {
-                        ProfileAvatar(name: player.displayName, size: DrawerRow.iconWidth)
+                        ProfileAvatarImage(name: player.displayName, size: DrawerRow.iconWidth)
                         MarqueeText(player.displayName)
                             .font(.body)
                             .foregroundStyle(BrandTokens.textPrimary)

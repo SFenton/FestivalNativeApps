@@ -33,3 +33,27 @@ Grid geometry (`Domain/ShopGridMetrics`, web `ShopPage.tsx`): 2 columns below 60
 ## Open
 
 Rotation push updates; Quick Links. UIA: `shop_journey.py` covers every shop-offers contract state at compact/medium/wide (see [shop-offers/windows.md](../../controls/shop-offers/windows.md#validation-issue-224-2026-10-04)); `songs_journey.py --only shop,shop-compact` covers grid, context-menu link, list toggle and Song Detail (never opens the real link).
+
+## Validation (issue #206, 2026-10-03)
+
+Debug build, 3840×2160 at 150%, against the fixture service (every reachable state) and the live public service (keyless default origin, anonymous; 124 real offers on 2026-10-03). Tools: `a11y_matrix.py` (screenshot, Axe.Windows scan, 30-press Tab walk) with the `shop*` pages in `a11y.json` (empty/failed/catalogue-unavailable states use `tools/windows/shop_fixture.py`), keyboard journeys `kb-shop-grid`, `kb-shop-grid-open`, `kb-shop-list` (`a11y-keyboard.json`), and lock-tolerant UIA journeys `songs_journey.py --only shop,shop-compact,shop-states,shop-compact-states,shop-error,shop-hidden-states`. Every run: 0 Axe errors, focus never left the window, no repeated Tab stops.
+
+| Configuration | Result |
+|---|---|
+| Compact 500×800 | ✅ Two-column grid, toggle hidden (also with List saved). Tab: Filter → grid (one stop) → out; Enter opens Song Detail. "Song details unavailable" notice now spans the same width as the header and tiles (was 12 epx short) |
+| Medium 900×700 / wide 1440×900 | ✅ Grid (3/5 columns) and list; Filter and toggle both 40 epx (toggle was 32). Tab stops 9 (was one per tile); arrows move between tiles in two dimensions, Up/Down between list rows |
+| Snapped left / maximized | ✅ Grid reflows (2 / 5 columns, 1040 epx cap left-aligned) |
+| Dark (system) / Light (system) | ✅ Identical: the app is dark-only (deliberate, as on Songs) |
+| Desert / Night sky contrast | ✅ Tile text gets system backplates; pills and focus use Highlight/HighlightText; filter flyout and empty card readable |
+| Text 200% | ✅ after fix: the compact tile's **Leaving Tomorrow** pill was clipped to "Leaving Tomorro"; it now wraps. Filter flyout scrolls with Reset pinned; header, list badges and no-match state wrap |
+| Display 100% / 150% | ✅ Same layout; tiles keep explicit square sizes |
+| Keyboard only | ✅ `kb-shop-*`: Filter → toggle → grid → out, arrows inside, Shift+Tab back, Enter opens the filter flyout, Esc returns focus to Filter; Enter on a tile/row opens Song Detail, Alt+Left back |
+| States | ✅ Loading, grid, list, filter flyout, filtered (New / Leaving / Available), no match + Reset Filters, empty Shop, failed feed + Retry (no Filter or toggle, was a stray toggle), catalogue unavailable notice, hidden (level-2 heading) |
+| Narrator / UIA | ✅ Tiles are buttons named "title, artist · year[, Shop state]" (catalogue songs; others name the official-link action) with `fst.shop.song.<id>`; art and scrim are Raw; state titles are level-2 headings; "Item Shop, N songs" is announced after loading |
+
+Deliberate deviations from the winui-design skill (kept):
+- **Dark-only** (`RequestedTheme="Dark"`), matching the web app and the other Windows pages.
+- **ItemsRepeater, not GridView**: the tiles need explicit square sizes and the shared staggered reveal; the grid copies GridView's keyboard model instead (`TabFocusNavigation="Once"` + XY arrows).
+- **White title text on a black scrim** over decorative art, and the New pill's dark navy fill outside contrast themes: fixed contrast regardless of the art; contrast themes switch to system brushes.
+- **No `x:Uid`** resources: the app is English-only for now.
+- The loading ring has no visible caption; Narrator hears "Loading Item Shop" after 1 s.

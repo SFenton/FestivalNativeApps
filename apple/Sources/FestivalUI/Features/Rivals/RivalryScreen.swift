@@ -19,6 +19,11 @@ struct RivalryScreen: View {
     @State private var songsById: [String: Song] = [:]
     @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
+    /// Pushes on the current tab: the accessory is outside the navigation stack, so a
+    /// `NavigationLink` there could not push.
+    @Environment(\.pushRoute) private var pushRoute
     private var visible = VisibleInstrumentsReader()
 
     /// Create the screen.
@@ -57,13 +62,24 @@ struct RivalryScreen: View {
         .navigationTitle(Self.modeTitles[mode] ?? "Rivalry")
         .festivalBackground(.carousel, session: session)
         .toolbar {
-            ToolbarItem(placement: .festivalPageAction) {
-                NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: rivalName)) {
-                    Label("View Profile", systemImage: "person.crop.circle")
+            if pageTools == nil {
+                ToolbarItem(placement: .festivalPageAction) {
+                    NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: rivalName)) {
+                        Label("View Profile", systemImage: "person.crop.circle")
+                    }
+                    .accessibilityIdentifier("fst.rivalry.view-profile")
                 }
-                .accessibilityIdentifier("fst.rivalry.view-profile")
             }
             QuickLinksToolbarItem(quickLinks)
+        }
+        // iPhone tab-bar accessory (issue #92): View Profile before Quick Links.
+        .festivalPageTool(token: rivalName ?? "", order: PageToolOrder.primary) {
+            Button {
+                pushRoute?(.player(accountId: rivalId, displayName: rivalName))
+            } label: {
+                Label("View Profile", systemImage: "person.crop.circle")
+            }
+            .accessibilityIdentifier("fst.rivalry.view-profile")
         }
         .task(id: RivalryTaskKey(rivalId: rivalId, mode: mode, scope: scope)) { await load() }
         .task { await loadSongLookup() }

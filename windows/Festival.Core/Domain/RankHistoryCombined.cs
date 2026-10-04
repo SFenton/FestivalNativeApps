@@ -70,11 +70,12 @@ public sealed class RankHistoryCombinedChart
     /// </summary>
     /// <param name="widestLabel">Widest tick label's measured width (epx, already text-scaled).</param>
     /// <param name="minimum">Gutter at 100% text (<see cref="MinValueGutter"/> or <see cref="MinRankGutter"/>).</param>
-    /// <returns>Gutter width, at least <paramref name="minimum"/>.</returns>
+    /// <returns>Gutter width, at least <paramref name="minimum"/> (a non-finite or negative minimum counts as 0).</returns>
     public static double AxisGutter(double widestLabel, double minimum)
     {
+        var floor = double.IsFinite(minimum) ? Math.Max(0, minimum) : 0;
         var needed = Math.Max(0, widestLabel) + AxisLabelGap;
-        return double.IsFinite(needed) ? Math.Max(minimum, Math.Ceiling(needed)) : minimum;
+        return double.IsFinite(needed) ? Math.Max(floor, Math.Ceiling(needed)) : floor;
     }
 
     /// <summary>Date band under the bars that fits a measured (text-scaled) date label.</summary>

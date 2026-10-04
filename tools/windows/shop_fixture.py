@@ -4,18 +4,21 @@ The shared mock always answers ``/api/shop`` with the two-offer demo feed (a New
 native app never sends the mock's ``?scenario=`` query, so this wrapper picks the Shop state itself and lets a
 journey change it between phases through a loopback control route:
 
-``GET /__shop__/mode?shop=<demo|empty|error|slow>&songs=<ok|error>``
+``GET /__shop__/mode?shop=<demo|empty|error|slow|shop-single>&songs=<ok|error>``
 
 * ``demo``: the unchanged mock feed (ETag/304 included).
 * ``empty``: a genuine ``count=0`` feed (the empty-Shop card, never the failure view).
 * ``error``: HTTP 503 without a freeze header (generic "unavailable" with Retry).
 * ``slow``: holds the demo feed until a control request leaves ``slow`` (at most ``--slow-seconds``), so the loading
   ring stays up however long the journey waits for the shared desktop lock.
+* ``shop-single``: the mock's one-offer ``?scenario=shop-single`` feed.
 * ``songs=error``: ``/api/songs`` answers 503, so Shop keeps its offers with "Song details unavailable" and every
   tile falls back to the official Item Shop action.
 
-Usage: ``python tools/windows/shop_fixture.py --port 0 [--shop empty] [--songs error] [--slow-seconds 300]`` (other
-flags pass through to mock_service.py). Loopback only; never production.
+Usage: ``python tools/windows/shop_fixture.py --port 0 [--shop empty] [--songs error|--songs-fail]
+[--slow-seconds 300]`` (other flags pass through to mock_service.py). The mock runs through ``rivals_fixture.py``
+(anonymized names, larger accept backlog, ``Connection: close``), so ``a11y_matrix.py`` pages can name this wrapper
+as their fixture (issue #206). Loopback only; never production.
 """
 
 from __future__ import annotations
@@ -26,12 +29,14 @@ import threading
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import mock_service  # noqa: E402  (path set above)
+import rivals_fixture  # noqa: E402  (sibling wrapper)
 
 #: Shop states this wrapper can serve.
-SHOP_MODES = ("demo", "empty", "error", "slow")
+SHOP_MODES = ("demo", "empty", "error", "slow", "shop-single")
 #: Catalogue states this wrapper can serve.
 SONGS_MODES = ("ok", "error")
 #: Control route a journey calls between phases.
@@ -96,8 +101,8 @@ class ShopState:
             path: Request path without the query string.
 
         Returns:
-            ``"control"``, ``"shop-empty"``, ``"shop-error"``, ``"shop-slow"`` or ``"songs-error"``; ``None`` defers to
-            the mock.
+            ``"control"``, ``"shop-empty"``, ``"shop-error"``, ``"shop-slow"``, ``"shop-shop-single"`` or
+            ``"songs-error"``; ``None`` defers to the mock.
         """
         if path == CONTROL_PATH:
             return "control"
@@ -133,6 +138,9 @@ def install(state: ShopState) -> None:
             self._json(200, {"count": 0, "songs": [], "newSongs": [], "lastUpdated": None})
         elif kind in ("shop-error", "songs-error"):
             self._json(503, {"status": "fixture_unavailable"})
+        elif kind == "shop-shop-single":
+            self.path = "/api/shop?scenario=shop-single"
+            original(self)
         else:  # shop-slow
             state.released.wait(state.slow_seconds)
             original(self)
@@ -142,16 +150,32 @@ def install(state: ShopState) -> None:
     mock_service.FixtureServer.request_queue_size = 128
 
 
-def main() -> None:
-    """Parse this wrapper's flags, then hand the rest to the mock service's own CLI."""
+def parse_options(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
+    """Split this wrapper's flags from the mock service's.
+
+    Args:
+        argv: Arguments after the script name.
+
+    Returns:
+        This wrapper's options (``--songs-fail`` folded into ``songs="error"``) and the remaining arguments.
+    """
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--shop", choices=SHOP_MODES, default="demo")
     parser.add_argument("--songs", choices=SONGS_MODES, default="ok")
+    parser.add_argument("--songs-fail", action="store_true")
     parser.add_argument("--slow-seconds", type=float, default=300.0)
-    options, rest = parser.parse_known_args()
+    options, rest = parser.parse_known_args(argv)
+    if options.songs_fail:
+        options.songs = "error"
+    return options, rest
+
+
+def main() -> None:
+    """Parse this wrapper's flags, then hand the rest to the anonymized mock's own CLI."""
+    options, rest = parse_options(sys.argv[1:])
     install(ShopState(options.shop, options.songs, options.slow_seconds))
     sys.argv = [sys.argv[0], *rest]
-    mock_service.main()
+    rivals_fixture.main()
 
 
 if __name__ == "__main__":

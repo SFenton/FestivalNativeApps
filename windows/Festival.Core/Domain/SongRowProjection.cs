@@ -58,6 +58,28 @@ public sealed record SongInstrumentBadge(Instrument Instrument, SongInstrumentSt
 
     /// <summary>"Lead, full combo".</summary>
     public string Announcement => $"{Instrument.Label()}, {StatusText}";
+
+    /// <summary>Test ID of this chip on a song's row (<c>fst.songs.instrument-status.&lt;songId&gt;.&lt;ServiceId&gt;</c>).</summary>
+    /// <param name="songId">Row song.</param>
+    /// <returns>Automation ID.</returns>
+    public string AutomationId(string songId) => $"fst.songs.instrument-status.{songId}.{Instrument.ServiceId()}";
+
+    /// <summary>
+    /// Ring weight and chip opacity. Colours carry the status normally (1.5 epx ring; not charted is muted to 45%). Under a
+    /// contrast theme system colours must not be dimmed, so the ring itself carries it: 3 epx for full combo, scored and
+    /// inconsistent FC (told apart by Highlight fill, WindowText ring and Highlight ring), 2 epx GrayText for no score
+    /// and no ring for not charted.
+    /// </summary>
+    /// <param name="contrast">A Windows contrast theme is on.</param>
+    /// <returns>Ring thickness (epx) and opacity.</returns>
+    public (double Ring, double Opacity) Ring(bool contrast) => contrast
+        ? Status switch
+        {
+            SongInstrumentStatus.Unavailable => (0, 1),
+            SongInstrumentStatus.NoScore => (2, 1),
+            _ => (3, 1),
+        }
+        : (1.5, Status == SongInstrumentStatus.Unavailable ? 0.45 : 1);
 }
 
 /// <summary>When chips show and how each status is derived.</summary>

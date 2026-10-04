@@ -155,7 +155,7 @@
     ]
   },
   {
-    "name": "profile-selected-player",
+    "name": "profile-button-statistics",
     "tab": "songs",
     "profile": "fixture-player-1:Fixture Player 1",
     "tabs": 0,
@@ -165,6 +165,27 @@
     ],
     "after_ready": [
       "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.statistics@10",
+      "assertstate:id=fst.nav.statistics|selected=true@5",
+      "waitfor:id=fst.player.deselect@15",
+      "waitgone:id=fst.profile.search",
+      "waitgone:name=Selected Profile",
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.statistics@10",
+      "waitgone:id=fst.profile.search"
+    ]
+  },
+  {
+    "name": "profile-selected-player",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertname:id=fst.shell.profile|Profile: Fixture Player 1"
+    ],
+    "after_ready": [
+      "key:ctrl+shift+p",
       "waitfor:name=Selected Profile@5",
       "waitfor:id=fst.profile.view-selected@5",
       "waitfor:id=fst.profile.deselect@5",
@@ -179,7 +200,7 @@
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.songs.row.fixture-pulse@20",
-      "invoke:id=fst.shell.profile",
+      "key:ctrl+shift+p",
       "waitfor:id=fst.profile.view-selected@5",
       "invoke:id=fst.profile.view-selected",
       "waitgone:id=fst.profile.search@5",
@@ -215,7 +236,7 @@
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.songs.row.fixture-pulse@20",
-      "invoke:id=fst.shell.profile",
+      "key:ctrl+shift+p",
       "waitfor:id=fst.profile.deselect@5",
       "invoke:id=fst.profile.deselect",
       "waitfor:id=PrimaryButton@10",
@@ -266,7 +287,7 @@
       "waitgone:id=fst.player.select",
       "invoke:name=Back",
       "waitgone:id=fst.player.identity-notice@10",
-      "invoke:id=fst.shell.profile",
+      "key:ctrl+shift+p",
       "waitfor:id=fst.profile.view-selected@5",
       "invoke:id=fst.profile.view-selected",
       "assertname:id=fst.player.name@15|Fixture Player 1",

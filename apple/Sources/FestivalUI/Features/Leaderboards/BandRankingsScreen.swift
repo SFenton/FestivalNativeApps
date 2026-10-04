@@ -16,6 +16,8 @@ struct BandRankingsScreen: View {
     /// across page loads (no pager/subtitle flicker); cleared on a size/metric change.
     @State private var board: BoardSummary?
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Count facts that survive a page change.
     private struct BoardSummary: Equatable {
@@ -107,7 +109,7 @@ struct BandRankingsScreen: View {
                     bandTypeMenu(showsTitle: false)
                     BandRankByMenu(selection: $rankBy)
                 }
-            } else {
+            } else if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) {
                     HStack(spacing: 4) {
                         BandRankByMenu(selection: $rankBy)
@@ -124,6 +126,10 @@ struct BandRankingsScreen: View {
                 }
             }
             #endif
+        }
+        // iPhone tab-bar accessory (issue #92): Rank By.
+        .festivalPageTool(token: rankBy, order: PageToolOrder.primary) {
+            BandRankByMenu(selection: $rankBy)
         }
         .onChange(of: bandType) { _, _ in
             page = 1

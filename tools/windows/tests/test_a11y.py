@@ -120,7 +120,9 @@ class MatrixTests(unittest.TestCase):
 
     def test_modes_and_restore(self):
         self.assertEqual(m.MODES["hc-desert"]["system"], {"high_contrast": "desert"})
+        self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         self.assertTrue(m.MODES["app-reduced"]["app"]["reduceMotion"])
+        self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         previous = {"high_contrast": "off", "animations": True, "transparency": True, "text_scale": 100}
         self.assertEqual(m.restore_values(previous, {"text_scale": 225}), {"text_scale": 100})
         self.assertEqual(m.restore_values(previous, {}), {})
@@ -129,6 +131,44 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.MODES["scale-150"]["system"], {"display_scale": 150})
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
+
+    def test_launch_args_and_live_pages(self):
+        page = {"name": "shop", "first_run": "on"}
+        fixture = m.launch_args(8765, page, Path("/s.json"))
+        self.assertEqual(fixture[:2], ["--base-url", "http://127.0.0.1:8765/"])
+        self.assertIn("--first-run=on", fixture)
+        live = m.launch_args(None, {"name": "shop"}, Path("/s.json"))
+        self.assertFalse(any(a.startswith("--base-url") or "127.0.0.1" in a for a in live))
+        self.assertIn("--first-run=off", live)
+        pages = [{"name": "shop"}, {"name": "shop-empty", "fixture": ["shop_fixture.py", "--shop", "empty"]},
+                 {"name": "songs-selected", "profile": "fixture-player-1:Demo Player"},
+                 {"name": "real", "profile": "abc:Real Player"}]
+        self.assertEqual([p["name"] for p in m.live_pages(pages)], ["shop", "real"])
+
+    def test_page_fixtures_exist(self):
+        import json
+        for name in ("a11y.json", "a11y-keyboard.json"):
+            for page in json.loads((m.PAGES.parent / name).read_text(encoding="utf-8")):
+                if "fixture" in page:
+                    script, _ = m.page_fixture(page)
+                    self.assertTrue(script.is_file(), page["name"])
+
+    def test_page_fixture(self):
+        self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))
+        self.assertEqual(m.page_fixture({"fixture": ["--band-rankings", "empty"]}),
+                         (m.FIXTURE, ("--band-rankings", "empty")))
+        self.assertEqual(m.page_fixture({"fixture": ["shop_fixture.py", "--shop", "empty"]}),
+                         (m.REPO_ROOT / "tools" / "windows" / "shop_fixture.py", ("--shop", "empty")))
+
+    def test_mode_spec_combines(self):
+        self.assertEqual(m.mode_spec("normal"), {})
+        self.assertEqual(m.mode_spec("hc-desert"), {"system": {"high_contrast": "desert"}})
+        self.assertEqual(m.mode_spec("hc-desert+scale-150"),
+                         {"system": {"high_contrast": "desert", "display_scale": 150}})
+        self.assertEqual(m.mode_spec("text-200+app-contrast")["app"], {"moreContrast": True, "lessTransparency": True})
+        self.assertEqual(m.mode_spec("scale-100+scale-150"), {"system": {"display_scale": 150}})
+        with self.assertRaises(ValueError):
+            m.mode_spec("hc-desert+bogus")
 
     def test_pending_restore(self):
         import tempfile

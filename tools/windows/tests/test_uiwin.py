@@ -64,6 +64,16 @@ class StepTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             u.parse_step("wait:soon")
 
+    def test_scrollto_uses_the_scroll_pattern_selector(self):
+        step = u.parse_step("scrollto:id=fst.player.available,62.5")
+        self.assertEqual((step["selector"]["value"], step["percent"]), ("fst.player.available", 62.5))
+        self.assertEqual(u.parse_step("reveal:id=fst.player.percentiles.Solo_Guitar@10")["timeout"], 10.0)
+        with self.assertRaises(ValueError):
+            u.parse_step("reveal:5,6")
+        for bad in ("scrollto:id=x", "scrollto:id=x,101", "scrollto:id=x,down", "scrollto:5,6,10", "scrollto:,50"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_paths_resize_and_errors(self):
         shot = u.parse_step("shot:out/a.png@screen")
         self.assertEqual(shot["mode"], "screen")
@@ -83,9 +93,11 @@ class StepTests(unittest.TestCase):
         self.assertEqual((named["key"], named["value"]), ("name", "Selected: Pro Drums + Cymbals"))
         self.assertNotIn("timeout", named)
         self.assertEqual(u.parse_step("assertstate:name=Lead|enabled=false")["value"], "false")
+        selected = u.parse_step("assertstate:id=fst.quick-links.item.licenses|selected=True@4")
+        self.assertEqual((selected["key"], selected["value"], selected["timeout"]), ("selected", "true", 4.0))
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
-                    "assertstate:id=x|name="):
+                    "assertstate:id=x|name=", "assertstate:id=x|selected=on"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
     def test_assertstatus(self):
@@ -98,6 +110,18 @@ class StepTests(unittest.TestCase):
         self.assertEqual(plain["status"], "no-art")
         self.assertNotIn("timeout", plain)
         for bad in ("assertstatus:id=x", "assertstatus:id=x|", "assertstatus:@1,2|on"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertgap(self):
+        step = u.parse_step("assertgap:id=fst.song-leaderboard.row.p-25|id=fst.song-leaderboard.page-first|4")
+        self.assertEqual(step["verb"], "assertgap")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.song-leaderboard.row.p-25"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.song-leaderboard.page-first"})
+        self.assertEqual(step["epx"], 4.0)
+        self.assertEqual(u.parse_step("assertgap:name=A|name=B|2.5")["epx"], 2.5)
+        for bad in ("assertgap:id=a|id=b", "assertgap:id=a|id=b|x", "assertgap:id=a|4", "assertgap:1,2|id=b|4",
+                    "assertgap:id=a|id=b|-4"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

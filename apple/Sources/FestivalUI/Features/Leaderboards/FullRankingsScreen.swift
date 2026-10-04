@@ -41,6 +41,8 @@ struct FullRankingsScreen: View {
     @State private var bottomChromeTop: CGFloat?
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Coordinate space shared by the rows' fade mask and the pinned chrome.
     nonisolated private static let pageSpace = "fst.full-rankings.page"
@@ -214,9 +216,12 @@ struct FullRankingsScreen: View {
             // rail can place both (`/duo` J1; HIG Designing for iPhone Duo: "Give every
             // non-text-only item a title and symbol"), and every other bar shows them
             // side by side now that the pager no longer carries the instrument pill.
-            ToolbarItemGroup(placement: .festivalPageAction) {
-                instrumentPicker
-                RankByMenu(selection: $rankBy)
+            // The iPhone tab-bar accessory takes both instead (issue #92).
+            if layout.sectionChrome.isVerticalBar || pageTools == nil {
+                ToolbarItemGroup(placement: .festivalPageAction) {
+                    instrumentPicker
+                    RankByMenu(selection: $rankBy)
+                }
             }
             #if os(iOS)
             if let board {
@@ -232,6 +237,16 @@ struct FullRankingsScreen: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        // iPhone tab-bar accessory (issue #92): Instrument, then Rank By.
+        .festivalPageTool(
+            token: InstrumentToolToken(selected: instrument, choices: visibleInstruments),
+            order: PageToolOrder.primary
+        ) {
+            instrumentPicker
+        }
+        .festivalPageTool(token: rankBy, order: PageToolOrder.secondary) {
+            RankByMenu(selection: $rankBy)
+        }
         .onChange(of: instrument) { _, _ in
             resetBoard()
         }
@@ -460,9 +475,10 @@ struct FullRankingsScreen: View {
 
     /// The instrument switcher: a system toolbar `Menu` (system hit target, overflow
     /// title and Duo rail placement) whose `Label` carries the artwork redrawn as a
-    /// menu-sized image. Keeps `fst.full-rankings.instrument-menu`.
+    /// menu-sized image; in the iPhone tab-bar accessory it lists the same charts in
+    /// a sheet (``PageToolMenu``, issue #92). Keeps `fst.full-rankings.instrument-menu`.
     private var instrumentPicker: some View {
-        Menu {
+        PageToolMenu("Instrument", choices: instrumentMenuChoices) {
             instrumentChoices
         } label: {
             Label {
@@ -487,6 +503,22 @@ struct FullRankingsScreen: View {
                 }
                 .tag(chart)
             }
+        }
+    }
+
+    /// The visible charts for the inline-accessory sheet (``PageToolMenu``).
+    private func instrumentMenuChoices() -> [PageToolMenuChoice] {
+        visibleInstruments.map { chart in
+            PageToolMenuChoice(
+                id: "fst.full-rankings.instrument.\(chart.rawValue)",
+                label: AnyView(Label {
+                    Text(chart.label)
+                } icon: {
+                    InstrumentIcon(chart, size: 16)
+                }),
+                isSelected: chart == instrument,
+                action: { instrument = chart }
+            )
         }
     }
 
@@ -522,6 +554,13 @@ struct FullRankingsScreen: View {
             state = .failed(ServiceIssue(error))
         }
     }
+}
+
+/// Everything the accessory's instrument tool displays: re-registers it when the
+/// selection or the Settings-visible charts change (issue #92).
+private struct InstrumentToolToken: Hashable {
+    let selected: Instrument
+    let choices: [Instrument]
 }
 
 // MARK: - Page title
