@@ -129,8 +129,11 @@ public sealed partial class MarqueeText : Panel
     /// <summary>Raised when <see cref="IsTextTrimmed"/> changes, so a host can offer the full text as a tooltip.</summary>
     public event EventHandler? IsTextTrimmedChanged;
 
-    /// <summary>Whether the text is wider than the space it has.</summary>
-    public bool Overflows => naturalWidth > ActualWidth + 1;
+    /// <summary>
+    /// Whether the text is wider than the space it has. Any measurable overflow counts (not a whole-epx slack): the static
+    /// TextBlock ellipsizes even a fraction of an epx, and that ellipsis must scroll rather than hide part of a name.
+    /// </summary>
+    public bool Overflows => naturalWidth > ActualWidth + 0.1;
 
     /// <summary>Starts scrolling if the text overflows and motion is allowed (normally driven automatically).</summary>
     public void Play()
