@@ -109,6 +109,9 @@ public sealed partial class SongsViewModel : ObservableObject
         (session.HasPlayer && (session.Settings.SongFilter.IsActive ||
             (session.Settings.PlayerScoreFilter.IsValid && session.Settings.PlayerScoreFilter.AppliesTo(session.Settings.SongFilter.Instrument))));
 
+    /// <summary>Filter button status for UI Automation: "Filters applied" while <see cref="IsFilterActive"/>, else empty.</summary>
+    public string FilterStatus => IsFilterActive ? "Filters applied" : "";
+
     /// <summary>Whether the Filter button shows. General filters are available with or without a selected profile.</summary>
     public bool ShowFilterButton => true;
 
@@ -240,6 +243,7 @@ public sealed partial class SongsViewModel : ObservableObject
         var settings = session.Settings;
         OnPropertyChanged(nameof(IsSortChanged));
         OnPropertyChanged(nameof(IsFilterActive));
+        OnPropertyChanged(nameof(FilterStatus));
         OnPropertyChanged(nameof(ShowFilterButton));
         OnPropertyChanged(nameof(SortSummary));
         OnPropertyChanged(nameof(EmptyMessage));
