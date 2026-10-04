@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -31,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
@@ -127,7 +127,8 @@ fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) 
 @Composable
 private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, isRoot: Boolean, tag: String) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val gridState = rememberLazyStaggeredGridState()
+    var splitAtFold by rememberSaveable { mutableStateOf(false) }
+    val gridState = rememberProfileGridState(splitAtFold)
     val loaded = state.phase == ProfilePhase.Loaded
     val visible = state.instruments.map { it.instrument }
     val showIdentity = state.showsIdentityRow
@@ -147,7 +148,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
             actions = { QuickLinksAction(quickLinks, windowWidthDp) },
             modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
         ) { padding ->
-            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows) }
+            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }) }
         }
     }
 }
@@ -168,9 +169,16 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * @param padding Scaffold padding.
  * @param gridState Grid state shared with Quick Links.
  * @param rows Rows in page order.
+ * @param onSplitChange Receives the grid's fold split (see [rememberProfileGridState]).
  */
 @Composable
-fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValues, gridState: LazyStaggeredGridState, rows: List<ProfileRow>) {
+fun PlayerProfileContent(
+    viewModel: PlayerProfileViewModel,
+    padding: PaddingValues,
+    gridState: LazyStaggeredGridState,
+    rows: List<ProfileRow>,
+    onSplitChange: (Boolean) -> Unit = {},
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Rows fade in (staggered) on the frame after the profile finishes loading.
     val revealed = rememberRevealed(state.phase == ProfilePhase.Loaded)
@@ -196,7 +204,7 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
             onRetry = viewModel::retry,
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
-        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed)
+        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed, onSplitChange)
     }
     }
 }
@@ -209,6 +217,7 @@ private fun LoadedProfile(
     gridState: LazyStaggeredGridState,
     rows: List<ProfileRow>,
     revealed: Boolean,
+    onSplitChange: (Boolean) -> Unit,
 ) {
     val shell = LocalShellActions.current
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
@@ -232,6 +241,7 @@ private fun LoadedProfile(
         state = gridState,
         contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
         modifier = Modifier.padding(start = padding.calculateStartPadding(direction) + 16.dp, end = padding.calculateEndPadding(direction) + 16.dp),
+        onSplitChange = onSplitChange,
     ) { split ->
         rows.forEachIndexed { index, row ->
             val span = if (row.fullWidth && !split) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane
@@ -240,7 +250,7 @@ private fun LoadedProfile(
                 when (row) {
                     ProfileRow.Identity -> IdentityActions(state, onSelect = {
                         if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
-                    })
+                    }, onReload = viewModel::retry)
                     ProfileRow.Overview -> Column(Modifier.testTag("fst.player.overview")) {
                         SectionHeader("Overview")
                         StatGrid(state.overview, "overview", state::canRun, onAction)
@@ -301,12 +311,15 @@ private fun LoadedProfile(
 /**
  * Select/Switch, the paused-selection notice and the last action error, straight on the
  * page background. Issue #97: no avatar/name card; the top bar already names the player.
+ * When the notice or error asks for a reload, a 48 dp Reload text button re-reads the
+ * profile under the current publication (issue #133; the page has no pull-to-refresh).
  *
  * @param state Page state.
  * @param onSelect Select, or ask to confirm a switch.
+ * @param onReload Re-read the viewed profile.
  */
 @Composable
-private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit) {
+private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("fst.player.identity"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (state.identity) {
             PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
@@ -324,6 +337,9 @@ private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit) {
         }
         state.actionError?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("fst.player.action-error"))
+        }
+        if (state.offersReload) {
+            TextButton(onClick = onReload, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.reload")) { Text("Reload") }
         }
     }
 }

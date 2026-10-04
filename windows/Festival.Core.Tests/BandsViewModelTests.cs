@@ -55,7 +55,7 @@ public class PlayerBandsViewModelTests
         Assert.Equal("2 appearances", vm.Entries[1].AppearancesText);
         Assert.Equal(new AppRoute.Band("b1", "Band_Duets", "acc:mate1"), card.Route);
         Assert.Equal("fst.player-bands.row.b1", card.AutomationId);
-        Assert.Contains("View band Player One + Unknown User", card.Announcement);
+        Assert.Equal("View band: Player One, Lead; Unknown User, Drums. Duos, 1 appearance", card.Announcement);
         var lead = card.Members[0];
         Assert.Equal("Lead", lead.InstrumentsText);
         Assert.Equal("instrument_guitar.png", lead.Icons.Single().File);
@@ -80,7 +80,9 @@ public class PlayerBandsViewModelTests
         vm.GroupIndex = 9;
         Assert.Equal(PlayerBandGroup.Trios, vm.Group);
         Assert.Equal(4, vm.Groups.Count);
-        Assert.Equal("Band", new PlayerBandCardViewModel(new PlayerBandEntry { BandType = "x", TeamKey = "a:b" }).BandTypeLabel);
+        var memberless = new PlayerBandCardViewModel(new PlayerBandEntry { BandType = "x", TeamKey = "a:b" });
+        Assert.Equal("Band", memberless.BandTypeLabel);
+        Assert.Equal("View band: Band. Band, 0 appearances", memberless.Announcement);
     }
 
     [Fact]

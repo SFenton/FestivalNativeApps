@@ -121,7 +121,7 @@ class LeaderboardColumnLayoutTest {
     // region Rankings sections
 
     @Test
-    fun rankingsKeepSongsAtAnyWidth() {
+    fun rankingsKeepSongsWhileNamesFit() {
         for (width in listOf(Float.NaN, 300f, 900f)) {
             val plan = LeaderboardColumnLayout.fit(rankings, width)
             assertTrue(plan.showMeta)
@@ -131,6 +131,26 @@ class LeaderboardColumnLayoutTest {
             assertFalse(plan.showStars)
         }
         assertEquals(LeaderboardColumnLayout.COMPACT_GAP, LeaderboardColumnLayout.fit(rankings, 300f).gap)
+    }
+
+    @Test
+    fun rankingsDropSongsOnlyWhenNamesWouldCollapse() {
+        // 16 + 44 + 32 + 64 + 60 + 20 + 4 × 12 = 284: names keep their minimum beside the songs label.
+        assertTrue(LeaderboardColumnLayout.fit(rankings, 284f).showMeta)
+        // Narrower (a card beside a hinge), the whole section drops songs so names don't collapse to "…".
+        val narrow = LeaderboardColumnLayout.fit(rankings, 283f)
+        assertFalse(narrow.showMeta)
+        assertEquals(0f, narrow.metaWidth)
+        assertEquals(LeaderboardColumnLayout.MIN_RANKING_RANK_WIDTH, narrow.rankWidth)
+        assertEquals(60f, narrow.valueWidth)
+        // Unknown widths (before the first layout) keep the songs label.
+        assertTrue(LeaderboardColumnLayout.fit(rankings, 0f).showMeta)
+        // Large text grows the name minimum.
+        assertFalse(LeaderboardColumnLayout.fit(rankings, 284f, fontScale = 1.5f).showMeta)
+        // Band Rankings (#116) keep their songs label and stack instead.
+        val band = LeaderboardColumnLayout.fit(rankings.copy(stackNarrowNames = true), 283f)
+        assertTrue(band.showMeta)
+        assertTrue(band.stacked)
     }
 
     @Test
@@ -230,10 +250,12 @@ class LeaderboardColumnLayoutTest {
         val unknown = LeaderboardColumnLayout.fit(full, Float.NaN)
         assertTrue(unknown.showMeta)
         assertFalse(unknown.stacked)
-        // Without the opt-in a narrow row keeps every column (Leaderboards cards).
+        // Without the opt-in a narrow row never stacks (Leaderboards cards); it only drops the
+        // songs label so names don't collapse (issue #114).
         val plain = LeaderboardColumnLayout.fit(rankings, 200f)
-        assertTrue(plain.showMeta)
+        assertFalse(plain.showMeta)
         assertFalse(plain.stacked)
+        assertTrue(LeaderboardColumnLayout.fit(rankings, 300f).showMeta)
         // Score sections never stack.
         assertFalse(LeaderboardColumnLayout.fit(scores.copy(keepsNameMinimum = true), 100f).stacked)
     }

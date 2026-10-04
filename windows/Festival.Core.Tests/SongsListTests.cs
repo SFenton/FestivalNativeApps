@@ -620,6 +620,7 @@ public class SongsViewModelPlayerTests
         }, player: false);
         Assert.True(anonymous.ShowFilterButton);
         Assert.True(anonymous.IsFilterActive);
+        Assert.Equal("Filters applied", anonymous.FilterStatus);
         Assert.DoesNotContain(anonymous.Notices, n => n.Message.Contains("Player score filters"));
 
         var (_, _, hiddenShopOnly) = await Loaded(new AppSettings
@@ -628,6 +629,7 @@ public class SongsViewModelPlayerTests
             HideShop = true,
         }, player: false);
         Assert.False(hiddenShopOnly.IsFilterActive);
+        Assert.Equal("", hiddenShopOnly.FilterStatus);
 
         var (_, _, withPlayer) = await Loaded(new AppSettings { SongFilter = new SongFilter(Instrument.Lead, [1]) });
         Assert.True(withPlayer.IsFilterActive);

@@ -6,7 +6,9 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.dp
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -17,6 +19,7 @@ import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -120,6 +123,35 @@ class SongsAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Instrument status chips (issue #134): ATF over Songs rows with chips (each row one ≥48 dp
+     * button whose description speaks every chart's status in service order; the chips are not
+     * separate stops), the chip group never across a separating hinge (`--posture half`), and the
+     * same on the selected row of the two-pane layout when the window shows one.
+     */
+    @Test
+    fun songsInstrumentStatusChipsReadAsOneRowSummary() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, stillBackground = true), transport)
+        h.waitForTag("fst.songs.instrument-status.s-alpha")
+        val order = h.readingOrder("songs-instrument-status")
+        val alpha = order.firstOrNull { it.contains("Alpha Tune") }.orEmpty()
+        assertTrue(order.joinToString("\n"), alpha.contains("Lead, full combo") && alpha.indexOf("Lead, full combo") < alpha.indexOf("Bass, scored"))
+        assertTrue(order.joinToString("\n"), order.none { it.contains("fst.songs.instrument-status") })
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        assertTrue(rule.onNodeWithTag("fst.songs.row.s-alpha").fetchSemanticsNode().size.height >= min)
+        h.assertNothingStraddles("fst.songs.instrument-status.s-alpha", "fst.songs.instrument-status.s-beta", "fst.songs.instrument-status.s-gamma")
+        h.tap("fst.songs.row.s-alpha")
+        h.waitForTag("fst.song-detail.list")
+        val selected = rule.onAllNodesWithTag("fst.songs.row.s-alpha").fetchSemanticsNodes()
+            .any { it.config.getOrElseNullable(SemanticsProperties.Selected) { null } == true }
+        if (selected) {
+            h.readingOrder("songs-instrument-status-selected")
+            h.assertNothingStraddles("fst.songs.instrument-status.s-alpha")
+        }
+        h.assertAccessible()
+    }
+
     @Test
     fun songDetailBoardAndPaths() {
         h.enableAccessibilityChecks()
@@ -152,15 +184,29 @@ class SongsAccessibilityJourneyTest {
 
     @Test
     fun itemShop() {
+        val offers = arrayOf("fst.shop.song.s-alpha", "fst.shop.song.s-x", "fst.shop.song.s-beta", "fst.shop.external.s-alpha", "fst.shop.external.s-beta")
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(route = DebugLaunch.parseRoute("shop"), profile = player, stillBackground = true), transport)
         rule.waitUntil(15_000) { h.exists("fst.shop.list") || h.exists("fst.shop.grid") }
+        h.waitForTag("fst.shop.song.s-beta")
         h.readingOrder("shop")
+        // Book posture (`device.py test … --posture half`): no card or row on the fold (issue #131).
+        h.assertNothingStraddles(*offers)
         // Grid/List only switches on wide panes (compact phones always list).
         if (h.exists("fst.shop.view-toggle")) {
             h.tap("fst.shop.view-toggle")
+            h.waitForTag("fst.shop.song.s-beta")
             h.readingOrder("shop-toggled")
+            h.assertNothingStraddles(*offers)
         }
+        h.tap("fst.shop.filter.open")
+        h.waitForTag("fst.shop.filter.leaving")
+        h.readingOrder("shop-filter")
+        h.tap("fst.shop.filter.leaving")
+        h.waitGone("fst.shop.song.s-beta")
+        h.tap("fst.shop.filter.done")
+        h.waitGone("fst.shop.filter.leaving")
+        h.readingOrder("shop-filtered")
         h.assertAccessible()
     }
 
