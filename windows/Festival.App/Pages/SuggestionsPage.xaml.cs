@@ -1,9 +1,12 @@
 using System.Globalization;
+using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
+using Windows.System;
 
 namespace Festival.App.Pages;
 
@@ -17,7 +20,7 @@ public sealed partial class SuggestionsPage : Page
     /// <summary>Creates the page.</summary>
     public SuggestionsPage()
     {
-        ViewModel = new SuggestionsViewModel(App.Session, new JsonFileSuggestionFilterStore(JsonFileSuggestionFilterStore.DefaultPath), DebugSeed());
+        ViewModel = new SuggestionsViewModel(App.Session, new JsonFileSuggestionFilterStore(JsonFileSuggestionFilterStore.DefaultPath), DebugSeed(), DebugLimit());
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.ShowLoading,
             () => ViewModel.ShowList ? "Suggestions loaded" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null, "Loading suggestions");
         InitializeComponent();
@@ -49,6 +52,11 @@ public sealed partial class SuggestionsPage : Page
         return null;
     }
 
+    /// <summary>Lower category cap so UI Automation can reach the end-of-mix footer (<c>FST_DEBUG_SUGGESTIONS_LIMIT</c>).</summary>
+    /// <returns>Cap, or <see langword="null"/> for the web's 1,000.</returns>
+    private static int? DebugLimit() =>
+        int.TryParse(App.LaunchEnvironment("FST_DEBUG_SUGGESTIONS_LIMIT"), NumberStyles.None, CultureInfo.InvariantCulture, out var limit) ? limit : null;
+
     #region List
     /// <summary>Loads the next batch when the third-from-last card is realized.</summary>
     /// <param name="sender">List.</param>
@@ -58,6 +66,19 @@ public sealed partial class SuggestionsPage : Page
         if (args.InRecycleQueue || !ViewModel.ShouldLoadMore(args.ItemIndex)) return;
         // Defer: the collection must not change during this layout pass.
         DispatcherQueue.TryEnqueue(() => ViewModel.LoadMoreCommand.Execute(null));
+    }
+
+    /// <summary>
+    /// Up/Down from a row moves to the geometrically nearest row, also across cards (the ListView's own item
+    /// navigation would land on a card's first row); falls back to the list when nothing is realized there.
+    /// </summary>
+    /// <param name="sender">List.</param>
+    /// <param name="e">Key.</param>
+    private void OnCardListPreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is not (VirtualKey.Up or VirtualKey.Down) || e.OriginalSource is not SuggestionSongRow) return;
+        var direction = e.Key == VirtualKey.Up ? FocusNavigationDirection.Up : FocusNavigationDirection.Down;
+        e.Handled = FocusManager.TryMoveFocus(direction, new FindNextElementOptions { SearchRoot = CardList });
     }
     #endregion
 

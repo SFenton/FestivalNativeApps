@@ -34,6 +34,8 @@ struct BandDetailScreen: View {
     @State private var songsById: [String: Song] = [:]
     @State private var quickLinks = QuickLinksController()
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Create the screen.
     ///
@@ -58,6 +60,12 @@ struct BandDetailScreen: View {
         bandType != nil && teamKey?.isEmpty == false
     }
 
+    /// Rank By is offered once a resolvable band's detail has loaded.
+    private var showsRankBy: Bool {
+        guard isResolvable, case .loaded = detailState else { return false }
+        return true
+    }
+
     var body: some View {
         Group {
             if !isResolvable {
@@ -71,12 +79,16 @@ struct BandDetailScreen: View {
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands($rankBy)
         .toolbar {
-            if isResolvable, case .loaded = detailState {
+            if pageTools == nil, showsRankBy {
                 ToolbarItem(placement: .festivalPageAction) {
                     BandRankByMenu(selection: $rankBy)
                 }
             }
             QuickLinksToolbarItem(quickLinks)
+        }
+        // iPhone tab-bar accessory (issue #92): Rank By before Quick Links.
+        .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: showsRankBy) {
+            BandRankByMenu(selection: $rankBy)
         }
         .task(id: teamKey) { await loadDetail() }
         .task { await loadSongLookup() }

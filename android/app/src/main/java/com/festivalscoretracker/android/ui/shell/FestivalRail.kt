@@ -57,7 +57,8 @@ import com.festivalscoretracker.android.ui.common.isLargeText
  * @param player Selected player (initials avatar), or null.
  * @param onSection Select a tab.
  * @param onOpenDrawer Open the modal drawer.
- * @param onOpenProfile Open profile selection.
+ * @param onOpenProfile Profile item action: the selected profile's page (Statistics), or profile
+ *   selection when none is selected (`ProfileChipPolicy`).
  * @param modifier Modifier.
  */
 @Composable

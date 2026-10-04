@@ -12,15 +12,41 @@
 
 ## Evidence
 
-Fixture: `windows/reports/screenshots/band-rankings-wide.png`; journey steps in `tools/windows/journeys/leaderboards.steps`.
+Fixture: `windows/reports/screenshots/band-rankings-wide.png`; journeys in `tools/windows/journeys/band-rankings.json` (pager keys, menus, row → Band Detail, anonymous, empty, error/Retry) and `tools/windows/journeys/leaderboards.steps`. A11y pages `band-rankings-paged|anonymous|empty|error` in `tools/windows/journeys/a11y.json` use the fixture scenarios `--large-rankings` and `--band-rankings empty|unavailable|anonymous` (`tools/windows/rivals_fixture.py`).
+
+## Validation (issue #209, 2026-10-03)
+
+Debug build, 3840×2160 at 300%, `a11y_matrix.py --scan --tabs 30` on the four fixture states, `band-rankings.json` journeys (6/6), and live public-service captures of Duos (no selected profile, so no profile headers). Axe.Windows reported 0 errors in every run.
+
+| Configuration | Result |
+|---|---|
+| Compact / medium / wide (500/900/1440 epx) | ✅ all four states; tab stops 9/12/12 paged, 7/10/10 single page; ≥1100 epx shows the Band Detail column |
+| Maximized, snapped left/right | ✅ paged and single page |
+| Light system theme | The app is dark-only by design (`App.xaml RequestedTheme="Dark"`, web parity). Deliberate deviation |
+| High contrast Desert / Night sky | ✅ after the `FooterPlate` fix. Before it, row borders and text showed between the floating pager's buttons, as on the song leaderboard (#197) |
+| Text size 200% | ✅ compact/medium/wide. At compact the rank, songs and rating columns used to leave the band name only "…". Rankings rows now move the songs label (then the rating) under the name when large text would squeeze the name below its minimum (the shared #208 rule; this branch first dropped the label, and the merge kept #208's placement) |
+| Display scale 100% / 150% | ✅ medium and maximized |
+| Keyboard | Tab: title bar → pane → band size → Rank By → rows (one stop, Up/Down) → pager. Left/Right/Home/End/Ctrl+arrows page and focus stays on the pager after the fix below. Enter opens the menus, Esc returns focus to the button and Enter on a row opens Band Detail; Alt+Left comes back |
+| UIA | Each row is one Button named "Rank #N, members. Metric value, played / total songs"; rows without a band page aren't openable but keep their columns. The menu items are `RadioMenuFlyoutItem`s with the Toggle pattern (no Invoke). Page text is a polite live region named "Page N of M" |
+
+Fixed:
+- **Pager focus:** the pager was hidden while the next page loaded (`ShowContent` waited for the load swap), so keyboard focus fell to Back after the first arrow key. It now stays mounted like the song leaderboard's (#93).
+- **Contrast pager:** a window-colour `FooterPlate` behind the pager, only under contrast themes.
+- **Column alignment:** a row without a band page (no `teamKey`) dropped its chevron, which shifted its songs and rating columns. The chevron slot is now reserved section-wide (`LeaderboardSection.HasRoutes`), and unopenable rows draw it transparent.
+- **Empty state:** the empty text gained `fst.band-rankings.empty`, wraps and is centred.
+
+Post-merge re-run (master with #207/#208, 2026-10-04): `band-rankings.json` journeys 6/6; Axe 0 errors with tab stops 9/12/12 paged and 7/10/10 anonymous at compact, medium and wide; text 200% at C/M/W also had 0 errors. At 200% compact, rows stack: rank and name on the first line, songs label and rating on the second.
+
+Design review (`winui-design`): Fluent `DropDownButton` + `MenuFlyout` radio items for band size and Rank By, theme brushes, system colours in contrast themes, defined loading/empty/error states. The custom pager stays for web Paginator parity (`winapp find-api` finds no `PagerControl` in the app's WinAppSDK). The web's `BandRankingPlayerCard` cards are the shared native leaderboard rows (operator batch 7.7).
 
 ## IDs
 
-`fst.band-rankings.title`, `.list`, `.band-type-menu`, `.band-type.<bandType>`, `.rank-by-menu`, `.rank-by.<metric>`, `.page-first|page-previous|page-info|page-next|page-last`, `.row.<teamKey>`.
+`fst.band-rankings.title`, `.list`, `.empty`, `.band-type-menu`, `.band-type.<bandType>`, `.rank-by-menu`, `.rank-by.<metric>`, `.page-first|page-previous|page-info|page-next|page-last`, `.row.<teamKey>`, `.detail-pane`.
 
 ## Open
 
 - No selected-band pinned row (no selected-band identity on Windows) and no band-combo filter.
+- Narrator audio was not scripted; announcements are covered by the UIA tree and `LoadAnnouncer` tests.
 
 ## Two columns
 

@@ -15,6 +15,10 @@ public sealed partial class ServiceStatusView : UserControl
     public static readonly DependencyProperty StatusProperty = DependencyProperty.Register(
         nameof(Status), typeof(ServiceStatusViewModel), typeof(ServiceStatusView), new PropertyMetadata(null, OnStatusChanged));
 
+    /// <summary>Whether the Retry button is shown (global search hides it, issue #299).</summary>
+    public static readonly DependencyProperty ShowsRetryProperty = DependencyProperty.Register(
+        nameof(ShowsRetry), typeof(bool), typeof(ServiceStatusView), new PropertyMetadata(true));
+
     private string? lastAnnouncement;
 
     /// <summary>Creates the view.</summary>
@@ -35,6 +39,20 @@ public sealed partial class ServiceStatusView : UserControl
         get => (ServiceStatusViewModel?)GetValue(StatusProperty);
         set => SetValue(StatusProperty, value);
     }
+
+    /// <summary>Whether the Retry button is shown; the status still retries on its own freeze countdown.</summary>
+    public bool ShowsRetry
+    {
+        get => (bool)GetValue(ShowsRetryProperty);
+        set => SetValue(ShowsRetryProperty, value);
+    }
+
+    /// <summary>Countdown line visibility: without Retry an idle (empty) countdown would leave a blank line in the card.</summary>
+    /// <param name="showsRetry">Whether the Retry button is shown.</param>
+    /// <param name="seconds">Seconds left before the automatic retry.</param>
+    /// <returns>Visible while counting down or alongside Retry (unchanged layout for other pages).</returns>
+    public Visibility CountdownVisibility(bool showsRetry, int seconds) =>
+        showsRetry || seconds > 0 ? Visibility.Visible : Visibility.Collapsed;
 
     private static void OnStatusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {

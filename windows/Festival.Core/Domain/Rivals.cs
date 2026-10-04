@@ -239,7 +239,8 @@ public static class RivalCommonRivals
             var aboveIds = list.Above.Select(r => r.AccountId).ToHashSet(StringComparer.Ordinal);
             foreach (var rival in list.Above.Concat(list.Below))
             {
-                if (!seen.Add(rival.AccountId)) continue;
+                // Anonymous rows (empty account ID) can't be matched across charts.
+                if (rival.AccountId.Length == 0 || !seen.Add(rival.AccountId)) continue;
                 if (!counts.TryGetValue(rival.AccountId, out var count)) order.Add(rival.AccountId);
                 counts[rival.AccountId] = count + 1;
                 var bucket = aboveIds.Contains(rival.AccountId) ? above : below;
@@ -390,13 +391,15 @@ public static class RivalHeadToHead
     /// <param name="items">Items.</param>
     /// <param name="comparison">Comparison accessor.</param>
     /// <param name="sort">Sort.</param>
+    /// <param name="title">Displayed title for <see cref="RivalrySort.Title"/>, so the order matches what rows show
+    /// when the service omits a title the catalogue supplies; defaults to the comparison title, then song ID.</param>
     /// <returns>Ordered copy.</returns>
-    public static List<T> Sort<T>(IEnumerable<T> items, Func<T, RivalSongComparison> comparison, RivalrySort sort) => sort switch
+    public static List<T> Sort<T>(IEnumerable<T> items, Func<T, RivalSongComparison> comparison, RivalrySort sort, Func<T, string>? title = null) => sort switch
     {
         RivalrySort.Closest => [.. items.OrderBy(i => Math.Abs((long)comparison(i).RankDelta))],
         RivalrySort.YouLead => [.. items.OrderByDescending(i => comparison(i).RankDelta)],
         RivalrySort.TheyLead => [.. items.OrderBy(i => comparison(i).RankDelta)],
-        RivalrySort.Title => [.. items.OrderBy(i => comparison(i).Title ?? comparison(i).SongId, StringComparer.CurrentCultureIgnoreCase)],
+        RivalrySort.Title => [.. items.OrderBy(i => title?.Invoke(i) ?? comparison(i).Title ?? comparison(i).SongId, StringComparer.CurrentCultureIgnoreCase)],
         _ => [.. items],
     };
 

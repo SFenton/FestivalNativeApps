@@ -364,6 +364,8 @@ public struct FestivalRootView: View {
             #endif
         }
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
+        .environment(\.openNotifications, OpenNotificationsAction { notificationsPresented = true })
+        .environment(\.profileButtonAction, profileButtonHandler(visibleSections))
         .environment(\.festivalSession, session)
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { openGlobalSearch() })
@@ -468,8 +470,10 @@ public struct FestivalRootView: View {
     /// the vertical bar; nothing here is Duo-specific.
     ///
     /// Global search is a separate trailing Search tab (issue #92; HIG Tab bars: "A
-    /// dedicated Search tab may be trailing"). Nothing rides on the tab bar: the page
-    /// tools sit in each page's navigation bar.
+    /// dedicated Search tab may be trailing"). On iOS 26.1+ the horizontal tab bar carries
+    /// the page-tools accessory (the front page's actions and Quick Links, then
+    /// Notifications and Profile; `festivalPageToolsAccessory`), hidden while Search is
+    /// open; elsewhere the page tools sit in each page's navigation bar.
     ///
     /// - Parameter visibleSections: Sections to show as tabs.
     /// - Returns: The tab view.
@@ -489,6 +493,7 @@ public struct FestivalRootView: View {
                 #endif
             }
             .modifier(RootTabBarBehavior())
+            .festivalPageToolsAccessory(isEnabled: !searchActive)
         } else {
             TabView(selection: rootTabSelection) {
                 ForEach(visibleSections) { section in
@@ -547,6 +552,34 @@ public struct FestivalRootView: View {
         case let .push(route):
             searchActive = false
             paths[selected, default: []].append(route)
+        }
+    }
+
+    /// The profile button's environment handler for the visible sections.
+    ///
+    /// - Parameter visibleSections: Sections shown as tabs or sidebar rows.
+    /// - Returns: A handler that resolves each press against the live shell state.
+    private func profileButtonHandler(_ visibleSections: [FestivalSection]) -> ProfileButtonHandler {
+        let statisticsVisible = visibleSections.contains(.statistics)
+        return ProfileButtonHandler(statisticsVisible: statisticsVisible) {
+            pressProfileButton(statisticsVisible: statisticsVisible)
+        }
+    }
+
+    /// The profile button (avatar): the selected player's Statistics page, or profile
+    /// search without a selection (``ProfileButtonAction``, issue #290).
+    ///
+    /// - Parameter statisticsVisible: Whether Statistics is a visible tab or sidebar row.
+    private func pressProfileButton(statisticsVisible: Bool) {
+        switch ProfileButtonAction.resolve(
+            selectedPlayer: session.selectedPlayer, statisticsVisible: statisticsVisible,
+            selected: selected, searchActive: searchActive,
+            topRoute: path(for: selected).wrappedValue.last
+        ) {
+        case .chooseProfile:
+            rootProfilePresented = true
+        case let .navigate(transition):
+            perform(transition)
         }
     }
 

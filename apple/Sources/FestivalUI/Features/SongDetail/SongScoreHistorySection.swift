@@ -354,6 +354,9 @@ private struct ScoreHistoryChart: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Legend: bars show accuracy, the line shows score")
+        // Static text, not a control: inside the swipe-to-page chart the audit
+        // otherwise judged it an 18 pt-tall interactive element ("Hit area is too small").
+        .accessibilityAddTraits(.isStaticText)
     }
 
     private func swatch(_ style: AnyShapeStyle, _ title: String) -> some View {

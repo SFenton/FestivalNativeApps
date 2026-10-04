@@ -337,6 +337,25 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public void RivalRow_AnonymousRowIsUnlinkedUnknownUser()
+    {
+        // Issue #200: production serves anonymous rows (empty account ID, no name); Android shows "Unknown User", unlinked.
+        var board = RivalRowItem.From(new LeaderboardRivalSummary("", null, 728, 157, 571, 0, 13, 4), RivalDirection.Below,
+            new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore));
+        Assert.False(board.HasProfile);
+        Assert.Equal(RivalRowItem.AnonymousName, board.Name);
+        Assert.Equal("Unknown User, rank 13, behind you, 571 songs ahead, 157 songs behind", board.AccessibleName);
+        Assert.Equal("fst.rivals.row.rank-13", board.AutomationId);
+        var song = RivalRowItem.From(new RivalSummary("", "Ghost", 1, 2, 1, 1, 0), RivalDirection.Above, null);
+        Assert.Equal(RivalRowItem.AnonymousName, song.Name);
+        Assert.Equal("rank-unknown", song.RowKey);
+        Assert.Null(song.ProfileRoute);
+        var named = RivalRowItem.From(new RivalSummary("a1", "Alpha", 1, 2, 1, 1, 0), RivalDirection.Above, null);
+        Assert.True(named.HasProfile);
+        Assert.Equal("a1", named.RowKey);
+    }
+
+    [Fact]
     public void RivalRow_AnonymousLeaderboardRivalIsNotInteractive()
     {
         // Issue #213: production leaderboard-rival lists include a row with an empty account ID and no name.
@@ -344,10 +363,10 @@ public class RivalsViewModelTests
         var anonymous = RivalRowItem.From(new LeaderboardRivalSummary("", null, 728, 157, 571, 857.2, 13, 4), RivalDirection.Below, scope);
         Assert.False(anonymous.HasProfile);
         Assert.Null(anonymous.ProfileRoute);
-        Assert.Equal(RivalRowItem.UnknownName, anonymous.Name);
+        Assert.Equal(RivalRowItem.AnonymousName, anonymous.Name);
         Assert.Equal("rank-13", anonymous.RowKey);
         Assert.Equal("fst.rivals.row.rank-13", anonymous.AutomationId);
-        Assert.Equal("Unknown Player, rank 13, behind you, 571 songs ahead, 157 songs behind", anonymous.AccessibleName);
+        Assert.Equal("Unknown User, rank 13, behind you, 571 songs ahead, 157 songs behind", anonymous.AccessibleName);
         Assert.Equal("rank-unknown", (anonymous with { LeaderboardRank = null }).RowKey);
 
         var named = RivalRowItem.From(new LeaderboardRivalSummary("b2", "Beta", 40, 25, 15, 0, 12, 14), RivalDirection.Above, scope);
@@ -386,6 +405,11 @@ public class RivalsViewModelTests
         Assert.Equal("", plain.Subtitle);
         Assert.False(plain.IsMixedInstrument);
         Assert.Contains("tied", plain.AccessibleName);
+        Assert.Equal("T, Lead, you rank 3 with 1,000 points, Them ranks 9, tied",
+            new RivalSongItem(comparison with { Title = "T", Artist = null, Instrument = "Solo_Guitar", UserInstrument = null, RivalInstrument = null, RankDelta = 0 },
+                null, "Me", "Them").FullAccessibleName);
+        Assert.Equal("Catalog, Band, 2024, Pro Drums + Cymbals vs Pro Drums, you rank 3 with 1,000 points, Them ranks 9 with 2,500 points, you lead",
+            new RivalSongItem(comparison with { RivalScore = 2500 }, song, "Me", "Them").FullAccessibleName);
         Assert.Equal(RivalSongOutcome.Losing, new RivalSongItem(comparison with { RankDelta = -1 }, null, "Me", "Them").Outcome);
         Assert.Equal("Band", new RivalSongItem(comparison, song with { Year = null }, "Me", "Them").Subtitle);
     }
@@ -402,9 +426,12 @@ public class RivalsViewModelTests
         Assert.Equal("Lead Rivals", lead.Title);
         Assert.True(lead.HasIcon);
         Assert.Equal(6, lead.Rows.Count);
+        Assert.Equal("", lead.Subtitle);
+        Assert.False(lead.HasSubtitle);
 
         var board = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.Leaderboard(Instrument.Bass, RankingMetric.TotalScore))));
         Assert.Equal("Ranked by Total Score · You are #1", board.Subtitle);
+        Assert.True(board.HasSubtitle);
         Assert.Equal("instrument_bass.png", board.IconFile);
 
         var common = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common))));
@@ -646,6 +673,8 @@ public class RivalsViewModelTests
         Assert.Equal("fixture-echo", rivalry.Rows[0].Comparison.SongId);
         rivalry.SortIndex = 42;
         Assert.Equal(RivalrySort.YouLead, rivalry.Sort);
+        rivalry.SortIndex = (int)RivalrySort.Title;
+        Assert.Equal(rivalry.Rows.Select(r => r.Title).Order(StringComparer.CurrentCultureIgnoreCase), rivalry.Rows.Select(r => r.Title));
 
         rivalry.RefreshCommand.Execute(null);
         await Async.Until(() => fake.Count($"/api/player/{Me}/rivals/Solo_Guitar/{Rival}") == 2);

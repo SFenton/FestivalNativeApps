@@ -116,21 +116,25 @@ struct AccountRankingRow: View {
             emphasized: isSelected,
             showsChevron: entry.hasAccount
         )
-        .modifier(RankingRowSurface(isSelected: isSelected, glass: glassSurface))
+        .modifier(RankingRowSurface(isSelected: isSelected, card: glassSurface))
     }
 }
 
 // MARK: - Shared row layout
 
-/// Compact rankings row content: `#rank`, a truncating name, the songs column and
-/// the accent-coloured value (web `RankingEntry.tsx`: `colRank`, `colName`,
-/// `colSongs`, `colRating` = `Colors.accentBlue*`), on one line. Text is primary
-/// white throughout (operator rule: no gray de-emphasis on these pages).
+/// Compact rankings row content: `#rank`, the name, the songs column and the
+/// accent-coloured value (web `RankingEntry.tsx`: `colRank`, `colName`, `colSongs`,
+/// `colRating` = `Colors.accentBlue*`), on one line. Text is primary white throughout
+/// (operator rule: no gray de-emphasis on these pages).
+///
+/// The name is a ``LeaderboardNameText``: it stays inside the name column and scrolls
+/// (marquee) when it does not fit, tail-truncating under Reduce Motion (issue #292,
+/// reversing batch 7.7's truncate-only rule).
 ///
 /// Adjusted/Weighted add their Bayesian value as a second, smaller line under the
 /// value (the web's compact two-row percentile layout). At accessibility Dynamic Type
-/// sizes the row stacks (rank + name, then songs + value) instead of truncating the
-/// name to nothing.
+/// sizes the row stacks (rank + name, then songs + value) and the name wraps instead
+/// of truncating or scrolling.
 ///
 /// Inside a fitted section the songs column shares the section's widest songs label,
 /// and the section may hide it on every row to give names their room (#38,
@@ -181,7 +185,6 @@ struct RankingRowLayout: View {
                     LeaderboardColumnSlot(template: columns?.rankLabel) { rankText }
                         .frame(minWidth: columns == nil ? rankWidth : nil, alignment: .leading)
                     nameText
-                        .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !hidesSongs {
                         LeaderboardColumnSlot(
@@ -233,18 +236,17 @@ struct RankingRowLayout: View {
             .accessibilityHidden(true)
     }
 
-    /// A row name as drawn: body text, bold for the selected player's row.
+    /// A row name at its natural one-line size, in the row's font, for width probes
+    /// (``RankingRowWidthProbe``); the row itself draws a ``LeaderboardNameText``.
     ///
     /// - Parameters:
     ///   - name: Display name.
     ///   - emphasized: The selected player's own row.
-    /// - Returns: A one-line, tail-truncating name.
+    /// - Returns: A one-line name.
     static func nameText(_ name: String, emphasized: Bool) -> some View {
         Text(name)
             .lineLimit(1)
-            .truncationMode(.tail)
-            .font(.body)
-            .fontWeight(emphasized ? .bold : .regular)
+            .font(LeaderboardNameText.font(emphasized: emphasized))
             .foregroundStyle(FestivalText.primary)
     }
 
@@ -256,10 +258,10 @@ struct RankingRowLayout: View {
             .fixedSize()
     }
 
-    /// Truncates like the web's `colName` (`truncate`): leaderboard names never marquee
-    /// (operator batch 7.7).
+    /// Scrolls when it does not fit, tail-truncating under Reduce Motion (issue #292
+    /// reverses batch 7.7's truncate-only rule); wraps at accessibility sizes.
     private var nameText: some View {
-        Self.nameText(name, emphasized: emphasized)
+        LeaderboardNameText(name: name, emphasized: emphasized)
     }
 
     private var songsText: some View {
@@ -309,6 +311,69 @@ struct RankingRowLayout: View {
             }
         }
         .fixedSize()
+    }
+}
+
+// MARK: - Leaderboard name
+
+/// A leaderboard row's player or band name (issue #292): one line that stays inside
+/// its column and scrolls with the shared ``MarqueeText`` when it does not fit; short
+/// names stay still. ``MarqueeText`` tail-truncates instead of scrolling under Reduce
+/// Motion (system or in-app), in inactive or hidden scenes and under the debug
+/// still-background flag, and VoiceOver always reads the full name.
+///
+/// At accessibility Dynamic Type sizes, where the rows already stack, the name wraps
+/// onto as many lines as it needs instead: the HIG's "Keep text truncation to a
+/// minimum as font size increases" (`typography`), and layout lets rows "grow to
+/// avoid clipping/overlap and allow multiple lines" (`layout`).
+///
+/// Shared by every leaderboard row (``RankingRowLayout``, `SongLeaderboardEntryRow`,
+/// `SongBandPreviewRow`). It stays a static-text element for VoiceOver and XCUITest.
+struct LeaderboardNameText: View {
+    /// How a name is laid out at a text size.
+    enum Presentation: Equatable {
+        /// One line; scrolls when it overflows, else tail-truncates (``MarqueeText``).
+        case marquee
+        /// As many lines as the name needs.
+        case wrapping
+    }
+
+    /// Display name, read in full by VoiceOver.
+    let name: String
+    /// Bold, for the selected player's own row (web `isPlayer`).
+    var emphasized: Bool = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            switch Self.presentation(for: dynamicTypeSize) {
+            case .marquee:
+                MarqueeText(name, font: Self.font(emphasized: emphasized))
+            case .wrapping:
+                Text(name)
+                    .font(Self.font(emphasized: emphasized))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .foregroundStyle(FestivalText.primary)
+        .accessibilityAddTraits(.isStaticText)
+    }
+
+    /// The name's layout at a text size.
+    ///
+    /// - Parameter size: Current Dynamic Type size.
+    /// - Returns: ``Presentation/wrapping`` at accessibility sizes, else
+    ///   ``Presentation/marquee``.
+    static func presentation(for size: DynamicTypeSize) -> Presentation {
+        size.isAccessibilitySize ? .wrapping : .marquee
+    }
+
+    /// The name's font: body, bold for the selected player's row.
+    ///
+    /// - Parameter emphasized: The selected player's own row.
+    /// - Returns: The row name font.
+    static func font(emphasized: Bool) -> Font {
+        emphasized ? .body.bold() : .body
     }
 }
 
@@ -411,11 +476,18 @@ struct RankingRowWidthProbe: View {
 
 // MARK: - Row surface
 
-/// Per-row glass card, with the selected player's accent fill and border on top
+/// Per-row card, with the selected player's accent fill and border on top
 /// (web `entryRow` / `playerEntryRow`: `purpleHighlight` rgba(75,15,99,0.75) and a
 /// `purpleHighlightBorder` rgba(124,58,237,0.5) hairline). The one leaderboard row design
 /// for Song Detail cards, song leaderboards, Leaderboards, Full Rankings and Compete
 /// (operator batch 7.4).
+///
+/// Other rows sit on the Song row's material card (`festivalRowCard(cornerRadius:)`),
+/// fitted to the tinted Liquid Glass card these rows used to draw. Under a live
+/// `glassEffect` a row skipped its staggered load-in fade (it showed with the page's
+/// reveal), so the selected player's row, which never had glass, faded in last
+/// (issue #295). HIG Materials: "Don't use Liquid Glass in the content layer. Use
+/// standard materials for content-layer elements".
 struct RankingRowSurface: ViewModifier {
     /// Web `Colors.purpleHighlight`.
     static let playerFill = Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75)
@@ -424,7 +496,7 @@ struct RankingRowSurface: ViewModifier {
 
     let isSelected: Bool
     /// False keeps only the selected-row accent, for rows already inside a card.
-    var glass: Bool = true
+    var card: Bool = true
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -434,7 +506,7 @@ struct RankingRowSurface: ViewModifier {
                     shape.fill(Self.playerFill)
                 }
             }
-            .modifier(OptionalGlass(enabled: glass && !isSelected))
+            .modifier(OptionalRowCard(enabled: card && !isSelected))
             .overlay {
                 if isSelected {
                     shape.stroke(Self.playerBorder, lineWidth: 1)
@@ -489,13 +561,13 @@ struct RankingSpotlightUnrankedRow: View {
     }
 }
 
-/// Applies the row glass only when enabled.
-private struct OptionalGlass: ViewModifier {
+/// Applies the material row card only when enabled.
+private struct OptionalRowCard: ViewModifier {
     let enabled: Bool
 
     func body(content: Content) -> some View {
         if enabled {
-            content.festivalGlass(.card, cornerRadius: 12)
+            content.festivalRowCard(cornerRadius: 12)
         } else {
             content
         }
@@ -561,7 +633,7 @@ struct BandRankingRow: View {
                 bayesian: entry.bayesianValue(for: metric).map(RankingFormatting.bayesian),
                 showsChevron: true
             )
-            .modifier(RankingRowSurface(isSelected: false, glass: glassSurface))
+            .modifier(RankingRowSurface(isSelected: false, card: glassSurface))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("fst.band-rankings.row.\(entry.teamKey)")
@@ -590,7 +662,7 @@ struct RankingsSkeletonRows: View {
                 .foregroundStyle(BrandTokens.surfaceMuted)
                 .padding(.horizontal, glassRows ? 14 : 0)
                 .frame(minHeight: glassRows ? LeaderboardRowMetrics.minHeight : nil)
-                .modifier(RankingRowSurface(isSelected: false, glass: glassRows))
+                .modifier(RankingRowSurface(isSelected: false, card: glassRows))
             }
         }
         .redacted(reason: .placeholder)
@@ -791,7 +863,10 @@ struct RankingsGlassPager: View {
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, 6)
-                .frame(minHeight: buttonSize)
+                .frame(minWidth: buttonSize, minHeight: buttonSize)
+                // The shape makes the 44 pt frame the element's frame; without it the
+                // audit measured the bare text (31 × 18 pt, "Hit area is too small").
+                .contentShape(Rectangle())
                 .accessibilityElement()
                 .accessibilityLabel("Page")
                 .accessibilityValue(state.accessibilityValue)
@@ -1034,7 +1109,7 @@ struct RankByMenu: View {
     @Binding var selection: RankingMetric
 
     var body: some View {
-        Menu {
+        PageToolMenu("Rank By", choices: choices) {
             Picker("Rank By", selection: $selection) {
                 ForEach(RankingMetric.allCases) { metric in
                     Text(metric.label).tag(metric)
@@ -1045,6 +1120,16 @@ struct RankByMenu: View {
         }
         .accessibilityIdentifier("fst.rankings.rank-by-menu")
     }
+
+    /// The metrics for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        RankingMetric.allCases.map { metric in
+            PageToolMenuChoice(
+                id: "fst.rankings.rank-by.\(metric.rawValue)", label: AnyView(Text(metric.label)),
+                isSelected: metric == selection, action: { selection = metric }
+            )
+        }
+    }
 }
 
 /// Native toolbar menu for the band-safe rank-by metrics (no Max Score).
@@ -1052,7 +1137,7 @@ struct BandRankByMenu: View {
     @Binding var selection: BandRankingMetric
 
     var body: some View {
-        Menu {
+        PageToolMenu("Rank By", choices: choices) {
             Picker("Rank By", selection: $selection) {
                 ForEach(BandRankingMetric.allCases) { metric in
                     Text(metric.label).tag(metric)
@@ -1062,5 +1147,15 @@ struct BandRankByMenu: View {
             Label(selection.label, systemImage: "arrow.up.arrow.down")
         }
         .accessibilityIdentifier("fst.band-rankings.rank-by-menu")
+    }
+
+    /// The metrics for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        BandRankingMetric.allCases.map { metric in
+            PageToolMenuChoice(
+                id: "fst.band-rankings.rank-by.\(metric.rawValue)", label: AnyView(Text(metric.label)),
+                isSelected: metric == selection, action: { selection = metric }
+            )
+        }
     }
 }

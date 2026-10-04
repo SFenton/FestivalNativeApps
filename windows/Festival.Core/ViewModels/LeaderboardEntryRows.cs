@@ -122,7 +122,7 @@ public static class LeaderboardColumns
     /// <summary>
     /// Measures every row of a section, including its pinned selected-player row, so all of them get one
     /// <see cref="LeaderboardColumnLayout.Fit"/> plan. Score rows measure seasons, scores, accuracy and stars; rankings
-    /// rows their songs labels and ratings.
+    /// rows their songs labels and ratings. The chevron column is reserved when any row opens a destination.
     /// </summary>
     /// <param name="rows">Section rows (score or rankings rows; the first decides the kind).</param>
     /// <returns>Section content.</returns>
@@ -130,15 +130,17 @@ public static class LeaderboardColumns
     {
         var all = rows.ToList();
         var rank = Widest(all.Select(r => r.RankText));
+        var routes = all.Count == 0 || all.Any(r => r.Route is not null);
         if (all.FirstOrDefault() is ILeaderboardRankingRow)
         {
             var rankings = all.OfType<ILeaderboardRankingRow>().ToList();
             return new LeaderboardSection(LeaderboardRowKind.Ranking, rank, Widest(rankings.Select(r => r.SongsText)),
-                Widest(rankings.Select(r => r.RatingText)), false, false);
+                Widest(rankings.Select(r => r.RatingText)), false, false, routes);
         }
         var scores = all.OfType<ILeaderboardScoreRow>().ToList();
         return new LeaderboardSection(LeaderboardRowKind.Score, rank, Widest(scores.Select(r => r.Season)),
-            Widest(scores.Select(r => r.Score)), scores.Any(r => r.BadgeText.Length > 0), scores.Any(r => StarRating.From(r.StarCount) is not null));
+            Widest(scores.Select(r => r.Score)), scores.Any(r => r.BadgeText.Length > 0), scores.Any(r => StarRating.From(r.StarCount) is not null),
+            routes);
     }
 }
 #endregion

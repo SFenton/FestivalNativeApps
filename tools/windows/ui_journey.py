@@ -13,8 +13,9 @@ Journey file shape::
       "preset": "medium", "steps": ["waitfor:id=fst.player-bands.title@10", "..."]}]
 
 ``{shots}`` in a step expands to the ``--shots`` directory (Windows path). An optional
-``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks and
-``"args": ["--reduce-motion"]`` extra app arguments.
+``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks,
+``"args": ["--reduce-motion"]`` extra app arguments, and an optional ``"fixture": ["--band-rankings", "empty"]``
+runs that journey against its own fixture service with those flags (``rivals_fixture.py`` unless ``--fixture``).
 
 Usage::
 
@@ -42,6 +43,7 @@ import journey_exe  # noqa: E402  (sibling module)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UIWIN = REPO_ROOT / "tools" / "windows" / "uiwin.py"
 MOCK = REPO_ROOT / "tools" / "mock_service.py"
+FIXTURE = REPO_ROOT / "tools" / "windows" / "rivals_fixture.py"
 #: App under test (``--exe``: debug, release, aot or a path).
 EXE = journey_exe.DEBUG_EXE
 
@@ -51,11 +53,13 @@ EXE = journey_exe.DEBUG_EXE
 def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | None = None) -> tuple[subprocess.Popen, int]:
     """Start the fixture service on a free loopback port, logging to a file.
 
-    A file (not a pipe) keeps a chatty service from blocking on a full pipe buffer.
+    A file (not a pipe) keeps a chatty service from blocking on a full pipe buffer. With a ``fixture`` script (for
+    a journey's ``fixture`` flags, the Windows wrapper ``rivals_fixture.py``, which takes ``--band-rankings`` and
+    every mock service flag) that script serves instead of the plain mock service.
 
     Args:
         log: Service output file.
-        service_args: Extra ``mock_service.py`` flags (e.g. ``--large-catalogue``).
+        service_args: Extra ``mock_service.py`` flags (e.g. ``--large-catalogue``) and a journey's ``fixture`` flags.
         fixture: Optional wrapper script around ``mock_service.py`` (it raises the listen backlog itself).
 
     Returns:
@@ -159,11 +163,16 @@ def main(argv: list[str] | None = None) -> int:
     args.shots.mkdir(parents=True, exist_ok=True)
     journeys = json.loads(args.journeys.read_text(encoding="utf-8"))
     selected = [j for j in journeys if not args.only or j["name"] in args.only]
-    mock, port = start_mock(args.shots / "fixture-service.log", ("--large-catalogue",) if args.large_catalogue else (),
-                            args.fixture)
+    services: dict[tuple[str, ...], tuple[subprocess.Popen, int]] = {}
+    base = ("--large-catalogue",) if args.large_catalogue else ()
     failures = 0
     try:
         for journey in selected:
+            extra = tuple(journey.get("fixture", ()))
+            if extra not in services:
+                log = "fixture-service.log" if not services else f"fixture-service-{len(services)}.log"
+                services[extra] = start_mock(args.shots / log, base + extra, args.fixture or (FIXTURE if extra else None))
+            port = services[extra][1]
             ok, detail = run_journey(journey, port, args.shots.resolve())
             attempts = 1
             while not ok and attempts <= args.retries:
@@ -174,7 +183,8 @@ def main(argv: list[str] | None = None) -> int:
             verdict = "FAIL" if not ok else "FLAKY" if attempts > 1 else "PASS"
             print(f"{verdict} {journey['name']}" + (f": {detail}" if not ok else ""), flush=True)
     finally:
-        mock.kill()
+        for mock, _ in services.values():
+            mock.kill()
     print(f"{len(selected) - failures}/{len(selected)} journeys passed; screenshots in {args.shots}")
     return 1 if failures else 0
 

@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExpandedDockedSearchBar
 import androidx.compose.material3.ExpandedFullScreenSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -139,14 +138,8 @@ object GlobalSearchTags {
     /** Polite result-count status. */
     const val STATUS = "fst.global-search.status"
 
-    /** Whole-panel progress before the first rows. */
+    /** Whole-panel progress, centred in the results region under the scope chips. */
     const val LOADING = "fst.global-search.loading"
-
-    /** Players inline progress. */
-    const val PLAYERS_LOADING = "fst.global-search.players-loading"
-
-    /** Retry (players empty / all empty). */
-    const val RETRY = "fst.global-search.retry"
 
     /** Band explanation block. */
     const val BANDS_UNAVAILABLE = "fst.global-search.bands-unavailable"
@@ -171,13 +164,8 @@ object GlobalSearchTags {
     /** Scope pill row. */
     const val SCOPES = "fst.global-search.scopes"
 
-    /**
-     * Section heading tag.
-     *
-     * @param scope Section scope.
-     * @return Tag.
-     */
-    fun section(scope: SearchScope) = "fst.global-search.section.${scope.token}"
+    /** Players failure status (no Retry). */
+    const val PLAYERS_ERROR = "fst.global-search.players-error"
 }
 
 // endregion
@@ -308,7 +296,6 @@ fun GlobalSearchHost(
             bottomInset = with(density) { dockedImeOverlapPx.toDp() },
             artworkUrl = artworkUrl,
             onToggleScope = viewModel::toggleScope,
-            onRetry = viewModel::retry,
             onOpen = { destination -> collapseThen { onOpen(destination) } },
             onBandRankings = { collapseThen(onBandRankings) },
         )
@@ -349,7 +336,8 @@ private fun SearchField(
     SearchBarDefaults.InputField(
         query = ui.query,
         onQueryChange = viewModel::onQueryChange,
-        // IME Search runs the text now and only closes the keyboard (web: Enter opens nothing).
+        // IME Search runs the text now and only closes the keyboard (web: Enter opens nothing); on a
+        // failed or empty players result it runs it again (issue #299: there is no Retry button).
         onSearch = { viewModel.submit() },
         expanded = expanded,
         onExpandedChange = { if (!it) onCollapse() },
@@ -388,13 +376,13 @@ private fun SearchField(
 // region Content
 
 /**
- * Chips, status, and grouped results for the expanded surface.
+ * Chips, status and results for the expanded surface. Results carry no section titles: the scope
+ * chips already name the scope (issue #299).
  *
  * @param ui Current state.
  * @param artworkUrl Artwork resolver.
  * @param bottomInset Space the keyboard covers at the bottom of the surface (docked panel).
  * @param onToggleScope Toggle a scope chip.
- * @param onRetry Retry the query.
  * @param onOpen Open a result.
  * @param onBandRankings Open Band Rankings.
  */
@@ -403,7 +391,6 @@ fun GlobalSearchContent(
     ui: GlobalSearchUiState,
     artworkUrl: (String?) -> String?,
     onToggleScope: (SearchScope) -> Unit,
-    onRetry: () -> Unit,
     onOpen: (SearchDestination) -> Unit,
     onBandRankings: () -> Unit,
     bottomInset: Dp = 0.dp,
@@ -427,13 +414,15 @@ fun GlobalSearchContent(
         }
         Box(Modifier.fillMaxWidth().weight(1f)) {
             when {
+                ui.hint != null -> CenteredMessage(ui.hint!!, bottomInset)
                 ui.isBandsScope -> BandsUnavailable(onBandRankings)
-                ui.hint != null -> CenteredMessage(ui.hint!!)
-                ui.emptyState != null -> EmptyResults(ui.emptyState!!, onRetry, bottomInset)
-                ui.isBusy && !ui.showSongsSection && !ui.showPlayersSection -> Box(Modifier.fillMaxSize().padding(bottom = bottomInset), contentAlignment = Alignment.Center) {
+                ui.emptyState != null -> EmptyResults(ui.emptyState!!, bottomInset)
+                // The one spinner, centred in the region between the scope chips and the bottom
+                // edge (or the keyboard), like the web panel spinner (issue #299).
+                ui.isBusy -> Box(Modifier.fillMaxSize().padding(bottom = bottomInset), contentAlignment = Alignment.Center) {
                     FestivalLoading("Searching", Modifier.testTag(GlobalSearchTags.LOADING), size = 36.dp)
                 }
-                else -> Results(ui, artworkUrl, onRetry, onOpen, bottomInset)
+                else -> Results(ui, artworkUrl, onOpen, bottomInset)
             }
         }
     }
@@ -479,79 +468,44 @@ private fun ScopePills(selected: SearchScope, onToggle: (SearchScope) -> Unit) {
 }
 
 @Composable
-private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onRetry: () -> Unit, onOpen: (SearchDestination) -> Unit, bottomInset: Dp) {
+private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onOpen: (SearchDestination) -> Unit, bottomInset: Dp) {
     // Web SearchModal restaggers once per content signature: hide for a frame when the result
     // set changes, then fade rows in (web fadeInUp, 125 ms stagger).
     val signature = remember(ui.songs, ui.players) { ui.songs.map { it.songId } to ui.players.map { it.accountId } }
     var settled by remember { mutableStateOf<Any?>(null) }
     LaunchedEffect(signature) { settled = signature }
     val revealed = rememberRevealed(settled == signature)
-    val playersOffset = if (ui.showSongsSection) ui.songs.size + 1 else 0
+    val playersOffset = if (ui.showSongsSection) ui.songs.size else 0
     LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), contentPadding = PaddingValues(bottom = bottomInset)) {
         if (ui.showSongsSection) {
-            item(key = "h-songs") {
-                Box(Modifier.festivalFadeIn(revealed)) { SectionTitle("Songs", GlobalSearchTags.section(SearchScope.Songs)) }
-            }
             if (ui.songsPhase == SectionPhase.Failed) {
                 item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }
             }
             itemsIndexed(ui.songs, key = { _, song -> "s-${song.songId}" }) { index, song ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
                     SongResultRow(song, artworkUrl(song.albumArt)) { onOpen(song.destination) }
                 }
             }
         }
         if (ui.showPlayersSection) {
-            item(key = "h-players") {
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset))) { SectionTitle("Players", GlobalSearchTags.section(SearchScope.Players)) }
-            }
-            when (ui.playersPhase) {
-                SectionPhase.Loading -> item(key = "players-loading") {
-                    // The app's one progress ring (operator batch 6: a ring, not a line).
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        FestivalLoading(
-                            null,
-                            Modifier
-                                .testTag(GlobalSearchTags.PLAYERS_LOADING)
-                                .semantics { contentDescription = "Searching players"; liveRegion = LiveRegionMode.Polite },
-                            size = 24.dp,
-                        )
-                    }
-                }
-                SectionPhase.Failed -> item(key = "players-failed") {
+            if (ui.playersPhase == SectionPhase.Failed) {
+                item(key = "players-failed") {
                     ServiceStatusInline(
                         issue = ui.playersIssue ?: return@item,
                         fallbackTitle = GlobalSearchResults.PLAYERS_UNAVAILABLE,
                         countdown = ui.playersCountdown,
-                        onRetry = onRetry,
-                        modifier = Modifier.padding(horizontal = 16.dp).testTag("fst.global-search.players-error"),
+                        onRetry = null,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(GlobalSearchTags.PLAYERS_ERROR),
                     )
                 }
-                else -> Unit
             }
             itemsIndexed(ui.players, key = { _, player -> "p-${player.accountId}" }) { index, player ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index + 1))) {
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index))) {
                     PlayerResultRow(player) { onOpen(player.destination) }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun SectionTitle(title: String, tag: String) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = BrandTokens.textPrimary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(BrandTokens.cardBackground)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .testTag(tag)
-            .semantics { heading() },
-    )
 }
 
 @Composable
@@ -617,13 +571,13 @@ private fun InlineMessage(text: String) {
 }
 
 @Composable
-private fun CenteredMessage(text: String) {
+private fun CenteredMessage(text: String, bottomInset: Dp) {
     // Web: the hint ("Enter at least two characters…") is plain white text centred in the
     // results area, with no container.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
+        modifier = Modifier.fillMaxSize().padding(bottom = bottomInset).padding(horizontal = 24.dp, vertical = 32.dp),
     ) {
         Text(text, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.testTag(GlobalSearchTags.HINT))
     }
@@ -631,28 +585,18 @@ private fun CenteredMessage(text: String) {
 
 /**
  * The app's shared title-and-subtitle empty state, centred horizontally and vertically in the
- * results area above the keyboard (issue #99), with Retry when an empty players envelope is
- * involved. It scrolls instead of clipping when large text outgrows a short window.
+ * results area above the keyboard (issue #99), with no Retry (issue #299). It scrolls instead of
+ * clipping when large text outgrows a short window.
  *
- * @param empty Title, subtitle and whether Retry is offered.
- * @param onRetry Retry the query.
+ * @param empty Title and subtitle.
  * @param bottomInset Space the keyboard covers at the bottom of the surface.
  */
 @Composable
-private fun EmptyResults(empty: SearchEmptyState, onRetry: () -> Unit, bottomInset: Dp) {
+private fun EmptyResults(empty: SearchEmptyState, bottomInset: Dp) {
     BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = bottomInset).testTag(GlobalSearchTags.EMPTY)) {
         val viewport = maxHeight
         Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport), contentAlignment = Alignment.Center) {
-            FestivalEmptyState(
-                title = empty.title,
-                subtitle = empty.subtitle,
-                modifier = Modifier.fillMaxWidth(),
-                action = if (empty.canRetry) {
-                    { FilledTonalButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag(GlobalSearchTags.RETRY)) { Text("Retry") } }
-                } else {
-                    null
-                },
-            )
+            FestivalEmptyState(title = empty.title, subtitle = empty.subtitle, modifier = Modifier.fillMaxWidth())
         }
     }
 }

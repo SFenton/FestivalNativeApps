@@ -53,7 +53,7 @@ The Songs page's mobile **FAB search dock** and desktop **Songs toolbar field** 
 | Empty | Scope-specific or "No results found.", centred (`hintCenter`); All hides empty sections |
 | Error | Per scope; other scopes still show (`useUnifiedSearch.ts:146-150,166-170`) |
 
-**Native empty state (issue #99):** never an inline left-aligned row. In All, an empty Players section is hidden while Songs has rows (web `shouldRenderGlobalSection`). When the shown scope(s) are all empty, the results area shows a title + subtitle centred horizontally and vertically, like the Songs page's empty state: All "No results found" / "Check the spelling or try a different song, artist or player."; Songs "No songs found" / "Check the spelling or try a different song or artist."; Players "No players found" / "Check the spelling or try a different player name." All and Players add **Retry** (empty envelope may be a timeout); Songs (local match) has none. At large text sizes the block scrolls so Retry stays reachable. Apple titles use title-style capitalization ("No Players Found"), as Apple's own empty states do; the subtitles are this exact copy.
+**Native empty state (issue #99):** never an inline left-aligned row. In All, an empty Players section is hidden while Songs has rows (web `shouldRenderGlobalSection`). When the shown scope(s) are all empty, the results area shows a title + subtitle centred horizontally and vertically, like the Songs page's empty state: All "No results found" / "Check the spelling or try a different song, artist or player."; Songs "No songs found" / "Check the spelling or try a different song or artist."; Players "No players found" / "Check the spelling or try a different player name." Issue #299 removed their **Retry** (the field's Search/Enter re-runs the query). At large text sizes the block scrolls. Apple titles use title-style capitalization ("No Players Found"), as Apple's own empty states do; the subtitles are this exact copy.
 
 ### Tapping a result
 
@@ -85,11 +85,13 @@ Opening a result **views** it; selecting a profile is a separate action on the d
 - **One engine per platform** (`GlobalSearchModel` or equivalent in the UI-free core), shared by every opener: query, scope, debounce, cancellation, per-scope results/errors. The profile picker and Find Rival may reuse it with narrowed scopes (players only), but their surfaces stay as their own specs define.
 - **Query:** trim; <2 chars → hint, no request; 250 ms debounce; cancel superseded work; drop late results. Player requests follow [profile-selection](../profile-selection/spec.md#native-client-contract-all-platforms) exactly (2–200 chars, `+` → `%2B`, ≤10, keyless, no selected-profile header, reject malformed rows).
 - **Songs:** local match over the current catalogue with the Songs page's own text matcher (port of `songMatchesSearch`), ≤20 rows, catalogue order. No network.
-- **Loading (native correction):** show Songs as soon as the debounce fires; the Players section shows its own inline progress until the account search returns. Local results must not wait for the network (the web waits only because band search is also async).
-- **Errors:** per scope. An empty envelope may mean a server timeout ([service-safety](../../platforms/service-safety.md#endpoint-allowlist)), so "No players found." gets **Retry**, like a failure. The empty state is the centred title + subtitle in [States and motion](#states-and-motion). A public-read freeze 503 shows the [service-status](../service-status/spec.md) "Scores are updating" message in the Players section, never "no players".
+- **Loading (issue #299, replaces the earlier "native correction"):** one spinner for the whole surface, centred horizontally and vertically in the area between the scope chips and the bottom nav/keyboard (web `SearchModal` parity). All waits until Songs and Players have both settled; the Songs scope never waits for Players. No inline Players progress.
+- **No section titles (issue #299):** the scope chips already name the scope, so results carry no "Songs"/"Players"/"Bands" titles; rows keep their own accessible names.
+- **Hint (issue #299):** under two characters the hint names the scope: "Enter at least two characters to search for songs, players, or bands." (All), "… to search for songs." (Songs), "… to search for players." (Players), "… to search for bands." (Bands, before the band explanation).
+- **Errors:** per scope, with **no Retry button** (issue #299; the web has none). An empty envelope may mean a server timeout ([service-safety](../../platforms/service-safety.md#endpoint-allowlist)), so submitting the same text again (keyboard Search/Enter) re-runs a failed or empty search; editing the query also re-runs it. The empty state is the centred title + subtitle in [States and motion](#states-and-motion). A public-read freeze 503 shows the [service-status](../service-status/spec.md) "Scores are updating" message in the Players section, never "no players".
 - **Navigation:** close the surface, then push the destination on the **current section's** stack (the user's place is kept for Back). Selected player/band → the Statistics section. The query is not restored on Back (web parity).
 - **No recent searches, no history persistence** (web parity; also avoids storing account names). See open questions.
-- **Accessibility:** the field has a real accessible name ("Search songs, players and bands"); scope chips expose selected state; announce result counts politely once per settled query ("3 songs, 10 players"); headings per section; focus returns to the Search button on close; the surface is dismissible by the platform's back/escape gesture.
+- **Accessibility:** the field has a real accessible name ("Search songs, players and bands"); scope chips expose selected state; announce result counts politely once per settled query ("3 songs, 10 players"); no section headings (issue #299); focus returns to the Search button on close; the surface is dismissible by the platform's back/escape gesture.
 
 ## Band scope (blocked)
 
@@ -105,11 +107,11 @@ Band search is **not called** by native apps: when its projection is missing, th
 |---|---|
 | `closed` | Search action visible in every layout's chrome; nothing loaded |
 | `open-hint` | Surface open, field focused (keyboard raised on phone only when opened by the user), <2 chars → hint |
-| `loading` | Songs shown immediately; Players inline progress; superseded queries cancelled |
-| `results-all` | Sections Songs → Players with headings; count announced |
+| `loading` | One centred spinner below the scope chips; All waits for every live scope; superseded queries cancelled |
+| `results-all` | Songs rows then Players rows, no section titles; count announced |
 | `results-scoped` | One scope via chip; toggling again returns to all |
-| `empty` | Centred scope-specific title + subtitle; All and Players have Retry; All hides an empty Players section next to song rows |
-| `error` | Per-scope failure with Retry; other scopes still shown; freeze → "Scores are updating" |
+| `empty` | Centred scope-specific title + subtitle, no Retry; All hides an empty Players section next to song rows |
+| `error` | Per-scope failure message without Retry; other scopes still shown; freeze → "Scores are updating" |
 | `bands-unavailable` | Bands chip shows the explanation and Band Rankings link; no request |
 | `navigated` | Surface closed, destination pushed on the current section; Back returns to the prior page |
 
@@ -125,10 +127,12 @@ Band search is **not called** by native apps: when its projection is missing, th
 | `fst.global-search.scope.{songs,players,bands}` | Scope chips |
 | `fst.global-search.hint` | Short-query / empty / error message |
 | `fst.global-search.empty` | Centred empty state (Android/Windows; title `.empty.title`, subtitle `.empty.subtitle` on Windows) |
-| `fst.global-search.section.{songs,players}` | Section containers (headings inside) |
+| `fst.global-search.section.{songs,players}` | Section containers (headings inside); removed on Android and Windows by issue #299 |
 | `fst.global-search.result.song`, `fst.global-search.result.player` | Each result row (repeated; accessible name = title/artist or display name) |
-| `fst.global-search.players-loading` | Players inline progress |
-| `fst.global-search.retry` | Players / empty-state Retry; on Apple the whole centred empty state of Players and All is this one element (title, subtitle, Retry) |
+| `fst.global-search.loading` | The one centred search spinner (Android, Windows) |
+| `fst.global-search.players-loading` | Players inline progress; removed on Android and Windows by issue #299 |
+| `fst.global-search.players-error` | Players failure / freeze message (Android, Windows) |
+| `fst.global-search.retry` | Players / empty-state Retry; on Apple the whole centred empty state of Players and All is this one element (title, subtitle, Retry); removed on Android and Windows by issue #299 |
 | `fst.global-search.bands-unavailable` | Band explanation block and its Band Rankings button |
 
 ## Test matrix
