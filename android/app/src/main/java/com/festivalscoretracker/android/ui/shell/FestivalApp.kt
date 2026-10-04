@@ -683,6 +683,7 @@ private fun FestivalShell(
         )
     }
     val firstRunActive by container.firstRun.active.collectAsStateWithLifecycle()
+    val firstRunSettled by container.firstRun.launchSettled.collectAsStateWithLifecycle()
     val whatsNewShown by container.whatsNew.shown.collectAsStateWithLifecycle()
     val firstRunDemoSongs = remember(container) {
         FirstRunDemoSongsSource({ container.api.catalog() }, container.shop.state, container.api.publicationChanges, container.api::artworkUrl)
@@ -693,13 +694,15 @@ private fun FestivalShell(
         settings = settings,
         compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
         blocked = showProfile || showNotifications || whatsNewShown != null,
+        destinationResolved = stack.lastOrNull() != null,
         demoSongs = firstRunDemoSongs,
     )
-    // After the launch page's carousel (web order); Settings replays it.
+    // After the launch page's carousel (web order), never on a timer race with it; Settings replays it.
+    // A separating hinge leaves compact panels: the sheet keeps to one side, a centred dialog would cross it.
     WhatsNewHost(
         controller = container.whatsNew,
-        blocked = showProfile || showNotifications || firstRunActive != null,
-        compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
+        blocked = showProfile || showNotifications || firstRunActive != null || !firstRunSettled,
+        compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp) || verticalHinge != null || horizontalHinge != null,
     )
 }
 
