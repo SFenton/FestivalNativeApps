@@ -121,7 +121,6 @@ public sealed partial class LeaderboardEntryRow : UserControl
         var ranked = row.RankText.Length > 0;
         RankText.Visibility = ranked ? Visibility.Visible : Visibility.Collapsed;
         Grid.SetColumn(NameText, ranked ? 1 : 0);
-        Grid.SetColumnSpan(NameText, ranked ? 1 : 2);
         switch (row)
         {
             case ILeaderboardScoreRow score:
@@ -220,44 +219,70 @@ public sealed partial class LeaderboardEntryRow : UserControl
         var plan = LeaderboardColumnLayout.Fit(section, width, TextScaleLayout.Factor, score?.PinsSeason == true);
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
-        MetaColumn.MinWidth = plan.MetaWidth;
-        PlaceMeta(plan.MetaBelowName, plan.ValueBelowName);
+        MetaColumn.MinWidth = plan.Stacked ? 0 : plan.MetaWidth;
         MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ValueColumn.MinWidth = plan.ValueWidth;
+        ValueColumn.MinWidth = plan.Stacked ? 0 : plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
         Pill.Visibility = plan.ShowAccuracy && score is { HasAccuracy: true } ? Visibility.Visible : Visibility.Collapsed;
         StarsColumn.MinWidth = plan.StarsWidth;
         StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+        PlaceColumns(plan, RankText.Text.Length > 0);
     }
 
     /// <summary>
-    /// Puts the songs label in its own right-aligned column, or under the name when the column would squeeze the name away
-    /// (issue #208: 200% text in a compact window left only an ellipsis). When the name is still squeezed the row stacks:
-    /// rank and name (across the rating's column) on the first line, the songs label from the rank's edge and the rating
-    /// on the second.
+    /// Places the columns on one line, or under the name when large text in a narrow row would squeeze the name to an
+    /// ellipsis. A rankings row moves its songs label under the name (issue #208), and when the name is still squeezed
+    /// stacks: rank and name (across the rating's column) on the first line, the songs label from the rank's edge and the
+    /// rating on the second. A score row stacks its values (issue #207): the name across the first line, a pinned season
+    /// and the score, badge and stars under it in the name's columns (a third line when they don't fit side by side).
     /// </summary>
-    /// <param name="below">Whether the label goes under the name.</param>
-    /// <param name="stacked">Whether the rating goes under the name too.</param>
-    private void PlaceMeta(bool below, bool stacked)
+    /// <param name="plan">Section column plan.</param>
+    /// <param name="ranked">Whether the row has a rank (labelled rows put the name in the rank column too).</param>
+    private void PlaceColumns(LeaderboardColumnPlan plan, bool ranked)
     {
-        var nameColumn = Grid.GetColumn(NameText);
-        var ranked = RankText.Visibility == Visibility.Visible;
-        Grid.SetRowSpan(RankText, stacked ? 1 : 2);
-        Grid.SetRow(NameText, 0);
-        Grid.SetRowSpan(NameText, below || stacked ? 1 : 2);
-        Grid.SetColumnSpan(NameText, (ranked ? 1 : 2) + (stacked ? 2 : 0));
-        NameText.VerticalAlignment = below || stacked ? VerticalAlignment.Bottom : VerticalAlignment.Center;
-        Grid.SetRow(ValueStack, stacked ? 1 : 0);
-        Grid.SetRowSpan(ValueStack, stacked ? 1 : 2);
-        ValueStack.VerticalAlignment = stacked ? VerticalAlignment.Top : VerticalAlignment.Center;
-        Grid.SetRow(MetaText, below ? 1 : 0);
-        Grid.SetRowSpan(MetaText, below ? 1 : 2);
-        Grid.SetColumn(MetaText, !below ? 2 : stacked ? 0 : nameColumn);
-        Grid.SetColumnSpan(MetaText, !below ? 1 : stacked ? 2 : (ranked ? 1 : 2));
-        MetaText.VerticalAlignment = below ? VerticalAlignment.Top : VerticalAlignment.Center;
-        MetaText.HorizontalAlignment = below ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-        MetaText.TextAlignment = below ? TextAlignment.Left : TextAlignment.Right;
+        var nameColumn = ranked ? 1 : 0;
+        var nameSpan = ranked ? 1 : 2;
+        var below = plan.MetaBelowName;
+        var rankingStack = plan.ValueBelowName;
+        var scoreStack = plan.Stacked;
+        var multiLine = below || rankingStack || scoreStack;
+        var underSpan = 4 - nameColumn;
+        var valueLine = plan.SplitValues ? 2 : 1;
+
+        Place(RankText, 0, rankingStack || scoreStack ? 1 : 3, 0, 1, VerticalAlignment.Center);
+        Place(NameText, 0, multiLine ? 1 : 3, nameColumn, nameSpan + (scoreStack ? 4 : rankingStack ? 2 : 0),
+            below || rankingStack ? VerticalAlignment.Bottom : VerticalAlignment.Center);
+
+        if (scoreStack) Place(MetaText, 1, 1, nameColumn, underSpan, VerticalAlignment.Center);
+        else if (below) Place(MetaText, 1, 1, rankingStack ? 0 : nameColumn, rankingStack ? 2 : nameSpan, VerticalAlignment.Top);
+        else Place(MetaText, 0, 3, 2, 1, VerticalAlignment.Center);
+        var left = below || scoreStack;
+        MetaText.HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MetaText.TextAlignment = left ? TextAlignment.Left : TextAlignment.Right;
+
+        if (scoreStack) Place(ValueStack, valueLine, 1, nameColumn, underSpan, VerticalAlignment.Center);
+        else if (rankingStack) Place(ValueStack, 1, 1, 3, 1, VerticalAlignment.Top);
+        else Place(ValueStack, 0, 3, 3, 1, VerticalAlignment.Center);
+        Place(Pill, scoreStack ? valueLine : 0, scoreStack ? 1 : 3, 4, 1, VerticalAlignment.Center);
+        Place(StarsHost, scoreStack ? valueLine : 0, scoreStack ? 1 : 3, 5, 1, VerticalAlignment.Center);
+        RowButton.Padding = scoreStack ? new Thickness(12, 6, 12, 6) : new Thickness(12, 0, 12, 0);
+    }
+
+    /// <summary>Puts an element in the row grid.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="row">First grid row.</param>
+    /// <param name="rowSpan">Grid rows spanned.</param>
+    /// <param name="column">First grid column.</param>
+    /// <param name="columnSpan">Grid columns spanned.</param>
+    /// <param name="vertical">Vertical alignment within the span.</param>
+    private static void Place(FrameworkElement element, int row, int rowSpan, int column, int columnSpan, VerticalAlignment vertical)
+    {
+        Grid.SetRow(element, row);
+        Grid.SetRowSpan(element, rowSpan);
+        Grid.SetColumn(element, column);
+        Grid.SetColumnSpan(element, columnSpan);
+        element.VerticalAlignment = vertical;
     }
     /// <summary>Re-evaluates the width-dependent columns.</summary>
     /// <param name="sender">Button.</param>
