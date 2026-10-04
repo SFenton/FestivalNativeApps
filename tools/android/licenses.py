@@ -19,11 +19,13 @@ Run it in the same commit as any dependency change.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -124,14 +126,39 @@ def find_pom(group: str, artifact: str, version: str) -> Path | None:
         return local
     relative = f"{group.replace('.', '/')}/{artifact}/{version}/{artifact}-{version}.pom"
     for repository in REPOSITORIES:
-        try:
-            with urllib.request.urlopen(f"{repository}/{relative}", timeout=30) as response:
-                body = response.read()
-        except (urllib.error.URLError, TimeoutError):
+        body = download(f"{repository}/{relative}")
+        if body is None:
             continue
         local.parent.mkdir(parents=True, exist_ok=True)
         local.write_bytes(body)
         return local
+    return None
+
+
+def download(url: str, attempts: int = 4) -> bytes | None:
+    """Fetch a public POM, retrying transient network failures (CI runners
+    occasionally drop a request, which used to fail the manifest check).
+
+    Args:
+        url: POM URL.
+        attempts: Maximum tries for transient failures.
+
+    Returns:
+        A parseable body, or None when the repository lacks it or every attempt failed.
+    """
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as response:
+                body = response.read()
+            ET.fromstring(body)
+            return body
+        except urllib.error.HTTPError as error:
+            if error.code in (403, 404, 410):
+                return None
+        except (urllib.error.URLError, OSError, ET.ParseError, http.client.HTTPException):
+            pass
+        if attempt + 1 < attempts:
+            time.sleep(2 ** attempt)
     return None
 
 
