@@ -235,7 +235,8 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
                     .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             ) {
                 // The app's one loading indicator (design/android.md), not the theme's blue primary.
-                FestivalLoading(label = null, size = 24.dp)
+                // The status text says what is in progress; one TalkBack stop, not a separate progress bar.
+                Box(Modifier.clearAndSetSemantics {}) { FestivalLoading(label = null, size = 24.dp) }
                 Text(form.progressText, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium)
             }
         }
