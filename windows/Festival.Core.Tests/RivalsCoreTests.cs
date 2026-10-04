@@ -178,6 +178,8 @@ public class RivalsCoreTests
     [Theory]
     [InlineData("""{"combo":"01","above":null,"below":[]}""")]
     [InlineData("""{"combo":"01","above":[{"accountId":"bad id","rivalScore":1,"sharedSongCount":1,"aheadCount":1,"behindCount":0,"avgSignedDelta":0}],"below":[]}""")]
+    [InlineData("""{"combo":"01","above":[{"accountId":" ","rivalScore":1,"sharedSongCount":1,"aheadCount":1,"behindCount":0,"avgSignedDelta":0}],"below":[]}""")]
+    [InlineData("""{"combo":"01","above":[{"rivalScore":1,"sharedSongCount":1,"aheadCount":1,"behindCount":0,"avgSignedDelta":0}],"below":[]}""")]
     [InlineData("""{"combo":"01","above":[{"accountId":"ok","rivalScore":1,"sharedSongCount":-1,"aheadCount":1,"behindCount":0,"avgSignedDelta":0}],"below":[]}""")]
     [InlineData("not json")]
     public async Task Client_RejectsMalformedLists(string body)
@@ -185,6 +187,22 @@ public class RivalsCoreTests
         var (client, _) = Client(_ => Wire.Ok(body));
         var error = await Assert.ThrowsAsync<FestivalApiException>(() => client.GetRivalsListAsync(Me, "01"));
         Assert.Equal(FestivalApiErrorKind.InvalidResponse, error.Kind);
+    }
+
+    [Fact]
+    public async Task Client_KeepsAnonymousListRowsButNotInRivalsAll()
+    {
+        // Live leaderboard-rivals (SFentonX Lead, 2026-10) carried {"accountId":"", no displayName}; the whole card failed.
+        const string Board = """{"instrument":"Solo_Guitar","rankBy":"totalscore","userRank":4,"above":[],"below":[{"accountId":"","sharedSongCount":728,"aheadCount":157,"behindCount":571,"avgSignedDelta":856.6,"leaderboardRank":13,"userLeaderboardRank":4}]}""";
+        const string Song = """{"combo":"01","above":[{"accountId":"","displayName":"Ghost","rivalScore":1,"sharedSongCount":1,"aheadCount":1,"behindCount":0,"avgSignedDelta":0}],"below":[]}""";
+        var (client, _) = Client(r => Wire.Ok(r.RequestUri!.AbsolutePath.Contains("/leaderboard-rivals/", StringComparison.Ordinal) ? Board : Song));
+        var board = await client.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore);
+        Assert.Equal("", board.Below[0].AccountId);
+        Assert.Null(board.Below[0].DisplayName);
+        Assert.Equal(13, board.Below[0].LeaderboardRank);
+        Assert.Equal("", (await client.GetRivalsListAsync(Me, "01")).Above[0].AccountId);
+        Assert.Throws<FestivalApiException>(() => new RivalsAllResponse(Me, [], [new RivalsAllCombo("01",
+            [new RivalsAllEntry("", null, "above", 1, 1, 0, 2, null, null)], [])]).Validated());
     }
 
     [Fact]
@@ -202,9 +220,11 @@ public class RivalsCoreTests
         var (unsafeId, _) = Client(_ => Wire.Ok($$"""{"above":[{"accountId":"bad id",{{Row}}}],"below":[]}"""));
         Assert.Equal(FestivalApiErrorKind.InvalidResponse,
             (await Assert.ThrowsAsync<FestivalApiException>(() => unsafeId.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore))).Kind);
+        // A missing accountId is anonymous too (normalized to ""); song lists keep only an explicit "" (Client_RejectsMalformedLists).
+        var (missing, _) = Client(_ => Wire.Ok($$"""{"above":[{{{Row}}}],"below":[]}"""));
+        Assert.Equal("", (await missing.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore)).Above[0].AccountId);
         var (songList, _) = Client(_ => Wire.Ok($$"""{"combo":"01","above":[{"accountId":"","rivalScore":1,{{Row}}}],"below":[]}"""));
-        Assert.Equal(FestivalApiErrorKind.InvalidResponse,
-            (await Assert.ThrowsAsync<FestivalApiException>(() => songList.GetRivalsListAsync(Me, "01"))).Kind);
+        Assert.Equal("", (await songList.GetRivalsListAsync(Me, "01")).Above[0].AccountId);
     }
 
     [Fact]
@@ -364,6 +384,17 @@ public class RivalsCoreTests
     {
         var (above, below) = RivalCommonRivals.Intersect([new RivalsListResponse("x", [Summary("a")], [])]);
         Assert.Empty(above);
+        Assert.Empty(below);
+    }
+
+    [Fact]
+    public void Common_SkipsAnonymousRows()
+    {
+        // Issue #200: anonymous production rows share the empty ID, so they must never "match" across charts.
+        var lead = new RivalsListResponse("Solo_Guitar", [Summary("a"), Summary("")], []);
+        var bass = new RivalsListResponse("Solo_Bass", [Summary("a")], [Summary("")]);
+        var (above, below) = RivalCommonRivals.Intersect([lead, bass]);
+        Assert.Equal(["a"], above.Select(r => r.AccountId));
         Assert.Empty(below);
     }
     #endregion

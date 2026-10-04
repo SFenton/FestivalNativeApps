@@ -120,6 +120,7 @@ class MatrixTests(unittest.TestCase):
 
     def test_modes_and_restore(self):
         self.assertEqual(m.MODES["hc-desert"]["system"], {"high_contrast": "desert"})
+        self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         self.assertTrue(m.MODES["app-reduced"]["app"]["reduceMotion"])
         self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         previous = {"high_contrast": "off", "animations": True, "transparency": True, "text_scale": 100}

@@ -38,15 +38,18 @@ public sealed record RivalsListResponse(
     [JsonIgnore]
     public bool IsEmpty => Above.Count == 0 && Below.Count == 0;
 
-    /// <summary>Rejects missing lists or unsafe account IDs and drops unsafe names.</summary>
+    /// <summary>
+    /// Rejects missing lists, missing or unsafe account IDs and drops unsafe names. Anonymous rows with an explicit empty
+    /// <c>accountId</c> (as production serves them, issue #200) are kept.
+    /// </summary>
     /// <returns>A sanitized copy.</returns>
     /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResponse"/>.</exception>
     public RivalsListResponse Validated() => this with
     {
         Above = RivalsValidation.Rivals(Above, r => r.AccountId, r => r.DisplayName, (r, n) => r with { DisplayName = n },
-            r => r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0 && double.IsFinite(r.RivalScore)),
+            r => r.AccountId is not null && r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0 && double.IsFinite(r.RivalScore), allowAnonymous: true),
         Below = RivalsValidation.Rivals(Below, r => r.AccountId, r => r.DisplayName, (r, n) => r with { DisplayName = n },
-            r => r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0 && double.IsFinite(r.RivalScore)),
+            r => r.AccountId is not null && r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0 && double.IsFinite(r.RivalScore), allowAnonymous: true),
     };
 }
 
@@ -330,7 +333,7 @@ internal static class RivalsValidation
     /// <param name="valid">Numeric checks.</param>
     /// <param name="allowAnonymous">
     /// Whether a row with an empty (or missing) account ID is kept as an anonymous, non-interactive row. Production
-    /// leaderboard-rival lists include such rows (issue #213), like the anonymous ranking rows. A populated but unsafe ID
+    /// rival lists include such rows (issues #200, #213), like the anonymous ranking rows. A populated but unsafe ID
     /// still rejects the list.
     /// </param>
     /// <returns>Sanitized rows.</returns>
