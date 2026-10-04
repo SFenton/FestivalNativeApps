@@ -37,7 +37,7 @@
 - **Songs rows**: ≥ 64 px card rows, 44 px art, title/`artist · year · duration`, 2 px gold (New) / red (Leaving Tomorrow) Shop border; trailing chart meter, status chips or metadata pills that wrap under the title in narrow lists ([songs/windows.md](../pages/songs/windows.md)). Rows have no chevron (card is the target, as on iPhone).
 - **Jump index**: `SemanticZoom` (Ctrl+minus / pinch / header tap / **Jump** button) over group headers is the Windows equivalent of the iPhone section scrubber.
 - **Wrapping rows of small items** (chips, pills, dialog selectors): `Controls/FlowPanel` (WinUI has no WrapPanel).
-- **Difficulty meter**: branded 62×20 geometry from `DifficultyScale` ([spec](../controls/difficulty-meter/spec.md)); one `Image`-typed UIA element.
+- **Difficulty meter**: branded 62×20 geometry from `DifficultyScale` ([spec](../controls/difficulty-meter/spec.md)); one `Image`-typed UIA element; unfilled bars become GrayText outlines under contrast themes ([windows notes](../controls/difficulty-meter/windows.md)).
 - Instrument icons: the Apple asset catalogue PNGs (144 px), decoded once at 72 px and shared.
 
 ## Motion
