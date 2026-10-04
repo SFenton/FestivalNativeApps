@@ -248,6 +248,9 @@ object SongMetadataPolicy {
 
     private val PERCENTILE_BUCKETS = listOf(1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100)
 
+    /** Spoken prefix of [lastPlayedText]. */
+    private const val LAST_PLAYED_PREFIX = "Last played "
+
     /**
      * Pills for a positive score in display order ([MetadataField.LastPlayed] always last).
      *
@@ -331,8 +334,10 @@ object SongMetadataPolicy {
         }
         val lastPlayed = detail.lastPlayedAt
         if (MetadataField.LastPlayed in shown && lastPlayed != null) {
-            val text = lastPlayedText(lastPlayed, locale, zone)
-            byKind[MetadataField.LastPlayed] = SongMetadataPill(MetadataField.LastPlayed, text, text)
+            // Visible date only (web `lastplayed` cell); the spoken text keeps "Last played".
+            val spoken = lastPlayedText(lastPlayed, locale, zone)
+            val text = spoken.removePrefix(LAST_PLAYED_PREFIX).replaceFirstChar { it.titlecase(locale) }
+            byKind[MetadataField.LastPlayed] = SongMetadataPill(MetadataField.LastPlayed, text, spoken)
         }
         val display = order.filter { it != MetadataField.LastPlayed } + MetadataField.LastPlayed
         val ordered = if (primary != null) listOf(primary) + (display - primary) else display

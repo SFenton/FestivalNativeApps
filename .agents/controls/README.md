@@ -48,7 +48,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | chopt-paths | `fst.song-detail.paths` | 12 | pending | [spec](chopt-paths/spec.md) | [ios](chopt-paths/ios.md) · [ipados](chopt-paths/ipados.md) |
 | shop-offers | `fst.songs.shop` | 14 | pending | [spec](shop-offers/spec.md) | [ios](shop-offers/ios.md) |
 | app-navigation | `fst.nav.*` | 6 | pending | [spec](app-navigation/spec.md) | [ios](app-navigation/ios.md) · [ipados](app-navigation/ipados.md) · [android](app-navigation/android.md) |
-| profile-selection | `fst.profile.*` | 17 | pending | [spec](profile-selection/spec.md) | [ios](profile-selection/ios.md) · [ipados](profile-selection/ipados.md) |
+| profile-selection | `fst.profile.*` | 17 | pending | [spec](profile-selection/spec.md) | [ios](profile-selection/ios.md) · [ipados](profile-selection/ipados.md) · [android](profile-selection/android.md) · [windows](profile-selection/windows.md) |
 | songs-instrument-status-chips | `fst.songs.instrument-status.*` | 21 | pending | [spec](songs-instrument-status-chips/spec.md) | [ios](songs-instrument-status-chips/ios.md) · [ipados](songs-instrument-status-chips/ipados.md) |
 | song-score-metadata | `fst.songs.metadata.*` | 32 | pending | [spec](song-score-metadata/spec.md) | [ios](song-score-metadata/ios.md) · [ipados](song-score-metadata/ipados.md) |
 | notifications | `fst.notifications.*` | 8 | pending | [spec](notifications/spec.md) | [ios](notifications/ios.md) |

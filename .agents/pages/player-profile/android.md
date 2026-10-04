@@ -14,7 +14,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 
 ## Selected vs viewed
 
-- `SelectedProfileStore` (`AppContainer.selectedProfile`, started by `FestivalApp`) owns the selected player's process-only scores: it reloads on a switch or a publication advance, clears on deselect, drops late reads for a previous account and counts down a scrape freeze. Songs and Suggestions read `state.scoreIndex` + `observedPublicationId` instead of reading again.
+- `SelectedProfileStore` (`AppContainer.selectedProfile`, started by `FestivalApp`) owns the selected player's process-only scores: it reloads on a switch or a publication advance, clears on deselect, drops late reads for a previous account and counts down a scrape freeze. Its read runs in the scope `FestivalApp` passes to `start()`, so an activity recreation mid-read (font scale is not in `configChanges`) cancels it; the next `start()` resumes an interrupted `Loading` or counting-down `Failed` read instead of treating the same account as current (issue #111: Statistics used to spin forever). Songs and Suggestions read `state.scoreIndex` + `observedPublicationId` instead of reading again.
 - The page mirrors the store when the shown account is the selected one, else runs its own read. Select seeds the store from the same read (no second GET) and persists through `ShellViewModel.selectPlayer`; a deselect (from the drawer) keeps showing the read as a viewed profile.
 
 | Read state | Identity row |
@@ -31,7 +31,7 @@ None of these navigate. Selecting adds the profile tabs in place; deselecting (d
 
 ## Layout
 
-- `ProfileGrid` (`ui/profile/ProfileGrid.kt`): a `LazyVerticalStaggeredGrid` whose columns come from `ProfileColumns` (`core/profile/ProfileLayout.kt`, reusing the Rivals lane's `HingeColumns`): one column per 340 dp (max 3), or one column per panel with the gaps on every separating vertical hinge (book fold half-open; a partly folded tri-fold). When split at a fold, the full-width rows (identity row, Overview, Top Songs heading, Bands) become single-lane so nothing straddles the hinge; flat folds (unfolded book, FST_TriFold) are not separating and use width rules.
+- `ProfileGrid` (`ui/profile/ProfileGrid.kt`): a `LazyVerticalStaggeredGrid` whose columns come from `ProfileColumns` (`core/profile/ProfileLayout.kt`, reusing the Rivals lane's `HingeColumns`): one column per 340 dp (max 3), or one column per panel with the gaps on every separating vertical hinge (book fold half-open; a partly folded tri-fold). When split at a fold, the full-width rows (identity row, Overview, Top Songs heading, Bands) become single-lane so nothing straddles the hinge; flat folds (unfolded book, FST_TriFold) are not separating and use width rules. The page reports the split (`onSplitChange`) and `ProfileScaffold` keys its grid state on it (`rememberProfileGridState`): the span change keeps the lane count, so the old state's lane cache left a gap beside Overview after a later jump to Global (issue #111).
 - Rows (`ProfileSections.rows`, web `PlayerContent.tsx` order): identity row (only when it has content), Overview, one card per Settings-visible chart, "Top Songs Per Instrument", one top-songs card per chart, Bands link.
 - No avatar/name card (issue #97): the top bar already shows the player's name, so the page starts at Overview. A plain full-width identity row (`fst.player.identity`, no card) leads only while it has something to show: the Select/Switch button, the paused-selection notice or the action error (`PlayerProfileUiState.showsIdentityRow`). The selected player's page has none (Deselect lives in the drawer). TalkBack's first heading is the Overview section header. Selection state shows only through the Select/Switch control (the web header has no "This Is Me"/"Public Profile" line).
 - Text is white (`textPrimary`/onSurface) by default; gray (`textSecondary`/`textMuted`) only for de-emphasis: section descriptions, top-song subtitles, history dates, chart axes.
@@ -88,6 +88,22 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 - Device: `androidTest/.../profile/ProfileDeviceJourneyTest` (select/deselect and switch stay on the page, tile → Songs filter, top song → Song Detail, history sort; asserts no card crosses a separating hinge). Run `python tools/android/device.py test com.festivalscoretracker.android.profile.ProfileDeviceJourneyTest --avd FST_Phone` and `--avd FST_Book_Fold --posture half`. `androidTest` shares the JVM tests' synthetic `testing/` fixtures.
 - JVM also: `core/profile/ChartScaleTest` (recharts-scale values), `RankHistoryWindowTest` (6.25 constant-rank regression).
 - Fixture screenshots (mock service, synthetic data): `android/reports/screenshots/profile3-*.png` (current cards: phone overview, instrument, empty charts, Leaderboards, Full Rankings; book fold half-open profile and Leaderboards) and `profile2-*.png` (earlier layout, Quick Links, tri-fold).
+- Robolectric `ProfileResizeUiTest`: scroll survives leaving the permanent drawer; the modal drawer stays closed after a density change ([app-navigation/android.md](../../controls/app-navigation/android.md)).
+
+## Device validation (issue #106, live public service, SFentonX)
+
+Each configuration covers the viewed profile, Quick Links jumps to Global Statistics, an instrument, Top Songs, Pro Drums + Cymbals, Pro Drums and Bands, dark theme, and font scale 1.0 and 2.0. Light theme is unchanged by design: the app is dark-only ([design/android.md](../../design/android.md)).
+
+| Configuration | Findings |
+|---|---|
+| FST_Phone portrait / landscape | Jumps to Top Songs and Pro Drums landed half a screen low: the card above composed on the jump and grew (fixed with hold landing, [quick-links/android.md](../../controls/quick-links/android.md)). Landscape uses the top-bar menu. At 2.0 the tiles drop to one column with no clipping. Selected (Statistics) state is correct. Connected `ProfileDeviceJourneyTest` + `PlayerAccessibilityJourneyTest` (ATF) pass. |
+| FST_Tablet landscape (permanent drawer) ↔ portrait (rail) | Two columns in landscape with the menu, and the jumps land. **Rotating reset the page to the top**: the shell re-parented the NavHost at 1200 dp (fixed: one page parent; the drawer stays closed and Back closes an open drawer after a portrait launch or rotation). Lazy grids keep their first visible item, so a two-lane → one-lane reflow shows the neighbouring card (e.g. Karaoke above Pro Drums + Cymbals). |
+| FST_Resizable phone / foldable / tablet / desktop | Position kept near the section across every preset. desktop → phone reopened the modal drawer: Material's nearest-anchor re-targeting after a density change, predating this pass (fixed). The drawer opens from the menu and Back closes it. |
+| FST_Book_Fold unfolded / half / folded | Jumps land; posture changes keep the section in view. Half-open splits at the hinge: masonry lanes can put Pro Drums left of Pro Drums + Cymbals, which is expected for a shortest-lane grid. Folded at 2.0 has no clipping. |
+| FST_Passport_Fold folded / half / unfolded, rotated | The folded (phone) Top Songs jump lands. The other postures, rotation and 2.0 keep the section nearby with no clipping. |
+| FST_TriFold unfolded / partial / folded | The unfolded Top Songs jump lands 32 dp below the bar. Partial (one wide column, rail), folded (bar) and 2.0 keep the section. |
+
+TalkBack (FST_Phone, `tools/android/talkback_walk.py`): Overview heading → tiles (Button, with value and label) → instrument heading → Rank History heading → chart summary → pager buttons (disabled state spoken) → history rows → tiles → percentile rows. The pager and tiles are ≥ 48 dp. Reduced motion (animator 0) reveals content instantly.
 
 ## Gaps
 

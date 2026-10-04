@@ -61,6 +61,7 @@
 
 | Last measured | Logic lines | UI lines | Tests |
 |---|---|---|---|
+| report/134-android status chips (2026-10-04) | 98.0% | 95.2% | JVM + Robolectric, 1151 tests (`SongsInstrumentStatusChipsUiTest`, `SongChipContrastTest`); `SongPathsSheetUiTest.halfOpenBookPosture…` fails on the base too and was skipped for this measurement |
 | report/127-android score accuracy (2026-10-04) | 98.0% | 94.3% | JVM + Robolectric, 1054 tests (`ScoreAccuracyBadge.kt` 100%, `AccuracyPill.kt` 97.8%) |
 | master after and-next Song Detail (2026-09-29) | 97.9% | 94.6% | JVM + Robolectric, 666 tests (`SongHistoryCard.kt` 96.7%) |
 | master after and-polish (2026-09-28) | 97.9% | 94.0% | JVM + Robolectric (all lanes) |

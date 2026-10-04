@@ -1,0 +1,13 @@
+[
+  {
+    "name": "profile-unpinned",
+    "route": "/player/fixture-player-2",
+    "tabs": 0,
+    "ready": [
+      "assertname:id=fst.player.name@20|Fixture Player 2",
+      "assertname:id=fst.player.identity-notice@20|These scores have no verified publication. Selection is paused.",
+      "waitgone:id=fst.player.select",
+      "waitgone:id=fst.player.deselect"
+    ]
+  }
+]

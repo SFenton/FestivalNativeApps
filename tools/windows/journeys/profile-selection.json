@@ -1,0 +1,278 @@
+[
+  {
+    "name": "profile-anonymous",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertname:id=fst.shell.profile|Select a player profile"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5",
+      "assertname:id=fst.profile.hint|Enter at least two characters to search.",
+      "waitgone:name=Selected Profile",
+      "waitgone:id=fst.profile.retry",
+      "tree:{stem}-tree.json"
+    ]
+  },
+  {
+    "name": "profile-debouncing",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5",
+      "setvalue:id=fst.profile.search|R",
+      "assertname:id=fst.profile.hint|Enter at least two characters to search.",
+      "setvalue:id=fst.profile.search|Ro",
+      "assertname:id=fst.profile.hint@1|Searching…",
+      "waitgone:id=fst.profile.retry"
+    ]
+  },
+  {
+    "name": "profile-loading",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5",
+      "setvalue:id=fst.profile.search|Rollover",
+      "wait:1.5",
+      "assertname:id=fst.profile.hint@1|Searching…",
+      "waitgone:id=fst.profile.result.fixture-rollover",
+      "shot:{stem}-searching.png",
+      "waitfor:id=fst.profile.result.fixture-rollover@10",
+      "assertname:id=fst.profile.result.fixture-rollover|Rollover Player",
+      "waitgone:id=fst.profile.hint"
+    ]
+  },
+  {
+    "name": "profile-results",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5",
+      "setvalue:id=fst.profile.search|Fixture",
+      "waitfor:id=fst.profile.result.fixture-player-1@10",
+      "assertname:id=fst.profile.result.fixture-player-1|Fixture Player 1",
+      "assertname:id=fst.profile.result.fixture-player-2|Fixture Player 2",
+      "waitgone:id=fst.profile.hint",
+      "waitgone:id=fst.profile.retry",
+      "tree:{stem}-tree.json"
+    ]
+  },
+  {
+    "name": "profile-empty-envelope",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5",
+      "setvalue:id=fst.profile.search|zzz",
+      "assertname:id=fst.profile.hint@10|No players found.",
+      "waitfor:id=fst.profile.retry@5",
+      "invoke:id=fst.profile.retry",
+      "assertname:id=fst.profile.hint@10|No players found.",
+      "waitfor:id=fst.profile.retry@5"
+    ]
+  },
+  {
+    "name": "profile-http-error",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5",
+      "setvalue:id=fst.profile.search|busy",
+      "assertname:id=fst.profile.hint@10|The service is temporarily unavailable. Try again.",
+      "waitfor:id=fst.profile.retry@5",
+      "setvalue:id=fst.profile.search|blocked",
+      "waitfor:id=fst.profile.retry@10",
+      "tree:{stem}-tree.json",
+      "setvalue:id=fst.profile.search|Fixture",
+      "waitfor:id=fst.profile.result.fixture-player-1@10",
+      "waitgone:id=fst.profile.retry",
+      "setvalue:id=fst.profile.search|blocked",
+      "waitfor:id=fst.profile.retry@10"
+    ]
+  },
+  {
+    "name": "profile-viewed",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5",
+      "setvalue:id=fst.profile.search|Fixture",
+      "waitfor:id=fst.profile.result.fixture-player-2@10",
+      "invoke:id=fst.profile.result.fixture-player-2",
+      "waitgone:id=fst.profile.search@5",
+      "assertname:id=fst.player.name@15|Fixture Player 2",
+      "assertname:id=fst.player.select@15|Select Profile",
+      "waitgone:id=fst.player.identity-notice",
+      "assertname:id=fst.shell.profile|Select a player profile"
+    ]
+  },
+  {
+    "name": "profile-syncing",
+    "route": "/player/fixture-syncing",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.player.syncing@20",
+      "waitgone:id=fst.player.select",
+      "waitgone:id=fst.player.deselect"
+    ]
+  },
+  {
+    "name": "profile-selected-syncing-retry",
+    "tab": "statistics",
+    "profile": "fixture-syncing:Syncing Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.player.syncing@20",
+      "assertname:id=fst.shell.profile|Profile: Syncing Player",
+      "invoke:name=Retry",
+      "waitfor:id=fst.player.syncing@20",
+      "assertname:id=fst.shell.profile|Profile: Syncing Player"
+    ]
+  },
+  {
+    "name": "profile-selected-player",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertname:id=fst.shell.profile|Profile: Fixture Player 1"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:name=Selected Profile@5",
+      "waitfor:id=fst.profile.view-selected@5",
+      "waitfor:id=fst.profile.deselect@5",
+      "assertname:id=fst.profile.hint|Enter at least two characters to search.",
+      "tree:{stem}-tree.json"
+    ]
+  },
+  {
+    "name": "profile-view-selected",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.view-selected@5",
+      "invoke:id=fst.profile.view-selected",
+      "waitgone:id=fst.profile.search@5",
+      "assertname:id=fst.player.name@15|Fixture Player 1",
+      "waitfor:id=fst.player.deselect@15",
+      "waitgone:id=fst.player.select"
+    ]
+  },
+  {
+    "name": "profile-switch-confirm",
+    "route": "/player/fixture-player-2",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "assertname:id=fst.player.select@20|Switch to This Profile",
+      "invoke:id=fst.player.select",
+      "waitfor:id=PrimaryButton@10",
+      "assertname:id=PrimaryButton|Switch Profile"
+    ],
+    "after_ready": [
+      "wait:0.5",
+      "shot:{stem}-dialog.png",
+      "invoke:id=PrimaryButton",
+      "waitgone:id=PrimaryButton@5",
+      "assertname:id=fst.shell.profile@10|Profile: Fixture Player 2",
+      "waitfor:id=fst.player.deselect@10"
+    ]
+  },
+  {
+    "name": "profile-deselect-confirm",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.deselect@5",
+      "invoke:id=fst.profile.deselect",
+      "waitfor:id=PrimaryButton@10",
+      "assertname:id=PrimaryButton|Deselect Profile"
+    ],
+    "after_ready": [
+      "wait:0.5",
+      "shot:{stem}-dialog.png",
+      "invoke:id=PrimaryButton",
+      "waitgone:id=PrimaryButton@5",
+      "assertname:id=fst.shell.profile@10|Select a player profile"
+    ]
+  },
+  {
+    "name": "profile-band-blocked",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.scope.bands@5",
+      "select:id=fst.profile.scope.bands",
+      "assertname:id=fst.profile.search|Find Band",
+      "assertname:id=fst.profile.hint|Band search isn't available: the service's band search can change stored data, so this app doesn't call it. Open a band from a player's Bands list or from Band Rankings.",
+      "waitgone:id=fst.profile.retry",
+      "tree:{stem}-tree.json"
+    ]
+  },
+  {
+    "name": "profile-publication-changed",
+    "route": "/player/fixture-rollover",
+    "tabs": 0,
+    "ready": [
+      "assertname:id=fst.player.name@20|Rollover Player",
+      "assertname:id=fst.player.identity-notice@20|Published scores changed. Reload this page before selecting.",
+      "waitgone:id=fst.player.select"
+    ]
+  },
+  {
+    "name": "profile-reload",
+    "route": "/player/fixture-rollover",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "assertname:id=fst.player.identity-notice@20|Published scores changed. Reload this page before selecting.",
+      "waitgone:id=fst.player.select",
+      "invoke:name=Back",
+      "waitgone:id=fst.player.identity-notice@10",
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.view-selected@5",
+      "invoke:id=fst.profile.view-selected",
+      "assertname:id=fst.player.name@15|Fixture Player 1",
+      "waitfor:id=fst.player.deselect@15",
+      "waitfor:id=fst.player.overview@15",
+      "assertname:id=fst.shell.profile|Profile: Fixture Player 1"
+    ]
+  }
+]

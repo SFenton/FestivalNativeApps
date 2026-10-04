@@ -29,7 +29,7 @@ enum class LeaderboardRowKind {
  * @property hasAccuracy Whether any score row has an accuracy badge.
  * @property hasStars Whether any score row has stars to draw.
  * @property nameWidth Widest name in a rankings section whose songs label yields to names
- *   (Compete, issue #38); 0 keeps the songs label at any width.
+ *   (Compete, issue #38); 0 keeps the songs label unless names would collapse (issue #114).
  * @property stackNarrowNames Whether a rankings section stacks its rows (name over rating
  *   and songs) when the one-line columns leave the name less than
  *   [LeaderboardColumnLayout.MIN_NAME_WIDTH] (Band Rankings in a half-opened fold's pane,
@@ -135,8 +135,9 @@ data class LeaderboardColumnPlan(
  * (`MOBILE_BREAKPOINT` 768 less the page chrome), tighter gaps below 420 dp, the accuracy
  * column always reserved in a section that has accuracy, and the rankings songs label kept
  * unless the section asks it to yield to names ([LeaderboardSection.nameWidth], Compete on
- * portrait phones, issue #38). When the fixed columns would squeeze the name below its
- * minimum, stars go first, then the season.
+ * portrait phones, issue #38) or, in a known row width, it would leave names narrower than
+ * [MIN_RANKING_NAME_WIDTH] (narrow Leaderboards cards beside a hinge, issue #114). When the
+ * fixed columns would squeeze a score row's name below its minimum, stars go first, then the season.
  */
 object LeaderboardColumnLayout {
     /** Row chrome: the 4 dp highlight inset plus 8 dp padding on each side. */
@@ -185,6 +186,14 @@ object LeaderboardColumnLayout {
     const val RANKING_GAP = 12f
 
     /**
+     * Narrowest rankings name before a section without [LeaderboardSection.nameWidth],
+     * [LeaderboardSection.stackNarrowNames] or [LeaderboardSection.keepsNameMinimum] drops its
+     * songs label (about two letters and an ellipsis; issue #114's narrow hinge columns, where
+     * names collapsed to "…"). Lower than [MIN_NAME_WIDTH] so typical grid cards keep the label.
+     */
+    const val MIN_RANKING_NAME_WIDTH = 32f
+
+    /**
      * Season label (`S15`).
      *
      * @param season Season number.
@@ -204,6 +213,8 @@ object LeaderboardColumnLayout {
      * A section that [stacks narrow names][LeaderboardSection.stackNarrowNames] keeps its songs
      * label and stacks its rows when the one-line columns leave the name less than
      * [MIN_NAME_WIDTH] (Band Rankings, issue #116).
+     * Any other rankings section keeps its songs label before the first layout and drops it
+     * only when names would get less than [MIN_RANKING_NAME_WIDTH] (Leaderboards, issue #114).
      *
      * @param section Section content (every row plus the pinned row).
      * @param rowWidth Row width in dp, including its chrome; NaN or 0 before the first layout (no optional columns).
@@ -220,8 +231,11 @@ object LeaderboardColumnLayout {
         val accuracy = if (score && section.hasAccuracy) ACCURACY_WIDTH * scale else 0f
         var showMeta = section.hasMeta && (!score || (known && rowWidth >= SEASON_BREAKPOINT))
         var showStars = score && section.hasStars && known && rowWidth >= STARS_BREAKPOINT
-        if (!score && showMeta && section.nameWidth > 0f) {
-            val columns = listOf(rank, section.nameWidth, section.metaWidth, section.valueWidth, CHEVRON_WIDTH).filter { it > 0f }
+        val keepsNamesFromCollapsing = known && !section.stackNarrowNames && !section.keepsNameMinimum
+        if (!score && showMeta && (section.nameWidth > 0f || keepsNamesFromCollapsing)) {
+            // Compete fits every full name; other plain rankings only keep names from collapsing to an ellipsis.
+            val name = if (section.nameWidth > 0f) section.nameWidth else MIN_RANKING_NAME_WIDTH * scale
+            val columns = listOf(rank, name, section.metaWidth, section.valueWidth, CHEVRON_WIDTH).filter { it > 0f }
             showMeta = known && RANKING_ROW_CHROME + columns.sum() + RANKING_GAP * (columns.size - 1) <= rowWidth
         }
         var stacked = false
