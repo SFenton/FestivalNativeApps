@@ -146,6 +146,42 @@
     ]
   },
   {
+    "name": "band-rankings-paged",
+    "route": "/leaderboards/bands/Band_Duets",
+    "fixture": ["--large-rankings"],
+    "ready": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
+      "waitfor:id=fst.band-rankings.page-info@10"
+    ]
+  },
+  {
+    "name": "band-rankings-anonymous",
+    "route": "/leaderboards/bands/Band_Trios",
+    "fixture": ["--band-rankings", "anonymous"],
+    "ready": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
+      "waitfor:name=Rank #2, Unknown User, Unknown User. Total Score 49,000,000, 28 / 50 songs@5"
+    ]
+  },
+  {
+    "name": "band-rankings-empty",
+    "route": "/leaderboards/bands/Band_Quad",
+    "fixture": ["--band-rankings", "empty"],
+    "ready": [
+      "waitfor:id=fst.band-rankings.empty@20",
+      "waitfor:name=No ranked quads yet.@5"
+    ]
+  },
+  {
+    "name": "band-rankings-error",
+    "route": "/leaderboards/bands/Band_Duets",
+    "fixture": ["--band-rankings", "unavailable"],
+    "ready": [
+      "waitfor:id=fst.service-status.retry@20",
+      "waitfor:id=fst.band-rankings.title@5"
+    ]
+  },
+  {
     "name": "compete",
     "route": "/compete",
     "profile": "fixture-player-1:Demo Player",

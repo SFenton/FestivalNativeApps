@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Windows accessibility matrix: Axe.Windows scans, Tab walks and screenshots per page, size and mode.
 
-Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, readiness
-``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
+Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, optional
+``fixture`` flags such as ``["--band-rankings", "empty"]``, readiness ``waitfor`` steps, optional setup steps
+such as opening a flyout). For every page the runner holds the
 shared ``desktop`` lock once (≤300 s), optionally applies a system accessibility mode, launches this
 worktree's build against the anonymized loopback fixture (``rivals_fixture.py``) with isolated settings
 and app data, then for each window size: resize → setup → ready → screenshot → Axe.Windows scan → Tab
@@ -172,11 +173,12 @@ def summary_table(results: list[dict]) -> str:
 # region Runner
 
 
-def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
+def start_fixture(log: Path, extra: tuple[str, ...] = ()) -> tuple[subprocess.Popen, int]:
     """Start the anonymized fixture service on a free loopback port.
 
     Args:
         log: Service output file.
+        extra: Additional fixture flags (a page's ``fixture`` list, e.g. ``--large-rankings``).
 
     Returns:
         Process and port.
@@ -185,7 +187,8 @@ def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
         RuntimeError: No port reported within 20 s.
     """
     handle = log.open("w", encoding="utf-8")
-    proc = subprocess.Popen([sys.executable, "-u", str(FIXTURE), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen([sys.executable, "-u", str(FIXTURE), "--port", "0", *extra], stdout=handle,
+                            stderr=subprocess.STDOUT)
     for _ in range(200):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
@@ -326,17 +329,22 @@ def main(argv: list[str] | None = None) -> int:
         wanted = set(args.only.split(","))
         pages = [p for p in pages if p["name"] in wanted]
     sizes = [s for s in args.sizes.split(",") if s]
-    fixture, port = start_fixture(out / "fixture-service.log")
+    # One fixture service per distinct page ``fixture`` flag list (most pages share the default one).
+    fixtures: dict[tuple[str, ...], tuple[subprocess.Popen, int]] = {}
     results: list[dict] = []
     try:
         # Driver step logs (every focus stop) go to a file; the console gets one line per page and size.
         with (out / "driver.log").open("a", encoding="utf-8") as log, contextlib.redirect_stderr(log):
             for page in pages:
+                extra = tuple(page.get("fixture", ()))
+                if extra not in fixtures:
+                    fixtures[extra] = start_fixture(out / f"fixture-service-{len(fixtures)}.log", extra)
                 page_sizes = [s for s in sizes if s in page.get("sizes", sizes)]
-                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), port, out, args.scan,
-                                        args.tabs, args.hold))
+                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), fixtures[extra][1], out,
+                                        args.scan, args.tabs, args.hold))
     finally:
-        fixture.kill()
+        for fixture, _ in fixtures.values():
+            fixture.kill()
     name = "results.json" if args.mode == "normal" else f"results-{args.mode}.json"
     (out / name).write_text(json.dumps(results, indent=2), encoding="utf-8")
     (out / name.replace(".json", ".md").replace("results", "summary")).write_text(summary_table(results),
