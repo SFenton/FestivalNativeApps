@@ -8,6 +8,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import com.festivalscoretracker.android.ui.profile.rememberProfileGridState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -114,4 +120,76 @@ class QuickLinksControllerUiTest {
     }
 
     // endregion
+
+    // region Staggered grid
+
+    private lateinit var gridState: LazyStaggeredGridState
+    private val split = mutableStateOf(true)
+
+    /** Two lanes like the Statistics grid with its fold-aware state: unequal sections, the first beside the second (full width unless [split]). */
+    private fun setTwoLaneGrid() {
+        rule.setContent {
+            gridState = rememberProfileGridState(split.value)
+            val sections = (0 until 12).map { QuickLinkSection("s$it", "S$it") }
+            controller = rememberQuickLinks(gridState, "Quick Links", sections) { id -> id.removePrefix("s").toIntOrNull() }
+            with(LocalDensity.current) {
+                landingPx = QuickLinks.LANDING_OFFSET_DP.dp.roundToPx()
+                thresholdPx = QuickLinks.COMPLETE_THRESHOLD_DP.dp.roundToPx()
+            }
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(2),
+                state = gridState,
+                contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(12, span = { if (it == 0 && !split.value) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane }) { index ->
+                    val height = listOf(300, 900, 500, 700, 400, 800)[index % 6].dp
+                    Box(Modifier.fillMaxWidth().height(height))
+                }
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    private fun gridItem(index: Int) = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
+
+    private fun assertFirstTwoSideBySide() {
+        val back = gridItem(0)!!
+        val beside = gridItem(1)
+        assertTrue("section 1 is beside section 0 after the jump", beside != null && beside.offset.y == back.offset.y && beside.lane != back.lane)
+        assertFalse(gridState.canScrollBackward)
+    }
+
+    @Test
+    fun jumpBackToTheFirstSectionRealignsTheGridLanes() {
+        setTwoLaneGrid()
+        assertFirstTwoSideBySide()
+
+        rule.runOnIdle { controller.jump("s11") }
+        rule.waitForIdle()
+        rule.runOnIdle { controller.jump("s0") }
+        rule.waitForIdle()
+
+        assertFirstTwoSideBySide()
+        assertEquals("s0", controller.activeId)
+    }
+
+    @Test
+    fun jumpBackAfterTheFoldSplitsTheFirstSectionRealignsTheGridLanes() {
+        split.value = false
+        setTwoLaneGrid()
+        rule.runOnIdle { controller.jump("s6") }
+        rule.waitForIdle()
+
+        // Unfolded to half-open: the full-width first section now takes one lane at the fold.
+        split.value = true
+        rule.waitForIdle()
+        rule.runOnIdle { controller.jump("s0") }
+        rule.waitForIdle()
+
+        assertFirstTwoSideBySide()
+    }
+
+    // endregion
+
 }
