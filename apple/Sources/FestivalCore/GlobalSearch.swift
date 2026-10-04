@@ -91,23 +91,83 @@ public enum GlobalSearch {
         }
     }
 
+    /// Centred hint shown while the query is under ``minimumQueryLength`` (issue #299):
+    /// it names what the active scope searches.
+    ///
+    /// - Parameter scope: Active scope.
+    /// - Returns: The English hint; Bands names bands even though band search is never
+    ///   sent (its explanation replaces the hint once the query is long enough).
+    public static func enterQueryHint(for scope: GlobalSearchScope) -> String {
+        let prefix = "Enter at least two characters to search for"
+        return switch scope {
+        case .all: "\(prefix) songs, players, or bands."
+        case .songs: "\(prefix) songs."
+        case .players: "\(prefix) players."
+        case .bands: "\(prefix) bands."
+        }
+    }
+
+    /// Fallback title for a failed section whose issue has no title of its own: with no
+    /// section headings (issue #299), the row names what failed.
+    ///
+    /// - Parameter section: `.songs` or `.players`.
+    /// - Returns: "Songs unavailable" or "Players unavailable" (the announcement's words).
+    public static func unavailableTitle(for section: GlobalSearchScope) -> String {
+        "\(section.title) unavailable"
+    }
+
+    /// Whether the one centred spinner shows instead of results (issue #299, web
+    /// `SearchModal` parity): All waits until Songs and Players have both settled; the
+    /// Songs scope never waits for Players. Bands is never searched.
+    ///
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - songs: Songs section outcome.
+    ///   - players: Players section outcome.
+    /// - Returns: True while any section the scope shows is still pending.
+    public static func isSearching(
+        scope: GlobalSearchScope, songs: SectionOutcome, players: SectionOutcome
+    ) -> Bool {
+        guard scope != .bands else { return false }
+        let shown = scope.sections
+        return (shown.contains(.songs) && songs == .pending)
+            || (shown.contains(.players) && players == .pending)
+    }
+
+    /// Whether pressing Search on the keyboard re-runs the current query.
+    ///
+    /// With no Retry button (issue #299), submitting the same text again is how a
+    /// failed search, or an empty player search that may be a server timeout
+    /// (`.agents/platforms/service-safety.md`), is retried. Settled results with rows
+    /// and in-flight searches are not re-sent.
+    ///
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - songs: Songs section outcome.
+    ///   - players: Players section outcome.
+    /// - Returns: True when a shown section failed, or players finished empty.
+    public static func submitReruns(
+        scope: GlobalSearchScope, songs: SectionOutcome, players: SectionOutcome
+    ) -> Bool {
+        let shown = scope.sections
+        if shown.contains(.songs) && songs == .failed { return true }
+        if shown.contains(.players) && (players == .failed || players == .found(0)) { return true }
+        return false
+    }
+
     // MARK: - Empty state
 
-    /// Copy for the centred empty state below the scope bar (issue #99): a title, a
-    /// subtitle naming the query, and whether Retry is offered.
+    /// Copy for the centred empty state below the scope bar (issue #99): a title and a
+    /// subtitle with the next step. No Retry (issue #299): pressing Search re-runs it.
     public struct EmptyState: Equatable, Sendable {
         /// Title Case heading, e.g. "No Players Found".
         public let title: String
-        /// Sentence naming the query and the next step.
+        /// Sentence naming the next step.
         public let subtitle: String
-        /// True when players were searched: an empty account-search envelope can be a
-        /// server timeout (`.agents/platforms/service-safety.md`), so it gets Retry.
-        public let offersRetry: Bool
 
-        /// One VoiceOver label for the whole state: title, subtitle, then "Retry".
+        /// One VoiceOver label for the whole state: title, then subtitle.
         public var accessibilityLabel: String {
-            let text = "\(title). \(subtitle)"
-            return offersRetry ? "\(text) Retry" : text
+            "\(title). \(subtitle)"
         }
     }
 
@@ -130,20 +190,17 @@ public enum GlobalSearch {
         case .all:
             return EmptyState(
                 title: "No Results Found",
-                subtitle: "Check the spelling or try a different song, artist or player.",
-                offersRetry: true
+                subtitle: "Check the spelling or try a different song, artist or player."
             )
         case .songs:
             return EmptyState(
                 title: "No Songs Found",
-                subtitle: "Check the spelling or try a different song or artist.",
-                offersRetry: false
+                subtitle: "Check the spelling or try a different song or artist."
             )
         case .players:
             return EmptyState(
                 title: "No Players Found",
-                subtitle: "Check the spelling or try a different player name.",
-                offersRetry: true
+                subtitle: "Check the spelling or try a different player name."
             )
         }
     }
@@ -154,7 +211,7 @@ public enum GlobalSearch {
     public enum SectionOutcome: Equatable, Sendable {
         /// Still searching (or not searched yet).
         case pending
-        /// The search failed; the section shows Retry.
+        /// The search failed; the section shows why, without Retry (issue #299).
         case failed
         /// Finished with this many results.
         case found(Int)

@@ -4,6 +4,7 @@ import hashlib
 import json
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -302,6 +303,9 @@ class MockServiceTests(unittest.TestCase):
         with urlopen(self.base + "/api/account/search?q=Fi&limit=10") as response:
             self.assertEqual(len(json.load(response)["results"]), 2)
         with urlopen(self.base + "/api/account/search?q=Pl&limit=10") as response:
+            self.assertEqual(json.load(response), {"results": []})
+        with patch("tools.mock_service.SLOW_ACCOUNT_SEARCH_SECONDS", 0), \
+                urlopen(self.base + "/api/account/search?q=slowpoke&limit=10") as response:
             self.assertEqual(json.load(response), {"results": []})
         for route, expected in (
             ("/api/account/search?q=blocked&limit=10", 403),
