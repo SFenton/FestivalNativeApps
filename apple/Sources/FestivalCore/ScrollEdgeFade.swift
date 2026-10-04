@@ -41,4 +41,71 @@ public enum ScrollEdgeFade {
         let start = min(max((height - max(0, obscured) - max(0, distance)) / height, 0), end)
         return Stops(fadeStart: start, fadeEnd: end)
     }
+
+    /// Height of the bottom fade for how far the list's last row still runs past its
+    /// resting place above the chrome.
+    ///
+    /// The web drops its bottom fade once the list is scrolled to the end
+    /// (`useScrollFade` `atBottom`); here the fade shrinks with the remaining scroll,
+    /// so it never pops and the last row comes to rest unfaded, one row gap above the
+    /// chrome, with no reserved band under it (issue #293).
+    ///
+    /// - Parameters:
+    ///   - lastRowOverflow: Points the last row's bottom sits below its resting
+    ///     position; nil while the last row is not laid out (far from the end).
+    ///   - distance: Full fade height.
+    /// - Returns: A fade height between 0 and `distance`.
+    public static func bottomDistance(lastRowOverflow: Double?, distance: Double = distance) -> Double {
+        let full = distance.isFinite ? max(0, distance) : 0
+        guard let lastRowOverflow else { return full }
+        guard lastRowOverflow.isFinite else { return lastRowOverflow > 0 ? full : 0 }
+        return min(max(lastRowOverflow, 0), full)
+    }
+}
+
+// MARK: - Pinned chrome spacing
+
+/// Padding for a list's pinned bottom chrome (the selected player's footer row above
+/// a pager), so the list's last row rests exactly one row gap above whichever piece
+/// of chrome shows first, and the footer sits one row gap above the pager
+/// (issue #293).
+public struct PinnedChromeSpacing: Equatable, Sendable {
+    /// Space above the footer row.
+    public let footerTop: Double
+    /// Space below the footer row.
+    public let footerBottom: Double
+    /// Space above the pager.
+    public let pagerTop: Double
+
+    /// - Parameters:
+    ///   - footerTop: Space above the footer row.
+    ///   - footerBottom: Space below the footer row.
+    ///   - pagerTop: Space above the pager.
+    public init(footerTop: Double, footerBottom: Double, pagerTop: Double) {
+        self.footerTop = footerTop
+        self.footerBottom = footerBottom
+        self.pagerTop = pagerTop
+    }
+
+    /// Resolve the chrome's padding for what it shows.
+    ///
+    /// - Parameters:
+    ///   - rowGap: Space between two list rows (top plus bottom row inset).
+    ///   - rowBottomInset: The list row's own bottom inset, already below the last row.
+    ///   - edgePadding: Space below the footer when nothing follows it.
+    ///   - hasFooter: Whether the selected player's footer row shows.
+    ///   - hasPager: Whether the pager shows (not in the iPhone Duo rail).
+    /// - Returns: Non-negative paddings.
+    public static func resolve(
+        rowGap: Double, rowBottomInset: Double, edgePadding: Double,
+        hasFooter: Bool, hasPager: Bool
+    ) -> PinnedChromeSpacing {
+        let gap = max(0, rowGap)
+        let lead = max(0, gap - max(0, rowBottomInset))
+        return PinnedChromeSpacing(
+            footerTop: lead,
+            footerBottom: hasPager ? 0 : max(0, edgePadding),
+            pagerTop: hasFooter ? gap : lead
+        )
+    }
 }

@@ -635,6 +635,9 @@ struct RankingsPagerView: View {
     let page: Int
     let totalPages: Int
     let idPrefix: String
+    /// Space above the controls; a list with pinned chrome passes less so its last
+    /// row rests one row gap above the pager (issue #293).
+    var topPadding: CGFloat = 8
     let onChange: (Int) -> Void
     @Environment(\.deviceLayout) private var layout
 
@@ -661,7 +664,8 @@ struct RankingsPagerView: View {
                 arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.top, topPadding)
+            .padding(.bottom, 8)
             .padding(.horizontal, 16)
         }
     }
