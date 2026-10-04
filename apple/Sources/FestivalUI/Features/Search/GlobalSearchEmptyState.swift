@@ -4,20 +4,19 @@ import FestivalDesign
 
 // MARK: - Empty state
 
-/// Global search's empty state (issue #99): a magnifier, a title, a subtitle and, when
-/// players were searched, Retry, centred horizontally and vertically below the scope
-/// bar like the Songs page's own empty state and the web's centred search hint.
+/// Global search's empty state (issue #99): a magnifier, a title and a subtitle, centred
+/// horizontally and vertically below the scope bar like the Songs page's own empty state
+/// and the web's centred search hint.
 ///
 /// Built from scalable text in a scroll view rather than `ContentUnavailableView`
 /// (which failed iOS 26.5 Dynamic Type audits, see ``ServiceStatusView``), so the copy
 /// wraps at every text size and scrolls when it cannot fit. VoiceOver reads it as one
-/// element, "title. subtitle Retry", whose activation retries (HIG Writing: "Provide
-/// clear next steps on any blank screens, with a button or link if possible").
+/// static element, "title. subtitle". No Retry (issue #299, web parity): the subtitle
+/// is the next step (HIG Writing: "Provide clear next steps on any blank screens"), and
+/// the keyboard's Search key re-runs a possibly timed-out player search.
 /// On a partially folded iPhone Duo it centres beside the fold, never on it.
 struct GlobalSearchEmptyStateView: View {
     let state: GlobalSearch.EmptyState
-    /// Searches again; shown only when ``GlobalSearch/EmptyState/offersRetry``.
-    let retry: () -> Void
     @Environment(\.deviceLayout) private var layout
 
     var body: some View {
@@ -55,45 +54,12 @@ struct GlobalSearchEmptyStateView: View {
                 .foregroundStyle(FestivalText.primary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            if state.offersRetry {
-                Button(action: retry) {
-                    Text("Retry")
-                        .font(.body)
-                        .foregroundStyle(BrandTokens.textPrimary)
-                        .frame(minWidth: 44, minHeight: 44)
-                        .padding(.horizontal, 12)
-                        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 10))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
-            }
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(state.accessibilityLabel)
-        .modifier(EmptyStateRetryAction(offersRetry: state.offersRetry, retry: retry))
-    }
-}
-
-/// Accessibility traits, action and identifier for the combined empty-state element:
-/// a button that retries when players were searched, otherwise static text.
-private struct EmptyStateRetryAction: ViewModifier {
-    let offersRetry: Bool
-    let retry: () -> Void
-
-    func body(content: Content) -> some View {
-        if offersRetry {
-            content
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction { retry() }
-                .accessibilityInputLabels([Text("Retry")])
-                .accessibilityIdentifier("fst.global-search.retry")
-        } else {
-            content
-                .accessibilityAddTraits(.isStaticText)
-                .accessibilityIdentifier("fst.global-search.hint")
-        }
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityIdentifier("fst.global-search.hint")
     }
 }
 
