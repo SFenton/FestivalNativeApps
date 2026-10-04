@@ -10,7 +10,9 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -171,6 +173,7 @@ class AppNavigationStatesUiTest {
         rule.onNodeWithTag("fst.nav.drawer").assert(hasContentDescription("Open menu")).performClick()
         harness.waitForTag("fst.nav.drawer-sheet")
         harness.waitForTag("fst.nav.drawer.leaderboards")
+        rule.onNodeWithTag("fst.nav.drawer-sheet").assert(SemanticsMatcher.expectValue(SemanticsProperties.IsTraversalGroup, true))
         assertTrue(rule.onAllNodesWithTag("fst.nav.drawer.statistics").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.nav.drawer.leaderboards").performSemanticsAction(SemanticsActions.OnClick)
         harness.waitForTag("fst.leaderboards")
@@ -324,6 +327,11 @@ class ExpandedAppNavigationStatesUiTest {
         rule.onNodeWithTag("fst.nav.tab.statistics").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.rivals").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.drawer.deselect").assertIsDisplayed()
+        // TalkBack reads the whole drawer, footer included, as one unit before the page.
+        rule.onNodeWithTag("fst.nav.drawer-sheet").assert(SemanticsMatcher.expectValue(SemanticsProperties.IsTraversalGroup, true))
+        listOf("fst.nav.drawer.deselect", "fst.nav.tab.settings").forEach {
+            rule.onNodeWithTag(it).assert(hasAnyAncestor(hasTestTag("fst.nav.drawer-sheet")))
+        }
         rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
         harness.waitForTag("fst.statistics")
         rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()

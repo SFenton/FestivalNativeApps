@@ -42,6 +42,7 @@ import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 
@@ -90,7 +91,10 @@ fun DrawerContent(
         Modifier
             .fillMaxHeight()
             .padding(start = 12.dp, end = 12.dp, bottom = 16.dp)
-            .testTag("fst.nav.drawer-sheet"),
+            .testTag("fst.nav.drawer-sheet")
+            // One TalkBack unit (like the rail): without it the permanent drawer's footer (player
+            // row, Deselect, Settings) was read after the page content, by vertical position.
+            .semantics { isTraversalGroup = true },
     ) {
         // Header row the height of the top app bar, so the first entry lines up with the page's
         // first content row and with the rail's first destination (the drawer extends the rail).
