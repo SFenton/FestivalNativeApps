@@ -57,6 +57,7 @@ Run: `python tools/windows/songs_journey.py --only songs-sort-states,songs-sort-
 | Text 200% | Axe 0; labels wrap, the flyout scrolls, nothing clips |
 | Display 100% / 150% | Axe 0; layout unchanged in epx |
 | Keyboard | `kb-songs-sort-esc`, `kb-songs-order` pass: Enter/Space opens, arrows move within each group, Esc closes and returns focus to the Sort button |
-| Live public service: compact / medium / wide, maximized, snap-left, Item Shop sort | Flyout anchors under the button at every size; Item Shop sort shows Leaving Tomorrow / In Shop / Not In Shop headings |
+| Keyboard (groups) | `kb-songs-sort-groups` passes: Tab moves Sort By → Direction → Reset, and arrows stay inside each group |
+| Live public service (SFentonX selected, 731 songs): compact / medium / wide, maximized, snap-left; HC Night sky, text 200%, display 150% | The flyout anchors under the button at every size. Year ↓ applies decade sections live. Item Shop ↑ shows buckets in first-seen order: In Shop, then Leaving Tomorrow, then Not In Shop. "(Don't Fear) The Reaper" is In Shop and sorts first by title, so that bucket comes first on 2026-10-03 |
 
 The console was locked during this pass, so Narrator itself wasn't run. Reading order was checked from the UIA tree: "Sort Songs" button (HelpText "Title, ascending") > heading "Sort Songs" > group "Sort By" > radios > group "Direction" > "Ascending, A–Z, low–high" (1 of 2) > "Descending, Z–A, high–low" (2 of 2) > "Reset".
