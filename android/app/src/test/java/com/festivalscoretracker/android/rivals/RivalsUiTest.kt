@@ -340,6 +340,43 @@ class RivalsUiTest {
     }
 
     @Test
+    fun failedDetailShowsServiceStatusThenRetries() {
+        var failing = true
+        transport.onRaw("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Guitar/${ids[0]}") {
+            if (failing) {
+                com.festivalscoretracker.android.data.HttpResult(500, ByteArray(0))
+            } else {
+                com.festivalscoretracker.android.data.HttpResult(200, RivalsFixtures.detail(ids[0]).toByteArray())
+            }
+        }
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[0], "Synthetic Alpha", RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.service-status.retry")
+        rule.onNodeWithTag("fst.service-status.title").assertIsDisplayed()
+        assertTrue(rule.onAllNodesWithTag("fst.rival-detail.grid").fetchSemanticsNodes().isEmpty())
+        failing = false
+        rule.onNodeWithTag("fst.service-status.retry").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rival-detail.category.closest_battles")
+        rule.onNodeWithTag("fst.rival-detail.title").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
+    fun expandedDetailLaysCategoriesOutInColumns() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[0], "Synthetic Alpha", RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.category.closest_battles")
+        val categories = rule.onAllNodes(
+            androidx.compose.ui.test.SemanticsMatcher("rival category") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rival-detail.category.") == true
+            },
+        ).fetchSemanticsNodes()
+        assertTrue(categories.size >= 2)
+        // AdaptiveCardGrid: 1280 dp holds three 360 dp columns, so categories sit side by side.
+        assertTrue(categories.map { it.boundsInRoot.left }.distinct().size >= 2)
+        val header = rule.onNodeWithTag("fst.rival-detail.title").fetchSemanticsNode().boundsInRoot
+        assertTrue(categories.all { it.boundsInRoot.top >= header.bottom })
+    }
+
+    @Test
     fun mixedChartComparisonShowsBothIcons() {
         val mixed = RivalsFixtures.detail(ids[0]).replace("\"userInstrument\":null,\"rivalInstrument\":null", "\"userInstrument\":\"Solo_PeripheralCymbals\",\"rivalInstrument\":\"Solo_PeripheralDrums\"")
         transport.on("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Guitar/${ids[0]}") { mixed }
