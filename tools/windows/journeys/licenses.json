@@ -1,0 +1,102 @@
+[
+  {
+    "name": "licenses-list",
+    "route": "/settings/licenses",
+    "ready": [
+      "waitfor:id=fst.licenses.summary@20",
+      "waitfor:id=fst.licenses.row.microsoft.netcore.app.runtime.win-x64@10"
+    ]
+  },
+  {
+    "name": "licenses-keyboard",
+    "route": "/settings/licenses",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.licenses.row.communitytoolkit.mvvm@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.licenses.row.communitytoolkit.mvvm",
+      "assertfocus:id=fst.licenses.row.communitytoolkit.mvvm",
+      "key:down",
+      "assertfocus:id=fst.licenses.row.microsoft.web.webview2@3",
+      "key:up",
+      "assertfocus:id=fst.licenses.row.communitytoolkit.mvvm@3",
+      "key:enter",
+      "waitfor:id=fst.licenses.detail@5",
+      "waitfor:name=CommunityToolkit.Mvvm · MIT@5",
+      "assertfocus:id=fst.licenses.detail.text@3",
+      "key:tab",
+      "assertfocus:name=Project page for CommunityToolkit.Mvvm@3",
+      "key:tab",
+      "assertfocus:id=fst.licenses.detail.close@3",
+      "key:esc",
+      "waitgone:id=fst.licenses.detail@5",
+      "assertfocus:id=fst.licenses.row.communitytoolkit.mvvm@3",
+      "key:enter",
+      "waitfor:id=fst.licenses.detail@5",
+      "invoke:id=fst.licenses.detail.close",
+      "waitgone:id=fst.licenses.detail@5",
+      "assertfocus:id=fst.licenses.row.communitytoolkit.mvvm@3"
+    ]
+  },
+  {
+    "name": "licenses-detail",
+    "route": "/settings/licenses",
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.licenses.summary@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.licenses.row.microsoft.netcore.app.runtime.win-x64",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "assertfocus:id=fst.licenses.row.microsoft.windowsappsdk@3",
+      "key:enter",
+      "waitfor:id=fst.licenses.detail@5",
+      "waitfor:name=Microsoft.WindowsAppSDK · Microsoft Software License@5",
+      "waitfor:id=fst.licenses.detail.text@5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.licenses.detail@5"
+    ]
+  },
+  {
+    "name": "licenses-last-row",
+    "route": "/settings/licenses",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.licenses.summary@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.licenses.row.microsoft.netcore.app.runtime.win-x64",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "key:down",
+      "assertfocus:id=fst.licenses.row.system.numerics.tensors@3",
+      "key:enter",
+      "waitfor:name=System.Numerics.Tensors · MIT@5",
+      "waitfor:id=fst.licenses.detail.text@5"
+    ],
+    "teardown": [
+      "invoke:id=fst.licenses.detail.close",
+      "waitgone:id=fst.licenses.detail@5"
+    ]
+  }
+]
