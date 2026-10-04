@@ -4,10 +4,12 @@ Starts ``rivals_fixture.py`` (anonymized mock service) on a private loopback por
 launches the Debug app with an in-memory debug profile, drives it by ``fst.*`` AutomationIds and fails on the
 first missing element (``waitfor:``). Scenarios cover every Rivals page state: populated hub (both tabs, Jump
 To), Rival Detail -> Rivalry (sort) -> All Rivals navigation, empty lists, a 503 scrape freeze (inline and
-page-level status), no selected player and the ``/compete`` deep link. With ``--shots DIR`` it also captures
-compact/medium/wide screenshots of the populated journey.
+page-level status), no selected player and the ``/compete`` deep link, plus the Rivalry page's own states
+(deep link with the labelled sort, keyboard row activation to Song Detail and back, unknown category, empty,
+freeze and no player). With ``--shots DIR`` it also captures compact/medium/wide screenshots of the populated
+journey.
 
-Usage: ``python tools/windows/rivals_journey.py [--port 18743] [--shots DIR] [--only NAME]``
+Usage: ``python tools/windows/rivals_journey.py [--port 18743] [--shots DIR] [--only NAME[,NAME...]]``
 """
 
 from __future__ import annotations
@@ -155,6 +157,54 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rival-detail.title@10",
         ],
     ),
+    # Rivalry page states (issue #203): deep link, labelled sort, keyboard row activation and back.
+    "rivalry": (
+        {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+        f"/rivals/{RIVAL}/rivalry?mode=closest_battles",
+        [
+            "waitfor:id=fst.rivalry.title@20",
+            "waitfor:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@15",
+            "waitfor:name=Sort By@10",
+            "waitfor:id=fst.rivalry.view-profile@10",
+            "expand:id=fst.rivalry.sort",
+            "waitfor:name=Their Biggest Leads@10",
+            "click:name=Their Biggest Leads",
+            "waitfor:id=fst.rivalry.song.fixture-echo.Solo_Guitar@10",
+            "{shot:rivalry-sorted}",
+            "focus:id=fst.rivalry.song.fixture-echo.Solo_Guitar",
+            "assertfocus:id=fst.rivalry.song.fixture-echo.Solo_Guitar",
+            "key:enter",
+            # Song Detail opens; the rivals fixture serves no song endpoints, so it shows its unavailable state.
+            "waitgone:id=fst.rivalry.list@15",
+            "waitfor:name=Song unavailable@15",
+            "key:alt+left",
+            "waitfor:id=fst.rivalry.list@10",
+        ],
+    ),
+    "rivalry-unknown-mode": (
+        {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+        f"/rivals/{RIVAL}/rivalry?mode=not_a_category",
+        # Unknown categories show the raw key and the web's empty copy; the sort hides with no rows.
+        ["waitfor:id=fst.rivals.page-empty@20", "waitfor:name=not_a_category@5", "waitgone:id=fst.rivalry.sort@5",
+         "waitfor:id=fst.rivalry.view-profile@5", "{shot:rivalry-unknown}"],
+    ),
+    "rivalry-empty": (
+        {"FST_DEBUG_PROFILE": "fixture-player-empty:Demo Player"},
+        f"/rivals/{RIVAL}/rivalry?mode=closest_battles",
+        ["waitfor:id=fst.rivals.page-empty@20", "waitfor:name=No song data for this rival.@5", "waitgone:id=fst.rivalry.list@5",
+         "{shot:rivalry-empty}"],
+    ),
+    "rivalry-freeze": (
+        {"FST_DEBUG_PROFILE": "fixture-player-503:Demo Player"},
+        f"/rivals/{RIVAL}/rivalry?mode=closest_battles",
+        ["waitfor:id=fst.service-status.title@20", "waitfor:id=fst.service-status.countdown@10", "waitgone:id=fst.rivalry.sort@5",
+         "{shot:rivalry-freeze}"],
+    ),
+    "rivalry-no-player": (
+        {"FST_DEBUG_ANONYMOUS": "1"},
+        f"/rivals/{RIVAL}/rivalry?mode=closest_battles",
+        ["waitfor:id=fst.songs.search@20", "waitgone:id=fst.rivalry.title@5"],
+    ),
 }
 
 
@@ -241,10 +291,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=18743)
     parser.add_argument("--shots", type=Path)
-    parser.add_argument("--only", choices=sorted(SCENARIOS))
+    parser.add_argument("--only", help=f"comma-separated scenarios ({', '.join(SCENARIOS)})")
     parser.add_argument("--sizes", default="medium", help="comma-separated presets for the populated journey")
     journey_exe.add_argument(parser)
     options = parser.parse_args()
+    names = options.only.split(",") if options.only else list(SCENARIOS)
+    if unknown := [n for n in names if n not in SCENARIOS]:
+        parser.error(f"unknown scenario(s): {', '.join(unknown)}")
     server = subprocess.Popen([sys.executable, str(ROOT / "tools" / "windows" / "rivals_fixture.py"), "--port", str(options.port)],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     failures = 0
@@ -257,7 +310,7 @@ def main() -> int:
                 time.sleep(0.2)
         if options.shots:
             options.shots.mkdir(parents=True, exist_ok=True)
-        for name in [options.only] if options.only else list(SCENARIOS):
+        for name in names:
             sizes = options.sizes.split(",") if name == "populated" else ["medium"]
             for size in sizes:
                 try:

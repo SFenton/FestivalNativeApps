@@ -88,6 +88,22 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 - Device: `androidTest/.../profile/ProfileDeviceJourneyTest` (select/deselect and switch stay on the page, tile → Songs filter, top song → Song Detail, history sort; asserts no card crosses a separating hinge). Run `python tools/android/device.py test com.festivalscoretracker.android.profile.ProfileDeviceJourneyTest --avd FST_Phone` and `--avd FST_Book_Fold --posture half`. `androidTest` shares the JVM tests' synthetic `testing/` fixtures.
 - JVM also: `core/profile/ChartScaleTest` (recharts-scale values), `RankHistoryWindowTest` (6.25 constant-rank regression).
 - Fixture screenshots (mock service, synthetic data): `android/reports/screenshots/profile3-*.png` (current cards: phone overview, instrument, empty charts, Leaderboards, Full Rankings; book fold half-open profile and Leaderboards) and `profile2-*.png` (earlier layout, Quick Links, tri-fold).
+- Robolectric `ProfileResizeUiTest`: scroll survives leaving the permanent drawer; the modal drawer stays closed after a density change ([app-navigation/android.md](../../controls/app-navigation/android.md)).
+
+## Device validation (issue #106, live public service, SFentonX)
+
+Each configuration covers the viewed profile, Quick Links jumps to Global Statistics, an instrument, Top Songs, Pro Drums + Cymbals, Pro Drums and Bands, dark theme, and font scale 1.0 and 2.0. Light theme is unchanged by design: the app is dark-only ([design/android.md](../../design/android.md)).
+
+| Configuration | Findings |
+|---|---|
+| FST_Phone portrait / landscape | Jumps to Top Songs and Pro Drums landed half a screen low: the card above composed on the jump and grew (fixed with hold landing, [quick-links/android.md](../../controls/quick-links/android.md)). Landscape uses the top-bar menu. At 2.0 the tiles drop to one column with no clipping. Selected (Statistics) state is correct. Connected `ProfileDeviceJourneyTest` + `PlayerAccessibilityJourneyTest` (ATF) pass. |
+| FST_Tablet landscape (permanent drawer) ↔ portrait (rail) | Two columns in landscape with the menu, and the jumps land. **Rotating reset the page to the top**: the shell re-parented the NavHost at 1200 dp (fixed: one page parent; the drawer stays closed and Back closes an open drawer after a portrait launch or rotation). Lazy grids keep their first visible item, so a two-lane → one-lane reflow shows the neighbouring card (e.g. Karaoke above Pro Drums + Cymbals). |
+| FST_Resizable phone / foldable / tablet / desktop | Position kept near the section across every preset. desktop → phone reopened the modal drawer: Material's nearest-anchor re-targeting after a density change, predating this pass (fixed). The drawer opens from the menu and Back closes it. |
+| FST_Book_Fold unfolded / half / folded | Jumps land; posture changes keep the section in view. Half-open splits at the hinge: masonry lanes can put Pro Drums left of Pro Drums + Cymbals, which is expected for a shortest-lane grid. Folded at 2.0 has no clipping. |
+| FST_Passport_Fold folded / half / unfolded, rotated | The folded (phone) Top Songs jump lands. The other postures, rotation and 2.0 keep the section nearby with no clipping. |
+| FST_TriFold unfolded / partial / folded | The unfolded Top Songs jump lands 32 dp below the bar. Partial (one wide column, rail), folded (bar) and 2.0 keep the section. |
+
+TalkBack (FST_Phone, `tools/android/talkback_walk.py`): Overview heading → tiles (Button, with value and label) → instrument heading → Rank History heading → chart summary → pager buttons (disabled state spoken) → history rows → tiles → percentile rows. The pager and tiles are ≥ 48 dp. Reduced motion (animator 0) reveals content instantly.
 
 ## Gaps
 

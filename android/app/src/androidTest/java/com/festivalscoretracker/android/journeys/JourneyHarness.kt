@@ -158,6 +158,29 @@ class JourneyHarness(private val rule: JourneyRule) {
     fun waitGone(tag: String) = rule.waitUntil(15_000) { !exists(tag) }
 
     /**
+     * Wait until the window's accessibility tree (what TalkBack and [readingOrder] read) shows
+     * [present] and no longer shows [absent]. UiAutomation's node cache trails Compose's
+     * semantics by a few throttled content-change events, so a [readingOrder] straight after a
+     * page switch can still list the previous page.
+     *
+     * @param present Test tag (exposed as the node's resource id) that must be in the tree.
+     * @param absent Test tag that must have left the tree, or `null`.
+     */
+    fun awaitAccessibilityTree(present: String, absent: String? = null) {
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        fun ids(node: AccessibilityNodeInfo?, into: MutableSet<String> = mutableSetOf()): Set<String> {
+            node ?: return into
+            node.viewIdResourceName?.let(into::add)
+            for (i in 0 until node.childCount) ids(node.getChild(i), into)
+            return into
+        }
+        rule.waitUntil(15_000) {
+            val seen = ids(automation.rootInActiveWindow)
+            present in seen && (absent == null || absent !in seen)
+        }
+    }
+
+    /**
      * Wait for, then activate, the first node with [tag] (semantics click: no touch slop).
      *
      * @param tag Test tag.

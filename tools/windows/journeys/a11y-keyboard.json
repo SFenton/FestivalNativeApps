@@ -477,6 +477,36 @@
     ]
   },
   {
+    "name": "kb-bands-not-found-back",
+    "route": "/bands",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.bands.not-found@20"
+    ],
+    "after_ready": [
+      "key:alt+left",
+      "waitfor:id=fst.leaderboards@10",
+      "waitgone:id=fst.bands.not-found@5"
+    ]
+  },
+  {
+    "name": "kb-bands-not-found-back-button",
+    "route": "/bands",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.bands.not-found@20"
+    ],
+    "after_ready": [
+      "focus:id=PART_BackButton",
+      "assertfocus:id=PART_BackButton@3",
+      "key:enter",
+      "waitfor:id=fst.leaderboards@10",
+      "waitgone:id=fst.bands.not-found@5"
+    ]
+  },
+  {
     "name": "kb-compete-order",
     "route": "/compete",
     "profile": "fixture-player-1:Demo Player",
