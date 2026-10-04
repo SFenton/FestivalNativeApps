@@ -41,6 +41,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Drag handle a 32 × 48 dp touch target once a tall sheet can collapse (ATF; issue #123) | Every `FestivalModalSheet` (seen in Songs filter with Song Intensity open) | `BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize())`: 48 × 48 dp, same look |
 | At 200% text in phone landscape "Pro Drums + Cymbals" ran into its meter (no end gap; issue #123) | Song Detail Intensity card | 8 dp end padding on the label; it wraps (two lines, unlimited at large text) before the meter instead of truncating |
 | TalkBack went silent for the next five focus moves after the Service Info card's polite live region announced (the card scrolled into view and its 5 s poll started); focus kept moving (issue #121) | Settings | The card is no longer a live region; focusing the state row reads the current state. FST_Phone walk at fs 1.0 and 2.0: 99 items, web order |
+| A viewed player whose scores changed (publication changed) or whose Select failed said "Reload this page before selecting" with no control to reload; the page has no pull-to-refresh (issue #133) | Player page reached from the profile sheet | **Reload** text button (`fst.player.reload`, 48 dp) next to the notice; the profile sheet's inline search-error Retry is tagged `fst.profile.retry`. `ProfileSelectionDeviceTest` (ATF, reading order, 48 dp, hinge) passes on FST_Phone and FST_Book_Fold half |
 
 ### Large text (200% + largest display size)
 
