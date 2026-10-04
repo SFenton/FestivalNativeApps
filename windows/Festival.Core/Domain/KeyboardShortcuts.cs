@@ -48,3 +48,23 @@ public static class KeyboardShortcuts
     }
 }
 #endregion
+
+#region Pane focus
+/// <summary>
+/// Where keyboard focus lands when it enters the navigation pane from outside it: the selected section, like
+/// NavigationView's own Tab handling, but also for Tab from the separate title bar and for the minimal pane opening.
+/// </summary>
+public static class PaneFocus
+{
+    /// <summary>Whether focus heading to <paramref name="target"/> should move to <paramref name="selected"/> instead.</summary>
+    /// <param name="target">Section of the pane item about to get focus.</param>
+    /// <param name="selected">Selected section.</param>
+    /// <param name="keyboardOrPaneOpen">The move is a Tab/Shift+Tab or the overlay pane opening (not a pointer or arrow key).</param>
+    /// <param name="fromInsidePane">Focus is already on a pane item (arrow/Tab moves within the pane stay as they are).</param>
+    /// <returns><see langword="true"/> to redirect. Settings (footer) and the menu items are separate tab stops, so focus
+    /// is only redirected within the same group.</returns>
+    public static bool ShouldRedirect(AppSection target, AppSection selected, bool keyboardOrPaneOpen, bool fromInsidePane) =>
+        keyboardOrPaneOpen && !fromInsidePane && target != selected
+        && (target == AppSection.Settings) == (selected == AppSection.Settings);
+}
+#endregion

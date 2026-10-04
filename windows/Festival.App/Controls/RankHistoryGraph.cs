@@ -46,6 +46,7 @@ public sealed partial class RankHistoryGraph : Grid
     private readonly TextBlock metricLegend = new() { Text = "Total Score", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
     private double leftAxis = RankHistoryCombinedChart.MinValueGutter;
     private double rightAxis = RankHistoryCombinedChart.MinRankGutter;
+    private Rectangle? legendSwatch;
     private int offset;
     private int maxBars = 1;
     private Point? swipeStart;
@@ -113,6 +114,7 @@ public sealed partial class RankHistoryGraph : Grid
             uiSettings.ColorValuesChanged += OnSystemChanged;
             uiSettings.TextScaleFactorChanged -= OnSystemChanged;
             uiSettings.TextScaleFactorChanged += OnSystemChanged;
+            Redraw(); // a theme or text size changed while the page was cached and unloaded
         };
         Unloaded += (_, _) =>
         {
@@ -207,7 +209,8 @@ public sealed partial class RankHistoryGraph : Grid
     /// The side gutters fit the page's widest measured (text-scaled) tick labels; when they change, the page is laid out
     /// again for the new plot width. Contrast themes: gridlines and bar outlines use the window text colour
     /// (<c>FSTChartGridBrush</c>, <c>FSTChartAxisBrush</c>); the bar and rank-line hues are data series named by the legend
-    /// and the plot's UIA summary, so they stay, outlined to keep each bar's shape at system contrast.
+    /// and the plot's UIA summary, so they stay, opaque and outlined (as is the legend swatch) to keep each bar's shape at
+    /// system contrast.
     /// </remarks>
     private void Redraw()
     {
@@ -215,6 +218,13 @@ public sealed partial class RankHistoryGraph : Grid
         leftLabels.Children.Clear();
         rightLabels.Children.Clear();
         dates.Children.Clear();
+        var contrast = Services.ContrastTheme.IsOn;
+        var outline = Services.ContrastTheme.Brush("FSTChartAxisBrush");
+        if (legendSwatch is not null)
+        {
+            legendSwatch.Stroke = contrast ? outline : null;
+            legendSwatch.StrokeThickness = contrast ? 1 : 0;
+        }
         page = null;
         if (Model is not { } model) return;
         RankHistoryPage? laid = null;
@@ -242,10 +252,8 @@ public sealed partial class RankHistoryGraph : Grid
         offset = page.Offset;
         var tickHeight = MeasureText("0", TickFontSize).Height;
         ApplyGutters(RankHistoryCombinedChart.DateBand(MeasureText("0/0/00", DateFontSize).Height));
-        var contrast = Services.ContrastTheme.IsOn;
         var text = Services.ContrastTheme.Brush("FSTSecondaryTextBrush");
         var grid = Services.ContrastTheme.Brush("FSTChartGridBrush");
-        var outline = Services.ContrastTheme.Brush("FSTChartAxisBrush");
         var lineBrush = Solid(RankHistoryCombinedChart.LineArgb);
         const double inset = 10;
         double Y(double fraction) => inset + fraction * (PlotHeight - 2 * inset);
@@ -271,7 +279,7 @@ public sealed partial class RankHistoryGraph : Grid
             var rect = new Rectangle
             {
                 Width = barWidth, Height = height, RadiusX = 4, RadiusY = 4,
-                Fill = new SolidColorBrush(Color(page.Points[i].BarArgb)) { Opacity = 0.8 },
+                Fill = new SolidColorBrush(Color(page.Points[i].BarArgb)) { Opacity = contrast ? 1 : 0.8 },
                 Stroke = contrast ? outline : null,
                 StrokeThickness = contrast ? 1 : 0,
             };
@@ -325,6 +333,7 @@ public sealed partial class RankHistoryGraph : Grid
         gradient.GradientStops.Add(new GradientStop { Color = Color(0xFFDC2828), Offset = 0 });
         gradient.GradientStops.Add(new GradientStop { Color = Color(0xFF2ECC71), Offset = 1 });
         var swatch = new Rectangle { Width = 20, Height = 12, RadiusX = 2, RadiusY = 2, Fill = gradient, VerticalAlignment = VerticalAlignment.Center };
+        legendSwatch = swatch;
         var rank = new Canvas { Width = 24, Height = 12, VerticalAlignment = VerticalAlignment.Center };
         rank.Children.Add(new Line { X1 = 0, X2 = 18, Y1 = 6, Y2 = 6, Stroke = Solid(RankHistoryCombinedChart.LineArgb), StrokeThickness = 2 });
         var dot = new Ellipse { Width = 6, Height = 6, Fill = Solid(RankHistoryCombinedChart.LineArgb) };

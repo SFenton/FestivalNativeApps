@@ -402,9 +402,12 @@ public class RivalsViewModelTests
         Assert.Equal("Lead Rivals", lead.Title);
         Assert.True(lead.HasIcon);
         Assert.Equal(6, lead.Rows.Count);
+        Assert.Equal("", lead.Subtitle);
+        Assert.False(lead.HasSubtitle);
 
         var board = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.Leaderboard(Instrument.Bass, RankingMetric.TotalScore))));
         Assert.Equal("Ranked by Total Score · You are #1", board.Subtitle);
+        Assert.True(board.HasSubtitle);
         Assert.Equal("instrument_bass.png", board.IconFile);
 
         var common = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common))));
