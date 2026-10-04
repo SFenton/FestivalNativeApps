@@ -36,7 +36,7 @@ class FirstRunCarouselUiTest {
     @Test
     fun oneSlideGuideShowsOnlyDone() {
         var viewed = -1
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(1, FirstRunPageKey.Songs, songs.take(1), isReplay = false), compact = true) { viewed = it } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(1, FirstRunPageKey.Songs, songs.take(1), isReplay = false)) { viewed = it } } }
         assertTrue(exists("fst.first-run.done"))
         assertTrue(!exists("fst.first-run.skip") && !exists("fst.first-run.back") && !exists("fst.first-run.next"))
         rule.onNodeWithTag("fst.first-run.done").performClick()
@@ -47,7 +47,7 @@ class FirstRunCarouselUiTest {
     @Test
     fun backSitsBeforeNextAndClosingReportsTheSlidesSeen() {
         var viewed = -1
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(2, FirstRunPageKey.Songs, songs.take(3), isReplay = false), compact = true) { viewed = it } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(2, FirstRunPageKey.Songs, songs.take(3), isReplay = false)) { viewed = it } } }
         assertTrue(!exists("fst.first-run.skip") && !exists("fst.first-run.back"))
         val firstNext = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
         rule.onNodeWithTag("fst.first-run.next").performClick()
@@ -67,7 +67,7 @@ class FirstRunCarouselUiTest {
 
     @Test
     fun doneOnTheLastSlideStaysWhereNextWas() {
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(3, FirstRunPageKey.Songs, songs.take(2), isReplay = false), compact = true) { } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(3, FirstRunPageKey.Songs, songs.take(2), isReplay = false)) { } } }
         val next = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
         rule.onNodeWithTag("fst.first-run.next").performClick()
         rule.waitForIdle()
@@ -77,7 +77,7 @@ class FirstRunCarouselUiTest {
 
     @Test
     fun everyControlIsANamedButtonWithA48dpTarget() {
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(4, FirstRunPageKey.Songs, songs.take(3), isReplay = false), compact = true) { } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(4, FirstRunPageKey.Songs, songs.take(3), isReplay = false)) { } } }
         val minTarget = with(rule.density) { 48.dp.toPx() } - 1f
         fun check(tag: String, name: String) {
             rule.onNodeWithTag(tag).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
