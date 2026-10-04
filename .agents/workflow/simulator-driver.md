@@ -55,7 +55,7 @@ Defined in `apple/Apps/iOSUITests/DriverTests.swift` (`DriverStep.parse`):
 | `hold:<id-or-label>` | Long-press an app element 1.2 s (context menus, e.g. **Open in New Window**) |
 | `closeWindow` | iPad: close the front app window (controls › Close; resizes a full-width window first so the controls show). iPadOS reconnects every open window at the next launch, so close any window a script opened; closing the last visible window ends the app process |
 | `key:<[cmd+][shift+][alt+][ctrl+]key>` | Hardware-keyboard press: `key:cmd+2`, `key:shift+cmd+p`, `key:tab`, `key:down`, `key:return`, `key:escape`, `key:space` |
-| `host:<command>` | The host (`ios_sim.py`) runs a command while the app keeps running, and the step waits for it: `host:pose folded\|unfolded\|half\|rotate-left\|rotate-right` (Duo, Device Hub), `host:capture outer\|inner\|auto <abs path>` (one Duo panel via `simctl io`), `host:menu Device/Keyboard/Toggle Software Keyboard` (a Device Hub menu command). Handshake: `<n>.request`/`<n>.done` files in `FST_DRIVER_HOST_DIR` (`HostBridge` in `DriverTests.swift` and `ios_sim.py`). Use for fold/unfold continuity: the app is never relaunched |
+| `host:<command>` | The host (`ios_sim.py`) runs a command while the app keeps running, and the step waits for it: `host:pose folded\|unfolded\|half\|rotate-left\|rotate-right` (Duo, Device Hub), `host:capture outer\|inner\|auto <abs path>` (one Duo panel via `simctl io`), `host:menu Device/Keyboard/Toggle Software Keyboard` (a Device Hub menu command), `host:control Capture Keyboard` (a Device Hub window control by exact description; Toggle Software Keyboard is disabled until Capture Keyboard is on). Handshake: `<n>.request`/`<n>.done` files in `FST_DRIVER_HOST_DIR` (`HostBridge` in `DriverTests.swift` and `ios_sim.py`). Use for fold/unfold continuity: the app is never relaunched |
 
 A `tree:` dump early in a script is the standard way to find an unknown identifier: run `drive` with just `wait:1; tree:/tmp/x.txt`, `grep` the file for `identifier:`, then script the real steps.
 
@@ -80,7 +80,7 @@ python3 tools/ios_sim.py shutdown --device duo              # leave the Duo off 
 ```
 
 - `--pose folded|unfolded|half` (`shot`, `drive`): checked right after boot inside the lock. `half` (partially open) runs on the inner panel, so it verifies like `unfolded`. A mismatch exits **3** with instructions; `--set-pose` presses the Device Hub control first (same lock hold, so another lane's shutdown cannot reset the pose in between).
-- `--rotate left|right` (`shot`, repeatable): rotates through Device Hub after the pose check (left = three Rotate Right presses); each press is verified by an unchanged pose plus a changed lit-panel image.
+- `--rotate left|right` (`shot`, repeatable): rotates through Device Hub after the pose check (left = three Rotate Right presses); each press waits for an unchanged pose plus a changed lit-panel image, and only warns when the panel never changes (an orientation the app or system does not use, such as upside down).
 - `pose --set …`: same actions standalone. Exit codes: 3 pose not reached, 4 no permission, 5 no matching Device Hub control or a Device Hub step timed out (run `--list-controls` and adjust `_POSE_KEYWORDS` in `tools/ios_sim.py`; calibrated 2026-10-04).
 - Give `drive` a longer `--timeout` (e.g. 400) when it has `host:pose` steps: each pose change takes 5–15 s.
 - `--display outer|inner|auto` (`shot`; `drive` with `--record`): which panel is captured or recorded (`primary` / `primary-1`); `auto` is the lit one (`shot` only).

@@ -308,12 +308,12 @@ def output_paths(steps: list[str]) -> list[str]:
 
 
 #: ``host:`` driver-step commands and their argument counts (see ``run_host_command``).
-HOST_COMMANDS = {"pose": 1, "capture": 2, "menu": 1}
+HOST_COMMANDS = {"pose": 1, "capture": 2, "menu": 1, "control": 1}
 
 
 def parse_host_command(text: str) -> tuple[str, list[str]]:
     """Parse a ``host:`` step's command (``pose unfolded``, ``capture inner /tmp/a.png``,
-    ``menu Device/Keyboard/Toggle Software Keyboard``).
+    ``menu Device/Keyboard/Toggle Software Keyboard``, ``control Capture Keyboard``).
 
     The last argument keeps its spaces (paths and menu titles may contain them).
 
@@ -1285,6 +1285,40 @@ def press_device_hub_menu(udid: str, titles: list[str]) -> None:
     _device_hub_script("menu", hub.pid, *titles)
 
 
+def find_hub_control(controls: list[dict], label: str) -> dict | None:
+    """Find a Device Hub window control by its exact description or help text.
+
+    Args:
+        controls: ``device_hub_ax dump`` entries.
+        label: Exact text, e.g. ``Capture Keyboard`` (the toolbar toggle).
+
+    Returns:
+        The first pressable control (outside the simulated screen) with that text, or None.
+    """
+    for control in without_device_content(controls):
+        if control.get("role") in _PRESSABLE_ROLES and label in (control.get("description"), control.get("help")):
+            return control
+    return None
+
+
+def press_device_hub_control(udid: str, label: str) -> None:
+    """Press a Device Hub window control (e.g. the **Capture Keyboard** toggle).
+
+    Args:
+        udid: Booted simulator.
+        label: Exact description or help text of the control.
+
+    Raises:
+        DeviceHubError: No permission, no window, or no such control.
+    """
+    hub = open_device_hub_window(udid)
+    controls = _device_hub_script("dump", hub.pid, hub.window).get("controls", [])
+    control = find_hub_control(controls, label)
+    if control is None:
+        raise DeviceHubError(f"No Device Hub control described \"{label}\".", EXIT_NO_CONTROL)
+    _device_hub_script("press", hub.pid, hub.window, *control["path"])
+
+
 def _panel_digest(udid: str) -> str | None:
     """Hash the lit panel's screenshot, to confirm a rotation re-laid out the app.
 
@@ -1356,6 +1390,12 @@ def set_duo_pose(udid: str, action: str, settle: float = 15.0) -> str:
             elif actual == expected:
                 break
             if time.time() > deadline:
+                if expected is None and actual == before:
+                    # The device turned but nothing redrew: the app (or system) does not
+                    # use that orientation on this panel, e.g. upside down. Not an error.
+                    print(f"warning: {action} left the lit panel unchanged after {settle:.0f}s",
+                          file=sys.stderr)
+                    break
                 raise DeviceHubError(
                     f"Pressed the {action} control but the Duo reads {actual} "
                     f"(expected {expected or before + ' with a re-laid-out panel'}).", EXIT_POSE_MISMATCH)
@@ -1384,6 +1424,8 @@ def run_host_command(udid: str, command: str, values: list[str]) -> None:
         set_duo_pose(udid, values[0])
     elif command == "menu":
         press_device_hub_menu(udid, [part.strip() for part in values[0].split("/")])
+    elif command == "control":
+        press_device_hub_control(udid, values[0])
     elif command == "capture":
         panel, out = values
         display = DUO_PANELS[POSE_PANEL.get(detect_pose(udid), "outer")] if panel == "auto" else DUO_PANELS[panel]
@@ -1559,7 +1601,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
     except ValueError as error:
         print(error, file=sys.stderr)
         return 2
-    if code := scripting_preflight(args.set_pose or any(cmd in ("pose", "menu") for cmd, _ in host_steps)):
+    if code := scripting_preflight(args.set_pose or any(cmd != "capture" for cmd, _ in host_steps)):
         return code
     udid = resolve_device(args.device)
     derived = driver_derived_data()

@@ -25,6 +25,7 @@ from tools.ios_sim import (
     classify_pose,
     match_pose_control,
     choose_hub_process,
+    find_hub_control,
     has_pose_controls,
     hub_helper_stale,
     hub_window_shows,
@@ -367,6 +368,12 @@ class DeviceHubControlsTests(unittest.TestCase):
         self.assertEqual(pose_presses("folded", content + self.controls), [self.controls[3]])
         self.assertEqual(pose_presses("folded", content), [])
 
+    def test_toolbar_toggle_found_by_exact_label(self):
+        toggle = _control(role="AXCheckBox", description="Capture Keyboard", help="Capture Keyboard")
+        group = _control(role="AXGroup", help="Capture Keyboard")
+        self.assertIs(find_hub_control([group, toggle] + self.controls, "Capture Keyboard"), toggle)
+        self.assertIsNone(find_hub_control(self.controls, "Capture"))
+
     def test_rotate_left_is_three_right_rotations(self):
         self.assertEqual(pose_presses("rotate-left", self.controls), [self.controls[2]] * 3)
 
@@ -385,6 +392,7 @@ class HostCommandTests(unittest.TestCase):
         self.assertEqual(parse_host_command(" capture inner /tmp/a b.png "), ("capture", ["inner", "/tmp/a b.png"]))
         self.assertEqual(parse_host_command("menu Device/Keyboard/Toggle Software Keyboard"),
                          ("menu", ["Device/Keyboard/Toggle Software Keyboard"]))
+        self.assertEqual(parse_host_command("control Capture Keyboard"), ("control", ["Capture Keyboard"]))
 
     def test_invalid_commands(self):
         for text in ("pose sideways", "pose", "capture middle /tmp/a.png", "capture inner relative.png",
