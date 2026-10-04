@@ -110,6 +110,18 @@ Fixed:
 - The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
 - The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
 
+## Songs Sort validation (issue #218, 2026-10-03)
+
+Evidence: `a11y_matrix.py --only songs-sort --scan --tabs 14` at compact, medium and wide, then at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors and 3 tab stops cycling inside the flyout in every run. Keyboard journeys `kb-songs-order`, `kb-songs-sort-esc` and the new `kb-songs-sort-groups` (Tab between the groups, Down changes direction live, Enter on Reset, Esc returns focus to the button). The `songs_journey.py` `songs-sort-*` scenarios cover every reachable state at C/M/W. Live public-service screenshots at C/M/W, maximized, snap-left and with Item Shop sort. Per-configuration results: [songs-sort/windows.md](../controls/songs-sort/windows.md#validation-issue-218-2026-10-03).
+
+Fixed:
+- The two direction rows were loose `RadioButton`s: two extra Tab stops (4 in the flyout) and no group name. They are now a `RadioButtons` group with a "Direction" header (3 stops; arrows move inside), like Sort By.
+- Narrator read the Sort button as "Sort Songs" only, and the arrow glyph in its label isn't spoken meaningfully; it now has HelpText with the applied sort ("Year, descending").
+- The Sort paused, Shop filter paused, profile paused and score-filter paused InfoBars and the Item Shop section headings had no automation IDs (`fst.songs.sort-paused`, `fst.songs.shop-section.*` from the spec); they have them now.
+- The non-default gold Sort/Filter label tint didn't follow a contrast-theme switch while the page was open; it now re-applies on `ColorValuesChanged`.
+
+A run on this shared host left the Desert contrast theme on system-wide with no pending restore, so later modes rendered under it. Check `sysset` state before trusting light-theme/text/scale screenshots, and re-run them after restoring.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
