@@ -92,6 +92,8 @@ public struct MarqueeText: View {
             if wrapsAtAccessibilitySizes, dynamicTypeSize.isAccessibilitySize {
                 Text(self.text)
                     .marqueeFont(font)
+                    // Overrides a caller's `.lineLimit(1)` (written for the marquee).
+                    .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
             } else if mayScroll {
                 MarqueeFitLayout {
