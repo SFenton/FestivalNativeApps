@@ -34,7 +34,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Leaderboards + Quick Links | ✅✅✅ | 20/21/21 | ✅ | ✅ | ✅ |
 | Full Rankings / Rank By menu | ✅✅✅ | 8/11/11 | ✅ | ✅ | ✅ |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
-| Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
+| Rivals / Compete | ✅✅✅ (#213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
