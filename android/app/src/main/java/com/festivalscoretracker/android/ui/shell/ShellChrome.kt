@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -42,6 +41,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 
@@ -94,18 +94,20 @@ fun DrawerContent(
     ) {
         // Header row the height of the top app bar, so the first entry lines up with the page's
         // first content row and with the rail's first destination (the drawer extends the rail).
-        Box(Modifier.fillMaxWidth().height(PAGE_CONTENT_TOP_DP.dp), contentAlignment = Alignment.CenterStart) {
-            if (!permanent) {
-                Text(
-                    "Festival Score Tracker",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandTokens.textPrimary,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-        }
+        // Large text wraps the title, so the row grows (a fixed 64 dp let "Songs" overlap the
+        // title's second line at 2.0×, issue #132) and scrolls with the entries on short windows.
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            Box(Modifier.fillMaxWidth().heightIn(min = PAGE_CONTENT_TOP_DP.dp).testTag("fst.nav.drawer-header"), contentAlignment = Alignment.CenterStart) {
+                if (!permanent) {
+                    Text(
+                        "Festival Score Tracker",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandTokens.textPrimary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).semantics { heading() },
+                    )
+                }
+            }
             DrawerPolicy.entries(profile, showShop).forEach { entry ->
                 val active = DrawerPolicy.isSelected(entry, selected)
                 DrawerItem(entry.title, entry.icon(active), selected = active, tag = entry.tag(tabTags)) {

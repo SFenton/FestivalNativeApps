@@ -35,6 +35,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import androidx.compose.ui.test.onNodeWithText
 
 // region Harness
 
@@ -224,6 +226,38 @@ class AppNavigationStatesUiTest {
             .forEach { (tag, name) ->
                 rule.onNodeWithTag("fst.nav.tab.$tag").assert(hasContentDescription(name)).assert(!hasText(name))
             }
+    }
+}
+
+/**
+ * Real text measurement at 2.0× (native graphics): the modal drawer's wrapped title gets its
+ * own height instead of being overlapped by the first entry (issue #132).
+ */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class LargeTextDrawerHeaderUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    private val harness = NavigationHarness(rule)
+
+    @Test
+    fun wrappedDrawerTitleIsNotOverlappedByTheFirstEntry() {
+        RuntimeEnvironment.setFontScale(2f)
+        harness.launch(DebugLaunch(profile = navigationPlayer, opensDrawer = true, stillBackground = true))
+        harness.waitForTag("fst.nav.drawer.songs")
+        val titleNode = rule.onNodeWithText("Festival Score Tracker").fetchSemanticsNode()
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        titleNode.config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        val title = titleNode.boundsInRoot
+        val header = rule.onNodeWithTag("fst.nav.drawer-header").fetchSemanticsNode().boundsInRoot
+        val first = rule.onNodeWithTag("fst.nav.drawer.songs").fetchSemanticsNode().boundsInRoot
+        // Wrapped onto more than one line, laid out without overflow, entirely inside the header row.
+        assertTrue("title lines ${layouts.single().lineCount}", layouts.single().lineCount > 1)
+        assertTrue("title overflows its box", !layouts.single().hasVisualOverflow)
+        assertTrue("title $title inside header $header", title.bottom <= header.bottom + 0.5f)
+        assertTrue("first entry $first below header $header", first.top >= header.bottom - 0.5f)
     }
 }
 
