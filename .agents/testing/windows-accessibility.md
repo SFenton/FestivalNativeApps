@@ -37,7 +37,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Rivals / Compete | ✅✅✅ (#213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT, +live, #201) | 6/9/15 | UIA only (#201) | ✅ | ✅ (+200%) |
 | Rival Detail | ✅✅✅ (+snap/max, #202) | 12/14/14 | ✅ | ✅ | ✅ (200% C/M/W; display 100%/150%, #202) |
-| Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
+| Rivalry | ✅✅✅ (+live, #203) | 8/11/11 | UIA only (#203) | ✅ | ✅ (+200% C+M, #203) |
 | Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ (#204 chart outlines) | ✅ (tiles scale; #204 chart gutters) |
 | Bands (Band not found, #211) | ✅✅✅ (+live) | 5/8/8 | ✅ | ✅ | ✅ (+200% C/M/W) |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
@@ -192,6 +192,17 @@ Fixed:
 - The chart and table scrollers weren't Tab stops, so keyboard users couldn't scroll a long chart or table.
 
 Gotcha: a `UserControl` hosted in a `ContentDialog` gets one `Loaded` and then spurious `Unloaded` events while the dialog is still shown (`IsLoaded` stays true). Subscribe to system events for the dialog's lifetime, not on Loaded/Unloaded.
+
+## Rivalry validation (issue #203, 2026-10)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` on `rivalry`, `rivalry-unknown`, `rivalry-empty` and `rivalry-freeze` at compact, medium, wide, maximized and snapped, then under Night sky, Desert, light system theme, text 200% (C+M) and display 100%/150%. The same configurations ran against the live public service (SFentonX against GingerNINZIN_JPN). All runs had 0 Axe errors except fixture medium text 200%, where the 2 findings were the viewport-edge `BoundingRectangleSizeReasonable` artifact (item 3) on a row clipped at the bottom. Results per configuration are in [rivalry/windows.md](../pages/rivalry/windows.md#validation-issue-203-2026-10).
+
+Fixed:
+- The sort `ComboBox` had no visible label (now "Sort By").
+- The View Profile button overflowed a compact window at text 200%.
+- Title sort used the comparison title rather than the displayed title.
+
+The console was locked, so keys were posted. Tab walks, Enter on a row and Alt+Left worked.
 
 ## Statistics validation (issue #204, 2026-10)
 
