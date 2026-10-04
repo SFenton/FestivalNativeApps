@@ -28,13 +28,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -153,8 +158,11 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
             },
         onClick = if (rival.isNavigable) onClick else null,
     ) {
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            Box(Modifier.width(4.dp).fillMaxHeight().background(if (winning) BrandTokens.statusGreen else BrandTokens.statusRed))
+        // The tint bar is drawn behind the row rather than measured with IntrinsicSize.Min:
+        // FlowRow's intrinsic height ignores wrapped lines, so at large text (or narrow widths)
+        // the wrapped "songs behind" pill was clipped off the card.
+        val tint = if (winning) BrandTokens.statusGreen else BrandTokens.statusRed
+        Row(Modifier.rivalTintBar(tint).padding(start = RIVAL_TINT_WIDTH)) {
             Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val nameColor = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted
                 if (isLargeText()) {
@@ -180,6 +188,20 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
             if (rival.isNavigable) RowChevron(Modifier.align(Alignment.CenterVertically).padding(end = 10.dp))
         }
     }
+}
+
+private val RIVAL_TINT_WIDTH = 4.dp
+
+/**
+ * Draws the row's win/lose bar along its start edge at the row's full measured height.
+ *
+ * @param color Bar color.
+ * @return The modifier with the bar drawn behind the content.
+ */
+private fun Modifier.rivalTintBar(color: Color): Modifier = drawBehind {
+    val width = RIVAL_TINT_WIDTH.toPx()
+    val x = if (layoutDirection == LayoutDirection.Rtl) size.width - width else 0f
+    drawRect(color, topLeft = Offset(x, 0f), size = Size(width, size.height))
 }
 
 // endregion
@@ -209,7 +231,9 @@ fun RivalSectionHeader(
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (instrument != null) InstrumentIcon(instrument, size = 36.dp, decorative = true)
-        Column(Modifier.weight(1f)) {
+        // Traversal group: TalkBack reads the title and its description before the
+        // vertically centred See All, which otherwise sorts between them.
+        Column(Modifier.weight(1f).semantics { isTraversalGroup = true }) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleLarge,
@@ -358,13 +382,9 @@ fun RivalSongRow(
     val rankText = RivalHeadToHead.formatRankDelta(delta.toLong())
     val scoreText = RivalHeadToHead.formatScoreDiff(song)
     val scoreDiff = RivalHeadToHead.scoreDiff(song)
-    val leader = when {
-        delta > 0 -> "you lead by $rankText ranks"
-        delta < 0 -> "$them leads by ${rankText.removePrefix("−")} ranks"
-        else -> "tied"
-    }
+    val leader = RivalHeadToHead.leaderPhrase(delta.toLong(), them)
     val description = "$title, ${song.chart?.label.orEmpty()}, $you rank ${format.format(song.userRank)}, " +
-        "$them rank ${format.format(song.rivalRank)}, $leader, score difference $scoreText"
+        "$them rank ${format.format(song.rivalRank)}, $leader, ${RivalHeadToHead.spokenScoreDiff(song)}"
     val keyboard = catalogSong?.usesKeyboardIcon == true
     GlassCard(
         modifier = modifier

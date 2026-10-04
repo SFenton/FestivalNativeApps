@@ -69,6 +69,21 @@ public static class SongListPipeline
     /// <summary>Has FC section labels (web <c>songs.quickLinks.fc</c>/<c>noFc</c>, <c>filter.noScore</c>).</summary>
     public const string FcLabel = "FC", NoFcLabel = "No FC", NoScoreLabel = "No Score";
 
+    /// <summary>
+    /// UI Automation ID of a section heading: <c>fst.songs.shop-section.{leaving-tomorrow|in-shop|not-in-shop}</c> for the
+    /// Item Shop buckets (the cross-platform test ID), otherwise empty (letter, decade and Has FC headings carry none).
+    /// </summary>
+    /// <param name="effectiveSort">Sort actually applied (<see cref="SongListResult.EffectiveSort"/>).</param>
+    /// <param name="label">Section label.</param>
+    /// <returns>Automation ID, or an empty string.</returns>
+    public static string SectionAutomationId(SongSortMode effectiveSort, string label) => effectiveSort != SongSortMode.Shop ? "" : label switch
+    {
+        LeavingTomorrowLabel => "fst.songs.shop-section.leaving-tomorrow",
+        InShopLabel => "fst.songs.shop-section.in-shop",
+        NotInShopLabel => "fst.songs.shop-section.not-in-shop",
+        _ => "",
+    };
+
     /// <summary>Runs the pipeline.</summary>
     /// <param name="input">Captured inputs.</param>
     /// <returns>Rows, sections and notices.</returns>

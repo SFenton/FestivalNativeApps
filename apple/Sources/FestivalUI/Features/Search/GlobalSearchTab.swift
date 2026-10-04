@@ -37,6 +37,7 @@ struct GlobalSearchTab: View {
                     text: $model.query, isPresented: $fieldPresented,
                     prompt: Text(GlobalSearch.prompt(for: model.scope))
                 )
+                .modifier(KeepSearchTitleWhileSearching())
                 .task(id: model.runKey) { await model.search(session: session) }
                 .modifier(SearchPageChrome(session: session, enabled: !asTab))
         }
@@ -49,6 +50,27 @@ struct GlobalSearchTab: View {
         .onChange(of: fieldPresented) { wasPresented, presented in
             if asTab, wasPresented, !presented, isSelected { dismiss() }
         }
+    }
+}
+
+/// Keeps the "Search" navigation title on screen while the field is active (issue #100).
+///
+/// Choosing the Search tab activates its field at once, and `.searchable` hides the
+/// navigation bar on activation by default, so the page never showed its title. HIG
+/// VoiceOver: "Give each page or screen a unique, succinct title describing its content
+/// and purpose; assistive technology announces it first." `ProfileSelectionSheet` keeps
+/// its title the same way. No-op before iOS 17.1 and on macOS (search is a sheet there).
+private struct KeepSearchTitleWhileSearching: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 17.1, *) {
+            content.searchPresentationToolbarBehavior(.avoidHidingContent)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
     }
 }
 

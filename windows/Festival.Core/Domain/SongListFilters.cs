@@ -517,7 +517,7 @@ public sealed record SongPlayerScoreFilter
 #endregion
 
 #region Shop view
-/// <summary>Item Shop layout preference (compact windows always use the list).</summary>
+/// <summary>Item Shop layout preference (compact windows always use the grid).</summary>
 public enum ShopViewMode
 {
     /// <summary>Artwork grid.</summary>

@@ -86,7 +86,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     [ObservableProperty]
     private List<SongLeaderboardRowViewModel> rows = [];
 
-    /// <summary>"12,345 Lead entries" when the service allows totals, else empty.</summary>
+    /// <summary>"12,345 Lead entries" when the service allows totals and there is at least one entry (web parity), else empty.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTotal))]
     private string totalText = "";
@@ -200,7 +200,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
             {
                 Status.Clear();
                 entries = [.. board.Entries];
-                TotalText = board.ShowLeaderboardEntryTotals == true
+                TotalText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
                     ? string.Create(CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} {Instrument.Label()} entries") : "";
                 Pager.Update(requestedPage, pages);
                 ApplySelection();
@@ -324,11 +324,15 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>UIA automation ID (<c>fst.song-leaderboard.row.&lt;accountId&gt;</c>).</summary>
     public string AutomationId => "fst.song-leaderboard.row." + Entry.AccountId;
 
+    /// <summary>Badge UIA ID (<c>fst.score.accuracy.&lt;accountId&gt;</c>, as on Apple's full Solo chart).</summary>
+    public string BadgeAutomationId => "fst.score.accuracy." + Entry.AccountId;
+
     /// <summary>Screen-reader name.</summary>
     public string Announcement =>
         (IsSelected && Entry.Rank > 0 ? $"Your rank, {RankingFormatting.Ordinal(Entry.Rank)}. {Name}" :
          IsSelected ? $"Your score. {Name}" : $"Rank {RankText}, {Name}") +
-        $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") +
-        (Entry.Stars is > 0 ? $", {Entry.Stars} stars" : "");
+        $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
+        (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
+        (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

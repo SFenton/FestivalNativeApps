@@ -271,7 +271,7 @@ struct SuggestionsScreen: View {
             // the end never changes content height (that read as a bounce at the bottom).
             FestivalLoadingView(accessibilityLabel: "Loading more suggestions")
                 .opacity(viewModel.isLoadingMore ? 1 : 0)
-                .accessibilityHidden(!viewModel.isLoadingMore)
+                .accessibilityHidden(while: !viewModel.isLoadingMore)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
         } else {

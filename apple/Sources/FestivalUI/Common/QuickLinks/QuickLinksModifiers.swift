@@ -44,16 +44,20 @@ public extension View {
     ///     pass `nil` to discover sections from `.quickLinkSection` views instead.
     ///   - activationOffset: Distance below the visible top at which a section
     ///     becomes active and where a jump lands it.
+    ///   - listNudger: For a `List`, which centres any scroll anchor but `.top`: jumps
+    ///     land flush and the nudger moves the List onto the activation line. Its
+    ///     ``ListScrollViewLocator`` must sit in one of the List's rows.
     /// - Returns: The scroll view with quick-links behavior.
     func quickLinks(
         _ controller: QuickLinksController,
         title: String,
         sections: [QuickLinkSection]? = nil,
-        activationOffset: Double = QuickLinks.defaultActivationOffset
+        activationOffset: Double = QuickLinks.defaultActivationOffset,
+        listNudger: ListScrollNudger? = nil
     ) -> some View {
         modifier(QuickLinksContainerModifier(
             controller: controller, title: title,
-            sections: sections, activationOffset: activationOffset
+            sections: sections, activationOffset: activationOffset, listNudger: listNudger
         ))
     }
 
@@ -103,17 +107,25 @@ struct QuickLinksPageTool: ViewModifier {
 
 // MARK: - Container
 
-/// Implementation of `.quickLinks(_:title:sections:activationOffset:)`.
+/// Implementation of `.quickLinks(_:title:sections:activationOffset:listNudger:)`.
 struct QuickLinksContainerModifier: ViewModifier {
     let controller: QuickLinksController
     let title: String
     let sections: [QuickLinkSection]?
     let activationOffset: Double
+    /// Set for a `List`, which centres any scroll anchor but `.top`: jumps land flush,
+    /// then this moves the List onto the landing line (issue #286).
+    let listNudger: ListScrollNudger?
+    /// A `List`'s top content inset: its section frames are measured from the top of the
+    /// List under the bars, not from the visible top, so the activation line moves down
+    /// by it. 0 for a `ScrollView` and before iOS 18 / macOS 15.
+    @State private var listTopInset: Double = 0
     @Namespace private var rotorNamespace
 
     func body(content: Content) -> some View {
         ScrollViewReader { proxy in
             content
+                .modifier(ListTopInsetReader(enabled: listNudger != nil) { listTopInset = $0 })
                 .coordinateSpace(.named(quickLinksSpace))
                 .environment(\.quickLinksContext, QuickLinksContext(
                     controller: controller, rotorNamespace: rotorNamespace
@@ -143,6 +155,8 @@ struct QuickLinksContainerModifier: ViewModifier {
         .onAppear { configure() }
         .onChange(of: title) { configure() }
         .onChange(of: sections) { configure() }
+        .onChange(of: activationOffset) { configure() }
+        .onChange(of: listTopInset) { configure() }
         // iPhone tab-bar accessory (issue #92): Quick Links after the page's actions.
         .modifier(QuickLinksPageTool(controller: controller))
         // Go › Quick Links / Next Section / Previous Section (HIG Toolbars › macOS:
@@ -151,8 +165,19 @@ struct QuickLinksContainerModifier: ViewModifier {
     }
 
     private func configure() {
-        controller.activationOffset = activationOffset
+        controller.activationOffset = QuickLinks.activationLine(
+            offset: activationOffset, listTopInset: listNudger == nil ? 0 : listTopInset
+        )
         controller.configure(title: title, explicit: sections)
+    }
+
+    /// The scroll anchor for a jump: `.top` in a `List` (``listNudger`` corrects the
+    /// rest), otherwise one that lands on the activation line.
+    ///
+    /// - Parameter target: The jump's target section id.
+    /// - Returns: The anchor for `ScrollViewProxy.scrollTo(_:anchor:)`.
+    private func anchor(for target: String) -> UnitPoint {
+        listNudger == nil ? controller.landingAnchor(for: target) : .top
     }
 
     /// Scroll to the latest jump target, then report arrival.
@@ -184,7 +209,7 @@ struct QuickLinksContainerModifier: ViewModifier {
         var instant = Transaction()
         instant.disablesAnimations = true
         withTransaction(instant) {
-            proxy.scrollTo(target, anchor: controller.landingAnchor(for: target))
+            proxy.scrollTo(target, anchor: anchor(for: target))
         }
         Task { @MainActor in await correctAndSettle(proxy, target: target) }
     }
@@ -200,7 +225,7 @@ struct QuickLinksContainerModifier: ViewModifier {
     ///   - proxy: Reader proxy for the wrapped scroll view.
     ///   - target: The jump's target section id.
     private func correctAndSettle(_ proxy: ScrollViewProxy, target: String) async {
-        proxy.scrollTo(target, anchor: controller.landingAnchor(for: target))
+        proxy.scrollTo(target, anchor: anchor(for: target))
         var lastFrame = controller.currentFrame(for: target)
         var stableStreak = 0
         var relandings = 0
@@ -219,15 +244,39 @@ struct QuickLinksContainerModifier: ViewModifier {
             guard stableStreak >= 2 else { continue }
             // A lazily built target was measured only after the first anchor was
             // chosen; land it again now that its height is known.
-            if relandings < 2, frame != nil, !controller.isLanded(target) {
+            if relandings < 2, let frame, !controller.isLanded(target) {
                 relandings += 1
                 stableStreak = 0
-                proxy.scrollTo(target, anchor: controller.landingAnchor(for: target))
+                if let listNudger {
+                    let distance = controller.activationOffset - frame.minY
+                    guard listNudger.moveContent(by: CGFloat(distance)) else { break }
+                } else {
+                    proxy.scrollTo(target, anchor: anchor(for: target))
+                }
                 continue
             }
             break
         }
         controller.jumpDidSettle()
+    }
+}
+
+/// Reports a `List`'s top content inset in whole points (iOS 18 / macOS 15 and later;
+/// nothing before, or when disabled).
+private struct ListTopInsetReader: ViewModifier {
+    let enabled: Bool
+    let changed: (Double) -> Void
+
+    func body(content: Content) -> some View {
+        if enabled, #available(iOS 18.0, macOS 15.0, *) {
+            content.onScrollGeometryChange(for: Double.self) { geometry in
+                Double(geometry.contentInsets.top.rounded())
+            } action: { _, inset in
+                changed(inset)
+            }
+        } else {
+            content
+        }
     }
 }
 

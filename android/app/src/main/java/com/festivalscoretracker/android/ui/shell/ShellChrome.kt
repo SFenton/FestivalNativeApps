@@ -5,12 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.ShoppingBag
@@ -38,8 +38,11 @@ import com.festivalscoretracker.android.core.shell.DrawerEntry
 import com.festivalscoretracker.android.core.shell.DrawerPolicy
 import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
 
@@ -88,47 +91,66 @@ fun DrawerContent(
         Modifier
             .fillMaxHeight()
             .padding(start = 12.dp, end = 12.dp, bottom = 16.dp)
-            .testTag("fst.nav.drawer-sheet"),
+            .testTag("fst.nav.drawer-sheet")
+            // One TalkBack unit (like the rail): without it the permanent drawer's footer (player
+            // row, Deselect, Settings) was read after the page content, by vertical position.
+            .semantics { isTraversalGroup = true },
     ) {
         // Header row the height of the top app bar, so the first entry lines up with the page's
         // first content row and with the rail's first destination (the drawer extends the rail).
-        Box(Modifier.fillMaxWidth().height(PAGE_CONTENT_TOP_DP.dp), contentAlignment = Alignment.CenterStart) {
-            if (!permanent) {
-                Text(
-                    "Festival Score Tracker",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandTokens.textPrimary,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-            }
-        }
+        // Large text wraps the title, so the row grows (a fixed 64 dp let "Songs" overlap the
+        // title's second line at 2.0×, issue #132) and scrolls with the entries on short windows.
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            Box(Modifier.fillMaxWidth().heightIn(min = PAGE_CONTENT_TOP_DP.dp).testTag("fst.nav.drawer-header"), contentAlignment = Alignment.CenterStart) {
+                if (!permanent) {
+                    Text(
+                        "Festival Score Tracker",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandTokens.textPrimary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).semantics { heading() },
+                    )
+                }
+            }
             DrawerPolicy.entries(profile, showShop).forEach { entry ->
-                DrawerItem(entry.title, entry.icon(), selected = DrawerPolicy.isSelected(entry, selected), tag = entry.tag(tabTags)) {
+                val active = DrawerPolicy.isSelected(entry, selected)
+                DrawerItem(entry.title, entry.icon(active), selected = active, tag = entry.tag(tabTags)) {
                     open(DrawerPolicy.target(entry, visible))
                 }
             }
         }
         HorizontalDivider(Modifier.padding(vertical = 8.dp), color = BrandTokens.glassBorder)
         if (player != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) {
-                    DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
-                        open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
-                    }
+            val profileItem = @Composable {
+                DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
+                    open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
                 }
+            }
+            val deselect = @Composable { modifier: Modifier ->
                 TextButton(
                     onClick = onDeselect,
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect").semantics { contentDescription = "Deselect profile" },
+                    modifier = modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect").semantics { contentDescription = "Deselect profile" },
                 ) { Text("Deselect", Modifier.clearAndSetSemantics { }) }
+            }
+            // Large text: the name keeps the row's width and Deselect drops below it (beside it,
+            // a 200% "SFentonX" broke a few letters per line, issue #101).
+            if (isLargeText()) {
+                Column {
+                    profileItem()
+                    deselect(Modifier.align(Alignment.End))
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { profileItem() }
+                    deselect(Modifier)
+                }
             }
         } else {
             DrawerItem("Select Profile", Icons.Outlined.PersonAdd, tag = "fst.nav.drawer.select-profile", onClick = onOpenProfile)
         }
         DrawerItem(
             FestivalSection.Settings.title,
-            FestivalSection.Settings.icon(),
+            FestivalSection.Settings.icon(selected == FestivalSection.Settings),
             selected = selected == FestivalSection.Settings,
             tag = if (tabTags) "fst.nav.tab.settings" else "fst.nav.drawer.settings",
         ) { onSection(FestivalSection.Settings) }
@@ -141,8 +163,9 @@ fun DrawerContent(
  */
 internal const val PAGE_CONTENT_TOP_DP = 64
 
-/** Drawer row icon (web sidebar icons, Material equivalents). */
-private fun DrawerEntry.icon(): ImageVector = section?.icon() ?: Icons.Outlined.ShoppingBag
+/** Drawer row icon (web sidebar icons, Material equivalents): filled while [active]. */
+private fun DrawerEntry.icon(active: Boolean): ImageVector =
+    section?.icon(active) ?: if (active) Icons.Filled.ShoppingBag else Icons.Outlined.ShoppingBag
 
 /** Test tag: `fst.nav.tab.<section>` for tab rows of the permanent drawer, else `fst.nav.drawer.<entry>`. */
 private fun DrawerEntry.tag(tabTags: Boolean): String =

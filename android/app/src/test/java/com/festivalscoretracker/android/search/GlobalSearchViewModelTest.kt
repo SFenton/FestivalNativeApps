@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.presentation.search.GlobalSearchUiState
 import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
+import com.festivalscoretracker.android.presentation.search.SearchEmptyState
 import com.festivalscoretracker.android.presentation.search.SectionPhase
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.MainDispatcherRule
@@ -131,22 +132,53 @@ class GlobalSearchViewModelTest {
         val vm = model(players)
         vm.onQueryChange("zzz")
         settle()
-        assertEquals(GlobalSearchResults.NO_RESULTS, vm.ui.hint)
-        assertTrue(vm.ui.canRetryAll)
+        assertNull(vm.ui.hint)
+        assertEquals(
+            SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE, canRetry = true),
+            vm.ui.emptyState,
+        )
         assertFalse(vm.ui.showPlayersSection)
         assertEquals(GlobalSearchResults.NO_RESULTS, vm.ui.announcement)
         vm.retry()
         advanceUntilIdle()
         assertEquals(2, players.queries.size)
-        // Scoped views: Songs says "No songs found.", Players shows its own empty row.
+        // Scoped views: each shows its own centred title and subtitle; only Players offers Retry.
         vm.toggleScope(SearchScope.Songs)
-        assertEquals(GlobalSearchResults.NO_SONGS, vm.ui.hint)
+        assertEquals(
+            SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE, canRetry = false),
+            vm.ui.emptyState,
+        )
         vm.toggleScope(SearchScope.Players)
         assertNull(vm.ui.hint)
-        assertTrue(vm.ui.showPlayersSection)
+        assertFalse(vm.ui.showPlayersSection)
         assertEquals(SectionPhase.Empty, vm.ui.playersPhase)
+        assertEquals(
+            SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE, canRetry = true),
+            vm.ui.emptyState,
+        )
         vm.toggleScope(SearchScope.Players)
         assertEquals(SearchScope.All, vm.ui.scope)
+    }
+
+    @Test
+    fun emptyPlayersWithSongsHideThePlayersSectionInAll() = runTest(main.dispatcher) {
+        val vm = model(Recorder { emptyList() })
+        vm.onQueryChange("alpha")
+        settle()
+        advanceUntilIdle()
+        assertEquals(SectionPhase.Empty, vm.ui.playersPhase)
+        // Web parity: All renders only sections with rows or an error, so no inline "No players found." row.
+        assertTrue(vm.ui.showSongsSection)
+        assertFalse(vm.ui.showPlayersSection)
+        assertNull(vm.ui.emptyState)
+        assertNull(vm.ui.hint)
+        // The Players scope shows the centred empty state with Retry instead.
+        vm.toggleScope(SearchScope.Players)
+        assertEquals(GlobalSearchResults.EMPTY_PLAYERS_TITLE, vm.ui.emptyState?.title)
+        assertTrue(vm.ui.emptyState!!.canRetry)
+        // Songs with matches never shows an empty state.
+        vm.toggleScope(SearchScope.Songs)
+        assertNull(vm.ui.emptyState)
     }
 
     @Test

@@ -82,15 +82,28 @@ object BandLayout {
     }
 
     /**
+     * Whether Band Detail shows two panes: an expanded window or a separating vertical hinge,
+     * unless the page is forced to one column (screen reader, or large text on a narrow window).
+     * The page decides this once so its pane layout and its Quick Links action always agree.
+     *
+     * @param windowWidth Window width.
+     * @param separatingHinge Whether the window has a separating vertical hinge.
+     * @param singleColumn Whether the page must stay one column.
+     * @return True for two panes.
+     */
+    fun splits(windowWidth: Float, separatingHinge: Boolean, singleColumn: Boolean): Boolean =
+        !singleColumn && (windowWidth >= EXPANDED_WIDTH || separatingHinge)
+
+    /**
      * Whether and where Band Detail splits into panes.
      *
      * @param windowWidth Window width.
      * @param contentWidth Content width.
      * @param hinge Vertical hinge in content coordinates.
+     * @param split Whether to split; defaults to an expanded window or a separating [hinge].
      * @return Panes.
      */
-    fun panes(windowWidth: Float, contentWidth: Float, hinge: Hinge?): Panes {
-        val split = windowWidth >= EXPANDED_WIDTH || hinge?.separating == true
+    fun panes(windowWidth: Float, contentWidth: Float, hinge: Hinge?, split: Boolean = windowWidth >= EXPANDED_WIDTH || hinge?.separating == true): Panes {
         // A flat fold only anchors the split when both panes keep a balanced share (tri-fold outer folds do not).
         val anchor = hinge?.takeIf { it.separating || min(it.left, contentWidth - it.right) >= BALANCED_SHARE * contentWidth }
         return when {
@@ -99,6 +112,17 @@ object BandLayout {
             else -> Panes(true, null, PANE_GAP)
         }
     }
+
+    /**
+     * Single-list pages (a song's band leaderboard): split into a controls pane and a rows
+     * pane only across a **separating** hinge (half-open fold or physical hinge), meeting
+     * exactly at it; a flat fold or a plain wide window keeps one centred column.
+     *
+     * @param hinge Vertical hinge in content coordinates.
+     * @return Panes.
+     */
+    fun listSplit(hinge: Hinge?): Panes =
+        if (hinge?.separating == true) Panes(true, hinge.left, hinge.right - hinge.left) else Panes(false, null, 0f)
 
     /**
      * The vertical hinge nearest the content's centre (a tri-fold reports two).
@@ -112,7 +136,9 @@ object BandLayout {
 
     /**
      * Card grid: as many ≥ [CARD_MIN] columns as fit; with a separating hinge, or a
-     * fold when two columns fit anyway, exactly two columns whose gutter is the hinge.
+     * balanced flat fold when two columns fit anyway, exactly two columns whose gutter is
+     * the hinge. An unbalanced flat fold (a tri-fold's off-centre fold) keeps the natural
+     * grid, as in [panes], instead of leaving its narrow side empty.
      *
      * @param contentWidth Content width.
      * @param hinge Vertical hinge in content coordinates.
@@ -120,11 +146,80 @@ object BandLayout {
      */
     fun grid(contentWidth: Float, hinge: Hinge?): Grid {
         val fit = max(1, ((contentWidth - 2 * EDGE + GUTTER) / (CARD_MIN + GUTTER)).toInt())
-        if (hinge != null && (hinge.separating || fit == 2)) {
+        val balanced = hinge != null && min(hinge.left, contentWidth - hinge.right) >= BALANCED_SHARE * contentWidth
+        if (hinge != null && (hinge.separating || (fit == 2 && balanced))) {
             val column = min(hinge.left, contentWidth - hinge.right) - 2 * EDGE
             return Grid(2, hinge.left - EDGE - column, contentWidth - hinge.right - EDGE - column, hinge.right - hinge.left + 2 * EDGE)
         }
         return Grid(fit, EDGE, EDGE, GUTTER)
+    }
+
+    /** Statistics tile width at 100% text. */
+    const val STAT_TILE_MIN = 150f
+
+    /** Member card column width at large text (name above wrapping icons). */
+    const val MEMBER_CARD_MIN = 260f
+
+    /** Narrowest member name beside the instrument icons before the card stacks them under it. */
+    const val MEMBER_NAME_MIN = 96f
+
+    /** Instrument icon (28 dp) plus its 6 dp gap on a member card. */
+    const val MEMBER_ICON_SLOT = 34f
+
+    /** Member card horizontal padding (12 dp each side). */
+    const val MEMBER_CARD_PADDING = 24f
+
+    /**
+     * Whether a member card fits its name ([MEMBER_NAME_MIN]) and every instrument icon on one
+     * row; otherwise (large text, a half-width fold pane) the icons wrap under the name.
+     *
+     * @param cardWidth Card width.
+     * @param instruments Most charted instruments on any member.
+     * @param largeText Whether large-text reflow applies.
+     * @return True for the one-row card.
+     */
+    fun memberInline(cardWidth: Float, instruments: Int, largeText: Boolean): Boolean =
+        !largeText && cardWidth >= MEMBER_CARD_PADDING + MEMBER_NAME_MIN + instruments * MEMBER_ICON_SLOT
+
+    /**
+     * Members grid columns: as many cards as fit at the one-row width (a 7-instrument member
+     * needs ≈ 358 dp), never narrower than [MEMBER_CARD_MIN].
+     *
+     * @param contentWidth Grid width.
+     * @param instruments Most charted instruments on any member.
+     * @param largeText Whether large-text reflow applies.
+     * @return Column count (≥ 1).
+     */
+    fun memberColumns(contentWidth: Float, instruments: Int, largeText: Boolean): Int {
+        val min = if (largeText) MEMBER_CARD_MIN else max(MEMBER_CARD_MIN, MEMBER_CARD_PADDING + MEMBER_NAME_MIN + instruments * MEMBER_ICON_SLOT)
+        return max(1, ((contentWidth + GUTTER_MEMBERS) / (min + GUTTER_MEMBERS)).toInt())
+    }
+
+    /**
+     * Width of each card in a [columns]-wide members grid.
+     *
+     * @param contentWidth Grid width.
+     * @param columns Column count.
+     * @return Card width.
+     */
+    fun memberCardWidth(contentWidth: Float, columns: Int): Float = (contentWidth - GUTTER_MEMBERS * (columns - 1)) / columns
+
+    /** Gap between member cards. */
+    private const val GUTTER_MEMBERS = 8f
+
+    /**
+     * Band Statistics tile columns: two to four [STAT_TILE_MIN] tiles normally; at large
+     * text the tile minimum grows with the font scale and one column is allowed, so a
+     * score such as "839,892,184" is never clipped.
+     *
+     * @param contentWidth Grid width.
+     * @param fontScale System font scale.
+     * @param largeText Whether large-text reflow applies.
+     * @return Column count (1–4).
+     */
+    fun statColumns(contentWidth: Float, fontScale: Float, largeText: Boolean): Int {
+        if (!largeText) return max(2, (contentWidth / STAT_TILE_MIN).toInt()).coerceAtMost(4)
+        return max(1, (contentWidth / (STAT_TILE_MIN * max(1f, fontScale))).toInt()).coerceAtMost(4)
     }
 }
 

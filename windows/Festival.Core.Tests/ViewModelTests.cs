@@ -1,4 +1,5 @@
 using System.Net;
+using Festival.Core.Domain;
 using Festival.Core.ViewModels;
 using Microsoft.Extensions.Time.Testing;
 
@@ -211,17 +212,25 @@ public class SongsViewModelTests
         vm.SortDraft.ModeIndex = (int)SongSortMode.Year;
         Assert.Equal(SongSortMode.Year, store.Current.SongSort);
         vm.SortDraft.ModeIndex = 99;
+        Assert.Equal(0, vm.SortDraft.DirectionIndex);
+        vm.SortDraft.DirectionIndex = 1;
+        Assert.False(store.Current.SongSortAscending);
+        Assert.True(vm.SortDraft.Descending);
+        vm.SortDraft.DirectionIndex = -1; // RadioButtons clears its selection while items rebuild: ignored
+        vm.SortDraft.DirectionIndex = 2;
+        Assert.Equal(1, vm.SortDraft.DirectionIndex);
         vm.SortDraft.Ascending = false;
         Assert.False(store.Current.SongSortAscending);
         Assert.False(vm.SortDraft.CanApply);
         Assert.True(vm.IsSortChanged);
         Assert.Equal("Year ↓", vm.SortSummary);
+        Assert.Equal("Year, descending", vm.SortDescription);
         Assert.Equal(["2020s", "Unknown Year"], vm.Sections.Select(s => s.Label));
         Assert.False(vm.HasJumpIndex); // Year sort has no quick-jump
         vm.SortDraft.Begin();
         Assert.Equal(SongSortMode.Year, vm.SortDraft.Mode);
         vm.SortDraft.ResetCommand.Execute(null);
-        Assert.Equal((SongSortMode.Title, true, 0), (vm.SortDraft.Mode, vm.SortDraft.Ascending, vm.SortDraft.ModeIndex));
+        Assert.Equal((SongSortMode.Title, true, 0, 0), (vm.SortDraft.Mode, vm.SortDraft.Ascending, vm.SortDraft.ModeIndex, vm.SortDraft.DirectionIndex));
         Assert.Equal((SongSortMode.Title, true), (store.Current.SongSort, store.Current.SongSortAscending));
         Assert.False(vm.IsSortChanged);
     }
@@ -409,6 +418,7 @@ public class ShellViewModelTests
         time.Advance(ShellViewModel.SearchDebounce);
         await Async.Until(() => shell.ProfileSearch.PlayersFailed);
         Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileSearch.LastAnnouncement);
         Assert.True(shell.CanRetrySearch);
         fail = false;
         shell.ProfileQuery = "abcd";
@@ -417,7 +427,34 @@ public class ShellViewModelTests
         time.Advance(ShellViewModel.SearchDebounce);
         await Async.Until(() => shell.ProfileSearch.PlayersEmpty);
         Assert.Equal("No players found.", shell.ProfileHint);
+        Assert.Equal("No players found.", shell.ProfileSearch.LastAnnouncement);
     }
+
+    [Fact]
+    public async Task ProfileSearch_AnnouncesPlayersOnly()
+    {
+        var service = new FakeService();
+        service.Override = r => r.RequestUri!.AbsolutePath == "/api/account/search"
+            ? Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"One"},{"accountId":"acc2","displayName":"Two"}]}""") : null;
+        var time = new FakeTimeProvider();
+        var shell = new ShellViewModel(service.Session(time));
+        var spoken = new List<string>();
+        shell.ProfileSearch.ResultsAnnounced += (_, text) => spoken.Add(text);
+        shell.ProfileQuery = "on";
+        await Async.Settle();
+        time.Advance(ShellViewModel.SearchDebounce);
+        await Async.Until(() => spoken.Count == 1);
+        Assert.Equal(["2 players"], spoken);
+    }
+
+    [Theory]
+    [InlineData(1, "", "1 player")]
+    [InlineData(4, "", "4 players")]
+    [InlineData(0, "", "No players found.")]
+    [InlineData(null, "Search is unavailable.", "Search is unavailable.")]
+    [InlineData(null, "", "Player search failed.")]
+    public void PlayersAnnouncement_SpeaksOnlyPlayers(int? players, string failure, string expected) =>
+        Assert.Equal(expected, GlobalSearchResults.PlayersAnnouncement(players, failure));
 
     [Fact]
     public async Task ProfileSearch_StaleErrorIsIgnored()

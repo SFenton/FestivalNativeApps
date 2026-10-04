@@ -197,6 +197,14 @@
       "states": ["unavailable", "editing-empty", "editing-dirty", "invalid", "attachments", "discard-confirm", "sending", "filing", "sent", "error"],
       "testId": "fst.settings.feedback.*",
       "spec": ".agents/controls/feedback-form/spec.md"
+    },
+    {
+      "id": "privacy-policy",
+      "status": "pending",
+      "source": "contracts/privacy-policy.json:1",
+      "states": ["settings-row", "presented", "scrolled", "dismissed", "large-text"],
+      "testId": "fst.privacy-policy.*",
+      "spec": ".agents/controls/privacy-policy/spec.md"
     }
   ],
   "testIds": {
@@ -215,6 +223,8 @@
     "fst.empty-state.*": "app-navigation",
     "fst.coming-soon": "app-navigation",
     "fst.settings.feedback.*": "feedback-form",
+    "fst.settings.privacy-policy": "privacy-policy",
+    "fst.privacy-policy.*": "privacy-policy",
     "fst.settings.*": "settings",
     "fst.leaderboards.*": "leaderboards",
     "fst.rankings.*": "full-rankings",
@@ -326,6 +336,7 @@
     "fst.score.accuracy.*": "score-accuracy",
     "fst.star-rating.*": "star-rating",
     "fst.instrument-selector.*": "instrument-selector",
+    "fst.control-lab.*": "instrument-selector",
     "fst.song-detail.history.instrument.*": "instrument-selector",
     "fst.suggestions.filter.instrument-picker.*": "suggestions",
     "fst.song-detail.history": "song-detail",

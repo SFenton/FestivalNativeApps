@@ -517,27 +517,36 @@ extension SongDetailScreen {
     /// Compact art + title shown in the navigation bar once the hero title scrolls
     /// under it: the native form of the PWA's pinned song header.
     ///
-    /// Hidden (and removed from VoiceOver) while the hero itself is visible, so the
-    /// title is never announced twice.
+    /// Built only while the hero is scrolled away, so the title is never announced
+    /// twice. A transparent copy kept in the tree was still read (and audited as
+    /// invisible, fixed-size text) on iPadOS: the bar hosts this view outside SwiftUI's
+    /// accessibility hiding. A `.hidden()` placeholder of the same text keeps the bar's
+    /// layout from jumping as the title appears.
     private var pinnedTitle: some View {
-        HStack(spacing: 8) {
-            ArtworkTile(raw: song.albumArt, session: session, size: 28)
-                .accessibilityHidden(true)
-            MarqueeText(song.title)
+        ZStack(alignment: .leading) {
+            Text(song.title)
                 .font(.headline)
-                .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
-                .truncationMode(.tail)
+                .padding(.leading, 36)
+                .hidden()
+            if heroTitleHidden {
+                HStack(spacing: 8) {
+                    ArtworkTile(raw: song.albumArt, session: session, size: 28)
+                        .accessibilityHidden(true)
+                    MarqueeText(song.title)
+                        .font(.headline)
+                        .foregroundStyle(FestivalText.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .transition(.opacity)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("fst.song-detail.pinned-title")
+            }
         }
         .frame(maxWidth: 240)
-        // Transparent while the hero shows: keep its marquee still until it is seen.
-        .environment(\.marqueeAnimationEnabled, heroTitleHidden)
-        .opacity(heroTitleHidden ? 1 : 0)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityHidden(!heroTitleHidden)
-        .accessibilityIdentifier("fst.song-detail.pinned-title")
     }
 }
 

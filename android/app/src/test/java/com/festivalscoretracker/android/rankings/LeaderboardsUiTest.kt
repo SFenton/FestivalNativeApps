@@ -4,6 +4,8 @@ import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
@@ -14,6 +16,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
@@ -189,6 +192,20 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
+    fun fullRankingsRowsLeaveTheScreenAboveTheFooter() {
+        launch("fullRankings:Solo_Guitar", selected)
+        waitForTag("fst.full-rankings.spotlight-footer")
+        // Issue #115: rows fade out above the pinned rank and pager (like the Song Leaderboard),
+        // so rows beneath them leave touch and TalkBack instead of showing through the pager.
+        val list = node("fst.full-rankings.list").fetchSemanticsNode().boundsInRoot
+        val footer = node("fst.full-rankings.bottom-bar").fetchSemanticsNode().boundsInRoot
+        assertTrue("the list $list ends at the footer $footer", list.bottom <= footer.top + 1f)
+        // One-line rows on a phone: rank, name, songs and rating share a 48 dp row.
+        val row = node("fst.rankings.row.${RankingsFixtures.accountId(1)}").fetchSemanticsNode()
+        assertTrue(with(rule.density) { row.size.height.toDp() } < 64.dp)
+    }
+
+    @Test
     fun pageChangesFadeThroughTheSpinnerLikeTheWeb() {
         launch("fullRankings:Solo_Guitar")
         waitForDescription("Page 1 of 3")
@@ -257,6 +274,25 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     fun bandBoardsRestoreTheRoutedPage() {
         launch("bandRankings:Band_Duets:2")
         waitForDescription("Page 2 of 2")
+    }
+
+    @Test
+    fun overviewRowsNameTheirTalkBackActions() {
+        launch("leaderboards", selected)
+        val other = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        waitForTag(other)
+        // TalkBack says "Double-tap to open profile" rather than a bare "open" (issue #114).
+        assertEquals("Open profile", clickLabel(other))
+        val anonymous = node("fst.rankings.row.anonymous-3-3-3").fetchSemanticsNode().config
+        assertEquals("Profile unavailable", anonymous.getOrNull(SemanticsProperties.StateDescription))
+        rule.waitUntil(10_000) { settle(100); runCatching { scrollTo("fst.leaderboards", "$lead.spotlight") }.isSuccess }
+        waitForTag("$lead.spotlight")
+        assertEquals("Open your statistics", clickLabel("$lead.spotlight"))
+        val band = "fst.band-rankings.row.${RankingsFixtures.accountId(1001)}:${RankingsFixtures.accountId(2001)}"
+        scrollTo("fst.leaderboards", band)
+        waitForTag(band)
+        assertEquals("Open band", clickLabel(band))
+        assertEquals(Role.Button, node(band).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Role))
     }
 
     @Test
@@ -355,6 +391,149 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag(row)
         click(row)
         rule.waitUntil(10_000) { settle(100); !exists("fst.song-leaderboard.list") }
+    }
+
+    // region Song leaderboard states (issue #104)
+
+    private fun clickLabel(tag: String) = node(tag).fetchSemanticsNode().config.getOrNull(SemanticsActions.OnClick)?.label
+
+    @Test
+    fun songLeaderboardInstrumentSwitcherIsA48dpDropDownThatChecksTheCurrentChart() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.instrument")
+        val switcher = node("fst.song-leaderboard.instrument").fetchSemanticsNode()
+        assertEquals(Role.DropdownList, switcher.config.getOrNull(SemanticsProperties.Role))
+        assertEquals("Switch instrument", switcher.config.getOrNull(SemanticsActions.OnClick)?.label)
+        assertTrue(with(rule.density) { switcher.size.height.toDp() } >= 48.dp)
+        click("fst.song-leaderboard.instrument")
+        waitForTag("fst.song-leaderboard.instrument.Solo_Bass")
+        assertEquals(true, node("fst.song-leaderboard.instrument.Solo_Guitar").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected))
+        assertEquals(false, node("fst.song-leaderboard.instrument.Solo_Bass").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected))
+    }
+
+    @Test
+    fun songLeaderboardWithOneChartShowsThePlainInstrument() {
+        // s-gamma only charts drums: the instrument is text, not a disabled control.
+        launch("songLeaderboard:s-gamma:Solo_Drums")
+        waitForTag("fst.song-leaderboard.instrument")
+        waitForDescription("Page 1 of 3")
+        assertFalse(isClickable("fst.song-leaderboard.instrument"))
+        assertEquals(null, node("fst.song-leaderboard.instrument").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Role))
+    }
+
+    @Test
+    fun songLeaderboardSelectedRowOpensStatisticsAndOthersOpenProfiles() {
+        val mine = "${Fixtures.ACCOUNT_A.dropLast(2)}12"
+        launch("songLeaderboard:s-alpha:Solo_Guitar", SelectedPlayer(mine, "Synthetic Player 3"))
+        waitForTag("fst.song-leaderboard.row.$mine")
+        assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.$mine"))
+        assertEquals("Open profile", clickLabel("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}10"))
+        // Highlighted in place: no pinned copy below the board.
+        assertFalse(exists("fst.song-leaderboard.spotlight-footer"))
+    }
+
+    @Test
+    fun songLeaderboardPinnedFooterOpensStatistics() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForTag("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}")
+        assertEquals("Open your statistics", clickLabel("fst.song-leaderboard.row.${RankingsFixtures.SELECTED}"))
+    }
+
+    @Test
+    fun songLeaderboardAnonymousRowsAreReadButNotInteractive() {
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            Fixtures.leaderboard("s-alpha", rows = 2, total = 2).replaceFirst("\"accountId\":\"${Fixtures.ACCOUNT_A.dropLast(2)}10\"", "\"accountId\":\"\"")
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.row.rank-1")
+        assertFalse(isClickable("fst.song-leaderboard.row.rank-1"))
+        assertEquals("Profile unavailable", node("fst.song-leaderboard.row.rank-1").fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription))
+        assertTrue(isClickable("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}11"))
+    }
+
+    @Test
+    fun songLeaderboardShowsAnEmptyBoard() {
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            Fixtures.leaderboard("s-alpha", rows = 0, total = 0)
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForText("No scores yet")
+        assertFalse(exists("fst.song-leaderboard.loading"))
+        assertFalse(isEnabled("fst.song-leaderboard.page-next"))
+    }
+
+    @Test
+    fun songLeaderboardFailureOffersRetry() {
+        var fail = true
+        transport.onRaw("/api/leaderboard/s-alpha/Solo_Guitar") { _ ->
+            if (fail) HttpResult(500, "{}".toByteArray())
+            else HttpResult(200, Fixtures.leaderboard("s-alpha", rows = 25, total = 60).toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForText("Leaderboard unavailable")
+        assertFalse(exists("fst.song-leaderboard.list"))
+        fail = false
+        click("fst.service-status.retry")
+        waitForDescription("Page 1 of 3")
+        assertFalse(exists("fst.service-status.retry"))
+    }
+
+    @Test
+    fun songLeaderboardCorrectsAnOutOfRangePageAndDisablesBoundaryButtons() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar:9")
+        waitForDescription("Page 3 of 3")
+        assertFalse(isEnabled("fst.song-leaderboard.page-next"))
+        assertFalse(isEnabled("fst.song-leaderboard.page-last"))
+        assertTrue(isEnabled("fst.song-leaderboard.page-first"))
+        click("fst.song-leaderboard.page-first")
+        waitForDescription("Page 1 of 3")
+        assertFalse(isEnabled("fst.song-leaderboard.page-first"))
+        assertFalse(isEnabled("fst.song-leaderboard.page-previous"))
+        assertTrue(isEnabled("fst.song-leaderboard.page-next"))
+    }
+
+    private fun isEnabled(tag: String) = node(tag).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Disabled) == null
+
+    // endregion
+}
+
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w240dp-h800dp-mdpi")
+class FullRankingsNarrowUiTest : LeaderboardsHarness() {
+    /**
+     * Issue #115: in a pane too narrow for the name beside the other columns (the rows pane
+     * beside a half-open fold's hinge), rows stack rather than squeeze the name to nothing.
+     */
+    @Test
+    fun narrowRowsStackSoNamesStayReadable() {
+        launch("fullRankings:Solo_Guitar")
+        waitForDescription("Page 1 of 3")
+        val tag = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        waitForTag(tag)
+        rule.waitUntil(5_000) { settle(100); with(rule.density) { node(tag).fetchSemanticsNode().size.height.toDp() } > 64.dp }
+        assertEquals("#1. Synthetic Player 1. 49,999,000. 199 / 250 songs.", description(tag))
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w1600dp-h900dp-mdpi")
+class FullRankingsDesktopUiTest : LeaderboardsHarness() {
+    /** Issue #115: like the web page container, the board stops at 1100 dp and centres. */
+    @Test
+    fun desktopBoardIsCappedAndCentred() {
+        launch("fullRankings:Solo_Drums")
+        waitForDescription("Page 1 of 3")
+        val list = node("fst.full-rankings.list").fetchSemanticsNode().boundsInRoot
+        val width = with(rule.density) { list.width.toDp() }
+        assertEquals(1100f, width.value, 1f)
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        assertTrue("right margin ${root.right - list.right}", root.right - list.right > with(rule.density) { 100.dp.toPx() })
+        // The pager stays centred under the board.
+        val pager = node("fst.full-rankings.pager").fetchSemanticsNode().boundsInRoot
+        assertEquals(list.center.x, pager.center.x, with(rule.density) { 2.dp.toPx() })
     }
 }
 

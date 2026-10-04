@@ -7,16 +7,16 @@ All controls are `pending` until every platform has state/visual/accessibility e
 <!-- BEGIN GENERATED: check_docs.py --fix -->
 | Control | Test ID | States | Status | Spec | Platform files |
 |---|---|---|---|---|---|
-| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) |
+| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) · [windows](difficulty-meter/windows.md) |
 | artwork-background | `fst.shell.artwork-background` | 5 | pending | [spec](artwork-background/spec.md) | [ios](artwork-background/ios.md) · [android](artwork-background/android.md) · [windows](artwork-background/windows.md) |
 | songs-sort | `fst.songs.sort` | 17 | pending | [spec](songs-sort/spec.md) | [ios](songs-sort/ios.md) · [ipados](songs-sort/ipados.md) · [android](songs-sort/android.md) · [windows](songs-sort/windows.md) |
 | songs-filter | `fst.songs.filter` | 29 | pending | [spec](songs-filter/spec.md) | [ios](songs-filter/ios.md) · [macos](songs-filter/macos.md) · [android](songs-filter/android.md) · [windows](songs-filter/windows.md) |
-| score-accuracy | `fst.score.accuracy.*` | 16 | pending | [spec](score-accuracy/spec.md) | [ios](score-accuracy/ios.md) · [ipados](score-accuracy/ipados.md) |
-| star-rating | `fst.star-rating.*` | 5 | pending | [spec](star-rating/spec.md) | — |
+| score-accuracy | `fst.score.accuracy.*` | 16 | pending | [spec](score-accuracy/spec.md) | [ios](score-accuracy/ios.md) · [ipados](score-accuracy/ipados.md) · [android](score-accuracy/android.md) · [windows](score-accuracy/windows.md) |
+| star-rating | `fst.star-rating.*` | 5 | pending | [spec](star-rating/spec.md) | [android](star-rating/android.md) · [windows](star-rating/windows.md) |
 | instrument-selector | `fst.instrument-selector.*` | 10 | pending | [spec](instrument-selector/spec.md) | [ios](instrument-selector/ios.md) · [android](instrument-selector/android.md) · [windows](instrument-selector/windows.md) |
 | chopt-paths | `fst.song-detail.paths` | 12 | pending | [spec](chopt-paths/spec.md) | [ios](chopt-paths/ios.md) · [ipados](chopt-paths/ipados.md) · [macos](chopt-paths/macos.md) · [android](chopt-paths/android.md) · [windows](chopt-paths/windows.md) |
 | shop-offers | `fst.songs.shop` | 16 | pending | [spec](shop-offers/spec.md) | [ios](shop-offers/ios.md) · [android](shop-offers/android.md) · [windows](shop-offers/windows.md) |
-| app-navigation | `fst.nav.*` | 6 | pending | [spec](app-navigation/spec.md) | [ios](app-navigation/ios.md) · [ipados](app-navigation/ipados.md) · [android](app-navigation/android.md) |
+| app-navigation | `fst.nav.*` | 6 | pending | [spec](app-navigation/spec.md) | [ios](app-navigation/ios.md) · [ipados](app-navigation/ipados.md) · [android](app-navigation/android.md) · [windows](app-navigation/windows.md) |
 | profile-selection | `fst.profile.*` | 17 | pending | [spec](profile-selection/spec.md) | [ios](profile-selection/ios.md) · [ipados](profile-selection/ipados.md) · [android](profile-selection/android.md) · [windows](profile-selection/windows.md) |
 | songs-instrument-status-chips | `fst.songs.instrument-status.*` | 21 | pending | [spec](songs-instrument-status-chips/spec.md) | [ios](songs-instrument-status-chips/ios.md) · [ipados](songs-instrument-status-chips/ipados.md) · [android](songs-instrument-status-chips/android.md) · [windows](songs-instrument-status-chips/windows.md) |
 | song-score-metadata | `fst.songs.metadata.*` | 32 | pending | [spec](song-score-metadata/spec.md) | [ios](song-score-metadata/ios.md) · [ipados](song-score-metadata/ipados.md) · [android](song-score-metadata/android.md) · [windows](song-score-metadata/windows.md) |
@@ -28,6 +28,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [ios](global-search/ios.md) · [ipados](global-search/ipados.md) · [macos](global-search/macos.md) · [android](global-search/android.md) · [windows](global-search/windows.md) |
 | whats-new | `fst.whats-new.*` | 5 | pending | [spec](whats-new/spec.md) | [ios](whats-new/ios.md) · [android](whats-new/android.md) · [windows](whats-new/windows.md) |
 | feedback-form | `fst.settings.feedback.*` | 10 | pending | [spec](feedback-form/spec.md) | [ios](feedback-form/ios.md) · [ipados](feedback-form/ipados.md) · [duo](feedback-form/duo.md) · [macos](feedback-form/macos.md) · [android](feedback-form/android.md) · [windows](feedback-form/windows.md) |
+| privacy-policy | `fst.privacy-policy.*` | 5 | pending | [spec](privacy-policy/spec.md) | [ios](privacy-policy/ios.md) · [ipados](privacy-policy/ipados.md) · [duo](privacy-policy/duo.md) · [macos](privacy-policy/macos.md) · [android](privacy-policy/android.md) · [windows](privacy-policy/windows.md) |
 | leaderboard-row-columns | ? | ? | not in contract | [spec](leaderboard-row-columns/spec.md) | [ios](leaderboard-row-columns/ios.md) · [ipados](leaderboard-row-columns/ipados.md) · [macos](leaderboard-row-columns/macos.md) |
 <!-- END GENERATED -->
 # Controls router
@@ -39,15 +40,15 @@ All controls are `pending` until every platform has state/visual/accessibility e
 <!-- BEGIN GENERATED: check_docs.py --fix -->
 | Control | Test ID | States | Status | Spec | Platform files |
 |---|---|---|---|---|---|
-| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) |
+| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) · [android](difficulty-meter/android.md) · [windows](difficulty-meter/windows.md) |
 | artwork-background | `fst.shell.artwork-background` | 5 | pending | [spec](artwork-background/spec.md) | [ios](artwork-background/ios.md) · [android](artwork-background/android.md) |
 | songs-sort | `fst.songs.sort` | 17 | pending | [spec](songs-sort/spec.md) | [ios](songs-sort/ios.md) · [ipados](songs-sort/ipados.md) |
 | songs-filter | `fst.songs.filter` | 29 | pending | [spec](songs-filter/spec.md) | [ios](songs-filter/ios.md) |
-| score-accuracy | `fst.score.accuracy.*` | 16 | pending | [spec](score-accuracy/spec.md) | [ios](score-accuracy/ios.md) · [ipados](score-accuracy/ipados.md) |
+| score-accuracy | `fst.score.accuracy.*` | 16 | pending | [spec](score-accuracy/spec.md) | [ios](score-accuracy/ios.md) · [ipados](score-accuracy/ipados.md) · [windows](score-accuracy/windows.md) |
 | chopt-paths | `fst.song-detail.paths` | 12 | pending | [spec](chopt-paths/spec.md) | [ios](chopt-paths/ios.md) · [ipados](chopt-paths/ipados.md) |
 | shop-offers | `fst.songs.shop` | 14 | pending | [spec](shop-offers/spec.md) | [ios](shop-offers/ios.md) |
 | app-navigation | `fst.nav.*` | 6 | pending | [spec](app-navigation/spec.md) | [ios](app-navigation/ios.md) · [ipados](app-navigation/ipados.md) · [android](app-navigation/android.md) |
-| profile-selection | `fst.profile.*` | 17 | pending | [spec](profile-selection/spec.md) | [ios](profile-selection/ios.md) · [ipados](profile-selection/ipados.md) |
+| profile-selection | `fst.profile.*` | 17 | pending | [spec](profile-selection/spec.md) | [ios](profile-selection/ios.md) · [ipados](profile-selection/ipados.md) · [android](profile-selection/android.md) · [windows](profile-selection/windows.md) |
 | songs-instrument-status-chips | `fst.songs.instrument-status.*` | 21 | pending | [spec](songs-instrument-status-chips/spec.md) | [ios](songs-instrument-status-chips/ios.md) · [ipados](songs-instrument-status-chips/ipados.md) |
 | song-score-metadata | `fst.songs.metadata.*` | 32 | pending | [spec](song-score-metadata/spec.md) | [ios](song-score-metadata/ios.md) · [ipados](song-score-metadata/ipados.md) |
 | notifications | `fst.notifications.*` | 8 | pending | [spec](notifications/spec.md) | [ios](notifications/ios.md) |

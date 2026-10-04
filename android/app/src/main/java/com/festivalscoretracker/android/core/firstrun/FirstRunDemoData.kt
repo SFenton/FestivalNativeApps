@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.core.firstrun
 
 import com.festivalscoretracker.android.core.format.ScoreFormatting
+import com.festivalscoretracker.android.core.format.StarRatingSpec
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.songs.SongMetadataPill
@@ -382,9 +383,8 @@ data class FirstRunMetadataRotation(
                         }
                     }
                     MetadataField.Stars -> {
-                        val gold = meta.stars >= 6
-                        val count = if (gold) 5 else meta.stars
-                        SongMetadataPill(field, "★".repeat(count), if (gold) "$count gold stars" else "$count stars", starCount = count, goldStars = gold)
+                        val display = StarRatingSpec.display(meta.stars)
+                        SongMetadataPill(field, "★".repeat(display.count), display.label, starCount = display.count, goldStars = display.gold)
                     }
                     MetadataField.Percentile -> SongMetadataPill(field, meta.percentile, meta.percentile, percentile = FirstRunDemoPools.percentileTier(meta.percentile))
                     MetadataField.Season -> SongMetadataPill(field, "S${meta.season}", "Season ${meta.season}")

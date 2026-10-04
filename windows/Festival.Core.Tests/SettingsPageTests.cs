@@ -90,7 +90,7 @@ public class SettingsPageTests
         var (release, _, _) = Create(debug: false);
         Assert.Equal("Release", release.BuildConfiguration);
         Assert.DoesNotContain(release.QuickLinks.Items, i => i.Section.Id == "diagnostics");
-        Assert.Equal(["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility", "version", "service-info", "first-run", "licenses", "reset"],
+        Assert.Equal(["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility", "version", "service-info", "first-run", "licenses", "privacy-policy", "reset"],
             release.QuickLinks.Items.Select(i => i.Section.Id));
     }
 
@@ -206,5 +206,44 @@ public class SettingsPageTests
         Assert.Contains(manifest.Packages, p => p.Id == "CommunityToolkit.Mvvm");
         Assert.Contains(manifest.Packages, p => p.Id == "Microsoft.WindowsAppSDK");
         Assert.All(manifest.Packages, p => Assert.NotEmpty(manifest.Texts[p.TextId]));
+        // The SDK-chosen runtime pack names its servicing band, so the manifest does not go stale per patch (issue #215).
+        Assert.Matches(@"^\d+\.\d+\.x$", manifest.Packages.Single(p => p.Id == "Microsoft.NETCore.App.Runtime.win-x64").Version);
     }
+
+    [Fact]
+    public void Licenses_DetailStrings()
+    {
+        var linked = new LicenseRowViewModel(new LicensePackage
+        {
+            Id = "Pkg", Name = "Pkg", Version = "1.2.3", Ecosystem = "NuGet", License = "MIT", Url = "https://github.com/o/pkg/", TextId = "t",
+        }, "body");
+        Assert.Equal(("Pkg · MIT", "NuGet · 1.2.3 · MIT", "github.com/o/pkg", "Project page for Pkg", "Pkg license text"),
+            (linked.DetailTitle, linked.DetailCaption, linked.LinkText, linked.LinkAccessibleName, linked.TextAccessibleName));
+        var unlinked = new LicenseRowViewModel(new LicensePackage { Name = "Bare", License = "X", Url = null }, "body");
+        Assert.Equal("", unlinked.LinkText);
+        Assert.False(unlinked.HasUrl);
+    }
+
+    [Theory]
+    [InlineData(0, 1, false)]          // before layout
+    [InlineData(-5, 1, false)]
+    [InlineData(414, 1, true)]         // compact window at 100% text: names keep the row width
+    [InlineData(440, 1, false)]        // threshold
+    [InlineData(700, 1, false)]        // medium at 100%
+    [InlineData(700, 2, true)]         // medium at 200%
+    [InlineData(1018, 2, false)]       // wide at 200%
+    [InlineData(400, 0.5, true)]       // factors below 1 count as 1
+    [InlineData(500, double.NaN, false)]
+    [InlineData(500, double.PositiveInfinity, false)]
+    public void LicenseRowLayout_StacksBadge(double width, double textScale, bool expected) =>
+        Assert.Equal(expected, LicenseRowLayout.StacksBadge(width, textScale));
+
+    [Theory]
+    [InlineData(double.NaN, 420)]
+    [InlineData(0, 420)]
+    [InlineData(1200, 420)]
+    [InlineData(600, 280)]
+    [InlineData(400, 160)]
+    public void LicenseRowLayout_DetailTextHeight(double windowHeight, double expected) =>
+        Assert.Equal(expected, LicenseRowLayout.DetailTextHeight(windowHeight));
 }

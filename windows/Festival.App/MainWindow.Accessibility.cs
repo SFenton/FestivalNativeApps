@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Windows.UI.ViewManagement;
@@ -12,8 +13,8 @@ namespace Festival.App;
 #region Shell accessibility
 /// <summary>
 /// Shell keyboard and screen-reader affordances: Ctrl+1…7 / Ctrl+comma section accelerators with tooltips, Alt access keys
-/// on pane items, UIA landmarks (main content, search), no stray tab stop on the title bar itself, and a contrast-theme
-/// hook for the artwork backdrop.
+/// on pane items, UIA landmarks (main content, search), no stray tab stop on the title bar itself, focus entering the pane
+/// on the selected section, and a contrast-theme hook for the artwork backdrop.
 /// </summary>
 public sealed partial class MainWindow
 {
@@ -54,6 +55,47 @@ public sealed partial class MainWindow
         {
             if (e.Key == VirtualKey.Left && e.KeyStatus.IsMenuKeyDown && GoBack()) e.Handled = true;
         };
+        Nav.GettingFocus += OnNavGettingFocus;
+    }
+
+    /// <summary>
+    /// Sends focus that enters the pane from outside it to the selected section. NavigationView only does this for a Tab
+    /// key that passes through the NavigationView itself, but Back, the pane toggle, search and profile live in the
+    /// separate TitleBar, so Tab from there (and the minimal overlay pane opening) would otherwise land on the first item.
+    /// </summary>
+    /// <param name="sender">Navigation view.</param>
+    /// <param name="args">Focus change.</param>
+    private void OnNavGettingFocus(UIElement sender, GettingFocusEventArgs args)
+    {
+        if (args.NewFocusedElement is not NavigationViewItem { Tag: AppSection target }
+            || Nav.SelectedItem is not NavigationViewItem { Tag: AppSection selected } selectedItem)
+        {
+            return;
+        }
+        var keyboardMove = args.InputDevice == FocusInputDeviceKind.Keyboard
+            && args.Direction is FocusNavigationDirection.Next or FocusNavigationDirection.Previous;
+        // Opening the overlay pane focuses its first item programmatically: no direction, and the device is the last input
+        // (keyboard) or none. Pointer focus also has no direction, so it is excluded to leave clicks alone.
+        var paneOpening = Nav.DisplayMode == NavigationViewDisplayMode.Minimal
+            && args.Direction == FocusNavigationDirection.None
+            && args.InputDevice is FocusInputDeviceKind.None or FocusInputDeviceKind.Keyboard;
+        if (PaneFocus.ShouldRedirect(target, selected, keyboardMove || paneOpening, InsidePaneItem(args.OldFocusedElement))
+            && args.TrySetNewFocusedElement(selectedItem))
+        {
+            args.Handled = true;
+        }
+    }
+
+    /// <summary>Whether <paramref name="element"/> is a pane item or inside one.</summary>
+    /// <param name="element">Previously focused element.</param>
+    /// <returns><see langword="true"/> for focus moving within the pane.</returns>
+    private static bool InsidePaneItem(DependencyObject? element)
+    {
+        for (var node = element; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is NavigationViewItemBase) return true;
+        }
+        return false;
     }
 
     /// <summary>Under a contrast theme the backdrop's brand base colour gives way to the theme's window colour.</summary>

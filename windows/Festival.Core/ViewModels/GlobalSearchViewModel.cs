@@ -158,9 +158,12 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Whether the Songs section shows its failure line.</summary>
     public bool SongsFailed => SongsState == LoadState.Failed;
 
-    /// <summary>Whether the Players section is shown (loading, rows, failure or an empty envelope with Retry).</summary>
+    /// <summary>
+    /// Whether the Players section is shown (loading, rows or failure). An empty envelope never shows a section: in All
+    /// it is hidden like the web (<c>shouldRenderGlobalSection</c>), in Players it is the centred empty state.
+    /// </summary>
     public bool ShowPlayersSection => ShowsResults && Scope is SearchScope.All or SearchScope.Players &&
-                                      PlayersState != LoadState.Idle && !(Scope == SearchScope.All && AllEmpty);
+                                      PlayersState is not (LoadState.Idle or LoadState.Empty);
 
     /// <summary>Whether the Players section shows its inline progress.</summary>
     public bool PlayersLoading => PlayersState == LoadState.Loading;
@@ -168,28 +171,49 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Whether the Players section shows the service-status card.</summary>
     public bool PlayersFailed => PlayersState == LoadState.Failed;
 
-    /// <summary>Whether the Players section shows "No players found." with Retry.</summary>
+    /// <summary>Whether the account search finished with an empty envelope.</summary>
     public bool PlayersEmpty => PlayersState == LoadState.Empty;
-
-    /// <summary>Players empty text.</summary>
-    public string NoPlayersText => GlobalSearchResults.NoPlayers;
 
     /// <summary>Songs failure text.</summary>
     public string SongsFailedText => GlobalSearchResults.SongsFailed;
 
-    /// <summary>Centred message: short query, scope-specific empty, or "No results found.".</summary>
-    public string Hint =>
-        IsBandsScope ? "" :
-        IsShortQuery ? GlobalSearchResults.EnterQueryHint :
-        SettledQuery.Length == 0 ? "" :
-        Scope == SearchScope.All && AllEmpty ? GlobalSearchResults.NoResults :
-        Scope == SearchScope.Songs && SongsState == LoadState.Empty ? GlobalSearchResults.NoSongs : "";
+    /// <summary>Centred short-query hint, else empty.</summary>
+    public string Hint => !IsBandsScope && IsShortQuery ? GlobalSearchResults.EnterQueryHint : "";
 
     /// <summary>Whether <see cref="Hint"/> has text.</summary>
     public bool HasHint => Hint.Length > 0;
 
-    /// <summary>Whether Retry sits under the "No results found." hint.</summary>
-    public bool CanRetryAll => Scope == SearchScope.All && ShowsResults && AllEmpty;
+    /// <summary>Which centred empty state applies: every scope empty in All, Songs with no match, or Players empty.</summary>
+    private SearchScope? EmptyScope =>
+        !ShowsResults ? null :
+        Scope == SearchScope.All && AllEmpty ? SearchScope.All :
+        Scope == SearchScope.Songs && SongsState == LoadState.Empty ? SearchScope.Songs :
+        Scope == SearchScope.Players && PlayersEmpty ? SearchScope.Players : null;
+
+    /// <summary>Whether the centred title-and-subtitle empty state is shown (issue #99).</summary>
+    public bool HasEmptyState => EmptyScope is not null;
+
+    /// <summary>Empty-state title, else empty.</summary>
+    public string EmptyTitle => EmptyScope switch
+    {
+        SearchScope.All => GlobalSearchResults.EmptyAllTitle,
+        SearchScope.Songs => GlobalSearchResults.EmptySongsTitle,
+        SearchScope.Players => GlobalSearchResults.EmptyPlayersTitle,
+        _ => "",
+    };
+
+    /// <summary>Empty-state subtitle, else empty.</summary>
+    public string EmptySubtitle => EmptyScope switch
+    {
+        SearchScope.All => GlobalSearchResults.EmptyAllSubtitle,
+        SearchScope.Songs => GlobalSearchResults.EmptySongsSubtitle,
+        SearchScope.Players => GlobalSearchResults.EmptyPlayersSubtitle,
+        _ => "",
+    };
+
+    /// <summary>Whether Retry sits under the empty state: whenever the players envelope is part of it, since an empty
+    /// envelope may be a server timeout.</summary>
+    public bool CanRetryEmpty => EmptyScope is SearchScope.All or SearchScope.Players;
 
     /// <summary>
     /// One-line status for the players-only pickers: the short-query prompt, "Searching…" (debounce or read), the
@@ -398,9 +422,11 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Raises the count announcement once the query settles.</summary>
     private void Announce()
     {
-        LastAnnouncement = GlobalSearchResults.Announcement(
-            SongsState == LoadState.Failed ? null : Songs.Count,
-            PlayersState == LoadState.Failed ? null : Players.Count);
+        LastAnnouncement = playersOnly
+            ? GlobalSearchResults.PlayersAnnouncement(PlayersState == LoadState.Failed ? null : Players.Count, PlayersHint)
+            : GlobalSearchResults.Announcement(
+                SongsState == LoadState.Failed ? null : Songs.Count,
+                PlayersState == LoadState.Failed ? null : Players.Count);
         ResultsAnnounced?.Invoke(this, LastAnnouncement);
     }
 
@@ -414,7 +440,8 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     private static readonly string[] DerivedProperties =
     [
         nameof(IsShortQuery), nameof(IsBandsScope), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
-        nameof(PlayersLoading), nameof(PlayersFailed), nameof(PlayersEmpty), nameof(Hint), nameof(HasHint), nameof(CanRetryAll),
+        nameof(PlayersLoading), nameof(PlayersFailed), nameof(PlayersEmpty), nameof(Hint), nameof(HasHint),
+        nameof(HasEmptyState), nameof(EmptyTitle), nameof(EmptySubtitle), nameof(CanRetryEmpty),
         nameof(IsBusy), nameof(IsSettled), nameof(HasSongRows), nameof(HasPlayerRows), nameof(PlayersHint), nameof(CanRetryPlayers),
     ];
     #endregion

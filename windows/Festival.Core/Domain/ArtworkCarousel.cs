@@ -44,6 +44,55 @@ public static class ArtworkPlaybackPolicy
 }
 #endregion
 
+#region Reachable state
+/// <summary>
+/// The backdrop's reachable state as exposed to UI Automation (<c>ItemStatus</c> of <c>fst.shell.artwork-background</c>),
+/// named after the contract states, and whether the dim layer is drawn.
+/// </summary>
+public static class ArtworkBackgroundStatus
+{
+    /// <summary>No cover is shown (catalogue not loaded, no art, every cover failed, or a song without art).</summary>
+    public const string NoArt = "no-art";
+    /// <summary>Covers rotate with crossfade and drift.</summary>
+    public const string Animated = "animated";
+    /// <summary>One still cover (system Animation effects off, in-app Reduce Motion or Disable Animated Artwork).</summary>
+    public const string ReducedMotion = "reduced-motion";
+    /// <summary>No art and no dim (in-app Save Data, <c>--no-art</c> or a contrast theme).</summary>
+    public const string SaveData = "save-data";
+    /// <summary>Frozen at the current frame (minimized, hidden, fully covered or under a dialog).</summary>
+    public const string NotVisible = "not-visible";
+    /// <summary>The static, dimmed song cover (Song Detail, Solo leaderboard).</summary>
+    public const string SongCover = "song-cover";
+
+    /// <summary>Resolves the state name.</summary>
+    /// <param name="mode">Playback mode.</param>
+    /// <param name="imageShown">A cover is drawn: the song cover when <paramref name="showingSong"/>, else the front carousel cover.</param>
+    /// <param name="showingSong">The static song cover replaces the carousel.</param>
+    /// <returns>One of the state constants.</returns>
+    public static string Resolve(ArtworkMode mode, bool imageShown, bool showingSong)
+    {
+        if (mode == ArtworkMode.Hidden) return SaveData;
+        if (!imageShown) return NoArt;
+        if (showingSong) return SongCover;
+        return mode switch
+        {
+            ArtworkMode.Paused => NotVisible,
+            ArtworkMode.Static => ReducedMotion,
+            _ => Animated,
+        };
+    }
+
+    /// <summary>
+    /// Whether the black dim layer is drawn. Like the web (<c>AnimatedBackground</c> renders nothing without covers) and
+    /// iOS, the dim only sits over art: without a cover the brand surface shows undimmed, as under Save Data.
+    /// </summary>
+    /// <param name="mode">Playback mode.</param>
+    /// <param name="imageShown">A cover is drawn.</param>
+    /// <returns><see langword="true"/> when the dim layer should be at <see cref="ArtworkCarousel.DimOpacity"/>.</returns>
+    public static bool DimShown(ArtworkMode mode, bool imageShown) => mode != ArtworkMode.Hidden && imageShown;
+}
+#endregion
+
 #region Motion presets
 /// <summary>A slow zoom/pan: scale and translation (logical units) at the start and end of a 6 s drift.</summary>
 /// <param name="FromScale">Start scale.</param>

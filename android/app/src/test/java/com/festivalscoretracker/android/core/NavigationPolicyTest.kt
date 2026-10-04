@@ -84,6 +84,11 @@ class NavigationPolicyTest {
         assertEquals(NavigationLayout.PermanentDrawer, AdaptiveLayoutPolicy.navigationLayout(1280, 800))
         assertTrue(AdaptiveLayoutPolicy.isRegularWidth(600))
         assertFalse(AdaptiveLayoutPolicy.isRegularWidth(599))
+        // Issue #126: sheets move Reset into the header below 480 dp of height.
+        assertTrue(AdaptiveLayoutPolicy.isCompactHeight(340))
+        assertTrue(AdaptiveLayoutPolicy.isCompactHeight(479))
+        assertFalse(AdaptiveLayoutPolicy.isCompactHeight(480))
+        assertFalse(AdaptiveLayoutPolicy.isCompactHeight(891))
         assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(840, false))
         assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(700, true))
         assertFalse(AdaptiveLayoutPolicy.showsTwoPanes(700, false))
@@ -98,6 +103,19 @@ class NavigationPolicyTest {
         assertEquals(426, AdaptiveLayoutPolicy.listPaneWidth(900, 426))
         assertEquals(360, AdaptiveLayoutPolicy.listPaneWidth(900, 0))
         assertEquals(360, AdaptiveLayoutPolicy.listPaneWidth(900, 950))
+        // A landscape phone's 54 dp camera inset is added on top of 40% of the usable width.
+        assertEquals(401, AdaptiveLayoutPolicy.listPaneWidth(923, null, leadingInsetDp = 54))
+        assertEquals(369, AdaptiveLayoutPolicy.listPaneWidth(923, null, leadingInsetDp = 0))
+        assertEquals(369, AdaptiveLayoutPolicy.listPaneWidth(923, null, leadingInsetDp = -5))
+        // A hinge fixes the split regardless of insets; the pane never takes more than half.
+        assertEquals(426, AdaptiveLayoutPolicy.listPaneWidth(900, 426, leadingInsetDp = 54))
+        assertEquals(420, AdaptiveLayoutPolicy.listPaneWidth(840, null, leadingInsetDp = 200))
+        // Issues #101/#102: the permanent drawer widens to Material's 360 dp for large text.
+        assertEquals(280, AdaptiveLayoutPolicy.permanentDrawerWidth(0.85f))
+        assertEquals(280, AdaptiveLayoutPolicy.permanentDrawerWidth(1f))
+        assertEquals(280, AdaptiveLayoutPolicy.permanentDrawerWidth(1.15f))
+        assertEquals(360, AdaptiveLayoutPolicy.permanentDrawerWidth(1.3f))
+        assertEquals(360, AdaptiveLayoutPolicy.permanentDrawerWidth(2f))
     }
 
     // endregion

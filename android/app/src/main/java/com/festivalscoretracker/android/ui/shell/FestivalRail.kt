@@ -94,18 +94,24 @@ fun FestivalRail(
             }
             DrawerPolicy.railMain(sections).forEach { RailItem(it, selected, onSection) }
             Spacer(Modifier.weight(1f))
+            // Large text: icon only, like the destinations above, so "Profile" no longer
+            // dwarfs their icons; the avatar then carries the spoken label (issue #101).
+            val profileIconOnly = isLargeText()
+            val profileLabel = player?.let { "Profile: ${it.displayName}" } ?: "Profile"
             NavigationSuiteItem(
                 selected = false,
                 onClick = onOpenProfile,
-                icon = { RailAvatar(player) },
+                icon = {
+                    Box(if (profileIconOnly) Modifier.semantics { contentDescription = profileLabel } else Modifier) { RailAvatar(player) }
+                },
                 // One stop that says "Profile: <name>" (the avatar itself is silent).
-                label = {
+                label = if (profileIconOnly) null else ({
                     Text(
                         "Profile",
                         maxLines = 1,
-                        modifier = Modifier.semantics { contentDescription = player?.let { "Profile: ${it.displayName}" } ?: "Profile" },
+                        modifier = Modifier.semantics { contentDescription = profileLabel },
                     )
-                },
+                }),
                 navigationSuiteType = NavigationSuiteType.WideNavigationRailCollapsed,
                 modifier = Modifier.testTag("fst.nav.rail.profile"),
             )
@@ -122,7 +128,7 @@ private fun RailItem(section: FestivalSection, selected: FestivalSection, onSect
     NavigationSuiteItem(
         selected = section == selected,
         onClick = { onSection(section) },
-        icon = { Icon(section.icon(), contentDescription = if (iconOnly) section.title else null) },
+        icon = { Icon(section.icon(section == selected), contentDescription = if (iconOnly) section.title else null) },
         label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
         navigationSuiteType = NavigationSuiteType.WideNavigationRailCollapsed,
         modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),

@@ -188,6 +188,26 @@ public class RivalsCoreTests
     }
 
     [Fact]
+    public async Task Client_KeepsAnonymousLeaderboardRivals()
+    {
+        // Issue #213: production serves an anonymous row (empty accountId, no displayName) in leaderboard-rival lists.
+        const string Row = "\"sharedSongCount\":728,\"aheadCount\":157,\"behindCount\":571,\"avgSignedDelta\":857.2,\"leaderboardRank\":13,\"userLeaderboardRank\":4";
+        var (client, _) = Client(_ => Wire.Ok($$"""{"instrument":"Solo_Guitar","rankBy":"totalscore","userRank":4,"above":[],"below":[{"accountId":"",{{Row}}},{"accountId":"r1","displayName":"R",{{Row}}}]}"""));
+        var list = await client.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore);
+        Assert.Equal(2, list.Below.Count);
+        Assert.Equal("", list.Below[0].AccountId);
+        Assert.Null(list.Below[0].DisplayName);
+        Assert.Equal(13, list.Below[0].LeaderboardRank);
+
+        var (unsafeId, _) = Client(_ => Wire.Ok($$"""{"above":[{"accountId":"bad id",{{Row}}}],"below":[]}"""));
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse,
+            (await Assert.ThrowsAsync<FestivalApiException>(() => unsafeId.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore))).Kind);
+        var (songList, _) = Client(_ => Wire.Ok($$"""{"combo":"01","above":[{"accountId":"","rivalScore":1,{{Row}}}],"below":[]}"""));
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse,
+            (await Assert.ThrowsAsync<FestivalApiException>(() => songList.GetRivalsListAsync(Me, "01"))).Kind);
+    }
+
+    [Fact]
     public async Task Client_RejectsMismatchedDetailAndAllAccount()
     {
         var (client, _) = Client(r => Wire.Ok(r.RequestUri!.AbsolutePath.EndsWith("/all", StringComparison.Ordinal)
@@ -391,6 +411,9 @@ public class RivalsCoreTests
         Assert.Equal(["a", "c", "b"], RivalHeadToHead.Sort(songs, RivalrySort.YouLead).Select(s => s.SongId));
         Assert.Equal(["b", "c", "a"], RivalHeadToHead.Sort(songs, RivalrySort.TheyLead).Select(s => s.SongId));
         Assert.Equal(["a", "b", "c"], RivalHeadToHead.Sort(songs, RivalrySort.Title).Select(s => s.SongId));
+        // A displayed-title selector (catalogue fallback) wins over the comparison's missing title.
+        Assert.Equal(["c", "a", "b"], RivalHeadToHead.Sort(songs, s => s, RivalrySort.Title, s => s.SongId == "c" ? "Able" : s.Title!).Select(s => s.SongId));
+        Assert.Equal(["b", "a", "c"], RivalHeadToHead.Sort(songs, s => s, RivalrySort.Category, _ => "ignored").Select(s => s.SongId));
         Assert.All(Enum.GetValues<RivalrySort>(), s => Assert.NotEmpty(s.Label()));
         Assert.Equal("3 shared songs · 2 ahead / 1 behind", RivalHeadToHead.Summary(songs));
     }

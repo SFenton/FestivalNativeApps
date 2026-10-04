@@ -23,8 +23,9 @@
 | Accessibility (native) | `reduce-motion`, `disable-artwork-animation`, `more-contrast`, `less-transparency`, `save-data` | Additive only. Increase Contrast whitens secondary text and strengthens card strokes; Reduce Transparency makes cards opaque (`MainWindow.Settings.cs`, `ApplyTransparency`) |
 | Version | `app-version`, `service-version` | App Version is `AppVersionInfo.SettingsText`: the display version (the stamped `YYMM.DD.NN` `InformationalVersion` from the `windows/v*` tag; `0.1.0` for local builds) plus ` · <sha7>` from `AssemblyMetadata("FstGitSha")`, which `Festival.App.csproj` stamps from `-p:FstGitSha=`, else SourceLink's `SourceRevisionId`, else `git rev-parse HEAD` (the SDK reader finds no commit in a worktree whose branch ref is only packed; issue #21); omitted when missing, empty, `dev` or non-hex (issue #43). What's New and the User-Agent keep the plain `Display` version. Service Version reads `/api/version` once per page load ("Loading" → value, "Unavailable" on failure, retried next visit) |
 | Service Info | `service-info`, `.state`, `.process`, `.phase`, `.attempt`, `.last-published` | Web `SettingsServiceProgressCard`: `SettingsServiceInfoViewModel` polls `/api/service-info` every 5 s while the page is loaded (30 s while the window is hidden, 3 s timeout), reduced by `Domain/ServiceProgress.cs` (port of the web/Apple monotonic reducer and label tables). Unknown totals show the empty track instead of a looping shimmer. Web rows only (issue #81, port of iOS #22): title, bar and the registered-band discovery attempt line (`attemptProgress`, schema 1, validated and monotonic within a phase attempt) at the web's 4 px gap; percent, units and attempts are the phase row's Narrator name, not printed captions; the native freeze row was dropped; Last Successful Publication hides while loading or failed ("Failed to load data", web); at Windows text size ≥ 150% (`ServiceInfoText.StacksStateRow`, applied in `SettingsPage.xaml.cs`, live on `TextScaleFactorChanged`) the process state stacks under the label. The web has no publication check, so **Check Publication was removed** (batch 6.15) |
-| First Run Guides | `first-run.<pageKey>` (no slide counts; blue web `btnPrimary` Show buttons via card-scoped lightweight styling) | Replay: [first-run/windows.md](../../controls/first-run/windows.md) |
+| First Run Guides | `first-run.<pageKey>` (no slide counts; blue web `btnPrimary` Show buttons via card-scoped lightweight styling, `Themes/FirstRunButtonResources.xaml`) | Replay: [first-run/windows.md](../../controls/first-run/windows.md) |
 | Licenses | `licenses` | Web navigation row: the section header is the link, chevron trailing, no card. Pushes `/settings/licenses` on the Settings stack |
+| Privacy Policy | `privacy-policy`; dialog `fst.privacy-policy.*` ([control notes](../../controls/privacy-policy/windows.md)) | Same navigation row as Licenses (issue #98). Opens `Festival.App/Controls/PrivacyPolicyDialog.cs` in the shared `FestivalDialog` (title "Privacy Policy", spanning Close; Esc and an outside click also close). The csproj links `contracts/privacy-policy.json` as `Assets\privacy-policy.json`; `Festival.Core/Domain/PrivacyPolicy.cs` parses it (1 MB cap, schema 1, invalid blocks dropped, unreadable → "could not be loaded"). Selectable `TextBlock`s follow the Windows text size, section titles are Narrator level-2 headings, bullets are Raw, HTTPS addresses are `Hyperlink`s. The scroller is a tab stop, so the dialog opens focused on the text (arrow/Page keys scroll); focus returns to the row on close. Tests: `PrivacyPolicyTests` (real contract via a linked fixture) |
 | Reset | `reset` | Web `resetRow`: header left, red (`#C62828`) Reset All Settings right. ContentDialog confirm; restores app settings only (starts from `this`, so the player, Songs sort/filter and other Songs-owned fields survive). `LeaderboardRankBy` is navigation state and is kept |
 
 ## Decisions
@@ -39,6 +40,24 @@
 
 ## Open
 
-- The shell's `NavigationView` stays `PaneDisplayMode="Left"` at compact widths; settings rows get ~260 epx unless the pane is collapsed. TODO(orchestrator): shell lane should switch to `Auto` (LeftCompact/LeftMinimal) below ~1008/640 epx.
-- UI automation (FlaUI) journeys for reset/relaunch persistence are not yet written; persistence is covered by `SettingsModelsTests.JsonStore_RoundTripsEveryAppSetting`.
+- `LicensesPage.xaml` (a separate page) still has hard-coded translucent-white hover literals; other pages' destructive buttons alias `FSTDanger*` with `StaticResource`, so a contrast theme switched on while they are open keeps the brand red until the page reloads (Settings merges `Themes/DangerButtonResources.xaml` instead).
+- One Debug journey run (2026-10-03, shared desktop) crashed with a stowed `COMException` E_FAIL from a managed `MeasureOverride` forwarding to native measure after Feedback opened; four replays (same sequence, live Desert and live 200% text with Feedback open) did not reproduce it. Watch `diagnostics.log` for a repeat.
 - Screenshots: `windows/reports/screenshots/settings-{compact,medium,wide}.png`, `settings-quick-links-menu-compact.png`.
+
+## Validation (issue #214, 2026-10-03)
+
+Fixture matrix (`a11y_matrix.py --scan --tabs 60` with `journeys/settings-states.json`: Visual Order, Filter Invalid Scores and Hide Shop seeded on, a shot at each section) plus the live public service. Axe 0 errors and no focus leaving the window or repeating in every run:
+
+| Configuration | Result |
+|---|---|
+| Compact, medium, wide, snapped right, maximized | Pass: 53 stops (compact/snap) / 55 (wide/maximized) expanded; Quick Links menu below 1150 epx, pane above |
+| Light and dark system theme | Pass, unchanged (dark-only app, documented deviation; contrast themes are followed) |
+| Desert, Night sky (cold launch) | Fixed: reorder-list outline and separators were invisible, First Run "Show" chips stayed brand blue, link-row hover was translucent white, progress bar brand purple. Now Window/WindowText rows, ButtonFace/ButtonText chips (Highlight on hover), Highlight outline on link-row hover, Highlight/GrayText progress |
+| Contrast theme switched on while Settings is open | Fixed: `StaticResource` aliases kept the old brushes; scoped button styling now merges `Themes/{NavRow,FirstRun,Danger}ButtonResources.xaml` theme dictionaries |
+| Text 200% | Pass: rows wrap, switches stay right-aligned, nothing clipped |
+| Display 100% and 150% | Pass |
+| Keyboard | Pass (`settings-keyboard` page): Space toggles Visual Order with focus kept, Enter on Move Score down → "Score, position 2 of 8", Enter opens Reset with Cancel default, Esc closes and returns focus to Reset All Settings |
+
+Journeys (`tools/windows/journeys/settings.py`): visual order persists across relaunch, Filter Invalid Scores reveals Leeway, Hide Shop disables Shop highlighting, the last visible chart cannot be hidden, telemetry needs diagnostics, Reset Cancel keeps and Reset restores app settings (Songs sort kept), Licenses/Back, Privacy Policy, What's New, Feedback cancel and First Run replay. `SettingsContrastMarkupTests` guards the markup.
+
+Deliberate deviations from `winui-design`: dark-only theme (web parity; light/dark system setting does not change it); hand-built Settings-card rows instead of the Community Toolkit `SettingsCard` (no extra package; one card per web section); reorder lists keep web grip/row look with Fluent `ListView` drag and Move buttons.

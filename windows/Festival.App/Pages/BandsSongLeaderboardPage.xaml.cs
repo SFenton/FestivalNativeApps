@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 
@@ -79,6 +80,16 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     private void OnRowClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is SongBandRow row) MainWindow.Instance?.Navigate(row.Route);
+    }
+
+    /// <summary>Names each row container for UI Automation, so a row is one Narrator stop that reads the whole card.</summary>
+    /// <param name="sender">List.</param>
+    /// <param name="args">Container.</param>
+    private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.InRecycleQueue || args.Item is not SongBandRow row) return;
+        AutomationProperties.SetName(args.ItemContainer, row.PageAnnouncement);
+        AutomationProperties.SetAutomationId(args.ItemContainer, row.AutomationId);
     }
 
     /// <summary>Opens Song Detail from the header title.</summary>

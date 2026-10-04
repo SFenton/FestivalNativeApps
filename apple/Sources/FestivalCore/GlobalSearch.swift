@@ -91,6 +91,63 @@ public enum GlobalSearch {
         }
     }
 
+    // MARK: - Empty state
+
+    /// Copy for the centred empty state below the scope bar (issue #99): a title, a
+    /// subtitle naming the query, and whether Retry is offered.
+    public struct EmptyState: Equatable, Sendable {
+        /// Title Case heading, e.g. "No Players Found".
+        public let title: String
+        /// Sentence naming the query and the next step.
+        public let subtitle: String
+        /// True when players were searched: an empty account-search envelope can be a
+        /// server timeout (`.agents/platforms/service-safety.md`), so it gets Retry.
+        public let offersRetry: Bool
+
+        /// One VoiceOver label for the whole state: title, subtitle, then "Retry".
+        public var accessibilityLabel: String {
+            let text = "\(title). \(subtitle)"
+            return offersRetry ? "\(text) Retry" : text
+        }
+    }
+
+    /// Empty state for a scope whose shown sections all finished with no results.
+    ///
+    /// In "All", a single empty section is hidden instead (web `SearchModal` renders only
+    /// sections with results or an error); this is for when every section is empty.
+    ///
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - query: Raw query text; a query under two characters has no empty state.
+    /// - Returns: The copy (subtitles are the cross-platform contract text in
+    ///   `.agents/controls/global-search/spec.md`), or nil for Bands (never searched)
+    ///   and short queries.
+    public static func emptyState(scope: GlobalSearchScope, query: String) -> EmptyState? {
+        guard effectiveQuery(query) != nil else { return nil }
+        switch scope {
+        case .bands:
+            return nil
+        case .all:
+            return EmptyState(
+                title: "No Results Found",
+                subtitle: "Check the spelling or try a different song, artist or player.",
+                offersRetry: true
+            )
+        case .songs:
+            return EmptyState(
+                title: "No Songs Found",
+                subtitle: "Check the spelling or try a different song or artist.",
+                offersRetry: false
+            )
+        case .players:
+            return EmptyState(
+                title: "No Players Found",
+                subtitle: "Check the spelling or try a different player name.",
+                offersRetry: true
+            )
+        }
+    }
+
     // MARK: - Result-count announcement
 
     /// Where one result section stands, for the VoiceOver result-count announcement.

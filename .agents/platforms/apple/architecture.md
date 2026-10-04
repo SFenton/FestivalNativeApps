@@ -121,8 +121,30 @@ Before = `a64b8fae`/`301adecf`, after = this lane's commits; CPU is the mean of 
 | iPad Songs idle CPU, Debug / probe | 3.1% / 2.4% | 4.3% / 1.0% (iPad already used the Core Animation carousel; noise ±3%) |
 | iPad Songs scroll stress, Debug / probe | 38 (714 ms) / 39 (717 ms) | 40 (378 ms) / 37 (446 ms) |
 
-Open: the stress pass's animated far jumps still build rows inside `NSTableView`/`UICollectionView` animated scrolls (each jump ≈ 250–450 ms); real section jumps (`jumpToSection`) are instant.
+**Far jumps teleport (Lane A11Y, 2026-10-04).** A programmatic jump further than one screenful of rows (`ListJump.isFar`: row distance > viewport ÷ 56 pt) scrolls instantly behind a 70 ms fade-out / 160 ms fade-in (`ListJumpFade`, opacity read only by `ListJumpFadeEffect`, so the screen body does not re-render), then scrolls once more after 50 ms to land on built rows; an animated far scroll built every row it passed (~25 per jump). Near jumps still animate. The stress pass uses the same rule (`songs.stress.teleport` counts 36 of its 60 jumps); `FST_DEBUG_SONGS_SCROLL_STRESS=animated` restores all-animated jumps for same-binary A/B (`apple_perf.py --env` now overrides the stress defaults). Section-index and Quick Links jumps were already instant (no fade, operator batch 7); the Songs reorder-to-top jump is now explicitly instant.
+
+| Debug `--stress`, units ≥ 100 ms (worst) / main-thread s / rows built | Animated far jumps | Teleported far jumps |
+|---|---|---|
+| iPad Pro 11" sim (2 runs each; before = this lane's base build) | 33–37 (438–462 ms) / 14.6–15.5 / 1419–1463 | **8–9 (149–299 ms) / 7.0–7.3 / 526–547** |
+| Mac 1280×820, same binary A/B, 3 interleaved pairs | 79–80 (698–731 ms) / 23.8–24.1 / 2657–2729 | **21–22 (709–729 ms) / 15.3–15.5 / 1538–1542** |
+
+- The remaining iPad units are ~110–150 ms: an instant jump still builds the destination screen (~10–14 rows × ~10 ms). Cheaper rows are the next lever.
+- The Mac's worst unit (~700 ms) is the same in both modes (not a jump), and the Mac pass starts twice (`songs.stress.start` = 2: two Songs lists run it), which doubles its row counts; TODO(orchestrator): find the second Songs list on the Mac.
 
 iPad scroll stalls (Lane IPAD2, 2026-10-03): **not iPad-specific.** The stall log now lists the events counted during each long unit (`Stall.counts`) and the main-thread CPU at the pass's marks (`cpuMarks`; `apple_perf.py` prints `main_cpu_s` and `rows_built`). Every stall ≥ 100 ms in the pass is Songs rows being built (`songs.row`, ~10 per 100 ms); no root, split, detail or artwork work appears, and the iPad stress runs in portrait with no detail column. The iPhone 17 Pro simulator gives the same picture: 39 units, 1316 rows, 12.6 ms main-thread CPU per row, against the iPad's 32–43 units, 1150–1420 rows, 12–14.5 ms per row. Per-row CPU with one part removed (same build, flags since removed): plain card instead of Liquid Glass `glassEffect` 9.2 ms (about −27%), no invisible `ListDetailLink` 10.8 ms (−15%); fade, hover, auto-select, context menu, chips, artwork and marquee were each within noise. Measured while other lanes loaded the host (load average 20–190 on 10 cores), so wall-clock stall counts varied by ±6 between identical runs; compare `main_cpu_s` per row. Open (operator/design): the row glass is the largest single cost; the only lever is a cheaper card surface or fewer rows built per animated jump (the stress pass's jumps build ~25 rows each; real `jumpToSection` jumps are instant). Rows already built by scrolling now skip the fade modifier (`festivalFadeIn(staggerIndex:)`) and one-stack rows carry no auto-select geometry observer; neither moved the numbers measurably.
+
+Songs row card (Lane CARD, 2026-10-03): the per-row Liquid Glass card became a standard material tuned to the same look ([liquid-glass.md § Song row card](../../design/apple/liquid-glass.md#song-row-card)). Same-session `--stress` runs, main-thread ms per row built (`main_cpu_s` / `rows_built`), host load average 20–250:
+
+| Target | Glass card | Material card | Stalls ≥ 100 ms (worst) |
+|---|---|---|---|
+| Mac Release probe, same binary (A/B switch), 3 interleaved pairs | 7.7–8.1 (mean 7.9) | 7.2–7.4 (7.3), −8% | 19–29 (297–339 ms) → 11–14 (271–327 ms) |
+| iPad Pro 11" sim, Debug, separate builds (5 / 6 runs) | 11.4–12.0 (median 11.6) | 9.1–10.3 (9.9), −15% | ~38 → ~37 (worst 423–520 → 392–433 ms) |
+| iPhone 17 Pro sim, Debug, separate builds (3 / 5 runs) | 12.1–13.5 (13.4) | 10.7–13.5 (11.9), −11% | ~39 → ~39 |
+
+- On the Mac, a trace of the glass build spent 8.3% of main-thread samples under `Glass*` frames (`GlassEffectContextDisplayList`, `GlassContainerPositionModifier`, `GlassEntryModifier`, `SDFLayer`); the material build 0.6% under any material or backdrop frame.
+- **Structure matters more than the effect:** material, tint and rim as one `background(_:in:)` each cost the same as the material alone (iPad 8.6–8.7 ms per row in one session); the same layers in a nested `.background { shape.fill(…).background(material, …) }` plus a gradient overlay view cost 11.4 (glass 12.2).
+- iOS stall counts did not move with the cheaper card: each animated far jump built ~25 rows (25 × ~10 ms > 100 ms). Fewer rows per jump was the lever: see far jumps above.
+- With `FST_DEBUG_ROW_CARD_AB` set, Debug rows also read the switch (up to ~1 ms more per row on the iOS sims); compare A/B runs only with each other.
+- Other row costs on the Mac trace: `MarqueeFitLayout.sizeThatFits` 3.1% (the title and subtitle text measurement itself), `SongsScreen.songLink` 0.9%, chips 0.7%; none is a cheap win without changing the row layout.
 
 First-run sheet (Lane IPAD2, 2026-10-03, iPad Debug, sheet open on its first slide): Leaderboards 4.1% → 0.0%, Statistics ("Select This Player" pill glowing) 2.6% → 0.0%. The glow still breathes (`~/FestivalShowcase/native-ipad/2/first-run-glow-{rest,lit}.png`) and rests under Reduce Motion or off screen.

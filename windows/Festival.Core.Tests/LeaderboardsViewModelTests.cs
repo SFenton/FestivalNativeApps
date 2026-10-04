@@ -86,7 +86,8 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("fst.leaderboards.card.Solo_Guitar", lead.AutomationId);
         Assert.Equal("fst.leaderboards.card.Solo_Guitar.view-all", lead.ViewAllAutomationId);
         Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore"), lead.ViewAllRoute);
-        Assert.Equal("View All Lead Rankings", lead.ViewAllName);
+        Assert.Equal(lead.ViewAllText + ", Lead", lead.ViewAllName);
+        Assert.StartsWith("View All Rankings", lead.ViewAllName, StringComparison.Ordinal);
         Assert.False(lead.Spotlight.IsVisible);
         var band = vm.BandCards[2];
         Assert.True(band.ShowRows);
@@ -95,7 +96,8 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("fst.leaderboards.band-card.Band_Quad", band.AutomationId);
         Assert.Equal("fst.leaderboards.band-card.Band_Quad.view-all", band.ViewAllAutomationId);
         Assert.Equal(new AppRoute.BandRankings("Band_Quad"), band.ViewAllRoute);
-        Assert.Equal("View All Quads Rankings", band.ViewAllName);
+        Assert.Equal(band.ViewAllText + ", Quads", band.ViewAllName);
+        Assert.StartsWith("View All Rankings", band.ViewAllName, StringComparison.Ordinal);
         Assert.Equal("Leaderboards Quick Links", vm.QuickLinks.Title);
         Assert.Equal(["instrument:Solo_Guitar", "instrument:Solo_Bass", "band:Band_Duets", "band:Band_Trios", "band:Band_Quad"],
             vm.QuickLinks.Items.Select(i => i.Section.Id));
@@ -430,6 +432,25 @@ public sealed class RankingRowTests
         Assert.Equal([2, 1200, 4, 1], moves);
         Assert.Equal("fst.x", pager.IdPrefix);
     }
+
+    [Fact]
+    public async Task PagerStaysEnabledWhileAPageLoads()
+    {
+        var pending = new TaskCompletionSource();
+        var pager = new RankingsPagerViewModel("fst.x", _ => pending.Task);
+        pager.Update(1, 3);
+        var move = pager.NextCommand.ExecuteAsync(null);
+        // A disabled focused button hands keyboard focus elsewhere (issue #197), so only page bounds may disable it.
+        Assert.True(pager.NextCommand.IsRunning);
+        Assert.True(pager.NextCommand.CanExecute(null));
+        Assert.True(pager.LastCommand.CanExecute(null));
+        Assert.False(pager.PreviousCommand.CanExecute(null));
+        pending.SetResult();
+        await move;
+        pager.Update(3, 3);
+        Assert.False(pager.NextCommand.CanExecute(null));
+        Assert.True(pager.FirstCommand.CanExecute(null));
+    }
 }
 
 public sealed class FullRankingsViewModelTests
@@ -507,10 +528,12 @@ public sealed class FullRankingsViewModelTests
         var vm = new FullRankingsViewModel(fake.Session(), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), new FakeReader().Read);
         await vm.LoadAsync();
         Assert.True(vm.ShowError);
+        Assert.False(vm.ShowContent);
         Assert.False(vm.IsRefreshing);
         fake.Failing.Clear();
         await vm.Status.RetryCommand.ExecuteAsync(null);
         Assert.True(vm.ShowRows);
+        Assert.True(vm.ShowContent);
     }
 
     [Fact]
@@ -564,6 +587,8 @@ public sealed class FullRankingsViewModelTests
         await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.SpinnerOut);
         Assert.Equal("#26", vm.Rows[0].RankText);
         Assert.False(vm.ShowRows);
+        // The pager stays while rows swap so a focused pager button keeps keyboard focus (issue #208).
+        Assert.True(vm.ShowContent);
         time.Advance(LoadSwapTiming.SpinnerOut);
         await reload;
         Assert.True(vm.ShowRows);
@@ -692,7 +717,7 @@ public sealed class SongLeaderboardViewModelTests
         Assert.Equal("S15", row.Season);
         Assert.Equal(new AppRoute.Player("a1", "Player 1"), row.Route);
         Assert.Equal("fst.song-leaderboard.row.a1", row.AutomationId);
-        Assert.Equal("Rank #1, Player 1, 99,999 points, 98.5% accuracy, full combo, 6 stars", row.Announcement);
+        Assert.Equal("Rank #1, Player 1, 99,999 points, 98.5% accuracy, full combo, 5 gold stars", row.Announcement);
         Assert.Equal("98.5%", vm.Rows[1].AccuracyPill);
 
         // Active again: no reload.
@@ -728,7 +753,8 @@ public sealed class SongLeaderboardViewModelTests
         {
             Override = r => r.RequestUri!.AbsolutePath switch
             {
-                "/api/leaderboard/s1/Solo_Drums" => Wire.Ok(Wire.Leaderboard("s1", "Solo_Drums", 0, 0, 0), ("X-FST-Publication-Id", "7")),
+                "/api/leaderboard/s1/Solo_Drums" => Wire.Ok(Wire.Leaderboard("s1", "Solo_Drums", 0, 0, 0)
+                    .Replace("\"count\"", "\"showLeaderboardEntryTotals\":true,\"count\"", StringComparison.Ordinal), ("X-FST-Publication-Id", "7")),
                 "/api/leaderboard/s1/Solo_Vocals" => Wire.Response(HttpStatusCode.ServiceUnavailable),
                 _ => null,
             },
@@ -738,6 +764,8 @@ public sealed class SongLeaderboardViewModelTests
         await empty.LoadAsync();
         Assert.True(empty.ShowEmpty);
         Assert.True(empty.ShowContent);
+        Assert.Equal("", empty.TotalText);
+        Assert.False(empty.HasTotal);
 
         var missing = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("nope", Instrument.Lead));
         await missing.LoadAsync();
@@ -867,5 +895,31 @@ public sealed class RankingViewAllTests
         System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
         Assert.Equal("View All Rankings (868,901)", RankingViewAll.Label(868_901));
         Assert.Equal("View All Rankings", RankingViewAll.Label(0));
+    }
+
+    [Fact]
+    public void Name_StartsWithTheVisibleLabelThenTheBoard()
+    {
+        Assert.Equal("View All Rankings (868,901), Lead", RankingViewAll.Name("View All Rankings (868,901)", "Lead"));
+        Assert.Equal("View All Rankings, Duos", RankingViewAll.Name("View All Rankings", "Duos"));
+    }
+
+    [Fact]
+    public void ViewAllName_FollowsTheLoadedCount()
+    {
+        var fake = new RankingsFake();
+        var session = fake.Session(new AppSettings());
+        var card = new RankingCardViewModel(session, Instrument.Lead, RankingMetric.TotalScore, null);
+        var band = new BandRankingCardViewModel(session, BandType.Duets, BandRankingMetric.TotalScore);
+        var changed = new List<string?>();
+        card.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        band.PropertyChanged += (_, e) => changed.Add("band." + e.PropertyName);
+        Assert.Equal("View All Rankings, Lead", card.ViewAllName);
+        card.ViewAllText = "View All Rankings (12)";
+        band.ViewAllText = "View All Rankings (3)";
+        Assert.Equal("View All Rankings (12), Lead", card.ViewAllName);
+        Assert.Equal("View All Rankings (3), Duos", band.ViewAllName);
+        Assert.Contains(nameof(RankingCardViewModel.ViewAllName), changed);
+        Assert.Contains("band." + nameof(BandRankingCardViewModel.ViewAllName), changed);
     }
 }

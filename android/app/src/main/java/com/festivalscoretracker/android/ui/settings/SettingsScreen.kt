@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -68,6 +69,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +79,7 @@ import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.LicensesRoute
+import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import com.festivalscoretracker.android.core.settings.AppBuildInfo
@@ -117,6 +120,7 @@ internal fun settingsSections(debug: Boolean): List<QuickLinkSection> = buildLis
     add(QuickLinkSection("service-info", "Service Info", "service"))
     add(QuickLinkSection("first-run", "First Run Guides", "sparkles"))
     add(QuickLinkSection("licenses", "Licenses", "document"))
+    add(QuickLinkSection("privacy-policy", "Privacy Policy", "privacy"))
     add(QuickLinkSection("reset", "Reset Settings", "trash"))
 }
 
@@ -156,6 +160,7 @@ fun SettingsScreen(
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
+    var showPrivacy by rememberSaveable { mutableStateOf(false) }
     val serviceVersion by viewModel.serviceVersion.collectAsStateWithLifecycle()
     // The rows show only once the service reports `feedback: true`; each Settings visit retries a failed read.
     val feedbackAvailable = feedback?.let { it.available.collectAsStateWithLifecycle().value } == true
@@ -177,7 +182,8 @@ fun SettingsScreen(
                 ) {
                     sections.forEach { section ->
                         item(key = section.id) {
-                            Column(Modifier.fillMaxWidth().widthIn(max = 840.dp).testTag("fst.settings.section.${section.id}")) {
+                            // Cap before filling: fillMaxWidth() first would pin the incoming width and defeat the cap.
+                            Column(Modifier.widthIn(max = 840.dp).fillMaxWidth().testTag("fst.settings.section.${section.id}")) {
                                 when (section.id) {
                                     "app-settings" -> AppSettingsSection(settings, viewModel, feedback?.takeIf { feedbackAvailable }?.let { it::open })
                                     "diagnostics" -> DiagnosticsSection(settings, viewModel)
@@ -191,6 +197,9 @@ fun SettingsScreen(
                                     "licenses" -> NavigationRow("Licenses", "Open source package license details.", "fst.settings.licenses") {
                                         shell.navigate(LicensesRoute)
                                     }
+                                    "privacy-policy" -> NavigationRow("Privacy Policy", "How Festival Score Tracker handles your information.", "fst.settings.privacy-policy") {
+                                        showPrivacy = true
+                                    }
                                     "reset" -> ResetSection { confirmReset = true }
                                 }
                             }
@@ -203,6 +212,7 @@ fun SettingsScreen(
         }
     }
     feedback?.let { FeedbackDialogHost(it) }
+    if (showPrivacy) PrivacyPolicySheet(compact = !AdaptiveLayoutPolicy.isRegularWidth(windowWidthDp), onDismiss = { showPrivacy = false })
     if (confirmReset) {
         FestivalAlertDialog(
             title = "Reset Settings",
@@ -558,14 +568,53 @@ private fun ToggleRow(
     }
 }
 
+/**
+ * A read-only "title … value" row (Version section). The value sits at the end of the title's
+ * line when both fit at their natural widths; otherwise (large text, narrow panes, the long
+ * service origin) it stacks under the title, so neither is squeezed into a one-letter column
+ * (issue #121).
+ *
+ * @param title Row label.
+ * @param value Trailing value.
+ * @param tag Test tag of the merged row.
+ */
 @Composable
 private fun ValueRow(title: String, value: String, tag: String) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp).testTag(tag).semantics(mergeDescendants = true) {},
-    ) {
-        Text(title, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
-        Text(value, color = BrandTokens.textSecondary, modifier = Modifier.padding(start = 12.dp))
+    Layout(
+        content = {
+            Text(title, color = BrandTokens.textPrimary)
+            Text(value, color = BrandTokens.textSecondary)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .testTag(tag)
+            .semantics(mergeDescendants = true) {},
+    ) { measurables, constraints ->
+        val (titleText, valueText) = measurables
+        val width = constraints.maxWidth
+        val gap = 12.dp.roundToPx()
+        val titleWidth = titleText.maxIntrinsicWidth(Constraints.Infinity)
+        val valueWidth = valueText.maxIntrinsicWidth(Constraints.Infinity)
+        if (titleWidth + gap + valueWidth <= width) {
+            val valuePlaceable = valueText.measure(Constraints(maxWidth = valueWidth))
+            val titlePlaceable = titleText.measure(Constraints(maxWidth = width - gap - valuePlaceable.width))
+            val height = maxOf(constraints.minHeight, titlePlaceable.height, valuePlaceable.height)
+            layout(width, height) {
+                titlePlaceable.placeRelative(0, (height - titlePlaceable.height) / 2)
+                valuePlaceable.placeRelative(width - valuePlaceable.width, (height - valuePlaceable.height) / 2)
+            }
+        } else {
+            val titlePlaceable = titleText.measure(Constraints(maxWidth = width))
+            val valuePlaceable = valueText.measure(Constraints(maxWidth = width))
+            val stackGap = 4.dp.roundToPx()
+            val height = maxOf(constraints.minHeight, titlePlaceable.height + stackGap + valuePlaceable.height)
+            layout(width, height) {
+                titlePlaceable.placeRelative(0, 0)
+                valuePlaceable.placeRelative(0, titlePlaceable.height + stackGap)
+            }
+        }
     }
 }
 

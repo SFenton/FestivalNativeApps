@@ -15,6 +15,7 @@
 
 ## Content (branded, Fluent tokens)
 
+- **Theme: dark only** (`App.xaml` `RequestedTheme="Dark"`; the product's design, which follows the web app). The Windows light/dark app setting does not change the app, a deliberate deviation from winui-design's "support Light, Dark and High Contrast". High Contrast is honoured through the `HighContrast` dictionaries and system colours. Checked in issue #195 (light and dark system themes look the same; Axe 0 errors in both).
 - Brand colours come from the generated `contracts/generated/windows/BrandTokens.xaml` (linked, never copied). Content-only brushes (`FSTCardSurfaceBrush`, header, meter) live in `windows/Festival.App/Themes/Styles.xaml` with a `HighContrast` theme dictionary mapping to system colours.
 - **Navigation pane:** docked (expanded or icon rail) it is transparent over the backdrop; only when it overlays content (LeftMinimal flyout, rail opened over content) does it get `FSTOverlayPaneBrush`, an in-app acrylic tinted `#121826` (blurred only while the overlay is open). Item hover/selection keep the Fluent `SubtleFill` states.
 - **Text colour:** white by default. `FSTSecondaryTextBrush` is white (lines differ by size/weight); `FSTDeemphasisTextBrush` (the web's `textSecondary` `#D7DEE8`) is reserved for true de-emphasis such as notification timestamps. In-app More Contrast turns that white too.
@@ -36,7 +37,7 @@
 - **Songs rows**: ≥ 64 px card rows, 44 px art, title/`artist · year · duration`, 2 px gold (New) / red (Leaving Tomorrow) Shop border; trailing chart meter, status chips or metadata pills that wrap under the title in narrow lists ([songs/windows.md](../pages/songs/windows.md)). Rows have no chevron (card is the target, as on iPhone).
 - **Jump index**: `SemanticZoom` (Ctrl+minus / pinch / header tap / **Jump** button) over group headers is the Windows equivalent of the iPhone section scrubber.
 - **Wrapping rows of small items** (chips, pills, dialog selectors): `Controls/FlowPanel` (WinUI has no WrapPanel).
-- **Difficulty meter**: branded 62×20 geometry from `DifficultyScale` ([spec](../controls/difficulty-meter/spec.md)); one `Image`-typed UIA element.
+- **Difficulty meter**: branded 62×20 geometry from `DifficultyScale` ([spec](../controls/difficulty-meter/spec.md)); one `Image`-typed UIA element; unfilled bars become GrayText outlines under contrast themes ([windows notes](../controls/difficulty-meter/windows.md)).
 - Instrument icons: the Apple asset catalogue PNGs (144 px), decoded once at 72 px and shared.
 
 ## Motion
@@ -70,11 +71,18 @@ Artwork motion follows [artwork-background](../controls/artwork-background/windo
 | Emphasis text and outlines (`FSTEmphasis*`: FC badge, Top 5%, gold stars ring, active Sort/Filter tint, profile notices) | gold | WindowText (the FC badge keeps its skewed italic shape) |
 | Stat tile values (`FSTStatBlue/Green`), ratings | blue / green | WindowText |
 | Top 1% pill, current-season pill | gold / white fill | Highlight / HighlightText |
-| Accuracy, difficulty and plain percentile pills | red→green tint, difficulty hues | ButtonFace / ButtonText with a ButtonText outline |
+| Accuracy, difficulty and plain percentile pills (incl. Band Detail's purple `FSTPercentilePill*`, issue #212) | red→green tint, difficulty hues, purple | ButtonFace / ButtonText with a ButtonText outline |
 | Shop borders, Songs art bag, Shop badges and pulse (`FSTShop*`) | gold (New) / red (Leaving) | Highlight / HighlightText (the label and UIA name say which) |
 | Destructive buttons (Reset, Reset All Settings, Deselect; `FSTDanger*`) | `#C62828` | ButtonFace / ButtonText; hover and press Highlight / HighlightText |
+| Settings reorder lists (`FSTReorderRow/Stroke`) | translucent white rows and separators | Window rows, WindowText outline and separators |
+| Settings link rows (`Themes/NavRowButtonResources.xaml`: Feedback, Licenses, Privacy) | translucent white hover fill | Window fill, Highlight outline (row text mixes inherited and WindowText-styled runs, so no Highlight fill) |
+| First Run Guides Show buttons (`Themes/FirstRunButtonResources.xaml`) | web `btnPrimary` blue | ButtonFace / ButtonText; hover and press Highlight / HighlightText |
+| Service Info progress (`FSTProgressFill/Track`) | blue fill, translucent track | Highlight fill, GrayText track |
+| Chart gridlines and axes (`FSTChartGridBrush`, `FSTChartAxisBrush`), bar outlines | 8% / 20% white, none | WindowText; bars get a 1 epx WindowText outline (Song Detail #195, rank history #212) |
+| Paths text table (`FSTPath*`: captions, fret pills, Overdrive bar; issue #223) | `#8899AA` captions, web `FRET_COLORS` lit / `#223047` unlit pills, amber bar on `#162133` | WindowText captions; lit pills Highlight with a WindowText ring, unlit Window with a GrayText ring; Highlight bar on a GrayText track |
 
-Open: charts (rank history bars, score history bars and line) keep brand hues; their values are on the axes and in each bar's UIA name.
+Charts (rank history bars, score history bars and line) keep brand data hues; their values are on the axes and in each bar's UIA name. In contrast themes both charts draw axes, gridlines and bar outlines in WindowText (#195 Song Detail, #204 Rank History, #212 shared graph).
+- **Live contrast switch** (issue #214): `{ThemeResource}` brushes follow a contrast theme switched on while a page is open, but a scoped `<StaticResource x:Key="ButtonBackground" ResourceKey="FST…"/>` alias resolves once and keeps the old theme's brush. For new scoped lightweight styling, merge a theme-dictionary file (`Themes/{NavRow,FirstRun,Danger}ButtonResources.xaml`) instead; other pages' `FSTDanger*` aliases are open in [settings/windows.md](../pages/settings/windows.md#open).
 - **Text size:** controls keep `IsTextScaleFactorEnabled`; at ≥150% the title-bar caption text is dropped so the global search box keeps its width.
 - **Motion and transparency:** system Animation effects off or in-app Reduce Motion → still artwork and no marquee; transparency off or in-app Less Transparency → opaque cards and the overlay pane's acrylic uses its solid fallback.
 - Results per page and open gaps: [testing/windows-accessibility.md](../testing/windows-accessibility.md).

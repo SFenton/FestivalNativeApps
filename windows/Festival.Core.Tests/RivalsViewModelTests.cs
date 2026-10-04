@@ -337,6 +337,26 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public void RivalRow_AnonymousLeaderboardRivalIsNotInteractive()
+    {
+        // Issue #213: production leaderboard-rival lists include a row with an empty account ID and no name.
+        var scope = new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore);
+        var anonymous = RivalRowItem.From(new LeaderboardRivalSummary("", null, 728, 157, 571, 857.2, 13, 4), RivalDirection.Below, scope);
+        Assert.False(anonymous.HasProfile);
+        Assert.Null(anonymous.ProfileRoute);
+        Assert.Equal(RivalRowItem.UnknownName, anonymous.Name);
+        Assert.Equal("rank-13", anonymous.RowKey);
+        Assert.Equal("fst.rivals.row.rank-13", anonymous.AutomationId);
+        Assert.Equal("Unknown Player, rank 13, behind you, 571 songs ahead, 157 songs behind", anonymous.AccessibleName);
+        Assert.Equal("rank-unknown", (anonymous with { LeaderboardRank = null }).RowKey);
+
+        var named = RivalRowItem.From(new LeaderboardRivalSummary("b2", "Beta", 40, 25, 15, 0, 12, 14), RivalDirection.Above, scope);
+        Assert.True(named.HasProfile);
+        Assert.Equal(named.Route, named.ProfileRoute);
+        Assert.Equal("fst.rivals.row.b2", named.AutomationId);
+    }
+
+    [Fact]
     public void RivalSongItem_EnrichesFromCatalogue()
     {
         var comparison = new RivalSongComparison("s1", null, null, "Solo_PeripheralCymbals", "Solo_PeripheralCymbals", "Solo_PeripheralDrums",
@@ -382,9 +402,12 @@ public class RivalsViewModelTests
         Assert.Equal("Lead Rivals", lead.Title);
         Assert.True(lead.HasIcon);
         Assert.Equal(6, lead.Rows.Count);
+        Assert.Equal("", lead.Subtitle);
+        Assert.False(lead.HasSubtitle);
 
         var board = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.Leaderboard(Instrument.Bass, RankingMetric.TotalScore))));
         Assert.Equal("Ranked by Total Score · You are #1", board.Subtitle);
+        Assert.True(board.HasSubtitle);
         Assert.Equal("instrument_bass.png", board.IconFile);
 
         var common = await Loaded(new AllRivalsViewModel(session, new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common))));
@@ -443,7 +466,7 @@ public class RivalsViewModelTests
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
         var closest = detail.Categories[0];
         Assert.Equal("View All 4 Songs", closest.SeeAllText);
-        Assert.Equal("View 1 song", detail.Categories[1].SeeAllText);
+        Assert.Equal("View 1 Song", detail.Categories[1].SeeAllText);
         Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "Fixture Rival Golf", scope), closest.SeeAllRoute);
         Assert.Equal("fst.rival-detail.category.closest_battles", closest.AutomationId);
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);
@@ -626,6 +649,8 @@ public class RivalsViewModelTests
         Assert.Equal("fixture-echo", rivalry.Rows[0].Comparison.SongId);
         rivalry.SortIndex = 42;
         Assert.Equal(RivalrySort.YouLead, rivalry.Sort);
+        rivalry.SortIndex = (int)RivalrySort.Title;
+        Assert.Equal(rivalry.Rows.Select(r => r.Title).Order(StringComparer.CurrentCultureIgnoreCase), rivalry.Rows.Select(r => r.Title));
 
         rivalry.RefreshCommand.Execute(null);
         await Async.Until(() => fake.Count($"/api/player/{Me}/rivals/Solo_Guitar/{Rival}") == 2);

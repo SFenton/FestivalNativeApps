@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fitInside
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
@@ -17,7 +19,14 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -66,9 +75,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.WindowInsetsRulers
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -78,6 +89,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
@@ -139,6 +151,7 @@ import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.LocalShellPosture
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
@@ -206,15 +219,33 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
 
 // region Shell
 
-/** Material icon per section. */
-internal fun FestivalSection.icon(): ImageVector = when (this) {
-    FestivalSection.Songs -> Icons.Outlined.LibraryMusic
-    FestivalSection.Suggestions -> Icons.Outlined.AutoAwesome
-    FestivalSection.Leaderboards -> Icons.Outlined.EmojiEvents
-    FestivalSection.Compete -> Icons.Outlined.SportsEsports
-    FestivalSection.Rivals -> Icons.Outlined.People
-    FestivalSection.Statistics -> Icons.Outlined.BarChart
-    FestivalSection.Settings -> Icons.Outlined.Settings
+/**
+ * Material icon per section: filled while selected, outlined otherwise (M3 navigation bar,
+ * rail and drawer: "Use filled icons for active state, outlined for inactive").
+ *
+ * @param selected Whether this section is the active destination.
+ * @return Icon for the bar, rail or drawer item.
+ */
+internal fun FestivalSection.icon(selected: Boolean = false): ImageVector = if (selected) {
+    when (this) {
+        FestivalSection.Songs -> Icons.Filled.LibraryMusic
+        FestivalSection.Suggestions -> Icons.Filled.AutoAwesome
+        FestivalSection.Leaderboards -> Icons.Filled.EmojiEvents
+        FestivalSection.Compete -> Icons.Filled.SportsEsports
+        FestivalSection.Rivals -> Icons.Filled.People
+        FestivalSection.Statistics -> Icons.Filled.BarChart
+        FestivalSection.Settings -> Icons.Filled.Settings
+    }
+} else {
+    when (this) {
+        FestivalSection.Songs -> Icons.Outlined.LibraryMusic
+        FestivalSection.Suggestions -> Icons.Outlined.AutoAwesome
+        FestivalSection.Leaderboards -> Icons.Outlined.EmojiEvents
+        FestivalSection.Compete -> Icons.Outlined.SportsEsports
+        FestivalSection.Rivals -> Icons.Outlined.People
+        FestivalSection.Statistics -> Icons.Outlined.BarChart
+        FestivalSection.Settings -> Icons.Outlined.Settings
+    }
 }
 
 /**
@@ -444,6 +475,15 @@ private fun FestivalShell(
     var gapBelowContentPx by remember { mutableIntStateOf(0) }
     val imeInsets = WindowInsets.ime
     val contentWidthDp = with(density) { contentWidthPx.toDp().value.toInt() }
+    // The Songs list pane leads the content row: the part of a start-side camera inset it covers.
+    val direction = LocalLayoutDirection.current
+    val cutout = WindowInsets.displayCutout
+    val leadingCutoutPx = if (direction == LayoutDirection.Ltr) {
+        cutout.getLeft(density, direction) - contentLeftPx
+    } else {
+        cutout.getRight(density, direction) - (windowSize.width - contentLeftPx - contentWidthPx)
+    }
+    val leadingCutoutDp = with(density) { leadingCutoutPx.coerceAtLeast(0).toDp().value.toInt() }
     val profileKind = shellViewModel.profileKind(settings)
     val drawer = @Composable { tabTags: Boolean ->
         DrawerContent(
@@ -487,7 +527,7 @@ private fun FestivalShell(
                         navigationDrawerContainerColor = Color.Transparent,
                     ),
                     modifier = when (layout) {
-                        NavigationLayout.PermanentDrawer -> Modifier.width(PERMANENT_DRAWER_WIDTH_DP.dp).testTag("fst.nav.permanent-drawer")
+                        NavigationLayout.PermanentDrawer -> Modifier.width(AdaptiveLayoutPolicy.permanentDrawerWidth(density.fontScale).dp).testTag("fst.nav.permanent-drawer")
                         else -> Modifier.testTag("fst.nav.bar")
                     },
                 ) {
@@ -501,7 +541,7 @@ private fun FestivalShell(
                             NavigationSuiteItem(
                                 selected = section == selected,
                                 onClick = { navController.selectSection(section, selected) },
-                                icon = { Icon(section.icon(), contentDescription = if (iconOnly) section.title else null) },
+                                icon = { Icon(section.icon(section == selected), contentDescription = if (iconOnly) section.title else null) },
                                 label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
                                 navigationSuiteType = navigationType,
                                 modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
@@ -513,7 +553,7 @@ private fun FestivalShell(
         }
     }
     val content = @Composable {
-        CompositionLocalProvider(LocalShellActions provides actions, LocalPageFind provides pageFind) {
+        CompositionLocalProvider(LocalShellActions provides actions, LocalPageFind provides pageFind, LocalShellPosture provides posture) {
             NavigationSuiteScaffoldLayout(navigationSuite = navigationSuite, navigationSuiteType = navigationType) {
                 Box(
                     Modifier
@@ -535,51 +575,71 @@ private fun FestivalShell(
                         listPaneWidth = AdaptiveLayoutPolicy.listPaneWidth(
                             contentWidthDp,
                             verticalHinge?.let { with(density) { (it.bounds.left - contentLeftPx).toDp().value.toInt() } },
+                            leadingInsetDp = leadingCutoutDp,
                         ),
                     )
                     if (usesFloatingToolbar) {
-                        // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
-                        // the web's mobile FAB dock sits; one shared toolbar per screen. The start
-                        // margin bounds a toolbar that fills the width (Songs search, issue #84),
-                        // and a toolbar holding a focused field rides above the keyboard (read in
-                        // the layout phase, so the keyboard animation never recomposes the shell).
-                        FloatingToolbar(
-                            floatingToolbar,
-                            Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset {
-                                    val lift = if (floatingToolbar.aboveKeyboard) FloatingToolbarLift.liftPx(imeInsets.getBottom(this), gapBelowContentPx) else 0
-                                    IntOffset(0, -lift)
-                                }
-                                .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
-                            scroll = toolbarScroll,
-                        )
+                        // Clipped to the content area: hidden on scroll it slides behind the bottom
+                        // bar's edge instead of ghosting through the translucent bar (issue #102).
+                        // The clip layer has no input or semantics, so touches and TalkBack pass through.
+                        Box(Modifier.matchParentSize().clipToBounds()) {
+                            // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
+                            // the web's mobile FAB dock sits; one shared toolbar per screen. The start
+                            // margin bounds a toolbar that fills the width (Songs search, issue #84),
+                            // and a toolbar holding a focused field rides above the keyboard (read in
+                            // the layout phase, so the keyboard animation never recomposes the shell).
+                            FloatingToolbar(
+                                floatingToolbar,
+                                Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .offset {
+                                        val lift = if (floatingToolbar.aboveKeyboard) FloatingToolbarLift.liftPx(imeInsets.getBottom(this), gapBelowContentPx) else 0
+                                        IntOffset(0, -lift)
+                                    }
+                                    .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
+                                scroll = toolbarScroll,
+                            )
+                        }
                     }
                 }
             }
         }
     }
-    if (layout == NavigationLayout.PermanentDrawer) {
-        content()
-    } else {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            // Edge swipes belong to system back; the drawer opens from the menu button only.
-            gesturesEnabled = drawerState.isOpen,
-            // The drawerState overload adds M3's predictive back handling: system back closes
-            // the open drawer instead of leaving the app. Its corners follow the display corners
-            // (issue #55); without reported corners the shape is Material's default.
-            drawerContent = {
-                ChromeColors {
-                    ModalDrawerSheet(
-                        drawerState = drawerState,
-                        drawerShape = rememberConcentricDrawerShape(),
-                        drawerContainerColor = BrandTokens.cardBackground,
-                    ) { drawer(false) }
-                }
-            },
-        ) { content() }
+    // One parent at every width: hosting the pages bare beside a permanent drawer but inside the
+    // modal drawer otherwise rebuilt the NavHost whenever the window crossed the expanded width
+    // (tablet rotation, unfolding, resizing) and reset page state: list scroll, an open license or
+    // Filter sheet, picked filters (issues #106, #122, #126). The permanent layout keeps the modal
+    // sheet closed and empty, so its anchors (sheet width) and system-back order stay those of the
+    // modal layouts. Moving the pages with movableContentOf instead let the moved NavHost's back
+    // callback outrank the drawer's (Back popped the page under an open drawer).
+    val permanent = layout == NavigationLayout.PermanentDrawer
+    // Material re-targets the drawer to the anchor nearest its old pixel offset when the sheet's
+    // width changes, so a closed drawer reopened after a display-size (density) change such as
+    // desktop → phone. Re-close it once the new anchors are laid out.
+    val keepDrawerClosed = remember(permanent, density.density) { permanent || drawerState.isClosed }
+    LaunchedEffect(permanent, density.density) {
+        if (keepDrawerClosed) {
+            withFrameNanos {}
+            drawerState.snapTo(DrawerValue.Closed)
+        }
     }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        // Edge swipes belong to system back; the drawer opens from the menu button only.
+        gesturesEnabled = drawerState.isOpen && !permanent,
+        // The drawerState overload adds M3's predictive back handling: system back closes
+        // the open drawer instead of leaving the app. Its corners follow the display corners
+        // (issue #55); without reported corners the shape is Material's default.
+        drawerContent = {
+            ChromeColors {
+                ModalDrawerSheet(
+                    drawerState = drawerState,
+                    drawerShape = rememberConcentricDrawerShape(),
+                    drawerContainerColor = BrandTokens.cardBackground,
+                ) { if (!permanent) drawer(false) }
+            }
+        },
+    ) { content() }
     GlobalSearchHost(
         viewModel = searchViewModel,
         searchState = searchState,
@@ -627,9 +687,6 @@ private fun FestivalShell(
         compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
     )
 }
-
-/** Permanent drawer width on large windows. */
-private const val PERMANENT_DRAWER_WIDTH_DP = 280
 
 /**
  * Navigation chrome (bar, rail, drawers) with white text and icons: Material's unselected
@@ -688,7 +745,10 @@ private fun FestivalNavHost(
                 }
                 if (split != null) {
                     VerticalDivider(color = BrandTokens.glassBorder)
-                    Box(Modifier.weight(1f).fillMaxHeight().testTag("fst.songs.detail-pane"), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().fitInside(WindowInsetsRulers.DisplayCutout.current).testTag("fst.songs.detail-pane"),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         val id = split.detailId
                         when {
                             id != null -> SongDetailRouteScreen(container, shellViewModel, settings, id, embedded = true)

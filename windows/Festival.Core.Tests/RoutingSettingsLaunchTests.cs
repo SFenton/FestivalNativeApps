@@ -252,8 +252,35 @@ public class LaunchAndBackgroundTests
         Assert.True(options.FrameStats);
         Assert.Equal(30, options.DriftFps);
         Assert.Null(LaunchOptions.Parse(["--drift-fps", "999"], Env()).DriftFps);
+        Assert.Null(options.AutoScrollSpeed);
+        Assert.Null(options.AutoScrollSpan);
         Assert.Equal("C:/x.log", options.PerfLogPath);
         Assert.Single(options.Warnings);
+    }
+
+    [Fact]
+    public void Launch_ControlLab_AcceptsKnownLabsOnly()
+    {
+        Assert.Equal("instrument-selector", LaunchOptions.Parse(["--control-lab", "Instrument-Selector"], Env()).ControlLab);
+        Assert.Equal("instrument-selector", LaunchOptions.Parse([], Env(("FST_DEBUG_CONTROL_LAB", "instrument-selector"))).ControlLab);
+        Assert.Null(LaunchOptions.Parse([], Env()).ControlLab);
+        var unknown = LaunchOptions.Parse(["--control-lab=nope"], Env());
+        Assert.Null(unknown.ControlLab);
+        Assert.Contains(unknown.Warnings, w => w.Contains("nope"));
+    }
+
+    [Fact]
+    public void Launch_AutoScrollSpeedImpliesAutoScrollAndIsBounded()
+    {
+        var slow = LaunchOptions.Parse(["--auto-scroll-speed", "40", "--auto-scroll-span=1200"], Env());
+        Assert.True(slow.AutoScroll);
+        Assert.Equal(40, slow.AutoScrollSpeed);
+        Assert.Equal(1200, slow.AutoScrollSpan);
+        var bad = LaunchOptions.Parse(["--auto-scroll-speed", "0", "--auto-scroll-span", "-5"], Env());
+        Assert.False(bad.AutoScroll);
+        Assert.Null(bad.AutoScrollSpeed);
+        Assert.Null(bad.AutoScrollSpan);
+        Assert.Null(LaunchOptions.Parse(["--auto-scroll-speed", "2001"], Env()).AutoScrollSpeed);
     }
 
     [Fact]

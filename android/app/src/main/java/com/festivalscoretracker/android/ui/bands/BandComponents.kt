@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -30,6 +31,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick as onClickAction
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +44,7 @@ import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
@@ -74,6 +78,31 @@ internal fun rememberBandHinge(contentLeftPx: Float, contentWidth: Dp): BandLayo
         }
     }
     return BandLayout.central(hinges, contentWidth.value)
+}
+
+/**
+ * A separating horizontal fold (tabletop posture) in content coordinates. [BandLayout.Hinge]'s
+ * `left`/`right` hold the fold's top and bottom here.
+ *
+ * @param contentTopPx Content box's top edge in the window (px).
+ * @param contentHeight Content height.
+ * @return Hinge, or null when there is none or it leaves less than 200 dp above or below.
+ */
+@Composable
+internal fun rememberBandTabletopHinge(contentTopPx: Float, contentHeight: Dp): BandLayout.Hinge? {
+    val density = LocalDensity.current
+    val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList.filter { !it.isVertical && it.isSeparating }.mapNotNull { hinge ->
+        with(density) {
+            BandLayout.hingeInContent(
+                hinge.bounds.top.toDp().value,
+                hinge.bounds.bottom.toDp().value,
+                contentTopPx.toDp().value,
+                contentHeight.value,
+                separating = true,
+            )
+        }
+    }
+    return BandLayout.central(hinges, contentHeight.value)
 }
 
 /**
@@ -111,15 +140,24 @@ internal fun BandReadableWidth(modifier: Modifier = Modifier, content: @Composab
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun BandMemberChips(members: List<BandMember>, modifier: Modifier = Modifier, iconSize: Dp = 20.dp) {
+    val largeText = isLargeText()
     FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         BandMember.distinct(members).forEach { member ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                member.chartedInstruments.forEach { InstrumentIcon(it, size = iconSize, decorative = true) }
-                FestivalMarqueeText(
-                    member.resolvedName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BrandTokens.textPrimary,
-                )
+            val icons: @Composable () -> Unit = { member.chartedInstruments.forEach { InstrumentIcon(it, size = iconSize, decorative = true) } }
+            val name: @Composable () -> Unit = {
+                FestivalMarqueeText(member.resolvedName, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
+            }
+            if (largeText) {
+                // 200% text in a narrow card: the name moves under its icons rather than breaking mid-word.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    icons()
+                    name()
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    icons()
+                    name()
+                }
             }
         }
     }
@@ -141,29 +179,51 @@ internal fun memberAnnouncement(member: BandMember): String {
 // region Band card
 
 /**
- * A player-band card: members with icons, band-size pill and appearances; the
- * whole card opens Band Detail (no chevron, per the glass-card rule).
+ * TalkBack announcement of a player-band card: `Members, Size, N appearances`.
+ *
+ * @param entry Wire row.
+ * @return Announcement.
+ */
+internal fun playerBandAnnouncement(entry: PlayerBandEntry): String {
+    val size = BandType.fromWireId(entry.bandType)?.label ?: "Band"
+    return "${entry.membersLabel}, $size, ${BandFormatting.appearances(entry.appearanceCount)}"
+}
+
+/**
+ * A player-band card: members with icons, band-size pill, appearances and the
+ * operator's trailing chevron (batch 7.3); the whole card is one "Open band" button.
  *
  * @param entry Wire row.
  * @param onClick Open action.
  * @param modifier Modifier.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PlayerBandCard(entry: PlayerBandEntry, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val size = BandType.fromWireId(entry.bandType)?.label ?: "Band"
     val appearances = BandFormatting.appearances(entry.appearanceCount)
+    val announcement = playerBandAnnouncement(entry)
     GlassCard(
         modifier
             .fillMaxWidth()
             .testTag("fst.player-bands.row.${entry.key}")
-            .semantics(mergeDescendants = true) { contentDescription = "View band ${entry.membersLabel}, $size, $appearances" },
+            .semantics(mergeDescendants = true) {
+                contentDescription = announcement
+                role = Role.Button
+                onClickAction(label = "Open band") { onClick(); true }
+            },
         onClick = onClick,
     ) {
         // The card's description is the announcement; the chips and texts would repeat it.
         Row(Modifier.padding(14.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 BandMemberChips(entry.members)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Large text wraps the appearances under the pill instead of splitting "142 / appearances".
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
                     Pill(size)
                     Text(appearances, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
                 }
@@ -195,9 +255,14 @@ internal fun Pill(text: String, modifier: Modifier = Modifier) {
 
 // region Selectors
 
+/** Segment padding at large text: 4 dp sides (default 12 dp), 48 dp height kept by the button. */
+internal val LARGE_TEXT_SEGMENT_PADDING = PaddingValues(horizontal = 4.dp)
+
 /**
  * Material 3 single-choice segmented control (fixed short option sets: band
- * sizes, player-band groups, rank-by metrics).
+ * sizes, player-band groups, rank-by metrics). With large text the selected checkmark
+ * and most of the side padding give way to the label, so four short labels still fit a
+ * phone at 200% (selection stays visible as the filled secondary container).
  *
  * @param T Option type.
  * @param options Options in order.
@@ -216,13 +281,17 @@ internal fun <T> BandSegmentedControl(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val largeText = isLargeText()
     SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
         options.forEachIndexed { index, option ->
+            val isSelected = option == selected
             SegmentedButton(
-                selected = option == selected,
+                selected = isSelected,
                 onClick = { onSelect(option) },
                 shape = SegmentedButtonDefaults.itemShape(index, options.size),
                 modifier = Modifier.heightIn(min = 48.dp).testTag(tag(option)),
+                contentPadding = if (largeText) LARGE_TEXT_SEGMENT_PADDING else SegmentedButtonDefaults.ContentPadding,
+                icon = { if (!largeText) SegmentedButtonDefaults.Icon(isSelected) },
                 label = { Text(label(option), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             )
         }
