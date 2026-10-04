@@ -105,7 +105,8 @@ STEP_VERBS = {
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
-    "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertstatus": "status", "assertstate": "state",
+    "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
+    "assertstatus": "status", "assertstate": "state",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
@@ -186,7 +187,9 @@ def parse_step(step: str) -> dict:
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text;
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
-    and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line).
+    and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
+    ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
+    edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer.
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
@@ -228,6 +231,15 @@ def parse_step(step: str) -> dict:
         result["selector"], result["other"] = parse_selector(first), parse_selector(second)
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
+    elif shape == "gap":
+        first, sep, rest = arg.partition("|")
+        second, sep2, epx = rest.rpartition("|")
+        if not sep or not sep2 or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>|<epx>")
+        result["selector"], result["other"] = parse_selector(first), parse_selector(second)
+        if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
+        result["epx"] = float(epx)
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")

@@ -25,6 +25,51 @@
     ]
   },
   {
+    "name": "song-board-end-gap-anonymous",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "compact",
+    "extra": {"FST_DEBUG_ANONYMOUS": "1"},
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@5",
+      "scrollto:id=fst.song-leaderboard.list,100",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-25@10",
+      "wait:1.5",
+      "assertgap:id=fst.song-leaderboard.row.fixture-player-25|id=fst.song-leaderboard.page-first|4",
+      "shot:{shots}/song-board-end-gap-anonymous.png"
+    ]
+  },
+  {
+    "name": "song-board-end-gap-no-score",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "compact",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-empty:Empty Player"},
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@5",
+      "scrollto:id=fst.song-leaderboard.list,100",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-25@10",
+      "wait:1.5",
+      "assertgap:id=fst.song-leaderboard.row.fixture-player-25|id=fst.song-leaderboard.page-first|4",
+      "shot:{shots}/song-board-end-gap-no-score.png"
+    ]
+  },
+  {
+    "name": "song-board-end-gap-player",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "compact",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"},
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "scrollto:id=fst.song-leaderboard.list,100",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-25@10",
+      "wait:1.5",
+      "assertgap:id=fst.song-leaderboard.row.fixture-player-25|id=fst.song-leaderboard.spotlight-footer|4",
+      "shot:{shots}/song-board-end-gap-player.png"
+    ]
+  },
+  {
     "name": "rankings-rows-open-profile",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "preset": "compact",
