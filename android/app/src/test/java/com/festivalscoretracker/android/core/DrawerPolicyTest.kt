@@ -53,3 +53,27 @@ class ProfileRoutePolicyTest {
         assertFalse(policy.redirectsToSongs(com.festivalscoretracker.android.core.nav.PlayerRoute::class, hasProfile = false))
     }
 }
+
+/** Issue #290 (web `getProfileClickDestination`): the profile chip opens the selected profile's page. */
+class ProfileChipPolicyTest {
+    @Test
+    fun withoutAProfileTheChipChoosesOne() {
+        val policy = com.festivalscoretracker.android.core.shell.ProfileChipPolicy
+        val choose = com.festivalscoretracker.android.core.shell.ProfileChipAction.ChooseProfile
+        assertEquals(choose, policy.action(ProfileKind.None, FestivalTabPolicy.sections(ProfileKind.None, regularWidth = false)))
+        assertEquals(choose, policy.action(ProfileKind.None, FestivalTabPolicy.sections(ProfileKind.None, regularWidth = true)))
+    }
+
+    @Test
+    fun aSelectedPlayerOrBandOpensStatistics() {
+        val policy = com.festivalscoretracker.android.core.shell.ProfileChipPolicy
+        fun open(target: DrawerTarget) = com.festivalscoretracker.android.core.shell.ProfileChipAction.Open(target)
+        val statisticsTab = open(DrawerTarget.Section(FestivalSection.Statistics))
+        listOf(false, true).forEach { regular ->
+            assertEquals(statisticsTab, policy.action(ProfileKind.Player, FestivalTabPolicy.sections(ProfileKind.Player, regular)))
+            assertEquals(statisticsTab, policy.action(ProfileKind.Band, FestivalTabPolicy.sections(ProfileKind.Band, regular)))
+        }
+        // Statistics is pushed where it is not a visible tab.
+        assertEquals(open(DrawerTarget.Push(StatisticsRoute)), policy.action(ProfileKind.Player, listOf(FestivalSection.Songs, FestivalSection.Settings)))
+    }
+}
