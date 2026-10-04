@@ -51,6 +51,65 @@ public static class FadeIn
     }
     #endregion
 
+    #region OnHide
+    /// <summary>
+    /// Fade the element out when it collapses (a composition implicit hide animation), while motion is on; the pair to
+    /// <c>OnShow</c> for controls that must never disappear abruptly (Songs Jump, issue #231).
+    /// </summary>
+    public static readonly DependencyProperty OnHideProperty = DependencyProperty.RegisterAttached(
+        "OnHide", typeof(bool), typeof(FadeIn), new PropertyMetadata(false, OnHideChanged));
+
+    /// <summary>Gets <c>OnHide</c>.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>Whether enabled.</returns>
+    public static bool GetOnHide(UIElement element) => (bool)element.GetValue(OnHideProperty);
+
+    /// <summary>Sets <c>OnHide</c>.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="value">Whether enabled.</param>
+    public static void SetOnHide(UIElement element, bool value) => element.SetValue(OnHideProperty, value);
+
+    /// <summary>Re-arms the hide animation on load, on each show and whenever the motion switch may have changed.</summary>
+    /// <param name="d">Element.</param>
+    /// <param name="e">New value.</param>
+    private static void OnHideChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not FrameworkElement element || e.NewValue is not true) return;
+        void Refresh(object? sender, EventArgs args) => ArmHide(element);
+        element.Loaded += (_, _) =>
+        {
+            ArmHide(element);
+            Motion.Changed -= Refresh;
+            Motion.Changed += Refresh;
+        };
+        element.Unloaded += (_, _) => Motion.Changed -= Refresh;
+        element.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) =>
+        {
+            if (element.Visibility != Visibility.Visible) return;
+            // A finished hide fade leaves the visual transparent; OnShow's fade (if any) animates over this.
+            ElementCompositionPreview.GetElementVisual(element).Opacity = 1;
+            ArmHide(element);
+        });
+    }
+
+    /// <summary>Sets the implicit hide fade while motion is allowed, and clears it otherwise.</summary>
+    /// <param name="element">Element.</param>
+    private static void ArmHide(UIElement element)
+    {
+        if (!Motion.Allowed)
+        {
+            ElementCompositionPreview.SetImplicitHideAnimation(element, null);
+            return;
+        }
+        var compositor = ElementCompositionPreview.GetElementVisual(element).Compositor;
+        var fade = compositor.CreateScalarKeyFrameAnimation();
+        fade.Target = Opacity;
+        fade.InsertKeyFrame(1f, 0f);
+        fade.Duration = FadeInTiming.HideDuration;
+        ElementCompositionPreview.SetImplicitHideAnimation(element, fade);
+    }
+    #endregion
+
     #region Stagger
     /// <summary>Stagger rows in after the list's items change.</summary>
     public static readonly DependencyProperty StaggerProperty = DependencyProperty.RegisterAttached(
