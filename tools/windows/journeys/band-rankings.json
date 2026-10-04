@@ -1,0 +1,113 @@
+[
+  {
+    "name": "band-rankings-pager-keyboard",
+    "route": "/leaderboards/bands/Band_Duets",
+    "preset": "medium",
+    "fixture": ["--large-rankings"],
+    "steps": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
+      "waitfor:id=fst.band-rankings.page-info@10",
+      "focus:id=fst.band-rankings.page-next",
+      "key:right",
+      "waitfor:id=fst.band-rankings.row.fixture-team-26@10",
+      "waitfor:name=Page 2 of 24@5",
+      "key:left",
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@10",
+      "key:end",
+      "waitfor:id=fst.band-rankings.row.fixture-team-576@10",
+      "waitfor:name=Page 24 of 24@5",
+      "shot:{shots}/band-rankings-last-page.png",
+      "key:home",
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@10",
+      "key:ctrl+right",
+      "waitfor:id=fst.band-rankings.row.fixture-team-26@10",
+      "key:ctrl+left",
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@10"
+    ]
+  },
+  {
+    "name": "band-rankings-menus-keyboard",
+    "route": "/leaderboards/bands/Band_Duets",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
+      "focus:id=fst.band-rankings.band-type-menu",
+      "key:enter",
+      "waitfor:id=fst.band-rankings.band-type.Band_Trios@5",
+      "key:escape",
+      "assertfocus:id=fst.band-rankings.band-type-menu@3",
+      "key:enter",
+      "waitfor:id=fst.band-rankings.band-type.Band_Trios@5",
+      "key:down",
+      "key:enter",
+      "waitfor:name=Trios Rankings@15",
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@15",
+      "focus:id=fst.band-rankings.rank-by-menu",
+      "key:enter",
+      "waitfor:id=fst.band-rankings.rank-by.fcrate@5",
+      "key:escape",
+      "assertfocus:id=fst.band-rankings.rank-by-menu@3",
+      "invoke:id=fst.band-rankings.rank-by-menu",
+      "waitfor:id=fst.band-rankings.rank-by.fcrate@5",
+      "wait:0.5",
+      "toggle:id=fst.band-rankings.rank-by.fcrate",
+      "waitfor:name=Rank by: FC Rate@15",
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@15",
+      "shot:{shots}/band-rankings-trios-fcrate.png",
+      "invoke:id=fst.band-rankings.rank-by-menu",
+      "waitfor:id=fst.band-rankings.rank-by.totalscore@5",
+      "wait:0.5",
+      "toggle:id=fst.band-rankings.rank-by.totalscore",
+      "waitfor:name=Rank by: Total Score@15",
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@15"
+    ]
+  },
+  {
+    "name": "band-rankings-row-opens-band-medium",
+    "route": "/leaderboards/bands/Band_Duets",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
+      "focus:id=fst.band-rankings.row.fixture-team-1",
+      "key:enter",
+      "waitfor:id=fst.band.title@15",
+      "key:alt+left",
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@15"
+    ]
+  },
+  {
+    "name": "band-rankings-anonymous-row-inert",
+    "route": "/leaderboards/bands/Band_Trios",
+    "preset": "medium",
+    "fixture": ["--band-rankings", "anonymous"],
+    "steps": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
+      "waitfor:name=Rank #2, Unknown User, Unknown User. Total Score 49,000,000, 28 / 50 songs@5",
+      "shot:{shots}/band-rankings-anonymous.png"
+    ]
+  },
+  {
+    "name": "band-rankings-empty",
+    "route": "/leaderboards/bands/Band_Quad",
+    "preset": "compact",
+    "fixture": ["--band-rankings", "empty"],
+    "steps": [
+      "waitfor:id=fst.band-rankings.empty@20",
+      "waitfor:name=No ranked quads yet.@5",
+      "waitfor:name=0 ranked bands@5",
+      "waitgone:id=fst.band-rankings.page-info@3"
+    ]
+  },
+  {
+    "name": "band-rankings-error-retry",
+    "route": "/leaderboards/bands/Band_Duets",
+    "preset": "medium",
+    "fixture": ["--band-rankings", "unavailable"],
+    "steps": [
+      "waitfor:id=fst.service-status.retry@20",
+      "invoke:id=fst.service-status.retry",
+      "waitfor:id=fst.service-status.retry@20",
+      "waitgone:id=fst.band-rankings.list@3"
+    ]
+  }
+]

@@ -395,7 +395,7 @@ struct PageToolsAccessoryHost: ViewModifier {
 struct PageToolsAccessoryBar: View {
     let registry: PageToolsRegistry
     @Environment(\.festivalSession) private var session
-    @Environment(\.openProfile) private var openProfile
+    @Environment(\.profileButtonAction) private var profileButtonAction
     @Environment(\.openNotifications) private var openNotifications
     @Environment(\.pushRoute) private var pushRoute
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
@@ -428,7 +428,7 @@ struct PageToolsAccessoryBar: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityShowsLargeContentViewer()
                 }
-                RootProfileButton(session: session) { openProfile() }
+                RootProfileButton(session: session) { profileButtonAction() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

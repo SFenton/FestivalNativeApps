@@ -4,37 +4,50 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:Festival.Core.ViewModels"
     xmlns:controls="using:Festival.App.Controls">
-    <!-- Wide (≥1440 epx) persistent jump pane: a labelled navigation landmark; the current section is selected. -->
+    <!-- Wide (≥1440 epx) persistent jump pane: a labelled navigation landmark; the current section is selected.
+         A Grid (not a StackPanel) bounds the ListView's height so its own ScrollViewer scrolls in a short window.
+         Selection marks the current section, so arrow keys move focus only; Enter/Space/click jump (ItemClick). -->
     <Border Style="{StaticResource FSTCardStyle}" Padding="8,12" VerticalAlignment="Top"
             AutomationProperties.LandmarkType="Navigation"
             AutomationProperties.Name="{x:Bind Model.Title, Mode=OneWay}"
             AutomationProperties.AutomationId="fst.quick-links.pane">
-        <StackPanel Spacing="4">
+        <Grid RowSpacing="4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
             <TextBlock Text="{x:Bind Model.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="8,0,8,4"
                        AutomationProperties.HeadingLevel="Level2" />
-            <ListView x:Name="List" ItemsSource="{x:Bind Model.Items, Mode=OneWay}" SelectionMode="Single"
+            <ListView x:Name="List" Grid.Row="1" ItemsSource="{x:Bind Model.Items, Mode=OneWay}" SelectionMode="Single"
+                      SingleSelectionFollowsFocus="False"
                       IsItemClickEnabled="True" ItemClick="OnItemClick" SelectedItem="{x:Bind Model.ActiveItem, Mode=OneWay}"
                       AutomationProperties.Name="{x:Bind Model.Title, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.quick-links.list">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
-                        <Setter Property="MinHeight" Value="36" />
-                        <Setter Property="Padding" Value="8,0" />
+                        <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
+                        <Setter Property="Padding" Value="8,4" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
+                    <!-- A Grid (not a horizontal StackPanel) gives the title a finite width so long names wrap at large text sizes. -->
                     <DataTemplate x:DataType="vm:QuickLinkItemViewModel">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Grid Width="16" Height="16">
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="16" Height="16" VerticalAlignment="Center">
                                 <FontIcon Glyph="{x:Bind Glyph}" FontSize="14" AutomationProperties.AccessibilityView="Raw" />
                                 <Image Source="{x:Bind controls:QuickLinksPane.Icon(IconFile)}" Visibility="{x:Bind HasIcon}"
                                        AutomationProperties.AccessibilityView="Raw" />
                             </Grid>
-                            <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
+                            <TextBlock Grid.Column="1" Text="{x:Bind Title}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
-        </StackPanel>
+        </Grid>
     </Border>
 </UserControl>

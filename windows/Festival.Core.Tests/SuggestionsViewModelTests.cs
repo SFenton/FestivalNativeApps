@@ -89,7 +89,7 @@ public sealed class SuggestionsViewModelTests
             Session = Service.Session(settings: selected ? new AppSettings { SelectedPlayer = new SelectedPlayer(Account, "Player") } : null);
         }
 
-        public SuggestionsViewModel Model(uint seed = 1) => new(Session, Store, () => seed);
+        public SuggestionsViewModel Model(uint seed = 1, int? categoryLimit = null) => new(Session, Store, () => seed, categoryLimit);
     }
     #endregion
 
@@ -365,6 +365,29 @@ public sealed class SuggestionsViewModelTests
         model.StartNewMixCommand.Execute(null);
         Assert.False(model.ReachedLimit);
         Assert.Equal(SuggestionsViewModel.InitialBatch, model.Cards.Count);
+    }
+
+    [Theory]
+    [InlineData(12, 12)]
+    [InlineData(0, SuggestionsViewModel.CategoryLimit)]
+    [InlineData(-3, SuggestionsViewModel.CategoryLimit)]
+    [InlineData(5_000, SuggestionsViewModel.CategoryLimit)]
+    public async Task CategoryLimitOverrideOnlyLowersTheCap(int requested, int expected)
+    {
+        var harness = new Harness { ProfileBody = ProfileJson(limit: 0) };
+        var fixture = SuggestionParityTests.LoadFixture();
+        var songs = JsonSerializer.Serialize(fixture.Songs.Take(6), new JsonSerializerOptions(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });
+        harness.Service.SongsBody = $$"""{"count":6,"currentSeason":12,"songs":{{songs}}}""";
+        harness.RivalsStatus = HttpStatusCode.NotFound;
+        var model = harness.Model(categoryLimit: requested);
+        await model.LoadAsync();
+        await Async.Settle();
+        for (var i = 0; i < 400 && model.HasMore; i++) model.LoadMore();
+        Assert.True(model.ReachedLimit);
+        Assert.Equal(expected, model.Generated.Count);
+        model.StartNewMixCommand.Execute(null);
+        Assert.False(model.ReachedLimit);
+        Assert.Equal(Math.Min(expected, SuggestionsViewModel.InitialBatch), model.Cards.Count);
     }
 
     [Fact]

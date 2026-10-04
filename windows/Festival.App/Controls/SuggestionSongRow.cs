@@ -144,7 +144,9 @@ public sealed partial class SuggestionSongRow : Button
         switch (p.Layout)
         {
             case SuggestionRowLayout.Rival:
-                if (p.RivalName is { } rival) metadata.Children.Add(Pill(rival, RivalFill, null, RivalText));
+                // Contrast theme: the rival name is a plain pill (ButtonFace / ButtonText with an outline), not brand blue.
+                if (p.RivalName is { } rival)
+                    metadata.Children.Add(Services.ContrastTheme.IsOn ? NeutralPill(rival) : Pill(rival, RivalFill, null, RivalText));
                 if (p.RivalDeltaText is { } delta)
                     metadata.Children.Add(new TextBlock
                     {
@@ -155,7 +157,7 @@ public sealed partial class SuggestionSongRow : Button
             case SuggestionRowLayout.UnfcAccuracy when p.AccuracyExpanded is { } accuracy:
                 var (r, g, b) = ScoreFormatting.AccuracyTint(accuracy);
                 metadata.Children.Add(Services.ContrastTheme.IsOn
-                    ? Pill(p.AccuracyText!, Role("FSTNeutralPillFillBrush"), Role("FSTNeutralPillStrokeBrush"), Role("FSTNeutralPillTextBrush"))
+                    ? NeutralPill(p.AccuracyText!)
                     : Pill(p.AccuracyText!, new SolidColorBrush(Color.FromArgb(0x40, r, g, b)), null, null));
                 break;
             case SuggestionRowLayout.Season when p.SeasonText is { } season:
@@ -167,6 +169,7 @@ public sealed partial class SuggestionSongRow : Button
                     PercentileTier.Top1 when Services.ContrastTheme.IsOn => Pill(percentile, Role("FSTTopOneFillBrush"), null, Role("FSTTopOneTextBrush"), italic: true),
                     PercentileTier.Top1 => Pill(percentile, GoldBackground, GoldStroke, Gold, italic: true),
                     PercentileTier.Top5 => Pill(percentile, null, Role("FSTEmphasisStrokeBrush"), Role("FSTEmphasisBrush")),
+                    _ when Services.ContrastTheme.IsOn => NeutralPill(percentile),
                     _ => Pill(percentile, SubtleFill, null, null),
                 });
                 break;
@@ -201,6 +204,12 @@ public sealed partial class SuggestionSongRow : Button
     /// <param name="key">Resource key.</param>
     /// <returns>Brush.</returns>
     private static Brush Role(string key) => Services.ContrastTheme.Brush(key);
+
+    /// <summary>A plain pill in the contrast-theme role (ButtonFace fill, ButtonText text and outline; design/windows.md).</summary>
+    /// <param name="text">Text.</param>
+    /// <returns>Pill.</returns>
+    private static Border NeutralPill(string text) =>
+        Pill(text, Role("FSTNeutralPillFillBrush"), Role("FSTNeutralPillStrokeBrush"), Role("FSTNeutralPillTextBrush"));
 
     /// <summary>A rounded metadata pill.</summary>
     /// <param name="text">Text.</param>

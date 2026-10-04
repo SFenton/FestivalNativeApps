@@ -109,8 +109,10 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         assertNearMissesOpen(app, "fst.shell.notifications", opens: app.buttons["fst.notifications.close"]) {
             app.buttons["fst.notifications.close"].tap()
         }
-        assertNearMissesOpen(app, "fst.shell.profile", opens: app.buttons["fst.profile.close"]) {
-            app.buttons["fst.profile.close"].tap()
+        // With a player selected the avatar opens their Statistics page (issue #290).
+        assertNearMissesOpen(app, "fst.shell.profile", opens: SongsUITestSupport.playerPage(in: app)) {
+            let back = app.navigationBars.buttons["BackButton"]
+            (back.exists ? back : app.navigationBars.buttons.element(boundBy: 0)).tap()
         }
     }
 

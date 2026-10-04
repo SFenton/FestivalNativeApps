@@ -126,6 +126,14 @@ class ProfileUiTest {
         assertEquals(0, rule.onAllNodesWithText("Deselect Profile").fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
 
+        // Issue #290: back on Songs, the chip opens the selected profile, not the search sheet.
+        tap("fst.nav.tab.songs")
+        waitGone("fst.statistics")
+        tap("fst.nav.profile")
+        waitForTag("fst.statistics")
+        assertEquals(0, rule.onAllNodesWithTag("fst.profile.sheet").fetchSemanticsNodes().size)
+        assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
+
         // Deselecting (from the drawer) removes the Statistics tab.
         runBlocking { container.settings.setSelectedPlayer(null) }
         waitGone("fst.nav.tab.statistics")
@@ -150,7 +158,15 @@ class ProfileUiTest {
 
         rule.onNodeWithTag("fst.nav.back").performClick()
         settle()
+        // Issue #290: with a profile selected the chip opens it rather than the sheet.
         tap("fst.nav.profile")
+        waitForTag("fst.statistics")
+        assertEquals(0, rule.onAllNodesWithTag("fst.profile.sheet").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun selectedSheetBandsScopeExplainsAndDeselects() {
+        launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), opensProfileSheet = true, stillBackground = true))
         waitForTag("fst.profile.selected")
         tap("fst.profile.scope.bands")
         waitForTag("fst.profile.bands-unavailable")
@@ -158,6 +174,12 @@ class ProfileUiTest {
         tap("fst.profile.deselect")
         tap("fst.profile.deselect-confirm.ok")
         waitGone("fst.nav.tab.statistics")
+        // Without a profile the chip opens profile search again.
+        tap("fst.profile.close")
+        waitGone("fst.profile.sheet")
+        tap("fst.nav.profile")
+        waitForTag("fst.profile.sheet")
+        assertEquals(0, rule.onAllNodesWithTag("fst.statistics").fetchSemanticsNodes().size)
     }
 
     @Test
@@ -226,5 +248,45 @@ class ProfileExpandedUiTest {
         // Unranked keeps the rank tile (an em dash) so the grid keeps its shape.
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.tile.Solo_Bass.global-rank"))
         rule.onNodeWithTag("fst.player.tile.Solo_Bass.global-rank").assertContentDescriptionEquals("Total Score Rank: —")
+    }
+}
+
+/** Issue #290 on the navigation rail: its Profile item opens the selected profile (Statistics). */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w884dp-h1104dp-xhdpi")
+class RailProfileChipUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    private fun settle() = repeat(4) {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
+        rule.waitForIdle()
+    }
+
+    private fun waitFor(tag: String) = rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
+
+    private fun launch(profile: SelectedPlayer?) {
+        val debug = DebugLaunch(stillBackground = true, profile = profile, anonymous = profile == null)
+        val transport = FakeTransport.standard().apply { ProfileFixtures.register(this) }
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+    }
+
+    @Test
+    fun selectedProfileOpensStatistics() {
+        launch(SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
+        waitFor("fst.nav.rail.profile")
+        rule.onNodeWithTag("fst.nav.rail.profile").performSemanticsAction(SemanticsActions.OnClick)
+        waitFor("fst.statistics")
+        assertEquals(0, rule.onAllNodesWithTag("fst.profile.sheet").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun noProfileOpensTheSheet() {
+        launch(null)
+        waitFor("fst.nav.rail.profile")
+        rule.onNodeWithTag("fst.nav.rail.profile").performSemanticsAction(SemanticsActions.OnClick)
+        waitFor("fst.profile.sheet")
+        assertEquals(0, rule.onAllNodesWithTag("fst.statistics").fetchSemanticsNodes().size)
     }
 }

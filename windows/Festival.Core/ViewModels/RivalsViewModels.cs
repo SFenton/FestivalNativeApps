@@ -29,7 +29,7 @@ public sealed record RivalRowItem(
     /// <param name="scope">Scope the list was read under.</param>
     /// <returns>Row.</returns>
     public static RivalRowItem From(RivalSummary rival, RivalDirection direction, RivalScope? scope) =>
-        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.BehindCount, rival.AheadCount, null,
+        new(rival.AccountId, DisplayName(rival.AccountId, rival.DisplayName), direction, rival.BehindCount, rival.AheadCount, null,
             new AppRoute.RivalDetail(rival.AccountId, rival.DisplayName, scope));
 
     /// <summary>Row for a leaderboard rival.</summary>
@@ -38,11 +38,14 @@ public sealed record RivalRowItem(
     /// <param name="scope">Leaderboard scope.</param>
     /// <returns>Row.</returns>
     public static RivalRowItem From(LeaderboardRivalSummary rival, RivalDirection direction, RivalScope scope) =>
-        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.BehindCount, rival.AheadCount,
+        new(rival.AccountId, DisplayName(rival.AccountId, rival.DisplayName), direction, rival.BehindCount, rival.AheadCount,
             rival.LeaderboardRank, new AppRoute.RivalDetail(rival.AccountId, rival.DisplayName, scope));
 
     /// <summary>Fallback name (web <c>Unknown Player</c>).</summary>
     public const string UnknownName = "Unknown Player";
+
+    /// <summary>Name of an anonymous production row (Android <c>RivalText.UNKNOWN_USER</c>, Windows rankings).</summary>
+    public const string AnonymousName = "Unknown User";
 
     /// <summary>Whether the player leads this rival overall (green tint).</summary>
     public bool IsWinning => Direction == RivalDirection.Below;
@@ -64,8 +67,9 @@ public sealed record RivalRowItem(
         $"{Name}{(HasRank ? ", rank " + RankText[1..] : "")}, {(IsWinning ? "behind you" : "ahead of you")}, {AheadText}, {BehindText}";
 
     /// <summary>
-    /// Whether the row has a rival to open. Anonymous leaderboard rows (empty account ID, issue #213) are shown but are
-    /// not interactive, like anonymous ranking rows.
+    /// Whether the row has a rival to open. Production serves anonymous rows with an empty account ID (issues #200,
+    /// #213); they show as "Unknown User" without a chevron, click or Invoke, like anonymous ranking rows (Android
+    /// <c>isNavigable</c>).
     /// </summary>
     public bool HasProfile => ProfileText.IsValidAccountId(AccountId);
 
@@ -78,6 +82,13 @@ public sealed record RivalRowItem(
 
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => "fst.rivals.row." + RowKey;
+
+    /// <summary>Row name: anonymous rows read "Unknown User", nameless accounts "Unknown Player".</summary>
+    /// <param name="accountId">Validated account ID (empty when anonymous).</param>
+    /// <param name="displayName">Sanitized display name.</param>
+    /// <returns>Shown name.</returns>
+    private static string DisplayName(string accountId, string? displayName) =>
+        accountId.Length == 0 ? AnonymousName : displayName ?? UnknownName;
 }
 #endregion
 

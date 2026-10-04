@@ -121,6 +121,8 @@ public sealed partial class RankHistoryGraph : Grid
             uiSettings.ColorValuesChanged -= OnSystemChanged;
             uiSettings.TextScaleFactorChanged -= OnSystemChanged;
         };
+        // The section repeater recycles charts across instruments: re-forward when x:Bind changes the ID in place.
+        RegisterPropertyChangedCallback(AutomationProperties.AutomationIdProperty, (_, _) => ForwardAutomationId());
     }
 
     /// <summary>Redraws on the UI thread after a contrast-theme or text-size change.</summary>

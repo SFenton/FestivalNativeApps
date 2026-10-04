@@ -32,7 +32,7 @@ Live public service, SFentonX selected, *Through the Fire and Flames* Lead (rank
 | FST_Phone portrait/landscape, font 1.0/2.0, dark/light | Paging, pinned #27 footer on page 1, in-place highlight on page 2, instrument menu. Font 2.0: rows stack, title wraps, nothing clips. Landscape: header and instrument fill the short viewport, rows scroll under the pager. |
 | FST_Tablet landscape/portrait, font 2.0 | Drawer/rail, stars from 600 dp, footer capped at 720 dp and centred (shared scaffold). |
 | FST_Book_Fold / FST_Passport_Fold folded, half, unfolded | Half: rows in one pane, header, footer and pager in the other; nothing crosses the hinge. Folded/unfolded: single pane. |
-| FST_TriFold folded, partial, unfolded | Folded (narrow) pager drops first/last; names ellipsize; no clipping. |
+| FST_TriFold folded, partial, unfolded | Folded (narrow) pager drops first/last; names ellipsized then (since issue #292 they scroll in their column); no clipping. |
 | FST_Resizable phone, foldable, tablet, desktop | Compact → bottom bar, medium → rail, expanded → drawer; columns follow row width. |
 | Reduced motion (default boot, animator scale 0) | Paging swaps without the fade/stagger. |
 
