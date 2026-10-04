@@ -128,7 +128,7 @@ private fun RailItem(section: FestivalSection, selected: FestivalSection, onSect
     NavigationSuiteItem(
         selected = section == selected,
         onClick = { onSection(section) },
-        icon = { Icon(section.icon(), contentDescription = if (iconOnly) section.title else null) },
+        icon = { Icon(section.icon(section == selected), contentDescription = if (iconOnly) section.title else null) },
         label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
         navigationSuiteType = NavigationSuiteType.WideNavigationRailCollapsed,
         modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),

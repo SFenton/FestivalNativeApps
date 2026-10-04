@@ -388,11 +388,13 @@ struct GlobalSearchField: View {
 
 /// The header Search button (every layout; operator 2026-09-28: search lives in the header).
 struct GlobalSearchButton: View {
+    /// Visible and spoken title ("Search"; the Mac toolbar says "Search Festival").
+    var title = "Search"
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Label("Search", systemImage: "magnifyingglass")
+            Label(title, systemImage: "magnifyingglass")
         }
         .tint(BrandTokens.textPrimary)
         .accessibilityHint("Searches songs, players and bands")

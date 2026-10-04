@@ -32,4 +32,18 @@ public class KeyboardShortcutsTests
         Assert.All(keys, k => Assert.Matches("^[A-Z]$", k));
         Assert.Equal(0xBC, KeyboardShortcuts.CommaKey);
     }
+
+    [Theory]
+    [InlineData(AppSection.Songs, AppSection.Leaderboards, true, false, true)]
+    [InlineData(AppSection.Songs, AppSection.Statistics, true, false, true)]
+    [InlineData(AppSection.Leaderboards, AppSection.Leaderboards, true, false, false)]
+    [InlineData(AppSection.Songs, AppSection.Leaderboards, false, false, false)]
+    [InlineData(AppSection.Songs, AppSection.Leaderboards, true, true, false)]
+    [InlineData(AppSection.Songs, AppSection.Settings, true, false, false)]
+    [InlineData(AppSection.Settings, AppSection.Songs, true, false, false)]
+    public void PaneFocus_RedirectsOnlyEntryFromOutsideWithinTheSameGroup(
+        AppSection target, AppSection selected, bool keyboardOrPaneOpen, bool fromInsidePane, bool expected)
+    {
+        Assert.Equal(expected, PaneFocus.ShouldRedirect(target, selected, keyboardOrPaneOpen, fromInsidePane));
+    }
 }

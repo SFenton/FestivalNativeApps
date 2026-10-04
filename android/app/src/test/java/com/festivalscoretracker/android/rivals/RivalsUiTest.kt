@@ -6,10 +6,12 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -127,8 +129,11 @@ class RivalsUiTest {
         waitForTag("fst.rivals.section.Solo_Guitar")
         scrollTo("fst.rivals.grid", "fst.rivals.see-all.Solo_Guitar")
         rule.onNodeWithTag("fst.rivals.see-all.Solo_Guitar").performSemanticsAction(SemanticsActions.OnClick)
-        waitForTag("fst.all-rivals.title")
-        rule.onNodeWithTag("fst.all-rivals.title").assertTextEquals("Lead Rivals")
+        waitForTag("fst.all-rivals.list")
+        // The top app bar alone names a single-chart list (no repeated heading, no subtitle).
+        rule.onNode(hasText("Lead Rivals") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
+        assertEquals(1, rule.onAllNodesWithText("Lead Rivals").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.all-rivals.subtitle").fetchSemanticsNodes().size)
         waitForTag("fst.rivals.row.anonymous")
         rule.onNodeWithTag("fst.rivals.row.${ids[2]}").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.title")
@@ -332,6 +337,43 @@ class RivalsUiTest {
         failing = false
         rule.onNodeWithText("Retry").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rivals.row.${ids[3]}")
+    }
+
+    @Test
+    fun failedDetailShowsServiceStatusThenRetries() {
+        var failing = true
+        transport.onRaw("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Guitar/${ids[0]}") {
+            if (failing) {
+                com.festivalscoretracker.android.data.HttpResult(500, ByteArray(0))
+            } else {
+                com.festivalscoretracker.android.data.HttpResult(200, RivalsFixtures.detail(ids[0]).toByteArray())
+            }
+        }
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[0], "Synthetic Alpha", RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.service-status.retry")
+        rule.onNodeWithTag("fst.service-status.title").assertIsDisplayed()
+        assertTrue(rule.onAllNodesWithTag("fst.rival-detail.grid").fetchSemanticsNodes().isEmpty())
+        failing = false
+        rule.onNodeWithTag("fst.service-status.retry").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rival-detail.category.closest_battles")
+        rule.onNodeWithTag("fst.rival-detail.title").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
+    fun expandedDetailLaysCategoriesOutInColumns() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[0], "Synthetic Alpha", RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.category.closest_battles")
+        val categories = rule.onAllNodes(
+            androidx.compose.ui.test.SemanticsMatcher("rival category") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rival-detail.category.") == true
+            },
+        ).fetchSemanticsNodes()
+        assertTrue(categories.size >= 2)
+        // AdaptiveCardGrid: 1280 dp holds three 360 dp columns, so categories sit side by side.
+        assertTrue(categories.map { it.boundsInRoot.left }.distinct().size >= 2)
+        val header = rule.onNodeWithTag("fst.rival-detail.title").fetchSemanticsNode().boundsInRoot
+        assertTrue(categories.all { it.boundsInRoot.top >= header.bottom })
     }
 
     @Test
