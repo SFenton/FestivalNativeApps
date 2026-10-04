@@ -133,13 +133,17 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
 
 private fun LazyStaggeredGridScope.groupHeader(id: String, title: String) {
     item(key = "header:$id", span = StaggeredGridItemSpan.FullLine) {
-        Text(
-            title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
-        )
+        // A full-line item spans a separating hinge; the Box lets the heading (and its TalkBack
+        // focus) hug the text in the first panel instead.
+        Box {
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = BrandTokens.textPrimary,
+                modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
+            )
+        }
     }
 }
 
