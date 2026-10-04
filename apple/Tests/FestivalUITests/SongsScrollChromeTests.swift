@@ -176,6 +176,88 @@ struct SongsSectionJumpTests {
         #expect(SongsScrollChrome.headerPassed(minY: 228, topInset: 232))
     }
 
+    /// Issue #286: a jump lands the title under the bar's label and the first row below
+    /// the 28 pt soft edge (iOS 26.5: bar label 30 pt tall, in-list title 8 + 2 pt pads).
+    @Test func landingLineClearsTheBarAndItsFade() {
+        #expect(SongsScrollChrome.landingOffset(fade: 28) == 30)
+        // Reduce Transparency / Less Transparency / Increase Contrast: a hard edge.
+        #expect(SongsScrollChrome.landingOffset(fade: 0) == 2)
+        #expect(SongsScrollChrome.landingOffset(fade: -10) == 2)
+    }
+
+    /// The bar names a section once its title reaches the landing line, so a landed
+    /// jump names the target while its first rows are fully visible.
+    @Test func titleOnTheLandingLineHasReachedTheBar() {
+        #expect(SongsScrollChrome.headerPassed(minY: 206, topInset: 176, landingOffset: 30))
+        #expect(SongsScrollChrome.headerPassed(minY: 206.8, topInset: 176, landingOffset: 30))
+        #expect(!SongsScrollChrome.headerPassed(minY: 208, topInset: 176, landingOffset: 30))
+        // The default stays flush with the inset (pre-iOS 26 opaque headers).
+        #expect(!SongsScrollChrome.headerPassed(minY: 206, topInset: 176))
+    }
+
+    @Test func landingCorrectionMovesTheTitleOntoTheLine() {
+        // `.top` leaves the title flush with the inset: move the content down 30.
+        #expect(SongsScrollChrome.landingCorrection(
+            minY: 176, topInset: 176, landingOffset: 30) == 30)
+        // A List that centred the title: move it up.
+        #expect(SongsScrollChrome.landingCorrection(
+            minY: 450, topInset: 176, landingOffset: 30) == -244)
+        // Rounding is not a landing error.
+        #expect(SongsScrollChrome.landingCorrection(
+            minY: 205.6, topInset: 176, landingOffset: 30) == nil)
+        #expect(SongsScrollChrome.landingCorrection(
+            minY: 206.4, topInset: 176, landingOffset: 30) == nil)
+    }
+
+    @Test func landingLineIgnoresNonFiniteAndNegativeOffsets() {
+        let chrome = SongsScrollChrome()
+        chrome.setLandingLine(30)
+        #expect(chrome.landingLine.value == 30)
+        chrome.setLandingLine(.nan)
+        #expect(chrome.landingLine.value == 30)
+        chrome.setLandingLine(-4)
+        #expect(chrome.landingLine.value == 0)
+    }
+
+    /// Without a located scroll view (or with no landing line) a settle gives up at
+    /// once instead of retrying for every round.
+    @Test func settleStopsWhenTheListCannotMove() async {
+        let chrome = SongsScrollChrome()
+        chrome.setLandingLine(30)
+        chrome.setListTopInset(176)
+        let keys = ["A", "B", "C"]
+        chrome.jump(to: "B", in: keys)
+        chrome.watchLanding("B")
+        chrome.recordTitleTop("A", minY: 900)
+        chrome.recordTitleTop("B", minY: 176)
+        let clock = ContinuousClock()
+        let start = clock.now
+        await chrome.settleLanding(on: "B", generation: chrome.jumpGeneration)
+        #expect(clock.now - start < .milliseconds(250))
+        #expect(!chrome.listNudger.moveContent(by: 30))
+
+        chrome.setLandingLine(0)
+        chrome.watchLanding("C")
+        let flushStart = clock.now
+        await chrome.settleLanding(on: "C", generation: chrome.jumpGeneration)
+        #expect(clock.now - flushStart < .milliseconds(30))
+    }
+
+    /// A newer jump ends an older settle.
+    @Test func newerJumpEndsAnOlderSettle() async {
+        let chrome = SongsScrollChrome()
+        chrome.setLandingLine(30)
+        let keys = ["A", "B", "C"]
+        chrome.jump(to: "B", in: keys)
+        chrome.watchLanding("B")
+        let generation = chrome.jumpGeneration
+        chrome.jump(to: "C", in: keys)
+        let clock = ContinuousClock()
+        let start = clock.now
+        await chrome.settleLanding(on: "B", generation: generation)
+        #expect(clock.now - start < .milliseconds(250))
+    }
+
     @Test func topInsetIgnoresNonFiniteValuesAndNotifiesNoOne() {
         let chrome = SongsScrollChrome()
         let fired = JumpFlag()

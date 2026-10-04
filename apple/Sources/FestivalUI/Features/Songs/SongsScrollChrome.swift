@@ -1,6 +1,8 @@
 import CoreGraphics
+import FestivalCore
 import Observation
 import os
+import SwiftUI
 
 // MARK: - Scroll-driven Songs chrome
 
@@ -65,21 +67,139 @@ final class SongsScrollChrome {
         listTopInset.value = inset
     }
 
-    /// Whether a section title has scrolled up to the section bar (issue #9).
+    // MARK: Landing line
+
+    /// Vertical padding above and below the floating section bar's title.
+    nonisolated static let barTitlePadding: CGFloat = 6
+    /// Padding above an in-list section title.
+    nonisolated static let inlineTitleTopPadding: CGFloat = 8
+    /// Padding below an in-list section title.
+    nonisolated static let inlineTitleBottomPadding: CGFloat = 2
+
+    /// How far below the List's top inset a section's in-list title rests after a jump,
+    /// and where it hands its name to the section bar (issue #286).
+    ///
+    /// Rows fade in over `fade` points below the bar (``SectionBarEdgeFade``). A title
+    /// landed flush with the bar left its first row inside that fade, so the section
+    /// looked half-faded, and scrolling it clear moved the title back below the bar,
+    /// which then named the previous section. Landing the title so that its bottom (the
+    /// first row's top) meets the end of the fade shows the first row fully opaque, and
+    /// using the same line for "passed" keeps the bar on the destination. The two titles
+    /// share a font, so only their paddings differ.
+    ///
+    /// - Parameter fade: The current row fade height (0 with Reduce Transparency or
+    ///   Increase Contrast).
+    /// - Returns: The landing line's distance below the top inset, in points.
+    nonisolated static func landingOffset(fade: CGFloat) -> CGFloat {
+        let bar = 2 * barTitlePadding
+        let inline = inlineTitleTopPadding + inlineTitleBottomPadding
+        return max(0, bar - inline + max(0, fade))
+    }
+
+    /// Whether a section title has scrolled up to the section bar's landing line
+    /// (issues #9, #286).
     ///
     /// The bar sits at the List's top content inset, below the navigation bar, and a jump
-    /// lands a title exactly there. Titles are measured in the scroll view's space, whose
-    /// origin is the top of the screen under the bars, so comparing with 0 named a
-    /// section only after its title had slid a further inset (116pt) behind the bars:
-    /// the bar trailed by one section after every rail jump and while scrolling.
+    /// lands a title `landingOffset` below it (``landingOffset(fade:)``). Titles are
+    /// measured in the scroll view's space, whose origin is the top of the screen under
+    /// the bars, so comparing with 0 named a section only after its title had slid a
+    /// further inset (116pt) behind the bars: the bar trailed by one section after every
+    /// rail jump and while scrolling.
     ///
     /// - Parameters:
     ///   - minY: The title's top in `.scrollView` space.
     ///   - topInset: The List's top content inset.
-    /// - Returns: True once the title's top has reached the bar.
-    nonisolated static func headerPassed(minY: CGFloat, topInset: CGFloat) -> Bool {
-        minY <= topInset + headerTolerance
+    ///   - landingOffset: The landing line below the inset (0: flush with the bar).
+    /// - Returns: True once the title's top has reached the landing line.
+    nonisolated static func headerPassed(
+        minY: CGFloat, topInset: CGFloat, landingOffset: CGFloat = 0
+    ) -> Bool {
+        minY <= topInset + landingOffset + headerTolerance
     }
+
+    /// The landing line below the List's top inset (``landingOffset(fade:)``). Read by
+    /// the titles' geometry checks and the rail's jumps, so never observed.
+    let landingLine = TopInset()
+
+    /// Record the landing line for the current accessibility settings.
+    ///
+    /// - Parameter offset: ``landingOffset(fade:)``.
+    func setLandingLine(_ offset: CGFloat) {
+        guard offset.isFinite else { return }
+        landingLine.value = max(0, offset)
+    }
+
+    /// Moves the List onto the landing line after a `.top` jump: a `List` centres any
+    /// other scroll anchor (``ListScrollNudger``). The in-list titles locate its scroll
+    /// view.
+    @ObservationIgnored let listNudger = ListScrollNudger()
+
+    /// The title a jump is settling, and its latest measured top (`.scrollView` space)
+    /// since the last read. Never observed.
+    @ObservationIgnored private var probeKey: String?
+    @ObservationIgnored private var probeMinY: CGFloat?
+
+    /// Record an in-list title's top while a jump is settling on it.
+    ///
+    /// - Parameters:
+    ///   - key: The title's key.
+    ///   - minY: Its top in `.scrollView` space.
+    func recordTitleTop(_ key: String, minY: CGFloat) {
+        guard key == probeKey, minY.isFinite else { return }
+        probeMinY = minY
+    }
+
+    /// How far to move the List so a title at `minY` rests on the landing line.
+    ///
+    /// - Parameters:
+    ///   - minY: The title's top in `.scrollView` space.
+    ///   - topInset: The List's top content inset.
+    ///   - landingOffset: The landing line below the inset.
+    /// - Returns: Points to move the content down (negative: up), or `nil` when the
+    ///   title is already within ``ListScrollNudger/minimumMove`` of the line.
+    nonisolated static func landingCorrection(
+        minY: CGFloat, topInset: CGFloat, landingOffset: CGFloat
+    ) -> CGFloat? {
+        let distance = topInset + landingOffset - minY
+        return abs(distance) < ListScrollNudger.minimumMove ? nil : distance
+    }
+
+    /// Start measuring a jump target's title; call before scrolling to it, since a title
+    /// reports its top only when it moves.
+    ///
+    /// - Parameter key: The target title's key.
+    func watchLanding(_ key: String) {
+        probeKey = key
+        probeMinY = nil
+    }
+
+    /// After a `.top` jump, move the List until the target title rests on the landing
+    /// line (issue #286), unless a newer jump replaces this one.
+    ///
+    /// A title reports its top only when it moves, so each round reads the newest report
+    /// and corrects by what remains; it stops once landed, when the List cannot move
+    /// further (content end) or after ``landingRounds`` rounds.
+    ///
+    /// - Parameters:
+    ///   - key: The target title's key, already passed to ``watchLanding(_:)``.
+    ///   - generation: ``jumpGeneration`` when the jump started.
+    func settleLanding(on key: String, generation: Int) async {
+        defer { if jumpGeneration == generation { probeKey = nil } }
+        guard landingLine.value > 0 else { return }
+        for _ in 0..<Self.landingRounds {
+            try? await Task.sleep(for: .milliseconds(32))
+            guard jumpGeneration == generation, probeKey == key else { return }
+            guard let minY = probeMinY else { continue }
+            probeMinY = nil
+            guard let distance = Self.landingCorrection(
+                minY: minY, topInset: listTopInset.value, landingOffset: landingLine.value
+            ) else { return }
+            guard listNudger.moveContent(by: distance) else { return }
+        }
+    }
+
+    /// Correction rounds before a landing gives up (about a third of a second).
+    nonisolated static let landingRounds = 10
 
     /// Bumped by every ``jump(to:in:)`` so a delayed corrective scroll can tell whether a
     /// newer jump has replaced it. Never observed: nothing renders it.
@@ -142,8 +262,9 @@ final class SongsScrollChrome {
 
 // MARK: - Top inset
 
-/// The List's top content inset, readable from the section titles' geometry checks,
-/// which SwiftUI may run off the main actor.
+/// One measured length (the List's top content inset, the landing line, the visible
+/// height), readable from the section titles' geometry checks, which SwiftUI may run
+/// off the main actor.
 final class TopInset: Sendable {
     private let storage = OSAllocatedUnfairLock<CGFloat>(initialState: 0)
 
