@@ -486,7 +486,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
-        foreach (var key in new[] { "focus", "scans" })
+        foreach (var key in new[] { "focus", "scans", "aligned" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -575,8 +575,17 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "scrollinto":
                 ScrollInto(window, step);
                 break;
+            case "assertname":
+                AssertName(window, step);
+                break;
+            case "assertaligned":
+                AssertAligned(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
+                break;
+            case "assertstate":
+                AssertState(window, step);
                 break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
@@ -649,6 +658,44 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
+    /// <summary>
+    /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
+    /// (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">The element is missing or the state differs at the timeout.</exception>
+    private void AssertState(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var key = (string)step["key"]!;
+        var expected = (string)step["value"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            string? seen = null;
+            if (window.FindFirstDescendant(condition) is { } element)
+            {
+                seen = key switch
+                {
+                    "toggle" => element.Patterns.Toggle.PatternOrDefault?.ToggleState.ValueOrDefault switch
+                    {
+                        FlaUI.Core.Definitions.ToggleState.On => "on",
+                        FlaUI.Core.Definitions.ToggleState.Off => "off",
+                        FlaUI.Core.Definitions.ToggleState.Indeterminate => "indeterminate",
+                        _ => null,
+                    },
+                    "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
+                    _ => element.Properties.Name.ValueOrDefault,
+                };
+            }
+            if (seen == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {label} {key} is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
+            Thread.Sleep(200);
+        }
+    }
+
     /// <summary>Waits until no on-screen element matches the step's selector (an absence assertion).</summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
@@ -657,7 +704,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
-        while (window.FindAllDescendants(condition).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
+        while (InView(IsRaw(step), () => window.FindAllDescendants(condition)).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
         {
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"element {label} is still on screen");
             Thread.Sleep(200);
@@ -667,7 +714,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Brings an element that exists but is scrolled out of view (e.g. below the fold of a flyout's ScrollViewer) on
     /// screen through the UIA ScrollItem pattern, or by paging the nearest scrollable ancestor when the element has no
-    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console).
+    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console). While nothing matches
+    /// yet (a virtualized list hasn't realized the item), it pages the window's largest scrollable region down.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
@@ -678,16 +726,35 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
-            var found = window.FindFirstDescendant(condition);
+            var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
             if (found is not null)
             {
                 if (!found.Properties.IsOffscreen.ValueOrDefault) return;
                 if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
                 else PageTowards(found);
             }
+            else PageDown(window);
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
             Thread.Sleep(200);
         }
+    }
+
+    /// <summary>
+    /// Pages the window's largest vertically scrollable region down one page, so a virtualized list realizes items that
+    /// don't exist yet (nothing happens once every region is at its end).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    private void PageDown(Window window)
+    {
+        var scrollable = automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Pane)
+            .Or(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.List))
+            .Or(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Group));
+        var target = window.FindAllDescendants(scrollable)
+            .Where(e => e.Patterns.Scroll.IsSupported && e.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault &&
+                        e.Patterns.Scroll.Pattern.VerticalScrollPercent.ValueOrDefault < 100)
+            .OrderByDescending(e => e.BoundingRectangle.Width * e.BoundingRectangle.Height)
+            .FirstOrDefault();
+        target?.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
     }
 
     /// <summary>Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element.</summary>
@@ -708,15 +775,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
-    private (ConditionBase Condition, string Label) Condition(JsonObject step)
+    private (ConditionBase Condition, string Label) Condition(JsonObject step, string key = "selector")
     {
-        var selector = step["selector"]!.AsObject();
+        var selector = step[key]!.AsObject();
         var kind = (string)selector["kind"]!;
         var value = (string)selector["value"]!;
         var cf = automation.ConditionFactory;
         ConditionBase condition = kind switch
         {
-            "id" => cf.ByAutomationId(value),
+            "id" or "raw" => cf.ByAutomationId(value),
             "name" => cf.ByName(value),
             "class" => cf.ByClassName(value),
             _ => throw new ArgumentException($"selector {kind} cannot locate an element"),
@@ -724,17 +791,77 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return (condition, $"{kind}={value}");
     }
 
-    internal AutomationElement Find(Window window, JsonObject step)
+    /// <summary>Whether a step's selector searches the raw view (<c>raw=</c>) instead of the control view.</summary>
+    private static bool IsRaw(JsonObject step, string key = "selector") => (string?)step[key]?["kind"] == "raw";
+
+    /// <summary>
+    /// Runs a descendant search in the control view or, for a <c>raw=</c> selector, the raw view: parts a control marks
+    /// <c>AccessibilityView=Raw</c> (e.g. a score row's badge text, so Narrator reads the row once) are not control
+    /// elements, and UIA's default search filter skips them.
+    /// </summary>
+    /// <typeparam name="T">Search result.</typeparam>
+    /// <param name="raw">Search the raw view.</param>
+    /// <param name="search">The search, run while the raw-view cache request is active.</param>
+    /// <returns>The search result.</returns>
+    private T InView<T>(bool raw, Func<T> search)
     {
-        var (condition, label) = Condition(step);
+        if (!raw) return search();
+        var request = new FlaUI.Core.CacheRequest
+        {
+            TreeFilter = TrueCondition.Default,
+            TreeScope = FlaUI.Core.Definitions.TreeScope.Element,
+            AutomationElementMode = FlaUI.Core.Definitions.AutomationElementMode.Full,
+        };
+        request.Add(automation.PropertyLibrary.Element.AutomationId);
+        using (request.Activate()) return search();
+    }
+
+    internal AutomationElement Find(Window window, JsonObject step, string key = "selector")
+    {
+        var (condition, label) = Condition(step, key);
+        var raw = IsRaw(step, key);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
-            var found = window.FindFirstDescendant(condition);
+            var found = InView(raw, () => window.FindFirstDescendant(condition));
             if (found is not null && !found.Properties.IsOffscreen.ValueOrDefault) return found;
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
+    }
+
+    /// <summary>Waits until the step's element is on screen with exactly the step's UIA Name.</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, the expected <c>text</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">The name still differs at the timeout.</exception>
+    private void AssertName(Window window, JsonObject step)
+    {
+        var expected = (string?)step["text"] ?? "";
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            var actual = Find(window, step).Properties.Name.ValueOrDefault ?? "";
+            if (actual == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {(string)step["arg"]!} is named {actual!}, expected {expected}");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>Fails unless two on-screen elements share a horizontal centre (a vertically aligned column) within 2 px.</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c> selectors.</param>
+    /// <exception cref="InvalidOperationException">The centres differ by more than 2 px.</exception>
+    private void AssertAligned(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var a = first.Left + first.Width / 2.0;
+        var b = second.Left + second.Width / 2.0;
+        if (Math.Abs(a - b) > 2)
+            throw new InvalidOperationException($"centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
+        response["aligned"] ??= new JsonArray();
+        response["aligned"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
     }
 
     #endregion

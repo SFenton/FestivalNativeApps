@@ -105,6 +105,28 @@ public sealed class InstrumentSelectorState
     /// <returns><see langword="true"/> when muted.</returns>
     public bool IsCompactMuted() => CompactKey is { } key && !IsDisabled(key) && Muted.Contains(key);
 
+    /// <summary>UIA item status announcing a muted (conflicting) instrument, which is otherwise shown by opacity alone.</summary>
+    /// <param name="muted">Whether the button draws muted.</param>
+    /// <returns><see cref="ConflictStatus"/> when muted, else an empty string.</returns>
+    public static string ItemStatus(bool muted) => muted ? ConflictStatus : "";
+
+    /// <summary>Item status of a muted instrument (the web's <c>data-conflict</c>).</summary>
+    public const string ConflictStatus = "Conflicts with current selection";
+
+    /// <summary>
+    /// The row button that should take keyboard focus when the selector leaves compact mode while its centre button
+    /// was focused: the selection, else the previewed instrument, else the first selectable one.
+    /// </summary>
+    /// <returns>Instrument, or <see langword="null"/> when nothing is selectable.</returns>
+    public Instrument? FocusTarget()
+    {
+        if (EffectiveSelected is { } selected) return selected;
+        if (CompactKey is { } key && !IsDisabled(key)) return key;
+        foreach (var instrument in Available)
+            if (!IsDisabled(instrument)) return instrument;
+        return null;
+    }
+
     /// <summary>Whether to render compact.</summary>
     /// <param name="mode">Caller's mode.</param>
     /// <param name="rowWidth">Measured row width in epx (0 before layout).</param>

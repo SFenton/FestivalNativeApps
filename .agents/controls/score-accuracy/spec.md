@@ -1,6 +1,6 @@
 # Score accuracy and full combo (`fst.score.accuracy.*`) — spec
 
-> **What:** how accuracy and FC render in score rows, web vs native rule. **Read when:** drawing any score row (Detail preview, Solo chart, player cards) on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md) · [android.md](android.md).
+> **What:** how accuracy and FC render in score rows, web vs native rule. **Read when:** drawing any score row (Detail preview, Solo chart, player cards) on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md) · [android.md](android.md) · [windows.md](windows.md).
 
 Source: `FortniteFestivalWeb/src/components/songs/metadata/AccuracyDisplay.tsx:13-47`, `FortniteFestivalWeb/src/utils/formatters.ts:5-12`, `packages/core/src/app/formatters.ts:160-171`, `FortniteFestivalWeb/src/pages/leaderboard/global/components/LeaderboardEntry.tsx:105-147`, `packages/theme/src/spacing.ts:142-150,244-253`, `packages/theme/src/goldStyles.ts:17-34`, `FortniteFestivalWeb/src/pages/songinfo/components/InstrumentCard.tsx:226-253`. Never infer FC from an accuracy number.
 
