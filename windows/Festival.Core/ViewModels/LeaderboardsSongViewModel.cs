@@ -86,7 +86,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     [ObservableProperty]
     private List<SongLeaderboardRowViewModel> rows = [];
 
-    /// <summary>"12,345 Lead entries" when the service allows totals, else empty.</summary>
+    /// <summary>"12,345 Lead entries" when the service allows totals and there is at least one entry (web parity), else empty.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTotal))]
     private string totalText = "";
@@ -200,7 +200,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
             {
                 Status.Clear();
                 entries = [.. board.Entries];
-                TotalText = board.ShowLeaderboardEntryTotals == true
+                TotalText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
                     ? string.Create(CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} {Instrument.Label()} entries") : "";
                 Pager.Update(requestedPage, pages);
                 ApplySelection();

@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fitInside
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
@@ -66,9 +68,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.WindowInsetsRulers
 import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -78,6 +82,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
@@ -444,6 +449,15 @@ private fun FestivalShell(
     var gapBelowContentPx by remember { mutableIntStateOf(0) }
     val imeInsets = WindowInsets.ime
     val contentWidthDp = with(density) { contentWidthPx.toDp().value.toInt() }
+    // The Songs list pane leads the content row: the part of a start-side camera inset it covers.
+    val direction = LocalLayoutDirection.current
+    val cutout = WindowInsets.displayCutout
+    val leadingCutoutPx = if (direction == LayoutDirection.Ltr) {
+        cutout.getLeft(density, direction) - contentLeftPx
+    } else {
+        cutout.getRight(density, direction) - (windowSize.width - contentLeftPx - contentWidthPx)
+    }
+    val leadingCutoutDp = with(density) { leadingCutoutPx.coerceAtLeast(0).toDp().value.toInt() }
     val profileKind = shellViewModel.profileKind(settings)
     val drawer = @Composable { tabTags: Boolean ->
         DrawerContent(
@@ -487,7 +501,7 @@ private fun FestivalShell(
                         navigationDrawerContainerColor = Color.Transparent,
                     ),
                     modifier = when (layout) {
-                        NavigationLayout.PermanentDrawer -> Modifier.width(PERMANENT_DRAWER_WIDTH_DP.dp).testTag("fst.nav.permanent-drawer")
+                        NavigationLayout.PermanentDrawer -> Modifier.width(AdaptiveLayoutPolicy.permanentDrawerWidth(density.fontScale).dp).testTag("fst.nav.permanent-drawer")
                         else -> Modifier.testTag("fst.nav.bar")
                     },
                 ) {
@@ -535,25 +549,31 @@ private fun FestivalShell(
                         listPaneWidth = AdaptiveLayoutPolicy.listPaneWidth(
                             contentWidthDp,
                             verticalHinge?.let { with(density) { (it.bounds.left - contentLeftPx).toDp().value.toInt() } },
+                            leadingInsetDp = leadingCutoutDp,
                         ),
                     )
                     if (usesFloatingToolbar) {
-                        // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
-                        // the web's mobile FAB dock sits; one shared toolbar per screen. The start
-                        // margin bounds a toolbar that fills the width (Songs search, issue #84),
-                        // and a toolbar holding a focused field rides above the keyboard (read in
-                        // the layout phase, so the keyboard animation never recomposes the shell).
-                        FloatingToolbar(
-                            floatingToolbar,
-                            Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset {
-                                    val lift = if (floatingToolbar.aboveKeyboard) FloatingToolbarLift.liftPx(imeInsets.getBottom(this), gapBelowContentPx) else 0
-                                    IntOffset(0, -lift)
-                                }
-                                .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
-                            scroll = toolbarScroll,
-                        )
+                        // Clipped to the content area: hidden on scroll it slides behind the bottom
+                        // bar's edge instead of ghosting through the translucent bar (issue #102).
+                        // The clip layer has no input or semantics, so touches and TalkBack pass through.
+                        Box(Modifier.matchParentSize().clipToBounds()) {
+                            // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
+                            // the web's mobile FAB dock sits; one shared toolbar per screen. The start
+                            // margin bounds a toolbar that fills the width (Songs search, issue #84),
+                            // and a toolbar holding a focused field rides above the keyboard (read in
+                            // the layout phase, so the keyboard animation never recomposes the shell).
+                            FloatingToolbar(
+                                floatingToolbar,
+                                Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .offset {
+                                        val lift = if (floatingToolbar.aboveKeyboard) FloatingToolbarLift.liftPx(imeInsets.getBottom(this), gapBelowContentPx) else 0
+                                        IntOffset(0, -lift)
+                                    }
+                                    .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
+                                scroll = toolbarScroll,
+                            )
+                        }
                     }
                 }
             }
@@ -628,9 +648,6 @@ private fun FestivalShell(
     )
 }
 
-/** Permanent drawer width on large windows. */
-private const val PERMANENT_DRAWER_WIDTH_DP = 280
-
 /**
  * Navigation chrome (bar, rail, drawers) with white text and icons: Material's unselected
  * items use `onSurfaceVariant` and bar labels `secondary`, which read gray/purple against the
@@ -688,7 +705,10 @@ private fun FestivalNavHost(
                 }
                 if (split != null) {
                     VerticalDivider(color = BrandTokens.glassBorder)
-                    Box(Modifier.weight(1f).fillMaxHeight().testTag("fst.songs.detail-pane"), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier.weight(1f).fillMaxHeight().fitInside(WindowInsetsRulers.DisplayCutout.current).testTag("fst.songs.detail-pane"),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         val id = split.detailId
                         when {
                             id != null -> SongDetailRouteScreen(container, shellViewModel, settings, id, embedded = true)

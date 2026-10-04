@@ -159,14 +159,36 @@ object AdaptiveLayoutPolicy {
 
     /**
      * Width of the list pane: the hinge's leading edge when a vertical fold
-     * separates the window, otherwise 40% clamped to 320–440 dp.
+     * separates the window, otherwise 40% of the usable width clamped to 320–440 dp,
+     * plus any display cutout the pane's leading edge covers (a landscape phone's camera
+     * inset otherwise left the list pane's top bar room for only "Son…", issue #101).
      *
      * @param widthDp Content width in dp.
      * @param hingeStartDp Leading edge of a separating vertical hinge, if any.
+     * @param leadingInsetDp Display cutout inset inside the pane's leading edge, in dp.
      * @return List pane width in dp.
      */
-    fun listPaneWidth(widthDp: Int, hingeStartDp: Int?): Int =
-        hingeStartDp?.takeIf { it in 1 until widthDp } ?: (widthDp * 2 / 5).coerceIn(320, 440)
+    fun listPaneWidth(widthDp: Int, hingeStartDp: Int?, leadingInsetDp: Int = 0): Int {
+        hingeStartDp?.takeIf { it in 1 until widthDp }?.let { return it }
+        val inset = leadingInsetDp.coerceIn(0, widthDp / 4)
+        return (inset + ((widthDp - inset) * 2 / 5).coerceIn(320, 440)).coerceAtMost(maxOf(widthDp / 2, 320))
+    }
+
+    /** Permanent drawer width at default text sizes. */
+    const val PERMANENT_DRAWER_WIDTH_DP = 280
+
+    /** Material 3's standard drawer width, used for large text. */
+    const val LARGE_TEXT_DRAWER_WIDTH_DP = 360
+
+    /**
+     * Width of the permanent navigation drawer.
+     *
+     * @param fontScale User font scale. From [LARGE_TEXT_SCALE] the drawer widens to Material's
+     *   360 dp (at 200% the 280 dp drawer broke "Leaderboards" and the player name mid-word).
+     * @return Drawer width in dp.
+     */
+    fun permanentDrawerWidth(fontScale: Float): Int =
+        if (fontScale >= LARGE_TEXT_SCALE) LARGE_TEXT_DRAWER_WIDTH_DP else PERMANENT_DRAWER_WIDTH_DP
 }
 
 // endregion

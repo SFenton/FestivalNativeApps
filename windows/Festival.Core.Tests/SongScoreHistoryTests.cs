@@ -83,6 +83,16 @@ public class SongScoreHistoryDomainTests
     [InlineData(1001, 1200)]
     public void NiceMax_RoundsUpToFourSteps(long max, long expected) => Assert.Equal(expected, ScoreHistoryChartScale.NiceMax(max));
 
+    [Theory]
+    [InlineData(26, 19, 64)]       // 100% text: the original 64 epx gutter
+    [InlineData(0, 0, 64)]
+    [InlineData(-5, -5, 64)]
+    [InlineData(52, 38, 106)]      // 200% text: 4 + 38 + 4 + 52 + 8
+    [InlineData(52.2, 38.1, 107)]  // rounds up so the title never touches the ticks
+    [InlineData(double.PositiveInfinity, 20, 64)]
+    public void AxisGutter_FitsTitleAndTicks(double tickWidth, double titleHeight, double expected) =>
+        Assert.Equal(expected, ScoreHistoryChartScale.AxisGutter(tickWidth, titleHeight));
+
     [Fact]
     public void Scale_TicksAndBars()
     {
