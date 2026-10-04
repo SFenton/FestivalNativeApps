@@ -220,6 +220,28 @@
     ]
   },
   {
+    "name": "kb-band-detail-stats",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.band.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.band.stat.rank@10",
+      "focus:id=fst.band.stat.rank",
+      "key:shift+tab",
+      "assertfocus:id=fst.band.rank-by@3",
+      "key:tab",
+      "assertfocus:id=fst.band.stat.rank@3",
+      "key:tab",
+      "assertfocus:id=fst.band.stat.best-rank@3",
+      "key:tab",
+      "assertfocus:id=fst.band.history-chart@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.band.stat.best-rank@3"
+    ]
+  },
+  {
     "name": "kb-titlebar-order",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
