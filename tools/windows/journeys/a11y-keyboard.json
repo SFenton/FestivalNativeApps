@@ -48,6 +48,43 @@
     ]
   },
   {
+    "name": "kb-songs-filter",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+f",
+      "key:tab",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "assertfocus:id=fst.songs.filter.year@3",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.duration",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.shop",
+      "key:space",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.shop-available@3",
+      "key:space",
+      "waitfor:name=No Results@10",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "key:shift+tab",
+      "assertfocus:id=fst.songs.filter.reset@3",
+      "key:enter",
+      "waitfor:id=fst.songs.row.fixture-pulse@10",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3"
+    ]
+  },
+  {
     "name": "kb-section-accelerators",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
