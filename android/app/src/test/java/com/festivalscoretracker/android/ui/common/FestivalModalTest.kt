@@ -185,4 +185,35 @@ class FestivalModalTest {
         settle()
         assertEquals(before, coverage.openCount.value)
     }
+
+    /**
+     * Issue #139: a display-size (density) change removed the dialog's window while the
+     * composition still held it, so the dialog must reopen in a fresh window per density.
+     */
+    @Test
+    fun dialogReopensInANewWindowWhenTheDensityChanges() {
+        val base = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>().resources.configuration
+        var densityDpi by mutableStateOf(base.densityDpi)
+        val windows = mutableListOf<android.view.View>()
+        var dismissed = 0
+        rule.setContent {
+            val configuration = android.content.res.Configuration(base).apply { this.densityDpi = densityDpi }
+            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalConfiguration provides configuration) {
+                FestivalTheme {
+                    FestivalModalDialog(title = "Tour", closeTag = "t.close", onDismissRequest = { dismissed++ }) {
+                        val view = androidx.compose.ui.platform.LocalView.current
+                        androidx.compose.runtime.SideEffect { if (windows.lastOrNull() !== view) windows += view }
+                        Text("Body")
+                    }
+                }
+            }
+        }
+        settle()
+        assertEquals(1, windows.size)
+        densityDpi = 240
+        settle()
+        rule.onNodeWithText("Body").assertIsDisplayed()
+        assertEquals(2, windows.size)
+        assertEquals(0, dismissed)
+    }
 }
