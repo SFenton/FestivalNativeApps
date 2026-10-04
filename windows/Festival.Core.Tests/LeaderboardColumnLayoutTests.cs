@@ -115,6 +115,31 @@ public class LeaderboardColumnLayoutTests
     }
 
     [Fact]
+    public void LargeTextInANarrowRow_StacksTheValuesUnderTheName()
+    {
+        // Issue #207: Leaderboards at 200% text in a compact window (~470 epx rows). "#1", "39 / 50", "89,000,000"
+        // need 24 + 56 + 98 + 190 + 24 + 72 + 144 = 608 epx, so the name used to get no width at all.
+        var rankings = new LeaderboardSection(LeaderboardRowKind.Ranking, RankChars: 2, MetaChars: 7, ValueChars: 10, HasAccuracy: false, HasStars: false);
+        var stacked = LeaderboardColumnLayout.Fit(rankings, 470, 2);
+        Assert.True(stacked.Stacked);
+        Assert.True(stacked.ShowMeta); // the songs label moves to the second line rather than disappearing
+        Assert.False(stacked.SplitValues); // under the name: 470 - 24 - 56 - 4 × 12 - 24 = 318 ≥ 98 + 12 + 190
+        Assert.True(LeaderboardColumnLayout.Fit(rankings, 470, 2.25).SplitValues); // 308 < 110.25 + 12 + 213.75
+        Assert.True(LeaderboardColumnLayout.Fit(rankings, 290, 2).SplitValues);
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, 470).Stacked);
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, 608, 2).Stacked);
+        Assert.True(LeaderboardColumnLayout.Fit(rankings, 607, 2).Stacked);
+        // Score rows drop stars and the season first and stack only when that is still not enough.
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 720, 2.25).Stacked);
+        var squeezed = LeaderboardColumnLayout.Fit(Scores, 470, 2.25);
+        Assert.Equal((false, false, true), (squeezed.ShowMeta, squeezed.ShowStars, squeezed.Stacked));
+        Assert.False(squeezed.SplitValues); // no label to split from
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, 1200, 2).SplitValues); // only stacked rows split
+        // Unmeasured rows never stack.
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, double.NaN, 2.25).Stacked);
+    }
+
+    [Fact]
     public void Measure_CoversEveryRowAndThePinnedRow()
     {
         System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;

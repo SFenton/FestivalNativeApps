@@ -78,7 +78,7 @@
                            controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
-                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="4" Spacing="16" />
+                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" ScaleWithText="True" MaxColumns="4" Spacing="16" />
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:RankingCardViewModel">
@@ -139,7 +139,7 @@
                            controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
-                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="3" Spacing="16" />
+                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" ScaleWithText="True" MaxColumns="3" Spacing="16" />
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:BandRankingCardViewModel">

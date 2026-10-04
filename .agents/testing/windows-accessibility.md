@@ -31,7 +31,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
 | Item Shop | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
-| Leaderboards + Quick Links | ✅✅✅ | 20/21/21 | ✅ | ✅ | ✅ |
+| Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ | 8/11/11 | ✅ | ✅ | ✅ |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
 | Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
@@ -85,6 +85,15 @@ Fixed:
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
 
+## Leaderboards validation (issue #207, 2026-10)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` on `leaderboards`, `leaderboards-selected`, `leaderboards-unranked`, `leaderboards-spotlight-failed` and `leaderboards-rank-by-menu` (new pages) at compact/medium/wide; at medium under Desert, Night sky, light and dark system theme, display 100% and 150% and Animation effects off; text 200% at compact and medium; the live public service (SFentonX) the same way. 0 Axe errors on every page except WinUI's popup host (open item 8). Tab order: shell, Rank By, Quick Links, then per card its row group (one stop, arrows between rows) and View All, in reading order; no repeats, focus never left the window. `leaderboards_journey.py` drives every reachable state at all three sizes. Results per configuration in [leaderboards/windows.md](../pages/leaderboards/windows.md#validation-issue-207).
+
+Fixed:
+- View All's UIA name ("View All Lead Rankings") didn't contain its visible label "View All Rankings (3)" (WCAG 2.5.3); now "View All Rankings (3), Lead".
+- A failed card exposed an empty countdown text element.
+- Text 200%: names trimmed to "…" at compact and vanished at medium (rankings rows never drop their songs label). Cards now use fewer, wider columns as text grows, and rows that still can't fit stack their values under the name (shared row: Full Rankings and the song leaderboard benefit too).
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
@@ -94,5 +103,5 @@ Constraint: the lane host's console was locked for this pass, so SendInput Tab w
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
 7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean.
-8. Quick Links menu at compact: Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); medium scans clean.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).

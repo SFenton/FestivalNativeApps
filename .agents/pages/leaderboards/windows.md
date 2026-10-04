@@ -7,7 +7,7 @@
 - Section root for `AppSection.Leaderboards` and `AppRoute.Leaderboards` (`NavigationCacheMode="Required"`: returning from a pushed page keeps the cards; `ActivateAsync` reloads only when metric, Settings-visible instruments or the selected player changed).
 - One top-ten card (`GET /api/rankings/{instrument}?rankBy=&page=1&pageSize=10`, publication-pinned pure read) per Settings-visible instrument, then Duos · Trios · Quads (`GET /api/rankings/bands/{bandType}`). At most four card reads are in flight (twelve at once overflowed the fixture server's listen backlog and is needlessly bursty for the service).
 - Rank By: `DropDownButton` + radio `MenuFlyout` (Total Score first, then Adjusted, Weighted, FC Rate, Max Score). Persisted as `AppSettings.LeaderboardRankBy` (web `saveLeaderboardRankBy`); band cards narrow Max Score to Total Score (`coerceBandRankingMetric`). All metrics are offered, as on iPhone; the web hides them behind its experimental-ranks flag.
-- Per card: static skeleton (no shimmer, so no per-frame work; #90: five card-surface rows at `LeaderboardRowMetrics.MinHeight` 48 with `Spacing` 4, the same block as loaded `LeaderboardEntryRow`s, so the card does not jump; test `LeaderboardUnifyTests.RowMetrics_AreTheWebEntryRowAndStackLikeLoadedRows`), empty text, inline failure with Retry and scrape-freeze countdown, rows, the selected player's spotlight row when outside the top ten, then a full-width purple "View all rankings (868,901)" button (web `viewAllRankingsWithCount`, the response's `totalAccounts`/`totalTeams`; no count when unknown) → `AppRoute.FullRankings(instrument, rankBy)` / `AppRoute.BandRankings(bandType)`. "Browse Bands" beside the Bands heading opens `AppRoute.Bands` (the landing is not in the navigation pane).
+- Per card: static skeleton (no shimmer, so no per-frame work; #90: five card-surface rows at `LeaderboardRowMetrics.MinHeight` 48 with `Spacing` 4, the same block as loaded `LeaderboardEntryRow`s, so the card does not jump; test `LeaderboardUnifyTests.RowMetrics_AreTheWebEntryRowAndStackLikeLoadedRows`), empty text, inline failure with Retry and scrape-freeze countdown, rows, the selected player's spotlight row when outside the top ten, then a full-width purple "View all rankings (868,901)" button (web `viewAllRankingsWithCount`, the response's `totalAccounts`/`totalTeams`; no count when unknown) → `AppRoute.FullRankings(instrument, rankBy)` / `AppRoute.BandRankings(bandType)`. Its UIA name starts with the visible label, then the board ("View All Rankings (868,901), Lead"; WCAG 2.5.3 label in name, issue #207).
 - Selected-player spotlight (`RankingSpotlight.Place`): highlighted in place (purple fill + border, UIA name "Your rank, 2nd. Name. …") when in the top ten, with no extra read; otherwise their own row from `GET /api/rankings/{instrument}/{accountId}` (`FestivalApiClient.GetPlayerInstrumentRankingAsync`, win-profile lane) below the rows, a white ring (no caption), "Not yet ranked on <instrument>." (404) or an inline retry. No selected-band spotlight: Windows has no selected-band identity.
 - Rows: rank, name ("Unknown User" when blank), "X / Y" (web `getSongsLabel`; UIA says "X / Y songs") (full combos under FC Rate), rating ("Top N%" + Bayesian value for percentile metrics, percentages, grouped totals). A row opens `AppRoute.Player(accountId, displayName)`; band rows open `AppRoute.Band(bandId, bandType, teamKey)` (never `/api/bands/{id}`). Rows whose identity is unusable are shown but not interactive (see [full-rankings/windows.md](../full-rankings/windows.md)).
 - Each card's header sits **above** the card surface like the web's `RankingCard` `cardLabel`, inside the same named UIA group (`Controls/CardHeader`): 36 px instrument icon + name only (no metric subtitle: the Rank By button names it); Duos/Trios/Quads headers have no icon. Cards and rows stagger in (`FadeIn`).
@@ -19,17 +19,34 @@
 
 | Window | Result |
 |---|---|
-| Wide (1440+) | Cards in 3 columns (`LeaderboardsCardGridLayout`: equal columns ≥360 epx, max 4; each row as tall as its tallest card, so a spotlight or failure never clips like `UniformGridLayout`) |
-| Medium (~900) | One column (the fixed 240 epx pane leaves ~540 epx) |
-| Compact (~500) | One column, 12 epx page padding, Rank By below the title; names and song counts trim. The shell keeps the navigation pane expanded at this width, leaving ~340 epx (TODO(orchestrator): shell pane display mode below ~640 epx) |
+| Wide (1280+, maximized) | Cards in 3 columns (`LeaderboardsCardGridLayout`: equal columns ≥360 epx, max 4; each row as tall as its tallest card, so a spotlight or failure never clips like `UniformGridLayout`) |
+| Medium (~900, snapped half of a 1280 epx desktop) | Two columns beside the compact (icon) pane |
+| Compact (<641) | One column, 12 epx page padding, Rank By and Quick Links below the title; the shell pane collapses to the hamburger (LeftMinimal) |
+| Large text | `ScaleWithText` multiplies the 360 epx minimum column by the Windows text size, so at 200% medium drops to one column. Rows that still can't give the name `MinNameWidth` stack: name on line one, songs label and rating under it (a third line when those don't fit side by side), chevron centered (`LeaderboardColumnPlan.Stacked`/`SplitValues`, issue #207). 100% layouts are unchanged |
 
 ## Evidence
 
-Fixture screenshots: `windows/reports/screenshots/leaderboards-{wide,medium,compact,selected-wide,unranked-medium}.png`. UI journey (fixture): `tools/windows/journeys/leaderboards.steps` via `uiwin.py drive --steps-file` (Rank By switch, View All, instrument switcher, band card, band-size switcher, Back).
+Fixture screenshots: `windows/reports/screenshots/leaderboards-{wide,medium,compact,selected-wide,unranked-medium}.png`. UI journey (fixture): `tools/windows/journeys/leaderboards.steps` via `uiwin.py drive --steps-file` (Rank By switch, View All, instrument switcher, band card, band-size switcher, Back). Every reachable overview state (issue #207): `python tools/windows/leaderboards_journey.py [--sizes compact,medium,wide] [--shots DIR]` on `tools/windows/leaderboards_fixture.py` (mock service plus per-board empty, scrape-frozen and failing overrides). Accessibility pages `leaderboards`, `leaderboards-selected`, `leaderboards-unranked`, `leaderboards-spotlight-failed` and `leaderboards-rank-by-menu` in `tools/windows/journeys/a11y.json` (`a11y_matrix.py --scan`).
+
+## Validation (issue #207)
+
+Checked 2026-10 with the winui-design and winui-code-review skills, `leaderboards_journey.py` (30/30 across compact, medium and wide), `a11y_matrix.py --scan` on the fixture pages above, and the live public service (SFentonX selected, no profile headers). Axe.Windows reports 0 errors in every row, apart from the framework `PopupHost` finding in Open.
+
+| Configuration | Finding |
+|---|---|
+| Compact (500 epx), snap-left (640) | One column with the hamburger pane; Rank By and Quick Links sit under the title; correct. |
+| Medium (900), wide (1280, clamped by the 300% 4K desktop), maximized, snap-right | Two or three equal columns; rows of mixed card heights align (the spotlight and failed cards don't clip); correct. |
+| Keyboard only | Shell → Rank By → Quick Links → for each card, its row group (one Tab stop; arrows move between rows) → View All, in reading order. 20–21 stops at medium with no repeats and nothing off-window. Focus stays visible on every stop. |
+| High Contrast (Desert, Night sky) | System colours: the selected-player row uses Highlight, and text sits on backplates; correct. |
+| Light and dark system theme | Same rendering. This is a deliberate deviation: the app is dark only ([design/windows.md](../../design/windows.md#content-branded-fluent-tokens)). |
+| Text 200% | **Fixed:** at compact, names collapsed to "…"; at medium they disappeared. Columns now scale with the text size, and rows stack (see Layout). The shell's notification badge overflows at 200%; that is a shell issue, out of scope. |
+| Display 100% / 150% | Correct. |
+| Narrator / UIA | Headings per card, and rows named with state ("Your rank, 1st. …", "Rank #1, …"). **Fixed:** View All was named "View All Lead Rankings" while showing "View All Rankings (3)" (WCAG 2.5.3). It is now the visible label then the board ("View All Rankings (3), Lead"). **Fixed:** failed cards exposed an empty countdown text element. |
+| Motion | Rank By swaps the cards through the loading state and back without a layout jump (live frame sequence). |
 
 ## IDs
 
-`fst.leaderboards` (scroller), `fst.leaderboards.card.<instrument>` (card heading), `.view-all`, `.spotlight`, `.spotlight.loading`, `.spotlight.unranked`, `fst.leaderboards.band-card.<bandType>`, `.view-all`, `fst.leaderboards.bands-link`, `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId>` (or `…row.rank-<n>` without an ID), `fst.band-rankings.row.<teamKey>`.
+`fst.leaderboards` (scroller), `fst.leaderboards.card.<instrument>` (card heading), `.view-all`, `.spotlight`, `.spotlight.loading`, `.spotlight.unranked`, `fst.leaderboards.band-card.<bandType>`, `.view-all`, `fst.leaderboards.bands-header`, `fst.quick-links.open`, `fst.quick-links.item.instrument:<instrument>` / `band:<bandType>`, `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId>` (or `…row.rank-<n>` without an ID), `fst.band-rankings.row.<teamKey>`.
 
 ## Back navigation
 
@@ -37,5 +54,5 @@ Back from a cached page keeps its scroll position: `Services/CachedPageScroll` p
 
 ## Open
 
-- No rank-history chart, band-combo filter or quick links (same as iPhone).
-- Narrator and keyboard-order audit not yet done (a later phase); the card containers themselves have no UIA element (the heading carries the card ID).
+- No rank-history chart or band-combo filter (same as iPhone).
+- WinUI's flyout `PopupHost` (Rank By, Quick Links) reports Axe `BoundingRectangleCompletelyObscuresContainer`: framework, [windows-accessibility.md](../../testing/windows-accessibility.md) open item 8.

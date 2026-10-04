@@ -31,6 +31,12 @@
                 <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
             </controls:LeaderboardRowButton.Resources>
             <Grid x:Name="RowGrid" ColumnSpacing="12">
+                <!-- Second line only when the plan stacks the value columns under the name (large text in a narrow row). -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="RankColumn" Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -45,7 +51,7 @@
                 <TextBlock x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                 <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
-                <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right">
+                <StackPanel x:Name="ValuePanel" Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
                     <TextBlock x:Name="BayesianText" AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
                                Visibility="Collapsed" />
@@ -60,7 +66,7 @@
                     <controls:StarRow x:Name="StarsView" StarSize="14" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
                 <!-- In-card chevron on rows with a destination (operator batch 7.3). -->
-                <FontIcon x:Name="Chevron" Grid.Column="6" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                <FontIcon x:Name="Chevron" Grid.Column="6" Grid.RowSpan="3" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                           AutomationProperties.AccessibilityView="Raw" />
             </Grid>
         </controls:LeaderboardRowButton>

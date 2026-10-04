@@ -116,7 +116,6 @@ public sealed partial class LeaderboardEntryRow : UserControl
         var ranked = row.RankText.Length > 0;
         RankText.Visibility = ranked ? Visibility.Visible : Visibility.Collapsed;
         Grid.SetColumn(NameText, ranked ? 1 : 0);
-        Grid.SetColumnSpan(NameText, ranked ? 1 : 2);
         switch (row)
         {
             case ILeaderboardScoreRow score:
@@ -218,6 +217,38 @@ public sealed partial class LeaderboardEntryRow : UserControl
         Pill.Visibility = plan.ShowAccuracy && score is { HasAccuracy: true } ? Visibility.Visible : Visibility.Collapsed;
         StarsColumn.MinWidth = plan.StarsWidth;
         StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+        ApplyStacking(plan, RankText.Text.Length > 0);
+    }
+
+    /// <summary>
+    /// One line, or (issue #207: large text in a narrow row) the name across the first line with the songs/season label
+    /// and the value, badge and stars under it in the name's columns (a third line when they don't fit side by side), so
+    /// the name is never trimmed to nothing.
+    /// </summary>
+    /// <param name="plan">Section column plan.</param>
+    /// <param name="ranked">Whether the row has a rank (labelled rows put the name in the rank column too).</param>
+    private void ApplyStacking(LeaderboardColumnPlan plan, bool ranked)
+    {
+        var stacked = plan.Stacked;
+        var nameColumn = ranked ? 1 : 0;
+        var nameSpan = ranked ? 1 : 2;
+        Grid.SetColumnSpan(NameText, nameSpan + (stacked ? 4 : 0));
+        // Stacked, the label and value span the name, label and value columns, which then reserve no width of their own.
+        var underColumn = stacked ? nameColumn : 2;
+        var underSpan = stacked ? 4 - nameColumn : 1;
+        if (stacked) MetaColumn.MinWidth = ValueColumn.MinWidth = 0;
+        Grid.SetRow(MetaText, stacked ? 1 : 0);
+        Grid.SetColumn(MetaText, underColumn);
+        Grid.SetColumnSpan(MetaText, underSpan);
+        MetaText.HorizontalAlignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MetaText.TextAlignment = stacked ? TextAlignment.Left : TextAlignment.Right;
+        var valueLine = !stacked ? 0 : plan.SplitValues ? 2 : 1;
+        Grid.SetRow(ValuePanel, valueLine);
+        Grid.SetColumn(ValuePanel, stacked ? nameColumn : 3);
+        Grid.SetColumnSpan(ValuePanel, underSpan);
+        Grid.SetRow(Pill, valueLine);
+        Grid.SetRow(StarsHost, valueLine);
+        RowButton.Padding = stacked ? new Thickness(12, 6, 12, 6) : new Thickness(12, 0, 12, 0);
     }
     /// <summary>Re-evaluates the width-dependent columns.</summary>
     /// <param name="sender">Button.</param>
