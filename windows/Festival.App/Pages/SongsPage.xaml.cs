@@ -458,7 +458,7 @@ public sealed partial class SongsPage : Page, IPageBack
         if (row.Chips.Count > 0)
         {
             var target = inlineChips ? trailing : secondary;
-            foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Keyboard));
+            foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Song.SongId, row.Keyboard));
             secondary.LineAlignment = HorizontalAlignment.Left;
         }
         else if (row.Metadata.Count > 0)
