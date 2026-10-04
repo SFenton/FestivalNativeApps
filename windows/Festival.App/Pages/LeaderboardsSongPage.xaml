@@ -23,7 +23,9 @@
              for the spinner (web PaginatedLeaderboard). -->
         <Grid x:Name="BoardFadeSource" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
             <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.song-leaderboard.list">
-                <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,4">
+                <!-- No bottom padding: BoardFooter.Inset already ends the list one row gap (4 epx) above the footer, and
+                     padding here doubled it (issue #293). -->
+                <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,0">
                     <Grid ColumnSpacing="16" controls:FadeIn.OnShow="True">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
