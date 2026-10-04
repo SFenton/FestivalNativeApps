@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lightweight Button styling for destructive buttons (same values as the FSTDanger* role brushes in Styles.xaml);
+     merge into the button's scope. Theme dictionaries (not StaticResource aliases) so a contrast theme switched on while
+     the page is open re-resolves them: ButtonFace/ButtonText, Highlight/HighlightText on hover and press. -->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+            <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
+            <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#59C62828" />
+            <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#99FFFFFF" />
+            <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="ButtonBackground" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="ButtonForeground" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

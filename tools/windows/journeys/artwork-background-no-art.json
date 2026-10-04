@@ -1,0 +1,20 @@
+[
+  {
+    "name": "ab-no-art",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "wait:8",
+      "assertstatus:id=fst.shell.artwork-background|no-art@5"
+    ]
+  },
+  {
+    "name": "ab-no-art-song",
+    "route": "/songs/fixture-pulse",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "wait:3",
+      "assertstatus:id=fst.shell.artwork-background|no-art@5"
+    ]
+  }
+]
