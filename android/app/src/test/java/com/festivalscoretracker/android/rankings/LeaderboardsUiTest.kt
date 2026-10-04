@@ -538,6 +538,53 @@ class FullRankingsDesktopUiTest : LeaderboardsHarness() {
 }
 
 @RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi")
+class FullRankingsTitleIconUiTest : LeaderboardsHarness() {
+    private fun bounds(tag: String) = node(tag).fetchSemanticsNode().boundsInRoot
+
+    /** Asserts the chart icon sits in the top app bar, left of the title and centred on it, never taller than it. */
+    private fun assertTitleIcon(wireId: String) {
+        val tag = "fst.full-rankings.title-icon.$wireId"
+        waitForTag(tag)
+        rule.onNode(hasTestTag(tag) and hasAnyAncestor(hasTestTag("fst.nav.top-bar")), useUnmergedTree = true).assertExists()
+        // Decorative: the title already names the chart, so TalkBack reads it once.
+        assertEquals(null, description(tag))
+        val icon = bounds(tag)
+        val title = bounds("fst.nav.title")
+        val tolerance = with(rule.density) { 2.dp.toPx() }
+        assertTrue("icon ${icon.right} before title ${title.left}", icon.right <= title.left)
+        assertTrue("icon ${icon.height} within title ${title.height}", icon.height <= title.height + tolerance)
+        assertEquals(title.center.y, icon.center.y, tolerance)
+    }
+
+    /** Issue #294: the instrument's icon leads the title and follows the instrument picker. */
+    @Test
+    fun titleLeadsWithTheInstrumentIcon() {
+        launch("fullRankings:Solo_Guitar")
+        waitForText("Lead Leaderboards")
+        assertTitleIcon("Solo_Guitar")
+        // The title's line (M3 Title Large, 28 sp) at font scale 1.0.
+        assertEquals(bounds("fst.nav.title").height, bounds("fst.full-rankings.title-icon.Solo_Guitar").height, with(rule.density) { 1.dp.toPx() })
+        assertEquals(28f, with(rule.density) { bounds("fst.full-rankings.title-icon.Solo_Guitar").height.toDp() }.value, 1f)
+        click("fst.full-rankings.instrument-menu")
+        click("fst.full-rankings.instrument-menu.1")
+        waitForText("Bass Leaderboards")
+        assertTitleIcon("Solo_Bass")
+        assertFalse(exists("fst.full-rankings.title-icon.Solo_Guitar"))
+    }
+
+    /** Issue #294: at font scale 2.0 the icon grows with the title instead of staying 28 dp. */
+    @Test
+    @Config(fontScale = 2f)
+    fun titleIconScalesWithTheFont() {
+        launch("fullRankings:Solo_Guitar")
+        waitForText("Lead Leaderboards")
+        assertTitleIcon("Solo_Guitar")
+        assertTrue(with(rule.density) { bounds("fst.full-rankings.title-icon.Solo_Guitar").height.toDp() } > 36.dp)
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-xhdpi")
 class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
     @Test

@@ -55,6 +55,7 @@ import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Full rankings
@@ -103,6 +104,8 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
         title = "${instrument.label} Leaderboards",
         isRoot = false,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
+        // The board's chart before its title, like the song leaderboard header (issue #294).
+        titleIcon = { size -> InstrumentIcon(instrument, size = size, decorative = true, modifier = Modifier.testTag("fst.full-rankings.title-icon.${instrument.wireId}")) },
         actions = {
             InstrumentAction(instrument, Instrument.entries.filter { it in visible || it == instrument }, viewModel::selectInstrument, "fst.full-rankings.instrument-menu")
             RankByAction(metric, viewModel::selectMetric)
