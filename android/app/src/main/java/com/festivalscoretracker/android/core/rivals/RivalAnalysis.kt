@@ -210,6 +210,22 @@ object RivalHeadToHead {
     }
 
     /**
+     * Spoken rank lead for a song row's accessibility label: the exact unsigned gap with a
+     * singular/plural unit (the visible pill keeps the web's signed, abbreviated form).
+     *
+     * @param delta Signed rank delta (positive: the player leads).
+     * @param rivalName Rival's display name.
+     * @param locale Number locale.
+     * @return Text such as `you lead by 1 rank`, `Rival leads by 12,345 ranks` or `tied`.
+     */
+    fun leaderPhrase(delta: Long, rivalName: String, locale: Locale = Locale.getDefault()): String {
+        if (delta == 0L) return "tied"
+        val magnitude = abs(delta)
+        val gap = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " rank" else " ranks"
+        return if (delta > 0) "you lead by $gap" else "$rivalName leads by $gap"
+    }
+
+    /**
      * Signed score difference, player minus rival (missing scores count as zero).
      *
      * @param song Comparison.
@@ -228,6 +244,24 @@ object RivalHeadToHead {
      * @return Player minus rival.
      */
     fun scoreDiff(song: RivalSongComparison): Long = (song.userScore ?: 0) - (song.rivalScore ?: 0)
+
+    /**
+     * Spoken score gap for TalkBack, player minus rival (missing scores count as zero).
+     *
+     * @param song Comparison.
+     * @param locale Number locale.
+     * @return "your score is 200 points higher", "… 1 point lower" or "same score".
+     */
+    fun spokenScoreDiff(song: RivalSongComparison, locale: Locale = Locale.getDefault()): String {
+        val diff = scoreDiff(song)
+        val magnitude = abs(diff)
+        val points = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " point" else " points"
+        return when {
+            diff > 0 -> "your score is $points higher"
+            diff < 0 -> "your score is $points lower"
+            else -> "same score"
+        }
+    }
 }
 
 // endregion

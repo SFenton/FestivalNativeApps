@@ -131,7 +131,7 @@ class SelectedProfileStore(
         }
         if (current.player?.accountId.equals(player.accountId, ignoreCase = true)) {
             if (current.player != player) mutableState.value = current.copy(player = player)
-            if (current.status != SelectedProfileStatus.None) return
+            if (current.status != SelectedProfileStatus.None && !wasInterrupted(current)) return
         }
         val held = current.payload
         if (held != null && held.belongsTo(player.accountId)) {
@@ -157,6 +157,19 @@ class SelectedProfileStore(
     /** Clear and re-read the selected player's scores (Retry). */
     fun retry() {
         reload()
+    }
+
+    /**
+     * Whether a read or retry countdown for [current] stopped without settling because its
+     * owner scope ended (an activity recreated mid-read, e.g. after a font-size change).
+     *
+     * @param current Current state for the same account.
+     * @return True when the read must be resumed rather than kept as is.
+     */
+    private fun wasInterrupted(current: SelectedProfileState): Boolean {
+        if (job?.isActive == true) return false
+        return current.status == SelectedProfileStatus.Loading ||
+            (current.status == SelectedProfileStatus.Failed && (current.countdown ?: 0) > 0)
     }
 
     private fun reload() {

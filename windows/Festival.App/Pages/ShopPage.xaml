@@ -100,7 +100,7 @@
                     </Flyout>
                 </DropDownButton.Flyout>
             </DropDownButton>
-            <Button Click="OnToggleView" Visibility="{x:Bind ViewModel.CanToggleView, Mode=OneWay}"
+            <Button Click="OnToggleView" Visibility="{x:Bind ViewModel.CanToggleView, Mode=OneWay}" MinHeight="{StaticResource FSTMinTargetSize}"
                     AutomationProperties.Name="{x:Bind ViewModel.ToggleLabel, Mode=OneWay}"
                     AutomationProperties.AutomationId="fst.shop.view-toggle">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -132,7 +132,7 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:ShopOfferItem">
-                            <Grid x:Name="Tile" Width="200" Height="200" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
+                            <Grid x:Name="Tile" Width="200" Height="200" CornerRadius="8" Background="{ThemeResource FSTSurfaceMutedBrush}">
                                 <Button x:Name="TileButton" Padding="0" BorderThickness="0" Background="Transparent" CornerRadius="8"
                                         HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Click="OnTileClick" Tag="{x:Bind}"
@@ -158,12 +158,16 @@
                                                 </LinearGradientBrush>
                                             </Rectangle.Fill>
                                         </Rectangle>
-                                        <StackPanel VerticalAlignment="Bottom" Padding="16" Spacing="4">
-                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16" Foreground="White"
-                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                            <TextBlock Text="{x:Bind Offer.Artist}" Style="{StaticResource BodyTextBlockStyle}" Foreground="White"
-                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                        </StackPanel>
+                                        <Border VerticalAlignment="Bottom" Background="{ThemeResource FSTShopTileCaptionBrush}">
+                                            <StackPanel Padding="16" Spacing="4">
+                                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16"
+                                                           Foreground="{ThemeResource FSTShopTileTextBrush}"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                <TextBlock Text="{x:Bind Offer.Artist}" Style="{StaticResource BodyTextBlockStyle}"
+                                                           Foreground="{ThemeResource FSTShopTileTextBrush}"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                            </StackPanel>
+                                        </Border>
                                     </Grid>
                                 </Button>
                                 <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16" Padding="8,3"
@@ -198,10 +202,13 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
+            <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                          Width="48" Height="48" AutomationProperties.Name="Loading Item Shop"
+                          AutomationProperties.AutomationId="fst.shop.loading" />
+            <!-- Held while the first tiles' art decodes (and after a List/Grid switch), then the layout fades in (6.41).
+                 Collapsed while idle so UI Automation never reports an inactive "Loading" ring. -->
+            <ProgressRing x:Name="RevealRing" IsActive="False" Visibility="Collapsed" Width="48" Height="48"
                           AutomationProperties.Name="Loading Item Shop" />
-            <!-- Held while the first tiles' art decodes (and after a List/Grid switch), then the layout fades in (6.41). -->
-            <ProgressRing x:Name="RevealRing" IsActive="False" Width="48" Height="48" AutomationProperties.Name="Loading Item Shop" />
 
             <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
@@ -230,7 +237,7 @@
             <StackPanel Visibility="{x:Bind ViewModel.IsHidden, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"
                         Spacing="12" MaxWidth="440">
                 <TextBlock Text="Item Shop Is Hidden" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                           AutomationProperties.AutomationId="fst.shop.hidden" />
+                           TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.hidden" />
                 <TextBlock Text="Turn off Hide Item Shop in Settings to see today's songs." HorizontalAlignment="Center"
                            TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>

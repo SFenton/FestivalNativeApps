@@ -52,6 +52,37 @@ public sealed class RankHistoryCombinedChart
     /// <summary>Bar colour when the field size is unknown, web <c>rgb(127,140,141)</c>.</summary>
     public const uint UnknownArgb = 0xFF7F8C8D;
 
+    /// <summary>Narrowest left (value) gutter, the 100% text-scale layout.</summary>
+    public const double MinValueGutter = 52;
+
+    /// <summary>Narrowest right (rank) gutter, the 100% text-scale layout.</summary>
+    public const double MinRankGutter = 48;
+
+    /// <summary>Space between the plot and the axis tick labels.</summary>
+    public const double AxisLabelGap = 6;
+
+    /// <summary>Shortest date band under the bars, the 100% text-scale layout.</summary>
+    public const double MinDateBand = 22;
+
+    /// <summary>
+    /// Side gutter that fits the widest measured tick label plus its gap to the plot, so Windows text sizes up to 225%
+    /// widen the gutter instead of clipping labels such as "49.5M".
+    /// </summary>
+    /// <param name="widestLabel">Widest tick label's measured width (epx, already text-scaled).</param>
+    /// <param name="minimum">Gutter at 100% text (<see cref="MinValueGutter"/> or <see cref="MinRankGutter"/>).</param>
+    /// <returns>Gutter width, at least <paramref name="minimum"/>.</returns>
+    public static double AxisGutter(double widestLabel, double minimum)
+    {
+        var needed = Math.Max(0, widestLabel) + AxisLabelGap;
+        return double.IsFinite(needed) ? Math.Max(minimum, Math.Ceiling(needed)) : minimum;
+    }
+
+    /// <summary>Date band under the bars that fits a measured (text-scaled) date label.</summary>
+    /// <param name="labelHeight">Measured date label height (epx).</param>
+    /// <returns>Band height, at least <see cref="MinDateBand"/>.</returns>
+    public static double DateBand(double labelHeight) =>
+        double.IsFinite(labelHeight) ? Math.Max(MinDateBand, Math.Ceiling(labelHeight)) : MinDateBand;
+
     private RankHistoryCombinedChart(List<RankHistoryPoint> points, int best, int worst, string metricLabel,
         Func<double, string> tick, Func<double, string> detail)
     {

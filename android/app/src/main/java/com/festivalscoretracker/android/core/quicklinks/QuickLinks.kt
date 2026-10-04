@@ -74,6 +74,50 @@ object QuickLinks {
     const val COMPLETE_THRESHOLD_DP = 8
 
     /**
+     * How long (ms) a jump keeps its section on the landing line while content that starts loading
+     * when it is first composed (rank history, bands) changes height; any user scroll, another jump or
+     * [MAX_LANDING_CORRECTIONS] re-landings end it sooner. Long enough for a live-service Rank History
+     * read above Top Songs on the player page (issue #106).
+     */
+    const val LANDING_HOLD_MS = 10_000L
+
+    /** Most times one jump re-lands its target while content above it resizes. */
+    const val MAX_LANDING_CORRECTIONS = 8
+
+    /**
+     * Whether a held jump must land again: the target left the landing line because content above it
+     * changed height (Statistics/Player Profile Rank History above Top Songs, issues #106 and #111), or
+     * content below it arrived after a jump the end of the list had clamped. Only drift the list can
+     * still correct counts: a target that cannot reach the line stays where it is.
+     *
+     * @param itemTop Target top below the visible top, in pixels, or null when it is not laid out.
+     * @param landingPx Landing line, in pixels.
+     * @param thresholdPx Landing tolerance, in pixels.
+     * @param canScrollForward The list can scroll further down (otherwise a lower target is clamped by its end).
+     * @param canScrollBackward The list can scroll further up (otherwise a higher target is clamped by its start).
+     * @param targetBelow When [itemTop] is null: true when the target lies below the laid-out items,
+     *   false when above, null when unknown (always re-land).
+     * @return True when scrolling to the target again would move it back to the landing line.
+     */
+    fun needsReland(
+        itemTop: Int?,
+        landingPx: Int,
+        thresholdPx: Int,
+        canScrollForward: Boolean,
+        canScrollBackward: Boolean,
+        targetBelow: Boolean? = null,
+    ): Boolean = when {
+        itemTop == null -> when (targetBelow) {
+            null -> true
+            true -> canScrollForward
+            false -> canScrollBackward
+        }
+        itemTop > landingPx + thresholdPx -> canScrollForward
+        itemTop < landingPx - thresholdPx -> canScrollBackward
+        else -> false
+    }
+
+    /**
      * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyStaggeredGridState.scrollToItem` that
      * lands an item's top [landingPx] below the visible viewport top. Lazy offsets are measured from the
      * end of the leading content padding, which content still scrolls through, so the padding is

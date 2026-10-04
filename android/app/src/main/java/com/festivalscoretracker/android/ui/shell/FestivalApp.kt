@@ -19,7 +19,14 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -144,6 +151,7 @@ import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.LocalShellPosture
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
@@ -211,15 +219,33 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
 
 // region Shell
 
-/** Material icon per section. */
-internal fun FestivalSection.icon(): ImageVector = when (this) {
-    FestivalSection.Songs -> Icons.Outlined.LibraryMusic
-    FestivalSection.Suggestions -> Icons.Outlined.AutoAwesome
-    FestivalSection.Leaderboards -> Icons.Outlined.EmojiEvents
-    FestivalSection.Compete -> Icons.Outlined.SportsEsports
-    FestivalSection.Rivals -> Icons.Outlined.People
-    FestivalSection.Statistics -> Icons.Outlined.BarChart
-    FestivalSection.Settings -> Icons.Outlined.Settings
+/**
+ * Material icon per section: filled while selected, outlined otherwise (M3 navigation bar,
+ * rail and drawer: "Use filled icons for active state, outlined for inactive").
+ *
+ * @param selected Whether this section is the active destination.
+ * @return Icon for the bar, rail or drawer item.
+ */
+internal fun FestivalSection.icon(selected: Boolean = false): ImageVector = if (selected) {
+    when (this) {
+        FestivalSection.Songs -> Icons.Filled.LibraryMusic
+        FestivalSection.Suggestions -> Icons.Filled.AutoAwesome
+        FestivalSection.Leaderboards -> Icons.Filled.EmojiEvents
+        FestivalSection.Compete -> Icons.Filled.SportsEsports
+        FestivalSection.Rivals -> Icons.Filled.People
+        FestivalSection.Statistics -> Icons.Filled.BarChart
+        FestivalSection.Settings -> Icons.Filled.Settings
+    }
+} else {
+    when (this) {
+        FestivalSection.Songs -> Icons.Outlined.LibraryMusic
+        FestivalSection.Suggestions -> Icons.Outlined.AutoAwesome
+        FestivalSection.Leaderboards -> Icons.Outlined.EmojiEvents
+        FestivalSection.Compete -> Icons.Outlined.SportsEsports
+        FestivalSection.Rivals -> Icons.Outlined.People
+        FestivalSection.Statistics -> Icons.Outlined.BarChart
+        FestivalSection.Settings -> Icons.Outlined.Settings
+    }
 }
 
 /**
@@ -515,7 +541,7 @@ private fun FestivalShell(
                             NavigationSuiteItem(
                                 selected = section == selected,
                                 onClick = { navController.selectSection(section, selected) },
-                                icon = { Icon(section.icon(), contentDescription = if (iconOnly) section.title else null) },
+                                icon = { Icon(section.icon(section == selected), contentDescription = if (iconOnly) section.title else null) },
                                 label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
                                 navigationSuiteType = navigationType,
                                 modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
@@ -527,7 +553,7 @@ private fun FestivalShell(
         }
     }
     val content = @Composable {
-        CompositionLocalProvider(LocalShellActions provides actions, LocalPageFind provides pageFind) {
+        CompositionLocalProvider(LocalShellActions provides actions, LocalPageFind provides pageFind, LocalShellPosture provides posture) {
             NavigationSuiteScaffoldLayout(navigationSuite = navigationSuite, navigationSuiteType = navigationType) {
                 Box(
                     Modifier
@@ -579,27 +605,41 @@ private fun FestivalShell(
             }
         }
     }
-    if (layout == NavigationLayout.PermanentDrawer) {
-        content()
-    } else {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            // Edge swipes belong to system back; the drawer opens from the menu button only.
-            gesturesEnabled = drawerState.isOpen,
-            // The drawerState overload adds M3's predictive back handling: system back closes
-            // the open drawer instead of leaving the app. Its corners follow the display corners
-            // (issue #55); without reported corners the shape is Material's default.
-            drawerContent = {
-                ChromeColors {
-                    ModalDrawerSheet(
-                        drawerState = drawerState,
-                        drawerShape = rememberConcentricDrawerShape(),
-                        drawerContainerColor = BrandTokens.cardBackground,
-                    ) { drawer(false) }
-                }
-            },
-        ) { content() }
+    // One parent at every width: hosting the pages bare beside a permanent drawer but inside the
+    // modal drawer otherwise rebuilt the NavHost whenever the window crossed the expanded width
+    // (tablet rotation, unfolding, resizing) and reset page state: list scroll, an open license or
+    // Filter sheet, picked filters (issues #106, #122, #126). The permanent layout keeps the modal
+    // sheet closed and empty, so its anchors (sheet width) and system-back order stay those of the
+    // modal layouts. Moving the pages with movableContentOf instead let the moved NavHost's back
+    // callback outrank the drawer's (Back popped the page under an open drawer).
+    val permanent = layout == NavigationLayout.PermanentDrawer
+    // Material re-targets the drawer to the anchor nearest its old pixel offset when the sheet's
+    // width changes, so a closed drawer reopened after a display-size (density) change such as
+    // desktop → phone. Re-close it once the new anchors are laid out.
+    val keepDrawerClosed = remember(permanent, density.density) { permanent || drawerState.isClosed }
+    LaunchedEffect(permanent, density.density) {
+        if (keepDrawerClosed) {
+            withFrameNanos {}
+            drawerState.snapTo(DrawerValue.Closed)
+        }
     }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        // Edge swipes belong to system back; the drawer opens from the menu button only.
+        gesturesEnabled = drawerState.isOpen && !permanent,
+        // The drawerState overload adds M3's predictive back handling: system back closes
+        // the open drawer instead of leaving the app. Its corners follow the display corners
+        // (issue #55); without reported corners the shape is Material's default.
+        drawerContent = {
+            ChromeColors {
+                ModalDrawerSheet(
+                    drawerState = drawerState,
+                    drawerShape = rememberConcentricDrawerShape(),
+                    drawerContainerColor = BrandTokens.cardBackground,
+                ) { if (!permanent) drawer(false) }
+            }
+        },
+    ) { content() }
     GlobalSearchHost(
         viewModel = searchViewModel,
         searchState = searchState,

@@ -114,13 +114,12 @@
                                            Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
                                            AutomationProperties.AutomationId="fst.history.subtitle" />
                             </StackPanel>
-                            <controls:SongScoreHistoryChart x:Name="HistoryChart" Model="{x:Bind ViewModel.History}" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
-                                                            AutomationProperties.AutomationId="fst.history.chart" />
-                            <!-- Selected bar's detail row (web detail card; half width on desktop). -->
+                            <!-- The chart's plot carries fst.history.chart (a UserControl has no UIA peer). -->
+                            <controls:SongScoreHistoryChart x:Name="HistoryChart" Model="{x:Bind ViewModel.History}" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" />
+                            <!-- Selected bar's detail row (web detail card; half width on desktop); the row itself is fst.history.detail. -->
                             <ContentControl x:Name="HistoryDetail" Content="{x:Bind ViewModel.History.SelectedRow, Mode=OneWay}" ContentTemplate="{StaticResource HistoryRowTemplate}"
                                             HorizontalContentAlignment="Stretch" HorizontalAlignment="Center" MaxWidth="560" MinWidth="280"
-                                            Visibility="{x:Bind ViewModel.History.HasSelectedPoint, Mode=OneWay}" IsTabStop="False"
-                                            AutomationProperties.AutomationId="fst.history.detail" />
+                                            Visibility="{x:Bind ViewModel.History.HasSelectedPoint, Mode=OneWay}" IsTabStop="False" />
                             <!-- Pager row: kept (empty) while another chart pages, so switching charts keeps the card's size (issue #61). -->
                             <Grid x:Name="HistoryPagerSlot" MinHeight="40" Visibility="{x:Bind ViewModel.History.ShowPagerSlot, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center"
@@ -156,14 +155,17 @@
                                 <TextBlock Text="This player's score history is still being prepared. Try again shortly." TextWrapping="Wrap"
                                            TextAlignment="Center" AutomationProperties.LiveSetting="Polite"
                                            AutomationProperties.AutomationId="fst.history.message" />
-                                <Button Content="Retry" HorizontalAlignment="Center" Command="{x:Bind ViewModel.History.RetryCommand}" />
+                                <Button Content="Retry" HorizontalAlignment="Center" Command="{x:Bind ViewModel.History.RetryCommand}"
+                                        AutomationProperties.Name="Retry score history" AutomationProperties.AutomationId="fst.history.retry" />
                             </StackPanel>
                             <StackPanel Spacing="8" HorizontalAlignment="Center" Visibility="{x:Bind ViewModel.History.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.service-status.inline">
-                                <TextBlock Text="{x:Bind ViewModel.History.Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Center" />
+                                <TextBlock Text="{x:Bind ViewModel.History.Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Center"
+                                           AutomationProperties.LiveSetting="Assertive" AutomationProperties.AutomationId="fst.history.error" />
                                 <TextBlock Text="{x:Bind ViewModel.History.Status.Message, Mode=OneWay}" TextWrapping="Wrap" TextAlignment="Center" />
                                 <Button Content="{x:Bind ViewModel.History.Status.RetryLabel, Mode=OneWay}" HorizontalAlignment="Center"
-                                        Command="{x:Bind ViewModel.History.Status.RetryCommand}" />
+                                        Command="{x:Bind ViewModel.History.Status.RetryCommand}"
+                                        AutomationProperties.AutomationId="fst.history.retry" />
                             </StackPanel>
                         </StackPanel>
                     </Border>

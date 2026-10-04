@@ -17,6 +17,7 @@ import com.festivalscoretracker.android.presentation.suggestions.SuggestionsPhas
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsViewModel
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.SuggestionFixtures
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi

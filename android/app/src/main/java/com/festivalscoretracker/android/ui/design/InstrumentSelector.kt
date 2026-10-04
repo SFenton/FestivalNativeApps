@@ -1,6 +1,8 @@
 package com.festivalscoretracker.android.ui.design
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -25,7 +27,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -40,8 +41,10 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
@@ -66,8 +69,10 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * arrows move a local preview until the centre button commits it. [content] expands
  * below the row while a chart is selected (web collapsible children).
  *
- * Accessibility: one selectable group; each chart is a radio-style element named by
- * its label ("selected" / "unavailable" states); compact arrows are labelled buttons.
+ * Accessibility: one selectable group; each chart is named by its label, reads as a
+ * radio button when [required] and as a single-select toggle (checkbox role, like a
+ * Material `FilterChip`) otherwise, with "Unavailable" / conflict states; compact arrows
+ * are labelled 48 dp icon buttons and the compact centre announces its new chart.
  *
  * @param instruments Charts in order.
  * @param selected Selected chart, or null.
@@ -106,8 +111,10 @@ fun InstrumentSelector(
 ) {
     val available = remember(instruments, hidden) { InstrumentSelection.available(instruments, hidden) }
     val effective = InstrumentSelection.effective(selected, available)
-    var previewIndex by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(available.size) { previewIndex = 0 }
+    // Keyed by the rendered count (web resets the preview when Settings change the list) but,
+    // unlike a reset effect, restored across rotation and other activity recreation.
+    var previewIndex by rememberSaveable(available.size) { mutableIntStateOf(0) }
+    val still = LocalFestivalAccessibility.current.reduceMotion
     Column(modifier.fillMaxWidth().testTag(tag)) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val isCompact = available.isNotEmpty() && (compact ?: InstrumentSelection.needsCompact(maxWidth.value, available.size))
@@ -134,8 +141,10 @@ fun InstrumentSelector(
                         isSelected = effective != null,
                         isDisabled = preview in disabled,
                         isMuted = effective == null && preview in muted,
+                        required = required,
                         keyboard = keyboard,
                         tag = "$tag.preview",
+                        announcesChanges = true,
                         onClick = { apply(InstrumentSelection.compactPress(effective, preview, required)) },
                     )
                     IconButton(
@@ -156,6 +165,7 @@ fun InstrumentSelector(
                             isSelected = isSelected,
                             isDisabled = chart in disabled,
                             isMuted = !isSelected && chart in muted,
+                            required = required,
                             keyboard = keyboard,
                             tag = "$tag.${chart.wireId}",
                             onClick = { onSelect(InstrumentSelection.press(effective, chart, required)) },
@@ -167,8 +177,9 @@ fun InstrumentSelector(
         if (content != null) {
             AnimatedVisibility(
                 visible = effective != null,
-                enter = expandVertically(tween(SELECTOR_ANIMATION_MS)) + fadeIn(tween(SELECTOR_ANIMATION_MS)),
-                exit = shrinkVertically(tween(SELECTOR_ANIMATION_MS)) + fadeOut(tween(SELECTOR_ANIMATION_MS)),
+                enter = if (still) EnterTransition.None else expandVertically(tween(SELECTOR_ANIMATION_MS)) + fadeIn(tween(SELECTOR_ANIMATION_MS)),
+                exit = if (still) ExitTransition.None else shrinkVertically(tween(SELECTOR_ANIMATION_MS)) + fadeOut(tween(SELECTOR_ANIMATION_MS)),
+                modifier = Modifier.testTag("$tag.detail"),
             ) { Column { content() } }
         }
     }
@@ -177,6 +188,14 @@ fun InstrumentSelector(
 /**
  * One 64 dp circle: green fill scaling in when selected (drawn, so the scale never
  * relayouts), the 48 dp chart icon, greyscale for disabled/muted.
+ *
+ * Semantics follow the Material 3 Compose patterns for single choice: a [required]
+ * selector is a radio group (`selectable` + [Role.RadioButton]); an optional one, where
+ * pressing the selected chart clears it (web `aria-pressed`), reads like a single-select
+ * `FilterChip` (`selectable` + [Role.Checkbox]).
+ *
+ * @param announcesChanges Polite live region, so TalkBack reads the compact centre's new
+ *   chart after an arrow press while focus stays on the arrow.
  */
 @Composable
 private fun SelectorButton(
@@ -184,9 +203,11 @@ private fun SelectorButton(
     isSelected: Boolean,
     isDisabled: Boolean,
     isMuted: Boolean,
+    required: Boolean,
     keyboard: Boolean,
     tag: String,
     onClick: () -> Unit,
+    announcesChanges: Boolean = false,
 ) {
     val still = LocalFestivalAccessibility.current.reduceMotion
     val fill by animateFloatAsState(if (isSelected) 1f else 0f, if (still) tween(0) else tween(SELECTOR_ANIMATION_MS), label = "selectorFill")
@@ -197,10 +218,15 @@ private fun SelectorButton(
             .size(side)
             .clip(CircleShape)
             .drawBehind { if (fill > 0f) drawCircle(BrandTokens.statusGreen, radius = size.minDimension / 2 * fill) }
-            .selectable(selected = isSelected, enabled = !isDisabled, role = Role.RadioButton, onClick = onClick)
+            .selectable(selected = isSelected, enabled = !isDisabled, role = if (required) Role.RadioButton else Role.Checkbox, onClick = onClick)
             .semantics {
                 contentDescription = instrument.label
-                if (isDisabled) stateDescription = "Unavailable" else if (isMuted) stateDescription = "Conflicts with another choice"
+                if (isDisabled) {
+                    stateDescription = UNAVAILABLE_STATE
+                } else if (isMuted) {
+                    stateDescription = MUTED_STATE
+                }
+                if (announcesChanges) liveRegion = LiveRegionMode.Polite
             }
             .testTag(tag),
     ) {
@@ -226,6 +252,12 @@ private const val DISABLED_ALPHA = 0.28f
 
 /** Web muted (conflict) opacity. */
 private const val MUTED_ALPHA = 0.42f
+
+/** Spoken state of a disabled chart (TalkBack adds "disabled"). */
+internal const val UNAVAILABLE_STATE = "Unavailable"
+
+/** Spoken state of a muted chart: it replaces "Not selected", so it keeps that meaning. */
+internal const val MUTED_STATE = "Not selected, conflicts with another choice"
 
 private val GREYSCALE = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) })
 
