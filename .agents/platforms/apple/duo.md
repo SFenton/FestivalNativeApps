@@ -72,14 +72,14 @@ The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../desi
 
 Supported orientations (operator O1 (b), 2026-10-02): a device that reports a hinge (or the vertical bar) allows all four orientations via the app delegate (`App/Layout/OrientationPolicy.swift`); the iPhone Info.plist key stays portrait-only and iPad keeps its four.
 
-Portrait was captured natively. The other three rows come from the web app's measured standalone-Safari Duo detector (`FortniteFestivalWeb/src/utils/probableDuoDisplay.ts:18-24,157-170`: an 84 pt inset on the bar side, 34 pt bottom, 0 top) and Apple's "controls stay with the camera" rule. TODO(orchestrator): confirm each row natively once the operator rotates the device in Device Hub.
+Portrait and both landscapes were captured natively (2026-10-04, `~/FestivalShowcase/native-duo/poses/o1-*`, window 678×466). Upside down is never adopted: after a Rotate Right from landscape the outer display keeps the previous landscape, although the app allows every orientation.
 
 | Outer rotation | Camera corner | Vertical bar edge | Evidence |
 |---|---|---|---|
 | Portrait | top-right | trailing (right) | native capture: bar x≈396–440 pt, top safe inset 0 |
-| Upside down | bottom-left | leading (left) | web detector |
-| Landscape, camera top-left | top-left | leading | web detector |
-| Landscape, camera bottom-right | bottom-right | trailing | web detector |
+| Upside down | — | — | not adopted by the system (simulator, 2026-10-04) |
+| Landscape (first Rotate Right) | — | trailing (right) | native capture `o1-1-rot1` |
+| Landscape (third Rotate Right) | — | leading (left) | native capture `o1-3-rot3` |
 
 The top safe inset is 0 in outer portrait although the camera sits in the top-right corner. Only the vertical bar's inset protects that corner, so **any custom overlay that spans the full width (drawer, banners, scrubbers) must use `DeviceLayout.overlayInsets`, not just the safe area.**
 
@@ -94,5 +94,5 @@ The top safe inset is 0 in outer portrait although the camera sits in the top-ri
 | Folded portrait, drawer | Scrim dimmed the vertical bar; panel ran to the bottom edge | Panel inset by `overlayInsets` (clear of the home-indicator inset), scrim off the bar |
 | Folded portrait, Player profile | Select Profile only in content | Rail: Back, Select Profile (`person.crop.circle.badge.plus`), Quick Links |
 | Folded portrait, Leaderboards › Player › Back | Rail re-laid out ~7 frames after the pop (hamburger collapsed to a dot, Rank By blanked) | Mostly clean; intermittent 2–3 frame residual ([design notes](../../design/apple/duo.md#toolbar-rules-all-duo-poses)) |
-| Folded upside down / both landscapes | Not capturable | **Not captured**: needs Device Hub rotation; UI scripting awaits the operator's Accessibility grant. Drawer clearance is covered by `ShellPresentationTests.duoDrawerAvoidsBarAndCamera` for all four rotations |
-| Unfolded / partially folded | Not capturable | **Not captured** (same blocker). Split Leaderboards + Rivals tabs are unit-tested (`duoInnerDisplayUsesRegularSections`) |
+| Folded upside down / both landscapes | Not capturable | Both landscapes captured 2026-10-04 (see the rotations table); upside down is not adopted |
+| Unfolded / partially folded | Not capturable | Captured 2026-10-04 in every inner pose ([design/apple/duo.md](../../design/apple/duo.md#decisions-per-pose)) |

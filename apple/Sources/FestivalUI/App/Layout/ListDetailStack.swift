@@ -427,8 +427,6 @@ struct ListDetailStack<Root: View>: View {
     private func splitView(_ split: ListDetailPolicy.Split) -> some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             listStack(split)
-                // Both columns stay populated (`/duo` D1), so there is nothing to toggle.
-                .toolbar(removing: .sidebarToggle)
                 // Pin the width ListDetailPolicy.detailColumnWidth assumes (J3); unpinned,
                 // the forced portrait split squeezed the list and clipped its rows.
                 .navigationSplitViewColumnWidth(ListDetailPolicy.splitListColumnWidth)
@@ -525,6 +523,9 @@ struct ListDetailStack<Root: View>: View {
     /// - Returns: The page with list/detail selection environment.
     private func listColumn(_ page: some View, split: ListDetailPolicy.Split) -> some View {
         page
+            // Both columns stay populated (`/duo` D1), so there is nothing to toggle. Set
+            // per page: on the stack it reached only the root (Full Rankings kept it).
+            .toolbar(removing: .sidebarToggle)
             .environment(\.listDetailScrollAnchor, scrollAnchor)
             .environment(\.listDetailSelection, split.selection)
             .environment(\.listDetailSelect, selectAction)
