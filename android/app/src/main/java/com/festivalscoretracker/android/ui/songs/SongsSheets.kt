@@ -78,6 +78,9 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.common.FestivalModalSheet
+import androidx.compose.material3.adaptive.currentWindowSize
+import androidx.compose.ui.platform.LocalDensity
+import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 
 
 // region Live sheet frame
@@ -85,6 +88,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 /**
  * Bottom sheet whose changes apply immediately (operator rule: no Cancel/Apply and
  * no discard confirmation). Reset restores defaults (also live); the shared header Close (tag `$tag.done`) dismisses.
+ * Reset sits below the form, or in the header on compact-height windows.
  *
  * @param title Title Case header.
  * @param tag Test tag root.
@@ -101,6 +105,18 @@ internal fun LiveSheet(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // Compact-height windows (landscape phones, folded landscape) move Reset into the header:
+    // a pinned footer there left the form a sliver at large text (issue #126).
+    val heightDp = with(LocalDensity.current) { currentWindowSize().height.toDp().value.toInt() }
+    val resetInHeader = AdaptiveLayoutPolicy.isCompactHeight(heightDp)
+    val reset = @Composable {
+        // Destructive action in red (operator 7.10).
+        TextButton(
+            onClick = onReset,
+            colors = ButtonDefaults.textButtonColors(contentColor = RESET_RED),
+            modifier = Modifier.testTag("$tag.reset"),
+        ) { Text("Reset", fontWeight = FontWeight.SemiBold) }
+    }
     // The shared header's Close replaces the former Done (changes are already applied); it
     // keeps the `.done` test tag, like Apple's `FestivalSheetCloseItem`.
     FestivalModalSheet(
@@ -109,16 +125,12 @@ internal fun LiveSheet(
         titleTag = "$tag.title",
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(tag),
+        headerActions = { if (resetInHeader) reset() },
     ) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 16.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).testTag("$tag.form")) { content() }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
-                // Destructive action in red (operator 7.10).
-                TextButton(
-                    onClick = onReset,
-                    colors = ButtonDefaults.textButtonColors(contentColor = RESET_RED),
-                    modifier = Modifier.testTag("$tag.reset"),
-                ) { Text("Reset", fontWeight = FontWeight.SemiBold) }
+            if (!resetInHeader) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) { reset() }
             }
         }
     }
