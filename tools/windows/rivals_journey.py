@@ -103,7 +103,20 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
     "compete": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
         "/compete",
-        ["waitfor:id=fst.rivals.title@20", "waitfor:id=fst.rivals.section.common@20"],
+        [
+            "waitfor:id=fst.rivals.title@20",
+            "waitfor:id=fst.rivals.section.common@20",
+            f"waitfor:id=fst.rivals.row.{RIVAL}@10",
+            # Masonry rows share a top: the first card of the row is current, not its right-hand neighbour (#213).
+            "waitfor:name=Quick Links, current section Common Rivals@10",
+            "{shot:compete}",
+        ],
+    ),
+    "compete-no-player": (
+        {"FST_DEBUG_ANONYMOUS": "1"},
+        "/compete",
+        # Like /rivals, the player-only /compete route lands on the Songs root without a profile.
+        ["waitfor:id=fst.songs.search@20", "waitfor:id=fst.songs.list@20", "{shot:compete-no-player}"],
     ),
 }
 
