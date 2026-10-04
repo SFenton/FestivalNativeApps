@@ -191,7 +191,7 @@
             <SolidColorBrush x:Key="FSTStatusMissingFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTStatusMissingStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTStatusAmberFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTStatusNoneFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTStatusNoneStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTEmphasisBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
