@@ -47,7 +47,11 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -300,10 +304,12 @@ fun SongRow(
         trailing = {
             val lastPlayed = row.lastPlayed
             val maxScore = row.maxScore
-            when {
-                lastPlayed != null -> LastPlayedEntry(lastPlayed, song)
-                maxScore != null -> MaxScoreDual(maxScore, song.songId)
-                else -> row.metadata.firstOrNull()?.let { MetadataPill(it, song.songId) }
+            Box(Modifier.primaryCap(), contentAlignment = Alignment.CenterEnd) {
+                when {
+                    lastPlayed != null -> LastPlayedEntry(lastPlayed, song)
+                    maxScore != null -> MaxScoreDual(maxScore, song.songId)
+                    else -> row.metadata.firstOrNull()?.let { MetadataPill(it, song.songId) }
+                }
             }
             val raw = row.chartRaw
             if (row.metadata.isEmpty() && maxScore == null && raw != null) DifficultyMeter(raw)
@@ -385,11 +391,14 @@ private fun LastPlayedEntry(entry: SongLastPlayed, song: Song) {
 
 @Composable
 private fun MaxScoreDual(pill: SongMaxScorePill, songId: String) {
-    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.testTag("fst.songs.max-score.$songId")) {
-        Text(pill.score, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-        Text(" / ", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-        Text(pill.max ?: "—", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (pill.max == null) BrandTokens.textMuted else BrandTokens.textPrimary)
+    val numbers = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = TABULAR_FIGURES)
+    // One text so "score / max" wraps at the slash at large text instead of squeezing the maximum.
+    val text = buildAnnotatedString {
+        append(pill.score)
+        append(" / ")
+        withStyle(SpanStyle(color = if (pill.max == null) BrandTokens.textMuted else BrandTokens.textPrimary)) { append(pill.max ?: "—") }
     }
+    Text(text, style = numbers, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, textAlign = TextAlign.End, modifier = Modifier.testTag("fst.songs.max-score.$songId"))
 }
 
 /**
@@ -563,7 +572,7 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
     val tag = Modifier.testTag("fst.songs.metadata.${pill.kind.name.lowercase()}.$songId")
     val label = MaterialTheme.typography.labelLarge
     when (pill.kind) {
-        MetadataField.Score -> Text(pill.text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = tag)
+        MetadataField.Score -> Text(pill.text, style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = TABULAR_FIGURES), fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, textAlign = TextAlign.End, modifier = tag)
         MetadataField.Percentage -> {
             val tint = pill.tint?.let { Color(0xFF000000 or it.toLong()).copy(alpha = 0.25f) } ?: Color.Transparent
             PillBox(
@@ -601,12 +610,29 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
             }
             PillBox(pill.text, fill, null, glyph, tag.heightIn(min = 22.dp))
         }
-        MetadataField.LastPlayed -> Text(pill.text, style = label, color = BrandTokens.textSecondary, modifier = tag)
+        MetadataField.LastPlayed -> Text(pill.text, style = label, color = BrandTokens.textSecondary, textAlign = TextAlign.End, modifier = tag)
     }
 }
 
 /** Height of one metadata pill (label text plus its 2 dp vertical padding). */
 private val PILL_HEIGHT = 24.dp
+
+/** OpenType tabular figures so stacked Songs scores line up digit for digit (spec: "bold, tabular"). */
+private const val TABULAR_FIGURES = "tnum"
+
+/** Most of the width beside the art the top-trailing primary value may take; the title keeps the rest. */
+internal const val PRIMARY_MAX_FRACTION = 0.5f
+
+/**
+ * Caps the top-trailing primary value at [PRIMARY_MAX_FRACTION] of the width it is offered so
+ * the title column keeps room at large text and in narrow panes; a wider value wraps
+ * right-aligned instead (spec: grow rather than clip).
+ */
+private fun Modifier.primaryCap(): Modifier = layout { measurable, constraints ->
+    val cap = if (constraints.hasBoundedWidth) (constraints.maxWidth * PRIMARY_MAX_FRACTION).toInt() else constraints.maxWidth
+    val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = max(cap, constraints.minWidth)))
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
 
 @Composable
 private fun PillBox(text: String, fill: Color, stroke: Color?, textColor: Color, modifier: Modifier = Modifier) {
@@ -616,7 +642,7 @@ private fun PillBox(text: String, fill: Color, stroke: Color?, textColor: Color,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
         color = textColor,
-        maxLines = 1,
+        textAlign = TextAlign.Center,
         modifier = modifier
             .clip(shape)
             .background(fill, shape)
