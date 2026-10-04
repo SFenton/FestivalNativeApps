@@ -13,9 +13,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import com.festivalscoretracker.android.ui.leaderboards.LocalRankingColumns
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.testTag
@@ -110,6 +115,8 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
             },
             footer = {},
             pager = { RankingsPager(page, current?.rankings?.pageCount ?: 1, "fst.band-rankings", viewModel::goTo) },
+            // Rows fade out above the floating pager and leave touch/TalkBack beneath it (issue #116).
+            fadeAboveFooter = true,
         ) {
             if (swap.showsSpinner) {
                 loadSwapSpinnerItem(swap, "Loading band rankings", "fst.band-rankings.loading")
@@ -119,10 +126,13 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                 }
             } else item(key = "rows") {
                 GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
-                    Column(Modifier.padding(8.dp)) {
+                    // Rows fill this column; below the roster's minimum width they stack (issue #116).
+                    var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+                    val density = LocalDensity.current
+                    Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }) {
                         when {
                             entries.isEmpty() -> Text("No ranked bands yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
-                            else -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(entries, metric)) { entries.forEachIndexed { index, entry ->
+                            else -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(entries, metric, stackBelow = rowWidth)) { entries.forEachIndexed { index, entry ->
                                 Box(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
                                     if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                                     BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
