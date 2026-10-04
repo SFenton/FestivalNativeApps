@@ -185,4 +185,20 @@ class FestivalModalTest {
         settle()
         assertEquals(before, coverage.openCount.value)
     }
+
+    /** Issue #126: a book-posture hinge moves the sheet into the wider pane, centred there. */
+    @Test
+    fun sheetHingePaneAndOffset() {
+        assertEquals(ModalSheetHinge.Pane(0, 1038), ModalSheetHinge.pane(2076, 1038, 1038))
+        assertEquals(ModalSheetHinge.Pane(1100, 976), ModalSheetHinge.pane(2076, 900, 1100))
+        assertEquals(null, ModalSheetHinge.pane(2076, 0, 0))
+        assertEquals(null, ModalSheetHinge.pane(2076, 2076, 2076))
+        assertEquals(null, ModalSheetHinge.pane(0, 10, 10))
+        assertEquals(null, ModalSheetHinge.pane(2076, 1100, 900))
+        // A pane-wide sheet centred in the window shifts left by half the end pane.
+        assertEquals(-519, ModalSheetHinge.offset(2076, ModalSheetHinge.Pane(0, 1038), 1038))
+        // A narrower sheet is centred in its pane.
+        assertEquals(-519, ModalSheetHinge.offset(2076, ModalSheetHinge.Pane(0, 1038), 800))
+        assertEquals(550, ModalSheetHinge.offset(2076, ModalSheetHinge.Pane(1100, 976), 976))
+    }
 }
