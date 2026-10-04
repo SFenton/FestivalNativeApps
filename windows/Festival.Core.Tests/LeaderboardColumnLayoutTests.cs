@@ -106,6 +106,28 @@ public class LeaderboardColumnLayoutTests
         var wide = LeaderboardColumnLayout.Fit(rankings, 1200);
         Assert.Equal((true, false, false), (wide.ShowMeta, wide.ShowAccuracy, wide.ShowStars));
         Assert.Equal(narrow.MetaWidth, wide.MetaWidth);
+        Assert.False(narrow.MetaBelowName || wide.MetaBelowName);
+    }
+
+    [Fact]
+    public void LargeTextRankingRows_MoveTheSongsLabelUnderTheName()
+    {
+        // Issue #208: Full Rankings at 200% text in a ~470 epx row left the name an ellipsis; the label moves under it.
+        var rankings = new LeaderboardSection(LeaderboardRowKind.Ranking, RankChars: 3, MetaChars: 7, ValueChars: 10, HasAccuracy: false, HasStars: false);
+        var squeezed = LeaderboardColumnLayout.Fit(rankings, 560, 2);
+        Assert.Equal((false, 0d, true, false), (squeezed.ShowMeta, squeezed.MetaWidth, squeezed.MetaBelowName, squeezed.ValueBelowName));
+        // Live Pro Lead "#1,450" with "38,267,723" at 200% in a ~470 epx row: still no room, so the row stacks.
+        var stacked = LeaderboardColumnLayout.Fit(rankings with { RankChars = 6 }, 470, 2);
+        Assert.Equal((true, true), (stacked.MetaBelowName, stacked.ValueBelowName));
+        Assert.True(LeaderboardColumnLayout.Fit(rankings with { MetaChars = 0 }, 470, 2).ValueBelowName);
+        var roomy = LeaderboardColumnLayout.Fit(rankings, 1200, 2);
+        Assert.Equal((true, 98d, false, false), (roomy.ShowMeta, roomy.MetaWidth, roomy.MetaBelowName, roomy.ValueBelowName));
+        // Before the first layout nothing moves; score rows drop the season instead.
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, double.NaN, 2).MetaBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, double.NaN, 2).ValueBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 470, 2).MetaBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 300, 2).ValueBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(rankings with { MetaChars = 0 }, 470, 2).MetaBelowName);
     }
 
     [Fact]
@@ -118,25 +140,33 @@ public class LeaderboardColumnLayoutTests
     public void LargeTextInANarrowRow_StacksTheValuesUnderTheName()
     {
         // Issue #207: Leaderboards at 200% text in a compact window (~470 epx rows). "#1", "39 / 50", "89,000,000"
-        // need 24 + 56 + 98 + 190 + 24 + 72 + 144 = 608 epx, so the name used to get no width at all.
+        // need 24 + 56 + 98 + 190 + 24 + 72 + 144 = 608 epx, so the name used to get no width at all. Rankings rows use
+        // the issue #208 placement (label, then rating, under the name) and never set the score-row flags.
         var rankings = new LeaderboardSection(LeaderboardRowKind.Ranking, RankChars: 2, MetaChars: 7, ValueChars: 10, HasAccuracy: false, HasStars: false);
-        var stacked = LeaderboardColumnLayout.Fit(rankings, 470, 2);
-        Assert.True(stacked.Stacked);
-        Assert.True(stacked.ShowMeta); // the songs label moves to the second line rather than disappearing
-        Assert.False(stacked.SplitValues); // under the name: 470 - 24 - 56 - 4 × 12 - 24 = 318 ≥ 98 + 12 + 190
-        Assert.True(LeaderboardColumnLayout.Fit(rankings, 470, 2.25).SplitValues); // 308 < 110.25 + 12 + 213.75
-        Assert.True(LeaderboardColumnLayout.Fit(rankings, 290, 2).SplitValues);
-        Assert.False(LeaderboardColumnLayout.Fit(rankings, 470).Stacked);
-        Assert.False(LeaderboardColumnLayout.Fit(rankings, 608, 2).Stacked);
-        Assert.True(LeaderboardColumnLayout.Fit(rankings, 607, 2).Stacked);
-        // Score rows drop stars and the season first and stack only when that is still not enough.
+        var ranked = LeaderboardColumnLayout.Fit(rankings, 470, 2);
+        Assert.Equal((true, true, false, false), (ranked.MetaBelowName, ranked.ValueBelowName, ranked.Stacked, ranked.SplitValues));
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, 608, 2).MetaBelowName);
+        Assert.True(LeaderboardColumnLayout.Fit(rankings, 607, 2).MetaBelowName);
+        // Score rows drop stars and the season first and stack only when that is still not enough:
+        // 24 + 76.5 + 182.25 + 130.5 + 27 + 72 + 162 = 674.25 epx at 225%.
         Assert.False(LeaderboardColumnLayout.Fit(Scores, 720, 2.25).Stacked);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 675, 2.25).Stacked);
+        Assert.True(LeaderboardColumnLayout.Fit(Scores, 674, 2.25).Stacked);
         var squeezed = LeaderboardColumnLayout.Fit(Scores, 470, 2.25);
         Assert.Equal((false, false, true), (squeezed.ShowMeta, squeezed.ShowStars, squeezed.Stacked));
-        Assert.False(squeezed.SplitValues); // no label to split from
-        Assert.False(LeaderboardColumnLayout.Fit(rankings, 1200, 2).SplitValues); // only stacked rows split
+        Assert.False(squeezed.SplitValues); // no season to split from
+        Assert.False(squeezed.MetaBelowName || squeezed.ValueBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 470).Stacked);
+        // A pinned season (Score History detail) goes under the name too, and splits from the score when both don't
+        // fit side by side: 470 - 24 - 76.5 - 4 × 12 - 130.5 - 27 = 164 < 58.5 + 12 + 182.25.
+        var pinned = LeaderboardColumnLayout.Fit(Scores, 470, 2.25, pinSeason: true);
+        Assert.Equal((true, true, true), (pinned.ShowMeta, pinned.Stacked, pinned.SplitValues));
+        // 300 - 24 - 34 - 4 × 8 - 58 - 12 = 140 ≥ 26 + 8 + 81: stacked on two lines only.
+        var twoLines = LeaderboardColumnLayout.Fit(Scores, 300, 1, pinSeason: true);
+        Assert.Equal((true, false), (twoLines.Stacked, twoLines.SplitValues));
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 1200, 2, pinSeason: true).SplitValues); // only stacked rows split
         // Unmeasured rows never stack.
-        Assert.False(LeaderboardColumnLayout.Fit(rankings, double.NaN, 2.25).Stacked);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, double.NaN, 2.25).Stacked);
     }
 
     [Fact]

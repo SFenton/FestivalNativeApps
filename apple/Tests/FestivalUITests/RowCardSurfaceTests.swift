@@ -53,6 +53,24 @@ private func cardCentre(_ image: CGImage) throws -> (red: Double, green: Double,
     return (sum.0 / samples, sum.1 / samples, sum.2 / samples)
 }
 
+/// Whether this host's captures blend a material with the view behind it.
+///
+/// Some CI runners (GitHub `xcode-27-arm64`, issue #122) draw an offscreen material
+/// opaque without sampling its backdrop, so a plain material over white reads dark.
+///
+/// - Returns: True when a bare `ultraThinMaterial` over white captures bright.
+/// - Throws: An unavailable capture.
+@MainActor
+private func hostBlendsMaterials() throws -> Bool {
+    let probe = ZStack {
+        Color.white
+        RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial).frame(width: 280, height: 64)
+    }
+    let host = nativeHostedView(probe, size: CGSize(width: 320, height: 96), forceGlassFallback: false)
+    let centre = try cardCentre(try nativeHostedImage(host))
+    return max(centre.red, centre.green, centre.blue) >= 0.2
+}
+
 // MARK: - Tests
 
 /// The Song row card (`festivalRowCard`) keeps every accessibility fallback of the
@@ -88,7 +106,13 @@ private func cardCentre(_ image: CGImage) throws -> (red: Double, green: Double,
         let pixels = nativeHostedControlPixels(try nativeHostedImage(host))
         #expect(pixels.bright > 0)
         let centre = try cardCentre(try nativeHostedImage(host))
-        #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
+        if try hostBlendsMaterials() {
+            #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
+        } else {
+            withKnownIssue("This host draws materials without their backdrop (#122)") {
+                #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
+            }
+        }
     }
 }
 #endif

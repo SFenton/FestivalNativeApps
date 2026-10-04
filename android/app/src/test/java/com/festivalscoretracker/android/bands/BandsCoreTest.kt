@@ -311,6 +311,11 @@ class BandsCoreTest {
         assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, 1000f, folds[0]))
         assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, 1000f, folds[1]))
         assertEquals(BandLayout.Panes(true, 450f, 0f), BandLayout.panes(1080f, 1000f, BandLayout.Hinge(450f, 450f, false)))
+        // ...nor the card grid (issue #117: 280 dp of the leading panel stayed empty); a balanced flat fold still does.
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(984f, BandLayout.Hinge(624f, 624f, false)))
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(984f, BandLayout.Hinge(264f, 264f, false)))
+        assertEquals(2, BandLayout.grid(984f, BandLayout.Hinge(624f, 624f, true)).columns)
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 32f), BandLayout.grid(1000f, BandLayout.Hinge(500f, 500f, false)))
         // A separating hinge anchors panes even when unbalanced.
         assertEquals(BandLayout.Panes(true, 300f, 0f), BandLayout.panes(900f, 1000f, BandLayout.Hinge(300f, 300f, true)))
         // A physical hinge with width becomes the gutter.

@@ -32,7 +32,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Item Shop | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
-| Full Rankings / Rank By menu | ✅✅✅ | 8/11/11 | ✅ | ✅ | ✅ |
+| Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
 | Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
@@ -41,7 +41,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
 | Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
-| Band Detail | ✅✅✅ | 10/14/14 | — | ✅ | ✅ |
+| Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
 | Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
 | Settings | ✅✅✅ | 30/30/30 | ✅ | ✅ | ✅ |
 | Licenses | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
@@ -85,6 +85,22 @@ Fixed:
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
 
+## Full Rankings validation (issue #208, 2026-10-03)
+
+Evidence: `a11y_matrix.py --fixture tools/windows/rankings_fixture.py --scan --tabs 30` with `journeys/full-rankings.json` (8 states) at compact, medium, wide, maximized, snap-left and snap-right; Desert and Night sky × compact/medium × 6 states; Aquatic, Dusk, light theme, display 100%/150% at medium; text 200% at C/M/W. Keyboard: `journeys/full-rankings-keyboard.json` (pager, menus + Esc, Your page, rows) 12/12 at C/M/W. Live public service (temp wrapper without `--base-url`, SFentonX on Lead and Pro Lead) at all five sizes plus contrast and text 200%. Axe 0 errors except item 8. Results per configuration in [full-rankings/windows.md](../pages/full-rankings/windows.md#validation-issue-208).
+
+Fixed: pager buttons lost focus to the window during the load swap; Your page left focus on its collapsed button and did not reveal the row, and focused rows could sit under the floating footer (WCAG 2.4.11); translucent floating cards, a hard-coded White ring and a system-backplated selected row under contrast themes; names truncated to "…" at 200% text on compact (the songs label now moves under the name and, when that is not enough, the row stacks on two lines, WCAG 1.4.4); missing Retry ID.
+
+## Band Detail validation (issue #212, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` for `band-detail` at compact, medium, wide, snap-left and maximized, then at medium under Desert, Night sky, light and dark system theme, display 100% (wide) and 150%, and text 200% (C+M): 0 Axe errors in every run. The live public service (temp wrapper without `--base-url`) gave 0 Axe errors at C/M/W, Desert and text 200%. The keyboard journey `kb-band-detail-stats` passes at all three sizes; wheel scrolling can't run on the locked console, so deep shots use `scrollinto`. Per-configuration results: [band-detail/windows.md](../pages/band-detail/windows.md#validation-issue-212).
+
+Fixed:
+- Tab never reached the linked Best Song Rank card: the stat `ItemsRepeater` lacked `TabFocusNavigation="Local"` (Tab stops 10/14/14 → 12/15/15).
+- The Rank By `ComboBox` had no visible label; it now has a `Header`, which is also its UIA name.
+- The percentile pill kept its purple fill and white text under contrast themes (now ButtonFace/ButtonText with an outline).
+- The shared `RankHistoryGraph` (Band Detail, Player Profile) clipped its left tick labels at 200% text and drew gridlines in an 8% white that disappears under contrast themes. Gutters and the date band are now measured from the scaled labels, gridlines/axes/bar outlines use WindowText under contrast themes, and the chart redraws on `ColorValuesChanged`/`TextScaleFactorChanged`. History rows grow with the text.
+
 ## Leaderboards validation (issue #207, 2026-10)
 
 Evidence: `a11y_matrix.py --scan --tabs 30` on `leaderboards`, `leaderboards-selected`, `leaderboards-unranked`, `leaderboards-spotlight-failed` and `leaderboards-rank-by-menu` (new pages) at compact/medium/wide; at medium under Desert, Night sky, light and dark system theme, display 100% and 150% and Animation effects off; text 200% at compact and medium; the live public service (SFentonX) the same way. 0 Axe errors on every page except WinUI's popup host (open item 8). Tab order: shell, Rank By, Quick Links, then per card its row group (one stop, arrows between rows) and View All, in reading order; no repeats, focus never left the window. `leaderboards_journey.py` drives every reachable state at all three sizes. Results per configuration in [leaderboards/windows.md](../pages/leaderboards/windows.md#validation-issue-207).
@@ -92,16 +108,16 @@ Evidence: `a11y_matrix.py --scan --tabs 30` on `leaderboards`, `leaderboards-sel
 Fixed:
 - View All's UIA name ("View All Lead Rankings") didn't contain its visible label "View All Rankings (3)" (WCAG 2.5.3); now "View All Rankings (3), Lead".
 - A failed card exposed an empty countdown text element.
-- Text 200%: names trimmed to "…" at compact and vanished at medium (rankings rows never drop their songs label). Cards now use fewer, wider columns as text grows, and rows that still can't fit stack their values under the name (shared row: Full Rankings and the song leaderboard benefit too).
+- Text 200%: names trimmed to "…" at compact and vanished at medium (rankings rows never drop their songs label). Cards now use fewer, wider columns as text grows, rankings rows move the songs label (then the rating) under the name as in #208, and score rows that still can't fit stack their values under the name (shared row: the song leaderboard and Score History benefit too).
 
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
-2. (Resolved 2026-09-29, win-unify.) Contrast themes now map status chips, emphasis text, pills, Shop borders/badges and destructive buttons to system colours ([design/windows.md](../design/windows.md) contrast roles; Axe 0 errors under Desert and Night sky on Songs, Song Detail, song leaderboard, Leaderboards, Suggestions, Player, Shop and the Songs Filter). Charts keep their brand data hues; since issue #195 the Song Detail score chart draws axes and bar outlines in WindowText and the selected bar in Highlight.
+2. (Resolved 2026-09-29, win-unify.) Contrast themes now map status chips, emphasis text, pills, Shop borders/badges and destructive buttons to system colours ([design/windows.md](../design/windows.md) contrast roles; Axe 0 errors under Desert and Night sky on Songs, Song Detail, song leaderboard, Leaderboards, Suggestions, Player, Shop and the Songs Filter). Charts keep their brand data hues; since issue #195 the Song Detail score chart draws axes and bar outlines in WindowText and the selected bar in Highlight, and since issue #212 the rank-history chart (Band Detail, Player Profile) does the same for gridlines, axes and bar outlines.
 3. (Resolved 2026-09-29, no repro.) Player Bands at compact: the row sitting exactly on the viewport's bottom edge reports a zero-height, not-offscreen UIA rectangle (Axe `BoundingRectangleSizeReasonable`). This is WinUI clipping, not app layout, and it doesn't occur at medium or wide.
 4. The XAML choice menus (Rank By, Instrument, Band Size, Jump, Sort) share the implicit presenter name "Options". The invoking button names the choice, but per-menu names would read better.
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
 7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).

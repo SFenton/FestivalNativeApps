@@ -85,9 +85,10 @@ SCENARIOS: dict[str, tuple[dict[str, str], list[str], list[str]]] = {
         {"FST_DEBUG_PROFILE": "fixture-rank-50:Fixture Rank 50"}, ["--large-rankings"],
         [
             f"waitfor:id={LEAD}@30",
-            # The pinned row sits below the ten board rows, under the fold at medium and compact heights.
-            "scrollinto:id=fst.rankings.row.fixture-rank-50@20",
-            "waitfor:id=fst.rankings.row.fixture-rank-50",
+            # The pinned row sits below the ten board rows, under the fold at medium and compact heights; its Button
+            # carries the spotlight ID (issue #208), not the board row's fst.rankings.row.<accountId>.
+            f"scrollinto:id={LEAD}.spotlight@20",
+            f"waitfor:id={LEAD}.spotlight",
             "scrollinto:name=View All Rankings (1,200), Lead",
             "waitfor:name=View All Rankings (1,200), Lead",
             "waitgone:name=Loading your rank@10",

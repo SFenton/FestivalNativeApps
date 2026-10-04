@@ -528,10 +528,12 @@ public sealed class FullRankingsViewModelTests
         var vm = new FullRankingsViewModel(fake.Session(), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), new FakeReader().Read);
         await vm.LoadAsync();
         Assert.True(vm.ShowError);
+        Assert.False(vm.ShowContent);
         Assert.False(vm.IsRefreshing);
         fake.Failing.Clear();
         await vm.Status.RetryCommand.ExecuteAsync(null);
         Assert.True(vm.ShowRows);
+        Assert.True(vm.ShowContent);
     }
 
     [Fact]
@@ -585,6 +587,8 @@ public sealed class FullRankingsViewModelTests
         await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.SpinnerOut);
         Assert.Equal("#26", vm.Rows[0].RankText);
         Assert.False(vm.ShowRows);
+        // The pager stays while rows swap so a focused pager button keeps keyboard focus (issue #208).
+        Assert.True(vm.ShowContent);
         time.Advance(LoadSwapTiming.SpinnerOut);
         await reload;
         Assert.True(vm.ShowRows);

@@ -22,7 +22,7 @@
 | Wide (1280+, maximized) | Cards in 3 columns (`LeaderboardsCardGridLayout`: equal columns ≥360 epx, max 4; each row as tall as its tallest card, so a spotlight or failure never clips like `UniformGridLayout`) |
 | Medium (~900, snapped half of a 1280 epx desktop) | Two columns beside the compact (icon) pane |
 | Compact (<641) | One column, 12 epx page padding, Rank By and Quick Links below the title; the shell pane collapses to the hamburger (LeftMinimal) |
-| Large text | `ScaleWithText` multiplies the 360 epx minimum column by the Windows text size, so at 200% medium drops to one column. Rows that still can't give the name `MinNameWidth` stack: name on line one, songs label and rating under it (a third line when those don't fit side by side), chevron centered (`LeaderboardColumnPlan.Stacked`/`SplitValues`, issue #207). 100% layouts are unchanged |
+| Large text | `ScaleWithText` multiplies the 360 epx minimum column by the Windows text size, so at 200% medium drops to one column. Rankings rows that still can't give the name `MinNameWidth` move the songs label under the name, then the rating too (`MetaBelowName`/`ValueBelowName`, issue #208); score rows (song leaderboard, Score History) stack the score, badge and stars under the name instead (a third line when a pinned season and the score don't fit side by side; `LeaderboardColumnPlan.Stacked`/`SplitValues`, issue #207). Chevron centered. 100% layouts are unchanged |
 
 ## Evidence
 
