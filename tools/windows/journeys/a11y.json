@@ -258,6 +258,19 @@
     ]
   },
   {
+    "name": "statistics-chart",
+    "route": "/statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.player.name@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.player.percentiles.Solo_Guitar@10",
+      "scrollinto:id=fst.player.rank-history.Solo_Guitar@10",
+      "wait:1"
+    ]
+  },
+  {
     "name": "player",
     "route": "/player/fixture-player-2",
     "profile": "fixture-player-1:Demo Player",
@@ -270,7 +283,8 @@
     "route": "/bands",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
-      "waitfor:id=fst.bands.title@20"
+      "waitfor:id=fst.bands.title@20",
+      "waitfor:id=fst.bands.not-found@10"
     ]
   },
   {

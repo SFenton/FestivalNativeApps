@@ -549,6 +549,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "focus":
                 Find(window, step).Focus();
                 break;
+            case "reveal":
+                // Scrolls an element (on screen or not) into view through UIA ScrollItem: no real input, so it also
+                // works on a locked console.
+                Find(window, step, onScreen: false).Patterns.ScrollItem.Pattern.ScrollIntoView();
+                break;
             case "waitfor":
                 Find(window, step);
                 break;
@@ -837,7 +842,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         using (request.Activate()) return search();
     }
 
-    internal AutomationElement Find(Window window, JsonObject step, string key = "selector")
+    internal AutomationElement Find(Window window, JsonObject step, string key = "selector", bool onScreen = true)
     {
         var (condition, label) = Condition(step, key);
         var raw = IsRaw(step, key);
@@ -845,7 +850,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         while (true)
         {
             var found = InView(raw, () => window.FindFirstDescendant(condition));
-            if (found is not null && !found.Properties.IsOffscreen.ValueOrDefault) return found;
+            if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }

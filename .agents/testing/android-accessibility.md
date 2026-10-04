@@ -15,6 +15,8 @@ Clipping checks: `TextLayoutResult.hasVisualOverflow` read through the `GetTextL
 
 Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk reports (`<device>-<screen>.md`, `.log` with every spoken fragment) are in the showcase folder `and-a11y2/talkback/`; large-text captures (before `phone-*.png`, after `*-v2`/`-v3`/`-v4`) in `and-a11y2/bigtext/`.
 
+Statistics re-check (issue #111, 2026-10-03, live service, SFentonX): the `talkback_walk.py` walk on FST_Phone read Search, Notifications ("10 unread"), Profile, then Overview (heading) and its tiles, the Lead heading, the Rank History heading, hint, one chart summary, the pager (forward buttons "disabled") and the snapshot rows, then the tiles and percentile rows, in visual order with no duplicate stops. `ProfileDeviceJourneyTest` and `PlayerAccessibilityJourneyTest#statisticsProfile` (ATF) pass on FST_Phone, and `ProfileDeviceJourneyTest` on FST_Book_Fold `--posture half`. 200% text was checked on every AVD in [statistics/android.md](../pages/statistics/android.md#validation-issue-111-2026-10-03), and reduced motion (all scales 0) is fine.
+
 ## Findings and fixes
 
 | Finding | Where | Fix |
@@ -41,6 +43,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Drag handle a 32 × 48 dp touch target once a tall sheet can collapse (ATF; issue #123) | Every `FestivalModalSheet` (seen in Songs filter with Song Intensity open) | `BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize())`: 48 × 48 dp, same look |
 | At 200% text in phone landscape "Pro Drums + Cymbals" ran into its meter (no end gap; issue #123) | Song Detail Intensity card | 8 dp end padding on the label; it wraps (two lines, unlimited at large text) before the meter instead of truncating |
 | TalkBack went silent for the next five focus moves after the Service Info card's polite live region announced (the card scrolled into view and its 5 s poll started); focus kept moving (issue #121) | Settings | The card is no longer a live region; focusing the state row reads the current state. FST_Phone walk at fs 1.0 and 2.0: 99 items, web order |
+| The optional Songs filter instrument selector read every chart as "Radio button" although tapping the selected one clears it; compact arrows changed the chart silently; the selected chart's detail ignored Remove animations (issue #129) | Instrument Selector (Songs filter, Paths, Score History) | Required pickers stay `RadioButton`, optional ones are `CheckBox` (chip semantics); the compact centre is a polite live region; detail expand/collapse is instant at animator scale 0 (`InstrumentSelectorUiTest`, `InstrumentSelectorDeviceTest`) |
 | A viewed player whose scores changed (publication changed) or whose Select failed said "Reload this page before selecting" with no control to reload; the page has no pull-to-refresh (issue #133) | Player page reached from the profile sheet | **Reload** text button (`fst.player.reload`, 48 dp) next to the notice; the profile sheet's inline search-error Retry is tagged `fst.profile.retry`. `ProfileSelectionDeviceTest` (ATF, reading order, 48 dp, hinge) passes on FST_Phone and FST_Book_Fold half |
 
 ### Large text (200% + largest display size)
