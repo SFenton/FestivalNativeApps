@@ -20,9 +20,11 @@ import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -55,6 +57,7 @@ import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 // region Background host
 
@@ -155,8 +158,8 @@ fun ArtworkBackground(
             val lightness = BackgroundPolicy.ART_LIGHTNESS
             ColorFilter.tint(Color(lightness, lightness, lightness), BlendMode.Modulate)
         }
-        SteppedCrossfade(target) { url ->
-            KenBurnsImage(url = url, animate = animating, drift = motionAllowed && url != focus, imageLoader = imageLoader, dim = dim) { error ->
+        SteppedCrossfade(target) { url, onLoaded ->
+            KenBurnsImage(url = url, animate = animating, drift = motionAllowed && url != focus, imageLoader = imageLoader, dim = dim, onLoaded = onLoaded) { error ->
                 val carousel = focus == null && url in covers
                 val skip = carousel && covers.size > 1 && url == covers.getOrNull(index) && pacer.onFailure()
                 Log.w(LOG_TAG, "Cover failed (${if (skip) "skipping" else "waiting"}, ${pacer.failureCount} in pool): $url", error)
@@ -207,30 +210,40 @@ private fun dataSaverOn(context: Context): Boolean =
         ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
 
 /**
- * Fades [target] in over the previous cover on the 30 fps clock. Replaces Compose's
+ * Fades [target] in over the previous cover on the 30 fps clock once it has loaded
+ * (load one ahead, then crossfade, like Windows and iOS). Replaces Compose's
  * `Crossfade`, whose transition runs on the composition's every-vsync clock. Both
  * layers are keyed at one call site, so the outgoing cover keeps its zoom state.
  *
+ * Only a cover that has drawn becomes the outgoing layer: a slow or failed successor
+ * keeps the last real cover in place instead of exposing the bare brand surface
+ * mid-rotation (issue #124).
+ *
  * @param target Cover to show, or null for none.
- * @param content One cover.
+ * @param content One cover, given a callback to report that it has loaded.
  */
 @Composable
-private fun SteppedCrossfade(target: String?, content: @Composable (String) -> Unit) {
+private fun SteppedCrossfade(target: String?, content: @Composable (url: String, onLoaded: () -> Unit) -> Unit) {
     var front by remember { mutableStateOf(target) }
     var back by remember { mutableStateOf<String?>(null) }
+    val loaded = remember { mutableStateMapOf<String, Boolean>() }
     val fade = remember { Animatable(1f) }
     LaunchedEffect(target) {
         if (target == front) return@LaunchedEffect
-        back = front
+        if (front?.let { loaded[it] } == true) back = front
         front = target
+        loaded.keys.filter { it != front && it != back }.forEach { loaded.remove(it) }
         fade.snapTo(0f)
+        if (target != null) snapshotFlow { loaded[target] == true }.first { it }
         stepped { fade.animateTo(1f, tween(BackgroundPolicy.CROSSFADE_MS)) }
         back = null
     }
     for (url in listOfNotNull(back?.takeIf { it != front }, front)) {
         key(url) {
             val isFront = url == front
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (isFront) fade.value else 1f }) { content(url) }
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (isFront) fade.value else 1f }) {
+                content(url) { loaded[url] = true }
+            }
         }
     }
 }
@@ -244,6 +257,7 @@ private fun SteppedCrossfade(target: String?, content: @Composable (String) -> U
  * @param drift Whether this cover drifts at all; false (reduced motion, song cover) draws it untransformed.
  * @param imageLoader Cover loader.
  * @param dim Art-only dimming filter.
+ * @param onLoaded Called once the cover has loaded and can draw.
  * @param onError Called with the cause when the cover fails to load (skipped, never replaced by fake art).
  */
 @Composable
@@ -253,6 +267,7 @@ private fun KenBurnsImage(
     drift: Boolean,
     imageLoader: ImageLoader,
     dim: ColorFilter,
+    onLoaded: () -> Unit,
     onError: (Throwable) -> Unit,
 ) {
     val preset = BackgroundPolicy.PRESETS[abs(url.hashCode()) % BackgroundPolicy.PRESETS.size]
@@ -269,6 +284,7 @@ private fun KenBurnsImage(
         imageLoader = imageLoader,
         contentScale = ContentScale.Crop,
         colorFilter = dim,
+        onSuccess = { onLoaded() },
         onError = { onError(it.result.throwable) },
         modifier = Modifier
             .fillMaxSize()

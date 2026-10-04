@@ -340,6 +340,22 @@ class ArtworkBackgroundUiTest {
     }
 
     @Test
+    fun aFailedSuccessorKeepsThePreviousCoverInsteadOfTheBrandSurface() {
+        failing = setOf(order[1])
+        setUp(controller())
+        advance(1_500)
+        assertColor(dimmedWhite, centre())
+        advance(BackgroundPolicy.DWELL_MS - 1_500)
+        // order[1] fails and is skipped; order[0] stays until order[2] has faded in over it.
+        repeat(6) {
+            advance(250)
+            assertColor(dimmedWhite, centre())
+        }
+        assertEquals(order[2], cover())
+        assertTrue(order[1] in requested)
+    }
+
+    @Test
     fun fiveFailuresSpendThePoolAndStopRotationOnTheBrandSurface() {
         failing = order.toSet()
         setUp(controller())
