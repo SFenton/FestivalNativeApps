@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertWidthIsAtLeast
@@ -242,6 +243,51 @@ class DifficultyMeterUiTest {
         // The handle hosting the sheet's collapse/dismiss actions keeps a 48 dp touch target.
         rule.onNode(hasContentDescription("drag handle", substring = true, ignoreCase = true))
             .assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+    }
+
+    // endregion
+
+    // region Song Detail Intensity card
+
+    /**
+     * Phone landscape at font scale 2.0 (FST_Phone finding): labelled Intensity cells keep
+     * at least 8 dp between the instrument label's glyphs and the right-aligned meter. The
+     * 870 dp width puts Robolectric's "Pro Drums + Cymbals" within 4 dp of the meter without
+     * the end gap, as the device rendered it at 891 dp.
+     */
+    @Test
+    @Config(qualifiers = "w870dp-h411dp-xxhdpi", fontScale = 2.0f)
+    fun songDetailIntensityLabelsKeepAGapBeforeTheirMeter() {
+        val debug = DebugLaunch(songQuery = "s-alpha", stillBackground = true)
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = FakeTransport.standard(), settingsStore = InMemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+        settle()
+        val cymbals = "fst.song-detail.intensity.Solo_PeripheralCymbals"
+        rule.waitUntil(20_000) { settle(100); rule.onAllNodesWithTag(cymbals, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag(cymbals))
+        settle()
+        val root = rule.activity.window.decorView
+        val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { root.draw(Canvas(bitmap)) }
+        val density = 3f
+        val isCell = SemanticsMatcher("Intensity cell") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.song-detail.intensity.") == true }
+        val cells = rule.onAllNodes(isCell, useUnmergedTree = true).fetchSemanticsNodes()
+            .filter { it.boundsInWindow.width >= 200 * 3f && it.boundsInWindow.height >= 28 * 3f }
+        assertTrue("labelled cells on screen", cells.size >= 2)
+        val gaps = cells.associate { cell ->
+            val bounds = cell.boundsInWindow
+            val meterLeft = (bounds.right - 62 * density).toInt()
+            val labelStart = (bounds.left + 38 * density).toInt()
+            val top = bounds.top.toInt().coerceAtLeast(0)
+            val bottom = bounds.bottom.toInt().coerceAtMost(bitmap.height)
+            var rightmostGlyph = labelStart
+            for (x in labelStart until meterLeft) for (y in top until bottom) {
+                val p = bitmap.getPixel(x, y)
+                if (android.graphics.Color.red(p) > 180 && android.graphics.Color.green(p) > 180 && android.graphics.Color.blue(p) > 180) rightmostGlyph = maxOf(rightmostGlyph, x)
+            }
+            cell.config[SemanticsProperties.ContentDescription].single() to (meterLeft - rightmostGlyph) / density
+        }
+        assertTrue("label-to-meter gaps (dp): $gaps", gaps.values.all { it >= 8f })
     }
 
     // endregion
