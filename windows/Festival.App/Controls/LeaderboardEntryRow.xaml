@@ -31,9 +31,11 @@
                 <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
             </controls:LeaderboardRowButton.Resources>
             <Grid x:Name="RowGrid" ColumnSpacing="12">
-                <!-- A second row only holds a rankings songs label (and, when even that leaves no room, the rating) moved
-                     under the name (large text in a narrow row; issue #208). -->
+                <!-- Extra lines only when large text in a narrow row moves columns under the name: a rankings songs label
+                     (and, when even that leaves no room, the rating; issue #208), or a score row's values (a third line
+                     when a pinned season and the score don't fit side by side; issue #207). -->
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -46,27 +48,27 @@
                     <ColumnDefinition x:Name="StarsColumn" Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock x:Name="RankText" Grid.RowSpan="2" AutomationProperties.AccessibilityView="Raw" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
+                <TextBlock x:Name="RankText" Grid.RowSpan="3" AutomationProperties.AccessibilityView="Raw" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
                 <!-- Names truncate, never marquee (web colName; operator batch 7.14). -->
-                <TextBlock x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="2" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                <TextBlock x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                 <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
-                <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
                     <TextBlock x:Name="BayesianText" AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
                                Visibility="Collapsed" />
                 </StackPanel>
                 <!-- Web AccuracyDisplay: accuracy-tinted pill, or the skewed gold outline for a full combo; sized for at
                      most "XX.X%" (operator batch 7.1). -->
-                <Border x:Name="Pill" AutomationProperties.AccessibilityView="Raw" Grid.Column="4" Grid.RowSpan="2" CornerRadius="4" Padding="4,1" Width="58" BorderThickness="2"
+                <Border x:Name="Pill" AutomationProperties.AccessibilityView="Raw" Grid.Column="4" Grid.RowSpan="3" CornerRadius="4" Padding="4,1" Width="58" BorderThickness="2"
                         HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
                     <TextBlock x:Name="PillText" AutomationProperties.AccessibilityView="Raw" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="NoWrap" />
                 </Border>
-                <Border x:Name="StarsHost" Grid.Column="5" Grid.RowSpan="2" VerticalAlignment="Center" Visibility="Collapsed">
+                <Border x:Name="StarsHost" Grid.Column="5" Grid.RowSpan="3" VerticalAlignment="Center" Visibility="Collapsed">
                     <controls:StarRow x:Name="StarsView" StarSize="14" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
                 <!-- In-card chevron on rows with a destination (operator batch 7.3). -->
-                <FontIcon x:Name="Chevron" Grid.Column="6" Grid.RowSpan="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                <FontIcon x:Name="Chevron" Grid.Column="6" Grid.RowSpan="3" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                           AutomationProperties.AccessibilityView="Raw" />
             </Grid>
         </controls:LeaderboardRowButton>

@@ -137,6 +137,39 @@ public class LeaderboardColumnLayoutTests
     }
 
     [Fact]
+    public void LargeTextInANarrowRow_StacksTheValuesUnderTheName()
+    {
+        // Issue #207: Leaderboards at 200% text in a compact window (~470 epx rows). "#1", "39 / 50", "89,000,000"
+        // need 24 + 56 + 98 + 190 + 24 + 72 + 144 = 608 epx, so the name used to get no width at all. Rankings rows use
+        // the issue #208 placement (label, then rating, under the name) and never set the score-row flags.
+        var rankings = new LeaderboardSection(LeaderboardRowKind.Ranking, RankChars: 2, MetaChars: 7, ValueChars: 10, HasAccuracy: false, HasStars: false);
+        var ranked = LeaderboardColumnLayout.Fit(rankings, 470, 2);
+        Assert.Equal((true, true, false, false), (ranked.MetaBelowName, ranked.ValueBelowName, ranked.Stacked, ranked.SplitValues));
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, 608, 2).MetaBelowName);
+        Assert.True(LeaderboardColumnLayout.Fit(rankings, 607, 2).MetaBelowName);
+        // Score rows drop stars and the season first and stack only when that is still not enough:
+        // 24 + 76.5 + 182.25 + 130.5 + 27 + 72 + 162 = 674.25 epx at 225%.
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 720, 2.25).Stacked);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 675, 2.25).Stacked);
+        Assert.True(LeaderboardColumnLayout.Fit(Scores, 674, 2.25).Stacked);
+        var squeezed = LeaderboardColumnLayout.Fit(Scores, 470, 2.25);
+        Assert.Equal((false, false, true), (squeezed.ShowMeta, squeezed.ShowStars, squeezed.Stacked));
+        Assert.False(squeezed.SplitValues); // no season to split from
+        Assert.False(squeezed.MetaBelowName || squeezed.ValueBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 470).Stacked);
+        // A pinned season (Score History detail) goes under the name too, and splits from the score when both don't
+        // fit side by side: 470 - 24 - 76.5 - 4 × 12 - 130.5 - 27 = 164 < 58.5 + 12 + 182.25.
+        var pinned = LeaderboardColumnLayout.Fit(Scores, 470, 2.25, pinSeason: true);
+        Assert.Equal((true, true, true), (pinned.ShowMeta, pinned.Stacked, pinned.SplitValues));
+        // 300 - 24 - 34 - 4 × 8 - 58 - 12 = 140 ≥ 26 + 8 + 81: stacked on two lines only.
+        var twoLines = LeaderboardColumnLayout.Fit(Scores, 300, 1, pinSeason: true);
+        Assert.Equal((true, false), (twoLines.Stacked, twoLines.SplitValues));
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 1200, 2, pinSeason: true).SplitValues); // only stacked rows split
+        // Unmeasured rows never stack.
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, double.NaN, 2.25).Stacked);
+    }
+
+    [Fact]
     public void Measure_CoversEveryRowAndThePinnedRow()
     {
         System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
