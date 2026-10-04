@@ -7,6 +7,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
@@ -33,9 +34,6 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>List width at which chips sit inline instead of under the title.</summary>
     private const double InlineChipsWidth = 760;
 
-    /// <summary>List width at which every metadata pill sits inline.</summary>
-    private const double InlineMetadataWidth = 1100;
-
     /// <summary>Page width from which the list and the selected song's detail sit side by side.</summary>
     public const double SplitWidth = 1100;
 
@@ -58,7 +56,15 @@ public sealed partial class SongsPage : Page, IPageBack
     private string[] stickyLabels = [];
     private int stickyRowCount;
     private bool wideLayout;
-    private int trailingBand = -1;
+
+    /// <summary>Page-wide metadata placement: every pill beside the title (<see cref="SongMetadataLayout.Inline"/>).</summary>
+    private bool metadataInline;
+
+    /// <summary>Settings, text scale and contrast the cached <see cref="metadataRequired"/> was measured for.</summary>
+    private string? metadataMeasureKey;
+
+    /// <summary>List width the enabled pills need inline, measured at the current text size.</summary>
+    private double metadataRequired = double.PositiveInfinity;
     private readonly TopEdgeFade edgeFade;
     private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
@@ -158,6 +164,8 @@ public sealed partial class SongsPage : Page, IPageBack
     {
         ShowIncoming(null);
         pendingPin = -1;
+        wideLayout = ListWidth() >= InlineChipsWidth;
+        metadataInline = MetadataInline();
         var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0, s.AutomationId)).ToList();
         groupStarts = new int[groups.Count];
         for (int i = 0, start = 0; i < groups.Count; start += groups[i].Count, i++) groupStarts[i] = start;
@@ -319,6 +327,7 @@ public sealed partial class SongsPage : Page, IPageBack
         fadeUiSettings.AdvancedEffectsEnabledChanged += OnEdgeFadeSystemChanged;
         // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
         fadeUiSettings.ColorValuesChanged += OnEdgeFadeSystemChanged;
+        fadeUiSettings.TextScaleFactorChanged += OnTextScaleChanged;
     }
 
     /// <summary>Stops following appearance changes.</summary>
@@ -327,7 +336,14 @@ public sealed partial class SongsPage : Page, IPageBack
         App.Session.PropertyChanged -= OnEdgeFadeSettingsChanged;
         fadeUiSettings.AdvancedEffectsEnabledChanged -= OnEdgeFadeSystemChanged;
         fadeUiSettings.ColorValuesChanged -= OnEdgeFadeSystemChanged;
+        fadeUiSettings.TextScaleFactorChanged -= OnTextScaleChanged;
     }
+
+    /// <summary>Text size changed: the pills' measured widths did too, so re-decide inline placement.</summary>
+    /// <param name="sender">System settings.</param>
+    /// <param name="args">Unused.</param>
+    private void OnTextScaleChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(() => ApplyLayout(ActualWidth));
 
     /// <summary>Re-evaluates the fade when the in-app settings change.</summary>
     /// <param name="sender">Session.</param>
@@ -460,7 +476,7 @@ public sealed partial class SongsPage : Page, IPageBack
         var secondary = card.Secondary;
         trailing.Children.Clear();
         secondary.Children.Clear();
-        var inlineChips = ListWidth() >= InlineChipsWidth;
+        var inlineChips = wideLayout;
         if (row.Chips.Count > 0)
         {
             var target = inlineChips ? trailing : secondary;
@@ -469,11 +485,17 @@ public sealed partial class SongsPage : Page, IPageBack
         }
         else if (row.Metadata.Count > 0)
         {
-            var allInline = ListWidth() >= InlineMetadataWidth;
+            var songId = row.Song.SongId;
             if (row.NamesChart)
-                trailing.Children.Add(new InstrumentIcon { File = row.Chart!.Value.IconFile(row.Keyboard), Label = row.Chart.Value.Label(), Width = 20, Height = 20 });
+            {
+                var icon = new InstrumentIcon { File = row.Chart!.Value.IconFile(row.Keyboard), Label = row.Chart.Value.Label(), Width = 20, Height = 20 };
+                // Raw like the pills: the row item already speaks "<chart> chart".
+                AutomationProperties.SetAutomationId(icon, SongMetadataLayout.ChartAutomationId(songId));
+                AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
+                trailing.Children.Add(icon);
+            }
             for (var i = 0; i < row.Metadata.Count; i++)
-                (i == 0 || allInline ? trailing : secondary).Children.Add(SongRowVisuals.Pill(row.Metadata[i]));
+                (i == 0 || metadataInline ? trailing : secondary).Children.Add(SongRowVisuals.Pill(row.Metadata[i], songId));
             secondary.LineAlignment = HorizontalAlignment.Right;
         }
         else
@@ -484,7 +506,11 @@ public sealed partial class SongsPage : Page, IPageBack
                 trailing.Children.Add(new DifficultyMeter { Raw = raw, VerticalAlignment = VerticalAlignment.Center });
             }
             if (row.ScoreState is { } state)
-                trailing.Children.Add(new TextBlock { Text = state, Style = (Style)Application.Current.Resources["FSTSecondaryTextStyle"], VerticalAlignment = VerticalAlignment.Center });
+            {
+                var text = new TextBlock { Text = state, Style = (Style)Application.Current.Resources["FSTSecondaryTextStyle"], VerticalAlignment = VerticalAlignment.Center };
+                AutomationProperties.SetAutomationId(text, SongMetadataLayout.StateAutomationId(row.Song.SongId));
+                trailing.Children.Add(text);
+            }
         }
         var wrapped = secondary.Children.Count > 0;
         card.SetWrapped(wrapped);
@@ -545,27 +571,69 @@ public sealed partial class SongsPage : Page, IPageBack
         Root.Padding = compact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);
         SongList.Padding = compact ? new Thickness(0, 0, 0, 24) : new Thickness(0, 0, 12, 24);
         Actions.Margin = Notices.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
-        var wide = ListWidth() >= InlineChipsWidth;
-        if (wide == wideLayout) return;
-        wideLayout = wide;
-        if (GroupedSongs.Source is not null) RebindGroups();
+        UpdateTrailingPlacement(force: false);
     }
 
     /// <summary>
-    /// Re-lays out the realized rows' trailing content when the list itself crosses a breakpoint. The page's own SizeChanged runs
-    /// before the list is re-measured, so <see cref="ApplyLayout"/> still reads the old list width there (a wide → compact
-    /// resize kept chips inline and squeezed the title out of the row).
+    /// Re-decides chip and metadata pill placement for the current list width and rebuilds the realized rows' trailing
+    /// content in place (keeps the scroll position) when it changed.
+    /// </summary>
+    /// <param name="force">Rebuild even when the placement is unchanged (brushes and ring weights follow a theme change).</param>
+    private void UpdateTrailingPlacement(bool force)
+    {
+        var wide = ListWidth() >= InlineChipsWidth;
+        var inline = MetadataInline();
+        if (!force && wide == wideLayout && inline == metadataInline) return;
+        (wideLayout, metadataInline) = (wide, inline);
+        RefreshTrailing();
+    }
+
+    /// <summary>
+    /// Page-wide metadata placement for the current list width (web <c>resolveCompactRowMode</c>): inline when the list
+    /// fits every enabled pill at its widest beside a readable title, with hysteresis. Pages without metadata rows keep
+    /// their decision, so resizing them never rebuilds rows for it.
+    /// </summary>
+    /// <returns>Whether rows put every pill inline.</returns>
+    private bool MetadataInline()
+    {
+        var first = ViewModel.Sections.SelectMany(s => s.Rows).FirstOrDefault(r => r.Metadata.Count > 0);
+        if (first is null) return metadataInline;
+        return SongMetadataLayout.Inline(ListWidth(), MetadataRequiredWidth(first.NamesChart), metadataInline);
+    }
+
+    /// <summary>
+    /// Measures the widest sample of every enabled pill (so text scaling and the contrast pill style count) once per
+    /// settings/text-size/contrast combination.
+    /// </summary>
+    /// <param name="namesChart">A non-Lead chart icon precedes the pills.</param>
+    /// <returns>Required list width in epx.</returns>
+    private double MetadataRequiredWidth(bool namesChart)
+    {
+        var settings = App.Session.Settings;
+        var key = string.Join('|', settings.MetadataScore, settings.MetadataPercentage, settings.MetadataPercentile, settings.MetadataStars,
+            settings.MetadataSeason, settings.MetadataIntensity, settings.MetadataDifficulty, settings.MetadataLastPlayed, namesChart,
+            fadeUiSettings.TextScaleFactor, ContrastTheme.IsOn);
+        if (key == metadataMeasureKey) return metadataRequired;
+        var unbounded = new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity);
+        var widths = SongMetadataLayout.WidestSamples(settings).Select(field =>
+        {
+            var pill = SongRowVisuals.Pill(field);
+            pill.Measure(unbounded);
+            return pill.DesiredSize.Width;
+        });
+        metadataRequired = SongMetadataLayout.RequiredWidth(widths, namesChart);
+        metadataMeasureKey = key;
+        return metadataRequired;
+    }
+
+    /// <summary>
+    /// Re-decides the rows' trailing placement when the list itself is resized. The page's own SizeChanged runs before the
+    /// list is re-measured (and before a split column change lands), so <see cref="ApplyLayout"/> still reads the old list
+    /// width there (a wide → compact resize kept chips inline and squeezed the title out of the row).
     /// </summary>
     /// <param name="sender">List.</param>
     /// <param name="e">Size change.</param>
-    private void OnListSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        var band = TrailingBand(ListWidth());
-        if (band == trailingBand) return;
-        trailingBand = band;
-        wideLayout = ListWidth() >= InlineChipsWidth;
-        RefreshTrailing();
-    }
+    private void OnListSizeChanged(object sender, SizeChangedEventArgs e) => UpdateTrailingPlacement(force: false);
 
     /// <summary>Rebuilds the realized rows' trailing content in place (keeps the scroll position; later rows build on realization).</summary>
     private void RefreshTrailing()
@@ -574,11 +642,6 @@ public sealed partial class SongsPage : Page, IPageBack
         foreach (var child in panel.Children)
             if (child is ListViewItem { ContentTemplateRoot: SongRowCard card, Content: SongRowItem row }) BuildTrailing(card, row);
     }
-
-    /// <summary>Trailing-content layout for a list width: 0 chips/metadata wrap, 1 chips inline, 2 all metadata inline.</summary>
-    /// <param name="listWidth">List width in epx.</param>
-    /// <returns>Band index.</returns>
-    private static int TrailingBand(double listWidth) => listWidth >= InlineMetadataWidth ? 2 : listWidth >= InlineChipsWidth ? 1 : 0;
 
     /// <summary>Opens Song Detail, carrying the filtered chart.</summary>
     /// <param name="sender">List.</param>
@@ -607,8 +670,8 @@ public sealed partial class SongsPage : Page, IPageBack
         DetailColumn.Width = on ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         DetailFrame.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         SongList.SelectionMode = on ? ListViewSelectionMode.Single : ListViewSelectionMode.None;
-        // The list column changed width: rebuild rows so chips wrap or sit inline for it, whatever the last breakpoint was.
-        wideLayout = ListWidth() >= InlineChipsWidth;
+        // The list column changed width: rebuild rows so chips and pills wrap or sit inline for it, whatever the last
+        // breakpoint was (RebindGroups re-decides both).
         if (GroupedSongs.Source is not null) RebindGroups();
         ApplyLayout(ActualWidth);
         if (on)
@@ -763,8 +826,9 @@ public sealed partial class SongsPage : Page, IPageBack
     private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(() =>
     {
         UpdateButtonTints();
-        // Row chips and pills take their brushes and ring weights at build time: rebuild them for the new theme.
-        RefreshTrailing();
+        // Row chips and pills take their brushes and ring weights at build time, and contrast pills are outlined and
+        // wider: re-measure the inline threshold and rebuild the rows for the new theme.
+        UpdateTrailingPlacement(force: true);
     });
 
     /// <summary>
@@ -901,5 +965,12 @@ public sealed partial class SongGroup : List<SongRowItem>
 
     /// <summary>Whether the in-list header shows: labelled sections after the first.</summary>
     public bool ShowInlineHeader { get; }
+
+    /// <summary>
+    /// The UIA name of the section's group element (WinUI names a group from its data's text): the header, so sibling
+    /// sections don't all read the type name (Axe <c>SiblingUniqueAndFocusable</c>).
+    /// </summary>
+    /// <returns>The header text.</returns>
+    public override string ToString() => Label;
 }
 #endregion

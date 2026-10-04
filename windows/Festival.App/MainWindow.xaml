@@ -61,14 +61,19 @@
                 <!-- The bell only shows with a selected profile (operator 2026-09-28): notifications are player-scoped. -->
                 <ContentControl x:Name="NotificationsHost" VerticalAlignment="Center" IsTabStop="False"
                                 Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}" />
+                <!-- Issue #290 (web getProfileClickDestination): with a player the click shows Statistics; anonymous it opens
+                     the picker. The picker is an attached flyout so the click can choose; the context menu (right-click,
+                     Shift+F10) and Ctrl+Shift+P open it in both states. -->
                 <Button x:Name="ProfileButton" Padding="4" Margin="0,0,8,0" Background="Transparent" BorderThickness="0"
                         MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
+                        Click="OnProfileButtonClick" ContextRequested="OnProfileButtonContextRequested"
                         AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"
+                        AutomationProperties.HelpText="{x:Bind Shell.ProfileButtonHelp, Mode=OneWay}"
                         AutomationProperties.AutomationId="fst.shell.profile"
-                        ToolTipService.ToolTip="{x:Bind Shell.ProfileName, Mode=OneWay}">
+                        ToolTipService.ToolTip="{x:Bind Shell.ProfileButtonToolTip, Mode=OneWay}">
                     <PersonPicture Width="28" Height="28" DisplayName="{x:Bind Shell.ProfileDisplayName, Mode=OneWay}"
                                    AutomationProperties.AccessibilityView="Raw" />
-                    <Button.Flyout>
+                    <FlyoutBase.AttachedFlyout>
                         <Flyout x:Name="ProfileFlyout" Placement="BottomEdgeAlignedRight" Opened="OnProfileFlyoutOpened"
                                 Closed="OnProfileFlyoutClosed">
                             <!-- Profile selection (fst.profile.*): selected summary, Players/Bands target, search, results. -->
@@ -141,7 +146,7 @@
                                         AutomationProperties.AutomationId="fst.profile.retry" />
                             </StackPanel>
                         </Flyout>
-                    </Button.Flyout>
+                    </FlyoutBase.AttachedFlyout>
                 </Button>
                 </StackPanel>
             </TitleBar.RightHeader>

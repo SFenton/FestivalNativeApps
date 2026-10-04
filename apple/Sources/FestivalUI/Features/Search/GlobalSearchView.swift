@@ -440,6 +440,8 @@ struct PageTrailingItems: ViewModifier {
     @State private var pageProvidesAccount = false
     /// The macOS shell shows the account items once for the whole window.
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
+    /// Set where the tab-bar accessory draws the account group instead (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     func body(content: Content) -> some View {
         content
@@ -450,7 +452,7 @@ struct PageTrailingItems: ViewModifier {
                 // This outer modifier's items are laid out before the page's, so on iOS
                 // they are the only `.primaryAction` items (pinned to the trailing edge),
                 // in their own glass group after the page's tools (issue #85).
-                if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar {
+                if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar, pageTools == nil {
                     #if os(iOS)
                     if #available(iOS 26.0, *) {
                         if RootChromeTrailingGroups.separatesAccount(chrome: layout.sectionChrome) {

@@ -64,14 +64,15 @@ public static class SongRowVisuals
         return chip;
     }
 
-    /// <summary>A metadata pill for one field.</summary>
+    /// <summary>A metadata pill for one field: one raw-view UIA element named with the field's spoken text.</summary>
     /// <param name="field">Field.</param>
+    /// <param name="songId">Row song for the <c>fst.songs.metadata.*</c> test ID, or <see langword="null"/> (measuring).</param>
     /// <returns>Pill element.</returns>
-    public static FrameworkElement Pill(SongMetadataField field)
+    public static FrameworkElement Pill(SongMetadataField field, string? songId = null)
     {
-        FrameworkElement element = field.Kind switch
+        var element = field.Kind switch
         {
-            MetadataField.Score => Text(field.Text, 14, FontWeights.SemiBold, null),
+            MetadataField.Score => Plain(Text(field.Text, 14, FontWeights.SemiBold, null)),
             MetadataField.Percentage when field.FullCombo => Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTEmphasisBrush")),
                 background: null, border: Brush("FSTEmphasisBrush")),
             MetadataField.Percentage when Services.ContrastTheme.IsOn => Neutral(field.Text),
@@ -95,18 +96,19 @@ public static class SongRowVisuals
                 Text(field.Text, 12, FontWeights.Bold, new SolidColorBrush(field.GameDifficulty is 0 or 2 ? Colors.Black : Colors.White)),
                 Brush(field.GameDifficulty switch { 0 => "FSTDiffPillEasyBrush", 1 => "FSTDiffPillMediumBrush", 2 => "FSTDiffPillHardBrush", _ => "FSTDiffPillExpertBrush" }),
                 null),
-            _ => Text(field.Text, 12, FontWeights.Normal, Brush("FSTSecondaryTextBrush")),
+            _ => Plain(Text(field.Text, 12, FontWeights.Normal, Brush("FSTSecondaryTextBrush"))),
         };
         element.VerticalAlignment = VerticalAlignment.Center;
-        ToolTipService.SetToolTip(element, field.Announcement);
-        AutomationProperties.SetAccessibilityView(element, AccessibilityView.Raw);
+        if (field.Kind is MetadataField.Stars or MetadataField.Intensity) element.ControlType = AutomationControlType.Image;
+        element.Label(field.Announcement, songId is null ? null : SongMetadataLayout.AutomationId(field.Kind, songId));
+        if (field.Announcement.Length > 0) ToolTipService.SetToolTip(element, field.Announcement);
         return element;
     }
 
     /// <summary>A contrast-theme pill: ButtonFace fill, ButtonText text and outline (the value is in the text).</summary>
     /// <param name="text">Pill text.</param>
     /// <returns>Pill.</returns>
-    private static Border Neutral(string text) =>
+    private static MetadataPill Neutral(string text) =>
         Box(Text(text, 12, FontWeights.SemiBold, Brush("FSTNeutralPillTextBrush")), Brush("FSTNeutralPillFillBrush"), Brush("FSTNeutralPillStrokeBrush"));
 
     /// <summary>Creates a text run.</summary>
@@ -128,27 +130,44 @@ public static class SongRowVisuals
     /// <summary>Centres unboxed content (stars, the intensity meter) in a pill-height slot.</summary>
     /// <param name="content">Content.</param>
     /// <returns>Slot.</returns>
-    private static Border Slot(FrameworkElement content)
+    private static MetadataPill Slot(FrameworkElement content)
     {
         content.VerticalAlignment = VerticalAlignment.Center;
-        return new Border { Child = content, Height = PillHeight };
+        return Host(content, new MetadataPill { MinHeight = PillHeight });
     }
 
-    /// <summary>Wraps content in a rounded pill.</summary>
+    /// <summary>Unboxed text (score, Last Played) at pill height.</summary>
+    /// <param name="content">Text.</param>
+    /// <returns>Pill.</returns>
+    private static MetadataPill Plain(UIElement content) => Host(content, new MetadataPill { MinHeight = PillHeight });
+
+    /// <summary>
+    /// Wraps content in a rounded pill. The height is a minimum so the pill grows with text scaling instead of clipping
+    /// (spec: "grow rather than clip at large text").
+    /// </summary>
     /// <param name="content">Content.</param>
     /// <param name="background">Fill, or none.</param>
     /// <param name="border">Outline, or none.</param>
-    /// <returns>Border.</returns>
-    private static Border Box(UIElement content, Brush? background, Brush? border) => new()
+    /// <returns>Pill.</returns>
+    private static MetadataPill Box(UIElement content, Brush? background, Brush? border) => Host(content, new MetadataPill
     {
-        Child = content,
         Padding = new Thickness(6, 0, 6, 0),
-        Height = PillHeight,
+        MinHeight = PillHeight,
         CornerRadius = new CornerRadius(4),
         Background = background ?? new SolidColorBrush(Colors.Transparent),
         BorderBrush = border,
         BorderThickness = new Thickness(border is null ? 0 : 1.5),
-    };
+    });
+
+    /// <summary>Puts content in a pill host.</summary>
+    /// <param name="content">Content.</param>
+    /// <param name="pill">Host.</param>
+    /// <returns>The host.</returns>
+    private static MetadataPill Host(UIElement content, MetadataPill pill)
+    {
+        pill.Children.Add(content);
+        return pill;
+    }
 
     /// <summary>Looks up an app brush.</summary>
     /// <param name="key">Resource key.</param>

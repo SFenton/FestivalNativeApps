@@ -34,11 +34,11 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT, #209) | 9/12/12 | ✅ (#209) | ✅ | ✅ (+200% C/M/W, #209) |
-| Rivals / Compete | ✅✅✅ (#213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ |
-| All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT, +live, #201) | 6/9/15 | UIA only (#201) | ✅ | ✅ (+200%) |
+| Rivals / Compete | ✅✅✅ (+live, #200; #213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ (+200% C+M) |
+| All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT, +live, #200, #201) | 6/9/15 | UIA only (#200, #201) | ✅ | ✅ (+200%) |
 | Rival Detail | ✅✅✅ (+snap/max, #202) | 12/14/14 | ✅ | ✅ | ✅ (200% C/M/W; display 100%/150%, #202) |
-| Rivalry | ✅✅✅ (+live, #203) | 8/11/11 | UIA only (#203) | ✅ | ✅ (+200% C+M, #203) |
-| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ (#204 chart outlines) | ✅ (tiles scale; #204 chart gutters) |
+| Rivalry | ✅✅✅ (+live, #200, #203) | 8/11/11 | UIA only (#200, #203) | ✅ | ✅ (+200% C+M, #200, #203) |
+| Statistics / Player Profile | ✅✅✅ (+live, #199) | 7–8/10–11 | UIA only (#199) | ✅ (#204 chart outlines) | ✅ (tiles scale; +200% C+M; #204 chart gutters) |
 | Bands (Band not found, #211) | ✅✅✅ (+live) | 5/8/8 | ✅ | ✅ | ✅ (+200% C/M/W) |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
@@ -46,7 +46,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Settings | ✅✅✅ | 30/30/30 | ✅ | ✅ | ✅ |
 | Licenses | ✅✅✅ (+dialog, #215) | 21/23/23 (dialog 3) | ✅ (#215 journey) | ✅ | ✅ (+200% C/M/W, display 100%/150%, #215) |
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
-| Notifications flyout | ✅✅✅ | 1 (list) | ✅ | ✅ | ✅ |
+| Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ (pane titles wrap, #230) |
 | First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
 
@@ -78,6 +78,17 @@ Scope: Song Detail only, fixture matrix plus the live public service (SFentonX o
 
 Scope: the Shop Offers control only. Results per configuration are in [shop-offers/windows.md](../controls/shop-offers/windows.md#validation-issue-224-2026-10-04). `a11y_matrix.py --scan --tabs 30 --only shop` gave 0 Axe errors at compact, medium and wide (6/10/10 Tab stops: compact has no List/Grid toggle). At medium it also gave 0 Axe errors under Desert, Night sky, light and dark system theme, text 200%, and display 100% and 150%. No run had focus leaving the window or repeated stops. The live public service (anonymous) was checked at compact, medium, wide, maximized and snap-left, and under Desert, text 200% and display 150%. Fixed: under a contrast theme, WinUI's automatic adjustment had repainted the badge text as WindowText on a backplate inside the Highlight pill (`HighContrastAdjustment=None` while it is on, as `LeaderboardEntryRow` does). The active ProgressRing reads "Busy Loading Item Shop" (WinUI prefix), so tests use `fst.shop.loading`.
 
+## Notifications validation (issue #229, 2026-10-04)
+
+Scope: the title-bar bell and flyout only. Results per configuration are in [notifications/windows.md](../controls/notifications/windows.md#validation-issue-229-2026-10-04). `a11y_matrix.py --scan --pages journeys/a11y-notifications.json --fixture notifications_fixture.py` gave 0 Axe errors for loaded, empty, not generated and failed at compact, medium and wide. Loaded also gave 0 at maximized and snap-left, and loaded and failed gave 0 at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. At text 200% the loaded and scrolled-to-end pages also gave 0 at compact. No run had focus leaving the window. The keyboard pages `kb-notifications-rows` and `kb-notifications-esc` pass at all three sizes, and `notifications_journey.py` drives every reachable state. Scanning after Esc (focus back on the bell, tooltip open) shows only open item 8.
+
+Fixed:
+- Each row read as an unnamed list item followed by a nested group, and the row IDs never reached UIA. The `ListViewItem` now carries the name and ID (`ContainerContentChanging`).
+- State IDs sat on panels, which have no UIA peer, so they now sit on text.
+- Under contrast themes the flag pills kept their web colours and the section headers stayed white.
+- With nothing focusable (loading, empty, not generated), focus rested on an unnamed "Popup" window, which is now named "Notifications".
+- At 200% text the unread `InfoBadge` count outgrew its 16 epx circle and covered the bell glyph. The badge now keeps a fixed text size (`IsTextScaleFactorEnabled="False"`), like the system's own badges.
+
 ## Song Band Leaderboard validation (issue #196, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan` for `song-band-leaderboard` at compact/medium/wide, then at medium under all four contrast themes, text 200% (C+M), text 225%, no animations and no transparency: 0 Axe errors in all 12 runs. The live public service (temp wrapper without `--base-url`) gave 0 Axe errors under Desert, Night sky and text 200%. Both band journeys pass.
@@ -99,6 +110,17 @@ Fixed:
 - The toggle was 32 epx next to the 40 epx Filter button.
 - The Leaving Tomorrow pill was clipped at 200% text in compact windows.
 - "Item Shop Is Hidden" was not a heading.
+
+## Player Profile validation (issue #199, 2026-10-03)
+
+Fixture evidence: `a11y_matrix.py --scan` ran on `player`, `statistics`, `player-lead` (the Lead section, scrolled into view with the `reveal:` step) and `player-empty`. Sizes were compact, medium and wide, then medium under all four contrast themes, text 225%, no animations and no transparency, then text 200% at compact and medium. Every run had 0 Axe errors.
+
+Live public-service evidence used `SFentonX`, with Statistics checked with that player selected. It gave 0 Axe errors at compact, medium, wide, maximized and snapped, and also under Desert, Night sky and text 200%. The 7 player journeys pass. Per-configuration findings are in [player-profile/windows.md](../pages/player-profile/windows.md#validation-issue-199-2026-10-03).
+
+Fixed:
+- In stat tiles and percentile rows, the value, label, pill and count texts were exposed beside the tile or row name, so Narrator scan mode read each value twice. They are now Raw.
+- Tile hover/press surfaces and the neutral/gold percentile pills used hard-coded brushes, so contrast themes kept the dark navy and gold fills. They now use `FSTCardSurfacePointerOver/Pressed`, `FSTCardStrokePointerOver`, `FSTNeutralPill*` and `FSTGoldPillFill`, which map to system colours under High Contrast.
+- When the section repeater recycled a rank-history chart for another instrument, its Older/Newer buttons kept the previous instrument's AutomationIds.
 
 ## Bands validation (issue #211, 2026-10-03)
 
@@ -243,6 +265,16 @@ Fixed:
 
 Tooling finding: after a UIA `focus:` step on a `SelectorBarItem`, arrow keys don't move between items (programmatic focus). Reach the bar with Tab or Shift+Tab before `key:right` (see `kb-player-bands`).
 
+## Rivals validation (issue #200, 2026-10)
+
+Evidence: `a11y_matrix.py --scan` (new `text-200` mode) for `rivals`, `compete`, `all-rivals`, `rival-detail` and `rivalry` at compact/medium/wide; the four Rivals pages at medium under all four contrast themes, text 200% (C+M), text 225%, no animations and no transparency: 0 Axe errors. Live public service (SFentonX): Night sky and text 200% render correctly, and UIA trees show one stop per row with no unnamed `Image`. Journeys `empty`, `freeze`, `no-player`, `compete` and `populated` pass.
+
+Fixed:
+- Rival rows (hub, All Rivals) and Rival Detail/Rivalry song rows exposed every rank, name, pill and score `Text`, the instrument icons and `SongArt`'s inner `Image` under the named row, so Narrator scan mode read each row twice. Now all parts are Raw. Rivalry rows read the song, artist and year plus both ranks and scores (`RivalSongItem.FullAccessibleName`).
+- Anonymous leaderboard rivals (live `accountId: ""`) broke three Leaderboard Rivals cards (also fixed by #213; merged). They now read "Unknown User, rank N, …" as non-actionable rows (see [Rivals Windows notes](../pages/rivals/windows.md)).
+
+Same host constraint as #196 (locked console; display scaling fixed at 300%).
+
 ## All Rivals validation (issue #201, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan` for `all-rivals`, `all-rivals-lead`, `-board`, `-empty` and `-freeze` at compact, medium, wide, snap-left, snap-right and maximized. `all-rivals` and `all-rivals-lead` were also run at compact/medium/wide under all four contrast themes, text 200%, light app mode, and display scale 100% and 150%. `journeys/all-rivals-split.json` ran at 150% (wide and maximized). Every run had 0 Axe errors. The live public service (temp wrapper without `--base-url`, SFentonX) also had 0 Axe errors under Night sky, text 200% and the 150% split.
@@ -272,6 +304,15 @@ Fixed (all in the wide pane, `Controls/QuickLinksPane.xaml`):
 
 Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mode` accepts `+`-joined modes. Gotcha: `shot:…@screen` shows the lock screen on a locked console, so open-menu screenshots need an unlocked session; UIA assertions and window `print` shots still work.
 
+## Song Score Metadata validation (issue #228, 2026-10-04)
+
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/song-score-metadata.json --fixture tools/windows/song_metadata_fixture.py --scan` (every reachable pill state asserted by UIA name and test ID, inline/wrapped placement with `assertlevel:`/`assertbelow:`, keyboard row order, resize) at compact, medium, wide (1340 epx), maximized and both snaps, plus split view (maximized at display 100% and 150%), then under Desert, Night sky, light and dark theme, app contrast, display 100% and 150%, and text 200%: 0 Axe errors. Live public-service screenshots for `SFentonX`. Per-configuration results: [song-score-metadata/windows.md](../controls/song-score-metadata/windows.md#validation-issue-228-2026-10-04).
+
+Fixed:
+- Songs list section groups were named `Festival.App.Pages.SongGroup` (the type name), so Axe reported focusable siblings with the same name on any catalogue with more than one section; groups now take their label.
+- Pills had no automation IDs and Narrator could reach their inner text separately; each pill is now one raw element with `fst.songs.metadata.<field>.<songId>` and its spoken name.
+- Pills had a fixed 22-epx height and clipped at 200% text; they now grow with the text.
+- Wide windows never put the pills inline (the 1100-epx threshold sat on the split-view breakpoint), and a resize out of split view kept a stale list width; placement is now measured per page and re-decided on list resize, text-scale and contrast changes.
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
@@ -281,7 +322,7 @@ Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mo
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
 7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Every other size, mode and scroll position scans clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
 
 ## Settings validation (issue #214, 2026-10-03)

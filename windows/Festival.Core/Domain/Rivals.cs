@@ -239,7 +239,8 @@ public static class RivalCommonRivals
             var aboveIds = list.Above.Select(r => r.AccountId).ToHashSet(StringComparer.Ordinal);
             foreach (var rival in list.Above.Concat(list.Below))
             {
-                if (!seen.Add(rival.AccountId)) continue;
+                // Anonymous rows (empty account ID) can't be matched across charts.
+                if (rival.AccountId.Length == 0 || !seen.Add(rival.AccountId)) continue;
                 if (!counts.TryGetValue(rival.AccountId, out var count)) order.Add(rival.AccountId);
                 counts[rival.AccountId] = count + 1;
                 var bucket = aboveIds.Contains(rival.AccountId) ? above : below;

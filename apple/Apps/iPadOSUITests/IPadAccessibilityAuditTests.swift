@@ -125,8 +125,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static let rankings: [Page] = [
         Page(name: "leaderboards", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards"),
         Page(name: "full-rankings", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"], ready: "Lead Rankings"),
-        Page(name: "player", env: ["FST_DEBUG_ROUTE": "player:fixture-player-2"], ready: "fst.profile.open",
-             open: { _ in "fst.profile.open" }),
+        Page(name: "player", env: ["FST_DEBUG_ROUTE": "player:fixture-player-2"], ready: "Fixture Player 2"),
         Page(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings"),
         Page(name: "licenses", env: ["FST_DEBUG_ROUTE": "licenses"], ready: "Licenses"),
         Page(name: "profile-sheet", env: ["FST_DEBUG_SHEET": "profile"], ready: "fst.profile.scope"),
