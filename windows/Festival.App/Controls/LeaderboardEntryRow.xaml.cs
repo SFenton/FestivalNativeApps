@@ -221,13 +221,33 @@ public sealed partial class LeaderboardEntryRow : UserControl
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.MetaWidth;
-        MetaText.Visibility = plan.ShowMeta && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PlaceMeta(plan.MetaBelowName);
+        MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ValueColumn.MinWidth = plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
         Pill.Visibility = plan.ShowAccuracy && score is { HasAccuracy: true } ? Visibility.Visible : Visibility.Collapsed;
         StarsColumn.MinWidth = plan.StarsWidth;
         StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Puts the songs label in its own right-aligned column, or under the name when the column would squeeze the name away
+    /// (issue #208: 200% text in a compact window left only an ellipsis).
+    /// </summary>
+    /// <param name="below">Whether the label goes under the name.</param>
+    private void PlaceMeta(bool below)
+    {
+        Grid.SetRow(NameText, 0);
+        Grid.SetRowSpan(NameText, below ? 1 : 2);
+        NameText.VerticalAlignment = below ? VerticalAlignment.Bottom : VerticalAlignment.Center;
+        Grid.SetRow(MetaText, below ? 1 : 0);
+        Grid.SetRowSpan(MetaText, below ? 1 : 2);
+        Grid.SetColumn(MetaText, below ? Grid.GetColumn(NameText) : 2);
+        Grid.SetColumnSpan(MetaText, below ? Grid.GetColumnSpan(NameText) : 1);
+        MetaText.VerticalAlignment = below ? VerticalAlignment.Top : VerticalAlignment.Center;
+        MetaText.HorizontalAlignment = below ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MetaText.TextAlignment = below ? TextAlignment.Left : TextAlignment.Right;
     }
     /// <summary>Re-evaluates the width-dependent columns.</summary>
     /// <param name="sender">Button.</param>

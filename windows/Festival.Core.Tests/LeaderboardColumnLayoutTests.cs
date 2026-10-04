@@ -106,6 +106,22 @@ public class LeaderboardColumnLayoutTests
         var wide = LeaderboardColumnLayout.Fit(rankings, 1200);
         Assert.Equal((true, false, false), (wide.ShowMeta, wide.ShowAccuracy, wide.ShowStars));
         Assert.Equal(narrow.MetaWidth, wide.MetaWidth);
+        Assert.False(narrow.MetaBelowName || wide.MetaBelowName);
+    }
+
+    [Fact]
+    public void LargeTextRankingRows_MoveTheSongsLabelUnderTheName()
+    {
+        // Issue #208: Full Rankings at 200% text in a ~470 epx row left the name an ellipsis; the label moves under it.
+        var rankings = new LeaderboardSection(LeaderboardRowKind.Ranking, RankChars: 3, MetaChars: 7, ValueChars: 10, HasAccuracy: false, HasStars: false);
+        var squeezed = LeaderboardColumnLayout.Fit(rankings, 470, 2);
+        Assert.Equal((false, 0d, true), (squeezed.ShowMeta, squeezed.MetaWidth, squeezed.MetaBelowName));
+        var roomy = LeaderboardColumnLayout.Fit(rankings, 1200, 2);
+        Assert.Equal((true, 98d, false), (roomy.ShowMeta, roomy.MetaWidth, roomy.MetaBelowName));
+        // Before the first layout nothing moves; score rows drop the season instead.
+        Assert.False(LeaderboardColumnLayout.Fit(rankings, double.NaN, 2).MetaBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(Scores, 470, 2).MetaBelowName);
+        Assert.False(LeaderboardColumnLayout.Fit(rankings with { MetaChars = 0 }, 470, 2).MetaBelowName);
     }
 
     [Fact]
