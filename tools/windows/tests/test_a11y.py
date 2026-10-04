@@ -91,6 +91,12 @@ class MatrixTests(unittest.TestCase):
         for step in steps:
             u.parse_step(step)
 
+    def test_page_steps_stem_placeholder(self):
+        page = {"name": "settings", "after_ready": ["scrollinto:id=c", "shot:{stem}-footer.png"]}
+        steps = m.page_steps(page, "wide", Path("/out"), "-text-200", scan=False, tabs=0)
+        self.assertIn(f"shot:{Path('/out') / 'settings-wide-text-200'}-footer.png", steps)
+        self.assertFalse(any("{stem}" in s for s in steps))
+
     def test_focus_summary_and_table(self):
         focus = [{"id": "a", "in_window": True}, {"id": "b", "in_window": True}, {"id": "a", "in_window": True, "repeat": True},
                  {"name": "Start", "in_window": False}]
