@@ -33,7 +33,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
 | Leaderboards + Quick Links | ✅✅✅ | 20/21/21 | ✅ | ✅ | ✅ |
 | Full Rankings / Rank By menu | ✅✅✅ | 8/11/11 | ✅ | ✅ | ✅ |
-| Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
+| Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT, #209) | 9/12/12 | ✅ (#209) | ✅ | ✅ (+200% C/M/W, #209) |
 | Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
@@ -84,6 +84,18 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Band Rankings validation (issue #209, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` on `band-rankings-paged|anonymous|empty|error` (fixture scenarios via each page's `"fixture"` list): compact/medium/wide/snap/maximized, Desert and Night sky, text 200% (C/M/W), display 100%/150% and the light system theme. All 0 Axe errors, no focus leaving the window and no repeated stops. `band-rankings.json` journeys pass 6/6. Per-configuration results are in [band-rankings/windows.md](../pages/band-rankings/windows.md#validation-issue-209-2026-10-03).
+
+Fixed:
+- Keyboard paging lost focus to Back, because the pager hid during the load swap.
+- Rows showed between the pager buttons under contrast themes.
+- A row without a band page misaligned its columns.
+- Band names collapsed to "…" at 200% text in compact windows.
+
+Driver note: `RadioMenuFlyoutItem`s expose Toggle, not Invoke. `invoke:` falls back to a click that misses the popup, so drive menu radio items with `toggle:` or the keyboard.
 
 ## Open issues
 
