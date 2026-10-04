@@ -131,7 +131,6 @@ import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.shop.ShopDetailAction
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
-import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Extras
 
@@ -479,8 +478,9 @@ private fun HeaderActions(song: Song, extras: SongDetailExtras, onOpenPaths: (So
 /**
  * Intensity for every charted instrument in two columns (web icon grid; operator 6.31:
  * two columns on unfolded/tablet widths too): icon + meter on compact panes, icon,
- * label and meter on wider ones. Each cell is one TalkBack stop naming the instrument
- * and its level.
+ * label and meter on wider ones. The label keeps an 8 dp gap before the meter and wraps
+ * (two lines, unlimited at large text) rather than truncating or touching it. Each cell
+ * is one TalkBack stop naming the instrument and its level.
  */
 @Composable
 private fun IntensityCard(song: Song, charted: List<Instrument>) {
@@ -501,7 +501,7 @@ private fun IntensityCard(song: Song, charted: List<Instrument>) {
                             ) {
                                 InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 28.dp, decorative = true)
                                 if (labelled) {
-                                    Text(instrument.label, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                                    Text(instrument.label, color = BrandTokens.textPrimary, maxLines = if (isLargeText()) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp, end = 8.dp))
                                     DifficultyMeter(raw)
                                 } else {
                                     // Web cell: icon, 12 px gap, meter, left-aligned in its column.

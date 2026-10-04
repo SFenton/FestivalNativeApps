@@ -309,7 +309,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Applies a resize op: <c>size</c> (width/height in effective pixels, centred in the
     /// work area), <c>snap-left</c>/<c>snap-right</c> (work-area halves), <c>maximize</c>,
-    /// <c>fullscreen</c> (whole monitor, covering the taskbar) or <c>restore</c>.
+    /// <c>minimize</c>, <c>fullscreen</c> (whole monitor, covering the taskbar) or <c>restore</c>.
     /// </summary>
     private JsonNode Resize(Window window, JsonObject op)
     {
@@ -320,6 +320,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (kind == "maximize")
         {
             Native.ShowWindow(hwnd, Native.SwMaximize);
+        }
+        else if (kind == "minimize")
+        {
+            Native.ShowWindow(hwnd, Native.SwMinimize);
         }
         else
         {
@@ -431,12 +435,30 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (e.Patterns.Value.IsSupported) patterns.Add("Value");
         if (e.Patterns.RangeValue.IsSupported) patterns.Add("RangeValue");
         if (e.Patterns.Scroll.IsSupported) patterns.Add("Scroll");
-        return $"{p.ControlType.ValueOrDefault} \"{p.Name.ValueOrDefault}\" id={p.AutomationId.ValueOrDefault} " +
+        return $"{Role(e)} \"{p.Name.ValueOrDefault}\" id={p.AutomationId.ValueOrDefault} " +
                $"class={p.ClassName.ValueOrDefault} rect={r.X},{r.Y},{r.Width},{r.Height}" +
                (p.HelpText.ValueOrDefault is { Length: > 0 } help ? $" help=\"{help}\"" : "") +
                A11yFlags(e) +
                (flags.Count > 0 ? $" [{string.Join(",", flags)}]" : "") +
                (patterns.Count > 0 ? $" patterns={string.Join(",", patterns)}" : "");
+    }
+
+    /// <summary>
+    /// The element's control type name. FlaUI throws <see cref="NotSupportedException"/> for control type ids newer
+    /// than its enum (e.g. inside WinUI's FlipView/PipsPager), so those fall back to the localized type.
+    /// </summary>
+    /// <param name="e">Element.</param>
+    /// <returns>Control type name, or <c>Unknown(localized type)</c>.</returns>
+    internal static string Role(AutomationElement e)
+    {
+        try
+        {
+            return e.Properties.ControlType.ValueOrDefault.ToString();
+        }
+        catch (NotSupportedException)
+        {
+            return $"Unknown({e.Properties.LocalizedControlType.ValueOrDefault})";
+        }
     }
 
     #endregion
@@ -559,6 +581,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertaligned":
                 AssertAligned(window, step);
                 break;
+            case "assertstatus":
+                AssertStatus(window, step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -586,6 +611,48 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if ((string)selector["kind"]! != "xy") return Find(window, step).GetClickablePoint();
         var bounds = Native.VisibleBounds(window.Properties.NativeWindowHandle.Value);
         return new Point(bounds.X + (int)selector["x"]!, bounds.Y + (int)selector["y"]!);
+    }
+
+    /// <summary>
+    /// Waits until an element matching the selector reports the expected UIA <c>ItemStatus</c>. Off-screen and raw-view
+    /// elements count (e.g. the decorative backdrop's state while the window is minimized). Unless the expected status is
+    /// <c>not-visible</c>, the window is brought to the front first (and every 2 s), since the backdrop pauses when covered.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, the expected <c>status</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">No match, or the status still differs at the timeout.</exception>
+    private void AssertStatus(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var expected = (string)step["status"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        // FindFirst's default cache request filters to the control view; a raw-view element needs a true tree filter.
+        var rawView = new FlaUI.Core.CacheRequest
+        {
+            TreeFilter = TrueCondition.Default,
+            TreeScope = FlaUI.Core.Definitions.TreeScope.Element,
+            AutomationElementMode = FlaUI.Core.Definitions.AutomationElementMode.Full,
+        };
+        rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
+        // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
+        // (a not-visible assertion must not restore a minimized window).
+        var front = expected != "not-visible";
+        var nextFront = DateTime.MinValue;
+        while (true)
+        {
+            if (front && DateTime.UtcNow >= nextFront)
+            {
+                EnsureForeground(window);
+                nextFront = DateTime.UtcNow.AddSeconds(2);
+            }
+            string? seen;
+            using (rawView.Activate())
+                seen = window.FindFirstDescendant(condition)?.Properties.ItemStatus.ValueOrDefault;
+            if (seen == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {label} status is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
+            Thread.Sleep(200);
+        }
     }
 
     /// <summary>Waits until no on-screen element matches the step's selector (an absence assertion).</summary>

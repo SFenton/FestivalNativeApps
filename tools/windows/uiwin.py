@@ -80,6 +80,8 @@ PRESETS: dict[str, dict] = {
     "snap-right": {"kind": "snap-right"},
     "maximized": {"kind": "maximize"},
     "full-screen": {"kind": "fullscreen"},
+    "minimized": {"kind": "minimize"},
+    "restored": {"kind": "restore"},
 }
 
 #: Virtual-key codes for ``key:`` steps (letters/digits map to their ASCII code).
@@ -101,7 +103,7 @@ STEP_VERBS = {
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
-    "assertname": "setvalue", "assertaligned": "pair",
+    "assertname": "setvalue", "assertaligned": "pair", "assertstatus": "status",
 }
 
 # endregion
@@ -174,6 +176,8 @@ def parse_step(step: str) -> dict:
     so it also works while the console session is locked; an empty text clears the field);
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text;
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column).
+    ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
+    ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``).
 
     Args:
         step: A step string.
@@ -210,6 +214,17 @@ def parse_step(step: str) -> dict:
         result["selector"], result["other"] = parse_selector(first), parse_selector(second)
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
+    elif shape == "status":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        selector, sep, status = body.partition("|")
+        if not sep or not status.strip():
+            raise ValueError(f"bad assertstatus {arg!r}; use <selector>|<status>[@<seconds>]")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertstatus needs an element selector, not coordinates")
+        result["status"] = status.strip()
+        if wait:
+            result["timeout"] = float(wait)
     elif shape == "selector":
         selector, _, wait = arg.rpartition("@") if "@" in arg else (arg, "", "")
         result["selector"] = parse_selector(selector)

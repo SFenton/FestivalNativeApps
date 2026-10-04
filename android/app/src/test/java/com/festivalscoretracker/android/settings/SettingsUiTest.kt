@@ -10,6 +10,8 @@ import androidx.compose.ui.test.assert
 import com.festivalscoretracker.android.ui.notifications.NotificationMediaKind
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onChildren
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -524,5 +526,89 @@ class SongsSearchPlaceholderUiTest {
         rule.onNodeWithTag("fst.songs.detail-pane").assertExists()
         val field = rule.onNodeWithTag("fst.songs.search").getUnclippedBoundsInRoot()
         assertTrue("search field ${field.right - field.left} wide, ${field.bottom - field.top} tall", (field.bottom - field.top).value <= 64f)
+    }
+}
+
+/** Version rows keep their labels whole: the long service origin wraps under its label at 200% text (issue #121). */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi", fontScale = 2f)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class LargeTextSettingsValueRowUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun serviceOriginStacksUnderItsLabelWhileShortValuesStayInline() {
+        rule.openSettings()
+        val (title, value) = rule.valueRowBounds("fst.settings.service-origin", "Service")
+        assertTrue("value top ${value.top} above title bottom ${title.bottom}", value.top >= title.bottom)
+        assertEquals(title.left.value, value.left.value, 0.5f)
+        // The label keeps its natural one-line width instead of a one-letter column.
+        assertTrue("title width ${title.right - title.left}", (title.right - title.left).value > 80f)
+        val (buildTitle, buildValue) = rule.valueRowBounds("fst.settings.build", "Build")
+        assertTrue("build value ${buildValue.left} before title end ${buildTitle.right}", buildValue.left > buildTitle.right)
+        assertTrue(buildValue.top < buildTitle.bottom)
+    }
+}
+
+/** At 100% text on a phone the Version rows stay title … value on one line (issue #121). */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class SettingsValueRowUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun valuesSitAtTheEndOfTheirLabelLine() {
+        rule.openSettings()
+        for ((tag, label) in listOf("fst.settings.build" to "Build", "fst.settings.service-origin" to "Service")) {
+            val (title, value) = rule.valueRowBounds(tag, label)
+            assertTrue("$tag value ${value.left} before title end ${title.right}", value.left > title.right)
+            assertTrue("$tag value not on the title line", value.top < title.bottom)
+        }
+        rule.onNodeWithTag("fst.settings.service-origin").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Text))
+    }
+}
+
+private typealias SettingsRule = androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, ComponentActivity>
+
+private fun SettingsRule.settleSettings() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); waitForIdle() }
+
+/** Opens Settings on synthetic fixtures. */
+private fun SettingsRule.openSettings() {
+    val debug = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
+    val transport = FakeTransport.standard().apply {
+        on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+    }
+    val container = AppContainer(activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+    setContent { FestivalApp(container, debug) }
+    waitUntil(10_000) { settleSettings(); onAllNodesWithTag("fst.settings.list").fetchSemanticsNodes().isNotEmpty() }
+}
+
+/** Scrolls to the Version row [tag] and returns the unmerged bounds of its [label] and of its value text. */
+private fun SettingsRule.valueRowBounds(tag: String, label: String): Pair<androidx.compose.ui.unit.DpRect, androidx.compose.ui.unit.DpRect> {
+    onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(tag))
+    settleSettings()
+    val texts = onNodeWithTag(tag, useUnmergedTree = true).onChildren()
+    texts.assertCountEquals(2)
+    texts[0].assertTextEquals(label)
+    return texts[0].getUnclippedBoundsInRoot() to texts[1].getUnclippedBoundsInRoot()
+}
+/** Expanded window: Settings sections stay a centred 840 dp column instead of stretching (issue #121). */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
+class WideSettingsColumnUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun sectionsAreCappedAndCentred() {
+        rule.openSettings()
+        val list = rule.onNodeWithTag("fst.settings.list").getUnclippedBoundsInRoot()
+        val section = rule.onNodeWithTag("fst.settings.section.app-settings").getUnclippedBoundsInRoot()
+        assertEquals(840f, (section.right - section.left).value, 0.5f)
+        // Centred between the list's 16 dp content padding.
+        assertEquals((section.left - list.left).value, (list.right - section.right).value, 1f)
     }
 }

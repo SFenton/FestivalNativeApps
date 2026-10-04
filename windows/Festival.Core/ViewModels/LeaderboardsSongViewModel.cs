@@ -333,6 +333,6 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
          IsSelected ? $"Your score. {Name}" : $"Rank {RankText}, {Name}") +
         $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
         (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
-        (Entry.Stars is > 0 ? $", {Entry.Stars} stars" : "");
+        (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

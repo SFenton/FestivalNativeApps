@@ -623,6 +623,7 @@ public sealed class SuggestionCoreTests
         var gold = Make("star_gains", new SuggestionSongItem { Song = song, Instrument = Instrument.Lead, Stars = 6 });
         Assert.True(gold.GoldStars);
         Assert.Equal(5, gold.StarCount);
+        Assert.EndsWith(", Lead, 5 gold stars", gold.AccessibleName, StringComparison.Ordinal);
         Assert.Equal(3, Make("star_gains", new SuggestionSongItem { Song = song, Stars = 3 }).StarCount);
         Assert.Contains("1 star", Make("star_gains", new SuggestionSongItem { Song = song, Stars = 1 }).AccessibleName, StringComparison.Ordinal);
         Assert.Equal(0, Make("near_fc_any", new SuggestionSongItem { Song = song, Stars = 5 }).StarCount);

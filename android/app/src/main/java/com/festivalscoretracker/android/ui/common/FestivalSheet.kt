@@ -2,15 +2,24 @@ package com.festivalscoretracker.android.ui.common
 
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.Posture
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.core.nav.SheetHinge
 
 // region Sheet top
 
@@ -32,5 +41,47 @@ const val SHEET_TOP_GAP_DP = 8
 fun Modifier.festivalSheetTop(): Modifier = this
     .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Top))
     .padding(top = SHEET_TOP_GAP_DP.dp)
+
+// endregion
+
+// region Sheet hinge side
+
+/**
+ * The shell's window posture, already collected by `FestivalApp`, so a sheet opened on a
+ * half-open fold sees the hinge on its first frame. Null outside the shell, where
+ * [festivalSheetHingeSide] reads the posture itself.
+ */
+val LocalShellPosture = staticCompositionLocalOf<Posture?> { null }
+
+/**
+ * Keep a `ModalBottomSheet` on one side of a separating fold or hinge ([SheetHinge]): the
+ * leading (or wider) half in book posture, the lower half in tabletop posture. Material
+ * centres the sheet across the whole window, which on a half-open foldable puts its rows
+ * and buttons across the hinge. Call it from the sheet's caller (the activity window), not
+ * from inside the sheet.
+ *
+ * @return Modifier for the sheet surface (no-op without a separating hinge).
+ */
+@Composable
+fun Modifier.festivalSheetHingeSide(): Modifier {
+    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return this
+    val density = LocalDensity.current
+    val windowWidth = LocalView.current.rootView.width.toFloat()
+    val sheetTop = WindowInsets.statusBars.union(WindowInsets.displayCutout).getTop(density) + with(density) { SHEET_TOP_GAP_DP.dp.toPx() }
+    val insets = SheetHinge.insets(
+        windowWidthPx = windowWidth,
+        left = hinge.bounds.left,
+        right = hinge.bounds.right,
+        top = hinge.bounds.top,
+        bottom = hinge.bounds.bottom,
+        vertical = hinge.isVertical,
+        separating = hinge.isSeparating,
+        rtl = LocalLayoutDirection.current == LayoutDirection.Rtl,
+        sheetTopPx = sheetTop,
+        gapPx = with(density) { SHEET_TOP_GAP_DP.dp.toPx() },
+    )
+    return with(density) { this@festivalSheetHingeSide.absolutePadding(left = insets.left.toDp(), right = insets.right.toDp(), top = insets.top.toDp()) }
+}
 
 // endregion
