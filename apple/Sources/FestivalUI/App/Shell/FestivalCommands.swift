@@ -90,7 +90,7 @@ extension FocusedValues {
 /// The iPadOS menu bar (and ⌘-hold shortcut overlay), mirroring the Mac's
 /// ``MacCommands`` over the focused window's ``FestivalShellCommands`` and the page
 /// values the Mac already publishes: Edit › Search Festival (⌘F); View › Refresh (⌘R),
-/// Sort…, Filter…, Rank By ▸, sidebar; Go › Back (⌘[), destinations (⌘1…⌘9), Search
+/// Sort…, Filter…, Rank By ▸, Instrument ▸, sidebar; Go › Back (⌘[), destinations (⌘1…⌘9), Search
 /// (⌘K), Quick Links ▸, Next/Previous Section (⌥⌘↓/↑); Song › Paths…, Open in Item
 /// Shop; Profile › Select/Switch (⇧⌘P), Deselect, Find Rival…, Notifications; Help.
 /// Unavailable items are disabled, never hidden (HIG The menu bar). iPhone has no menu
@@ -100,6 +100,7 @@ public struct FestivalCommands: Commands {
     @FocusedValue(\.macPageCommands) private var pageCommands
     @FocusedValue(\.macSongCommands) private var songCommands
     @FocusedValue(\.macRankBy) private var rankBy
+    @FocusedValue(\.macInstrument) private var instrument
     @FocusedValue(\.macQuickLinksPage) private var pageQuickLinks
     @FocusedValue(\.macQuickLinksList) private var listQuickLinks
 
@@ -133,6 +134,7 @@ public struct FestivalCommands: Commands {
                 Button("Filter…") { pageCommands?.filter?() }
                     .disabled(pageCommands?.filter == nil || blocked)
                 rankByMenu
+                instrumentMenu
                 Divider()
             }
             CommandMenu("Go") {
@@ -197,6 +199,23 @@ public struct FestivalCommands: Commands {
                     set: { isOn in if isOn { rankBy?.select(option.id) } }
                 ))
                 .disabled(rankBy == nil)
+            }
+        }
+    }
+
+    /// View › Instrument with a checkmark on the chart in effect (the front rankings
+    /// page's toolbar instrument menu, issue #294); every chart stays listed but
+    /// disabled elsewhere (HIG Menus: "Make sure a submenu remains available even when
+    /// its items are unavailable").
+    @ViewBuilder private var instrumentMenu: some View {
+        let options = instrument?.options ?? MacInstrumentCommands.allOptions
+        Menu("Instrument") {
+            ForEach(options) { option in
+                Toggle(option.label, isOn: Binding(
+                    get: { instrument?.selected == option.id },
+                    set: { isOn in if isOn { instrument?.select(option.id) } }
+                ))
+                .disabled(instrument == nil)
             }
         }
     }

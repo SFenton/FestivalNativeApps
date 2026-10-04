@@ -567,13 +567,13 @@ struct SoloLeaderboardScreen: View {
 
 // MARK: - Bottom fade distance reader
 
-/// Reports the bottom fade height for how far a `List`'s rows still run below its
+/// Reports the bottom fade height for how far a scroll view's rows still run below its
 /// pinned chrome (iOS 18 / macOS 15 and later; nothing before, which keeps the full
 /// fade). Read from the scroll view: a last-row frame reader did not update while the
 /// List scrolled, so the fade stayed on the resting last row (issue #293). The value
 /// is clamped before it reaches the screen, so only the last fade-height of scrolling
 /// re-renders it.
-private struct BottomFadeDistanceReader: ViewModifier {
+struct BottomFadeDistanceReader: ViewModifier {
     let changed: (Double) -> Void
 
     func body(content: Content) -> some View {

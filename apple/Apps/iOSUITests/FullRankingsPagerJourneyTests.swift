@@ -1,6 +1,6 @@
 import XCTest
 
-/// Full Rankings' floating glass pager across many pages (gap #10, Lane PB).
+/// Full Rankings' shared pinned pager (`RankingsPagerView`) across many pages (gap #10, Lane PB).
 ///
 /// Needs a second fixture service with padded rosters (1,200 accounts = 48 pages of
 /// 25; `fixture-rank-{n}` rows), separate from the default `:8765` fixture:
@@ -39,7 +39,7 @@ final class FullRankingsPagerJourneyTests: XCTestCase {
     /// Next, Last, Previous and First move the board and the `page / total` value,
     /// with the edge buttons disabling at page 1 and page 48.
     @MainActor
-    func testFloatingPagerStepsThroughPages() throws {
+    func testSharedPagerStepsThroughPages() throws {
         continueAfterFailure = false
         try requireLargeRankingsFixture()
         let app = launchLeadBoard()
@@ -76,7 +76,7 @@ final class FullRankingsPagerJourneyTests: XCTestCase {
         XCTAssertEqual(info.value as? String, "1 of 48")
     }
 
-    /// Switching instrument from the floating pill resets to page 1 of the new board.
+    /// Switching instrument from the toolbar menu resets to page 1 of the new board.
     @MainActor
     func testInstrumentSwitchResetsToFirstPage() throws {
         continueAfterFailure = false
