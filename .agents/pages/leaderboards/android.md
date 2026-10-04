@@ -39,6 +39,26 @@
 
 Fixture screenshots (mock service, no production data): `android/reports/screenshots/leaderboards-*.png`. Robolectric: `rankings/LeaderboardsUiTest.kt` (phone journeys + expanded grid), `LeaderboardsComponentsUiTest.kt` (card states, hinge row). Unit: `RankingsCoreTest`, `RankingsDataTest`, `RankingsViewModelTest`, `OverviewLayoutTest` (paired hinge rows and Quick Links targets). Device: `androidTest/.../leaderboards/LeaderboardsDeviceJourneyTest` (FST_Phone and FST_Book_Fold `--posture half`: history paired across the fold, spotlight, View All → Full Rankings, pinned row until its page).
 
+## Validation (issue #114, live service)
+
+Real public service, selected player `SFentonX`, `tools/android/device.py drive` per AVD (system animations at scale 0 unless noted). Captures stay outside the repo; they are attached to issue #114.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait / landscape / font 2.0 | One column; rows stack at large text (`StackedRankingRow`); nothing clipped. At 2.0 Rank History dates wrap to two lines (readable). |
+| FST_Tablet natural / rotated / font 2.0 | Natural: drawer + two-column grid; rotated: rail + one column (pane < 2 × 340 dp); font 2.0 goes single-column with stacked rows. |
+| FST_Book_Fold open / landscape / font 2.0 / folded | Grid or one column as the width allows; folded matches the phone. |
+| FST_Book_Fold half-open | **Failed, fixed:** on the 300 dp card left of the hinge the 9-digit rating and songs label left no room for names ("…" or blank). Cards now measure their width and drop the songs label only when a name would get under 32 dp (`LeaderboardColumnLayout.MIN_RANKING_NAME_WIDTH`). History stays left, Lead right, nothing across the hinge. |
+| FST_Passport_Fold open / font 2.0 / half-open / folded | Open: rail + grid; 2.0 single column; half: Rank History left, Lead right with names readable; folded: phone layout. |
+| FST_TriFold open / partial / folded | Open: rail + wide chart grid; partial: one column with full names; folded: phone layout. |
+| FST_Resizable desktop / tablet / foldable / phone | Desktop: permanent drawer, four columns; tablet and foldable: grid; 350 dp cards keep the songs label, the 9-digit Lead card at the narrowest grid width drops it; phone: one column. |
+| Theme | System light and dark render the same: the app is dark-only by design ([design/android.md](../../design/android.md), "Dark scheme only for now"), a deliberate deviation from M3 dynamic light/dark. |
+| Reduced motion | Animator scale 0 (device default) shows cards without fades; a scroll recording with animations on showed no jank. |
+| TalkBack (FST_Phone, `talkback_walk.py`) | Header → Rank History heading → picker tabs → chart summary → page buttons → history rows → each card heading → rows ("#2. GingerNINZIN_JPN. 107,861,134. 731 / 731 songs. Button", "Your rank, #4. SFentonX. …") → "View All Rankings (867,423). Button" → next heading. Rows and picker tabs are 48 dp. The walk logs the selected picker tab's state ("selected") as its own utterance; `LeaderboardsComponentsUiTest` asserts each tab exposes its instrument label, the Tab role and its selection. |
+| Connected tests | `LeaderboardsDeviceJourneyTest` on FST_Phone and on FST_Book_Fold `--posture half` (re-run after the fix, 2/2); `PlayerAccessibilityJourneyTest#leaderboardsAndFullRankings` on FST_Phone. Unit suite coverage: logic 98.0%, UI 94.1%. |
+
+Material 3 review: navigation follows the window class (bar → rail → drawer), cards use the glass surface tokens, touch targets are 48 dp and no interactive content straddles the hinge ("Never place interactive content or critical information across the hinge area"). The dark-only brand theme and the web-matched glass cards (instead of M3 tonal `Card`) are deliberate parity deviations.
+
 ## IDs
 
 `fst.leaderboards` (list), `fst.leaderboards.loading`, `fst.leaderboards.rank-history` (`.picker`, `.picker.<instrument>`, `.loading`, `.empty`), `fst.quick-links.open|sheet|menu|item.<id>` (ids `rank-history`, `instrument:<wire>`, `band:<wire>`), `fst.leaderboards.card.<instrument>`, `.view-all`, `.spotlight`, `.spotlight.loading`, `.spotlight.unranked`, `fst.leaderboards.band-card.<bandType>`, `.view-all`, `fst.leaderboards.bands-link`, `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId|anonymous-…>`, `fst.band-rankings.row.<teamKey>`. Screens set `testTagsAsResourceId` so `device.py drive` can use `id=`.
@@ -47,4 +67,4 @@ Fixture screenshots (mock service, no production data): `android/reports/screens
 
 - No band-combo filter; no selected-band spotlight or promoted band card (no selected-band identity on Android).
 - Rank history reads one chart at a time on demand (the web prefetches every chart before showing the page).
-- Live announcements of card loads are not made (cards fade in silently, as the web does). TalkBack order and row actions were checked in issue #114 (below): rows expose one merged description ("Rank 1st, Name. 12,345. 190 / 250 songs." / "Your rank, 40th, …"), a Button role and a named action ("Open profile", "Open your statistics", "Open band"; "Profile unavailable" / "Band unavailable" state on rows without a destination).
+- Live announcements of card loads are not made (cards fade in silently, as the web does). TalkBack order and row actions were checked in issue #114 (see Validation): rows expose one merged description ("Rank 1st, Name. 12,345. 190 / 250 songs." / "Your rank, 40th, …"), a Button role and a named action ("Open profile", "Open your statistics", "Open band"; "Profile unavailable" / "Band unavailable" state on rows without a destination).

@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasTestTag
@@ -81,6 +82,14 @@ class LeaderboardsComponentsUiTest {
     private fun exists(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
     private fun text(value: String) = rule.onAllNodesWithText(value, substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /** TalkBack reads each Rank History picker tab as its instrument, a tab and its selection. */
+    private fun assertPickerTab(wireId: String, label: String, selected: Boolean) {
+        val config = rule.onNodeWithTag("fst.leaderboards.rank-history.picker.$wireId").fetchSemanticsNode().config
+        assertEquals(listOf(label), config[SemanticsProperties.ContentDescription])
+        assertEquals(Role.Tab, config[SemanticsProperties.Role])
+        assertEquals(selected, config[SemanticsProperties.Selected])
+    }
 
     private fun overview(): LeaderboardsViewModel {
         val viewModel = LeaderboardsViewModel(fake.reads, settings, rankBy, { rankBy.value = it }, ServiceRetryBackoff())
@@ -159,8 +168,12 @@ class LeaderboardsComponentsUiTest {
         assertTrue(exists("fst.leaderboards.rank-history.detail"))
         rule.onNodeWithTag("fst.leaderboards.rank-history.plot").performTouchInput { swipeRight() }
         settle()
+        assertPickerTab("Solo_Guitar", "Lead", selected = true)
+        assertPickerTab("Solo_Bass", "Bass", selected = false)
         rule.onNodeWithTag("fst.leaderboards.rank-history.picker.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(5_000) { settle(); fake.count("history:Solo_Bass:") == 1 }
+        assertPickerTab("Solo_Guitar", "Lead", selected = false)
+        assertPickerTab("Solo_Bass", "Bass", selected = true)
         // The header sits above (outside) its card.
         rule.onNodeWithTag("fst.leaderboards").performScrollToNode(hasTestTag("fst.leaderboards.card.Solo_Guitar"))
         settle()
