@@ -76,6 +76,10 @@
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="#FFFFFFFF" />
+            <!-- Shop: the New badge's dark pill (gold text) and the tile caption over art + its dark scrim. -->
+            <SolidColorBrush x:Key="FSTShopNewBadgeSurfaceBrush" Color="#E6121826" />
+            <SolidColorBrush x:Key="FSTShopTileTextBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTShopTileCaptionBrush" Color="Transparent" />
             <!-- Song Detail's Item Shop button surface under its breathing status fill (web shopButton). -->
             <SolidColorBrush x:Key="FSTShopButtonSurfaceBrush" Color="#F5121826" />
             <!-- Song Detail score-history chart chrome (web ScoreHistoryChart axis stroke, selected-bar purple). -->
@@ -198,6 +202,10 @@
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTShopNewBadgeSurfaceBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <!-- Tile captions sit on a Window plate in WindowText, so contrast never depends on the art or scrim. -->
+            <SolidColorBrush x:Key="FSTShopTileTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTShopTileCaptionBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <!-- Same Highlight as the status fill, so the breathe never exposes a non-system surface under HighlightText. -->
             <SolidColorBrush x:Key="FSTShopButtonSurfaceBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <!-- Chart axes and bar outlines in the text colour; the selected bar in Highlight. -->
