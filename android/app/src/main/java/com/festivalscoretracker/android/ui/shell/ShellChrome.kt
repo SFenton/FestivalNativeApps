@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.ShoppingBag
@@ -106,7 +107,8 @@ fun DrawerContent(
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             DrawerPolicy.entries(profile, showShop).forEach { entry ->
-                DrawerItem(entry.title, entry.icon(), selected = DrawerPolicy.isSelected(entry, selected), tag = entry.tag(tabTags)) {
+                val active = DrawerPolicy.isSelected(entry, selected)
+                DrawerItem(entry.title, entry.icon(active), selected = active, tag = entry.tag(tabTags)) {
                     open(DrawerPolicy.target(entry, visible))
                 }
             }
@@ -142,7 +144,7 @@ fun DrawerContent(
         }
         DrawerItem(
             FestivalSection.Settings.title,
-            FestivalSection.Settings.icon(),
+            FestivalSection.Settings.icon(selected == FestivalSection.Settings),
             selected = selected == FestivalSection.Settings,
             tag = if (tabTags) "fst.nav.tab.settings" else "fst.nav.drawer.settings",
         ) { onSection(FestivalSection.Settings) }
@@ -155,8 +157,9 @@ fun DrawerContent(
  */
 internal const val PAGE_CONTENT_TOP_DP = 64
 
-/** Drawer row icon (web sidebar icons, Material equivalents). */
-private fun DrawerEntry.icon(): ImageVector = section?.icon() ?: Icons.Outlined.ShoppingBag
+/** Drawer row icon (web sidebar icons, Material equivalents): filled while [active]. */
+private fun DrawerEntry.icon(active: Boolean): ImageVector =
+    section?.icon(active) ?: if (active) Icons.Filled.ShoppingBag else Icons.Outlined.ShoppingBag
 
 /** Test tag: `fst.nav.tab.<section>` for tab rows of the permanent drawer, else `fst.nav.drawer.<entry>`. */
 private fun DrawerEntry.tag(tabTags: Boolean): String =
