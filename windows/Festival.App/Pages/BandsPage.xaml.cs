@@ -1,3 +1,6 @@
+using Festival.App.Services;
+using Festival.Core.ViewModels;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Festival.App.Pages;
@@ -10,6 +13,14 @@ namespace Festival.App.Pages;
 public sealed partial class BandsPage : Page
 {
     /// <summary>Creates the page.</summary>
-    public BandsPage() => InitializeComponent();
+    public BandsPage()
+    {
+        InitializeComponent();
+        // Like ServiceStatusView errors: navigation only reads focus and the title, so speak the failure itself.
+        Loaded += (_, _) => DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            if (IsLoaded) ScreenReader.Announce(this, Announcement.Failure(NotFoundTitle.Text, NotFoundMessage.Text));
+        });
+    }
 }
 #endregion

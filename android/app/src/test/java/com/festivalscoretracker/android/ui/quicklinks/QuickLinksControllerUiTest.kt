@@ -119,6 +119,30 @@ class QuickLinksControllerUiTest {
         assertTrue(targetTop(6) == null || targetTop(6)!! > landingPx + thresholdPx)
     }
 
+    @Test
+    fun aJumpStaysLandedWhileTheSectionAboveItGrowsOnAShortWindow() {
+        // Player Profile (#106): the card above the target composes on the jump, then its Rank History
+        // loads and it grows past the 400 dp window, pushing the target below the laid-out items.
+        val sections = (0 until 6).map { QuickLinkSection("s$it", "Section $it") }
+        rule.setContent {
+            listState = rememberLazyListState()
+            controller = rememberQuickLinks(listState, "Quick Links", sections) { id -> id.removePrefix("s").toInt() }
+            landingPx = with(LocalDensity.current) { QuickLinks.LANDING_OFFSET_DP.dp.roundToPx() }
+            LazyColumn(state = listState, modifier = Modifier.height(400.dp)) {
+                items(6) { index -> Box(Modifier.fillMaxWidth().height(if (index == 2 && grown.value) 700.dp else 150.dp)) }
+            }
+        }
+        rule.runOnIdle { controller.jump("s3") }
+        rule.waitForIdle()
+        assertEquals(landingPx, targetTop(3))
+
+        rule.runOnIdle { grown.value = true }
+        rule.waitForIdle()
+
+        assertEquals(landingPx, targetTop(3))
+        assertEquals("s3", controller.activeId)
+    }
+
     // endregion
 
     // region Staggered grid
