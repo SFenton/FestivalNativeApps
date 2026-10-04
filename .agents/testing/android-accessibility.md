@@ -11,7 +11,11 @@
 | Large text | 200% font scale plus the largest display size (`wm density` 1.3×: 546 on FST_Phone, 507 on FST_Book_Fold), 16 screens and sheets captured, fixed, recaptured | FST_Phone; FST_Book_Fold half-open |
 | Unit/Robolectric | `LargeTextUiTest` (rows at 200%, wrapping, axis style), `StatGridColumnsTest`, `NavigationPolicyTest` (two panes at large text) | JVM |
 
+Clipping checks: `TextLayoutResult.hasVisualOverflow` read through the `GetTextLayoutResult` semantics action reports overflow for any plain `Text` narrower than its parent allows: that path re-lays out the paragraph at the parent's max width and compares it with the node's size (issue #130: the zoom "100%"). It is reliable only for text that fills its width. Otherwise compare each line's width (`getLineRight − getLineLeft`) and `multiParagraph.height` with `size`, and check `isLineEllipsized` (`SongPathsDeviceTest.assertNoClippedText`).
+
 Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk reports (`<device>-<screen>.md`, `.log` with every spoken fragment) are in the showcase folder `and-a11y2/talkback/`; large-text captures (before `phone-*.png`, after `*-v2`/`-v3`/`-v4`) in `and-a11y2/bigtext/`.
+
+Statistics re-check (issue #111, 2026-10-03, live service, SFentonX): the `talkback_walk.py` walk on FST_Phone read Search, Notifications ("10 unread"), Profile, then Overview (heading) and its tiles, the Lead heading, the Rank History heading, hint, one chart summary, the pager (forward buttons "disabled") and the snapshot rows, then the tiles and percentile rows, in visual order with no duplicate stops. `ProfileDeviceJourneyTest` and `PlayerAccessibilityJourneyTest#statisticsProfile` (ATF) pass on FST_Phone, and `ProfileDeviceJourneyTest` on FST_Book_Fold `--posture half`. 200% text was checked on every AVD in [statistics/android.md](../pages/statistics/android.md#validation-issue-111-2026-10-03), and reduced motion (all scales 0) is fine.
 
 ## Findings and fixes
 
@@ -40,6 +44,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | At 200% text in phone landscape "Pro Drums + Cymbals" ran into its meter (no end gap; issue #123) | Song Detail Intensity card | 8 dp end padding on the label; it wraps (two lines, unlimited at large text) before the meter instead of truncating |
 | TalkBack went silent for the next five focus moves after the Service Info card's polite live region announced (the card scrolled into view and its 5 s poll started); focus kept moving (issue #121) | Settings | The card is no longer a live region; focusing the state row reads the current state. FST_Phone walk at fs 1.0 and 2.0: 99 items, web order |
 | The optional Songs filter instrument selector read every chart as "Radio button" although tapping the selected one clears it; compact arrows changed the chart silently; the selected chart's detail ignored Remove animations (issue #129) | Instrument Selector (Songs filter, Paths, Score History) | Required pickers stay `RadioButton`, optional ones are `CheckBox` (chip semantics); the compact centre is a polite live region; detail expand/collapse is instant at animator scale 0 (`InstrumentSelectorUiTest`, `InstrumentSelectorDeviceTest`) |
+| A viewed player whose scores changed (publication changed) or whose Select failed said "Reload this page before selecting" with no control to reload; the page has no pull-to-refresh (issue #133) | Player page reached from the profile sheet | **Reload** text button (`fst.player.reload`, 48 dp) next to the notice; the profile sheet's inline search-error Retry is tagged `fst.profile.retry`. `ProfileSelectionDeviceTest` (ATF, reading order, 48 dp, hinge) passes on FST_Phone and FST_Book_Fold half |
 
 ### Large text (200% + largest display size)
 
@@ -59,6 +64,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Chart axis "100" clipped to "10" | Axis ticks keep their 100% size (`chartAxisTextStyle()`; decorative, values listed below each chart) |
 | Half-open fold: 130 dp list pane, half-width cards wrapping a few letters per line | Two panes need the expanded width in text-scaled dp (`showsTwoPanes(…, fontScale)`); grids, hinge splits and Band Detail use one column (`rememberSingleColumn`), unless the window stays expanded in text-scaled dp |
 | Settings Version "Service" title crushed to one letter per line beside the origin (fs 2.0 phone, 360 dp tri-fold cover; issue #121) | Adaptive `ValueRow`: inline only when title and value fit at their intrinsic widths, otherwise the value stacks under the title (`LargeTextSettingsValueRowUiTest`) |
+| Paths text cards clipped Time "01:34:534" to "01:34:53" (phone, three weighted one-line columns); a phone-landscape 640 dp sheet used the five-column grid and clipped "187.", "01:34:" (issue #130) | Cards stack Beat/Time/Score at ≥ 1.3× and wrap; the grid needs 600 dp in 100%-text dp (`usesPathGrid`; `SongPathsSheetUiTest`) |
 
 Accepted: top app bar titles still ellipsize at 200% (Material small top app bar is one line; the page heading below repeats them); the floating pager covers part of a row until scrolled.
 

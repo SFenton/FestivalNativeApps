@@ -7,8 +7,9 @@ import com.festivalscoretracker.android.core.settings.SettingsOrder
 // region Sort draft
 
 /**
- * Sort sheet draft: changes stay local until Apply; Reset restores defaults in
- * the draft only (spec `songs-sort` draft semantics).
+ * Sort sheet state. The Android sheet applies every change live (operator rule: no
+ * Cancel/Apply or discard confirmation), so Reset restores and applies the defaults;
+ * [changed] still compares against the saved sort.
  *
  * @property mode Draft mode.
  * @property ascending Draft direction.
@@ -100,6 +101,16 @@ data class SongSortDraft(
          */
         fun normalized(mode: SongSortMode, ascending: Boolean, chart: Instrument?): Pair<SongSortMode, Boolean> =
             if (mode.needsChart && chart == null) SongSortMode.Title to true else mode to ascending
+
+        /**
+         * TalkBack state of the Sort button, which otherwise shows a changed sort only by
+         * its gold tint.
+         *
+         * @param mode Saved mode.
+         * @param ascending Saved direction.
+         * @return For example "Artist, descending".
+         */
+        fun describe(mode: SongSortMode, ascending: Boolean): String = "${mode.label}, ${if (ascending) "ascending" else "descending"}"
     }
 }
 

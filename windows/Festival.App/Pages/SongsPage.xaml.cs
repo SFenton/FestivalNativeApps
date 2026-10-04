@@ -82,6 +82,14 @@ public sealed partial class SongsPage : Page, IPageBack
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
             () => ViewModel.ShowList || ViewModel.ShowEmpty ? ViewModel.CountText : null, "Loading songs");
         Loaded += (_, _) => UpdateButtonTints();
+        // The gold tint is set from code, so a contrast-theme switch must re-resolve it (theme-accessibility: inline brush
+        // assignments do not follow {ThemeResource}).
+        Loaded += (_, _) =>
+        {
+            ContrastTheme.Changed -= OnColorsChanged;
+            ContrastTheme.Changed += OnColorsChanged;
+        };
+        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
         SizeChanged += OnSizeChanged;
         SongList.SelectionChanged += OnSongSelectionChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
@@ -148,7 +156,7 @@ public sealed partial class SongsPage : Page, IPageBack
     {
         ShowIncoming(null);
         pendingPin = -1;
-        var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0)).ToList();
+        var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0, s.AutomationId)).ToList();
         groupStarts = new int[groups.Count];
         for (int i = 0, start = 0; i < groups.Count; start += groups[i].Count, i++) groupStarts[i] = start;
         stickyLabels = groups.Select(g => g.Label).ToArray();
@@ -330,7 +338,11 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Re-evaluates the fade when Windows transparency effects or the contrast theme change (any thread).</summary>
     /// <param name="sender">Settings source.</param>
     /// <param name="args">Ignored.</param>
-    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(UpdateStickyHeader);
+    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(() =>
+    {
+        UpdateStickyHeader();
+        UpdateButtonTints();
+    });
 
     /// <summary>Realized row containers with their edges relative to the list viewport's top.</summary>
     /// <param name="panel">Items panel.</param>
@@ -714,20 +726,75 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="instrument">Chart, or <see langword="null"/> when cleared.</param>
     private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
-    /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
+    /// <summary>Re-resolves the Sort/Filter tints on the UI thread after a system colour change.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
+
+    /// <summary>
+    /// Marks Sort/Filter when a non-default choice is applied and reports the Filter state to UI Automation (Narrator
+    /// reads the item status after the button's name; the tint alone was silent).
+    /// </summary>
     private void UpdateButtonTints()
     {
-        var gold = Brush("FSTEmphasisBrush");
-        SortButton.ClearValue(ForegroundProperty);
-        FilterButton.ClearValue(ForegroundProperty);
-        if (ViewModel.IsSortChanged) SortButton.Foreground = gold;
-        if (ViewModel.IsFilterActive) FilterButton.Foreground = gold;
+        MarkApplied(SortButton, ViewModel.IsSortChanged);
+        MarkApplied(FilterButton, ViewModel.IsFilterActive);
+        AutomationProperties.SetItemStatus(FilterButton, ViewModel.FilterStatus);
+    }
+
+    /// <summary>
+    /// Gold text by default. Under a contrast theme gold resolves to WindowText (invisible), so an applied button takes
+    /// the system Highlight / HighlightText pair, like a checked toggle, and its icon/label drop the automatic
+    /// Window-colored text backplate that would otherwise cover the Highlight fill.
+    /// </summary>
+    /// <param name="button">Sort or Filter button.</param>
+    /// <param name="applied">Whether a non-default choice is applied.</param>
+    private static void MarkApplied(ContentControl button, bool applied)
+    {
+        button.ClearValue(ForegroundProperty);
+        button.ClearValue(BackgroundProperty);
+        var highlighted = applied && ContrastTheme.IsOn;
+        if (button.Content is Panel content)
+        {
+            foreach (var child in content.Children)
+                child.HighContrastAdjustment = highlighted ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
+        }
+        if (FindNamed(button, "ChevronIcon") is IconElement chevron)
+        {
+            chevron.ClearValue(IconElement.ForegroundProperty);
+            if (highlighted) chevron.Foreground = Brush("SystemColorHighlightTextColorBrush");
+        }
+        if (!applied) return;
+        if (highlighted)
+        {
+            button.Background = Brush("SystemColorHighlightColorBrush");
+            button.Foreground = Brush("SystemColorHighlightTextColorBrush");
+        }
+        else
+        {
+            button.Foreground = Brush("FSTEmphasisBrush");
+        }
     }
 
     /// <summary>Looks up an app brush.</summary>
     /// <param name="key">Resource key.</param>
     /// <returns>Brush.</returns>
     private static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
+
+    /// <summary>Finds a named template part (e.g. the DropDownButton <c>ChevronIcon</c>) below an element.</summary>
+    /// <param name="root">Element whose visual tree is searched.</param>
+    /// <param name="name">Template part name.</param>
+    /// <returns>The part, or <see langword="null"/> before the template applies.</returns>
+    private static FrameworkElement? FindNamed(DependencyObject root, string name)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is FrameworkElement { Name: var childName } element && childName == name) return element;
+            if (FindNamed(child, name) is { } found) return found;
+        }
+        return null;
+    }
     #endregion
 
     #region Perf scenario
@@ -779,14 +846,19 @@ public sealed partial class SongGroup : List<SongRowItem>
     /// <param name="label">Header ("" hides it).</param>
     /// <param name="rows">Rows.</param>
     /// <param name="isFirst">Whether it is the list's first section (the sticky bar names it, so it has no in-list header).</param>
-    public SongGroup(string label, IEnumerable<SongRowItem> rows, bool isFirst = false) : base(rows)
+    /// <param name="automationId">Heading automation ID (Item Shop buckets), or empty.</param>
+    public SongGroup(string label, IEnumerable<SongRowItem> rows, bool isFirst = false, string automationId = "") : base(rows)
     {
         Label = label;
         ShowInlineHeader = HasLabel && !isFirst;
+        AutomationId = automationId;
     }
 
     /// <summary>White Title Case header.</summary>
     public string Label { get; }
+
+    /// <summary>Heading automation ID (<c>fst.songs.shop-section.*</c> for Item Shop buckets), or empty.</summary>
+    public string AutomationId { get; }
 
     /// <summary>Whether the header shows (a single Shop bucket has none).</summary>
     public bool HasLabel => Label.Length > 0;

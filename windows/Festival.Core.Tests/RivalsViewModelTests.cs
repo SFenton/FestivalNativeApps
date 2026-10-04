@@ -463,7 +463,7 @@ public class RivalsViewModelTests
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
         var closest = detail.Categories[0];
         Assert.Equal("View All 4 Songs", closest.SeeAllText);
-        Assert.Equal("View 1 song", detail.Categories[1].SeeAllText);
+        Assert.Equal("View 1 Song", detail.Categories[1].SeeAllText);
         Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "Fixture Rival Golf", scope), closest.SeeAllRoute);
         Assert.Equal("fst.rival-detail.category.closest_battles", closest.AutomationId);
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);

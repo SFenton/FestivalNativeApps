@@ -112,6 +112,7 @@
                                                 AutomationProperties.AutomationId="fst.profile.search" />
                                 <ListView ItemsSource="{x:Bind Shell.ProfileResults, Mode=OneWay}" MaxHeight="320"
                                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProfileResultClick"
+                                          ContainerContentChanging="OnProfileResultContainer"
                                           AutomationProperties.Name="Players"
                                           AutomationProperties.AutomationId="fst.profile.results">
                                     <ListView.ItemTemplate>
