@@ -3,7 +3,13 @@ package com.festivalscoretracker.android.ui.shop
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.roundToInt
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -97,6 +103,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Route
@@ -242,6 +249,9 @@ internal const val SHOP_CONTENT_MAX_WIDTH_DP = 1040f
 /** Minimum side margin of the Shop content (M3 compact margin). */
 private const val SHOP_SIDE_MARGIN_DP = 16f
 
+/** Smallest grid tile when the grid splits at a fold. */
+private val SHOP_MIN_TILE = 120.dp
+
 /**
  * Side margin that keeps the Shop content at most [SHOP_CONTENT_MAX_WIDTH_DP] wide and
  * centred (M3 large-screen layout), while the list/grid still scrolls edge to edge.
@@ -286,7 +296,8 @@ private fun ShopContent(
             if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
         }
     }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    var boxLeft by remember { mutableIntStateOf(0) }
+    BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { boxLeft = it.positionInWindow().x.roundToInt() }) {
         val side = shopSideMargin(maxWidth.value).dp
         val contentPadding = PaddingValues(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
         if (state.offers.isEmpty()) {
@@ -297,11 +308,23 @@ private fun ShopContent(
         } else if (mode == ShopViewMode.Grid) {
             // Columns follow the page width (web window width); tiles fill the capped grid.
             val columns = shopGridColumns((maxWidth - 32.dp).value)
+            val density = LocalDensity.current
+            val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList
+                .filter { it.isSeparating && it.isVertical }
+                .map { it.bounds.left.roundToInt() to it.bounds.right.roundToInt() }
+            val gap = 10.dp
+            val split = with(density) {
+                val sidePx = side.roundToPx()
+                val width = constraints.maxWidth - 2 * sidePx
+                shopGridSplit(boxLeft + sidePx, width, hinges, gap.roundToPx(), columns, SHOP_MIN_TILE.roundToPx())?.let { it to width }
+            }
+            val cells = remember(split, columns) { split?.let { (s, width) -> ShopSplitCells(s, width, columns) } ?: GridCells.Fixed(columns) }
+            val arrangement = remember(split) { split?.let { ShopSplitArrangement(it.first, gap) } ?: Arrangement.spacedBy(gap) }
             LazyVerticalGrid(
-                columns = GridCells.Fixed(columns),
+                columns = cells,
                 contentPadding = contentPadding,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = arrangement,
+                verticalArrangement = Arrangement.spacedBy(gap),
                 modifier = Modifier.fillMaxSize().testTag("fst.shop.grid"),
             ) {
                 item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
@@ -428,7 +451,10 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
     val offer = item.offer
     val shape = RoundedCornerShape(12.dp)
     val open = if (item.officialUrl != null) onOfficial else onDetail
-    Box(
+    val titleStyle = MaterialTheme.typography.titleSmall
+    val artistStyle = MaterialTheme.typography.bodySmall
+    val density = LocalDensity.current
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
@@ -445,6 +471,13 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
         if (artUrl != null) {
             AsyncImage(model = artUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
+        // Large text wraps inside a fixed square: split the room so both texts end in "…" rather than clip.
+        val lines = shopCardTextHeights(
+            tile = maxHeight,
+            titleLine = with(density) { titleStyle.lineHeight.takeIf { it.isSp }?.toDp() ?: 20.dp },
+            artistLine = with(density) { artistStyle.lineHeight.takeIf { it.isSp }?.toDp() ?: 16.dp },
+            badge = item.highlight == ShopHighlight.LeavingTomorrow && isLargeText(),
+        )
         Column(
             Modifier
                 .align(Alignment.BottomStart)
@@ -453,8 +486,8 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
                 .padding(horizontal = 12.dp, vertical = 10.dp)
                 .clearAndSetSemantics { },
         ) {
-            Text(offer.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis)
-            Text(offer.artist, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+            Text(offer.title, style = titleStyle, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.heightIn(max = lines.first))
+            Text(offer.artist, style = artistStyle, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp).heightIn(max = lines.second))
         }
         if (item.highlight == ShopHighlight.LeavingTomorrow) {
             // The card's description already says "Leaving Tomorrow".
