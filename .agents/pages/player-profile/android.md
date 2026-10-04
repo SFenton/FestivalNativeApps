@@ -23,7 +23,9 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 | Header-verified and current, nothing selected | **Select Profile**, immediate |
 | Another player selected | **Switch to This Profile** → confirmation |
 | No `X-FST-Publication-Id` | "Selection is paused" notice |
-| Publication advanced since the read | "Reload this page before selecting" notice |
+| Publication advanced since the read | "Reload this page before selecting" notice + **Reload** (`fst.player.reload`, re-reads the page; issue #133) |
+
+A failed select (`fst.player.action-error`) also offers Reload, which clears the error and reads again (`PlayerProfileUiState.offersReload`). The page has no pull-to-refresh, so without the button the notice was a dead end.
 
 None of these navigate. Selecting adds the profile tabs in place; deselecting (drawer) on the Statistics tab removes that tab, so the shell falls back to Songs (as on Windows).
 
@@ -77,7 +79,7 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## IDs
 
-`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,identity,select,identity-notice,action-error,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.stats.<wire>`, `fst.player.global-rank.<wire>.error`, `fst.player.rank-history.<wire>[.loading]`, `fst.player.rank-history.{plot,detail,back-page,back-entry,forward-entry,forward-page}`, `fst.player.rank-history.row.<yyyy-MM-dd>`, `fst.player.percentiles.<wire>`, `fst.player.percentile-row.<topPercent>`, `fst.player.tile.<overview|wire>.<tile id>` (ids: `songs-played`, `full-combos`, `gold-stars`, `stars-<6..1>`, `avg-accuracy`, `avg-stars`, `best-rank`, `global-rank`, `percentile`, `songs-played-percentile`), `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
+`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,identity,select,identity-notice,action-error,reload,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.stats.<wire>`, `fst.player.global-rank.<wire>.error`, `fst.player.rank-history.<wire>[.loading]`, `fst.player.rank-history.{plot,detail,back-page,back-entry,forward-entry,forward-page}`, `fst.player.rank-history.row.<yyyy-MM-dd>`, `fst.player.percentiles.<wire>`, `fst.player.percentile-row.<topPercent>`, `fst.player.tile.<overview|wire>.<tile id>` (ids: `songs-played`, `full-combos`, `gold-stars`, `stars-<6..1>`, `avg-accuracy`, `avg-stars`, `best-rank`, `global-rank`, `percentile`, `songs-played-percentile`), `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
 
 ## Tests
 
