@@ -610,6 +610,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertaligned":
                 AssertAligned(window, step);
                 break;
+            case "assertbelow":
+            case "assertlevel":
+                AssertVertical(window, step, verb == "assertbelow");
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -963,6 +967,26 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
         response["aligned"] ??= new JsonArray();
         response["aligned"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>
+    /// Compares two elements' vertical centres: <c>assertbelow</c> needs the first at least 8 px lower (e.g. a chip wrapped
+    /// under its row's text), <c>assertlevel</c> needs them within 4 px (e.g. a chip inline on its row's centre line).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c> selectors.</param>
+    /// <param name="below">Whether the first must be lower (else level).</param>
+    /// <exception cref="InvalidOperationException">The relation does not hold.</exception>
+    private void AssertVertical(Window window, JsonObject step, bool below)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var a = first.Top + first.Height / 2.0;
+        var b = second.Top + second.Height / 2.0;
+        if (below ? a - b < 8 : Math.Abs(a - b) > 4)
+            throw new InvalidOperationException($"vertical centres {a:0.#} vs {b:0.#} px are not {(below ? "below" : "level")} ({(string)step["arg"]!})");
+        response["vertical"] ??= new JsonArray();
+        response["vertical"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
     }
 
     #endregion

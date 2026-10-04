@@ -105,7 +105,7 @@ STEP_VERBS = {
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
-    "assertname": "setvalue", "assertaligned": "pair", "assertstatus": "status", "assertstate": "state",
+    "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertstatus": "status", "assertstate": "state",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
@@ -184,7 +184,9 @@ def parse_step(step: str) -> dict:
     Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
     stepping its scroller from the top), with no input, so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text;
-    ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column).
+    ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
+    ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
+    and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line).
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
