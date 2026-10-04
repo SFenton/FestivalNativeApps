@@ -3,19 +3,26 @@ package com.festivalscoretracker.android.ui.search
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -26,11 +33,13 @@ import com.festivalscoretracker.android.presentation.search.GlobalSearchUiState
 import com.festivalscoretracker.android.presentation.search.SectionPhase
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Stateless search content: progress rings and one full-height region for every state (6.21). */
 @RunWith(AndroidJUnit4::class)
@@ -132,5 +141,42 @@ class GlobalSearchContentUiTest {
             }
         }
         rule.onNodeWithTag(GlobalSearchTags.RETRY).performScrollTo().assertIsDisplayed()
+    }
+
+    private fun showChips(fontScale: Float, widthDp: Int) {
+        rule.setContent {
+            FestivalTheme {
+                CompositionLocalProvider(LocalDensity provides Density(1f, fontScale = fontScale)) {
+                    Box(Modifier.width(widthDp.dp).height(400.dp)) {
+                        GlobalSearchContent(GlobalSearchUiState(), { null }, {}, {}, {}, {})
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun scopeChipsShareTheRowWhenTheirLabelsFit() {
+        showChips(fontScale = 1f, widthDp = 360)
+        rule.onNodeWithTag(GlobalSearchTags.SCOPES).assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.HorizontalScrollAxisRange))
+        val widths = SearchScope.chips.map { rule.onNodeWithTag(GlobalSearchTags.scope(it)).fetchSemanticsNode().boundsInRoot.width }
+        assertEquals(widths.first(), widths.last(), 0.5f)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun largeTextOnANarrowWindowScrollsTheChipsInsteadOfClippingLabels() {
+        // Issue #141: TriFold folded (360 dp) at font scale 2 cut "Players" to "Playe".
+        showChips(fontScale = 2f, widthDp = 300)
+        rule.onNodeWithTag(GlobalSearchTags.SCOPES).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange))
+        SearchScope.chips.forEach { chip ->
+            val layouts = mutableListOf<TextLayoutResult>()
+            rule.onNode(hasText(chip.title).and(hasAnyAncestor(hasTestTag(GlobalSearchTags.scope(chip)))), useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            val label = layouts.single()
+            val needed = label.multiParagraph.intrinsics.maxIntrinsicWidth
+            assertTrue("${chip.title} needs $needed px, has ${label.size.width}", needed <= label.size.width + 0.5f)
+        }
     }
 }

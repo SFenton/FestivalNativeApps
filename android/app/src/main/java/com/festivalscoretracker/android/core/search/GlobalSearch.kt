@@ -387,18 +387,31 @@ object GlobalSearchLayout {
     fun fieldHeight(lineHeightPx: Float, density: Float): Int =
         maxOf((FIELD_HEIGHT_DP * density).toInt(), kotlin.math.ceil(lineHeightPx + FIELD_VERTICAL_PADDING_DP * density).toInt())
 
+    /** Scope chip row side padding, each side. */
+    const val CHIP_ROW_PADDING_DP = 16
+
+    /** Gap between scope chips. */
+    const val CHIP_GAP_DP = 8
+
+    /** Filter chip label padding (8 dp each side) plus its 1 dp border on each side. */
+    const val CHIP_LABEL_CHROME_DP = 18
+
     /**
-     * How much of a fixed-height docked panel the keyboard covers, so its results can pad by
-     * exactly that and stay scrollable above the keyboard while the panel keeps its height.
+     * Whether every scope chip label fits an equal share of the row. When large text (font
+     * scale 2.0 on a narrow window) makes one label too wide, the row scrolls with
+     * natural-width chips instead of clipping the label.
      *
-     * @param panelTop Panel top in window px.
-     * @param panelHeight Panel height in px.
-     * @param windowHeight Window height in px.
-     * @param imeBottom Keyboard height in px (0 when hidden).
-     * @return Covered px, never negative.
+     * @param labelWidthsPx Measured label text widths in px.
+     * @param rowWidthPx Row width in px, before its side padding.
+     * @param density Pixels per dp.
+     * @return True for equal shares, false for a scrolling row.
      */
-    fun imeOverlap(panelTop: Int, panelHeight: Int, windowHeight: Int, imeBottom: Int): Int =
-        (panelTop + panelHeight - (windowHeight - imeBottom)).coerceIn(0, panelHeight)
+    fun scopeChipsFitEqually(labelWidthsPx: List<Float>, rowWidthPx: Int, density: Float): Boolean {
+        if (labelWidthsPx.isEmpty()) return true
+        val gaps = CHIP_GAP_DP * density * (labelWidthsPx.size - 1)
+        val share = (rowWidthPx - 2 * CHIP_ROW_PADDING_DP * density - gaps) / labelWidthsPx.size
+        return labelWidthsPx.all { it + CHIP_LABEL_CHROME_DP * density <= share }
+    }
 }
 
 // endregion

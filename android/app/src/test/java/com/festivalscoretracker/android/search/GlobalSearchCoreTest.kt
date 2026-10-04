@@ -128,6 +128,18 @@ class GlobalSearchCoreTest {
     }
 
     @Test
+    fun scopeChipsShareTheRowOnlyWhenEveryLabelFits() {
+        // 360 dp at density 1: (360 - 32 - 16) / 3 = 104 px share, 18 px chip chrome each.
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(listOf(40f, 52f, 38f), 360, 1f))
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(listOf(86f, 86f, 86f), 360, 1f))
+        // Issue #141: "Players" at font scale 2 needs more than its share, so the row scrolls.
+        assertFalse(GlobalSearchLayout.scopeChipsFitEqually(listOf(80f, 87f, 76f), 360, 1f))
+        assertFalse(GlobalSearchLayout.scopeChipsFitEqually(listOf(160f, 180f, 150f), 720, 2f))
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(listOf(160f, 172f, 150f), 720, 2f))
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(emptyList(), 0, 1f))
+    }
+
+    @Test
     fun dockedIsEndAlignedCappedAndInsideTheWindow() {
         // 720 dp window at density 2: docked panel 720 dp wide would not fit; it fills minus gaps.
         val anchor = GlobalSearchLayout.anchor(SearchPresentation.Docked, PxRect(1300, 60, 1396, 156), 1440, 2000, 2f)
@@ -141,16 +153,6 @@ class GlobalSearchCoreTest {
         assertEquals(720, wide.anchor.width)
         assertEquals(1596, wide.anchor.right)
         assertEquals(80, wide.anchor.top)
-    }
-
-    @Test
-    fun dockedPanelKeyboardOverlapPadsResultsWithoutResizing() {
-        // Panel 52..1385 in a 2000 px window: an 800 px keyboard covers 185 px of it.
-        assertEquals(185, GlobalSearchLayout.imeOverlap(52, 1333, 2000, 800))
-        assertEquals(0, GlobalSearchLayout.imeOverlap(52, 1333, 2000, 0))
-        assertEquals(0, GlobalSearchLayout.imeOverlap(52, 600, 2000, 800))
-        // Never more than the panel itself.
-        assertEquals(600, GlobalSearchLayout.imeOverlap(1300, 600, 2000, 1900))
     }
 
     @Test
