@@ -606,7 +606,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Brings an element that exists but is scrolled out of view (e.g. below the fold of a flyout's ScrollViewer) on
     /// screen through the UIA ScrollItem pattern, or by paging the nearest scrollable ancestor when the element has no
-    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console).
+    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console). While nothing matches
+    /// yet (a virtualized list hasn't realized the item), it pages the window's largest scrollable region down.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
@@ -624,9 +625,28 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
                 else PageTowards(found);
             }
+            else PageDown(window);
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
             Thread.Sleep(200);
         }
+    }
+
+    /// <summary>
+    /// Pages the window's largest vertically scrollable region down one page, so a virtualized list realizes items that
+    /// don't exist yet (nothing happens once every region is at its end).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    private void PageDown(Window window)
+    {
+        var scrollable = automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Pane)
+            .Or(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.List))
+            .Or(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Group));
+        var target = window.FindAllDescendants(scrollable)
+            .Where(e => e.Patterns.Scroll.IsSupported && e.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault &&
+                        e.Patterns.Scroll.Pattern.VerticalScrollPercent.ValueOrDefault < 100)
+            .OrderByDescending(e => e.BoundingRectangle.Width * e.BoundingRectangle.Height)
+            .FirstOrDefault();
+        target?.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
     }
 
     /// <summary>Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element.</summary>
