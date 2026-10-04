@@ -176,3 +176,47 @@ object CompeteText {
 }
 
 // endregion
+
+// region Header layout
+
+/**
+ * Whether a Compete card's scope header stacks its instrument icons above the title.
+ *
+ * Side by side, the 36 dp icons and the optional "See All" link take a fixed width; in a
+ * narrow lane (a half-open book fold's panel, a 360 dp cover screen) a four-instrument
+ * combo title was left a few dp and broke after every word. Large text always stacks.
+ */
+object CompeteHeaderLayout {
+    /** Instrument icon size (web `InstrumentHeader` SM). */
+    const val ICON_DP = 36f
+
+    /** Gap between icons. */
+    const val ICON_GAP_DP = 2f
+
+    /** Gap between the icons, the title and the link. */
+    const val GAP_DP = 8f
+
+    /** Narrowest width a title may wrap into beside the icons. */
+    const val MIN_TITLE_DP = 100f
+
+    /** Width of the "See All ›" text button at the default font scale. */
+    const val SEE_ALL_DP = 80f
+
+    /**
+     * Decide whether the header stacks.
+     *
+     * @param widthDp Header width in dp.
+     * @param instruments Instrument icons in the header.
+     * @param hasSeeAll Whether the "See All" link is shown.
+     * @param largeText Whether the app's large-text mode is on (`isLargeText()`).
+     * @return True to put the icons on their own line above the title.
+     */
+    fun stacks(widthDp: Float, instruments: Int, hasSeeAll: Boolean, largeText: Boolean): Boolean {
+        if (largeText) return true
+        val icons = instruments * ICON_DP + (instruments - 1).coerceAtLeast(0) * ICON_GAP_DP
+        val link = if (hasSeeAll) GAP_DP + SEE_ALL_DP else 0f
+        return widthDp < icons + GAP_DP + MIN_TITLE_DP + link
+    }
+}
+
+// endregion
