@@ -35,6 +35,9 @@ import SwiftUI
 /// overflowing marquees scroll the same distance (widest text + gap) so they move
 /// in lockstep, like the web's `useMarqueeSync` (song rows and the song header).
 ///
+/// **Accessibility sizes.** The text wraps instead (no scrolling, no truncation)
+/// unless ``SwiftUI/EnvironmentValues/marqueeWrapsAtAccessibilitySizes`` is false.
+///
 /// VoiceOver reads the full, untruncated `text` as one element in every form.
 public struct MarqueeText: View {
     private let text: String
@@ -50,6 +53,7 @@ public struct MarqueeText: View {
     @Environment(\.festivalWindowVisible) private var windowVisible
     @Environment(\.marqueeSyncGroup) private var syncGroup
     @Environment(\.marqueeAnimationEnabled) private var animationEnabled
+    @Environment(\.marqueeWrapsAtAccessibilitySizes) private var wrapsAtAccessibilitySizes
     @Environment(\.displayScale) private var displayScale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
@@ -85,7 +89,11 @@ public struct MarqueeText: View {
             .lineLimit(1)
             .truncationMode(.tail)
         Group {
-            if mayScroll {
+            if wrapsAtAccessibilitySizes, dynamicTypeSize.isAccessibilitySize {
+                Text(self.text)
+                    .marqueeFont(font)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if mayScroll {
                 MarqueeFitLayout {
                     text.opacity(overflows ? 0 : 1)
                     // Proposed a non-zero width only while the text overflows.
@@ -263,6 +271,13 @@ extension EnvironmentValues {
     /// marquee is laid out but not seen, e.g. Song Detail's pinned toolbar title at
     /// opacity 0 while the hero title is visible.
     @Entry var marqueeAnimationEnabled = true
+
+    /// True (default): at accessibility text sizes every ``MarqueeText`` below wraps onto
+    /// as many lines as it needs instead of scrolling or truncating (HIG Typography: "Keep
+    /// text truncation to a minimum as font size increases ... allowing as many lines as
+    /// needed"; the iPad audit found Song Detail's artist cut to "Synthetic Qua…" at
+    /// AX5). Set false where the text must stay on one line, e.g. a navigation-bar title.
+    @Entry var marqueeWrapsAtAccessibilitySizes = true
 }
 
 public extension View {

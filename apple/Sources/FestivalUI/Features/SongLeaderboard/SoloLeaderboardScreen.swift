@@ -218,6 +218,8 @@ struct SoloLeaderboardScreen: View {
                         }
                     }
                     .frame(maxWidth: 240)
+                    // A bar title stays on one line at every text size.
+                    .environment(\.marqueeWrapsAtAccessibilitySizes, false)
                     .transition(.opacity)
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
