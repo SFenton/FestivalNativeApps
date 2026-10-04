@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.presentation.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.format.ScoreFormatting
+import com.festivalscoretracker.android.core.format.StarRatingSpec
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.profile.PlayerHistoryPayload
@@ -90,7 +91,7 @@ data class ScoreHistoryRow(val entry: ScoreHistoryEntry, val isHighScore: Boolea
             "score $score",
             accuracy?.let { "accuracy $it" },
             "full combo".takeIf { isFullCombo },
-            entry.stars?.let { if (it >= 6) "gold stars" else "$it stars" },
+            entry.stars?.takeIf { it > 0 }?.let { StarRatingSpec.display(it).label },
             season,
             "personal best".takeIf { isHighScore },
         ).joinToString(", ")

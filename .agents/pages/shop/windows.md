@@ -19,7 +19,7 @@
 | Window | Layout |
 |---|---|
 | Compact (page < 640 epx) | Album-art grid forced (2 per row, as in the installed PWA; gap 7); toggle hidden |
-| Medium / wide | Grid or list; **List View / Grid View** toggle (`fst.shop.view-toggle`) persisted in `AppSettings.ShopViewMode` |
+| Medium / wide | Grid or list; **List View / Grid View** toggle (`fst.shop.view-toggle`, 40 epx like Filter) persisted in `AppSettings.ShopViewMode`, shown only while offers are on screen |
 
 Grid geometry (`Domain/ShopGridMetrics`, web `ShopPage.tsx`): 2 columns below 600 epx, 3 from 600, 4 from 860, 5 from 1100; 10 epx gaps; the grid is at most 1040 epx wide (web `min(window, 1080) - 40`), left-aligned, so wide windows keep ~200 epx tiles; tiles get explicit square sizes from the scroller's width (a `UniformGridLayout` Fill stretch rounded an exact two-column fit down to one column at 150%). Tile text follows the web card: 16 epx scrim padding, 16 epx semibold title, artist below.
 
@@ -32,4 +32,4 @@ Grid geometry (`Domain/ShopGridMetrics`, web `ShopPage.tsx`): 2 columns below 60
 
 ## Open
 
-Rotation push updates; Quick Links. UIA: `songs_journey.py --only shop,shop-compact` covers grid, context-menu link, list toggle and Song Detail (never opens the real link).
+Rotation push updates; Quick Links. UIA: `shop_journey.py` covers every shop-offers contract state at compact/medium/wide (see [shop-offers/windows.md](../../controls/shop-offers/windows.md#validation-issue-224-2026-10-04)); `songs_journey.py --only shop,shop-compact` covers grid, context-menu link, list toggle and Song Detail (never opens the real link).
