@@ -280,9 +280,11 @@ final class SongsChromeJourneyTests: XCTestCase {
 
     /// Issue #9: a far A–Z rail jump (# → P) showed Q's songs, or P's songs under a "Q"
     /// or "B" section bar, and re-tapping the same letter after scrolling did nothing.
-    /// Every tap must land the letter's title just under the navigation bar and the bar
-    /// must name it at once: far down, back up, a re-tap after a manual scroll, and the
-    /// last letter, which cannot reach the top, leaving the section above it named.
+    /// Every tap must land the letter's title on the landing line under the navigation
+    /// bar and the bar must name it at once: far down, back up, a re-tap after a manual
+    /// scroll, and the last letter, which cannot reach the top, leaving the section above
+    /// it named. Issue #286: on iOS 26 the line is 30 pt below the bar (under the section
+    /// bar's label), so the first row starts below the 28 pt soft edge, not faded under it.
     ///
     /// Needs the large fixture like the tests above (skips otherwise). With a profile,
     /// as reported: the page tools remain in the navigation bar during the first jump.
@@ -312,6 +314,15 @@ final class SongsChromeJourneyTests: XCTestCase {
             app.staticTexts["fst.songs.section.\(letters.firstIndex(of: letter)!)"]
         }
         func top() -> CGFloat { app.navigationBars.firstMatch.frame.maxY }
+        // iOS 26: the title row lands `SongsScrollChrome.landingOffset(fade:)` (30 pt)
+        // below the bar and its text is 8 pt inside the row (`inlineTitleTopPadding`).
+        let rowOffset: CGFloat, textInset: CGFloat, fade: CGFloat
+        if #available(iOS 26.0, *) {
+            (rowOffset, textInset, fade) = (30, 8, 28)
+        } else {
+            (rowOffset, textInset, fade) = (0, 0, 0)
+        }
+        func line() -> CGFloat { top() + rowOffset + textInset }
         func tap(_ letter: String) {
             rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch.tap()
         }
@@ -323,9 +334,23 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
         func assertLanded(on letter: String) {
             let target = title(letter)
-            waitUntil("\(letter) title not at the top: \(target.frame), bar ends \(top())") {
-                target.exists && abs(target.frame.minY - top()) <= 3
+            waitUntil("\(letter) title not on the line: \(target.frame), line \(line())") {
+                target.exists && abs(target.frame.minY - line()) <= 3
             }
+            // The section's first row starts below the soft edge: a title flush with the
+            // bar (the old landing) leaves it 28 pt higher, faded under the edge.
+            func rowFrames(_ node: XCUIElementSnapshot) -> [CGRect] {
+                (node.identifier.hasPrefix("fst.songs.row.") ? [node.frame] : [])
+                    + node.children.flatMap(rowFrames)
+            }
+            let list = app.descendants(matching: .any)["fst.songs.list"]
+            let titleBottom = target.frame.maxY
+            let firstRow = ((try? list.snapshot()).map(rowFrames) ?? [])
+                .filter { $0.minY >= titleBottom - 1 }.min { $0.minY < $1.minY }
+            XCTAssertGreaterThanOrEqual(
+                firstRow?.minY ?? -1, top() + rowOffset + fade - 1,
+                "\(letter) first row under the fade: \(String(describing: firstRow))"
+            )
             waitUntil("Section bar reads \(sectionBar.label), not \(letter)") {
                 sectionBar.exists && sectionBar.label == target.label
             }
@@ -342,7 +367,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         // Scroll away from A by hand, then pick A again.
         app.swipeUp()
         waitUntil("Manual scroll did not leave A") {
-            !title("A").exists || abs(title("A").frame.minY - top()) > 3
+            !title("A").exists || abs(title("A").frame.minY - line()) > 3
         }
         tap("A")
         assertLanded(on: "A")
@@ -352,7 +377,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         tap("Z")
         let z = title("Z")
         waitUntil("Did not reach the end for Z") { z.exists && z.isHittable }
-        if abs(z.frame.minY - top()) <= 3 {
+        if abs(z.frame.minY - line()) <= 3 {
             waitUntil("Section bar reads \(sectionBar.label), not Z") { sectionBar.label == "Z" }
         } else {
             waitUntil("Section bar reads \(sectionBar.label), not Y") { sectionBar.label == "Y" }
