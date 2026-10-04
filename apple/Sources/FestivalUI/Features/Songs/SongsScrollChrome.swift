@@ -33,12 +33,18 @@ final class SongsScrollChrome {
 
     /// Record whether the List has left its top.
     ///
+    /// Back at the top, every passed title is forgotten (issue #297): a long animated
+    /// scroll there (a status-bar tap) moves past titles that are never built on the way,
+    /// so they never report leaving the bar and the bar named a later section on the next
+    /// scroll. The titles still built re-assert their own answer when this flips.
+    ///
     /// - Parameter scrolled: The scroll-away decision (``ScrollAwayGate``).
     /// - Returns: True when the value changed.
     @discardableResult
     func setScrolled(_ scrolled: Bool) -> Bool {
         guard scrolled != listScrolled else { return false }
         listScrolled = scrolled
+        if !scrolled { resetHeaders() }
         return true
     }
 
@@ -370,6 +376,28 @@ final class SongsScrollChrome {
             current = pushed <= -barHeight ? nil : pushed
         }
         return SectionBarLayout(currentY: current, nextY: nextTop + titleAlignment)
+    }
+
+    /// Where the bar draws the title before the current one while the current title is
+    /// still pushing it out (issue #297), relative to the bar's top.
+    ///
+    /// Only the current title's own row can push the previous title, so without its band
+    /// top there is nothing left to draw: its row has scrolled far above the bar (and left
+    /// the List) or a jump put it there. Drawing the previous title pinned in that case put
+    /// it on top of the current one for the rest of the section ("F" over "G").
+    ///
+    /// - Parameters:
+    ///   - currentTop: The current section title's band top
+    ///     (``pushBandTop(titleTop:landingOffset:barHeight:)``), nil outside the band.
+    ///   - landingOffset: ``landingOffset(fade:)``.
+    ///   - barHeight: The bar's current title height.
+    /// - Returns: The previous title's position in bar space, or nil once it is fully out.
+    nonisolated static func previousTitleY(
+        currentTop: CGFloat?, landingOffset: CGFloat, barHeight: CGFloat
+    ) -> CGFloat? {
+        guard let currentTop, currentTop.isFinite else { return nil }
+        let pushed = min(0, currentTop - landingOffset - barHeight)
+        return pushed <= -barHeight ? nil : pushed
     }
 }
 

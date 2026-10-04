@@ -34,6 +34,26 @@ struct SongsScrollChromeTests {
         #expect(chrome.setScrolled(false))
     }
 
+    /// Issue #297: a long animated scroll to the top skips titles that never report
+    /// leaving the bar, so reaching the top forgets them all (built titles re-assert).
+    @Test func returningToTheTopForgetsPassedTitles() {
+        let chrome = SongsScrollChrome()
+        let keys = ["#", "A", "B", "M"]
+        chrome.setScrolled(true)
+        chrome.setHeader("#", passed: true)
+        chrome.setHeader("M", passed: true)
+        // Leaving the top keeps what the titles reported.
+        #expect(chrome.passedHeaders == ["#", "M"])
+        #expect(invalidates(chrome, reading: { _ = $0.passedHeaders }) { $0.setScrolled(false) })
+        #expect(chrome.passedHeaders.isEmpty)
+        #expect(chrome.currentSectionIndex(in: keys) == 0)
+        // The first title, still built at the top, re-asserts its answer.
+        chrome.setHeader("#", passed: true)
+        chrome.setScrolled(true)
+        #expect(chrome.passedHeaders == ["#"])
+        #expect(chrome.currentSectionIndex(in: keys) == 0)
+    }
+
     @Test func headerWritesOnlyOnChange() {
         let chrome = SongsScrollChrome()
         #expect(!invalidates(chrome, reading: { _ = $0.passedHeaders }) {
@@ -158,6 +178,47 @@ struct SongsScrollChromeTests {
                 #expect(abs(was - is_) <= 0.5)
             }
             previous = now
+        }
+    }
+
+    private func previousY(current: CGFloat?) -> CGFloat? {
+        SongsScrollChrome.previousTitleY(currentTop: current, landingOffset: landing, barHeight: bar)
+    }
+
+    /// Issue #297: once the current title's row has left the band (scrolled far above the
+    /// bar, dismantled by the List, or never built after a jump), the previous section's
+    /// title must not stay pinned underneath the current one.
+    @Test func previousTitleIsGoneOnceTheCurrentTitleLeftTheBand() {
+        #expect(previousY(current: nil) == nil)
+        #expect(previousY(current: .nan) == nil)
+        // Clamped far above the bar: pushed out long ago.
+        #expect(previousY(current: -(SongsScrollChrome.titleAlignment + 1)) == nil)
+        // On or above the landing line the current title has pushed it fully out.
+        #expect(previousY(current: landing) == nil)
+        #expect(previousY(current: landing - 4) == nil)
+    }
+
+    @Test func previousTitleFollowsTheTitlePushingItOut() {
+        // Just past the landing line (the passed check's tolerance) it is still leaving.
+        #expect(previousY(current: landing + 0.5) == -bar + 0.5)
+        #expect(previousY(current: landing + 16) == -16)
+        // Never drawn below the bar's top: pinned at most.
+        #expect(previousY(current: landing + bar) == 0)
+        #expect(previousY(current: landing + bar + 10) == 0)
+    }
+
+    /// The bar's previous and current titles never share the pinned slot: with no band top
+    /// for the current title the current one is pinned and the previous one is gone.
+    @Test func currentAndPreviousTitlesNeverOverlapWhilePinned() {
+        let pinned = layout(current: nil, passed: true, next: nil)
+        #expect(pinned.currentY == 0)
+        #expect(previousY(current: nil) == nil)
+        // While the current title is pushing, the two sit one bar height apart at most.
+        for step in stride(from: landing + bar, through: landing, by: -1) {
+            let current = layout(current: step, passed: true, next: nil).currentY
+            if let current, let previous = previousY(current: step) {
+                #expect(current - previous >= bar - SongsScrollChrome.titleAlignment - 0.001)
+            }
         }
     }
 
