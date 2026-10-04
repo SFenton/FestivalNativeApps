@@ -358,11 +358,7 @@ fun RivalSongRow(
     val rankText = RivalHeadToHead.formatRankDelta(delta.toLong())
     val scoreText = RivalHeadToHead.formatScoreDiff(song)
     val scoreDiff = RivalHeadToHead.scoreDiff(song)
-    val leader = when {
-        delta > 0 -> "you lead by $rankText ranks"
-        delta < 0 -> "$them leads by ${rankText.removePrefix("−")} ranks"
-        else -> "tied"
-    }
+    val leader = RivalHeadToHead.leaderPhrase(delta.toLong(), them)
     val description = "$title, ${song.chart?.label.orEmpty()}, $you rank ${format.format(song.userRank)}, " +
         "$them rank ${format.format(song.rivalRank)}, $leader, score difference $scoreText"
     val keyboard = catalogSong?.usesKeyboardIcon == true
