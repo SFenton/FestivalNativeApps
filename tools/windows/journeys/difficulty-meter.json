@@ -1,0 +1,51 @@
+[
+  {
+    "name": "meter-pulse-two-to-five",
+    "route": "/songs/fixture-pulse",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "waitfor:id=fst.songs.difficulty-meter@10",
+      "waitfor:name=Tap Vocals, Difficulty 2 of 7@5",
+      "waitfor:name=Difficulty 2 of 7@5",
+      "waitfor:name=Lead, Difficulty 3 of 7@5",
+      "waitfor:name=Difficulty 3 of 7@5",
+      "waitfor:name=Bass, Difficulty 4 of 7@5",
+      "waitfor:name=Difficulty 4 of 7@5",
+      "waitfor:name=Drums, Difficulty 5 of 7@5",
+      "waitfor:name=Difficulty 5 of 7@5",
+      "waitgone:id=fst.songs.difficulty-unavailable@2",
+      "shot:{shots}\\meter-pulse-medium.png"
+    ]
+  },
+  {
+    "name": "meter-orbit-one-six-sentinel",
+    "route": "/songs/fixture-orbit",
+    "preset": "compact",
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "waitfor:name=Pro Drums, Difficulty 1 of 7@10",
+      "waitfor:name=Difficulty 1 of 7@5",
+      "waitfor:name=Lead, Difficulty 6 of 7@5",
+      "waitfor:name=Difficulty 6 of 7@5",
+      "waitfor:name=Pro Lead, Difficulty 4 of 7@5",
+      "waitgone:name=Bass, Difficulty 7 of 7@2",
+      "waitgone:id=fst.songs.difficulty-unavailable@2",
+      "shot:{shots}\\meter-orbit-compact.png"
+    ]
+  },
+  {
+    "name": "meter-seven-wide",
+    "route": "/songs/fixture-song-6",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "waitfor:name=Lead, Difficulty 7 of 7@10",
+      "waitfor:name=Difficulty 7 of 7@5",
+      "waitfor:name=Bass, Difficulty 2 of 7@5",
+      "waitfor:name=Drums, Difficulty 4 of 7@5",
+      "waitfor:name=Tap Vocals, Difficulty 1 of 7@5",
+      "shot:{shots}\\meter-seven-wide.png"
+    ]
+  }
+]
