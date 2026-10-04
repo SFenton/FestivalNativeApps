@@ -211,17 +211,25 @@ public class SongsViewModelTests
         vm.SortDraft.ModeIndex = (int)SongSortMode.Year;
         Assert.Equal(SongSortMode.Year, store.Current.SongSort);
         vm.SortDraft.ModeIndex = 99;
+        Assert.Equal(0, vm.SortDraft.DirectionIndex);
+        vm.SortDraft.DirectionIndex = 1;
+        Assert.False(store.Current.SongSortAscending);
+        Assert.True(vm.SortDraft.Descending);
+        vm.SortDraft.DirectionIndex = -1; // RadioButtons clears its selection while items rebuild: ignored
+        vm.SortDraft.DirectionIndex = 2;
+        Assert.Equal(1, vm.SortDraft.DirectionIndex);
         vm.SortDraft.Ascending = false;
         Assert.False(store.Current.SongSortAscending);
         Assert.False(vm.SortDraft.CanApply);
         Assert.True(vm.IsSortChanged);
         Assert.Equal("Year ↓", vm.SortSummary);
+        Assert.Equal("Year, descending", vm.SortDescription);
         Assert.Equal(["2020s", "Unknown Year"], vm.Sections.Select(s => s.Label));
         Assert.False(vm.HasJumpIndex); // Year sort has no quick-jump
         vm.SortDraft.Begin();
         Assert.Equal(SongSortMode.Year, vm.SortDraft.Mode);
         vm.SortDraft.ResetCommand.Execute(null);
-        Assert.Equal((SongSortMode.Title, true, 0), (vm.SortDraft.Mode, vm.SortDraft.Ascending, vm.SortDraft.ModeIndex));
+        Assert.Equal((SongSortMode.Title, true, 0, 0), (vm.SortDraft.Mode, vm.SortDraft.Ascending, vm.SortDraft.ModeIndex, vm.SortDraft.DirectionIndex));
         Assert.Equal((SongSortMode.Title, true), (store.Current.SongSort, store.Current.SongSortAscending));
         Assert.False(vm.IsSortChanged);
     }

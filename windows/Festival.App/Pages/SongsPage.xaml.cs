@@ -68,6 +68,14 @@ public sealed partial class SongsPage : Page, IPageBack
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
             () => ViewModel.ShowList || ViewModel.ShowEmpty ? ViewModel.CountText : null, "Loading songs");
         Loaded += (_, _) => UpdateButtonTints();
+        // The gold tint is set from code, so a contrast-theme switch must re-resolve it (theme-accessibility: inline brush
+        // assignments do not follow {ThemeResource}).
+        Loaded += (_, _) =>
+        {
+            ContrastTheme.Changed -= OnColorsChanged;
+            ContrastTheme.Changed += OnColorsChanged;
+        };
+        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
         SizeChanged += OnSizeChanged;
         SongList.SelectionChanged += OnSongSelectionChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
@@ -132,7 +140,7 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Rebuilds the grouped source and the sticky header's section offsets.</summary>
     private void RebindGroups()
     {
-        var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0)).ToList();
+        var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0, s.AutomationId)).ToList();
         groupStarts = new int[groups.Count];
         for (int i = 0, start = 0; i < groups.Count; start += groups[i].Count, i++) groupStarts[i] = start;
         stickyLabels = groups.Select(g => g.Label).ToArray();
@@ -570,6 +578,11 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="instrument">Chart, or <see langword="null"/> when cleared.</param>
     private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
+    /// <summary>Re-resolves the Sort/Filter tints on the UI thread after a system colour change.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
+
     /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
     private void UpdateButtonTints()
     {
@@ -627,14 +640,19 @@ public sealed partial class SongGroup : List<SongRowItem>
     /// <param name="label">Header ("" hides it).</param>
     /// <param name="rows">Rows.</param>
     /// <param name="isFirst">Whether it is the list's first section (the sticky bar names it, so it has no in-list header).</param>
-    public SongGroup(string label, IEnumerable<SongRowItem> rows, bool isFirst = false) : base(rows)
+    /// <param name="automationId">Heading automation ID (Item Shop buckets), or empty.</param>
+    public SongGroup(string label, IEnumerable<SongRowItem> rows, bool isFirst = false, string automationId = "") : base(rows)
     {
         Label = label;
         ShowInlineHeader = HasLabel && !isFirst;
+        AutomationId = automationId;
     }
 
     /// <summary>White Title Case header.</summary>
     public string Label { get; }
+
+    /// <summary>Heading automation ID (<c>fst.songs.shop-section.*</c> for Item Shop buckets), or empty.</summary>
+    public string AutomationId { get; }
 
     /// <summary>Whether the header shows (a single Shop bucket has none).</summary>
     public bool HasLabel => Label.Length > 0;
