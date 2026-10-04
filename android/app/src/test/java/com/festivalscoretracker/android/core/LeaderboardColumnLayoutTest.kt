@@ -173,6 +173,34 @@ class LeaderboardColumnLayoutTest {
     }
 
     @Test
+    fun bandRowsStackOnlyWhenTheNameWouldDropBelowItsMinimum() {
+        val bands = rankings.copy(stackNarrowNames = true)
+        // 16 + 44 + 64 + 60 + 20 + 4 × 12 = 252 fixed, so the name gets exactly 72 dp at 324.
+        assertEquals(72f, LeaderboardColumnLayout.rankingNameRoom(bands, showMeta = true, rowWidth = 324f))
+        assertFalse(LeaderboardColumnLayout.fit(bands, 324f).stacked)
+        val narrow = LeaderboardColumnLayout.fit(bands, 323f)
+        assertTrue(narrow.stacked)
+        // The one-line columns are unchanged, so a wider pane switches straight back.
+        assertTrue(narrow.showMeta)
+        assertEquals(LeaderboardColumnLayout.fit(rankings, 323f), narrow.copy(stacked = false))
+    }
+
+    @Test
+    fun bandRowsStayOnOneLineBeforeTheFirstLayoutOrWhenNotOptedIn() {
+        val bands = rankings.copy(stackNarrowNames = true)
+        assertFalse(LeaderboardColumnLayout.fit(bands, Float.NaN).stacked)
+        assertFalse(LeaderboardColumnLayout.fit(bands, 0f).stacked)
+        assertFalse(LeaderboardColumnLayout.fit(rankings, 200f).stacked)
+        assertFalse(LeaderboardColumnLayout.fit(scores.copy(stackNarrowNames = true), 200f).stacked)
+    }
+
+    @Test
+    fun nameRoomDropsHiddenColumns() {
+        // Without songs or a rank: 16 + 60 + 20 + 2 × 12 = 120 fixed.
+        assertEquals(180f, LeaderboardColumnLayout.rankingNameRoom(rankings.copy(rankWidth = 0f), showMeta = false, rowWidth = 300f))
+    }
+
+    @Test
     fun nameMinimumDropsSongsThenStacksRows() {
         val full = rankings.copy(keepsNameMinimum = true)
         // 16 + 44 + 72 + 64 + 60 + 20 + 4 × 12 = 324: the minimum name fits beside the songs label.
@@ -202,7 +230,7 @@ class LeaderboardColumnLayoutTest {
         val unknown = LeaderboardColumnLayout.fit(full, Float.NaN)
         assertTrue(unknown.showMeta)
         assertFalse(unknown.stacked)
-        // Without the opt-in a narrow row keeps every column (Band Rankings, Leaderboards cards).
+        // Without the opt-in a narrow row keeps every column (Leaderboards cards).
         val plain = LeaderboardColumnLayout.fit(rankings, 200f)
         assertTrue(plain.showMeta)
         assertFalse(plain.stacked)
