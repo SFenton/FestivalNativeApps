@@ -49,7 +49,9 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -124,6 +126,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   while the page scrolls instead of hiding it (Songs, Suggestions: issue #52).
  * @param actionsAboveKeyboard On compact windows, [actions] currently hold a focused text field,
  *   so the shell lifts the floating toolbar above the on-screen keyboard (Songs search, issue #84).
+ * @param actionsReadFirst On compact windows, TalkBack and keyboard focus reach the floating toolbar
+ *   holding [actions] right after the top app bar instead of after the content: an endless feed
+ *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112).
  * @param scrolled Content sits under the bar. No visual effect since batch 6.20 (the bar stays
  *   transparent); kept so screens can still report it without churn.
  * @param content Content given padding that clears the top bar and bottom chrome.
@@ -137,6 +142,7 @@ fun FestivalScreen(
     actions: @Composable RowScope.() -> Unit = {},
     pinActions: Boolean = false,
     actionsAboveKeyboard: Boolean = false,
+    actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
@@ -157,8 +163,9 @@ fun FestivalScreen(
     }
     // Compact windows: page actions float over the bottom bar (web bottom dock); global search
     // stays in the top app bar on every window size (operator 2026-09-28).
+    val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard) { actions() }
+        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard, readFirst = actionsReadFirst) { actions() }
     }
     Scaffold(
         modifier = modifier
@@ -173,7 +180,11 @@ fun FestivalScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
-                modifier = Modifier.testTag("fst.nav.top-bar"),
+                // A read-first toolbar (traversal index -1) would otherwise precede the bar's
+                // ungrouped items (index 0), so the bar becomes one group read before it.
+                modifier = Modifier
+                    .testTag("fst.nav.top-bar")
+                    .then(if (toolbarReadsFirst) Modifier.semantics { isTraversalGroup = true; traversalIndex = TOP_BAR_TRAVERSAL_INDEX } else Modifier),
                 // Only the cutout / system-bar insets this pane actually reaches (issue #101).
                 windowInsets = PaneInsets(TopAppBarDefaults.windowInsets, leftGapPx, rightGapPx),
                 title = {
