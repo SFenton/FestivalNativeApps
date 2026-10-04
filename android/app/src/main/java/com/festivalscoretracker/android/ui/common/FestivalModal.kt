@@ -131,7 +131,8 @@ fun FestivalModalHeader(
 
 /**
  * Shared modal bottom sheet: Material's `ModalBottomSheet` on the card colour, kept below
- * the status bar ([festivalSheetTop]), titled for TalkBack (`paneTitle`) and headed by
+ * the status bar ([festivalSheetTop]) and on one side of a separating hinge
+ * ([festivalSheetHingeSide]), titled for TalkBack (`paneTitle`) and headed by
  * [FestivalModalHeader]. The close button slides the sheet away (instantly under Reduce
  * Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
  *
@@ -171,7 +172,7 @@ fun FestivalModalSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().popupTestTags().then(modifier).semantics { paneTitle = title },
+        modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
     ) {
         FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
         content()
