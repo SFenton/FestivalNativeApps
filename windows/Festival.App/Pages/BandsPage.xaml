@@ -5,19 +5,24 @@
     Background="Transparent">
 
     <!-- /bands without an ID: the web BandPage's "Band not found" empty state (operator 2026-09-28: no hub). -->
-    <Grid Padding="24,12,24,32" AutomationProperties.AutomationId="fst.bands.screen">
+    <Grid Padding="24,12,24,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <TextBlock Text="Band" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
                    AutomationProperties.AutomationId="fst.bands.title" />
-        <StackPanel Grid.Row="1" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560"
-                    AutomationProperties.AutomationId="fst.bands.not-found">
-            <TextBlock Text="Band not found" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                       HorizontalAlignment="Center" AutomationProperties.HeadingLevel="Level2" />
-            <TextBlock Text="This band link is missing an ID and cannot be resolved." TextAlignment="Center"
-                       TextWrapping="Wrap" HorizontalAlignment="Center" />
-        </StackPanel>
+        <!-- Scrolls when large text or a short window would otherwise clip the message (centred while it fits). -->
+        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      AutomationProperties.AutomationId="fst.bands.screen">
+            <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="560" Padding="0,24,0,32">
+                <TextBlock x:Name="NotFoundTitle" Text="Band not found" Style="{StaticResource SubtitleTextBlockStyle}"
+                           TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.bands.not-found" />
+                <TextBlock x:Name="NotFoundMessage" Text="This band link is missing an ID and cannot be resolved."
+                           TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center"
+                           AutomationProperties.AutomationId="fst.bands.not-found.message" />
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Page>

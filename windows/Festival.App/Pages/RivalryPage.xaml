@@ -42,18 +42,27 @@
                 <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
                            Foreground="{ThemeResource FSTSecondaryTextBrush}" />
             </StackPanel>
-            <StackPanel x:Name="Actions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+            <Grid x:Name="Actions" Grid.Column="1" VerticalAlignment="Top">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
                 <ComboBox ItemsSource="{x:Bind ViewModel.SortLabels}" SelectedIndex="{x:Bind ViewModel.SortIndex, Mode=TwoWay}"
-                          MinWidth="170" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
-                          AutomationProperties.Name="Sort Songs" AutomationProperties.AutomationId="fst.rivalry.sort" />
-                <Button Click="OnViewProfile" AutomationProperties.Name="{x:Bind ViewModel.ViewProfileLabel, Mode=OneWay}"
-                        AutomationProperties.AutomationId="fst.rivalry.view-profile">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                          Header="Sort By" MinWidth="170" Margin="0,0,8,0" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
+                          AutomationProperties.Name="Sort By" AutomationProperties.AutomationId="fst.rivalry.sort" />
+                <!-- Star column: at narrow widths and large text the label trims instead of running off the window. -->
+                <Button Grid.Column="1" Click="OnViewProfile" AutomationProperties.Name="{x:Bind ViewModel.ViewProfileLabel, Mode=OneWay}"
+                        HorizontalAlignment="Left" VerticalAlignment="Bottom" AutomationProperties.AutomationId="fst.rivalry.view-profile">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE77B;" FontSize="16" />
-                        <TextBlock Text="{x:Bind ViewModel.ViewProfileLabel, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.ViewProfileLabel, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                    </Grid>
                 </Button>
-            </StackPanel>
+            </Grid>
         </Grid>
 
         <ListView x:Name="SongList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" MaxWidth="1040"

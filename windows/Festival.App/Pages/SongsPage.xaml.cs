@@ -98,10 +98,8 @@ public sealed partial class SongsPage : Page, IPageBack
         };
         Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
         SizeChanged += OnSizeChanged;
-        // The page's SizeChanged can see the list's pre-split width (the split column change lands in the next layout
-        // pass), so re-decide the row breakpoints once the list itself has its new width.
-        SongList.SizeChanged += (_, _) => ApplyLayout(ActualWidth);
         SongList.SelectionChanged += OnSongSelectionChanged;
+        SongList.SizeChanged += OnListSizeChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
         Zoom.ViewChangeCompleted += OnZoomViewChangeCompleted;
         edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
@@ -358,7 +356,11 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Re-evaluates the fade when Windows transparency effects or the contrast theme change (any thread).</summary>
     /// <param name="sender">Settings source.</param>
     /// <param name="args">Ignored.</param>
-    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(UpdateStickyHeader);
+    private void OnEdgeFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(() =>
+    {
+        UpdateStickyHeader();
+        UpdateButtonTints();
+    });
 
     /// <summary>Realized row containers with their edges relative to the list viewport's top.</summary>
     /// <param name="panel">Items panel.</param>
@@ -478,7 +480,7 @@ public sealed partial class SongsPage : Page, IPageBack
         if (row.Chips.Count > 0)
         {
             var target = inlineChips ? trailing : secondary;
-            foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Keyboard));
+            foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Song.SongId, row.Keyboard));
             secondary.LineAlignment = HorizontalAlignment.Left;
         }
         else if (row.Metadata.Count > 0)
@@ -569,17 +571,27 @@ public sealed partial class SongsPage : Page, IPageBack
         Root.Padding = compact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);
         SongList.Padding = compact ? new Thickness(0, 0, 0, 24) : new Thickness(0, 0, 12, 24);
         Actions.Margin = Notices.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
+        UpdateTrailingPlacement(force: false);
+    }
+
+    /// <summary>
+    /// Re-decides chip and metadata pill placement for the current list width and rebuilds the realized rows' trailing
+    /// content in place (keeps the scroll position) when it changed.
+    /// </summary>
+    /// <param name="force">Rebuild even when the placement is unchanged (brushes and ring weights follow a theme change).</param>
+    private void UpdateTrailingPlacement(bool force)
+    {
         var wide = ListWidth() >= InlineChipsWidth;
         var inline = MetadataInline();
-        if (wide == wideLayout && inline == metadataInline) return;
-        if (GroupedSongs.Source is not null) RebindGroups();
-        else (wideLayout, metadataInline) = (wide, inline);
+        if (!force && wide == wideLayout && inline == metadataInline) return;
+        (wideLayout, metadataInline) = (wide, inline);
+        RefreshTrailing();
     }
 
     /// <summary>
     /// Page-wide metadata placement for the current list width (web <c>resolveCompactRowMode</c>): inline when the list
     /// fits every enabled pill at its widest beside a readable title, with hysteresis. Pages without metadata rows keep
-    /// their decision, so resizing them never rebinds.
+    /// their decision, so resizing them never rebuilds rows for it.
     /// </summary>
     /// <returns>Whether rows put every pill inline.</returns>
     private bool MetadataInline()
@@ -612,6 +624,23 @@ public sealed partial class SongsPage : Page, IPageBack
         metadataRequired = SongMetadataLayout.RequiredWidth(widths, namesChart);
         metadataMeasureKey = key;
         return metadataRequired;
+    }
+
+    /// <summary>
+    /// Re-decides the rows' trailing placement when the list itself is resized. The page's own SizeChanged runs before the
+    /// list is re-measured (and before a split column change lands), so <see cref="ApplyLayout"/> still reads the old list
+    /// width there (a wide → compact resize kept chips inline and squeezed the title out of the row).
+    /// </summary>
+    /// <param name="sender">List.</param>
+    /// <param name="e">Size change.</param>
+    private void OnListSizeChanged(object sender, SizeChangedEventArgs e) => UpdateTrailingPlacement(force: false);
+
+    /// <summary>Rebuilds the realized rows' trailing content in place (keeps the scroll position; later rows build on realization).</summary>
+    private void RefreshTrailing()
+    {
+        if (SongList.ItemsPanelRoot is not Panel panel) return;
+        foreach (var child in panel.Children)
+            if (child is ListViewItem { ContentTemplateRoot: SongRowCard card, Content: SongRowItem row }) BuildTrailing(card, row);
     }
 
     /// <summary>Opens Song Detail, carrying the filtered chart.</summary>
@@ -791,30 +820,81 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="instrument">Chart, or <see langword="null"/> when cleared.</param>
     private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
-    /// <summary>Re-resolves the Sort/Filter tints on the UI thread after a system colour change.</summary>
+    /// <summary>Re-resolves the Sort/Filter tints and rebuilds the rows on the UI thread after a system colour change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
     private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(() =>
     {
         UpdateButtonTints();
-        // Contrast pills are outlined and wider: re-measure the inline threshold.
-        ApplyLayout(ActualWidth);
+        // Row chips and pills take their brushes and ring weights at build time, and contrast pills are outlined and
+        // wider: re-measure the inline threshold and rebuild the rows for the new theme.
+        UpdateTrailingPlacement(force: true);
     });
 
-    /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
+    /// <summary>
+    /// Marks Sort/Filter when a non-default choice is applied and reports the Filter state to UI Automation (Narrator
+    /// reads the item status after the button's name; the tint alone was silent).
+    /// </summary>
     private void UpdateButtonTints()
     {
-        var gold = Brush("FSTEmphasisBrush");
-        SortButton.ClearValue(ForegroundProperty);
-        FilterButton.ClearValue(ForegroundProperty);
-        if (ViewModel.IsSortChanged) SortButton.Foreground = gold;
-        if (ViewModel.IsFilterActive) FilterButton.Foreground = gold;
+        MarkApplied(SortButton, ViewModel.IsSortChanged);
+        MarkApplied(FilterButton, ViewModel.IsFilterActive);
+        AutomationProperties.SetItemStatus(FilterButton, ViewModel.FilterStatus);
+    }
+
+    /// <summary>
+    /// Gold text by default. Under a contrast theme gold resolves to WindowText (invisible), so an applied button takes
+    /// the system Highlight / HighlightText pair, like a checked toggle, and its icon/label drop the automatic
+    /// Window-colored text backplate that would otherwise cover the Highlight fill.
+    /// </summary>
+    /// <param name="button">Sort or Filter button.</param>
+    /// <param name="applied">Whether a non-default choice is applied.</param>
+    private static void MarkApplied(ContentControl button, bool applied)
+    {
+        button.ClearValue(ForegroundProperty);
+        button.ClearValue(BackgroundProperty);
+        var highlighted = applied && ContrastTheme.IsOn;
+        if (button.Content is Panel content)
+        {
+            foreach (var child in content.Children)
+                child.HighContrastAdjustment = highlighted ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
+        }
+        if (FindNamed(button, "ChevronIcon") is IconElement chevron)
+        {
+            chevron.ClearValue(IconElement.ForegroundProperty);
+            if (highlighted) chevron.Foreground = Brush("SystemColorHighlightTextColorBrush");
+        }
+        if (!applied) return;
+        if (highlighted)
+        {
+            button.Background = Brush("SystemColorHighlightColorBrush");
+            button.Foreground = Brush("SystemColorHighlightTextColorBrush");
+        }
+        else
+        {
+            button.Foreground = Brush("FSTEmphasisBrush");
+        }
     }
 
     /// <summary>Looks up an app brush.</summary>
     /// <param name="key">Resource key.</param>
     /// <returns>Brush.</returns>
     private static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
+
+    /// <summary>Finds a named template part (e.g. the DropDownButton <c>ChevronIcon</c>) below an element.</summary>
+    /// <param name="root">Element whose visual tree is searched.</param>
+    /// <param name="name">Template part name.</param>
+    /// <returns>The part, or <see langword="null"/> before the template applies.</returns>
+    private static FrameworkElement? FindNamed(DependencyObject root, string name)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is FrameworkElement { Name: var childName } element && childName == name) return element;
+            if (FindNamed(child, name) is { } found) return found;
+        }
+        return null;
+    }
     #endregion
 
     #region Perf scenario

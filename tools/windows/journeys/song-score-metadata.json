@@ -51,16 +51,16 @@
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "resize:1340x900",
     "wait:1.5",
-    "assertrow:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "assertrow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "assertrow:raw=fst.songs.metadata.difficulty.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
+    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
   {"name": "metadata-wrapped", "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "sizes": ["compact", "medium", "snap-left", "snap-right"], "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "assertrow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
@@ -69,7 +69,7 @@
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "assertrow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
     "wait:1"
   ]},
   {"name": "metadata-score-hidden", "tab": "songs", "profile": "fixture-meta:Metadata Player",
@@ -175,16 +175,16 @@
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "resize:1340x900",
     "wait:1.5",
-    "assertrow:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:medium", "wait:1.5",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:1340x900", "wait:1.5",
-    "assertrow:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:compact", "wait:1.5",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:2400x1300", "wait:1.5",
     "resize:1340x900", "wait:1.5",
-    "assertrow:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1"
+    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1"
   ]},
   {"name": "metadata-large-text", "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"],
    "settings": {"showInstrumentIcons": false}, "ready": [

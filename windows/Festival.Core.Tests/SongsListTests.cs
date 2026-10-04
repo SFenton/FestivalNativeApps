@@ -303,6 +303,25 @@ public class SongRowProjectionTests
     }
 
     [Fact]
+    public void Chips_TestIdAndRingWeightPerStatus()
+    {
+        Assert.Equal("fst.songs.instrument-status.s.Solo_Guitar", new SongInstrumentBadge(Instrument.Lead, SongInstrumentStatus.FullCombo).AutomationId("s"));
+        Assert.Equal("fst.songs.instrument-status.s.Solo_PeripheralDrums", new SongInstrumentBadge(Instrument.ProDrums, SongInstrumentStatus.Scored).AutomationId("s"));
+
+        static (double, double) Ring(SongInstrumentStatus s, bool contrast) => new SongInstrumentBadge(Instrument.Lead, s).Ring(contrast);
+        // Colours carry status normally; not charted is muted.
+        Assert.Equal((1.5, 1), Ring(SongInstrumentStatus.FullCombo, false));
+        Assert.Equal((1.5, 1), Ring(SongInstrumentStatus.InconsistentFullCombo, false));
+        Assert.Equal((1.5, 0.45), Ring(SongInstrumentStatus.Unavailable, false));
+        // Contrast themes: never dim system colours; ring weight separates no score and not charted.
+        Assert.Equal((3, 1), Ring(SongInstrumentStatus.FullCombo, true));
+        Assert.Equal((3, 1), Ring(SongInstrumentStatus.Scored, true));
+        Assert.Equal((3, 1), Ring(SongInstrumentStatus.InconsistentFullCombo, true));
+        Assert.Equal((2, 1), Ring(SongInstrumentStatus.NoScore, true));
+        Assert.Equal((0, 1), Ring(SongInstrumentStatus.Unavailable, true));
+    }
+
+    [Fact]
     public void Metadata_DefaultOrderAndFields()
     {
         var detail = new SongScoreDetail(123456, 985000, false, 6, 9, 3, 4, 200, "2026-09-01T10:00:00Z");
@@ -601,6 +620,7 @@ public class SongsViewModelPlayerTests
         }, player: false);
         Assert.True(anonymous.ShowFilterButton);
         Assert.True(anonymous.IsFilterActive);
+        Assert.Equal("Filters applied", anonymous.FilterStatus);
         Assert.DoesNotContain(anonymous.Notices, n => n.Message.Contains("Player score filters"));
 
         var (_, _, hiddenShopOnly) = await Loaded(new AppSettings
@@ -609,6 +629,7 @@ public class SongsViewModelPlayerTests
             HideShop = true,
         }, player: false);
         Assert.False(hiddenShopOnly.IsFilterActive);
+        Assert.Equal("", hiddenShopOnly.FilterStatus);
 
         var (_, _, withPlayer) = await Loaded(new AppSettings { SongFilter = new SongFilter(Instrument.Lead, [1]) });
         Assert.True(withPlayer.IsFilterActive);

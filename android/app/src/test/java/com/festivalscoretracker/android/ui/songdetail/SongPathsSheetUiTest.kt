@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.assertTouchWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -160,6 +161,8 @@ class SongPathsSheetUiTest {
         gate.complete(Unit)
         waitForStatus("Lead Expert path image loaded")
         waitForTag("fst.paths.image")
+        // The bitmap decodes on Dispatchers.Default after the container appears; wait for the image itself.
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithContentDescription("Lead Expert CHOpt path").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("100%").assertExists()
         rule.onNodeWithContentDescription("Lead Expert CHOpt path").assertExists()
 
@@ -428,17 +431,19 @@ class SongPathsSheetUiTest {
     fun halfOpenBookPostureKeepsPathAndControlsOffTheHinge() {
         show(viewModel(display = PathDisplayMode.Text))
         waitForTag("fst.paths.row.1")
-        fold(State.HALF_OPENED)
-        waitForTag("fst.paths.hinge-split")
         val hinge = rule.activity.window.decorView.width / 2f
+        assertTrue("the centred 640 dp sheet spans the window centre while flat", bounds("fst.song-detail.paths").let { it.left < hinge && it.right > hinge })
+        fold(State.HALF_OPENED)
+        // FestivalModalSheet (SheetHinge) moves the whole sheet to the leading half (a tie keeps the leading side).
+        rule.waitUntil(10_000) { settle(100); bounds("fst.song-detail.paths").right <= hinge }
         assertTrue("row ends before the hinge (${bounds("fst.paths.row.1")} vs $hinge)", bounds("fst.paths.row.1").right <= hinge)
         assertEquals("a half pane uses the stacked cards", 0, count("fst.paths.table.header"))
-        assertTrue("controls start after the hinge", bounds("fst.paths.selectors").left >= hinge)
-        assertEquals("the ~288 dp end pane stacks the controls", 1, count("fst.paths.selectors.stacked"))
+        assertTrue("controls end before the hinge", bounds("fst.paths.selectors").right <= hinge)
+        assertEquals("the ~426 dp half keeps one control row", 0, count("fst.paths.selectors.stacked"))
         assertEquals("Expert stays on one line", 1, difficultyLines())
         click("fst.paths.difficulty.open")
         waitForTag("fst.paths.difficulty.easy")
-        listOf("easy", "medium", "hard", "expert").forEach { assertTrue("$it after the hinge", bounds("fst.paths.difficulty.$it").left >= hinge) }
+        listOf("easy", "medium", "hard", "expert").forEach { assertTrue("$it before the hinge", bounds("fst.paths.difficulty.$it").right <= hinge) }
         click("fst.paths.difficulty.open")
         click("fst.paths.display.open")
         click("fst.paths.display.image")
@@ -449,21 +454,25 @@ class SongPathsSheetUiTest {
 
     @Test
     @Config(qualifiers = "w852dp-h883dp-xhdpi")
-    fun flatFoldKeepsOneColumn() {
+    fun flatFoldKeepsTheCentredSheet() {
         show(viewModel(display = PathDisplayMode.Text))
         waitForTag("fst.paths.row.1")
         fold(State.FLAT)
-        assertEquals(0, count("fst.paths.hinge-split"))
+        val centre = rule.activity.window.decorView.width / 2f
+        assertTrue("a flat fold is not separating: the sheet stays centred", bounds("fst.song-detail.paths").let { it.left < centre && it.right > centre })
         assertEquals("640 dp sheet keeps the desktop grid", 1, count("fst.paths.table.header"))
     }
 
     @Test
     @Config(qualifiers = "w852dp-h883dp-xhdpi", fontScale = 2f)
-    fun halfOpenAtLargeTextKeepsOneColumn() {
+    fun halfOpenAtLargeTextKeepsTheSheetOffTheHinge() {
         show(viewModel(display = PathDisplayMode.Text))
         waitForTag("fst.paths.row.1")
         fold(State.HALF_OPENED)
-        assertEquals("large text drops hinge splits (rememberSingleColumn)", 0, count("fst.paths.hinge-split"))
+        val hinge = rule.activity.window.decorView.width / 2f
+        rule.waitUntil(10_000) { settle(100); bounds("fst.song-detail.paths").right <= hinge }
+        assertTrue("row ends before the hinge", bounds("fst.paths.row.1").right <= hinge)
+        assertTrue("controls end before the hinge", bounds("fst.paths.selectors").right <= hinge)
     }
 
     // endregion

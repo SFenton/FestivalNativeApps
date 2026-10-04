@@ -136,6 +136,32 @@ public class PlayerProfileViewModelTests
     }
 
     [Fact]
+    public async Task Viewed_PublicationAdvanceSwapsSelectForChangedNotice()
+    {
+        var fake = new PlayerFakeService();
+        var session = fake.Session();
+        await session.LoadCatalogAsync();
+        using var vm = new PlayerProfileViewModel(session, PlayerWire.Id);
+        await vm.LoadAsync();
+        Assert.True(vm.CanSelect);
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        fake.Service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => raised.Contains(nameof(PlayerProfileViewModel.IdentityAction)));
+        Assert.Contains(nameof(PlayerProfileViewModel.CanSelect), raised);
+        Assert.Contains(nameof(PlayerProfileViewModel.HasIdentityNotice), raised);
+        Assert.Equal(PlayerIdentityAction.Changed, vm.IdentityAction);
+        Assert.False(vm.CanSelect);
+        Assert.Equal("Published scores changed. Reload this page before selecting.", vm.IdentityNotice);
+
+        await vm.LoadAsync();
+        Assert.Equal(PlayerIdentityAction.Select, vm.IdentityAction);
+        Assert.False(vm.HasIdentityNotice);
+    }
+
+    [Fact]
     public async Task Viewed_SyncingFailedAndRetry()
     {
         var fake = new PlayerFakeService();

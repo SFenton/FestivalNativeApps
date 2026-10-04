@@ -126,8 +126,10 @@ internal fun SuggestionsScreenContent(
         title = "Suggestions",
         isRoot = isRoot,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
-        // Filter stays reachable while the cards scroll (issue #52).
+        // Filter stays reachable while the cards scroll (issue #52), and TalkBack reaches it before
+        // the endless feed rather than after it (issue #112).
         pinActions = true,
+        actionsReadFirst = true,
         actions = {
             if (state.phase != SuggestionsPhase.NoPlayer) {
                 val active = state.filter.isActive

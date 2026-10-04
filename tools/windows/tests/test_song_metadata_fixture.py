@@ -53,11 +53,11 @@ class DesignTests(unittest.TestCase):
 
 
 class StepTests(unittest.TestCase):
-    """The ``assertrow`` / ``assertbelow`` geometry steps the journeys use."""
+    """The ``assertlevel`` / ``assertbelow`` geometry steps the journeys use."""
 
     def test_geometry_pairs(self):
         import uiwin  # noqa: PLC0415  (sibling module; path set above)
-        for verb in ("assertrow", "assertbelow"):
+        for verb in ("assertlevel", "assertbelow"):
             step = uiwin.parse_step(f"{verb}:raw=fst.songs.metadata.score.a|id=b")
             self.assertEqual(step["selector"], {"kind": "raw", "value": "fst.songs.metadata.score.a"})
             self.assertEqual(step["other"], {"kind": "id", "value": "b"})

@@ -4,26 +4,31 @@ import Testing
 
 // MARK: - Modal top-edge fade (issue #94)
 
-/// A typical iPhone sheet header (inline title + Close) is 70 pt: content is fully
-/// transparent behind its top 46 pt and fades back in over the last 24 pt.
-@Test func modalFadeRampsOverTheHeadersLowerEdge() {
-    #expect(ModalTopEdgeFade.rampHeight(headerHeight: 70) == 24)
-    #expect(abs(ModalTopEdgeFade.fadeStart(headerHeight: 70) - 46.0 / 70.0) < 1e-9)
+/// The fade below the header matches the web modal mask's 40 px.
+@Test func modalFadeRampMatchesTheWebMask() {
+    #expect(ModalTopEdgeFade.rampHeight == 40)
 }
 
-/// A short header keeps at least its top half fully faded, behind the title and Close.
-@Test func modalFadeRampNeverExceedsHalfTheHeader() {
-    #expect(ModalTopEdgeFade.rampHeight(headerHeight: 30) == 15)
-    #expect(ModalTopEdgeFade.fadeStart(headerHeight: 30) == 0.5)
-    #expect(ModalTopEdgeFade.rampHeight(headerHeight: 500) == ModalTopEdgeFade.maxRampHeight)
+/// At rest (or pulled down past the top) content right below the header is fully drawn;
+/// the fade grows over the first 40 pt of scrolling and then stays full.
+@Test func modalFadeGrowsWithTheFirstRampOfScrolling() {
+    #expect(ModalTopEdgeFade.progress(scrollOffset: 0) == 0)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: -30) == 0)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: 10) == 0.25)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: 40) == 1)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: 900) == 1)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: .nan) == 0)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: .infinity) == 0)
 }
 
-/// With no header (a preview or a toolbar-less macOS sheet) nothing is faded.
-@Test func modalFadeIsOffWithoutAHeader() {
-    for height: CGFloat in [0, -10, .nan, .infinity] {
-        #expect(ModalTopEdgeFade.rampHeight(headerHeight: height) == 0)
-        #expect(ModalTopEdgeFade.fadeStart(headerHeight: height) == 1)
-    }
+/// Content is opaque at the header edge at rest and fully transparent there once scrolled.
+@Test func modalFadeEdgeOpacityFollowsProgress() {
+    #expect(ModalTopEdgeFade.edgeOpacity(progress: 0) == 1)
+    #expect(ModalTopEdgeFade.edgeOpacity(progress: 0.25) == 0.75)
+    #expect(ModalTopEdgeFade.edgeOpacity(progress: 1) == 0)
+    #expect(ModalTopEdgeFade.edgeOpacity(progress: 2) == 0)
+    #expect(ModalTopEdgeFade.edgeOpacity(progress: -1) == 1)
+    #expect(ModalTopEdgeFade.edgeOpacity(progress: .nan) == 1)
 }
 
 /// A full-bleed list reports the header as its inset; content below the bar reports it as

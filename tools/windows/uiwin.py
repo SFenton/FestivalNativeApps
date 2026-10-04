@@ -99,16 +99,17 @@ VK = {
 STEP_VERBS = {
     "click": "selector", "rightclick": "selector", "hover": "selector", "invoke": "selector",
     "toggle": "selector", "select": "selector", "expand": "selector",
-    "collapse": "selector", "focus": "selector", "waitfor": "selector", "waitgone": "selector", "scrollinto": "selector",
+    "collapse": "selector", "focus": "selector", "reveal": "selector", "waitfor": "selector", "waitgone": "selector",
+    "scrollinto": "selector",
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
-    "assertname": "setvalue", "assertaligned": "pair", "assertrow": "pair", "assertbelow": "pair",
-    "assertstatus": "status", "assertstate": "state",
+    "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertstatus": "status", "assertstate": "state",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
-STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "name": None}
+STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
+              "name": None}
 
 # endregion
 
@@ -180,12 +181,13 @@ def parse_step(step: str) -> dict:
     so it also works while the console session is locked; an empty text clears the field);
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text;
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
-    ``assertrow:<sel>|<sel>`` fails unless their vertical centres are within 2 px (one line);
-    ``assertbelow:<lower>|<upper>`` fails unless the first element's top is at or below the second's bottom.
+    ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
+    and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line).
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
-    (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``) or ``name`` equals ``<value>``.
+    (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
+    ``IsSelected``: ``true``/``false``, e.g. a list's current item) or ``name`` equals ``<value>``.
 
     Args:
         step: A step string.
@@ -239,7 +241,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|name=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")

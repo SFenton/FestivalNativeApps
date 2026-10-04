@@ -21,19 +21,33 @@ public static class SongRowVisuals
 
     /// <summary>A status chip: status-colored circle with the instrument icon.</summary>
     /// <param name="badge">Chart and status.</param>
+    /// <param name="songId">Row song (for the chip's test ID).</param>
     /// <param name="keyboard">Use the keys icon variant for Lead/Pro Lead.</param>
     /// <returns>Chip element.</returns>
-    public static FrameworkElement Chip(SongInstrumentBadge badge, bool keyboard)
+    public static FrameworkElement Chip(SongInstrumentBadge badge, string songId, bool keyboard)
     {
         var (fill, stroke) = badge.Status switch
         {
-            // Contrast roles: brand hues, or Highlight (FC) / WindowText (scored) / GrayText (missing, no chart) rings.
+            // Contrast roles: brand hues, or Highlight fill (FC) / WindowText ring (scored) / Highlight ring (inconsistent
+            // FC) / GrayText ring (missing); not charted has no ring (SongInstrumentBadge.Ring).
             SongInstrumentStatus.FullCombo => ("FSTStatusFcFillBrush", "FSTStatusFcStrokeBrush"),
             SongInstrumentStatus.Scored => ("FSTStatusScoredFillBrush", "FSTStatusScoredStrokeBrush"),
             SongInstrumentStatus.NoScore => ("FSTStatusMissingFillBrush", "FSTStatusMissingStrokeBrush"),
             SongInstrumentStatus.InconsistentFullCombo => ("FSTStatusAmberFillBrush", "FSTStatusAmberStrokeBrush"),
             _ => ("FSTStatusNoneFillBrush", "FSTStatusNoneStrokeBrush"),
         };
+        var (ring, opacity) = badge.Ring(Services.ContrastTheme.IsOn);
+        var icon = new Image
+        {
+            Source = InstrumentIcon.Bitmap(badge.Instrument.IconFile(keyboard)),
+            Width = 21,
+            Height = 21,
+            Stretch = Stretch.Uniform,
+        };
+        // Raw view: tests and inspectors can find the chip, Narrator reads the row's name instead (no duplicate stops).
+        AutomationProperties.SetAutomationId(icon, badge.AutomationId(songId));
+        AutomationProperties.SetName(icon, badge.Announcement);
+        AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
         var chip = new Border
         {
             Width = ChipSize,
@@ -41,17 +55,9 @@ public static class SongRowVisuals
             CornerRadius = new CornerRadius(ChipSize / 2),
             Background = Brush(fill),
             BorderBrush = Brush(stroke),
-            // Contrast themes: the ring's weight carries the status too (3 epx FC/scored, 1 epx missing/no chart).
-            BorderThickness = new Thickness(!Services.ContrastTheme.IsOn ? 1.5
-                : badge.Status is SongInstrumentStatus.FullCombo or SongInstrumentStatus.Scored or SongInstrumentStatus.InconsistentFullCombo ? 3 : 1),
-            Opacity = badge.Status == SongInstrumentStatus.Unavailable ? 0.45 : 1,
-            Child = new Image
-            {
-                Source = InstrumentIcon.Bitmap(badge.Instrument.IconFile(keyboard)),
-                Width = 21,
-                Height = 21,
-                Stretch = Stretch.Uniform,
-            },
+            BorderThickness = new Thickness(ring),
+            Opacity = opacity,
+            Child = icon,
         };
         ToolTipService.SetToolTip(chip, badge.Announcement);
         AutomationProperties.SetAccessibilityView(chip, AccessibilityView.Raw);

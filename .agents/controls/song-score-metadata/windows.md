@@ -11,7 +11,7 @@
 
 ## Validation (issue #228, 2026-10-04)
 
-Fixture: `tools/windows/song_metadata_fixture.py` (designed player `fixture-meta` on the mock service, plus a slow twin and the large catalogue). Journeys: `tools/windows/journeys/song-score-metadata.json` via `a11y_matrix.py --scan`, asserting each state by UIA name and placement (`assertrow:`/`assertbelow:`).
+Fixture: `tools/windows/song_metadata_fixture.py` (designed player `fixture-meta` on the mock service, plus a slow twin and the large catalogue). Journeys: `tools/windows/journeys/song-score-metadata.json` via `a11y_matrix.py --scan`, asserting each state by UIA name and placement (`assertlevel:`/`assertbelow:`). Run `metadata-large-text` only with `--mode text-200` (`--only metadata-large-text`): at 100% text a 1340-epx window is inline by design, so its `assertbelow:` fails, and the 100%-text placement pages (`metadata-inline`, `-wrapped`, `-resize`) likewise fail at 200%.
 
 | Configuration | Result |
 |---|---|

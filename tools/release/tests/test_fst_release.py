@@ -398,6 +398,39 @@ class SubmitTests(TempHome):
         self.assertIn("READY_FOR_REVIEW,UNRESOLVED_ISSUES", queries)
         self.assertEqual(result["submission_id"], "OPEN")
 
+    def test_resubmits_the_rejected_submission_that_owns_the_version_not_a_leftover_draft(self):
+        routes = self.routes(self.released, open_subs=[
+            {"id": "DRAFT", "attributes": {"state": "READY_FOR_REVIEW"}},
+            {"id": "REJECTED", "attributes": {"state": "UNRESOLVED_ISSUES"}}])
+        routes[("GET", "/v1/reviewSubmissions/DRAFT/items")] = {"data": []}
+        routes[("GET", "/v1/reviewSubmissions/REJECTED/items")] = {"data": [
+            {"relationships": {"appStoreVersion": {"data": {"id": "NEW"}}}}]}
+        routes[("PATCH", "/v1/reviewSubmissions/REJECTED")] = {"data": {"id": "REJECTED"}}
+        fake, _c, result = self.run_submit(routes)
+        self.assertEqual(result["submission_id"], "REJECTED")
+        self.assertNotIn(("POST", "/v1/reviewSubmissions"), fake.writes())
+        self.assertNotIn(("POST", "/v1/reviewSubmissionItems"), fake.writes())
+        self.assertIn(("PATCH", "/v1/reviewSubmissions/REJECTED"), fake.writes())
+
+    def test_reuses_an_empty_draft_instead_of_creating_another(self):
+        routes = self.routes(self.released, open_subs=[{"id": "DRAFT", "attributes": {"state": "READY_FOR_REVIEW"}}])
+        routes[("GET", "/v1/reviewSubmissions/DRAFT/items")] = {"data": []}
+        routes[("PATCH", "/v1/reviewSubmissions/DRAFT")] = {"data": {"id": "DRAFT"}}
+        fake, _c, result = self.run_submit(routes)
+        self.assertEqual(result["submission_id"], "DRAFT")
+        self.assertNotIn(("POST", "/v1/reviewSubmissions"), fake.writes())
+
+    def test_submits_the_submission_asc_says_owns_the_version(self):
+        owner = "5e72afd3-263e-4293-981a-5d5f3ae23bf3"
+        routes = self.routes(self.released)
+        routes[("POST", "/v1/reviewSubmissionItems")] = (409, {"errors": [{
+            "code": "STATE_ERROR.ENTITY_STATE_INVALID",
+            "detail": "appStoreVersions with id NEW was already added to another reviewSubmission with id " + owner}]})
+        routes[("PATCH", "/v1/reviewSubmissions/" + owner)] = {"data": {"id": owner}}
+        fake, _c, result = self.run_submit(routes)
+        self.assertEqual(result["submission_id"], owner)
+        self.assertIn(("PATCH", "/v1/reviewSubmissions/" + owner), fake.writes())
+
     def test_whats_new_text_is_made_acceptable_to_asc(self):
         fake, _c, _r = self.run_submit(self.routes(self.released, locs=[{"id": "L1"}]),
                                        notes="• Replaced the ✕ with Close ✅ → done 🎸")

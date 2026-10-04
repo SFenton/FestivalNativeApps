@@ -34,8 +34,19 @@ data class NotificationRow(val presentation: NotificationPresentation, val unrea
     /** GUID. */
     val id: String get() = presentation.id
 
-    /** TalkBack text: unread state, title, message and time. */
-    val accessibleText: String get() = (if (unread) "Unread. " else "") + "${presentation.title}. ${presentation.message.trimEnd('.')}. $timeText"
+    /**
+     * TalkBack text: unread state, title, message, flag and time. The flag pill is drawn
+     * without semantics (the row clears its children), so its name is spoken here and its
+     * meaning never depends on colour; the title's " · " reads as a pause.
+     */
+    val accessibleText: String
+        get() = buildString {
+            if (unread) append("Unread. ")
+            append(presentation.title.replace(" · ", ", ")).append(". ")
+            append(presentation.message.trimEnd('.')).append(". ")
+            presentation.flag?.let { append(it).append(". ") }
+            append(timeText)
+        }
 }
 
 /** Notifications sheet states (control spec). */
