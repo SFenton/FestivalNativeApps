@@ -19,7 +19,14 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -212,15 +219,33 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
 
 // region Shell
 
-/** Material icon per section. */
-internal fun FestivalSection.icon(): ImageVector = when (this) {
-    FestivalSection.Songs -> Icons.Outlined.LibraryMusic
-    FestivalSection.Suggestions -> Icons.Outlined.AutoAwesome
-    FestivalSection.Leaderboards -> Icons.Outlined.EmojiEvents
-    FestivalSection.Compete -> Icons.Outlined.SportsEsports
-    FestivalSection.Rivals -> Icons.Outlined.People
-    FestivalSection.Statistics -> Icons.Outlined.BarChart
-    FestivalSection.Settings -> Icons.Outlined.Settings
+/**
+ * Material icon per section: filled while selected, outlined otherwise (M3 navigation bar,
+ * rail and drawer: "Use filled icons for active state, outlined for inactive").
+ *
+ * @param selected Whether this section is the active destination.
+ * @return Icon for the bar, rail or drawer item.
+ */
+internal fun FestivalSection.icon(selected: Boolean = false): ImageVector = if (selected) {
+    when (this) {
+        FestivalSection.Songs -> Icons.Filled.LibraryMusic
+        FestivalSection.Suggestions -> Icons.Filled.AutoAwesome
+        FestivalSection.Leaderboards -> Icons.Filled.EmojiEvents
+        FestivalSection.Compete -> Icons.Filled.SportsEsports
+        FestivalSection.Rivals -> Icons.Filled.People
+        FestivalSection.Statistics -> Icons.Filled.BarChart
+        FestivalSection.Settings -> Icons.Filled.Settings
+    }
+} else {
+    when (this) {
+        FestivalSection.Songs -> Icons.Outlined.LibraryMusic
+        FestivalSection.Suggestions -> Icons.Outlined.AutoAwesome
+        FestivalSection.Leaderboards -> Icons.Outlined.EmojiEvents
+        FestivalSection.Compete -> Icons.Outlined.SportsEsports
+        FestivalSection.Rivals -> Icons.Outlined.People
+        FestivalSection.Statistics -> Icons.Outlined.BarChart
+        FestivalSection.Settings -> Icons.Outlined.Settings
+    }
 }
 
 /**
@@ -516,7 +541,7 @@ private fun FestivalShell(
                             NavigationSuiteItem(
                                 selected = section == selected,
                                 onClick = { navController.selectSection(section, selected) },
-                                icon = { Icon(section.icon(), contentDescription = if (iconOnly) section.title else null) },
+                                icon = { Icon(section.icon(section == selected), contentDescription = if (iconOnly) section.title else null) },
                                 label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
                                 navigationSuiteType = navigationType,
                                 modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
