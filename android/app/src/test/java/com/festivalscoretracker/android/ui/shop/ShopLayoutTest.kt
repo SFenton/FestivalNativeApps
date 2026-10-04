@@ -24,5 +24,17 @@ class ShopLayoutTest {
         val (badgeTitle, badgeArtist) = shopCardTextHeights(150.dp, 40.dp, 32.dp, badge = true)
         assertEquals(32.dp, badgeArtist)
         assertEquals(40.dp, badgeTitle)
+        // A larger tile gives the title what the two-line pill leaves.
+        val (bigTitle, bigArtist) = shopCardTextHeights(300.dp, 40.dp, 32.dp, badge = true)
+        val room = 300.dp - 22.dp - SHOP_BADGE_LARGE_RESERVE_DP.dp
+        assertEquals(room / 3, bigArtist)
+        assertEquals(room - room / 3, bigTitle)
+    }
+
+    @Test
+    fun largeTextPillPutsEachWordOnItsOwnLine() {
+        assertEquals("Leaving Tomorrow", shopBadgeText("Leaving Tomorrow", wordPerLine = false))
+        assertEquals("Leaving\nTomorrow", shopBadgeText(" Leaving  Tomorrow ", wordPerLine = true))
+        assertEquals("New", shopBadgeText("New", wordPerLine = true))
     }
 }

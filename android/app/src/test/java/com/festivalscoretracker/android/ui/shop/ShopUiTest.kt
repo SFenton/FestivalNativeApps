@@ -200,6 +200,20 @@ class ShopUiTest {
     }
 
     @Test
+    @Config(qualifiers = "w720dp-h1000dp-xhdpi", fontScale = 2f)
+    fun largeTextGridPillStaysInsideTheCardAboveTheTitle() {
+        launch()
+        waitForTag("fst.shop.grid")
+        waitForTag("fst.shop.song.s-alpha")
+        val card = rule.onNodeWithTag("fst.shop.song.s-alpha").fetchSemanticsNode().boundsInRoot
+        val pill = rule.onNodeWithTag("fst.shop.badge.leaving.s-alpha", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val title = rule.onAllNodesWithText("Alpha Tune", useUnmergedTree = true).fetchSemanticsNodes()
+            .map { it.boundsInRoot }.first { it.left >= card.left && it.right <= card.right && it.top >= card.top && it.bottom <= card.bottom }
+        assertTrue("pill $pill outside card $card", pill.left >= card.left && pill.right <= card.right && pill.top >= card.top)
+        assertTrue("pill $pill overlaps title $title", pill.bottom <= title.top)
+    }
+
+    @Test
     @Config(qualifiers = "w411dp-h891dp-xxhdpi", fontScale = 2f)
     fun largeTextKeepsRowTextsAndBadgesInsideTheirRows() {
         launch()

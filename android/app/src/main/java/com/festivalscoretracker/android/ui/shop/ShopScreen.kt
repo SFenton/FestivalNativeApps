@@ -26,10 +26,13 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.unit.LayoutDirection
 import com.festivalscoretracker.android.core.shop.ShopColumnPolicy
 import com.festivalscoretracker.android.core.shop.ShopColumns
 import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import androidx.compose.material3.ButtonDefaults
@@ -163,11 +166,15 @@ fun ShopScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilter by rememberSaveable { mutableStateOf(false) }
     // Book/passport posture: content splits at a separating vertical hinge (issue #131).
-    val split = rememberHingeSplit()
+    val split = rememberHingeSplit(keepWhenSingleColumn = true)
+    val singleColumn = rememberSingleColumn()
     BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
-        val hinge = split.value
         val compact = maxWidth < COMPACT_WIDTH
         val effective = if (compact) ShopViewMode.List else viewMode
+        // TalkBack / large text: the list and centred states go full width (as on every page), but the
+        // grid keeps its columns, so it still splits at the fold rather than putting cards across it (#113).
+        val hinge = split.value.takeUnless { singleColumn }
+        val contentHinge = if (effective == ShopViewMode.Grid) split.value else hinge
         FestivalScreen(
             title = "Item Shop",
             isRoot = false,
@@ -206,7 +213,7 @@ fun ShopScreen(
                     // fade/stagger again (web `useViewTransition`, operator 6.10).
                     is LoadState.Loaded -> key(effective) {
                         val switched = rememberViewSwitch(effective)
-                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched, hinge)
+                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched, contentHinge)
                     }
                 }
             }
@@ -461,13 +468,18 @@ private fun DetailsUnavailable(onRetry: () -> Unit) {
  *
  * @param highlight Accent.
  * @param songId Song (test tag).
+ * @param wordPerLine Large text in a narrow tile: one word per line, each shrunk only as far as
+ *   needed to fit, so a word is never broken across lines ("Tomorro / w").
  */
 @Composable
-fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier = Modifier) {
+fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier = Modifier, wordPerLine: Boolean = false) {
     val leaving = highlight == ShopHighlight.LeavingTomorrow
+    val style = MaterialTheme.typography.labelMedium
     Text(
-        highlight.label,
-        style = MaterialTheme.typography.labelMedium,
+        shopBadgeText(highlight.label, wordPerLine),
+        style = style,
+        softWrap = !wordPerLine,
+        autoSize = if (wordPerLine) TextAutoSize.StepBased(minFontSize = SHOP_BADGE_MIN_SP.sp, maxFontSize = style.fontSize) else null,
         fontWeight = FontWeight.Bold,
         color = if (leaving) BrandTokens.textPrimary else BrandTokens.gold,
         modifier = modifier
@@ -553,7 +565,9 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
         }
         if (item.highlight == ShopHighlight.LeavingTomorrow) {
             // The card's description already says "Leaving Tomorrow".
-            ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.align(Alignment.TopEnd).padding(10.dp).clearAndSetSemantics { })
+            Box(Modifier.align(Alignment.TopEnd).padding(10.dp).testTag("fst.shop.badge.leaving.${offer.songId}")) {
+                ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.clearAndSetSemantics { }, wordPerLine = isLargeText())
+            }
         }
         if (item.officialUrl != null) Box(Modifier.size(0.dp).testTag("fst.shop.external.${offer.songId}"))
     }
