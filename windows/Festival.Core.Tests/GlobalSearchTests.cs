@@ -156,11 +156,36 @@ public class GlobalSearchViewModelTests
     }
 
     [Fact]
+    public void Hint_NamesTheSelectedScope()
+    {
+        var (_, _, session) = Create();
+        var vm = new GlobalSearchViewModel(session);
+        var hints = new List<string>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GlobalSearchViewModel.Hint)) hints.Add(vm.Hint);
+        };
+        foreach (var scope in new[] { SearchScope.Songs, SearchScope.Players, SearchScope.Bands, SearchScope.All })
+        {
+            vm.Scope = scope;
+            Assert.Equal(GlobalSearchResults.EnterQueryHintFor(scope), vm.Hint);
+        }
+        Assert.Equal([
+            "Enter at least two characters to search for songs.",
+            "Enter at least two characters to search for players.",
+            "Enter at least two characters to search for bands.",
+            "Enter at least two characters to search for songs, players, or bands.",
+        ], hints);
+        // The players-only pickers keep their own wording.
+        Assert.Equal(GlobalSearchResults.EnterQueryHint, GlobalSearchViewModel.ForPlayers(session).PlayersHint);
+    }
+
+    [Fact]
     public async Task ShortQuery_ShowsHintAndSendsNothing()
     {
         var (service, time, session) = Create();
         var vm = new GlobalSearchViewModel(session);
-        Assert.Equal(GlobalSearchResults.EnterQueryHint, vm.Hint);
+        Assert.Equal(GlobalSearchResults.EnterQueryHintAll, vm.Hint);
         Assert.True(vm.HasHint && vm.IsShortQuery);
         Assert.False(vm.IsBusy);
         vm.Query = " a ";
@@ -197,10 +222,19 @@ public class GlobalSearchViewModelTests
         Assert.Empty(service.Handler.To(SearchPath));
         time.Advance(GlobalSearchViewModel.Debounce);
         await Async.Until(() => vm.PlayersLoading);
-        // Songs are shown at once; players have their own progress.
+        // Issue #299: All shows one spinner until songs and players have both settled (web SearchModal).
         Assert.Equal(["s1"], vm.Songs.Select(s => s.SongId));
-        Assert.True(vm.ShowSongsSection && vm.ShowPlayersSection);
-        Assert.False(vm.IsSettled || vm.IsBusy);
+        Assert.True(vm.IsBusy);
+        Assert.False(vm.IsSettled || vm.ShowSongsSection || vm.ShowPlayersSection || vm.HasEmptyState);
+        // The Songs scope never waits for players; the Players scope does.
+        vm.Scope = SearchScope.Songs;
+        Assert.False(vm.IsBusy);
+        Assert.True(vm.ShowSongsSection);
+        Assert.False(vm.ShowPlayersSection);
+        vm.Scope = SearchScope.Players;
+        Assert.True(vm.IsBusy);
+        Assert.False(vm.ShowPlayersSection || vm.HasEmptyState);
+        vm.Scope = SearchScope.All;
         Assert.Equal(2, vm.Suggestions.Count);
         release.SetResult();
         await Async.Until(() => vm.IsSettled);
@@ -286,7 +320,7 @@ public class GlobalSearchViewModelTests
         Assert.Empty(vm.Players);
         Assert.Empty(vm.Suggestions);
         Assert.Equal(LoadState.Idle, vm.PlayersState);
-        Assert.Equal(GlobalSearchResults.EnterQueryHint, vm.Hint);
+        Assert.Equal(GlobalSearchResults.EnterQueryHintAll, vm.Hint);
         Assert.False(vm.IsSettled);
     }
 
@@ -304,7 +338,7 @@ public class GlobalSearchViewModelTests
     }
 
     [Fact]
-    public async Task PlayersEmptyEnvelope_OffersRetry()
+    public async Task PlayersEmptyEnvelope_CentredEmptyStateWithoutRetry_EnterRunsAgain()
     {
         var body = """{"results":[]}""";
         var (service, time, session) = Create(_ => Wire.Ok(body));
@@ -312,33 +346,31 @@ public class GlobalSearchViewModelTests
         await Type(vm, time, "zzz");
         Assert.True(vm.PlayersEmpty);
         Assert.Equal(LoadState.Empty, vm.SongsState);
-        // All scope: both empty → one centred title and subtitle with Retry.
+        // All scope: both empty → one centred title and subtitle (no Retry, issue #299).
         Assert.Equal("", vm.Hint);
         Assert.True(vm.HasEmptyState);
         Assert.Equal(GlobalSearchResults.EmptyAllTitle, vm.EmptyTitle);
         Assert.Equal(GlobalSearchResults.EmptyAllSubtitle, vm.EmptySubtitle);
-        Assert.True(vm.CanRetryEmpty);
         Assert.False(vm.ShowPlayersSection || vm.ShowSongsSection);
         Assert.Equal("No results found.", vm.LastAnnouncement);
-        // Players scope: no section with an inline row, the centred empty state with Retry instead.
+        // Players scope: no section with an inline row, the centred empty state instead.
         vm.Scope = SearchScope.Players;
         Assert.False(vm.ShowPlayersSection);
         Assert.Equal("", vm.Hint);
         Assert.Equal(GlobalSearchResults.EmptyPlayersTitle, vm.EmptyTitle);
         Assert.Equal(GlobalSearchResults.EmptyPlayersSubtitle, vm.EmptySubtitle);
-        Assert.True(vm.CanRetryEmpty);
-        // Songs scope: local match, so no Retry.
         vm.Scope = SearchScope.Songs;
         Assert.Equal(GlobalSearchResults.EmptySongsTitle, vm.EmptyTitle);
         Assert.Equal(GlobalSearchResults.EmptySongsSubtitle, vm.EmptySubtitle);
-        Assert.False(vm.CanRetryEmpty);
         // Bands scope never shows a search empty state.
         vm.Scope = SearchScope.Bands;
         Assert.False(vm.HasEmptyState);
         Assert.Equal("", vm.EmptyTitle + vm.EmptySubtitle);
         body = """{"results":[{"accountId":"acc9","displayName":"Zzz Top"}]}""";
         vm.Scope = SearchScope.All;
-        await vm.RetryCommand.ExecuteAsync(null);
+        // An empty envelope may be a server timeout: Enter on the same text searches again.
+        vm.SubmitCommand.Execute(null);
+        await Async.Until(() => vm.IsSettled && vm.Players.Count > 0);
         Assert.Equal(2, service.Handler.To(SearchPath).Count());
         Assert.Equal(["acc9"], vm.Players.Select(p => p.AccountId));
         Assert.True(vm.ShowPlayersSection);
@@ -359,7 +391,7 @@ public class GlobalSearchViewModelTests
         Assert.Equal("", vm.Hint);
         Assert.Equal("1 song, 0 players", vm.LastAnnouncement);
         vm.Scope = SearchScope.Players;
-        Assert.True(vm.HasEmptyState && vm.CanRetryEmpty);
+        Assert.True(vm.HasEmptyState);
         Assert.Equal(GlobalSearchResults.EmptyPlayersTitle, vm.EmptyTitle);
         vm.Scope = SearchScope.Songs;
         Assert.False(vm.HasEmptyState);
@@ -425,11 +457,14 @@ public class GlobalSearchViewModelTests
         var (service, time, session) = Create();
         var vm = new GlobalSearchViewModel(session) { Scope = SearchScope.Bands };
         Assert.True(vm.IsBandsScope);
-        Assert.Equal("", vm.Hint);
+        // Issue #299: a short query shows the Bands hint, then the explanation.
+        Assert.Equal(GlobalSearchResults.EnterQueryHintBands, vm.Hint);
+        Assert.False(vm.ShowBandsExplanation);
         Assert.False(vm.IsBusy);
         Assert.Contains("band search can change stored band data", vm.BandsExplanation, StringComparison.Ordinal);
         await Type(vm, time, "alpha");
-        Assert.False(vm.ShowSongsSection || vm.ShowPlayersSection || vm.HasHint);
+        Assert.True(vm.ShowBandsExplanation);
+        Assert.False(vm.ShowSongsSection || vm.ShowPlayersSection || vm.HasHint || vm.IsBusy);
         Assert.DoesNotContain(service.Handler.Requests, r => r.Uri.AbsolutePath.StartsWith("/api/bands", StringComparison.Ordinal));
     }
 
@@ -505,7 +540,7 @@ public class GlobalSearchViewModelTests
         Assert.True(vm.ShowSongsSection);
         Assert.False(vm.ShowPlayersSection);
         var empty = new GlobalSearchViewModel(session, new AppRoute.Search());
-        Assert.Equal(GlobalSearchResults.EnterQueryHint, empty.Hint);
+        Assert.Equal(GlobalSearchResults.EnterQueryHintAll, empty.Hint);
     }
 
     [Fact]
