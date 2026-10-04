@@ -96,6 +96,45 @@ object QuickLinks {
      */
     fun scrollLandingTarget(sectionTop: Int, landingPx: Int, maxScroll: Int): Int = (sectionTop - landingPx).coerceIn(0, maxOf(0, maxScroll))
 
+    /** Most times one jump re-lands its target while content above it resizes. */
+    const val MAX_LANDING_CORRECTIONS = 8
+
+    /** How long (ms) a jump keeps its target on the landing line while nearby content resizes. */
+    const val LANDING_HOLD_MILLIS = 10_000L
+
+    /**
+     * Whether a landed jump's target must be scrolled back to the landing line (issue #106).
+     *
+     * A jump lands the target [landingPx] below the viewport top, so the section above it stays
+     * partly visible and is the lazy list's scroll anchor. When that section composes for the first
+     * time and grows as its own reads land (Player Profile Rank History), the target slides down, out
+     * of view on short windows. Only drift the list can still correct counts: a target near the end of
+     * the content that cannot reach the line (it can no longer scroll forward) stays where it is.
+     *
+     * @param targetTop Target top below the viewport top, in pixels, or null when it is not laid out.
+     * @param targetBelow When [targetTop] is null: whether the target lies below the laid-out items.
+     * @param landingPx Landing line below the viewport top, in pixels.
+     * @param thresholdPx Drift tolerated before re-landing, in pixels.
+     * @param canScrollForward Whether the list can scroll towards its end.
+     * @param canScrollBackward Whether the list can scroll towards its start.
+     * @return True to re-land the target.
+     */
+    fun needsRelanding(
+        targetTop: Float?,
+        targetBelow: Boolean,
+        landingPx: Float,
+        thresholdPx: Float,
+        canScrollForward: Boolean,
+        canScrollBackward: Boolean,
+    ): Boolean {
+        val drift = targetTop?.minus(landingPx) ?: if (targetBelow) Float.POSITIVE_INFINITY else Float.NEGATIVE_INFINITY
+        return when {
+            drift > thresholdPx -> canScrollForward
+            drift < -thresholdPx -> canScrollBackward
+            else -> false
+        }
+    }
+
     /**
      * Whether a page shows Quick Links at all.
      *

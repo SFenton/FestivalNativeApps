@@ -64,6 +64,24 @@ class QuickLinksTest {
     }
 
     @Test
+    fun relandingCorrectsOnlyDriftTheListCanScrollAway() {
+        // On the line or within the tolerance: no correction.
+        assertFalse(QuickLinks.needsRelanding(32f, false, 32f, 8f, true, true))
+        assertFalse(QuickLinks.needsRelanding(40f, false, 32f, 8f, true, true))
+        assertFalse(QuickLinks.needsRelanding(24f, false, 32f, 8f, true, true))
+        // Pushed down by a growing section above (#106): re-land while the list can scroll forward.
+        assertTrue(QuickLinks.needsRelanding(380f, false, 32f, 8f, true, true))
+        assertFalse(QuickLinks.needsRelanding(380f, false, 32f, 8f, false, true))
+        // Pushed below the laid-out items, or above them.
+        assertTrue(QuickLinks.needsRelanding(null, true, 32f, 8f, true, false))
+        assertFalse(QuickLinks.needsRelanding(null, true, 32f, 8f, false, true))
+        assertTrue(QuickLinks.needsRelanding(null, false, 32f, 8f, false, true))
+        // Pulled up by a shrinking section: re-land while the list can scroll back.
+        assertTrue(QuickLinks.needsRelanding(-100f, false, 32f, 8f, true, true))
+        assertFalse(QuickLinks.needsRelanding(-100f, false, 32f, 8f, true, false))
+    }
+
+    @Test
     fun landingAndActivationShareTheLine() {
         val line = QuickLinks.LANDING_OFFSET_DP.toFloat()
         assertEquals(32f, line)
