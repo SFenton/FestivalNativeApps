@@ -172,16 +172,14 @@ JOURNEYS = [
     Journey(
         name="statistics-quick-links",
         launch=["--tab", "statistics", *_profile("fixture-player-1:Fixture Player 1")],
+        # One phase: the menu flyout light-dismisses between phases, so its items are asserted with waitfor.
         steps=[
             ["waitfor:id=fst.player.overview@15", "invoke:id=fst.quick-links.open",
-             "waitfor:id=fst.quick-links.item.bands@5"],
-            ["toggle:id=fst.quick-links.item.bands", "wait:1.5"],
+             "waitfor:id=fst.quick-links.item.global@5", "waitfor:id=fst.quick-links.item.instrument:Solo_Guitar@5",
+             "waitfor:id=fst.quick-links.item.bands@5", "toggle:id=fst.quick-links.item.bands", "wait:1.5"],
         ],
-        expect=[
-            ["fst.quick-links.item.global", "fst.quick-links.item.instrument:Solo_Guitar", "fst.quick-links.item.bands"],
-            ["current section Bands"],
-        ],
-        forbid=[[], ["fst.quick-links.item.global"]],
+        expect=[["current section Bands"]],
+        forbid=[["fst.quick-links.item.global"]],
     ),
     Journey(
         name="statistics-link",

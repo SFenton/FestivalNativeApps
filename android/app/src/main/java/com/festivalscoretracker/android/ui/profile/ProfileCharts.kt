@@ -39,7 +39,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.profile.ChartGeometry
@@ -139,7 +138,9 @@ internal fun percentileTier(topPercent: Int): PercentileTier = when {
  */
 @Composable
 fun ScoreHistoryChart(chart: ScoreHistoryChartModel, modifier: Modifier = Modifier) {
-    Column(modifier.testTag("fst.history.chart").semantics { contentDescription = "Score over time. ${chart.summary}" }) {
+    // One TalkBack stop in reading order: the summary already names the range and best
+    // score, so the axis labels are not read as separate stops.
+    Column(modifier.testTag("fst.history.chart").clearAndSetSemantics { contentDescription = "Score over time. ${chart.summary}" }) {
         Row(Modifier.fillMaxWidth()) {
             AxisLabels(chart.ticks, Modifier.width(72.dp).height(CHART_HEIGHT.dp))
             Canvas(Modifier.weight(1f).height(CHART_HEIGHT.dp)) {

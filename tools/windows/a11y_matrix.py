@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Windows accessibility matrix: Axe.Windows scans, Tab walks and screenshots per page, size and mode.
 
-Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, readiness
+Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, optional ``env``
+launch hooks such as ``FST_DEBUG_CONTROL_LAB``, readiness
 ``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
 shared ``desktop`` lock once (≤300 s), optionally applies a system accessibility mode, launches this
 worktree's build against the anonymized loopback fixture (``rivals_fixture.py``) with isolated settings
@@ -108,7 +109,9 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
 
     Args:
         page: Page definition: ``ready`` steps, optional ``setup`` (before ready), ``after_ready``
-            (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``.
+            (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``. ``{stem}`` in any step is
+            replaced by the output path stem for this page/size/mode, so extra shots such as
+            ``shot:{stem}-footer.png`` stay distinct per run.
         size: Window preset.
         out: Output directory.
         suffix: File-name suffix for the mode (``""`` for normal).
@@ -128,7 +131,7 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     if count:
         steps.append(f"tabwalk:{count}")
     steps.extend(page.get("teardown", []))
-    return steps
+    return [s.replace("{stem}", str(out / stem)) for s in steps]
 
 
 def summarize_focus(focus: list[dict]) -> dict:
@@ -172,11 +175,12 @@ def summary_table(results: list[dict]) -> str:
 # region Runner
 
 
-def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
+def start_fixture(log: Path, fixture: Path = FIXTURE) -> tuple[subprocess.Popen, int]:
     """Start the anonymized fixture service on a free loopback port.
 
     Args:
         log: Service output file.
+        fixture: Fixture script taking ``mock_service.py`` flags (default ``rivals_fixture.py``).
 
     Returns:
         Process and port.
@@ -185,7 +189,7 @@ def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
         RuntimeError: No port reported within 20 s.
     """
     handle = log.open("w", encoding="utf-8")
-    proc = subprocess.Popen([sys.executable, "-u", str(FIXTURE), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen([sys.executable, "-u", str(fixture), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
     for _ in range(200):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
@@ -218,6 +222,26 @@ def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out:
     return [run_size(page, mode, size, exe, port, out, scan, tabs, hold) for size in sizes]
 
 
+def page_env(page: dict, data_dir: Path) -> dict[str, str]:
+    """Automation environment for one matrix page.
+
+    Args:
+        page: Page entry (``profile``, ``tab``, ``route`` and optional ``env`` launch hooks such as
+            ``FST_DEBUG_CONTROL_LAB``; page ``env`` wins over the derived values).
+        data_dir: Isolated app data directory.
+
+    Returns:
+        Environment variables to add to the app launch.
+    """
+    env = {"FST_DEBUG_DATA_DIR": str(data_dir)}
+    if page.get("profile"):
+        env["FST_DEBUG_PROFILE"] = page["profile"]
+    else:
+        env["FST_DEBUG_ANONYMOUS"] = "1"
+    env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
+    env.update({key: str(value) for key, value in page.get("env", {}).items()})
+    return env
+
 def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, scan: bool, tabs: int,
              hold: float) -> dict:
     """Launch, check and close one page at one size (see :func:`run_page`)."""
@@ -227,12 +251,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, 
     settings = state / "settings.json"
     if spec.get("app") or page.get("settings"):
         settings.write_text(json.dumps({**page.get("settings", {}), **spec.get("app", {})}), encoding="utf-8")
-    env = {"FST_DEBUG_DATA_DIR": str(state / "data")}
-    if page.get("profile"):
-        env["FST_DEBUG_PROFILE"] = page["profile"]
-    else:
-        env["FST_DEBUG_ANONYMOUS"] = "1"
-    env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
+    env = page_env(page, state / "data")
     warning = uiwin.prepare_automation(exe, env)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
@@ -315,6 +334,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hold", type=float, default=300.0)
     parser.add_argument("--pages", type=Path, default=PAGES,
                         help="page list (e.g. journeys/a11y-keyboard.json: assertfocus journeys, run without --scan)")
+    parser.add_argument("--fixture", type=Path, default=FIXTURE,
+                        help="fixture service script (e.g. tools/windows/rankings_fixture.py for every Full Rankings state)")
     args = parser.parse_args(argv)
     if not args.exe.is_file():
         print(f"error: build first (tools/windows/build.ps1); no {args.exe}", file=sys.stderr)
@@ -326,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
         wanted = set(args.only.split(","))
         pages = [p for p in pages if p["name"] in wanted]
     sizes = [s for s in args.sizes.split(",") if s]
-    fixture, port = start_fixture(out / "fixture-service.log")
+    fixture, port = start_fixture(out / "fixture-service.log", args.fixture.resolve())
     results: list[dict] = []
     try:
         # Driver step logs (every focus stop) go to a file; the console gets one line per page and size.

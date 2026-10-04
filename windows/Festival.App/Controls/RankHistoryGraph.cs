@@ -28,28 +28,25 @@ public sealed partial class RankHistoryGraph : Grid
         new PropertyMetadata(null, (d, _) => ((RankHistoryGraph)d).OnModelChanged()));
 
     private const double PlotHeight = 220;
-    private const double LeftAxis = 52;
-    private const double RightAxis = 48;
-    private const double SwipeThreshold = 50; // web SWIPE_THRESHOLD
     private const double TickFontSize = 12;
     private const double DateFontSize = 11;
-    private const double DateBand = 22;
+    private const double SwipeThreshold = 50; // web SWIPE_THRESHOLD
 
     private readonly PlotSurface plot = new();
     private readonly Canvas shapes = new();
-    private readonly Canvas leftLabels = new() { Width = LeftAxis };
-    private readonly Canvas rightLabels = new() { Width = RightAxis };
-    private readonly Canvas dates = new() { Height = DateBand };
-    private readonly ColumnDefinition leftColumn = new() { Width = new GridLength(LeftAxis) };
-    private readonly ColumnDefinition rightColumn = new() { Width = new GridLength(RightAxis) };
+    private readonly Canvas leftLabels = new();
+    private readonly Canvas rightLabels = new();
+    private readonly Canvas dates = new();
+    private readonly ColumnDefinition leftColumn = new();
+    private readonly ColumnDefinition rightColumn = new();
     private readonly Windows.UI.ViewManagement.UISettings uiSettings = new();
-    private Rectangle? legendSwatch;
-    private double leftAxis = LeftAxis;
-    private double rightAxis = RightAxis;
     private readonly Button older = NavButton("", "Show older rank history");
     private readonly Button newer = NavButton("", "Show newer rank history");
     private readonly TextBlock range = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 };
     private readonly TextBlock metricLegend = new() { Text = "Total Score", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+    private double leftAxis = RankHistoryCombinedChart.MinValueGutter;
+    private double rightAxis = RankHistoryCombinedChart.MinRankGutter;
+    private Rectangle? legendSwatch;
     private int offset;
     private int maxBars = 1;
     private Point? swipeStart;
@@ -79,7 +76,7 @@ public sealed partial class RankHistoryGraph : Grid
         SetRow(plotGrid, 1);
         Children.Add(plotGrid);
 
-        dates.Margin = new Thickness(LeftAxis, 0, RightAxis, 0);
+        ApplyGutters(RankHistoryCombinedChart.MinDateBand);
         SetRow(dates, 2);
         Children.Add(dates);
 
@@ -108,28 +105,28 @@ public sealed partial class RankHistoryGraph : Grid
         plot.PointerReleased += (_, e) => EndSwipe(e.GetCurrentPoint(plot).Position);
         plot.PointerCaptureLost += (_, _) => swipeStart = null;
         SizeChanged += (_, _) => Redraw();
-        // A contrast-theme switch raises ColorValuesChanged (HighContrastChanged needs a CoreWindow) and a text-size change
-        // TextScaleFactorChanged; both arrive off the UI thread. The shapes and gutters are code-built, so redraw.
+        // The chart is code-built: a contrast-theme switch (ColorValuesChanged; HighContrastChanged needs a CoreWindow)
+        // redraws it with the new theme's brushes, and a text-size change re-measures the gutters and date band.
         Loaded += (_, _) =>
         {
             ForwardAutomationId();
-            uiSettings.ColorValuesChanged -= OnSystemSettingsChanged;
-            uiSettings.ColorValuesChanged += OnSystemSettingsChanged;
-            uiSettings.TextScaleFactorChanged -= OnSystemSettingsChanged;
-            uiSettings.TextScaleFactorChanged += OnSystemSettingsChanged;
-            Redraw();
+            uiSettings.ColorValuesChanged -= OnSystemChanged;
+            uiSettings.ColorValuesChanged += OnSystemChanged;
+            uiSettings.TextScaleFactorChanged -= OnSystemChanged;
+            uiSettings.TextScaleFactorChanged += OnSystemChanged;
+            Redraw(); // a theme or text size changed while the page was cached and unloaded
         };
         Unloaded += (_, _) =>
         {
-            uiSettings.ColorValuesChanged -= OnSystemSettingsChanged;
-            uiSettings.TextScaleFactorChanged -= OnSystemSettingsChanged;
+            uiSettings.ColorValuesChanged -= OnSystemChanged;
+            uiSettings.TextScaleFactorChanged -= OnSystemChanged;
         };
     }
 
-    /// <summary>Redraws with the new theme's brushes or the new text size's gutters.</summary>
+    /// <summary>Redraws on the UI thread after a contrast-theme or text-size change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="args">Unused.</param>
-    private void OnSystemSettingsChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(Redraw);
+    private void OnSystemChanged(Windows.UI.ViewManagement.UISettings sender, object args) => DispatcherQueue.TryEnqueue(Redraw);
 
     /// <summary>Chart model (the whole history).</summary>
     public RankHistoryCombinedChart? Model
@@ -205,12 +202,13 @@ public sealed partial class RankHistoryGraph : Grid
     #endregion
 
     #region Drawing
-    /// <summary>Rebuilds the visible page for the current size, text size and theme.</summary>
+    /// <summary>Rebuilds the visible page for the current size, text size and contrast theme.</summary>
     /// <remarks>
-    /// Contrast themes: gridlines, bar outlines and the legend swatch outline use the window text colour
-    /// (<c>FSTChartAxisBrush</c>) and the bars are opaque; the rank hues are a data series named by the legend and the
-    /// plot's UIA summary, so they stay, outlined to keep each bar's shape at system contrast (as Song Details' chart).
-    /// The side gutters and date band grow to the measured, text-scaled labels.
+    /// The side gutters fit the page's widest measured (text-scaled) tick labels; when they change, the page is laid out
+    /// again for the new plot width. Contrast themes: gridlines and bar outlines use the window text colour
+    /// (<c>FSTChartGridBrush</c>, <c>FSTChartAxisBrush</c>); the bar and rank-line hues are data series named by the legend
+    /// and the plot's UIA summary, so they stay, opaque and outlined (as is the legend swatch) to keep each bar's shape at
+    /// system contrast.
     /// </remarks>
     private void Redraw()
     {
@@ -219,44 +217,41 @@ public sealed partial class RankHistoryGraph : Grid
         rightLabels.Children.Clear();
         dates.Children.Clear();
         var contrast = Services.ContrastTheme.IsOn;
-        var axis = Services.ContrastTheme.Brush("FSTChartAxisBrush");
+        var outline = Services.ContrastTheme.Brush("FSTChartAxisBrush");
         if (legendSwatch is not null)
         {
-            legendSwatch.Stroke = contrast ? axis : null;
+            legendSwatch.Stroke = contrast ? outline : null;
             legendSwatch.StrokeThickness = contrast ? 1 : 0;
         }
-        if (Model is not { } model || ActualWidth - LeftAxis - RightAxis <= 8)
+        page = null;
+        if (Model is not { } model) return;
+        RankHistoryPage? laid = null;
+        for (var pass = 0; pass < 2; pass++)
         {
-            page = null;
-            return;
+            var available = ActualWidth - leftAxis - rightAxis;
+            if (available <= 8) return;
+            maxBars = RankHistoryCombinedChart.MaxBars(available);
+            laid = model.Page(maxBars, offset);
+            var left = RankHistoryCombinedChart.AxisGutter(WidestLabel(laid.ValueTicks), RankHistoryCombinedChart.MinValueGutter);
+            var right = RankHistoryCombinedChart.AxisGutter(WidestLabel(laid.RankTicks), RankHistoryCombinedChart.MinRankGutter);
+            if (left == leftAxis && right == rightAxis) break;
+            leftAxis = left;
+            rightAxis = right;
+            laid = null;
         }
-
-        // Page with the design gutters, then widen them to the scaled labels and repage (labels depend on the page; gutters
-        // only grow, and the third page is laid out with the final gutters without re-measuring).
-        double left = LeftAxis, right = RightAxis, width = 0;
-        for (var pass = 0; ; pass++)
+        var width = ActualWidth - leftAxis - rightAxis;
+        if (width <= 8) return;
+        if (laid is null)
         {
-            width = ActualWidth - left - right;
             maxBars = RankHistoryCombinedChart.MaxBars(width);
-            page = model.Page(maxBars, offset);
-            if (pass == 2) break;
-            var needLeft = RankHistoryCombinedChart.AxisGutter(WidestLabel(page.ValueTicks), LeftAxis);
-            var needRight = RankHistoryCombinedChart.AxisGutter(WidestLabel(page.RankTicks), RightAxis);
-            if (needLeft <= left && needRight <= right) break;
-            left = Math.Max(left, needLeft);
-            right = Math.Max(right, needRight);
+            laid = model.Page(maxBars, offset);
         }
-        if (width <= 8)
-        {
-            page = null;
-            return;
-        }
-        SetGutters(left, right);
+        page = laid;
         offset = page.Offset;
         var tickHeight = MeasureText("0", TickFontSize).Height;
-        dates.Height = Math.Max(DateBand, Math.Ceiling(MeasureText("0", DateFontSize).Height + 4));
-        var text = (Brush)Application.Current.Resources["FSTSecondaryTextBrush"];
-        var grid = contrast ? axis : (Brush)Application.Current.Resources["FSTGlassBorderBrush"];
+        ApplyGutters(RankHistoryCombinedChart.DateBand(MeasureText("0/0/00", DateFontSize).Height));
+        var text = Services.ContrastTheme.Brush("FSTSecondaryTextBrush");
+        var grid = Services.ContrastTheme.Brush("FSTChartGridBrush");
         var lineBrush = Solid(RankHistoryCombinedChart.LineArgb);
         const double inset = 10;
         double Y(double fraction) => inset + fraction * (PlotHeight - 2 * inset);
@@ -265,10 +260,12 @@ public sealed partial class RankHistoryGraph : Grid
         foreach (var tick in page.ValueTicks)
         {
             shapes.Children.Add(new Line { X1 = 0, X2 = width, Y1 = Y(tick.Y), Y2 = Y(tick.Y), Stroke = grid, StrokeThickness = 1, StrokeDashArray = [3, 3] });
-            leftLabels.Children.Add(Label(tick.Label, Y(tick.Y) - tickHeight / 2, left - RankHistoryCombinedChart.AxisLabelGap, TextAlignment.Right, 0, text));
+            leftLabels.Children.Add(Label(tick.Label, Y(tick.Y) - tickHeight / 2, leftAxis - RankHistoryCombinedChart.AxisLabelGap,
+                TextAlignment.Right, 0, text));
         }
         foreach (var tick in page.RankTicks)
-            rightLabels.Children.Add(Label(tick.Label, Y(tick.Y) - tickHeight / 2, right - RankHistoryCombinedChart.AxisLabelGap, TextAlignment.Left, RankHistoryCombinedChart.AxisLabelGap, text));
+            rightLabels.Children.Add(Label(tick.Label, Y(tick.Y) - tickHeight / 2, rightAxis - RankHistoryCombinedChart.AxisLabelGap,
+                TextAlignment.Left, RankHistoryCombinedChart.AxisLabelGap, text));
 
         // Bars (web barCategoryGap 10%, fill opacity 0.8), coloured by placement.
         var slot = width / page.Points.Count;
@@ -281,7 +278,7 @@ public sealed partial class RankHistoryGraph : Grid
             {
                 Width = barWidth, Height = height, RadiusX = 4, RadiusY = 4,
                 Fill = new SolidColorBrush(Color(page.Points[i].BarArgb)) { Opacity = contrast ? 1 : 0.8 },
-                Stroke = contrast ? axis : null,
+                Stroke = contrast ? outline : null,
                 StrokeThickness = contrast ? 1 : 0,
             };
             Canvas.SetLeft(rect, X(bar.X) - barWidth / 2);
@@ -355,16 +352,37 @@ public sealed partial class RankHistoryGraph : Grid
         };
     }
 
-    /// <summary>An axis label whose top is at <paramref name="top"/>.</summary>
+    /// <summary>An axis label whose top edge is <paramref name="top"/> (callers centre it on its tick).</summary>
     private static TextBlock Label(string value, double top, double width, TextAlignment alignment, double left, Brush brush)
     {
-        var label = new TextBlock { Text = value, FontSize = TickFontSize, Foreground = brush, Width = width, TextAlignment = alignment, TextWrapping = TextWrapping.NoWrap };
+        var label = new TextBlock
+        {
+            Text = value, FontSize = TickFontSize, Foreground = brush, Width = width, TextAlignment = alignment, TextWrapping = TextWrapping.NoWrap,
+        };
         // Raw on the label panel alone still exposes its children; the chart's summary name carries the values.
         AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
         Canvas.SetTop(label, top);
         Canvas.SetLeft(label, left);
         return label;
     }
+
+    /// <summary>Sizes the side gutters and the date band (the date row lines up with the plot between the gutters).</summary>
+    /// <param name="dateBand">Date band height.</param>
+    private void ApplyGutters(double dateBand)
+    {
+        leftColumn.Width = new GridLength(leftAxis);
+        rightColumn.Width = new GridLength(rightAxis);
+        leftLabels.Width = leftAxis;
+        rightLabels.Width = rightAxis;
+        dates.Height = dateBand;
+        dates.Margin = new Thickness(leftAxis, 0, rightAxis, 0);
+    }
+
+    /// <summary>Widest measured tick label.</summary>
+    /// <param name="ticks">Ticks.</param>
+    /// <returns>Width in epx, 0 without ticks.</returns>
+    private static double WidestLabel(IEnumerable<ChartTick> ticks) =>
+        ticks.Select(tick => MeasureText(tick.Label, TickFontSize).Width).DefaultIfEmpty(0).Max();
 
     /// <summary>Desired size of a label as the chart draws it (the system text size applies).</summary>
     /// <param name="value">Text.</param>
@@ -375,27 +393,6 @@ public sealed partial class RankHistoryGraph : Grid
         var block = new TextBlock { Text = value, FontSize = size, TextWrapping = TextWrapping.NoWrap };
         block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return block.DesiredSize;
-    }
-
-    /// <summary>Width of the widest tick label.</summary>
-    /// <param name="ticks">Axis ticks.</param>
-    /// <returns>Width in epx (0 without ticks).</returns>
-    private static double WidestLabel(IEnumerable<ChartTick> ticks) =>
-        ticks.Select(t => MeasureText(t.Label, TickFontSize).Width).DefaultIfEmpty(0).Max();
-
-    /// <summary>Applies the side gutters to the label canvases, plot columns and date band.</summary>
-    /// <param name="left">Left (value) gutter.</param>
-    /// <param name="right">Right (rank) gutter.</param>
-    private void SetGutters(double left, double right)
-    {
-        if (left == leftAxis && right == rightAxis) return;
-        leftAxis = left;
-        rightAxis = right;
-        leftLabels.Width = left;
-        rightLabels.Width = right;
-        leftColumn.Width = new GridLength(left);
-        rightColumn.Width = new GridLength(right);
-        dates.Margin = new Thickness(left, 0, right, 0);
     }
 
     /// <summary>A paging button with a chevron glyph, tooltip and UIA name.</summary>
