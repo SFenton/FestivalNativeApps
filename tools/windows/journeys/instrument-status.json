@@ -1,0 +1,106 @@
+[
+  {"name": "chips-states", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1", "ready": [
+    "waitfor:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@30",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|Lead, full combo",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Bass|Bass, scored",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Drums|Drums, no score",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Vocals|Tap Vocals, score missing despite a reported full combo",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_PeripheralGuitar|Pro Lead, not charted",
+    "assertname:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|Lead, no score",
+    "assertname:raw=fst.songs.instrument-status.fixture-orbit.Solo_Bass|Bass, not charted",
+    "assertname:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralGuitar|Pro Lead, scored",
+    "assertname:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralDrums|Pro Drums, full combo",
+    "assertname:id=fst.songs.row.fixture-pulse|Fixture Pulse, Synthetic Quartet · 2026, Item Shop: New, Lead, full combo, Bass, scored, Drums, no score, Tap Vocals, score missing despite a reported full combo, Pro Lead, not charted, Pro Bass, not charted, Karaoke, not charted, Pro Drums + Cymbals, not charted, Pro Drums, not charted",
+    "assertname:id=fst.songs.row.fixture-orbit|Fixture Orbit, Synthetic Quartet · 2026, Item Shop: Leaving Tomorrow, Lead, no score, Bass, not charted, Drums, not charted, Tap Vocals, not charted, Pro Lead, scored, Pro Bass, not charted, Karaoke, not charted, Pro Drums + Cymbals, not charted, Pro Drums, full combo",
+    "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar",
+    "waitgone:id=fst.songs.profile-paused@2"
+  ]},
+  {"name": "chips-loading", "route": "/songs", "profile": "fixture-chips-slow:Slow Player", "tabs": 0, "ready": [
+    "waitfor:id=fst.songs.row.fixture-pulse@30",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@1",
+    "assertname:id=fst.songs.row.fixture-pulse|Fixture Pulse, Synthetic Quartet · 2026, Item Shop: New, Loading scores",
+    "waitfor:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@20",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|Lead, full combo"
+  ]},
+  {"name": "chips-syncing", "route": "/songs", "profile": "fixture-syncing:Syncing Player", "ready": [
+    "waitfor:id=fst.songs.profile-paused@30",
+    "assertname:id=fst.songs.row.fixture-pulse|Fixture Pulse, Synthetic Quartet · 2026, Item Shop: New, Scores syncing",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@1"
+  ]},
+  {"name": "chips-failed", "route": "/songs", "profile": "fixture-denied:Denied Player", "ready": [
+    "waitfor:id=fst.songs.profile-paused@30",
+    "assertname:id=fst.songs.row.fixture-pulse|Fixture Pulse, Synthetic Quartet · 2026, Item Shop: New, Scores unavailable",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@1"
+  ]},
+  {"name": "chips-empty", "route": "/songs", "profile": "fixture-empty:Empty Player", "ready": [
+    "waitfor:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@30",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|Lead, no score",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Drums|Drums, no score",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_PeripheralGuitar|Pro Lead, not charted",
+    "waitgone:id=fst.songs.profile-paused@2"
+  ]},
+  {"name": "chips-anonymous", "route": "/songs", "ready": [
+    "waitfor:id=fst.songs.row.fixture-pulse@30",
+    "assertname:id=fst.songs.row.fixture-pulse|Fixture Pulse, Synthetic Quartet · 2026, Item Shop: New",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@2"
+  ]},
+  {"name": "chips-instrument-hidden", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1",
+   "settings": {"visibleInstruments": ["Lead", "Vocals"]}, "ready": [
+    "waitfor:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@30",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Vocals|Tap Vocals, score missing despite a reported full combo",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Bass@1",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_PeripheralGuitar@1",
+    "assertname:id=fst.songs.row.fixture-pulse|Fixture Pulse, Synthetic Quartet · 2026, Item Shop: New, Lead, full combo, Tap Vocals, score missing despite a reported full combo"
+  ]},
+  {"name": "chips-chart-filtered", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1",
+   "settings": {"songFilter": {"Instrument": "Bass"}}, "ready": [
+    "waitfor:id=fst.songs.row.fixture-pulse@30",
+    "wait:1",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@1",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Bass@1"
+  ]},
+  {"name": "chips-icons-off", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1",
+   "settings": {"showInstrumentIcons": false}, "ready": [
+    "waitfor:id=fst.songs.row.fixture-pulse@30",
+    "wait:1",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@1",
+    "assertname:id=fst.songs.row.fixture-pulse|Fixture Pulse, Synthetic Quartet · 2026, Item Shop: New, Score 99,900, Full combo, accuracy 100%, Top 4%, 5 gold stars, Current season 9, Song intensity 3 of 7"
+  ]},
+  {"name": "chips-invalid-scores", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1",
+   "settings": {"filterInvalidScores": true}, "ready": [
+    "waitfor:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralGuitar@30",
+    "assertname:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralGuitar|Pro Lead, full combo",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|Lead, full combo",
+    "waitgone:id=fst.songs.score-filter-paused@1"
+  ]},
+  {"name": "chips-filter-damaged", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1",
+   "settings": {"songGeneralFilter": {"excludedDecades": [1985]}}, "ready": [
+    "waitfor:id=fst.songs.filter-invalid@30",
+    "waitgone:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@1",
+    "waitfor:id=fst.songs.filter-reset-invalid@2"
+  ]},
+  {"name": "chips-keyboard", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1", "tabs": 0, "ready": [
+    "waitfor:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@30",
+    "focus:id=fst.songs.row.fixture-orbit",
+    "assertfocus:id=fst.songs.row.fixture-orbit",
+    "key:down", "assertfocus:id=fst.songs.row.fixture-pulse",
+    "key:up", "assertfocus:id=fst.songs.row.fixture-orbit",
+    "wait:0.5"
+  ]},
+  {"name": "chips-resize", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1", "tabs": 0, "ready": [
+    "waitfor:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar@30",
+    "resize:compact", "wait:1.5",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Vocals|Tap Vocals, score missing despite a reported full combo",
+    "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar",
+    "assertbelow:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|id=fst.songs.row.fixture-pulse",
+    "assertlevel:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_PeripheralDrums",
+    "resize:wide", "wait:1.5",
+    "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Vocals|Tap Vocals, score missing despite a reported full combo",
+    "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar",
+    "assertlevel:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|id=fst.songs.row.fixture-pulse",
+    "resize:compact", "wait:1.5",
+    "assertbelow:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|id=fst.songs.row.fixture-orbit",
+    "resize:medium", "wait:1.5",
+    "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar"
+  ]}
+]
