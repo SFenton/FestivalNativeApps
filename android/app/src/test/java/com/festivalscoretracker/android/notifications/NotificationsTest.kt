@@ -36,6 +36,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -186,12 +187,37 @@ class NotificationsTest {
     }
 
     @Test
+    fun liveCoalescedRankEventsOpenTheRowsChartRankings() {
+        // Shape of the live feed (2026-10-04): coalesced events carry no instrument of their own.
+        val karaoke = item(
+            "k", "player_weighted_rank_improved", song = null, instrument = "Solo_PeripheralVocals", metric = "weighted_rank",
+            payload = NotificationPayload(coalescedEvents = listOf(NotificationEventPayload("player_weighted_rank_improved", null, "weighted_rank"))),
+        )
+        val karaokeInstrument = Instrument.fromWireId("Solo_PeripheralVocals")
+        assertNotNull(karaokeInstrument)
+        assertEquals(NotificationDestination.Rankings("weighted", karaokeInstrument), NotificationRouting.destination(karaoke))
+        val bassTotal = item(
+            "t", "player_total_score_improved", song = null, instrument = "Solo_Bass", metric = "total_score",
+            payload = NotificationPayload(
+                coalescedEvents = listOf(
+                    NotificationEventPayload("player_total_score_improved", "", "total_score"),
+                    NotificationEventPayload("player_total_score_rank_improved", null, "total_score_rank"),
+                ),
+            ),
+        )
+        assertEquals(NotificationDestination.Rankings("totalscore", Instrument.Bass), NotificationRouting.destination(bassTotal))
+    }
+
+    @Test
     fun relativeTimeAndBadge() {
         assertEquals("Just now", NotificationText.relativeTime(now.minusSeconds(30), now))
-        assertEquals("5m ago", NotificationText.relativeTime(now.minusSeconds(300), now))
-        assertEquals("3h ago", NotificationText.relativeTime(now.minusSeconds(3 * 3600), now))
-        assertEquals("2d ago", NotificationText.relativeTime(now.minusSeconds(2 * 86400), now))
-        assertTrue(NotificationText.relativeTime(now.minusSeconds(30L * 86400), now).matches(Regex("[A-Z][a-z]{2} \\d{1,2}")))
+        assertEquals("1 minute ago", NotificationText.relativeTime(now.minusSeconds(60), now))
+        assertEquals("5 minutes ago", NotificationText.relativeTime(now.minusSeconds(300), now))
+        assertEquals("1 hour ago", NotificationText.relativeTime(now.minusSeconds(3600), now))
+        assertEquals("3 hours ago", NotificationText.relativeTime(now.minusSeconds(3 * 3600), now))
+        assertEquals("1 day ago", NotificationText.relativeTime(now.minusSeconds(86400), now))
+        assertEquals("2 days ago", NotificationText.relativeTime(now.minusSeconds(2 * 86400), now))
+        assertTrue(NotificationText.relativeTime(now.minusSeconds(30L * 86400), now).matches(Regex("[A-Z][a-z]{2,8} \\d{1,2}")))
         assertEquals("99+", NotificationsViewModel.badgeText(120))
         assertEquals("7", NotificationsViewModel.badgeText(7))
         assertEquals("Notifications", NotificationsViewModel.bellLabel(0))
@@ -313,8 +339,10 @@ class NotificationsTest {
         val loaded = vm.state.value as NotificationsState.Loaded
         assertEquals(listOf("new", "old"), loaded.newRows.map { it.id })
         assertEquals(2, vm.unreadCount.value)
-        assertEquals("1h ago", loaded.newRows.first().timeText)
-        assertTrue(loaded.newRows.first().accessibleText.startsWith("Unread. Alpha Tune · Lead."))
+        assertEquals("1 hour ago", loaded.newRows.first().timeText)
+        assertTrue(loaded.newRows.first().accessibleText.startsWith("Unread. Alpha Tune, Lead. You set a new personal best"))
+        assertTrue(loaded.newRows.first().accessibleText.endsWith(". New High Score. 1 hour ago"))
+        assertTrue(loaded.newRows[1].accessibleText.contains(". Full Combo. "))
         assertEquals(NotificationMedia.Song("https://cdn.example/alpha.jpg"), loaded.newRows.first().presentation.media)
 
         val destination = vm.activate(loaded.newRows.first())
