@@ -57,3 +57,21 @@ Deliberate deviations from the winui-design skill (kept):
 - **White title text on a black scrim** over decorative art, and the New pill's dark navy fill outside contrast themes: fixed contrast regardless of the art; contrast themes switch to system brushes.
 - **No `x:Uid`** resources: the app is English-only for now.
 - The loading ring has no visible caption; Narrator hears "Loading Item Shop" after 1 s.
+
+## Validation (issue #237, 2026-10-04)
+
+Check of #18 (list rows reuse the shared Songs `SongRowCard`; see [Songs](../songs/windows.md)): Debug build on a 3840×2160 host at 300% scale, against the live public service (keyless default origin, anonymous, 124 real offers, two Leaving Tomorrow) for every configuration, and against the fixture service for the reachable states. Tools: `a11y_matrix.py --live` (screenshot, Axe.Windows scan, Tab walk) with `shop-list` (now also at `maximized`) plus temporary page lists that scroll to a Leaving Tomorrow row or a long subtitle; the keyboard journey `kb-shop-list`; `shop_journey.py` (all 27 state × size drives pass, through UIA patterns, so also while the console is locked); `songs_journey.py --only shop,shop-compact` (these send real mouse clicks, so they cannot pass while the console session is locked: run them on an unlocked desktop; `shop_journey`'s `list`, `official-link` and `song-detail` cover the same paths); `tools/windows/tests` (172 pass); and 76 Shop unit tests. Every matrix run: 0 Axe errors, 9 Tab stops (search, profile, Shop, Settings, Filter, view toggle, row, cart, pane toggle), none outside the window, none repeated.
+
+| Configuration | Result |
+|---|---|
+| Medium 900×700 / wide 1440×900 / maximized | ✅ Each row is the Songs card (glass surface, border, 44 epx art, title and subtitle as `MarqueeText`) with the Shop badge and a 44 epx cart button in the trailing slot; the Songs art bag is hidden because the badge names the state |
+| Snapped left | ✅ at 150% the list shows. At 300% half the screen is 640 epx, so the page is compact and the grid is forced (by design, see Layouts) |
+| Dark / Light (system) | ✅ Identical: the app is dark-only |
+| Desert / Night sky contrast | ✅ Cards use Window/WindowText, the badge and pulse ring use Highlight/HighlightText, focus visuals are system colours |
+| Text 200% | ✅ Title, subtitle and the **Leaving Tomorrow** pill all fit at 700 epx and wider; a subtitle too long for a 700 epx row ("Snoop Dogg ft. Pharrell & Uncle Charlie Wilson · 2003") scrolls as a marquee instead of being cut off or wrapping (PrintWindow frame capture, live) |
+| Display 100% / 150% | ✅ Same layout; art and cart button keep their epx sizes |
+| Keyboard only | ✅ Tab reaches the list once; Up/Down move between rows; Tab from a row reaches its cart button and Shift+Tab returns (now asserted in `kb-shop-list`); Enter opens Song Detail, Alt+Left returns to the list |
+| Shop badges | ✅ New / Leaving Tomorrow pills and the red or gold pulse ring show on the shared row; the ring holds still when animations are off |
+| Narrator / UIA | ✅ Rows are list items named "title, artist · year[, Shop state]" with `fst.shop.song.<id>`; the badge is text (`fst.shop.badge.*`); the cart is a button named "title, artist, Open Official Item Shop" (`fst.shop.external.<id>`); the marquee copies and pulse ring are Raw |
+
+No product defects found; no app code changed. Deliberate deviations from the winui-design skill (kept, as in #206): dark-only theme; fixed 12/16 epx font sizes on the pill and cart glyph (they scale with Text size); no `x:Uid` resources (English-only for now).
