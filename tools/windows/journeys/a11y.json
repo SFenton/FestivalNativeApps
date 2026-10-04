@@ -283,6 +283,30 @@
     ]
   },
   {
+    "name": "rivalry-unknown",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8/rivalry?mode=not_a_category",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rivals.page-empty@20"
+    ]
+  },
+  {
+    "name": "rivalry-empty",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8/rivalry",
+    "profile": "fixture-player-empty:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rivals.page-empty@20"
+    ]
+  },
+  {
+    "name": "rivalry-freeze",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8/rivalry",
+    "profile": "fixture-player-503:Demo Player",
+    "ready": [
+      "waitfor:id=fst.service-status.title@20"
+    ]
+  },
+  {
     "name": "statistics",
     "route": "/statistics",
     "profile": "fixture-player-1:Demo Player",

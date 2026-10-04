@@ -806,6 +806,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        var sweepDown = true;
         while (true)
         {
             var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
@@ -813,7 +814,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             {
                 if (!found.Properties.IsOffscreen.ValueOrDefault) return;
                 if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
-                else PageTowards(found);
+                else sweepDown = PageTowards(found, sweepDown);
             }
             else PageDown(window);
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
@@ -839,9 +840,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         target?.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
     }
 
-    /// <summary>Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element.</summary>
+    /// <summary>
+    /// Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element. An element with no
+    /// bounds (e.g. a list footer that has never been laid out in view) gives no direction, so the ancestor is swept
+    /// down to its end and then back up.
+    /// </summary>
     /// <param name="element">Element to bring closer to its viewport.</param>
-    private void PageTowards(AutomationElement element)
+    /// <param name="sweepDown">Sweep direction for an element without bounds.</param>
+    /// <returns>The sweep direction for the next call.</returns>
+    private bool PageTowards(AutomationElement element, bool sweepDown)
     {
         var walker = automation.TreeWalkerFactory.GetControlViewWalker();
         for (var parent = walker.GetParent(element); parent is not null; parent = walker.GetParent(parent))
@@ -849,12 +856,21 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             if (!parent.Patterns.Scroll.IsSupported || !parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) continue;
             var target = element.BoundingRectangle;
             var viewport = parent.BoundingRectangle;
-            var amount = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom
-                ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement
-                : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement;
-            parent.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, amount);
-            return;
+            var scroll = parent.Patterns.Scroll.Pattern;
+            bool down;
+            if (target.IsEmpty)
+            {
+                var percent = scroll.VerticalScrollPercent.ValueOrDefault;
+                if (sweepDown && percent >= 100) sweepDown = false;
+                else if (!sweepDown && percent <= 0) sweepDown = true;
+                down = sweepDown;
+            }
+            else down = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom;
+            scroll.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount,
+                down ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement);
+            return sweepDown;
         }
+        return sweepDown;
     }
 
     private (ConditionBase Condition, string Label) Condition(JsonObject step, string key = "selector")

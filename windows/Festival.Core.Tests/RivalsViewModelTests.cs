@@ -649,6 +649,8 @@ public class RivalsViewModelTests
         Assert.Equal("fixture-echo", rivalry.Rows[0].Comparison.SongId);
         rivalry.SortIndex = 42;
         Assert.Equal(RivalrySort.YouLead, rivalry.Sort);
+        rivalry.SortIndex = (int)RivalrySort.Title;
+        Assert.Equal(rivalry.Rows.Select(r => r.Title).Order(StringComparer.CurrentCultureIgnoreCase), rivalry.Rows.Select(r => r.Title));
 
         rivalry.RefreshCommand.Execute(null);
         await Async.Until(() => fake.Count($"/api/player/{Me}/rivals/Solo_Guitar/{Rival}") == 2);

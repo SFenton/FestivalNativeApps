@@ -27,12 +27,12 @@ struct SongLeaderboardEntryRow: View {
             .fontWeight(isPlayer ? .bold : .regular)
             .monospacedDigit()
             .foregroundStyle(FestivalText.primary)
-        let name = Text(
-            entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
+        // One line that scrolls when it does not fit (wrapping at accessibility sizes),
+        // so a long name never grows or overflows the row (issue #292).
+        let name = LeaderboardNameText(
+            name: entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User",
+            emphasized: isPlayer
         )
-        .font(.body)
-        .fontWeight(isPlayer ? .bold : .regular)
-        .fixedSize(horizontal: false, vertical: true)
         let score = Text(entry.score.formatted())
             .font(.body)
             .monospacedDigit()

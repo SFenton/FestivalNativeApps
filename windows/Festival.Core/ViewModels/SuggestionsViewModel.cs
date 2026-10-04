@@ -79,6 +79,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     private readonly FestivalSession session;
     private readonly ISuggestionFilterStore store;
     private readonly Func<uint> seeds;
+    private readonly int categoryLimit;
     private readonly List<(SuggestionCategory Category, int Mix)> generated = [];
     private int mix;
     private bool loading;
@@ -93,11 +94,14 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     /// <param name="session">Shared session.</param>
     /// <param name="store">Filter persistence.</param>
     /// <param name="seeds">Seed source per mix (tests and <c>FST_DEBUG_SUGGESTIONS_SEED</c> pass a fixed one).</param>
-    public SuggestionsViewModel(FestivalSession session, ISuggestionFilterStore store, Func<uint>? seeds = null)
+    /// <param name="categoryLimit">Session category cap; <see cref="CategoryLimit"/> unless a positive smaller cap is
+    /// given (tests and <c>FST_DEBUG_SUGGESTIONS_LIMIT</c> reach the end-of-mix footer quickly).</param>
+    public SuggestionsViewModel(FestivalSession session, ISuggestionFilterStore store, Func<uint>? seeds = null, int? categoryLimit = null)
     {
         this.session = session;
         this.store = store;
         this.seeds = seeds ?? (() => (uint)Random.Shared.NextInt64(0, uint.MaxValue + 1L));
+        this.categoryLimit = categoryLimit is > 0 and < CategoryLimit ? categoryLimit.Value : CategoryLimit;
         filter = store.Load();
         Status = new ServiceStatusViewModel("suggestions", "Suggestions Unavailable", () => LoadAsync(force: true), session.Time);
         FilterDraft = new SuggestionsFilterDraft(this);
@@ -321,7 +325,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         var remixed = false;
         for (var round = 0; added < count && round < 50; round++)
         {
-            var remaining = CategoryLimit - generated.Count;
+            var remaining = categoryLimit - generated.Count;
             if (remaining <= 0)
             {
                 ReachedLimit = true;

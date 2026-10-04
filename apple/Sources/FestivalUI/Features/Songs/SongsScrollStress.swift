@@ -5,8 +5,11 @@ import Foundation
 /// Debug-only in-app scroll stress pass for the Songs list (issue #8).
 ///
 /// With `FST_DEBUG_SONGS_SCROLL_STRESS=1` the Songs list replays ``plan(groupCount:)``
-/// once after it loads: animated jumps between the top and the first few sections, plus
-/// longer trips down the list and back to the top. Paired with
+/// once after it loads: jumps between the top and the first few sections, plus longer
+/// trips down the list and back to the top. A jump within one screenful of rows
+/// animates; a far one teleports like every programmatic far jump in the app
+/// (``ListJump``), so the pass measures the rows the app really builds
+/// (``teleportCounter`` counts them). Paired with
 /// ``MainThreadStallMonitor`` (`FST_DEBUG_STALL_LOG`) it measures main-thread stalls
 /// without XCUITest, whose accessibility snapshots add their own main-thread work.
 ///
@@ -19,6 +22,8 @@ enum SongsScrollStress {
     static let startCounter = "songs.stress.start"
     /// ``MainThreadStallMonitor`` counter recorded when the pass completes.
     static let endCounter = "songs.stress.end"
+    /// ``MainThreadStallMonitor`` counter recorded for each far (teleported) jump.
+    static let teleportCounter = "songs.stress.teleport"
     /// Passes through the pattern.
     static let rounds = 6
 
@@ -30,9 +35,30 @@ enum SongsScrollStress {
         let pause: Double
     }
 
-    /// True when the launch environment asks for a pass.
+    /// True when the launch environment asks for a pass (`1`, or `animated`).
     static var isRequested: Bool {
-        ProcessInfo.processInfo.environment[environmentKey] == "1"
+        ["1", "animated"].contains(ProcessInfo.processInfo.environment[environmentKey])
+    }
+
+    /// `FST_DEBUG_SONGS_SCROLL_STRESS=animated` animates every jump, far ones included
+    /// (the behaviour before ``ListJump``), for same-binary A/B measurements.
+    static var animatesFarJumps: Bool {
+        ProcessInfo.processInfo.environment[environmentKey] == "animated"
+    }
+
+    /// The list row where each section starts: every section is its title row plus its
+    /// songs.
+    ///
+    /// - Parameter sectionSizes: Songs per section, in list order.
+    /// - Returns: One row index per section.
+    static func rowOffsets(sectionSizes: [Int]) -> [Int] {
+        var offsets: [Int] = []
+        var row = 0
+        for size in sectionSizes {
+            offsets.append(row)
+            row += 1 + max(0, size)
+        }
+        return offsets
     }
 
     /// The jumps for a list with `groupCount` sections.
