@@ -17,20 +17,65 @@
 - Upper-case 74%-white section headings (`NEW` / `OLDER`, spoken as written); each row is its own `surfaceSubtle` card (10 dp radius, `#1E2A3A` hairline, 4 dp apart, 24 dp side margins).
 - 64 dp media rail: 54 dp album art, 44 dp art above an 18 dp two-column instrument grid when the row touches several charts, else a 36 dp instrument icon. Decorative; the shared in-process Coil loader like other rows. Combo media and its icon/art cycle need band/combo feeds (not read natively).
 - Bold marquee title, 12 sp white message with the web's bold values (scores, ranks, instrument, song, "Full Combo", "gold stars", "x to y stars"), one colour-coded flag pill (web `FLAG_COLORS`, 2 dp 18%-white border).
-- Trailing: gold `#FACC15` unread dot above a 72%-white chevron (chevron only when the row navigates). No visible time (the web row shows none); TalkBack still reads it, and navigable rows add "Open notification."
+- Trailing: gold `#FACC15` unread dot above a 72%-white chevron (chevron only when the row navigates). No visible time (the web row shows none); TalkBack reads "Unread. Title. Message. Flag. Time" (the flag in words so its meaning never depends on colour; the time in full words, "5 minutes ago", "1 hour ago", "September 28"), and navigable rows add "Open notification."
 - Empty state: bell-off glyph, "No notifications available", generated/not-generated body.
 
 ## Behavior
 
-- Tapping a row marks it seen; a row with a destination also closes the sheet and pushes Song Detail (`SongDetailRoute`) or, for rank events, `FullRankingsRoute(instrument, rankBy)` (Leaderboards hub without an instrument). Closing the sheet marks every loaded row seen.
+- Tapping a row marks it seen; a row with a destination also closes the sheet and pushes Song Detail (`SongDetailRoute`) or, for rank events, `FullRankingsRoute(instrument, rankBy)` (Leaderboards hub without an instrument). Live coalesced rank events carry no instrument, so routing falls back to the row's `instrument` (issue #136). Closing the sheet marks every loaded row seen.
 - No-player state offers Select Player Profile (opens the profile sheet). Never sends selected-profile headers (the gate rejects them; the UI journey asserts it).
 - Debug: `FST_DEBUG_SHEET=notifications` opens the sheet at launch.
 
 ## IDs and evidence
 
-`fst.shell.notifications` (label "Notifications, N unread"), `fst.notifications.sheet`, `.list`, `.row.<guid>` (test-only semantics `NotificationMediaKind`), `.empty`, `.failed`, `.loading`, `.no-player`. Tests: `notifications/NotificationsTest.kt`, `settings/SettingsUiTest.kt`. Screenshot: `android/reports/screenshots/notifications-phone.png` (mock `fixture-player-1`).
+`fst.shell.notifications` (label "Notifications, N unread"), `fst.notifications.sheet`, `.list`, `.row.<guid>` (test-only semantics `NotificationMediaKind`), `.empty`, `.failed`, `.loading`, `.no-player`. Tests: `notifications/NotificationsTest.kt`, `ui/notifications/NotificationsStatesUiTest.kt` (Robolectric, one test per reachable state), `journeys/NotificationsDeviceTest.kt` (connected: ATF, reading order, 48 dp, hinge, navigation), `settings/SettingsUiTest.kt`. Screenshot: `android/reports/screenshots/notifications-phone.png` (mock `fixture-player-1`).
+
+## Validation (issue #136, 2026-10-04)
+
+Emulator API 37, debug build, live public service (keyless `GET /api/player/{id}/notifications` only; no selected-profile headers), public player SFentonX (12 live rows: rank, total-score, personal-best and first-play events). Dark scheme only by repo rule: with the system light theme the app stays dark. `pm clear` before each run makes every row unread.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait, font 1.0 and 2.0; system light and dark | OK: `NEW` rows with gold dots, chevrons only on navigable rows, flag pills. At 2.0 titles wrap (the marquee title wraps at large text), the message and pills grow and nothing clips; the list scrolls. Closing marks every row seen; reopening shows `OLDER` only. |
+| FST_Phone landscape, font 1.0 and 2.0 | OK; the sheet opens partially expanded and the drag handle expands it. |
+| FST_Phone navigation | Personal-best row → Song Detail (Night Terror, Drums); back; Karaoke weighted-rank row → **Karaoke full rankings** with SFentonX pinned (was the Leaderboards hub, fixed below). |
+| FST_Phone no profile (`FST_DEBUG_ANONYMOUS`) | OK: "Select a player profile…" with Select Player Profile; no feed request. |
+| FST_Phone reduced motion (animator scales 0) | The sheet opens and closes without animation; long titles end in an ellipsis instead of scrolling (`FestivalMarqueeText`). |
+| FST_Tablet landscape ⇄ portrait, font 1.0 and 2.0 | OK; centred sheet (640 dp max) opens partially expanded; rank row opens full rankings. |
+| FST_Resizable phone / foldable / tablet / desktop, desktop font 2.0 | OK; bottom bar at compact, rail at medium and expanded, centred sheet. |
+| FST_Book_Fold folded / unfolded / half-open, half at font 2.0 | OK. Half-open: the sheet sits in the start pane beside the vertical hinge (`festivalSheetHingeSide`). Long titles stay on one line at 1.0 (marquee, or an ellipsis with animations off; TalkBack reads the full title) and wrap at 2.0. |
+| FST_Passport_Fold folded / unfolded / half-open, half at font 2.0 | OK; same hinge behaviour. |
+| FST_TriFold folded / partial / unfolded | OK with `am start --display 0` (this AVD otherwise launches on display 2); flat hinges, so the sheet stays centred. |
+
+- **Fixed:**
+  - Live coalesced rank events carry no `instrument`, so rank rows opened the Leaderboards hub. Routing now falls back to the row's instrument (`NotificationsTest.liveCoalescedRankEventsOpenTheRowsChartRankings`). The web always opens the hub with `?rankBy=`; Android follows this spec's "with an instrument, full-rankings destination".
+  - TalkBack row labels now include the flag in words (spec: "native screen-reader labels append flag names") and read the time in full ("5 minutes ago" rather than "5m").
+- Accessibility:
+  - `NotificationsDeviceTest` (ATF on every step, reading order, 48 dp targets, hinge) passes on FST_Phone and FST_Book_Fold half-open. Asserted order: sheet title → `NEW` → unread rows (song row before rank row) → after closing and reopening, `OLDER` → seen rows with no "Unread"; the empty title reads before its body and the no-profile message before Select Player Profile (which sends no feed request). Every request is keyless with no selected-profile header.
+  - Touch targets: Close and every row are asserted at least 48 dp; the bell and Select Player Profile are M3 icon/filled buttons with 48 dp touch bounds.
+  - Colour is never the only signal: unread is spoken ("Unread.") and flags are named.
+- Material 3 deviations, deliberate:
+  - The bell badge is brand gold rather than the error colour.
+  - A bottom sheet rather than a side sheet on expanded widths (web/Apple parity, centred 640 dp max).
+  - Dark scheme only.
+  - Web `FLAG_COLORS` pills with white text.
+  - 74%-white upper-case section headings.
+  - The sheet is kept beside a separating hinge ("Never place interactive content or critical information across the hinge area").
+- States → tests (Robolectric `ui/notifications/NotificationsStatesUiTest.kt`):
+
+| State | Test |
+|---|---|
+| empty-generated | `emptyGeneratedFeedSaysNotificationsWillAppear` |
+| empty-not-generated | `emptyNotGeneratedFeedSaysAfterTheNextUpdate` |
+| loaded | `loadedFeedListsEveryRowNewestFirstWithDestinationsSpoken` |
+| unread-section | `unreadRowsSitUnderNewAndTheBellCountsThem` |
+| older-section | `seenRowsSitUnderOlderAfterTheUnreadOnes` |
+| tap-navigate-song | `songRowMarksSeenClosesAndOpensSongDetail` |
+| tap-navigate-rankings | `rankRowsOpenFullRankingsOrTheLeaderboardsHub` (+ `NotificationsTest.liveCoalescedRankEventsOpenTheRowsChartRankings`) |
+| no-profile | `noProfileAsksForAPlayerWithoutReading` |
+| (extras) | `rowWithoutADestinationOnlyMarksItSeen`, `failedReadOffersRetry`; connected `NotificationsDeviceTest` |
 
 ## Open
 
 - Band feeds, multi-event coalescing copy and flag groups (Windows lacks them too; Apple ports them, issue #76); scroll-visibility seen marking.
-- `service-safety.md`'s endpoint table has no notifications row yet (TODO(orchestrator)).
+- A rank row without an instrument opens the Leaderboards hub without its Rank By (`LeaderboardsRoute` takes none; the web passes `?rankBy=`). Live player rank rows always name an instrument.

@@ -336,7 +336,14 @@ public sealed partial class AllRivalsViewModel : RivalPageViewModel
 
     /// <summary>Secondary line: leaderboard metric and rank, or the Common Rivals charts.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSubtitle))]
     private string subtitle = "";
+
+    /// <summary>
+    /// Whether the secondary line shows: single-chart song lists have none, and an empty line would push the icon off
+    /// the title's centre and leave an empty text element in the UI Automation tree.
+    /// </summary>
+    public bool HasSubtitle => Subtitle.Length > 0;
 
     /// <inheritdoc />
     public override string EmptyTitle => State == RivalPageState.Unknown
@@ -593,7 +600,7 @@ public sealed partial class RivalryViewModel : RivalPageViewModel
     /// <summary>Applies <see cref="Sort"/> to the loaded category.</summary>
     private void ApplySort()
     {
-        Rows = RivalHeadToHead.Sort(categorySongs, s => s.Comparison, Sort);
+        Rows = RivalHeadToHead.Sort(categorySongs, s => s.Comparison, Sort, s => s.Title);
     }
 }
 #endregion

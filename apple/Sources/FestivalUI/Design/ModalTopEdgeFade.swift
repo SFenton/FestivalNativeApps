@@ -2,17 +2,18 @@ import SwiftUI
 
 // MARK: - Modal top-edge fade
 
-/// Geometry of the fade that hides modal content as it scrolls up under the header
-/// (issue #94).
+/// Geometry of the fade that hides modal content before it reaches the header (issue #94).
 ///
-/// A modal's header (inline title, Close and any toolbar items) is its navigation bar.
-/// Content is fully transparent behind the upper part of the header and fades back in over
-/// ``rampHeight(headerHeight:)`` points ending at the header's bottom edge, so content at
-/// rest below the header is never dimmed.
+/// A modal's header (inline title, Close and any toolbar items) is its navigation bar. Like
+/// the web modal's scroll mask (`FortniteFestivalWeb/src/hooks/ui/useScrollMask.ts` with
+/// `selfScroll`, from `components/modals/Modal.tsx`), content is never drawn under the
+/// header: it is fully transparent up to the header's bottom edge and, once scrolled, fades
+/// back in over ``rampHeight`` points below it. At rest (scrolled to the top) nothing below
+/// the header is dimmed; the fade grows with the first ``rampHeight`` points of scrolling
+/// instead of the web's on/off switch.
 enum ModalTopEdgeFade {
-    /// Longest fade ramp, matching the web modal list's 18 px edge fade plus a little
-    /// room for the taller native bar.
-    static let maxRampHeight: CGFloat = 24
+    /// Height of the fade below the header: the web mask's `DEFAULT_SIZE` (40 px).
+    static let rampHeight: CGFloat = 40
 
     /// Header height from the content's two readings.
     ///
@@ -31,37 +32,43 @@ enum ModalTopEdgeFade {
         return max(0, readings.max() ?? 0)
     }
 
-    /// Length of the fade ramp for a header.
+    /// How far the fade below the header has grown.
     ///
-    /// - Parameter headerHeight: The modal's header height.
-    /// - Returns: At most half the header (so the title and Close always sit over a fully
-    ///   faded region) and at most ``maxRampHeight``; 0 when there is no header.
-    static func rampHeight(headerHeight: CGFloat) -> CGFloat {
-        guard headerHeight.isFinite, headerHeight > 0 else { return 0 }
-        return min(maxRampHeight, headerHeight / 2)
+    /// - Parameter scrollOffset: Distance scrolled from the content's resting top (content
+    ///   offset plus top inset); negative while pulled down past the top.
+    /// - Returns: 0 at rest or when pulled down (no fade), rising linearly to 1 (full fade)
+    ///   after ``rampHeight`` points; 0 for a non-finite reading.
+    static func progress(scrollOffset: CGFloat) -> CGFloat {
+        guard scrollOffset.isFinite else { return 0 }
+        return min(max(scrollOffset / rampHeight, 0), 1)
     }
 
-    /// Where, as a fraction of the header height, content starts fading back in.
+    /// Mask opacity at the header's bottom edge, where the fade below the header starts.
     ///
-    /// - Parameter headerHeight: The modal's header height.
-    /// - Returns: A location in `0...1` for the gradient's last transparent stop; 1 when
-    ///   there is no header.
-    static func fadeStart(headerHeight: CGFloat) -> CGFloat {
-        let ramp = rampHeight(headerHeight: headerHeight)
-        guard ramp > 0 else { return 1 }
-        return (headerHeight - ramp) / headerHeight
+    /// The mask is always clear above this edge, so content never shows under the header;
+    /// below it the mask ramps to opaque over ``rampHeight``.
+    ///
+    /// - Parameter progress: The fade's growth from ``progress(scrollOffset:)``.
+    /// - Returns: 1 at rest (content right below the header fully drawn), 0 once scrolled
+    ///   (content fully transparent at the header edge).
+    static func edgeOpacity(progress: CGFloat) -> CGFloat {
+        guard progress.isFinite else { return 1 }
+        return 1 - min(max(progress, 0), 1)
     }
 }
 
-/// Fades a modal's content out under its header instead of drawing it hard behind the
-/// title and Close, like pages (`TopEdgeScrim`) and the web modals' scroll mask.
+/// Keeps a modal's content out from under its header, like the web modals: the header has
+/// no glass band of its own and sits directly on the sheet background, and scrolled content
+/// fades to fully transparent before it reaches the header (issue #94).
 ///
-/// HIG Color: "content may scroll under controls, but make sure the resting state, like the
-/// top of scrollable content, stays clearly legible." The mask covers only the header's
-/// region, so resting content, hit testing, VoiceOver and detents are unchanged, and the
-/// sheet's own background (glass, frosted, or opaque under Reduce Transparency and Increase
-/// Contrast) shows through behind the header. The system scroll-edge effect stays on its
-/// automatic style (HIG Scroll views: "Prefer the automatic style").
+/// The platform default lets content scroll under the sheet's navigation bar behind a
+/// scroll-edge effect (HIG Materials: "Let content scroll and peek through while preserving
+/// control and navigation legibility"). The owner chose web parity instead; with nothing
+/// scrolling behind the header the effect is hidden, per HIG Scroll views: "Only use an edge
+/// effect when a scroll view is behind floating interface elements. It isn't decorative."
+/// The system navigation bar, title, Close, swipe-to-dismiss, hit testing, VoiceOver and
+/// detents are unchanged, and the sheet's own background (glass, frosted, or opaque under
+/// Reduce Transparency and Increase Contrast) shows behind the header.
 struct ModalTopEdgeFadeModifier: ViewModifier {
     /// The content's own coordinate space. Global coordinates would include the sheet's
     /// presentation transform, which SwiftUI doesn't report as a geometry change.
@@ -73,6 +80,8 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
     /// Distance from the modal container's top (reached by a reader that ignores the safe
     /// area) down to the content's top.
     @State private var containerOffset: CGFloat = 0
+    /// Distance the content's scroll view has scrolled from its resting top.
+    @State private var scrollOffset: CGFloat = 0
 
     private var headerHeight: CGFloat {
         ModalTopEdgeFade.headerHeight(safeAreaInset: safeAreaInset, containerOffset: containerOffset)
@@ -80,6 +89,8 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .modifier(ModalScrollOffsetReader(offset: $scrollOffset))
+            .modifier(ModalHeaderBackgroundHidden())
             .background {
                 Color.clear
                     .onGeometryChange(for: CGFloat.self) { proxy in
@@ -97,20 +108,64 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
             }
             .mask {
                 VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: headerHeight)
                     LinearGradient(
-                        stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .clear, location: ModalTopEdgeFade.fadeStart(headerHeight: headerHeight)),
-                            .init(color: .black, location: 1),
+                        colors: [
+                            .black.opacity(
+                                ModalTopEdgeFade.edgeOpacity(
+                                    progress: ModalTopEdgeFade.progress(scrollOffset: scrollOffset)
+                                )
+                            ),
+                            .black,
                         ],
                         startPoint: .top, endPoint: .bottom
                     )
-                    .frame(height: headerHeight)
+                    .frame(height: ModalTopEdgeFade.rampHeight)
                     Color.black
                 }
-                // Reach under the header so the mask covers (and fades) it.
+                // Reach under the header so the mask covers (and hides) it.
                 .ignoresSafeArea()
             }
             .coordinateSpace(.named(Self.space))
+    }
+}
+
+/// Reads how far the content's scroll view has scrolled (iOS 18 / macOS 15 and later).
+///
+/// Earlier systems keep the fade at 0, so content is cut off cleanly at the header's
+/// bottom edge rather than dimmed at rest.
+private struct ModalScrollOffsetReader: ViewModifier {
+    @Binding var offset: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, newValue in
+                offset = newValue
+            }
+        } else {
+            content
+        }
+    }
+}
+
+/// Hides the header's own background: the top scroll-edge effect (iOS and macOS 26) and the
+/// navigation bar's material (earlier iOS), so the header sits on the sheet background.
+private struct ModalHeaderBackgroundHidden: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            content
+                .scrollEdgeEffectHidden(true, for: .top)
+                #if os(iOS)
+                .toolbarBackground(.hidden, for: .navigationBar)
+                #endif
+        } else {
+            content
+                #if os(iOS)
+                .toolbarBackground(.hidden, for: .navigationBar)
+                #endif
+        }
     }
 }

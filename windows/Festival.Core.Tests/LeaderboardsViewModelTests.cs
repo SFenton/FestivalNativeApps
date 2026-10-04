@@ -670,6 +670,39 @@ public sealed class BandRankingsViewModelTests
     }
 
     [Fact]
+    public async Task PagingKeepsThePagerWhileOnlyTheRowsReload()
+    {
+        var fake = new RankingsFake { TotalTeams = 60 };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.Query.Contains("page=2", StringComparison.Ordinal)) await gate.Task;
+            return await respond(request, token);
+        };
+        var vm = new BandRankingsViewModel(fake.Session(), new AppRoute.BandRankings("Band_Duets"));
+        await vm.LoadAsync();
+        Assert.True(vm.ShowContent);
+
+        var changes = new List<string?>();
+        vm.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        var paging = vm.Pager.NextCommand.ExecuteAsync(null);
+        await Async.Until(() => vm.IsLoading);
+
+        // Issue #209: the pager stays mounted (keyboard focus stays on it); only the rows swap for the spinner.
+        Assert.False(vm.ShowRows);
+        Assert.True(vm.ShowContent);
+        Assert.Equal(1, vm.Pager.Page);
+        Assert.DoesNotContain(nameof(BandRankingsViewModel.ShowContent), changes);
+
+        gate.SetResult();
+        await paging;
+        Assert.True(vm.ShowRows);
+        Assert.True(vm.ShowContent);
+        Assert.Equal(2, vm.Pager.Page);
+    }
+
+    [Fact]
     public async Task UnknownTypeFallsBackAndEmptyAndFailureStates()
     {
         var fake = new RankingsFake { TotalTeams = 0 };

@@ -149,7 +149,7 @@ struct FestivalFadeInModifier: ViewModifier {
             .opacity(visible ? 1 : 0)
             .offset(y: visible ? 0 : FestivalFadeIn.riseDistance)
             .allowsHitTesting(visible)
-            .accessibilityHidden(!visible)
+            .accessibilityHidden(while: !visible)
             .onAppear(perform: reveal)
             .onChange(of: isLoaded) { _, _ in reveal() }
     }
@@ -169,6 +169,39 @@ struct FestivalFadeInModifier: ViewModifier {
         } else {
             revealed = true
         }
+    }
+}
+
+/// Hides content from assistive technologies while `hidden`, and otherwise leaves its
+/// accessibility untouched.
+///
+/// `.accessibilityHidden(false)` is not neutral: on an ancestor it **un-hides** every
+/// descendant marked `.accessibilityHidden(true)` (measured on macOS 26 hosting: a
+/// Leaderboards card's decorative instrument icon read "Lead, image" before its
+/// "Lead" heading). `accessibilityHidden(_:isEnabled:)` applies nothing when disabled.
+/// Before iOS 18 / macOS 15 nothing is hidden: briefly exposing content that is still
+/// fading in is milder than exposing every decorative image for good.
+struct AccessibilityHiddenWhile: ViewModifier {
+    let hidden: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.accessibilityHidden(true, isEnabled: hidden)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// Hide from assistive technologies only while `hidden` is true; never un-hides
+    /// descendants (``AccessibilityHiddenWhile``). Use instead of
+    /// `.accessibilityHidden(someBool)`.
+    ///
+    /// - Parameter hidden: Whether to hide the content now.
+    /// - Returns: The content, hidden while `hidden`.
+    func accessibilityHidden(while hidden: Bool) -> some View {
+        modifier(AccessibilityHiddenWhile(hidden: hidden))
     }
 }
 

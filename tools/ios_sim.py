@@ -528,10 +528,11 @@ def screenshot_display(args: argparse.Namespace, udid: str) -> str | None:
     return None
 
 
-#: Simulator accessibility settings ``shot --a11y`` can switch on for one capture.
-#: Each maps to (enable argv tail, restore argv tail) after ``xcrun simctl``.
-#: ``increase-contrast`` uses ``simctl ui``; ``reduce-transparency`` writes the
-#: Accessibility preference the system reads at app launch (no ``simctl ui`` option).
+#: Simulator accessibility settings ``shot --a11y`` / ``uitest --a11y`` can switch on for
+#: one capture or test batch. Each maps to (enable argv tail, restore argv tail) after
+#: ``xcrun simctl``. ``increase-contrast`` uses ``simctl ui``; ``reduce-transparency`` and
+#: ``bold-text`` write the Accessibility preferences the system reads at app launch (no
+#: ``simctl ui`` option; keys from the runtime's ``libAccessibility``).
 A11Y_SETTINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "increase-contrast": (("ui", "{udid}", "increase_contrast", "enabled"),
                           ("ui", "{udid}", "increase_contrast", "disabled")),
@@ -540,6 +541,12 @@ A11Y_SETTINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
          "EnhancedBackgroundContrastEnabled", "-bool", "true"),
         ("spawn", "{udid}", "defaults", "delete", "com.apple.Accessibility",
          "EnhancedBackgroundContrastEnabled"),
+    ),
+    "bold-text": (
+        ("spawn", "{udid}", "defaults", "write", "com.apple.Accessibility",
+         "EnhancedTextLegibilityEnabled", "-bool", "true"),
+        ("spawn", "{udid}", "defaults", "delete", "com.apple.Accessibility",
+         "EnhancedTextLegibilityEnabled"),
     ),
 }
 
@@ -1322,7 +1329,8 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     for batch_index, batch in enumerate(batches, start=1):
         label = f"batch {batch_index}/{len(batches)}"
         returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
-            udid=udid, derived=derived, selectors=batch, timeout=args.timeout
+            udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
+            a11y=getattr(args, "a11y", None),
         )
         if returncode:
             failed_batches.append((batch, returncode))
@@ -1376,7 +1384,8 @@ def _result_counts(result_bundle: Path) -> str:
 
 
 def _run_uitest_batch(
-    *, udid: str, derived: Path, selectors: list[str], timeout: float
+    *, udid: str, derived: Path, selectors: list[str], timeout: float,
+    a11y: list[str] | None = None,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -1393,6 +1402,7 @@ def _run_uitest_batch(
         derived: The driver's DerivedData directory (already built-for-testing).
         selectors: One batch's ``Class``/``Class/testMethod`` selectors.
         timeout: Seconds before killing this batch's run.
+        a11y: ``A11Y_SETTINGS`` keys switched on for this batch and restored after it.
 
     Returns:
         ``(returncode, elapsed_seconds, log_path, result_bundle_path)``.
@@ -1419,7 +1429,7 @@ def _run_uitest_batch(
             cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
         cmd += ["test-without-building", "-quiet"]
         print("+", " ".join(cmd), file=sys.stderr)
-        with open(log_path, "w") as log:
+        with open(log_path, "w") as log, simulator_accessibility(udid, a11y):
             try:
                 process = subprocess.run(
                     cmd, cwd=APPLE_DIR, env=_env(),
@@ -1617,6 +1627,9 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
+    uitest.add_argument("--a11y", action="append", choices=sorted(A11Y_SETTINGS),
+                        help="switch a simulator accessibility setting on for each batch, "
+                             "restored afterwards (repeatable)")
     uitest.add_argument("--app", choices=sorted(PRODUCTS), default=None,
                        help="UI-test product (default: ipad for the ipad alias, else phone)")
     uitest.set_defaults(func=cmd_uitest)

@@ -33,7 +33,7 @@ Methodology, rules and the last measured numbers (Debug, Release probe, Release;
 
 - On macOS `scenePhase` stays `.active` for a visible-or-hidden window of a background app, so every continuous decoration also checks `AnimationActivity.sceneActive` (scene active and `\.festivalWindowVisible`, set from `NSWindow.occlusionState` by `MacWindowConfigurator`). A covered window reads 0% CPU; measure with the window uncovered.
 - `FST_DEBUG_STILL_BACKGROUND=1` stills carousel, pulses and marquees; `FST_DEBUG_NO_BACKDROP=1` drops the backdrop, for bisecting.
-- **Songs scroll stress** (`apple_perf.py mac --stress`): far animated jumps place unbuilt `List` rows from estimates, so the pass still logs units ≥ 100 ms (row creation inside `NSTableView`'s animated scroll). Manual trackpad scrolling cannot be driven without Automation Mode.
+- **Songs scroll stress** (`apple_perf.py mac --stress`): far jumps teleport ([architecture.md § Performance](architecture.md#performance)); near jumps still animate and build rows inside `NSTableView`'s scroll, so the pass logs ~21 units ≥ 100 ms. Manual trackpad scrolling cannot be driven without Automation Mode.
 
 ## Release build (2026-10-02)
 

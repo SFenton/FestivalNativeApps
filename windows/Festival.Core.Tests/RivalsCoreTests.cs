@@ -442,6 +442,9 @@ public class RivalsCoreTests
         Assert.Equal(["a", "c", "b"], RivalHeadToHead.Sort(songs, RivalrySort.YouLead).Select(s => s.SongId));
         Assert.Equal(["b", "c", "a"], RivalHeadToHead.Sort(songs, RivalrySort.TheyLead).Select(s => s.SongId));
         Assert.Equal(["a", "b", "c"], RivalHeadToHead.Sort(songs, RivalrySort.Title).Select(s => s.SongId));
+        // A displayed-title selector (catalogue fallback) wins over the comparison's missing title.
+        Assert.Equal(["c", "a", "b"], RivalHeadToHead.Sort(songs, s => s, RivalrySort.Title, s => s.SongId == "c" ? "Able" : s.Title!).Select(s => s.SongId));
+        Assert.Equal(["b", "a", "c"], RivalHeadToHead.Sort(songs, s => s, RivalrySort.Category, _ => "ignored").Select(s => s.SongId));
         Assert.All(Enum.GetValues<RivalrySort>(), s => Assert.NotEmpty(s.Label()));
         Assert.Equal("3 shared songs · 2 ahead / 1 behind", RivalHeadToHead.Summary(songs));
     }

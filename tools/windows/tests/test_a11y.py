@@ -131,6 +131,16 @@ class MatrixTests(unittest.TestCase):
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
 
+    def test_mode_spec_combines(self):
+        self.assertEqual(m.mode_spec("normal"), {})
+        self.assertEqual(m.mode_spec("hc-desert"), {"system": {"high_contrast": "desert"}})
+        self.assertEqual(m.mode_spec("hc-desert+scale-150"),
+                         {"system": {"high_contrast": "desert", "display_scale": 150}})
+        self.assertEqual(m.mode_spec("text-200+app-contrast")["app"], {"moreContrast": True, "lessTransparency": True})
+        self.assertEqual(m.mode_spec("scale-100+scale-150"), {"system": {"display_scale": 150}})
+        with self.assertRaises(ValueError):
+            m.mode_spec("hc-desert+bogus")
+
     def test_pending_restore(self):
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:

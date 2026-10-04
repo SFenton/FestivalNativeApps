@@ -76,6 +76,10 @@ public struct MacRootView: View {
         .environment(\.songRowsAllowSingleLine, true)
         .environment(\.refreshCommandRegistry, model.refreshRegistry)
         .environment(\.openProfile, OpenProfileAction { navigation.profilePresented = true })
+        // The model reads its visible rows live, so the captured flag never goes stale.
+        .environment(\.profileButtonAction, ProfileButtonHandler(statisticsVisible: true) {
+            navigation.pressProfileButton(hasPlayer: session.selectedPlayer != nil)
+        })
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { navigation.searchPresented = true })
         .environment(\.pushRoute, PushRouteAction { navigation.push($0) })
         .environment(\.playerStatNavigator, PlayerStatNavigator(
@@ -358,16 +362,21 @@ struct MacGlobalToolbarItems: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            GlobalSearchButton { model.navigation.searchPresented = true }
-                .help("Search (⌘K)")
+            // "Search Festival", like Edit › Search Festival…: Songs' inline filter field
+            // is the toolbar's system "Search" item, so two items named "Search" were
+            // ambiguous for VoiceOver and Voice Control.
+            GlobalSearchButton(title: "Search Festival") { model.navigation.searchPresented = true }
+                .help("Search Festival (⌘K)")
             if model.session.selectedPlayer != nil {
                 NotificationsButton(session: model.session) {
                     model.navigation.notificationsPresented = true
                 }
                 .help("Notifications")
             }
-            RootProfileButton(session: model.session) { model.navigation.profilePresented = true }
-                .help(model.session.selectedPlayer.map { "Profile: \($0.displayName)" } ?? "Select Profile")
+            RootProfileButton(session: model.session) {
+                model.navigation.pressProfileButton(hasPlayer: model.session.selectedPlayer != nil)
+            }
+                .help(model.session.selectedPlayer.map { "Show Statistics for \($0.displayName)" } ?? "Select Profile")
         }
     }
 }
@@ -422,6 +431,9 @@ struct MacSidebarProfileFooter: View {
                     Button("Deselect") { model.session.deselectPlayer() }
                         .controlSize(.small)
                         .help("Deselect \(player.displayName)")
+                        // Name what it acts on (HIG VoiceOver: labels convey the app's
+                        // functionality), as the iPad sidebar does.
+                        .accessibilityLabel("Deselect Profile")
                         .accessibilityIdentifier("fst.profile.sidebar.deselect")
                 }
             } else {

@@ -201,7 +201,9 @@ object NotificationRouting {
         }
         events.forEach { event ->
             rankingMetric(event.eventKind, event.metric)?.let { rankBy ->
-                return NotificationDestination.Rankings(rankBy, Instrument.fromWireId(event.instrument))
+                // Live coalesced events carry no instrument of their own; they belong to the row's chart.
+                val instrument = event.instrument?.takeIf(String::isNotEmpty) ?: item.instrument
+                return NotificationDestination.Rankings(rankBy, Instrument.fromWireId(instrument))
             }
         }
         return null
@@ -538,7 +540,9 @@ object NotificationText {
     fun rank(rank: Int?): String = rank?.let { "#" + NumberFormat.getIntegerInstance(Locale.US).format(it) } ?: "your new rank"
 
     /**
-     * Short relative time: "Just now", "5m ago", "3h ago", "2d ago", else "Sep 28".
+     * Spoken relative time: "Just now", "5 minutes ago", "1 hour ago", "2 days ago", else
+     * "September 28". Rows only speak it (TalkBack), so units are words: speech engines read
+     * "5m" as "5 meters" (issue #136).
      *
      * @param then Detection time.
      * @param now Current time.
@@ -546,12 +550,13 @@ object NotificationText {
      */
     fun relativeTime(then: Instant, now: Instant): String {
         val seconds = java.time.Duration.between(then, now).seconds
+        fun ago(count: Long, unit: String) = "$count $unit${if (count == 1L) "" else "s"} ago"
         return when {
             seconds < 60 -> "Just now"
-            seconds < 3_600 -> "${seconds / 60}m ago"
-            seconds < 86_400 -> "${seconds / 3_600}h ago"
-            seconds < 7 * 86_400 -> "${seconds / 86_400}d ago"
-            else -> java.time.format.DateTimeFormatter.ofPattern("MMM d", Locale.US).withZone(java.time.ZoneId.systemDefault()).format(then)
+            seconds < 3_600 -> ago(seconds / 60, "minute")
+            seconds < 86_400 -> ago(seconds / 3_600, "hour")
+            seconds < 7 * 86_400 -> ago(seconds / 86_400, "day")
+            else -> java.time.format.DateTimeFormatter.ofPattern("MMMM d", Locale.US).withZone(java.time.ZoneId.systemDefault()).format(then)
         }
     }
 
