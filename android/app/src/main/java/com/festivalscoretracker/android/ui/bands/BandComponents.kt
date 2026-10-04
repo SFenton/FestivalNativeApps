@@ -81,6 +81,31 @@ internal fun rememberBandHinge(contentLeftPx: Float, contentWidth: Dp): BandLayo
 }
 
 /**
+ * A separating horizontal fold (tabletop posture) in content coordinates. [BandLayout.Hinge]'s
+ * `left`/`right` hold the fold's top and bottom here.
+ *
+ * @param contentTopPx Content box's top edge in the window (px).
+ * @param contentHeight Content height.
+ * @return Hinge, or null when there is none or it leaves less than 200 dp above or below.
+ */
+@Composable
+internal fun rememberBandTabletopHinge(contentTopPx: Float, contentHeight: Dp): BandLayout.Hinge? {
+    val density = LocalDensity.current
+    val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList.filter { !it.isVertical && it.isSeparating }.mapNotNull { hinge ->
+        with(density) {
+            BandLayout.hingeInContent(
+                hinge.bounds.top.toDp().value,
+                hinge.bounds.bottom.toDp().value,
+                contentTopPx.toDp().value,
+                contentHeight.value,
+                separating = true,
+            )
+        }
+    }
+    return BandLayout.central(hinges, contentHeight.value)
+}
+
+/**
  * Current window width (window size class input, not the content width).
  *
  * @return Width in dp.

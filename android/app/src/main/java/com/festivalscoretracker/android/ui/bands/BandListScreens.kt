@@ -8,7 +8,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,10 +29,12 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
@@ -42,6 +49,7 @@ import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.PlayerBandsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
@@ -154,17 +162,41 @@ private fun LazyGridScope.fullRow(key: String, content: @Composable () -> Unit) 
 
 // region Band not found
 
+/** Web `band.notFound`. */
+internal const val BAND_NOT_FOUND_TITLE = "Band not found"
+
+/** Web `band.missingId`. */
+internal const val BAND_MISSING_ID_MESSAGE = "This band link is missing an ID and cannot be resolved."
+
 /**
  * `/bands` with no band id (web `BandPage` without an id or lookup context): the web's
- * "Band not found" empty state. There is no band search (the service's band search can write on
- * a GET, service-safety.md); bands open from a player's band list, Band Rankings, a song's band
- * leaderboard or global search.
+ * "Band not found" empty state, built with the shared [FestivalEmptyState]. There is no band
+ * search (the service's band search can write on a GET, service-safety.md); bands open from a
+ * player's band list, Band Rankings, a song's band leaderboard or global search.
+ *
+ * The state centres in the viewport and scrolls when large text outgrows it (landscape at
+ * font scale 2). Across a separating vertical hinge (half-open book posture) it sits in the
+ * leading pane ([BandLayout.listSplit]); above a separating horizontal hinge (tabletop) it
+ * centres in the top half, so no text lies on the crease.
  */
 @Composable
 fun BandNotFoundScreen() {
     FestivalScreen(title = "Band", isRoot = false, modifier = Modifier.testTag("fst.bands.screen")) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-            BandEmptyState("Band Not Found", "This band link is missing an ID and cannot be resolved.", "fst.bands.not-found")
+        var contentOrigin by remember { mutableStateOf(Offset.Zero) }
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding).onGloballyPositioned { contentOrigin = it.positionInWindow() }) {
+            val split = BandLayout.listSplit(rememberBandHinge(contentOrigin.x, maxWidth))
+            val viewport = rememberBandTabletopHinge(contentOrigin.y, maxHeight)?.left?.dp ?: maxHeight
+            Column(
+                Modifier
+                    .width(split.leadingWidth?.dp ?: maxWidth)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .testTag("fst.bands.not-found.pane"),
+            ) {
+                Box(Modifier.fillMaxWidth().heightIn(min = viewport).testTag("fst.bands.not-found"), contentAlignment = Alignment.Center) {
+                    FestivalEmptyState(BAND_NOT_FOUND_TITLE, Modifier.fillMaxWidth(), subtitle = BAND_MISSING_ID_MESSAGE)
+                }
+            }
         }
     }
 }

@@ -50,6 +50,8 @@
 - DataStore replaces its file by rename, which the **Windows JVM** refuses when the target exists: on-disk tests do one write then a cold-start reload; multi-write setters use the in-memory store. Android devices are unaffected.
 - Robolectric runs coroutines on a paused main looper: advance with `shadowOf(Looper.getMainLooper()).idleFor(...)`, and `waitUntil` for `flowOn(Dispatchers.Default)` work (search debounce runs on real time).
 - The phone bottom bar overlays scrolled content; after `performScrollToNode`, invoke `performSemanticsAction(SemanticsActions.OnClick)` instead of a touch click, or the touch lands on the tab (re-tap pops to root).
+- Simulated hinges (`androidx.window:window-testing`, `WindowLayoutInfoPublisherRule`): call `overrideWindowLayoutInfo` **after** the app is composed (the composition must already be collecting), then idle the main looper; `currentWindowAdaptiveInfo()` then reports a separating `HingeInfo` for a `HALF_OPENED` fold (`BandNotFoundUiTest`).
+- Robolectric does not wrap text at real glyph widths on this Windows host even with `@GraphicsMode(NATIVE)` and `fontScale = 2f` (a 55-character, 16 sp line measured one line in 1089 px). Assert centring/no overflow in Robolectric and prove 200% wrapping with emulator captures.
 
 ## Coverage
 
