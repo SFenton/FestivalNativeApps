@@ -37,7 +37,11 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -380,6 +384,98 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         assertTrue(exists("fst.song-leaderboard.pager"))
     }
 
+    // region Pinned score reveal (issue #295)
+
+    private val footerTag = "fst.song-leaderboard.spotlight-footer"
+
+    private fun top(tag: String) = node(tag).fetchSemanticsNode().boundsInRoot.top
+
+    private fun scoreRows() = rule.onAllNodes(
+        SemanticsMatcher("score row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.song-leaderboard.row.") == true },
+        useUnmergedTree = true,
+    ).fetchSemanticsNodes()
+
+    /** Topmost score row of the shown page. */
+    private fun firstRowTag(): String = scoreRows().filter { it.boundsInRoot.width > 0f }.minBy { it.boundsInRoot.top }.config[SemanticsProperties.TestTag]
+
+    /**
+     * Releases [gate] with the frame clock paused, steps frames until the page's rows are
+     * composed, then returns how far (px) the first row and the pinned footer still sit below
+     * their settled places [FADE_PROBE_MS] into the `fadeInUp` entrance.
+     */
+    private fun revealDrift(gate: CompletableDeferred<Unit>): Pair<Float, Float> {
+        rule.mainClock.autoAdvance = false
+        gate.complete(Unit)
+        var frames = 0
+        while (exists("fst.song-leaderboard.loading") || !exists(footerTag) || scoreRows().isEmpty()) {
+            check(frames++ < 2_000) { "rows never revealed" }
+            shadowOf(Looper.getMainLooper()).idle()
+            rule.mainClock.advanceTimeByFrame()
+        }
+        val row = firstRowTag()
+        rule.mainClock.advanceTimeBy(FADE_PROBE_MS)
+        val rowMid = top(row)
+        val footerMid = top(footerTag)
+        rule.mainClock.advanceTimeBy(2_000)
+        return (rowMid - top(row)) to (footerMid - top(footerTag))
+    }
+
+    /**
+     * Up to one frame of the entrance (16 ms of 400 ms ≈ 10% of the 12 dp drift): the footer slot
+     * may start its fade a frame after the list's rows.
+     */
+    private fun frameTolerance() = with(rule.density) { 1.2.dp.toPx() }
+
+    @Test
+    fun songLeaderboardPinnedScoreFadesInWithTheFirstRows() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        val firstPage = CompletableDeferred<Unit>()
+        hold = { request -> firstPage.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") && !request.url.contains("offset=25") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        rule.waitUntil(10_000) { settle(100); transport.requests.any { it.url.contains("/api/player/${RankingsFixtures.SELECTED}") } }
+        settle()
+        val (row, footer) = revealDrift(firstPage)
+        assertTrue("the first row is still drifting up", row > 0.5f)
+        assertEquals("the pinned score drifts and fades with it", row, footer, frameTolerance())
+    }
+
+    @Test
+    fun songLeaderboardPagingReRevealsThePinnedScoreWithTheNewRows() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 60, total = 60)))
+        }
+        val nextPage = CompletableDeferred<Unit>()
+        hold = { request -> nextPage.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") && request.url.contains("offset=25") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForDescription("Page 1 of 3")
+        waitForTag(footerTag)
+        click("fst.song-leaderboard.page-next")
+        waitForTag("fst.song-leaderboard.loading")
+        val (row, footer) = revealDrift(nextPage)
+        assertTrue("the new page's first row is still drifting up", row > 0.5f)
+        assertEquals("the pinned score re-reveals with it", row, footer, frameTolerance())
+    }
+
+    @Test
+    fun songLeaderboardPinnedScoreAppearsWithTheRowsUnderReduceMotion() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true } } }
+        val firstPage = CompletableDeferred<Unit>()
+        hold = { request -> firstPage.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") && !request.url.contains("offset=25") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        rule.waitUntil(10_000) { settle(100); transport.requests.any { it.url.contains("/api/player/${RankingsFixtures.SELECTED}") } }
+        settle()
+        val (row, footer) = revealDrift(firstPage)
+        assertEquals(0f, row, 0.5f)
+        assertEquals(0f, footer, 0.5f)
+    }
+
+    // endregion
+
     private fun scoreBounds(ancestor: String) = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag(ancestor)), useUnmergedTree = true)
         .fetchSemanticsNodes().single().boundsInRoot
 
@@ -568,3 +664,6 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
         rule.waitUntil(10_000) { settle(100); exists("fst.stars") }
     }
 }
+
+/** How far into a row's `fadeInUp` entrance (400 ms) the reveal tests probe the drift. */
+private const val FADE_PROBE_MS = 120L
