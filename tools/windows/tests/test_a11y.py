@@ -122,6 +122,7 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.MODES["hc-desert"]["system"], {"high_contrast": "desert"})
         self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         self.assertTrue(m.MODES["app-reduced"]["app"]["reduceMotion"])
+        self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         previous = {"high_contrast": "off", "animations": True, "transparency": True, "text_scale": 100}
         self.assertEqual(m.restore_values(previous, {"text_scale": 225}), {"text_scale": 100})
         self.assertEqual(m.restore_values(previous, {}), {})

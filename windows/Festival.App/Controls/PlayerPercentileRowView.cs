@@ -43,6 +43,9 @@ public sealed partial class PlayerPercentileRowView : ContentControl
         Grid.SetColumn(count, 1);
         Grid.SetColumn(chevron, 2);
         AutomationProperties.SetAccessibilityView(chevron, AccessibilityView.Raw);
+        // The row (button or named group) carries "Top N%: count songs"; its texts would make Narrator read it twice.
+        AutomationProperties.SetAccessibilityView(pill, AccessibilityView.Raw);
+        AutomationProperties.SetAccessibilityView(count, AccessibilityView.Raw);
     }
 
     /// <summary>Row.</summary>
@@ -71,12 +74,13 @@ public sealed partial class PlayerPercentileRowView : ContentControl
     private void Render()
     {
         if (Row is not { } row) return;
-        var gold = (Brush)Application.Current.Resources["FSTEmphasisBrush"];
+        var resources = Application.Current.Resources;
+        var gold = (Brush)resources["FSTEmphasisBrush"];
         pill.Text = row.Label;
-        pill.Foreground = row.Gold ? gold : (Brush)Application.Current.Resources["FSTSecondaryTextBrush"];
-        pillBox.Background = row.Gold ? null : new SolidColorBrush(Windows.UI.Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
-        pillBox.BorderBrush = row.Gold ? gold : null;
-        pillBox.BorderThickness = new Thickness(row.Gold ? 1.5 : 0);
+        pill.Foreground = row.Gold ? gold : (Brush)resources["FSTNeutralPillTextBrush"];
+        pillBox.Background = (Brush)resources[row.Gold ? "FSTGoldPillFillBrush" : "FSTNeutralPillFillBrush"];
+        pillBox.BorderBrush = row.Gold ? gold : (Brush)resources["FSTNeutralPillStrokeBrush"];
+        pillBox.BorderThickness = new Thickness(row.Gold ? 1.5 : 1);
         count.Text = row.CountText;
         chevron.Visibility = row.IsLinked ? Visibility.Visible : Visibility.Collapsed;
         if (builtLinked != row.IsLinked)

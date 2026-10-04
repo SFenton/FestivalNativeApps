@@ -549,11 +549,6 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "focus":
                 Find(window, step).Focus();
                 break;
-            case "reveal":
-                // Scrolls an element (on screen or not) into view through UIA ScrollItem: no real input, so it also
-                // works on a locked console.
-                Find(window, step, onScreen: false).Patterns.ScrollItem.Pattern.ScrollIntoView();
-                break;
             case "waitfor":
                 Find(window, step);
                 break;
@@ -570,6 +565,14 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 var amount = (double?)step["amount"] ?? -3;
                 if (step["selector"] is not null) Mouse.MoveTo(Find(window, step).GetClickablePoint());
                 Mouse.Scroll(amount);
+                break;
+            case "scrollto":
+                var scroller = Find(window, step);
+                if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollto target has no Scroll pattern");
+                scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
+                break;
+            case "reveal":
+                Reveal(window, step);
                 break;
             case "wait":
                 Thread.Sleep(TimeSpan.FromSeconds(double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
@@ -624,6 +627,59 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     private void Click(Window window, JsonObject step, MouseButton button) => Mouse.Click(ScreenPoint(window, step), button);
+
+    /// <summary>
+    /// Brings the target on screen without real input (works on a locked console): an existing target is scrolled into view
+    /// through UIA ScrollItem; otherwise (or if that is not enough) its vertical scroller is stepped through the UIA Scroll
+    /// pattern from the top, a viewport at a time. Virtualized targets need not exist yet: the window's first vertically
+    /// scrollable element is used then.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector and an optional timeout (at most 2 s is spent waiting for the target to appear).</param>
+    /// <exception cref="InvalidOperationException">No scroller, or the target never came on screen.</exception>
+    private void Reveal(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var raw = IsRaw(step);
+        bool OnScreen(out AutomationElement? found)
+        {
+            found = InView(raw, () => window.FindFirstDescendant(condition));
+            return found is not null && !found.Properties.IsOffscreen.ValueOrDefault;
+        }
+        // Give a loading page a moment to create the target; a virtualized target that is never realized falls through to stepping.
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds(Math.Min((double?)step["timeout"] ?? 5, 2));
+        AutomationElement? target;
+        while (!OnScreen(out target) && target is null && DateTime.UtcNow < until) Thread.Sleep(200);
+        if (target is not null && !target.Properties.IsOffscreen.ValueOrDefault) return;
+        if (target is not null && target.Patterns.ScrollItem.IsSupported)
+        {
+            target.Patterns.ScrollItem.Pattern.ScrollIntoView();
+            Thread.Sleep(250);
+            if (OnScreen(out var scrolled)) return;
+            target = scrolled ?? target;
+        }
+        AutomationElement? scroller = null;
+        var walker = automation.TreeWalkerFactory.GetControlViewWalker();
+        for (var parent = target is null ? null : walker.GetParent(target); parent is not null; parent = walker.GetParent(parent))
+        {
+            if (parent.Patterns.Scroll.IsSupported && parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) { scroller = parent; break; }
+        }
+        scroller ??= window.FindAllDescendants(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Pane))
+            .FirstOrDefault(e => e.Patterns.Scroll.IsSupported && e.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+            ?? throw new InvalidOperationException("reveal found no vertical scroller");
+        var scroll = scroller.Patterns.Scroll.Pattern;
+        // Step by most of a viewport (VerticalViewSize is the visible share of the extent, which grows as items realize).
+        for (var percent = 0.0; percent <= 100; percent += Math.Clamp(scroll.VerticalViewSize.ValueOrDefault * 0.8, 0.5, 5))
+        {
+            scroll.SetScrollPercent(-1, percent);
+            Thread.Sleep(250);
+            if (OnScreen(out _)) return;
+        }
+        scroll.SetScrollPercent(-1, 100);
+        Thread.Sleep(250);
+        if (OnScreen(out _)) return;
+        throw new InvalidOperationException($"reveal could not bring {label} on screen");
+    }
 
     /// <summary>Writes text through the UIA Value pattern, so no keyboard input is needed (works on a locked console).</summary>
     /// <param name="element">The field, or a container (e.g. an AutoSuggestBox) whose first editable descendant takes the text.</param>

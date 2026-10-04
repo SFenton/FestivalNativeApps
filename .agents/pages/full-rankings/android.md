@@ -34,7 +34,7 @@ The app is dark-only ([design/android.md](../../design/android.md)), so system l
 
 | Configuration | Findings after the fix |
 |---|---|
-| FST_Phone portrait 1.0 / 2.0 | One-line rows (names ellipsize; TalkBack reads the full name) at 1.0; stacked rows at 2.0; rows fade above the pager; the M3 single-line top app bar title ellipsizes at 2.0 |
+| FST_Phone portrait 1.0 / 2.0 | One-line rows (names ellipsized then; since issue #292 a long name scrolls in its column; TalkBack reads the full name) at 1.0; stacked rows at 2.0; rows fade above the pager; the M3 single-line top app bar title ellipsizes at 2.0 |
 | FST_Phone landscape 1.0 / 2.0 | Actions move to the top app bar; rows fade above the pager. At 2.0 the fixed top app bar and bottom navigation leave room for about one stacked row, which still scrolls (shell chrome, not this page) |
 | FST_Tablet portrait / landscape, 1.0 / 2.0 | Navigation rail (drawer at 2.0); full one-line rows at 1.0, stacked at 2.0 (large-text rule); footer at most 720 dp, centred |
 | FST_Resizable phone / foldable / tablet / desktop | Same compact → medium → expanded progression. Before the fix, desktop rows stretched about 1,600 dp, leaving names far from their scores; the board now stops at 1100 dp, centred (web page container, [Windows](windows.md) list max 1100; M3 large-window content width) |

@@ -372,6 +372,22 @@
     ]
   },
   {
+    "name": "player-lead",
+    "route": "/player/fixture-player-1",
+    "ready": [
+      "waitfor:id=fst.player.overview@20",
+      "reveal:id=fst.player.percentile.Solo_Guitar.4@5"
+    ]
+  },
+  {
+    "name": "player-empty",
+    "route": "/player/fixture-player-1",
+    "ready": [
+      "waitfor:id=fst.player.overview@20",
+      "reveal:id=fst.player.instrument-empty.Solo_Drums@5"
+    ]
+  },
+  {
     "name": "bands",
     "route": "/bands",
     "profile": "fixture-player-1:Demo Player",
