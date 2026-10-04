@@ -340,6 +340,30 @@ private fun SectionIcon(section: QuickLinkSection) {
     if (instrument != null) InstrumentIcon(instrument, size = 24.dp, decorative = true) else Icon(quickLinkIcon(section.icon), contentDescription = null)
 }
 
+/**
+ * A menu item's visible label: the title, bold with a "Current" line beneath it for the current
+ * section. "Current" sits under the title rather than trailing it because menu items are capped
+ * at 280 dp: a trailing label squeezed long titles until words broke mid-word at 2.0 font scale
+ * (issue #137, FST_Tablet). TalkBack reads the item's own label and state instead.
+ *
+ * @param title Section title.
+ * @param current Whether this is the current section.
+ * @param modifier Modifier (the caller clears its semantics).
+ */
+@Composable
+internal fun QuickLinkMenuLabel(title: String, current: Boolean, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(title, fontWeight = if (current) FontWeight.Bold else null, modifier = Modifier.testTag(MENU_TITLE_TAG))
+        if (current) Text(QUICK_LINKS_CURRENT, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary, modifier = Modifier.testTag(MENU_CURRENT_TAG))
+    }
+}
+
+/** Test tag of a menu label's title (only reachable where the caller keeps semantics). */
+internal const val MENU_TITLE_TAG = "fst.quick-links.menu-label.title"
+
+/** Test tag of a menu label's "Current" line. */
+internal const val MENU_CURRENT_TAG = "fst.quick-links.menu-label.current"
+
 // endregion
 
 // region Entry point
@@ -354,6 +378,9 @@ private fun SectionIcon(section: QuickLinkSection) {
  */
 /** Quick Links button glyph size. */
 private const val QUICK_LINKS_ICON_DP = 30
+
+/** Visible marker under the current section in the menu. */
+private const val QUICK_LINKS_CURRENT = "Current"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -375,9 +402,11 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
                 controller.sections.forEach { section ->
                     val current = section.id == controller.activeId
                     DropdownMenuItem(
-                        text = { Text(section.title, fontWeight = if (current) FontWeight.Bold else null, modifier = Modifier.clearAndSetSemantics {}) },
+                        // "Current" sits under the title rather than trailing it: menu items are capped at
+                        // 280 dp, so a trailing label squeezed long titles until words broke mid-word at
+                        // 2.0 font scale (issue #137, FST_Tablet).
+                        text = { QuickLinkMenuLabel(section.title, current, Modifier.clearAndSetSemantics {}) },
                         leadingIcon = { SectionIcon(section) },
-                        trailingIcon = if (current) ({ Text("Current", style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary, modifier = Modifier.clearAndSetSemantics {}) }) else null,
                         onClick = {
                             open = false
                             controller.jump(section.id)
@@ -422,7 +451,9 @@ private fun SectionList(controller: QuickLinksController, modifier: Modifier, pa
                     selectedIconColor = BrandTokens.textPrimary,
                     unselectedIconColor = BrandTokens.textSecondary,
                 ),
-                modifier = Modifier.padding(start = (12 + 16 * section.depth).dp).testTag(section.testTag).currentSection(section, current),
+                // Indicator inset 24 dp on both sides (12 dp list padding + 12 dp), lining up with the
+                // sheet title and close glyph; depth indents only the start.
+                modifier = Modifier.padding(start = (12 + 16 * section.depth).dp, end = 12.dp).testTag(section.testTag).currentSection(section, current),
             )
         }
     }

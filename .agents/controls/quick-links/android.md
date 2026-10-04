@@ -7,7 +7,7 @@
 | Size | Presentation | Why |
 |---|---|---|
 | Compact window (< 600 dp) | `Toc` action ("Quick Links, current section X") in the shell's **floating toolbar** opens a **modal bottom sheet** of `NavigationDrawerItem`s; the current section is the selected item. On Songs it shares the pinned toolbar with search, Sort and Filter (issue #84); on other pages the toolbar follows M3 "exit always" hide-on-scroll and returns on scroll up | M3: bottom sheets hold supplementary lists on phones, are thumb-reachable, scroll for long lists (Songs buckets) and support predictive back. Replaces the web FAB and modal. The bottom floating toolbar is already the M3 Expressive equivalent of the iOS #42 accessory, so no other page changed for #84 |
-| Medium and wider windows (tablet, unfolded foldables) | Top-app-bar action opens an anchored **dropdown menu**; the current item is bold with "Current" | M3 menus pick one of a short set of destinations without covering the page. **No side pane** (operator 2026-09-28: the right-side sheet on foldables is dropped) |
+| Medium and wider windows (tablet, unfolded foldables) | Top-app-bar action opens an anchored **dropdown menu**; the current item is bold with "Current" on its own line under the title (`QuickLinkMenuLabel`), never as a trailing label | M3 menus pick one of a short set of destinations without covering the page. **No side pane** (operator 2026-09-28: the right-side sheet on foldables is dropped) |
 | Separating vertical hinge in the page (book posture, half-open) | The page list stays on the start side of the hinge (`QuickLinks.hingeSplit`, `ui/settings/HingeSplit.kt`); the menu anchors to the button in that pane | No row straddles the fold |
 
 No setting toggles Quick Links (spec). Needs ≥ 2 sections.
@@ -38,6 +38,22 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 | Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
 | Song Detail, Band, Compete, Rivals, Rivalry, Rival Detail, Leaderboards | Owning lanes: follow the spec IDs/labels with the API above |
+
+## Validation (issue #137)
+
+Checked on the live public service (Settings page) on every FST AVD, light/dark system theme, font scale 1.0/2.0, portrait/landscape. States `hidden-single-section`, `menu-closed`, `menu-open`, `active-section`, `jumped`.
+
+| Configuration | Finding |
+|---|---|
+| FST_Phone portrait | Toolbar sheet; opens partially expanded when > 8 sections (drag up for the rest, M3 default). The selected pill was inset 24 dp start / 12 dp end; **fixed** to 24 dp both sides (`SectionList` `end = 12.dp`) |
+| FST_Phone landscape, FST_Tablet, FST_Resizable medium/expanded, unfolded folds | Anchored menu. At font 2.0 the trailing "Current" label shared M3's 280 dp item cap and broke "Show Instrument Metadata" mid-word; **fixed** by `QuickLinkMenuLabel` (title, then "Current" beneath). Long titles now wrap only between words and the menu scrolls |
+| FST_Book_Fold / FST_Passport_Fold folded, FST_TriFold folded | Compact sheet, as the phone |
+| FST_Book_Fold half-open (vertical hinge) | Page on the start pane, menu anchored to the end-side button; no row straddles the hinge |
+| FST_Resizable shrunk to phone | Quick Links correct; the shell's modal navigation drawer can stay open after the resize (shell, not this control) |
+| Light system theme | App stays on its dark scheme; nothing breaks |
+
+- M3 alignment: sheet = `ModalBottomSheet` + `NavigationDrawerItem` (selected = `secondaryContainer`-equivalent pill), menu = `DropdownMenu`/`DropdownMenuItem` (280 dp cap, scrolls), 48 dp targets. Deliberate deviations: 30 dp `Toc` glyph in the 48 dp button (web parity); `NavigationDrawerItem` exposes Role.Tab (M3 default); dark scheme only.
+- Tests: `QuickLinksUiTest` (Robolectric, every state, inset, menu label) on `testing/QuickLinksHarness.kt`; `androidTest/…/quicklinks/QuickLinksDeviceTest` (ATF checks, TalkBack order, animator scale 0, 2× sheet targets, 2× menu titles break only at spaces — glyph wrapping needs a device).
 
 ## Open
 
