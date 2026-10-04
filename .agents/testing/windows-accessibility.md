@@ -85,6 +85,18 @@ Fixed:
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
 
+## Player Bands validation (issue #210, 2026-10)
+
+Evidence: `a11y_matrix.py --scan --tabs 20` for `player-bands` at compact, medium, wide, snap-left, snap-right and maximized. It was then run at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors in all 18 runs. The live public service (SFentonX, temporary wrapper without `--base-url`) also gave 0 Axe errors at the same five sizes, under Desert, at text 200% and at display 150%. Results per configuration are in [player-bands/windows.md](../pages/player-bands/windows.md#validation-issue-210).
+
+Fixed:
+- Cards were clipped and virtualized by `UniformGridLayout`; they now use `LeaderboardsCardGridLayout`.
+- Every card part was a separate Narrator scan stop. Each card is now one stop whose name includes each member's instruments.
+- The size pill kept a navy fill under system text.
+- `.empty` sat on a panel.
+
+Tooling finding: after a UIA `focus:` step on a `SelectorBarItem`, arrow keys don't move between items (programmatic focus). Reach the bar with Tab or Shift+Tab before `key:right` (see `kb-player-bands`).
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
