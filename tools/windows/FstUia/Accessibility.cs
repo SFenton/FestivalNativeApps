@@ -221,22 +221,25 @@ internal sealed partial class Driver
     {
         var p = e.Properties;
         var parts = new List<string>();
-        try
+        // Each read is guarded alone: a provider that rejects one property (e.g. landmark on older peers) must not hide the rest.
+        void Add(Func<string?> read)
         {
-            if (p.HeadingLevel.TryGetValue(out var heading) && (int)heading is > 80050 and < 80060)
-                parts.Add($"heading={(int)heading - 80050}");
-            if (p.LandmarkType.TryGetValue(out var landmark) && (int)landmark != 0)
-                parts.Add($"landmark={p.LocalizedLandmarkType.ValueOrDefault}");
-            if (p.LiveSetting.TryGetValue(out var live) && (int)live != 0) parts.Add($"live={live}");
-            if (p.AcceleratorKey.ValueOrDefault is { Length: > 0 } accel) parts.Add($"accel={accel}");
-            if (p.AccessKey.ValueOrDefault is { Length: > 0 } access) parts.Add($"access={access}");
-            if (p.ItemStatus.ValueOrDefault is { Length: > 0 } status) parts.Add($"status=\"{status}\"");
-            if (p.FullDescription.ValueOrDefault is { Length: > 0 } description) parts.Add($"desc=\"{description}\"");
+            try
+            {
+                if (read() is { } part) parts.Add(part);
+            }
+            catch (Exception)
+            {
+                // Unsupported property on this provider; the tree line stays without it.
+            }
         }
-        catch (Exception)
-        {
-            // Older UIA providers may not expose these properties; the tree line stays without them.
-        }
+        Add(() => p.HeadingLevel.TryGetValue(out var heading) && (int)heading is > 80050 and < 80060 ? $"heading={(int)heading - 80050}" : null);
+        Add(() => p.LandmarkType.TryGetValue(out var landmark) && (int)landmark != 0 ? $"landmark={p.LocalizedLandmarkType.ValueOrDefault}" : null);
+        Add(() => p.LiveSetting.TryGetValue(out var live) && (int)live != 0 ? $"live={live}" : null);
+        Add(() => p.AcceleratorKey.ValueOrDefault is { Length: > 0 } accel ? $"accel={accel}" : null);
+        Add(() => p.AccessKey.ValueOrDefault is { Length: > 0 } access ? $"access={access}" : null);
+        Add(() => p.ItemStatus.ValueOrDefault is { Length: > 0 } status ? $"status=\"{status}\"" : null);
+        Add(() => p.FullDescription.ValueOrDefault is { Length: > 0 } description ? $"desc=\"{description}\"" : null);
         return parts.Count > 0 ? " " + string.Join(" ", parts) : "";
     }
 
