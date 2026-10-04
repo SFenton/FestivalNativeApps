@@ -9,23 +9,29 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import com.festivalscoretracker.android.ui.rivals.RivalPill
-import org.junit.Assert.assertTrue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.rivals.LeaderboardRivalSummary
 import com.festivalscoretracker.android.core.rivals.RivalDirection
 import com.festivalscoretracker.android.core.rivals.RivalEntry
+import com.festivalscoretracker.android.core.rivals.RivalSongComparison
 import com.festivalscoretracker.android.core.rivals.RivalSummary
 import com.festivalscoretracker.android.testing.RivalsFixtures
+import com.festivalscoretracker.android.ui.rivals.RivalPill
 import com.festivalscoretracker.android.ui.rivals.RivalRow
+import com.festivalscoretracker.android.ui.rivals.RivalSectionHeader
+import com.festivalscoretracker.android.ui.rivals.RivalSongRow
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,6 +82,61 @@ class RivalRowUiTest {
         val anonymous = description("fst.rivals.row.anonymous")
         assertEquals("Unknown User, ahead of you, 4 songs ahead, 5 songs behind", anonymous)
         assertFalse(anonymous.contains("shared", ignoreCase = true))
+    }
+
+    @Test
+    fun sectionHeaderGroupsTitleAndDescriptionBeforeSeeAll() {
+        var opened = 0
+        rule.setContent {
+            FestivalTheme {
+                RivalSectionHeader(title = "Closest Battles", description = "Neck and neck.", onSeeAll = { opened++ }, seeAllTag = "see-all")
+            }
+        }
+        val description = rule.onNodeWithText("Neck and neck.", useUnmergedTree = true).fetchSemanticsNode()
+        val group = description.parent!!
+        assertEquals(true, group.config.getOrNull(SemanticsProperties.IsTraversalGroup))
+        assertTrue(group.children.any { it.config.contains(SemanticsProperties.Heading) })
+        rule.onNodeWithTag("see-all").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, opened)
+    }
+
+    @Test
+    fun songRowSpeaksFullUnsignedGapsWithSingularNouns() {
+        var opened = 0
+        rule.setContent {
+            FestivalTheme {
+                Column {
+                    RivalSongRow(
+                        RivalSongComparison("s-behind", "Behind Song", "A", "Solo_Guitar", userRank = 57, rivalRank = 56, rankDelta = -1, userScore = 158_795, rivalScore = 158_889),
+                        catalogSong = null, artUrl = null, playerName = "Player", rivalName = "Rival", onClick = { opened++ },
+                    )
+                    RivalSongRow(
+                        RivalSongComparison("s-ahead", "Ahead Song", "A", "Solo_Guitar", userRank = 3, rivalRank = 15_403, rankDelta = 15_400, userScore = 1_001, rivalScore = 1_000),
+                        catalogSong = null, artUrl = null, playerName = null, rivalName = null, onClick = {},
+                    )
+                    RivalSongRow(
+                        RivalSongComparison("s-tied", "Tied Song", "A", "Solo_Guitar", userRank = 4, rivalRank = 4, rankDelta = 0, userScore = 500, rivalScore = 500),
+                        catalogSong = null, artUrl = null, playerName = "Player", rivalName = "Rival", onClick = {},
+                    )
+                }
+            }
+        }
+
+        val lead = Instrument.Lead.label
+        assertEquals(
+            "Behind Song, $lead, Player rank 57, Rival rank 56, Rival leads by 1 rank, your score is 94 points lower",
+            description("fst.rivals.song.s-behind.Solo_Guitar"),
+        )
+        assertEquals(
+            "Ahead Song, $lead, You rank 3, Them rank 15,403, you lead by 15,400 ranks, your score is 1 point higher",
+            description("fst.rivals.song.s-ahead.Solo_Guitar"),
+        )
+        assertEquals(
+            "Tied Song, $lead, Player rank 4, Rival rank 4, tied, same score",
+            description("fst.rivals.song.s-tied.Solo_Guitar"),
+        )
+        rule.onNodeWithTag("fst.rivals.song.s-behind.Solo_Guitar").performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, opened)
     }
 
     /**

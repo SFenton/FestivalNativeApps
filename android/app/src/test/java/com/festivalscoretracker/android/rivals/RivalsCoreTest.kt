@@ -317,6 +317,16 @@ class RivalsCoreTest {
     }
 
     @Test
+    fun spokenScoreGapsUseFullCountsWithoutSignsAndSingularNouns() {
+        assertEquals("Rival leads by 15,400 ranks", RivalHeadToHead.leaderPhrase(-15_400, "Rival", Locale.US))
+        assertEquals("your score is 20 points higher", RivalHeadToHead.spokenScoreDiff(song(20), Locale.US))
+        assertEquals("your score is 1 point higher", RivalHeadToHead.spokenScoreDiff(song(1), Locale.US))
+        assertEquals("your score is 7,000 points lower", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = 1000, rivalScore = 8000), Locale.US))
+        assertEquals("your score is 1 point lower", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = 999, rivalScore = 1000), Locale.US))
+        assertEquals("same score", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = null, rivalScore = null), Locale.US))
+    }
+
+    @Test
     fun leaderPhraseIsSpokenUnsignedAndPluralised() {
         assertEquals("you lead by 1 rank", RivalHeadToHead.leaderPhrase(1, "Rival", Locale.US))
         assertEquals("you lead by 12,345 ranks", RivalHeadToHead.leaderPhrase(12_345, "Rival", Locale.US))

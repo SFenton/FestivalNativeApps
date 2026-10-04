@@ -114,8 +114,6 @@ import com.festivalscoretracker.android.presentation.songs.SongPathsState
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.isLargeText
-import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
-import androidx.compose.foundation.layout.ColumnScope
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import androidx.compose.ui.platform.LocalDensity
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -138,9 +136,9 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  * control row — instrument, difficulty and view buttons, each expanding its panel
  * above the row (the shared Instrument Selector, a 2×2 difficulty grid, Image/Text).
  * Karaoke's missing paths are announced once in a native alert (OK / Don't Show
- * Again), not a banner. The sheet is modal and focus returns on close. When a
- * separating vertical hinge crosses the sheet (book posture), the path sits before
- * the hinge and the control row with its panels after it, so nothing straddles the fold.
+ * Again), not a banner. The sheet is modal and focus returns on close. On a half-open
+ * fold, [FestivalModalSheet] keeps the whole sheet on one side of a separating hinge,
+ * so neither the path nor its controls straddle the fold.
  *
  * @param viewModel Paths logic (one per opening).
  * @param songTitle Song title (sheet description for TalkBack).
@@ -169,8 +167,6 @@ fun SongPathsSheet(
     val fade: AnimationSpec<Float> = if (reduceMotion) snap() else tween(PathSwapTiming.FADE_MILLIS.toInt(), easing = LinearEasing)
     val contentAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Content) 1f else 0f, fade, label = "paths-content")
     val spinnerAlpha by animateFloatAsState(if (state.phase == PathSwapPhase.Spinner) 1f else 0f, fade, label = "paths-spinner")
-    // Read in the activity's composition: the sheet is its own full-screen window.
-    val split = rememberHingeSplit()
     FestivalModalSheet(
         title = "Paths",
         closeTag = "fst.paths.close",
@@ -178,12 +174,9 @@ fun SongPathsSheet(
         modifier = Modifier.testTag("fst.song-detail.paths").semantics { contentDescription = "Paths for $songTitle" },
     ) {
         val density = LocalDensity.current
-        BoxWithConstraints(Modifier.fillMaxHeight().then(split.modifier)) {
-            val hinge = split.value
-            // Book posture: the path before a separating hinge, the controls and their panels after it.
-            val pathWidth = hinge?.let { with(density) { it.first.toDp() } } ?: maxWidth
-            val wide = usesPathGrid(pathWidth.value, density.fontScale)
-            val path: @Composable ColumnScope.() -> Unit = {
+        BoxWithConstraints(Modifier.fillMaxHeight()) {
+            val wide = usesPathGrid(maxWidth.value, density.fontScale)
+            Column(Modifier.fillMaxHeight().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                 if (wide && state.load is PathLoad.Text) Box(Modifier.graphicsLayer { alpha = contentAlpha }) { PathTableHeader(columns) }
                 // Polite live region: "Loading <chart> path", then what loaded (web swap has no announcement).
                 Box(Modifier.size(1.dp).testTag("fst.paths.status").semantics { contentDescription = state.status; liveRegion = LiveRegionMode.Polite })
@@ -208,21 +201,7 @@ fun SongPathsSheet(
                         }
                     }
                 }
-            }
-            val controls: @Composable () -> Unit = {
                 PathControls(state.instrument, state.difficulty, state.display, viewModel, panel, keyboard) { panel = it }
-            }
-            if (hinge == null) {
-                Column(Modifier.fillMaxHeight().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                    path()
-                    controls()
-                }
-            } else {
-                Row(Modifier.fillMaxHeight().padding(bottom = 12.dp).testTag("fst.paths.hinge-split")) {
-                    Column(Modifier.width(pathWidth).fillMaxHeight().padding(horizontal = 16.dp), content = path)
-                    Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
-                    Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 16.dp), verticalArrangement = Arrangement.Bottom) { controls() }
-                }
             }
         }
     }
@@ -328,7 +307,7 @@ private fun PathControls(
                     displayButton(Modifier)
                 }
             } else {
-                // Narrow panes (a book fold's end pane, ~288 dp): one row wrapped "Expert" to "Expe / rt".
+                // Narrow panes (a 320 dp phone): one row wrapped "Expert" to "Expe / rt".
                 Column(verticalArrangement = Arrangement.spacedBy(CONTROL_GAP), modifier = Modifier.fillMaxWidth().testTag("fst.paths.selectors.stacked")) {
                     difficultyButton(Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(CONTROL_GAP), modifier = Modifier.fillMaxWidth()) {

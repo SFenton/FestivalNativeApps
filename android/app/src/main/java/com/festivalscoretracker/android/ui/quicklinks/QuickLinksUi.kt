@@ -181,11 +181,17 @@ class QuickLinksController internal constructor(
     private val landingPx: Float,
     activationPx: Float,
     bandPx: Float,
-    completePx: Float,
+    private val completePx: Float,
 ) {
     private val tracker = QuickLinkTracker(activationOffset = activationPx, band = bandPx, completeThreshold = completePx)
     private val completeThreshold = completePx.roundToInt()
     private var landing: Job? = null
+
+    /**
+     * Whether a landed jump keeps its target on the landing line while content above it resizes
+     * (off for sticky-header lists, whose fixed rows cannot shift a landed header).
+     */
+    internal var holdLanding: Boolean = true
 
     /**
      * Title Case title (Songs: "<Sort> Quick Links"). Snapshot state, so a page keeps one controller
@@ -233,7 +239,7 @@ class QuickLinksController internal constructor(
             val px = landingPx.roundToInt()
             scroller.scrollTo(index, animate, px)
             settle()
-            holdLanding(id, index, px)
+            if (holdLanding) keepLanded(id, index, px)
         }
     }
 
@@ -243,13 +249,22 @@ class QuickLinksController internal constructor(
         activeId = tracker.activeId
     }
 
-    private suspend fun holdLanding(id: String, index: Int, px: Int) {
+    /**
+     * Keep a landed target on the landing line while the item above it (the lazy list's scroll anchor)
+     * composes for the first time and grows (issue #106: Profile Rank History loads after the jump and
+     * pushed Top Songs half a screen down; #111: Statistics). Ends at the first user scroll, the next
+     * jump, after [QuickLinks.MAX_LANDING_CORRECTIONS] corrections or after [QuickLinks.LANDING_HOLD_MS].
+     */
+    private suspend fun keepLanded(id: String, index: Int, px: Int) {
+        var corrections = 0
         withTimeoutOrNull(QuickLinks.LANDING_HOLD_MS) {
             snapshotFlow { scroller.layout() }
-                .takeWhile { !scroller.isScrollInProgress }
+                .takeWhile { !scroller.isScrollInProgress && corrections < QuickLinks.MAX_LANDING_CORRECTIONS }
                 .collect { layout ->
                     val top = layout.items.firstOrNull { it.index == index }?.top
-                    if (QuickLinks.needsReland(top, px, completeThreshold, scroller.canScrollForward, scroller.canScrollBackward)) {
+                    val below = if (top == null) (layout.items.maxOfOrNull { it.index } ?: -1) < index else null
+                    if (QuickLinks.needsReland(top, px, completeThreshold, scroller.canScrollForward, scroller.canScrollBackward, below)) {
+                        corrections++
                         scroller.scrollTo(index, animate = false, landingPx = px)
                         tracker.beginJump(id)
                         settle()
@@ -347,6 +362,7 @@ internal fun rememberQuickLinks(
     controller.indexOf = indexOf
     // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.
     controller.animate = false
+    controller.holdLanding = !pinnedHeaders
     LaunchedEffect(controller) {
         snapshotFlow { scroller.layout() }.collect(controller::onLayout)
     }
