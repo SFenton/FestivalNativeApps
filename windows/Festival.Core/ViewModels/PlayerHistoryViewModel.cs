@@ -290,7 +290,7 @@ public sealed record ScoreHistoryRow(ScoreHistoryEntry Entry, bool IsHighScore)
         string.Join(", ", new[]
         {
             Date, $"score {Score}", HasAccuracy ? $"accuracy {Accuracy}" : "", IsFullCombo ? "full combo" : "",
-            Entry.Stars is { } s ? $"{s} stars" : "", Season, IsHighScore ? "personal best" : "",
+            StarRating.From(Entry.Stars) is { } stars ? stars.Announcement : "", Season, IsHighScore ? "personal best" : "",
         }.Where(p => p.Length > 0));
 }
 #endregion

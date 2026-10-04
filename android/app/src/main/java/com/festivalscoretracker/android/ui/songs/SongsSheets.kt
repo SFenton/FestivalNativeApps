@@ -65,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -90,6 +91,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  * @param tag Test tag root.
  * @param onReset Restore defaults.
  * @param onDismiss Close.
+ * @param titleTag Header title test tag (Sort passes `.heading`: its `.title` is the Title choice).
  * @param content Form.
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -99,6 +101,7 @@ internal fun LiveSheet(
     tag: String,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
+    titleTag: String = "$tag.title",
     content: @Composable () -> Unit,
 ) {
     // The shared header's Close replaces the former Done (changes are already applied); it
@@ -106,7 +109,7 @@ internal fun LiveSheet(
     FestivalModalSheet(
         title = title,
         closeTag = "$tag.done",
-        titleTag = "$tag.title",
+        titleTag = titleTag,
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag(tag),
     ) {
@@ -147,7 +150,7 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
     }
     val chartModes = SongSortDraft.chartModes(state.hasPlayer, state.sortChart, state.visibleMetadata)
     val priority = if (state.hasPlayer && state.sortChart != null) SongSortDraft.visiblePriority(draft.metadataOrder, state.visibleMetadata) else emptyList()
-    LiveSheet(title = "Sort Songs", tag = "fst.songs.sort", onReset = { change(draft.reset()) }, onDismiss = onDismiss) {
+    LiveSheet(title = "Sort Songs", tag = "fst.songs.sort", onReset = { change(draft.reset()) }, onDismiss = onDismiss, titleTag = "fst.songs.sort.heading") {
         Column(Modifier.selectableGroup().testTag("fst.songs.sort.mode")) {
             SongSortDraft.modes(state.hideShop, state.hasPlayer).forEach { option ->
                 RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { change(draft.copy(mode = option)) }
@@ -531,7 +534,8 @@ private fun BucketRow(kind: SongBucketKind, key: Int, shown: Boolean, tag: Strin
             .semantics(mergeDescendants = true) { contentDescription = spoken }
             .testTag(tag),
     ) {
-        Box(Modifier.weight(1f)) {
+        // The row speaks the bucket; the meter's or stars' own label would repeat it.
+        Box(Modifier.weight(1f).clearAndSetSemantics { }) {
             when {
                 key == 0 -> Text("No Score", color = BrandTokens.textPrimary)
                 kind == SongBucketKind.Stars -> StarRating(key, size = 16.dp)

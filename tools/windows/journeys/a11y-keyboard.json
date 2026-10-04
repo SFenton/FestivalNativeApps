@@ -48,6 +48,34 @@
     ]
   },
   {
+    "name": "kb-songs-sort-groups",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+f",
+      "key:tab",
+      "assertfocus:id=fst.songs.sort",
+      "key:enter",
+      "waitfor:id=fst.songs.sort.reset@5",
+      "assertfocus:name=Title@3",
+      "key:tab",
+      "assertfocus:id=fst.songs.sort.direction.ascending@3",
+      "key:down",
+      "assertfocus:id=fst.songs.sort.direction.descending@3",
+      "waitfor:name=Title ↓@5",
+      "key:tab",
+      "assertfocus:id=fst.songs.sort.reset@3",
+      "key:enter",
+      "waitfor:name=Title ↑@5",
+      "key:esc",
+      "assertfocus:id=fst.songs.sort@3"
+    ]
+  },
+  {
     "name": "kb-section-accelerators",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",

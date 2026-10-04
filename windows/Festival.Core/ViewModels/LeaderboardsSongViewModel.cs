@@ -329,6 +329,6 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
         (IsSelected && Entry.Rank > 0 ? $"Your rank, {RankingFormatting.Ordinal(Entry.Rank)}. {Name}" :
          IsSelected ? $"Your score. {Name}" : $"Rank {RankText}, {Name}") +
         $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") +
-        (Entry.Stars is > 0 ? $", {Entry.Stars} stars" : "");
+        (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

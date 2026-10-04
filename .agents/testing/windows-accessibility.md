@@ -119,6 +119,20 @@ Fixed:
 - The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
 - The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
 
+## Songs Sort validation (issue #218, 2026-10-03)
+
+Evidence: `a11y_matrix.py --only songs-sort --scan --tabs 14` at compact, medium and wide, then at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors and 3 tab stops cycling inside the flyout in every run. Keyboard journeys `kb-songs-order`, `kb-songs-sort-esc` and the new `kb-songs-sort-groups` (Tab between the groups, Down changes direction live, Enter on Reset, Esc returns focus to the button). The `songs_journey.py` `songs-sort-*` scenarios cover every reachable state at C/M/W. Live public-service screenshots at C/M/W, maximized, snap-left and with Item Shop sort. Per-configuration results: [songs-sort/windows.md](../controls/songs-sort/windows.md#validation-issue-218-2026-10-03).
+
+Fixed:
+- The two direction rows were loose `RadioButton`s: two extra Tab stops (4 in the flyout) and no group name. They are now a `RadioButtons` group with a "Direction" header (3 stops; arrows move inside), like Sort By.
+- Narrator read the Sort button as "Sort Songs" only, and the arrow glyph in its label isn't spoken meaningfully; it now has HelpText with the applied sort ("Year, descending").
+- The Sort paused, Shop filter paused, profile paused and score-filter paused InfoBars and the Item Shop section headings had no automation IDs (`fst.songs.sort-paused`, `fst.songs.shop-section.*` from the spec); they have them now.
+- The non-default gold Sort/Filter label tint didn't follow a contrast-theme switch while the page was open; it now re-applies on `ColorValuesChanged`.
+
+A run on this shared host left the Desert contrast theme on system-wide with no pending restore, so later modes rendered under it. Check `sysset` state before trusting light-theme/text/scale screenshots, and re-run them after restoring.
+
+Seen, out of scope: with live data (three Shop buckets) at the medium preset, the Songs **Jump** zoomed-out index truncates "Leaving Tomorrow" and "Not In Shop" to "Leavi…" and "Not I…". The Songs Jump index owns that layout, not Sort.
+
 ## Artwork Background validation (issue #217, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan --tabs 30` with `journeys/artwork-background*.json` (animated, Reduce Motion, Disable Animated Artwork, Save Data, dialog and minimized `not-visible`, song cover, no art via `artwork_fixture.py`) at compact, medium, wide, snap-left and maximized; Desert and Night sky, Animation effects off, light and dark theme, text 200% and display 100%/150% at C/M/W. 0 Axe errors in every run. The live public service passed the same ItemStatus checks at all five sizes, under Desert, Night sky, text 200% and display 100%/150%. Per-configuration results: [artwork-background/windows.md](../controls/artwork-background/windows.md#validation-issue-217).
@@ -126,6 +140,16 @@ Evidence: `a11y_matrix.py --scan --tabs 30` with `journeys/artwork-background*.j
 The backdrop stays `AccessibilityView.Raw` (decorative: no Narrator stop, no Tab stop). Its state is exposed only to automation, as ItemStatus on a raw-view peer (`fst.shell.artwork-background`); `uiwin` searches the raw view for `assertstatus`.
 
 Fixed: without art the dim scrim darkened the brand surface to near-black (the web shows the undimmed purple); a late crossfade completion could blank the shown cover after a dialog or occlusion resumed playback.
+
+## Star Rating validation (issue #221, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --tabs 20 --fixture tools/windows/star_rating_fixture.py` with `journeys/a11y-star-rating.json` (song leaderboard with 1, 3, 5, 6, 7, 0 and missing stars; profile gold Avg Stars) at compact, medium, wide, maximized and snap-left; Desert, Night sky, Aquatic, light and dark theme, display 100%/150% at compact and wide; text 200% at C/M/W. 0 Axe errors in every run after the fixes; the stars are never a Tab stop. UIA journeys `journeys/star-rating.json` assert each state's `fst.star-rating.<state>` ID, ItemStatus and the row names. Live public-service screenshots at the same sizes and themes. Per-configuration results: [star-rating/windows.md](../controls/star-rating/windows.md#validation-issue-221-2026-10-04).
+
+Fixed:
+- Six-star scores were read as "6 stars" or "gold stars"; every site now reads "5 gold stars" (`StarRating.Announcement`), and 7+ draws gold.
+- `StarRow` had no automation peer; it is now one `Image` named with the count.
+- The gold ring kept its old brush after a contrast-theme switch.
+- Profile: the instrument tiles were focusable siblings of the Overview tiles with the same names ("Songs Played: 2", Axe `SiblingUniqueAndFocusable` at wide, display 100%/150%); each instrument section is now a named group.
 
 ## Open issues
 

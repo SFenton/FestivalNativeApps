@@ -2,14 +2,21 @@ package com.festivalscoretracker.android.ui.theme
 
 import android.app.UiModeManager
 import android.content.Context
+import android.database.ContentObserver
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -79,6 +86,30 @@ fun systemReducesMotion(context: Context): Boolean =
     Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
 /**
+ * [systemReducesMotion], followed live: changing the animator scale (Developer options or
+ * Accessibility › Remove animations) neither recreates the activity nor recomposes, so a
+ * read-once value kept decorative motion such as the artwork backdrop running (issue #124).
+ *
+ * @return True while animations are off system-wide.
+ */
+@Composable
+fun rememberSystemReducesMotion(): Boolean {
+    val context = LocalContext.current
+    var reduces by remember { mutableStateOf(systemReducesMotion(context)) }
+    DisposableEffect(context) {
+        val resolver = context.contentResolver
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                reduces = systemReducesMotion(context)
+            }
+        }
+        resolver.registerContentObserver(Settings.Global.getUriFor(Settings.Global.ANIMATOR_DURATION_SCALE), false, observer)
+        reduces = systemReducesMotion(context)
+        onDispose { resolver.unregisterContentObserver(observer) }
+    }
+    return reduces
+}
+/**
  * Whether the OS requests higher contrast (Android 14+ contrast level).
  *
  * @param context Any context.
@@ -130,10 +161,11 @@ fun FestivalTheme(
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val accessibility = remember(appIncreaseContrast, appReduceMotion, appReduceTransparency) {
+    val systemReduceMotion = rememberSystemReducesMotion()
+    val accessibility = remember(appIncreaseContrast, appReduceMotion, appReduceTransparency, systemReduceMotion) {
         FestivalAccessibility(
             increaseContrast = appIncreaseContrast || systemIncreasesContrast(context),
-            reduceMotion = appReduceMotion || systemReducesMotion(context),
+            reduceMotion = appReduceMotion || systemReduceMotion,
             reduceTransparency = appReduceTransparency,
         )
     }
