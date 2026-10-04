@@ -22,7 +22,7 @@ Emulator API 37, debug build, live public service with SFentonX selected (keyles
 | FST_Tablet portrait ⇄ landscape (PermanentDrawer ⇄ Rail) | **Fixed**: rotating closed the open sheet and lost its draft. The shell now hosts content through `movableContentOf`. |
 | FST_Resizable phone / foldable / tablet / desktop presets | OK; the sheet stays open across resizes, centred at 640 dp max. |
 | FST_Book_Fold unfolded / folded | OK, continuity kept. |
-| FST_Book_Fold half-open (separating vertical hinge at x=1038 px) | **Fixed**: the sheet straddled the hinge. It now sits in the start pane. |
+| FST_Book_Fold half-open (separating vertical hinge at x=1038 px) | **Fixed**: the sheet straddled the hinge. It now sits in the start pane (shared `festivalSheetHingeSide`, also from #125). |
 | FST_Passport_Fold unfolded / half / folded | OK (half: start pane after the fix). |
 | FST_TriFold unfolded / partial / folded | OK. The hinges are flat (non-separating), so the sheet stays centred. |
 

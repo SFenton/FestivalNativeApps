@@ -1,7 +1,12 @@
 package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -86,6 +91,32 @@ class SongsAccessibilityJourneyTest {
         h.tap("fst.songs.filter.done")
         h.waitGone("fst.songs.filter.form")
         h.waitForTag("fst.songs.filter.open")
+        h.assertAccessible()
+    }
+
+    /** Sort states on a device (issue #125): live mode/direction/Reset, Item Shop sections and the spoken sort state. */
+    @Test
+    fun songsSortStates() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, stillBackground = true), transport)
+        h.waitForTag("fst.songs.list")
+        rule.onNodeWithTag("fst.songs.sort.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Title, ascending"))
+        h.tap("fst.songs.sort.open")
+        h.waitForTag("fst.songs.sort.form")
+        h.tap("fst.songs.sort.artist")
+        rule.onNodeWithTag("fst.songs.sort.artist").assertIsSelected()
+        h.tap("fst.songs.sort.descending")
+        rule.onNodeWithTag("fst.songs.sort.descending").assertIsSelected()
+        h.readingOrder("songs-sort-changed")
+        h.tap("fst.songs.sort.reset")
+        rule.onNodeWithTag("fst.songs.sort.title").assertIsSelected()
+        rule.onNodeWithTag("fst.songs.sort.ascending").assertIsSelected()
+        h.tap("fst.songs.sort.shop")
+        h.tap("fst.songs.sort.done")
+        h.waitGone("fst.songs.sort.form")
+        h.waitForTag("fst.songs.shop-section.leaving-tomorrow")
+        rule.onNodeWithTag("fst.songs.sort.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Item Shop, ascending"))
+        h.readingOrder("songs-sort-shop")
         h.assertAccessible()
     }
 

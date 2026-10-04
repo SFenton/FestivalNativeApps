@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,8 +14,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
-import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +29,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
@@ -40,7 +36,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -137,56 +132,12 @@ fun FestivalModalHeader(
 // region Sheet
 
 /**
- * Keeps a modal bottom sheet off a separating vertical hinge (book posture): Material says
- * never to place interactive content across the hinge, so the sheet fills the wider pane.
- */
-object ModalSheetHinge {
-    /**
-     * A horizontal pane of the window in pixels.
-     *
-     * @property start Left edge.
-     * @property width Pane width.
-     */
-    data class Pane(val start: Int, val width: Int)
-
-    /**
-     * The wider pane beside a vertical hinge (the start pane on a tie).
-     *
-     * @param windowWidth Window width in pixels.
-     * @param hingeLeft Hinge left edge in window pixels.
-     * @param hingeRight Hinge right edge in window pixels.
-     * @return The pane, or null when the hinge lies outside the window.
-     */
-    fun pane(windowWidth: Int, hingeLeft: Int, hingeRight: Int): Pane? {
-        if (windowWidth <= 0 || hingeLeft <= 0 || hingeRight >= windowWidth || hingeRight < hingeLeft) return null
-        val startWidth = hingeLeft
-        val endWidth = windowWidth - hingeRight
-        return if (startWidth >= endWidth) Pane(0, startWidth) else Pane(hingeRight, endWidth)
-    }
-
-    /**
-     * Horizontal offset moving a window-centred sheet of [sheetWidth] to the centre of [pane].
-     *
-     * @param windowWidth Window width in pixels.
-     * @param pane Target pane.
-     * @param sheetWidth Sheet width in pixels (at most the pane width).
-     * @return Offset in pixels (negative moves towards the start).
-     */
-    fun offset(windowWidth: Int, pane: Pane, sheetWidth: Int): Int {
-        val width = minOf(sheetWidth, pane.width, windowWidth)
-        val centredLeft = (windowWidth - width) / 2
-        val paneLeft = pane.start + (pane.width - width) / 2
-        return paneLeft - centredLeft
-    }
-}
-
-/**
  * Shared modal bottom sheet: Material's `ModalBottomSheet` on the card colour, kept below
- * the status bar ([festivalSheetTop]), titled for TalkBack (`paneTitle`) and headed by
- * [FestivalModalHeader]. Material's drag handle keeps a 48 dp touch target. The close
- * button slides the sheet away (instantly under Reduce Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
- * With a separating vertical hinge (book posture) the sheet sits in the wider pane
- * ([ModalSheetHinge]) instead of straddling the fold.
+ * the status bar ([festivalSheetTop]) and on one side of a separating hinge
+ * ([festivalSheetHingeSide]), titled for TalkBack (`paneTitle`) and headed by
+ * [FestivalModalHeader]. Material's drag handle keeps a 48 dp touch target. The close button
+ * slides the sheet away (instantly under Reduce
+ * Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
  *
  * @param title Header and pane title.
  * @param closeTag Close button test tag.
@@ -212,12 +163,6 @@ fun FestivalModalSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    val density = LocalDensity.current
-    val windowWidth = currentWindowSize().width
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    val pane = hinge?.let { ModalSheetHinge.pane(windowWidth, it.bounds.left.toInt(), it.bounds.right.toInt()) }
-    val maxWidth = pane?.let { with(density) { minOf(it.width.toDp(), BottomSheetDefaults.SheetMaxWidth) } } ?: BottomSheetDefaults.SheetMaxWidth
-    val hingeOffset = pane?.let { ModalSheetHinge.offset(windowWidth, it, with(density) { maxWidth.roundToPx() }) } ?: 0
     CoversBackdrop()
     val close: () -> Unit = {
         if (reduceMotion) {
@@ -229,15 +174,9 @@ fun FestivalModalSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        sheetMaxWidth = maxWidth,
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier
-            .offset { IntOffset(hingeOffset, 0) }
-            .festivalSheetTop()
-            .popupTestTags()
-            .then(modifier)
-            .semantics { paneTitle = title },
-        // Material's handle is 32 dp wide and TalkBack-actionable; keep a 48 dp touch target.
+        modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title },
+        // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
         dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
     ) {
         FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
