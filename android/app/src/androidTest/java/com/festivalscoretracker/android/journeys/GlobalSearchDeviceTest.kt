@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.dp
@@ -12,6 +13,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.search.GlobalSearchResults
 import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.RequestGate
@@ -90,7 +92,7 @@ class GlobalSearchDeviceTest {
 
         h.tap(GlobalSearchTags.scope(SearchScope.Songs))
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
-        h.awaitAccessibilityTree(GlobalSearchTags.section(SearchScope.Songs), absent = GlobalSearchTags.section(SearchScope.Players))
+        h.awaitAccessibilityTree(GlobalSearchTags.RESULT_SONG, absent = GlobalSearchTags.RESULT_PLAYER)
         before(h.readingOrder("global-search-scoped"), "Songs, Selected", "Alpha")
 
         h.tap(GlobalSearchTags.scope(SearchScope.Bands))
@@ -109,25 +111,23 @@ class GlobalSearchDeviceTest {
         h.enableAccessibilityChecks()
         open()
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("zzzz")
-        h.waitForTag(GlobalSearchTags.RETRY)
+        h.waitForTag(GlobalSearchTags.EMPTY)
         // Let the keyboard finish showing so its inset is final.
         Thread.sleep(1_500)
         rule.waitForIdle()
-        before(h.readingOrder("global-search-empty"), "No results found", "Retry")
-        rule.onNodeWithTag(GlobalSearchTags.RETRY).assertIsDisplayed()
-        assertTargets(GlobalSearchTags.RETRY)
+        before(h.readingOrder("global-search-empty"), GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE)
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_SUBTITLE).assertIsDisplayed()
 
-        // Issue #141: the docked panel counted the keyboard twice and pushed Retry under it.
+        // Issue #141: the docked panel counted the keyboard twice and pushed the empty state under it.
         val decor = rule.activity.window.decorView
         val imeBottom = ViewCompat.getRootWindowInsets(decor)?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
         val location = IntArray(2).also(decor::getLocationOnScreen)
         val keyboardTop = location[1] + decor.height - imeBottom
-        val retry = rule.onNodeWithTag(GlobalSearchTags.RETRY).fetchSemanticsNode()
+        val subtitle = rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_SUBTITLE).fetchSemanticsNode()
         val surface = rule.onNodeWithTag(GlobalSearchTags.SURFACE).fetchSemanticsNode()
-        val retryBottom = retry.positionOnScreen.y + retry.size.height
-        assertTrue("Retry ends at $retryBottom, keyboard starts at $keyboardTop", retryBottom <= keyboardTop + 1)
-        assertTrue("Retry ends at $retryBottom, panel at ${surface.positionOnScreen.y + surface.size.height}", retryBottom <= surface.positionOnScreen.y + surface.size.height + 1)
-
+        val subtitleBottom = subtitle.positionOnScreen.y + subtitle.size.height
+        assertTrue("Empty state ends at $subtitleBottom, keyboard starts at $keyboardTop", subtitleBottom <= keyboardTop + 1)
+        assertTrue("Empty state ends at $subtitleBottom, panel at ${surface.positionOnScreen.y + surface.size.height}", subtitleBottom <= surface.positionOnScreen.y + surface.size.height + 1)
         assertSafeRequests()
         h.assertAccessible()
     }

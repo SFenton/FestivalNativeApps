@@ -14,7 +14,7 @@ import FestivalDesign
 // - Percentiles: the web's percentile table (`PlayerPercentileTable.swift`); the Duo
 //   carousel alone draws the same "Top N%" bands as a bar chart.
 //
-// Both are glass cards following the instrument's own stats card (never nested
+// Both are material cards following the instrument's own stats card (never nested
 // glass), each registers a depth-1 Quick Link under its instrument, exposes an
 // `AXChartDescriptor`, and animates only when Reduce Motion (system or the app's
 // own override) is off. Data comes only from pure reads: the compact profile
@@ -506,6 +506,9 @@ struct RankHistoryCharts: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Legend: bars show Total Score, the line shows Rank")
+        // Static text, not a control: inside the swipe-to-page chart the audit
+        // otherwise judged it an 18 pt-tall interactive element ("Hit area is too small").
+        .accessibilityAddTraits(.isStaticText)
     }
 
     // MARK: Pagination

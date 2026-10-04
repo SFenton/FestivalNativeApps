@@ -15,14 +15,18 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
@@ -33,6 +37,7 @@ import com.festivalscoretracker.android.core.search.GlobalPlayerResult
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
 import com.festivalscoretracker.android.core.search.GlobalSongResult
 import com.festivalscoretracker.android.core.search.SearchScope
+import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.presentation.search.GlobalSearchUiState
 import com.festivalscoretracker.android.presentation.search.SectionPhase
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
@@ -45,81 +50,108 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Stateless search content: progress rings and one full-height region for every state (6.21). */
+/**
+ * Stateless search content: one centred spinner, one full-height region for every state (6.21),
+ * and no section titles or Retry buttons (issue #299).
+ */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-mdpi")
 class GlobalSearchContentUiTest {
     @get:Rule
     val rule = createComposeRule()
 
+    private val song = GlobalSongResult("s-the", "The Song", "Band One", null)
+    private val player = GlobalPlayerResult("0123456789abcdef0123456789abcdef", "The Player", isSelected = false)
+
     private fun show(ui: GlobalSearchUiState) {
         rule.setContent {
             FestivalTheme {
                 Box(Modifier.fillMaxWidth().height(600.dp)) {
-                    GlobalSearchContent(ui, { null }, {}, {}, {}, {})
+                    GlobalSearchContent(ui, { null }, {}, {}, {})
                 }
             }
         }
     }
 
+    private fun assertNoRetryOrSectionTitle() {
+        rule.onAllNodes(hasText("Retry", substring = true) and hasClickAction(), useUnmergedTree = true).assertCountEquals(0)
+        rule.onAllNodes(isHeading().and(hasText("Songs") or hasText("Players") or hasText("Bands"))).assertCountEquals(0)
+    }
+
     @Test
-    fun playersProgressIsARingNotALine() {
-        show(GlobalSearchUiState(query = "alpha", settledQuery = "alpha", songsPhase = SectionPhase.Empty, playersPhase = SectionPhase.Loading))
-        val ring = rule.onNodeWithTag(GlobalSearchTags.PLAYERS_LOADING)
+    fun spinnerIsCentredBetweenTheScopeChipsAndTheBottomEdge() {
+        show(GlobalSearchUiState(query = "alpha", settledQuery = "alpha", songs = listOf(song), songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Loading))
+        val spinner = rule.onNodeWithTag(GlobalSearchTags.LOADING)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
             .fetchSemanticsNode().boundsInRoot
-        // A 24 dp ring (mdpi: 1 px per dp), not a full-width line.
-        assertEquals(24f, ring.width, 0.5f)
-        assertEquals(ring.width, ring.height, 0.5f)
+        val chips = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        // All waits for every scope (web parity): no song rows or inline ring beside the spinner.
+        assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.RESULT_SONG).fetchSemanticsNodes().size)
+        assertEquals(36f, spinner.width, 0.5f)
+        assertEquals(root.center.x, spinner.center.x, 1f)
+        // The chip row keeps its 4 dp bottom padding; the content region starts below it.
+        assertEquals((chips.bottom + 4f + 600f) / 2, spinner.center.y, 1f)
     }
 
     @Test
-    fun wholePanelProgressIsCentredInTheFullRegion() {
+    fun debounceShowsTheSameCentredSpinner() {
         show(GlobalSearchUiState(query = "alpha", scope = SearchScope.All, debouncing = true))
         val spinner = rule.onNodeWithTag(GlobalSearchTags.LOADING).fetchSemanticsNode().boundsInRoot
-        // Centred in the region below the pills, not pinned to a small box at the top.
-        assertTrue("spinner at ${spinner.center.y}", spinner.center.y > 250f)
+        val chips = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
+        // The chip row keeps its 4 dp bottom padding; the content region starts below it.
+        assertEquals((chips.bottom + 4f + 600f) / 2, spinner.center.y, 1f)
     }
 
-    private val song = GlobalSongResult("s-the", "The Song", "Band One", null)
+    @Test
+    fun songsScopeDoesNotWaitForPlayers() {
+        show(GlobalSearchUiState(query = "The", settledQuery = "The", scope = SearchScope.Songs, songs = listOf(song), songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Loading))
+        rule.onNodeWithTag(GlobalSearchTags.LOADING).assertDoesNotExist()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertIsDisplayed()
+        assertNoRetryOrSectionTitle()
+    }
 
     @Test
-    fun playersScopeEmptyIsACentredTitleSubtitleAndRetry() {
+    fun allResultsHaveNoSectionTitles() {
+        show(GlobalSearchUiState(query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded, players = listOf(player), playersPhase = SectionPhase.Loaded))
+        val songRow = rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val chips = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_PLAYER).assertIsDisplayed()
+        // The first row sits directly under the scope chips' 4 dp padding: no title row between them.
+        assertEquals(chips.bottom + 4f, songRow.top, 1f)
+        assertNoRetryOrSectionTitle()
+    }
+
+    @Test
+    fun playersScopeEmptyIsACentredTitleAndSubtitleWithoutRetry() {
         show(GlobalSearchUiState(query = "The", settledQuery = "The", scope = SearchScope.Players, songs = listOf(song), songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Empty))
-        // Issue #99: no "Players" section with a left-aligned inline row.
-        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).assertDoesNotExist()
         val region = rule.onNodeWithTag(GlobalSearchTags.EMPTY).fetchSemanticsNode().boundsInRoot
         val title = rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_TITLE)
             .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
             .fetchSemanticsNode().boundsInRoot
         val subtitle = rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE).fetchSemanticsNode().boundsInRoot
-        val retry = rule.onNodeWithTag(GlobalSearchTags.RETRY).assertHasClickAction().fetchSemanticsNode().boundsInRoot
-        // Horizontally centred text, Retry centred under the subtitle.
         assertEquals(region.center.x, title.center.x, 1f)
         assertEquals(region.center.x, subtitle.center.x, 1f)
-        assertEquals(region.center.x, retry.center.x, 1f)
-        assertTrue(title.bottom <= subtitle.top && subtitle.bottom <= retry.top)
+        assertTrue(title.bottom <= subtitle.top)
         // Vertically centred: the block's middle is the region's middle.
-        val block = (title.top + retry.bottom) / 2
-        assertEquals(region.center.y, block, 2f)
-        assertTrue(retry.height >= 48f)
+        assertEquals(region.center.y, (title.top + subtitle.bottom) / 2, 2f)
+        assertNoRetryOrSectionTitle()
     }
 
     @Test
     fun allScopeHidesAnEmptyPlayersSectionNextToSongs() {
         show(GlobalSearchUiState(query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Empty))
-        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assertExists()
-        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).assertDoesNotExist()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.EMPTY).assertDoesNotExist()
-        rule.onNodeWithTag(GlobalSearchTags.RETRY).assertDoesNotExist()
+        assertNoRetryOrSectionTitle()
     }
 
     @Test
-    fun allEmptyHasTitleSubtitleAndRetry() {
+    fun allEmptyAndSongsEmptyHaveNoRetry() {
         show(GlobalSearchUiState(query = "zzzz", settledQuery = "zzzz", songsPhase = SectionPhase.Empty, playersPhase = SectionPhase.Empty))
         rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_TITLE).assertIsDisplayed()
         rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_SUBTITLE).assertIsDisplayed()
-        rule.onNodeWithTag(GlobalSearchTags.RETRY).assertIsDisplayed()
+        assertNoRetryOrSectionTitle()
     }
 
     @Test
@@ -127,7 +159,61 @@ class GlobalSearchContentUiTest {
         show(GlobalSearchUiState(query = "zzzz", settledQuery = "zzzz", scope = SearchScope.Songs, songsPhase = SectionPhase.Empty, playersPhase = SectionPhase.Loaded))
         rule.onNodeWithText(GlobalSearchResults.EMPTY_SONGS_TITLE).assertIsDisplayed()
         rule.onNodeWithText(GlobalSearchResults.EMPTY_SONGS_SUBTITLE).assertIsDisplayed()
-        rule.onNodeWithTag(GlobalSearchTags.RETRY).assertDoesNotExist()
+        assertNoRetryOrSectionTitle()
+    }
+
+    @Test
+    fun playersFailureShowsItsMessageWithoutRetry() {
+        show(
+            GlobalSearchUiState(
+                query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded,
+                playersPhase = SectionPhase.Failed, playersIssue = ServiceIssue.Offline,
+            ),
+        )
+        rule.onNodeWithTag(GlobalSearchTags.PLAYERS_ERROR).assertIsDisplayed()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertIsDisplayed()
+        assertNoRetryOrSectionTitle()
+    }
+
+    @Test
+    fun scrapeFreezeCountdownHasNoRetryNow() {
+        show(
+            GlobalSearchUiState(
+                query = "The", settledQuery = "The", scope = SearchScope.Players, songsPhase = SectionPhase.Loaded,
+                playersPhase = SectionPhase.Failed, playersIssue = ServiceIssue.Offline, playersCountdown = 30,
+            ),
+        )
+        rule.onNodeWithTag(GlobalSearchTags.PLAYERS_ERROR).assertIsDisplayed()
+        assertNoRetryOrSectionTitle()
+    }
+
+    @Test
+    fun shortQueryHintNamesTheScope() {
+        val expected = mapOf(
+            SearchScope.All to "Enter at least two characters to search for songs, players, or bands.",
+            SearchScope.Songs to "Enter at least two characters to search for songs.",
+            SearchScope.Players to "Enter at least two characters to search for players.",
+            SearchScope.Bands to "Enter at least two characters to search for bands.",
+        )
+        var ui by mutableStateOf(GlobalSearchUiState(query = "a"))
+        rule.setContent {
+            FestivalTheme {
+                Box(Modifier.fillMaxWidth().height(600.dp)) { GlobalSearchContent(ui, { null }, {}, {}, {}) }
+            }
+        }
+        expected.forEach { (scope, hint) ->
+            ui = GlobalSearchUiState(query = "a", scope = scope)
+            rule.waitForIdle()
+            rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(hint))
+            rule.onNodeWithTag(GlobalSearchTags.BANDS_UNAVAILABLE).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun bandsScopeExplainsOnceTheQueryIsLongEnough() {
+        show(GlobalSearchUiState(query = "alpha", scope = SearchScope.Bands))
+        rule.onNodeWithTag(GlobalSearchTags.BANDS_UNAVAILABLE).assertIsDisplayed()
+        rule.onNodeWithTag(GlobalSearchTags.HINT).assertDoesNotExist()
     }
 
     @Test
@@ -138,13 +224,13 @@ class GlobalSearchContentUiTest {
                     Box(Modifier.fillMaxWidth().height(220.dp)) {
                         GlobalSearchContent(
                             GlobalSearchUiState(query = "The", settledQuery = "The", scope = SearchScope.Players, songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Empty),
-                            { null }, {}, {}, {}, {},
+                            { null }, {}, {}, {},
                         )
                     }
                 }
             }
         }
-        rule.onNodeWithTag(GlobalSearchTags.RETRY).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE).performScrollTo().assertIsDisplayed()
     }
 
     private fun showChips(fontScale: Float, widthDp: Int) {
@@ -152,7 +238,7 @@ class GlobalSearchContentUiTest {
             FestivalTheme {
                 CompositionLocalProvider(LocalDensity provides Density(1f, fontScale = fontScale)) {
                     Box(Modifier.width(widthDp.dp).height(400.dp)) {
-                        GlobalSearchContent(GlobalSearchUiState(), { null }, {}, {}, {}, {})
+                        GlobalSearchContent(GlobalSearchUiState(), { null }, {}, {}, {})
                     }
                 }
             }
@@ -161,20 +247,20 @@ class GlobalSearchContentUiTest {
 
     @Test
     fun returningToAllScopeStartsAtTheSongs() {
-        // Issue #141: Players → All kept the Players header as the first visible item.
+        // Issue #141: Players → All kept the first player as the first visible item.
         val songs = (1..4).map { GlobalSongResult("s-$it", "Daft Song $it", "Band", null) }
         val players = (1..10).map { GlobalPlayerResult("%032x".format(it), "Daft $it", false) }
         val all = GlobalSearchUiState(query = "daft", settledQuery = "daft", songs = songs, players = players, songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Loaded)
         var ui by mutableStateOf(all.copy(scope = SearchScope.Players))
         rule.setContent {
             FestivalTheme {
-                Box(Modifier.fillMaxWidth().height(400.dp)) { GlobalSearchContent(ui, { null }, {}, {}, {}, {}) }
+                Box(Modifier.fillMaxWidth().height(400.dp)) { GlobalSearchContent(ui, { null }, {}, {}, {}) }
             }
         }
-        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).assertIsDisplayed()
+        rule.onNodeWithText("Daft 1").assertIsDisplayed()
         ui = all
         rule.waitForIdle()
-        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assertIsDisplayed()
+        rule.onNodeWithText("Daft Song 1", substring = true).assertIsDisplayed()
     }
 
     @Test

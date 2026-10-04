@@ -9,10 +9,15 @@ import FestivalDesign
 /// fall back to a dark frosted material so the Fluent "frosted card" look of
 /// the web app is preserved without Liquid Glass. See
 /// `.agents/design/apple/liquid-glass.md` for which surfaces use which role.
+///
+/// Content cards and custom floating controls no longer use glass (issue #291): they
+/// draw the material card (``View/festivalCard(cornerRadius:)``,
+/// ``View/festivalCardCapsule()``). Only the drawer (``overlay``) ships glass; ``card``
+/// and ``control`` remain for the Debug A/B comparison and hosted-capture canaries.
 public enum FestivalGlassRole: Sendable {
-    /// Content cards and grouped rows (song rows, settings sections, stat cards).
+    /// The Liquid Glass card the material card replaced (Debug A/B comparison only).
     case card
-    /// Small floating controls (pills, chips, scrubbers) that should react to touch.
+    /// The Liquid Glass control capsule the material capsule replaced (Debug A/B only).
     case control
     /// Modal and drawer backgrounds that must stay dark enough for contrast.
     case overlay
@@ -103,6 +108,8 @@ public extension View {
 // MARK: - Grouping
 
 /// Groups adjacent glass surfaces so iOS 26 can blend and morph them together.
+///
+/// Material cards (``View/festivalCard(cornerRadius:)``) never merge; do not wrap them.
 ///
 /// On earlier systems this is a plain container.
 public struct FestivalGlassGroup<Content: View>: View {

@@ -7,7 +7,7 @@ import FestivalDesign
 /// `/suggestions` — score-driven song suggestions for the selected player, ported from the
 /// web `SuggestionsPage` (solo mode only; band suggestions are out of scope for this wave).
 ///
-/// One glass card per generated category (`SuggestionCategoryCardView`), loaded a page at a
+/// One material card per generated category (`SuggestionCategoryCardView`), loaded a page at a
 /// time as the player scrolls near the bottom (web "virtualized incremental loads"), with a
 /// toolbar filter sheet for instrument/category toggles.
 struct SuggestionsScreen: View {
@@ -30,6 +30,8 @@ struct SuggestionsScreen: View {
     @State private var handledPublicationRevision: Int?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
     @AppStorage(SuggestionFilterSettings.storageKey) private var filterData = Data()
 
     /// Create the screen.
@@ -51,6 +53,22 @@ struct SuggestionsScreen: View {
 
     private var visibleCategories: [SuggestionCategory] {
         viewModel.visibleCategories(appVisibleInstruments: visibleInstruments)
+    }
+
+    /// Filter is offered with a selected, available player.
+    private var showsFilter: Bool {
+        session.selectedPlayer != nil && session.playerLoadState == .available
+    }
+
+    /// Opens the Suggestions filter sheet.
+    private var filterButton: some View {
+        Button {
+            filterPresented = true
+        } label: {
+            Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+        }
+        .tint(viewModel.filter.isActive() ? BrandTokens.gold : BrandTokens.textPrimary)
+        .accessibilityIdentifier("fst.suggestions.filter-button")
     }
 
     var body: some View {
@@ -84,21 +102,21 @@ struct SuggestionsScreen: View {
         .navigationTitle("Suggestions")
         .festivalBackground(.carousel, session: session)
         .toolbar {
-            if session.selectedPlayer != nil, session.playerLoadState == .available {
+            if pageTools == nil, showsFilter {
                 // Tab root: page actions precede the bell + avatar, which stay rightmost.
                 ToolbarItem(placement: .festivalPageAction) {
-                    Button {
-                        filterPresented = true
-                    } label: {
-                        Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
-                    }
-                    .tint(viewModel.filter.isActive() ? BrandTokens.gold : BrandTokens.textPrimary)
-                    .accessibilityIdentifier("fst.suggestions.filter-button")
+                    filterButton
                 }
             }
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
+        // iPhone tab-bar accessory (issue #92): Filter before the account group.
+        .festivalPageTool(
+            token: viewModel.filter.isActive(), order: PageToolOrder.primary, isEnabled: showsFilter
+        ) {
+            filterButton
+        }
         .sheet(isPresented: $filterPresented) {
             SuggestionsFilterSheet(
                 applied: viewModel.filter, visibleInstruments: orderedVisibleInstruments

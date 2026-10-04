@@ -203,7 +203,7 @@ struct SongPathsSheet: View {
         song.usesKeyboardIcon && (choice == .lead || choice == .proLead)
     }
 
-    /// A native pop-up menu of mutually exclusive options on a compact glass capsule.
+    /// A native pop-up menu of mutually exclusive options on a compact material capsule.
     ///
     /// iOS/iPadOS: a `Menu` holding an inline `Picker` (the system menu with a checkmark
     /// on the current option) whose label shows the current value; the 44 pt frame sits
@@ -228,7 +228,7 @@ struct SongPathsSheet: View {
             .tint(FestivalText.primary)
             .font(.body)
             .frame(maxWidth: .infinity, minHeight: 44)
-            .festivalGlassCapsule(.control, interactive: true)
+            .festivalCardCapsule()
         #else
         Menu {
             Picker(title, selection: selection, content: options)
@@ -247,7 +247,7 @@ struct SongPathsSheet: View {
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Capsule())
-            .festivalGlassCapsule(.control, interactive: true)
+            .festivalCardCapsule()
         }
         // Keep options in source order when the menu opens upward from the bottom row.
         .menuOrder(.fixed)
@@ -407,7 +407,7 @@ struct SongPathsSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .festivalGlass(.card, cornerRadius: 12)
+        .festivalCard(cornerRadius: 12)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Activation \(row.number)")
         .accessibilityValue(spokenValue(row))

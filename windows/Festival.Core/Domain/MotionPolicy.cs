@@ -12,6 +12,12 @@ public static class FadeInTiming
     /// <summary>Web <c>FADE_DURATION</c>.</summary>
     public static readonly TimeSpan Duration = TimeSpan.FromMilliseconds(400);
 
+    /// <summary>
+    /// Fade-out for a control leaving the page (<c>FadeIn.OnHide</c>): WinUI's <c>ControlFastAnimationDuration</c>, so
+    /// exits stay quicker than entrances, as Fluent motion asks.
+    /// </summary>
+    public static readonly TimeSpan HideDuration = TimeSpan.FromMilliseconds(167);
+
     /// <summary>Web <c>STAGGER_INTERVAL</c>.</summary>
     public static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(125);
 
@@ -47,6 +53,27 @@ public static class FadeInTiming
     /// <param name="sinceArmed">Time since the list's items changed.</param>
     /// <returns><see langword="true"/> within <see cref="ArmWindow"/>.</returns>
     public static bool WithinWindow(TimeSpan sinceArmed) => sinceArmed >= TimeSpan.Zero && sinceArmed < ArmWindow;
+}
+#endregion
+
+#region Pinned row reveal
+/// <summary>
+/// When the selected player's pinned leaderboard row (the footer "your score" row) fades in (issue #295). It shares the
+/// rows' load gate, so it is hidden while a page loads and enters with the board's first row; a row that only arrives
+/// after the board is showing (the score index loaded late) fades in on its own instead of popping in.
+/// </summary>
+public static class PinnedRowReveal
+{
+    /// <summary>Delay of the pinned row's <c>fadeInUp</c> when the board reveals: the first row's stagger delay.</summary>
+    public static TimeSpan RevealDelay => FadeInTiming.StaggerDelay(0, FadeInTiming.MaxStaggered)!.Value;
+
+    /// <summary>Whether a pinned row change should fade the row in by itself, outside a board reveal.</summary>
+    /// <param name="hadRow">Whether a pinned row was shown before the change.</param>
+    /// <param name="hasRow">Whether a pinned row is shown after the change.</param>
+    /// <param name="phase">Board load phase at the change.</param>
+    /// <returns><see langword="true"/> only for a row that newly appears over an already revealed board.</returns>
+    public static bool FadesOnArrival(bool hadRow, bool hasRow, LoadSwapPhase phase) =>
+        !hadRow && hasRow && phase == LoadSwapPhase.ContentIn;
 }
 #endregion
 

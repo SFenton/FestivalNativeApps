@@ -14,6 +14,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
 {
     private CancellationTokenSource headerArt = new();
     private int shownPage;
+    private bool spotlightShown;
     private readonly BoardFooterFade footerFade;
     private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
@@ -50,6 +51,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         shownPage = ViewModel.Page;
+        spotlightShown = ViewModel.ShowSpotlight;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title} leaderboard, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title} leaderboard, no entries" : null,
             "Loading leaderboard");
@@ -68,12 +70,19 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         base.OnNavigatedFrom(e);
     }
 
-    /// <summary>Loads art once the song resolves and scrolls to the top on page changes.</summary>
+    /// <summary>Loads art once the song resolves, scrolls to the top on page changes and fades in a late pinned row.</summary>
     /// <param name="sender">View model.</param>
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SongLeaderboardViewModel.Song)) _ = ShowSongAsync();
+        else if (e.PropertyName == nameof(SongLeaderboardViewModel.ShowSpotlight))
+        {
+            var shown = ViewModel.ShowSpotlight;
+            if (PinnedRowReveal.FadesOnArrival(spotlightShown, shown, ViewModel.LoadSwap.Phase))
+                DispatcherQueue.TryEnqueue(() => FadeIn.Play(SpotlightPanel, TimeSpan.Zero));
+            spotlightShown = shown;
+        }
         else if (e.PropertyName == nameof(SongLeaderboardViewModel.Rows) && ViewModel.Page != shownPage)
         {
             shownPage = ViewModel.Page;
@@ -90,11 +99,18 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         }
     }
 
-    /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
+    /// <summary>
+    /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your score" row
+    /// entering alongside the first row (issue #295).
+    /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
     private void OnContentRevealed(object? sender, EventArgs e) =>
-        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            FadeIn.StaggerRealized(RowsRepeater);
+            if (ViewModel.ShowSpotlight) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+        });
 
     /// <summary>Updates the backdrop and header art for the resolved song.</summary>
     /// <returns>Load task.</returns>

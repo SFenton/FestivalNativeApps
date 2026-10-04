@@ -24,6 +24,15 @@ from tools.ios_sim import (
     bmp_is_dark,
     classify_pose,
     match_pose_control,
+    choose_hub_process,
+    find_hub_control,
+    has_pose_controls,
+    hub_helper_stale,
+    hub_window_shows,
+    output_paths as _output_paths,
+    parse_host_command,
+    pose_presses,
+    rank_device_windows,
     driver_build_stale,
     output_paths,
     parse_steps,
@@ -286,6 +295,115 @@ class PoseControlMatchTests(unittest.TestCase):
         controls = [_control(description="Partially Open", enabled=False),
                     _control(description="Partially Open", role="AXStaticText")]
         self.assertIsNone(match_pose_control("half", controls))
+
+
+class DeviceHubWindowTests(unittest.TestCase):
+    """Finding Device Hub's window for our Duo without touching other projects' windows."""
+
+    def test_title_match_is_exact_name_plus_separator(self):
+        self.assertTrue(hub_window_shows("iPhone Duo (FST) – iOS 27.1", "iPhone Duo (FST)"))
+        self.assertTrue(hub_window_shows("iPhone Duo (FST)", "iPhone Duo (FST)"))
+        self.assertFalse(hub_window_shows("iPhone Duo (HASS) – iOS 27.1", "iPhone Duo (FST)"))
+        self.assertFalse(hub_window_shows("iPhone Duo (FST) 2 – iOS 27.1", "iPhone Duo (FST)"))
+        self.assertFalse(hub_window_shows("HA Resume Probe iPhone 17 Pro – iOS 27.0", "iPhone Duo (FST)"))
+
+    def test_visible_standard_main_windows_rank_first(self):
+        windows = [
+            {"pid": 10, "window": 2, "title": "iPhone Duo (FST) – iOS 27.1", "subrole": "AXDialog",
+             "minimized": True, "main": False},
+            {"pid": 10, "window": 1, "title": "iPhone Duo (HASS) – iOS 27.1", "subrole": "AXStandardWindow",
+             "minimized": False, "main": True},
+            {"pid": 20, "window": 0, "title": "iPhone Duo (FST) – iOS 27.1", "subrole": "AXStandardWindow",
+             "minimized": False, "main": False},
+            {"pid": 30, "window": 0, "title": "iPhone Duo (FST) – iOS 27.1", "subrole": "AXStandardWindow",
+             "minimized": False, "main": True},
+        ]
+        ranked = rank_device_windows(windows, "iPhone Duo (FST)")
+        self.assertEqual([(entry["pid"], entry["window"]) for entry in ranked], [(30, 0), (20, 0), (10, 2)])
+
+    def test_new_window_goes_to_the_frontmost_hub_process(self):
+        self.assertEqual(choose_hub_process([10, 20, 30], 20), 20)
+        self.assertEqual(choose_hub_process([10, 20, 30], 999), 30)
+        self.assertEqual(choose_hub_process([10, 20, 30], None), 30)
+
+    def test_helper_recompiles_when_missing_or_older(self):
+        with TemporaryDirectory() as folder:
+            source, binary = Path(folder) / "a.swift", Path(folder) / "a"
+            source.write_text("//")
+            self.assertTrue(hub_helper_stale(source, binary))
+            binary.write_text("bin")
+            import os
+            os.utime(source, (1, 1))
+            self.assertFalse(hub_helper_stale(source, binary))
+            os.utime(binary, (0, 0))
+            self.assertTrue(hub_helper_stale(source, binary))
+
+
+class DeviceHubControlsTests(unittest.TestCase):
+    """The calibrated Device Hub 27.1 device window: Rotate Right, Closed, Book, Open."""
+
+    def setUp(self):
+        self.controls = [
+            _control(description="Home", identifier="app.grid.3x3"),
+            _control(description="Screenshot", identifier="camera.viewfinder"),
+            _control(description="Rotate Right"),
+            _control(description="Closed"),
+            _control(description="Book"),
+            _control(description="Open"),
+            _control(description="Hide Sidebar"),
+            _control(subrole="AXCloseButton"),
+        ]
+
+    def test_each_pose_presses_its_button(self):
+        self.assertEqual(pose_presses("folded", self.controls), [self.controls[3]])
+        self.assertEqual(pose_presses("half", self.controls), [self.controls[4]])
+        self.assertEqual(pose_presses("unfolded", self.controls), [self.controls[5]])
+        self.assertEqual(pose_presses("rotate-right", self.controls), [self.controls[2]])
+
+    def test_simulated_app_elements_never_match(self):
+        content = [_control(role="AXGroup", subrole="iOSContentGroup", path=[0, 3, 0]),
+                   _control(description="#1, player, Full combo, Open in new window", path=[0, 3, 0, 31]),
+                   _control(description="Closed door", path=[0, 3, 0, 32])]
+        self.assertEqual(pose_presses("unfolded", content + self.controls), [self.controls[5]])
+        self.assertEqual(pose_presses("folded", content + self.controls), [self.controls[3]])
+        self.assertEqual(pose_presses("folded", content), [])
+
+    def test_toolbar_toggle_found_by_exact_label(self):
+        toggle = _control(role="AXCheckBox", description="Capture Keyboard", help="Capture Keyboard")
+        group = _control(role="AXGroup", help="Capture Keyboard")
+        self.assertIs(find_hub_control([group, toggle] + self.controls, "Capture Keyboard"), toggle)
+        self.assertIsNone(find_hub_control(self.controls, "Capture"))
+
+    def test_rotate_left_is_three_right_rotations(self):
+        self.assertEqual(pose_presses("rotate-left", self.controls), [self.controls[2]] * 3)
+
+    def test_pose_controls_present_only_when_booted(self):
+        self.assertTrue(has_pose_controls(self.controls))
+        booted_off = [_control(description="Start"), _control(description="Hide Sidebar")]
+        self.assertFalse(has_pose_controls(booted_off))
+        self.assertEqual(pose_presses("half", booted_off), [])
+
+
+class HostCommandTests(unittest.TestCase):
+    """``host:`` driver steps the host runs mid-drive (Duo poses, panel captures, menus)."""
+
+    def test_valid_commands(self):
+        self.assertEqual(parse_host_command("pose half"), ("pose", ["half"]))
+        self.assertEqual(parse_host_command(" capture inner /tmp/a b.png "), ("capture", ["inner", "/tmp/a b.png"]))
+        self.assertEqual(parse_host_command("menu Device/Keyboard/Toggle Software Keyboard"),
+                         ("menu", ["Device/Keyboard/Toggle Software Keyboard"]))
+        self.assertEqual(parse_host_command("control Capture Keyboard"), ("control", ["Capture Keyboard"]))
+
+    def test_invalid_commands(self):
+        for text in ("pose sideways", "pose", "capture middle /tmp/a.png", "capture inner relative.png",
+                     "reboot now", "", "menu"):
+            with self.assertRaises(ValueError, msg=text):
+                parse_host_command(text)
+
+    def test_capture_paths_are_outputs(self):
+        steps = ["host:pose unfolded", "host:capture inner /tmp/x/inner.png", "shot:/tmp/x/a.png",
+                 "host:capture nowhere /tmp/bad.png"]
+        self.assertEqual(_output_paths(steps), ["/tmp/x/inner.png", "/tmp/x/a.png"])
 
 
 class AccessibilityInstructionTests(unittest.TestCase):

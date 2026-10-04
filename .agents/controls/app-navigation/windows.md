@@ -8,7 +8,7 @@
 - `MainWindow.xaml.cs` `RebuildMenu` builds the items from `ShellState.Sections` (Core) with Segoe Fluent glyphs and `AppSection.AutomationId()` (`fst.nav.songs`, `fst.nav.suggestions`, `fst.nav.statistics`, `fst.nav.rivals`, `fst.nav.leaderboards`, `fst.nav.shop`). Settings is the NavigationView's own footer item (`IsSettingsVisible`, `fst.nav.settings`). Anonymous: Songs, Leaderboards, Item Shop + Settings. With a player: Songs, Suggestions, Statistics, Rivals, Leaderboards, Item Shop + Settings. If the current section disappears (deselect on Statistics), the shell shows Songs.
 - `OnNavItemInvoked` calls `Show(section)`: switching restores the section's saved nested route; invoking the current section pops it to its root (spec "re-tapping returns to root").
 - `MainWindow.Accessibility.cs`: each item gets `KeyboardAccelerator` Ctrl+1…7 in pane order (Settings Ctrl+comma) and an access key (Alt+S Songs, U Suggestions, T Statistics, R Rivals, L Leaderboards, I Item Shop, E Settings; P the profile button). UIA exposes them as AcceleratorKey "Control+1" / AccessKey "Alt, S". Back is Alt+Left; the content host `FrameHost` is the `main` landmark "Page content".
-- Profile: `fst.shell.profile` (flyout with `fst.profile.search`) and, with a player only, the bell `fst.shell.notifications`. Selecting or deselecting a player rebuilds the pane but keeps the current section.
+- Profile: `fst.shell.profile` (anonymous: flyout with `fst.profile.search`; with a player: the Statistics section, issue #290; Ctrl+Shift+P and its context menu open the flyout in both states) and, with a player only, the bell `fst.shell.notifications`. Selecting or deselecting a player rebuilds the pane but keeps the current section.
 
 ## Design decisions (winui-design)
 
@@ -30,7 +30,7 @@ Runner: `python tools/windows/journeys/navigation.py [NAMES] [--shots DIR]` (fix
 | `settings` | Ctrl+comma, or the footer item | `settings`: Settings selected, no Back, both entry points |
 | `player` | Selected player at launch | `player`: seven-item pane order and accelerators, bell visible; Statistics, Suggestions (Ctrl+2) and Rivals (Ctrl+4) selected in turn |
 | `band` | Leaderboards › Band Rankings › band | `band`: band page with Back and no player-only items; Alt+Left returns; re-selecting Leaderboards pops to root, Back gone |
-| `reselect` | Statistics › Deselect › confirm, then profile flyout › search › Select | `reselect`: pane drops to the anonymous order and lands on Songs; selecting again restores the seven items and keeps Songs selected |
+| `reselect` | Statistics › Deselect › confirm, then profile flyout › search › Select | `reselect`: pane drops to the anonymous order and lands on Songs; selecting again restores the seven items and keeps Songs selected; Ctrl+1 then the profile button opens Statistics with no flyout (issue #290) |
 | Compact pane | `compact` preset, `PART_PaneToggleButton` | `compact`: pane closed until toggled; on Leaderboards, Enter on the toggle opens it with focus on Leaderboards and Esc returns focus to the toggle; an item navigates and the overlay dismisses; resizing to wide keeps the selection |
 | Keyboard | Posted keys at `medium` | `keyboard`: Ctrl+5/6/comma/1; Alt+Left; Tab toggle → search → bell → profile → the selected item (Leaderboards); Down + Enter navigates to Item Shop |
 

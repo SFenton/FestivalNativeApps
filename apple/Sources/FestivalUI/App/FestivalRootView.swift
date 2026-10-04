@@ -364,6 +364,7 @@ public struct FestivalRootView: View {
             #endif
         }
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
+        .environment(\.openNotifications, OpenNotificationsAction { notificationsPresented = true })
         .environment(\.profileButtonAction, profileButtonHandler(visibleSections))
         .environment(\.festivalSession, session)
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
@@ -469,8 +470,10 @@ public struct FestivalRootView: View {
     /// the vertical bar; nothing here is Duo-specific.
     ///
     /// Global search is a separate trailing Search tab (issue #92; HIG Tab bars: "A
-    /// dedicated Search tab may be trailing"). Nothing rides on the tab bar: the page
-    /// tools sit in each page's navigation bar.
+    /// dedicated Search tab may be trailing"). On iOS 26.1+ the horizontal tab bar carries
+    /// the page-tools accessory (the front page's actions and Quick Links, then
+    /// Notifications and Profile; `festivalPageToolsAccessory`), hidden while Search is
+    /// open; elsewhere the page tools sit in each page's navigation bar.
     ///
     /// - Parameter visibleSections: Sections to show as tabs.
     /// - Returns: The tab view.
@@ -490,6 +493,7 @@ public struct FestivalRootView: View {
                 #endif
             }
             .modifier(RootTabBarBehavior())
+            .festivalPageToolsAccessory(isEnabled: !searchActive)
         } else {
             TabView(selection: rootTabSelection) {
                 ForEach(visibleSections) { section in

@@ -5,15 +5,36 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:domain="using:Festival.Core.Domain">
     <UserControl.Resources>
-        <!-- White pips (operator batch 6.7): dimmed white for other slides, solid white for the current one. -->
-        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForeground" Color="#80FFFFFF" />
-        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPointerOver" Color="#CCFFFFFF" />
-        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPressed" Color="#CCFFFFFF" />
-        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundSelected" Color="#FFFFFFFF" />
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <!-- White pips (operator batch 6.7) on the always-dark dialog: dimmed white for other slides, solid white
+                     for the current one. Light repeats Dark because FestivalDialog forces the dark theme. -->
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForeground" Color="#80FFFFFF" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPointerOver" Color="#CCFFFFFF" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPressed" Color="#CCFFFFFF" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundSelected" Color="#FFFFFFFF" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForeground" Color="#80FFFFFF" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPointerOver" Color="#CCFFFFFF" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPressed" Color="#CCFFFFFF" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundSelected" Color="#FFFFFFFF" />
+                </ResourceDictionary>
+                <!-- High contrast (issue #232): WinUI's own mapping, so the selected pip keeps HighlightText on Highlight. -->
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForeground" Color="{ThemeResource SystemColorButtonTextColor}" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                    <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundSelected" Color="{ThemeResource SystemColorHighlightTextColor}" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
     </UserControl.Resources>
     <!-- Content of the first-run ContentDialog: FlipView of slides and pips. No visible "Slide X of Y" (the web has none):
          FlipView items expose PositionInSet/SizeOfSet and slide changes are announced (FirstRunCarousel.xaml.cs). -->
     <StackPanel Spacing="12" Width="440" AutomationProperties.AutomationId="fst.first-run.carousel">
+        <!-- Height: at least 370, grown in code to the tallest slide's text at the current text scale (issue #232). -->
         <FlipView x:Name="Slides" Height="370" SelectionChanged="OnSlideChanged" Background="Transparent" ItemsSource="{x:Bind Carousel.Slides}"
                   SelectedIndex="{x:Bind Carousel.Index, Mode=TwoWay}"
                   AutomationProperties.Name="{x:Bind Carousel.Title}"

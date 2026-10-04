@@ -18,6 +18,12 @@ Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` 
 More Contrast + Less Transparency). Join modes with ``+`` to combine them (``hc-desert+scale-150``: a contrast
 theme on a page area wide enough for the Quick Links pane on a high-scale host).
 
+A page may add fixture flags (``"fixture": ["--band-rankings", "empty"]``) or name its own fixture wrapper and
+flags (``"fixture": ["shop_fixture.py", "--shop", "empty"]``, relative to ``tools/windows``) for states the shared
+fixture cannot reach; pages with the same script and flags share one fixture service on its own port.
+``--live`` drops ``--base-url`` so the app uses its default keyless public origin (evidence runs) and skips
+fixture-only pages (a ``fixture`` wrapper or a ``fixture-…`` player).
+
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
 or (with ``--scan``) any scan reported errors.
@@ -159,6 +165,54 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     return [s.replace("{stem}", str(out / stem)) for s in steps]
 
 
+def launch_args(port: int | None, page: dict, settings: Path) -> list[str]:
+    """App arguments for one launch.
+
+    Args:
+        port: Loopback fixture port, or ``None`` for the app's default keyless public origin (``--live``).
+        page: Page definition (``first_run``).
+        settings: Isolated settings file.
+
+    Returns:
+        Command-line arguments.
+    """
+    base = [] if port is None else ["--base-url", f"http://127.0.0.1:{port}/"]
+    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}"]
+
+
+def live_pages(pages: list[dict]) -> list[dict]:
+    """Pages that can run against the live public service.
+
+    Fixture-only pages (a ``fixture`` wrapper or a ``fixture-…`` profile) are dropped: their states or players do
+    not exist in production, and evidence runs must not depend on them.
+
+    Args:
+        pages: Page definitions.
+
+    Returns:
+        The live-safe subset, in order.
+    """
+    return [p for p in pages if "fixture" not in p and not str(p.get("profile", "")).startswith("fixture-")]
+
+
+def page_fixture(page: dict, default: Path = FIXTURE) -> tuple[Path, tuple[str, ...]]:
+    """Fixture script and flags for one page.
+
+    Args:
+        page: Page definition; its optional ``fixture`` list is either flags for the default script
+            (``["--band-rankings", "empty"]``) or a wrapper script under ``tools/windows`` followed by its
+            flags (``["shop_fixture.py", "--shop", "empty"]``).
+        default: Script used when the list does not start with a ``.py`` name.
+
+    Returns:
+        Script path and flags; pages with equal results share one fixture service.
+    """
+    flags = tuple(page.get("fixture", ()))
+    if flags and flags[0].endswith(".py"):
+        return REPO_ROOT / "tools" / "windows" / flags[0], flags[1:]
+    return default, flags
+
+
 def summarize_focus(focus: list[dict]) -> dict:
     """Tab-walk statistics for one size.
 
@@ -226,7 +280,7 @@ def start_fixture(log: Path, extra: tuple[str, ...] = (), fixture: Path = FIXTUR
     raise RuntimeError(f"fixture service did not start; see {log}")
 
 
-def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out: Path, scan: bool,
+def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int | None, out: Path, scan: bool,
              tabs: int, hold: float) -> list[dict]:
     """Run one page at every size; each size is a fresh launch under its own desktop-lock hold.
 
@@ -237,7 +291,7 @@ def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out:
         mode: Mode name (``MODES``).
         sizes: Window presets.
         exe: App executable.
-        port: Fixture port.
+        port: Fixture port (``None``: live public service).
         out: Output directory.
         scan: Run Axe.Windows scans.
         tabs: Default Tab presses.
@@ -269,9 +323,10 @@ def page_env(page: dict, data_dir: Path) -> dict[str, str]:
     env.update({key: str(value) for key, value in page.get("env", {}).items()})
     return env
 
-def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, scan: bool, tabs: int,
+
+def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out: Path, scan: bool, tabs: int,
              hold: float) -> dict:
-    """Launch, check and close one page at one size (see :func:`run_page`)."""
+    """Launch, check and close one page at one size (see :func:`run_page`; ``port`` None = live service)."""
     spec = mode_spec(mode)
     suffix = "" if mode == "normal" else f"-{mode}"
     state = Path(tempfile.mkdtemp(prefix=f"fst-a11y-{page['name']}-"))
@@ -282,8 +337,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, 
     warning = uiwin.prepare_automation(exe, env)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
-    args = ["--base-url", f"http://127.0.0.1:{port}/", f"--first-run={page.get('first_run', 'off')}",
-            f"--settings-path={settings}"]
+    args = launch_args(port, page, settings)
     record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False}
     lock = uiwin.HostLock("desktop", purpose=f"a11y {page['name']} {size} {mode} [{REPO_ROOT.name}]",
                           hold_seconds=hold, wait_seconds=1800)
@@ -362,6 +416,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hold", type=float, default=300.0)
     parser.add_argument("--pages", type=Path, default=PAGES,
                         help="page list (e.g. journeys/a11y-keyboard.json: assertfocus journeys, run without --scan)")
+    parser.add_argument("--live", action="store_true",
+                        help="use the app's default keyless public origin (evidence runs); skips fixture-only pages")
     parser.add_argument("--fixture", type=Path, default=FIXTURE,
                         help="fixture service script (e.g. tools/windows/rankings_fixture.py for every Full Rankings state)")
     args = parser.parse_args(argv)
@@ -379,19 +435,23 @@ def main(argv: list[str] | None = None) -> int:
         wanted = set(args.only.split(","))
         pages = [p for p in pages if p["name"] in wanted]
     sizes = [s for s in args.sizes.split(",") if s]
-    # One fixture service per distinct page ``fixture`` flag list (most pages share the default one).
-    fixtures: dict[tuple[str, ...], tuple[subprocess.Popen, int]] = {}
+    if args.live:
+        pages = live_pages(pages)
+    # One fixture service per distinct (script, flags) pair (most pages share the default one).
+    fixtures: dict[tuple[Path, tuple[str, ...]], tuple[subprocess.Popen, int]] = {}
     results: list[dict] = []
     try:
         # Driver step logs (every focus stop) go to a file; the console gets one line per page and size.
         with (out / "driver.log").open("a", encoding="utf-8") as log, contextlib.redirect_stderr(log):
             for page in pages:
-                extra = tuple(page.get("fixture", ()))
-                if extra not in fixtures:
-                    fixtures[extra] = start_fixture(out / f"fixture-service-{len(fixtures)}.log", extra,
-                                                    args.fixture.resolve())
+                port = None
+                if not args.live:
+                    key = page_fixture(page, args.fixture.resolve())
+                    if key not in fixtures:
+                        fixtures[key] = start_fixture(out / f"fixture-service-{len(fixtures)}.log", key[1], key[0])
+                    port = fixtures[key][1]
                 page_sizes = [s for s in sizes if s in page.get("sizes", sizes)]
-                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), fixtures[extra][1], out,
+                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), port, out,
                                         args.scan, args.tabs, args.hold))
     finally:
         for fixture, _ in fixtures.values():

@@ -26,7 +26,7 @@ struct FirstRunSongInfoChartDemo: View {
             legend
         }
         .padding(14)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
         .accessibilityHidden(true)
     }
 
@@ -102,7 +102,7 @@ struct FirstRunSongInfoBarSelectDemo: View {
             .firstRunSwapRow(0, key: selectedIndex)
         }
         .padding(14)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
         .environment(\.firstRunFadingRows, fading)
         .accessibilityHidden(true)
         .firstRunDemoTicker(every: FirstRunDemoTiming.barSelectInterval) { await swap() }
@@ -171,7 +171,7 @@ struct FirstRunSongInfoViewAllDemo: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 44)
-        .festivalGlass(.card, cornerRadius: 12)
+        .festivalCard(cornerRadius: 12)
     }
 }
 
@@ -199,7 +199,7 @@ struct FirstRunSongInfoTopScoresDemo: View {
                 }
             }
             .padding(.horizontal, 14)
-            .festivalGlass(.card, cornerRadius: 16)
+            .festivalCard(cornerRadius: 16)
             FirstRunViewAllRow(title: "View full leaderboard")
         }
         .accessibilityHidden(true)
@@ -255,7 +255,7 @@ struct FirstRunSongInfoPathsDemo: View {
                 .frame(maxWidth: .infinity, minHeight: 90)
         }
         .padding(14)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
         .accessibilityHidden(true)
     }
 }

@@ -109,6 +109,7 @@ public struct MacCommands: Commands {
     @FocusedValue(\.macPageCommands) private var pageCommands
     @FocusedValue(\.macSongCommands) private var songCommands
     @FocusedValue(\.macRankBy) private var rankBy
+    @FocusedValue(\.macInstrument) private var instrument
     @FocusedValue(\.macQuickLinksPage) private var pageQuickLinks
     @FocusedValue(\.macQuickLinksList) private var listQuickLinks
     @FocusedValue(\.macListCommands) private var listCommands
@@ -163,6 +164,7 @@ public struct MacCommands: Commands {
             Button("Filter…") { pageCommands?.filter?() }
                 .disabled(pageCommands?.filter == nil || sheetOpen)
             rankByMenu
+            instrumentMenu
             Divider()
             // The standard "Scroll to selection" shortcut (HIG Keyboards: Command-J).
             Button("Scroll to Selection") { listCommands?.scrollToSelection() }
@@ -233,6 +235,23 @@ public struct MacCommands: Commands {
                     set: { isOn in if isOn { rankBy?.select(option.id) } }
                 ))
                 .disabled(rankBy == nil)
+            }
+        }
+    }
+
+    /// View › Instrument: the front rankings page's charts with a checkmark on the one
+    /// in effect (the page's toolbar instrument menu, issue #294); every chart stays
+    /// listed but disabled elsewhere (HIG Menus: "Make sure a submenu remains available
+    /// even when its items are unavailable").
+    @ViewBuilder private var instrumentMenu: some View {
+        let options = instrument?.options ?? MacInstrumentCommands.allOptions
+        Menu("Instrument") {
+            ForEach(options) { option in
+                Toggle(option.label, isOn: Binding(
+                    get: { instrument?.selected == option.id },
+                    set: { isOn in if isOn { instrument?.select(option.id) } }
+                ))
+                .disabled(instrument == nil)
             }
         }
     }

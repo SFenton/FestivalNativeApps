@@ -25,6 +25,13 @@ class SongSectionIndexHitTest {
     }
 
     @Test
+    fun spokenLabelNamesTheNonLetterSection() {
+        assertEquals("Numbers and symbols", SongSectionIndex.spokenLabel("#"))
+        assertEquals("A", SongSectionIndex.spokenLabel("A"))
+        assertEquals("", SongSectionIndex.spokenLabel(""))
+    }
+
+    @Test
     fun everyLabelDrawn_matchesTheProportionalMapping() {
         for (step in 0..1000) {
             val fraction = step / 1000f

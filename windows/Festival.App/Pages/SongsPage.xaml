@@ -354,7 +354,9 @@
                 </DropDownButton.Flyout>
             </DropDownButton>
 
+            <!-- Fades in and out as the sort or results change (control spec: never appear/disappear abruptly). -->
             <Button x:Name="JumpButton" Click="OnJumpClick" Visibility="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
+                    controls:FadeIn.OnShow="True" controls:FadeIn.OnHide="True"
                     MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
                     AutomationProperties.Name="Jump to Section" ToolTipService.ToolTip="Jump to section (Ctrl+Minus)"
                     AutomationProperties.AutomationId="fst.songs.section-index-button">
@@ -463,14 +465,15 @@
                 <SemanticZoom.ZoomedOutView>
                     <!-- Fills the page (transparent) so a click beside the letters closes the index (operator batch 6.1);
                          the letters stay centred through the panel's alignment. -->
-                    <GridView ItemsSource="{x:Bind GroupedSongs.View.CollectionGroups, Mode=OneWay}" Background="Transparent"
+                    <GridView x:Name="JumpIndex" ItemsSource="{x:Bind GroupedSongs.View.CollectionGroups, Mode=OneWay}" Background="Transparent"
                               Tapped="OnJumpIndexTapped"
                               HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SelectionMode="None"
                               AutomationProperties.Name="Jump to section"
                               AutomationProperties.AutomationId="fst.songs.section-index">
                         <GridView.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <ItemsWrapGrid Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <ItemsWrapGrid Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Loaded="OnJumpPanelLoaded" />
                             </ItemsPanelTemplate>
                         </GridView.ItemsPanel>
                         <GridView.ItemTemplate>

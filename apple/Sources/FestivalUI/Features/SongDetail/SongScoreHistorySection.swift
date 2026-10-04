@@ -89,7 +89,7 @@ struct SongScoreHistorySection: View {
                 }
                 .frame(minHeight: pinnedHeight, alignment: .top)
                 .padding(14)
-                .festivalGlass(.card, cornerRadius: 16)
+                .festivalCard(cornerRadius: 16)
                 Group {
                     VStack(spacing: 6) {
                         ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
@@ -354,6 +354,9 @@ private struct ScoreHistoryChart: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Legend: bars show accuracy, the line shows score")
+        // Static text, not a control: inside the swipe-to-page chart the audit
+        // otherwise judged it an 18 pt-tall interactive element ("Hit area is too small").
+        .accessibilityAddTraits(.isStaticText)
     }
 
     private func swatch(_ style: AnyShapeStyle, _ title: String) -> some View {
@@ -502,7 +505,7 @@ struct ScoreHistoryListRow: View {
                 shape.fill(Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75))
                     .overlay(shape.stroke(BrandTokens.accentPurple.opacity(0.5), lineWidth: 1))
             } else {
-                Color.clear.festivalGlass(.card, cornerRadius: 12)
+                Color.clear.festivalCard(cornerRadius: 12)
             }
         }
         .accessibilityElement(children: .ignore)

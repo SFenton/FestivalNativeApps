@@ -7,7 +7,7 @@ import FestivalDesign
 /// Maps a slide id to its native demo preview, mirroring the web's per-slide `render()`.
 ///
 /// Every registered slide across all 9 first-run pages now gets a full live native mini-demo
-/// built from real design primitives (`InstrumentIcon`, `festivalGlass`, `BrandTokens`, Swift
+/// built from real design primitives (`InstrumentIcon`, `festivalCard`, `BrandTokens`, Swift
 /// Charts) with static, non-networked sample data — matching the web's own hardcoded first-run
 /// demo pools. ``FirstRunStaticIllustration`` remains only as a safety-net fallback for an id
 /// that somehow isn't in the catalog; ``hasLiveDemo(id:)`` is unit-tested to confirm every
@@ -119,7 +119,7 @@ struct FirstRunDemoContent: View {
 
 // MARK: - Static fallback
 
-/// A page-themed icon on a glass card, standing in for a live demo where porting the web's
+/// A page-themed icon on a material card, standing in for a live demo where porting the web's
 /// interactive preview 1:1 would be disproportionate to a first pass. The slide's real title and
 /// description (shown below this view by `FirstRunCarouselView`) carry the actual explanation.
 struct FirstRunStaticIllustration: View {
@@ -130,7 +130,7 @@ struct FirstRunStaticIllustration: View {
             .font(.system(size: 64, weight: .semibold))
             .foregroundStyle(BrandTokens.accentBlue)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .festivalGlass(.card, cornerRadius: 20)
+            .festivalCard(cornerRadius: 20)
             .accessibilityHidden(true)
     }
 }

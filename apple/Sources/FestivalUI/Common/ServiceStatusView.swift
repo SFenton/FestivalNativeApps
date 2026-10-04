@@ -224,6 +224,11 @@ struct ServiceStatusInline: View {
     let issue: ServiceIssue
     let scope: String
     let retry: () -> Void
+    /// Draw the Retry button; the automatic countdown retry runs either way.
+    let showsRetryButton: Bool
+    /// Names what failed when the issue has no title of its own (e.g. "Players
+    /// unavailable"), for sections without a heading.
+    let fallbackTitle: String?
 
     @State private var remaining: Int?
     @Environment(\.serviceRetryClock) private var clock
@@ -235,10 +240,17 @@ struct ServiceStatusInline: View {
     ///   - issue: Classified failure.
     ///   - scope: Backoff identifier, unique per section.
     ///   - retry: Reloads just this section.
-    init(_ issue: ServiceIssue, scope: String, retry: @escaping () -> Void) {
+    ///   - showsRetryButton: False hides Retry (global search, issue #299).
+    ///   - fallbackTitle: Shown instead of the message when the issue has no title.
+    init(
+        _ issue: ServiceIssue, scope: String, showsRetryButton: Bool = true,
+        fallbackTitle: String? = nil, retry: @escaping () -> Void
+    ) {
         self.issue = issue
         self.scope = scope
         self.retry = retry
+        self.showsRetryButton = showsRetryButton
+        self.fallbackTitle = fallbackTitle
     }
 
     var body: some View {
@@ -255,7 +267,7 @@ struct ServiceStatusInline: View {
                     .foregroundStyle(BrandTokens.gold)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(issue.title ?? issue.message)
+                    Text(issue.title ?? fallbackTitle ?? issue.message)
                         .font(.footnote)
                         .foregroundStyle(FestivalText.primary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -270,10 +282,12 @@ struct ServiceStatusInline: View {
             if !stacked {
                 Spacer(minLength: 8)
             }
-            Button(remaining == nil ? "Retry" : "Retry Now", action: retry)
-                .font(.footnote.weight(.semibold))
-                .frame(minHeight: 44)
-                .accessibilityIdentifier("fst.service-status.retry")
+            if showsRetryButton {
+                Button(remaining == nil ? "Retry" : "Retry Now", action: retry)
+                    .font(.footnote.weight(.semibold))
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("fst.service-status.retry")
+            }
         }
         .accessibilityIdentifier("fst.service-status.inline")
         .task(id: issue) {

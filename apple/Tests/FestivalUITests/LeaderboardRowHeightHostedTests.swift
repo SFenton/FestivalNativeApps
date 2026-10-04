@@ -65,9 +65,9 @@ private func rowHeight(
 
 @Test @MainActor func rankingsRowsMatchTheSongLeaderboardRowHeight() throws {
     let entry = try rankingRow(rank: 1, name: "Player One")
-    let plain = rowHeight(AccountRankingRow(entry: entry, metric: .totalscore, glassSurface: true))
+    let plain = rowHeight(AccountRankingRow(entry: entry, metric: .totalscore, cardSurface: true))
     let selected = rowHeight(
-        AccountRankingRow(entry: entry, metric: .totalscore, isSelected: true, glassSurface: true)
+        AccountRankingRow(entry: entry, metric: .totalscore, isSelected: true, cardSurface: true)
     )
     #expect(plain == LeaderboardRowMetrics.minHeight)
     // The selected player's row (and the pinned footer, the same view) keeps the height.
@@ -76,8 +76,8 @@ private func rowHeight(
 
 @Test @MainActor func rankingsSkeletonRowsMatchLoadedRowHeight() throws {
     let entry = try rankingRow(rank: 1, name: "Player One")
-    let loaded = rowHeight(AccountRankingRow(entry: entry, metric: .totalscore, glassSurface: true))
-    let skeleton = rowHeight(RankingsSkeletonRows(count: 1, glassRows: true))
+    let loaded = rowHeight(AccountRankingRow(entry: entry, metric: .totalscore, cardSurface: true))
+    let skeleton = rowHeight(RankingsSkeletonRows(count: 1, cardRows: true))
     #expect(skeleton == loaded)
 }
 
@@ -92,7 +92,7 @@ private func rowHeight(
 @Test @MainActor func rankingsRowsGrowAtAccessibilityTextSizes() throws {
     let entry = try rankingRow(rank: 1, name: "Player One")
     let large = rowHeight(
-        AccountRankingRow(entry: entry, metric: .totalscore, glassSurface: true),
+        AccountRankingRow(entry: entry, metric: .totalscore, cardSurface: true),
         dynamicTypeSize: .accessibility3
     )
     // Stacked rank/name over songs/value: taller than the minimum, never clipped to it.
@@ -108,7 +108,7 @@ private func rowHeight(
 @MainActor func rankingsRowsFitANarrowColumnAtAccessibilitySizes(_ size: DynamicTypeSize) throws {
     let entry = try rankingRow(rank: 868_662, name: "Cardinalsfan0351")
     let host = NSHostingController(
-        rootView: AccountRankingRow(entry: entry, metric: .totalscore, isSelected: true, glassSurface: true)
+        rootView: AccountRankingRow(entry: entry, metric: .totalscore, isSelected: true, cardSurface: true)
             .environment(\.dynamicTypeSize, size)
             .preferredColorScheme(.dark)
     )
