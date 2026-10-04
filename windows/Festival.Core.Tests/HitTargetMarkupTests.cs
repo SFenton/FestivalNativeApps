@@ -79,4 +79,26 @@ public class HitTargetMarkupTests
         Assert.NotEmpty(hosts);
         Assert.All(hosts, host => Assert.Contains(Attr(host, "MinHeight"), new[] { null, Resource }));
     }
+
+    [Fact]
+    public void QuickLinksPane_RowsUseMinTarget()
+    {
+        // Issue #230: the wide pane's rows were 36 epx tall; each is a click/touch target like the menu items.
+        var setter = Load(Path.Combine("Controls", "QuickLinksPane.xaml")).Descendants()
+            .Where(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == "ListViewItem")
+            .SelectMany(style => style.Elements().Where(e => e.Name.LocalName == "Setter"))
+            .Single(e => Attr(e, "Property") == "MinHeight");
+        Assert.Equal(Resource, Attr(setter, "Value"));
+    }
+
+    [Fact]
+    public void QuickLinksPane_TitlesWrapInsteadOfClipping()
+    {
+        // Issue #230: in a horizontal StackPanel the title had infinite width, so at 200% text it was cut mid-word.
+        var template = Load(Path.Combine("Controls", "QuickLinksPane.xaml")).Descendants()
+            .Single(e => e.Name.LocalName == "DataTemplate");
+        Assert.DoesNotContain(template.Descendants(), e => e.Name.LocalName == "StackPanel" && Attr(e, "Orientation") == "Horizontal");
+        var title = template.Descendants().Single(e => e.Name.LocalName == "TextBlock" && Attr(e, "Text") == "{x:Bind Title}");
+        Assert.Equal("Wrap", Attr(title, "TextWrapping"));
+    }
 }
