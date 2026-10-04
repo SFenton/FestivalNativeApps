@@ -65,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -531,7 +532,8 @@ private fun BucketRow(kind: SongBucketKind, key: Int, shown: Boolean, tag: Strin
             .semantics(mergeDescendants = true) { contentDescription = spoken }
             .testTag(tag),
     ) {
-        Box(Modifier.weight(1f)) {
+        // The row speaks the bucket; the meter's or stars' own label would repeat it.
+        Box(Modifier.weight(1f).clearAndSetSemantics { }) {
             when {
                 key == 0 -> Text("No Score", color = BrandTokens.textPrimary)
                 kind == SongBucketKind.Stars -> StarRating(key, size = 16.dp)
