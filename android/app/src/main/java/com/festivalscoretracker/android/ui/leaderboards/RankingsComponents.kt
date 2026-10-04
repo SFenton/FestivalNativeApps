@@ -77,6 +77,7 @@ import com.festivalscoretracker.android.core.rankings.BandRankingEntry
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.asRankingMetric
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -108,7 +109,7 @@ internal val LEADERBOARD_ROW_GAP = 2.dp
  * @property songs "X / Y" column (0 when hidden).
  * @property rating Rating column.
  * @property showSongs Whether one-line rows draw the songs column; it yields to names on
- *   narrow Compete cards (issue #38) and stays in the row's spoken description.
+ *   narrow Compete cards (issue #38) and narrow Leaderboards cards (issue #114) and stays in the row's spoken description.
  */
 @Immutable
 data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp, val showSongs: Boolean = true)
@@ -124,8 +125,9 @@ val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
  * @param songs Songs labels.
  * @param ratings Rating labels.
  * @param names Row names; when non-empty the songs column shows only if every name fits
- *   beside it in [rowWidth] (issue #38). Empty keeps the songs column at any width.
- * @param rowWidth Row width in dp (NaN before the first layout); used only with [names].
+ *   beside it in [rowWidth] (issue #38). Empty keeps the songs column unless names would
+ *   collapse below their minimum in [rowWidth] (issue #114).
+ * @param rowWidth Row width in dp (NaN before the first layout or when unknown).
  * @return Column widths.
  */
 @Composable
@@ -165,16 +167,18 @@ fun rememberRankingColumns(
  * @param entries Rows sharing the columns (page rows plus the selected player's pinned row).
  * @param metric Rank By metric.
  * @param fitNamesTo Row width in dp (NaN before the first layout) to hide the songs column
- *   in when it would truncate a name (Compete, issue #38); null keeps it at any width.
+ *   in when it would truncate a name (Compete, issue #38); null keeps it unless [rowWidth] is too narrow.
+ * @param rowWidth Row width in dp (NaN when unknown) to hide the songs column in when names
+ *   would collapse below their minimum (Leaderboards cards, issue #114); ignored with [fitNamesTo].
  * @return Column widths.
  */
 @Composable
-fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMetric, fitNamesTo: Float? = null): RankingColumns = rememberRankingColumns(
+fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMetric, fitNamesTo: Float? = null, rowWidth: Float = Float.NaN): RankingColumns = rememberRankingColumns(
     entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
     entries.map { it.songsLabel(metric) },
     entries.map { RankingFormatting.rating(it.ratingValue(metric), metric) },
     names = if (fitNamesTo != null) entries.map { it.name } else emptyList(),
-    rowWidth = fitNamesTo ?: Float.NaN,
+    rowWidth = fitNamesTo ?: rowWidth,
 )
 
 /**
@@ -182,13 +186,16 @@ fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMe
  *
  * @param entries Rows sharing the columns.
  * @param metric Band metric.
+ * @param rowWidth Row width in dp (NaN when unknown) to hide the songs column in when names
+ *   would collapse below their minimum (Leaderboards cards, issue #114).
  * @return Column widths.
  */
 @Composable
-fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetric): RankingColumns = rememberRankingColumns(
+fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetric, rowWidth: Float = Float.NaN): RankingColumns = rememberRankingColumns(
     entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
     entries.map { it.songsLabel(metric) },
     entries.map { RankingFormatting.rating(it.ratingValue(metric), metric.asRankingMetric) },
+    rowWidth = rowWidth,
 )
 
 /**
@@ -204,6 +211,8 @@ fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetr
  * @param route Destination; null makes the row non-interactive.
  * @param onOpen Navigation callback.
  * @param tag Test tag.
+ * @param clickLabel TalkBack action label ("Double-tap to …") for a navigable row.
+ * @param unavailable TalkBack state for a row without a destination.
  * @param modifier Modifier.
  */
 @Composable
@@ -217,6 +226,8 @@ private fun RankingRowLayout(
     route: AppRoute?,
     onOpen: (AppRoute) -> Unit,
     tag: String,
+    clickLabel: String,
+    unavailable: String,
     modifier: Modifier = Modifier,
 ) {
     val description = RankingFormatting.rowDescription(rank, name, rating, songs, isSelected)
@@ -227,7 +238,7 @@ private fun RankingRowLayout(
         .clip(shape)
     // Same selected-player treatment as the song boards (web `playerEntryRow`, 7.7).
     if (isSelected) rowModifier = rowModifier.background(BrandTokens.purpleHighlight).border(BorderStroke(1.dp, BrandTokens.purpleHighlightBorder), shape)
-    if (route != null) rowModifier = rowModifier.clickable(role = Role.Button, onClickLabel = "Open") { onOpen(route) }
+    if (route != null) rowModifier = rowModifier.clickable(role = Role.Button, onClickLabel = clickLabel) { onOpen(route) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -236,7 +247,7 @@ private fun RankingRowLayout(
             .testTag(tag)
             .clearAndSetSemantics {
                 contentDescription = description
-                if (route == null) stateDescription = "Profile unavailable"
+                if (route == null) stateDescription = unavailable
             },
     ) {
         // Web `RankingEntry` `isPlayer`: every text in the selected player's row is bold.
@@ -255,7 +266,7 @@ private fun RankingRowLayout(
             modifier = columns?.let { Modifier.width(it.rank) } ?: Modifier.widthIn(min = 44.dp),
         )
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        // Hidden for the whole section when it would truncate a name (issue #38); still spoken in `description`.
+        // Hidden for the whole section when it would truncate or collapse a name (issues #38, #114); still spoken in `description`.
         if (columns?.showSongs != false) {
             Text(
                 songs,
@@ -330,6 +341,8 @@ fun AccountRankingRow(
         route = route,
         onOpen = onOpen,
         tag = tag,
+        clickLabel = route?.let(RankingNavigation::actionLabel).orEmpty(),
+        unavailable = "Profile unavailable",
         modifier = Modifier.bringIntoViewRequester(requester),
     )
 }
@@ -355,6 +368,8 @@ fun BandRankingRow(entry: BandRankingEntry, metric: BandRankingMetric, isSelecte
         route = route,
         onOpen = onOpen,
         tag = "fst.band-rankings.row.${entry.key}",
+        clickLabel = "Open band",
+        unavailable = "Band unavailable",
     )
 }
 
