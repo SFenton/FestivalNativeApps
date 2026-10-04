@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -26,6 +29,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.search.GlobalPlayerResult
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
 import com.festivalscoretracker.android.core.search.GlobalSongResult
 import com.festivalscoretracker.android.core.search.SearchScope
@@ -153,6 +157,24 @@ class GlobalSearchContentUiTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun returningToAllScopeStartsAtTheSongs() {
+        // Issue #141: Players → All kept the Players header as the first visible item.
+        val songs = (1..4).map { GlobalSongResult("s-$it", "Daft Song $it", "Band", null) }
+        val players = (1..10).map { GlobalPlayerResult("%032x".format(it), "Daft $it", false) }
+        val all = GlobalSearchUiState(query = "daft", settledQuery = "daft", songs = songs, players = players, songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Loaded)
+        var ui by mutableStateOf(all.copy(scope = SearchScope.Players))
+        rule.setContent {
+            FestivalTheme {
+                Box(Modifier.fillMaxWidth().height(400.dp)) { GlobalSearchContent(ui, { null }, {}, {}, {}, {}) }
+            }
+        }
+        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).assertIsDisplayed()
+        ui = all
+        rule.waitForIdle()
+        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assertIsDisplayed()
     }
 
     @Test

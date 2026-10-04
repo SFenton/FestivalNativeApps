@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -560,7 +561,10 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
     LaunchedEffect(signature) { settled = signature }
     val revealed = rememberRevealed(settled == signature)
     val playersOffset = if (ui.showSongsSection) ui.songs.size + 1 else 0
-    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results")) {
+    // A new scope or query starts at the top: a kept state would pin the previously first
+    // visible key (the Players header after Players → All) and hide the songs above it.
+    val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
+    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), state = listState) {
         if (ui.showSongsSection) {
             item(key = "h-songs") {
                 Box(Modifier.festivalFadeIn(revealed)) { SectionTitle("Songs", GlobalSearchTags.section(SearchScope.Songs)) }
