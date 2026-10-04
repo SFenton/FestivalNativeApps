@@ -1,6 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App.Controls;
 
@@ -32,6 +34,26 @@ public sealed partial class NotificationsBell : UserControl
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
     private void OnOpening(object sender, object e) => _ = Model.RefreshAsync();
+
+    /// <summary>
+    /// Names the flyout's popup. While loading, empty or not generated the flyout has nothing focusable, so focus rests
+    /// on the popup itself, which UI Automation otherwise reports as an unnamed "Popup" window.
+    /// </summary>
+    /// <param name="sender">Flyout.</param>
+    /// <param name="e">Unused.</param>
+    private void OnOpened(object sender, object e)
+    {
+        if (XamlRoot is null) return;
+        var ancestors = new HashSet<DependencyObject>();
+        for (DependencyObject? node = PanelRoot; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is Popup host) AutomationProperties.SetName(host, "Notifications");
+            ancestors.Add(node);
+        }
+        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot))
+            if (popup.Child is { } child && ancestors.Contains(child))
+                AutomationProperties.SetName(popup, "Notifications");
+    }
 
     /// <summary>Marks everything seen on close.</summary>
     /// <param name="sender">Flyout.</param>
