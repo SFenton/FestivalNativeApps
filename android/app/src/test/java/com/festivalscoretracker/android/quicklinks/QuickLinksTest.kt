@@ -64,21 +64,31 @@ class QuickLinksTest {
     }
 
     @Test
+    fun heldJumpRelandsOnlyWhenScrollingCanMoveTheTargetBack() {
+        // On the line (within tolerance): stay.
+        assertFalse(QuickLinks.needsReland(36, 32, 8, canScrollForward = true, canScrollBackward = true))
+        // Content above grew (Statistics rank history above Top Songs): the target sank, scroll again.
+        assertTrue(QuickLinks.needsReland(900, 32, 8, canScrollForward = true, canScrollBackward = true))
+        // Clamped at the end of the list (Bands still loading): nothing to gain until content arrives.
+        assertFalse(QuickLinks.needsReland(900, 32, 8, canScrollForward = false, canScrollBackward = true))
+        // Content above shrank: the target rose above the line.
+        assertTrue(QuickLinks.needsReland(-200, 32, 8, canScrollForward = true, canScrollBackward = true))
+        assertFalse(QuickLinks.needsReland(0, 32, 8, canScrollForward = true, canScrollBackward = false))
+        // Pushed out of the laid-out items entirely.
+        assertTrue(QuickLinks.needsReland(null, 32, 8, canScrollForward = true, canScrollBackward = true))
+    }
+
+    @Test
     fun relandingCorrectsOnlyDriftTheListCanScrollAway() {
-        // On the line or within the tolerance: no correction.
-        assertFalse(QuickLinks.needsRelanding(32f, false, 32f, 8f, true, true))
-        assertFalse(QuickLinks.needsRelanding(40f, false, 32f, 8f, true, true))
-        assertFalse(QuickLinks.needsRelanding(24f, false, 32f, 8f, true, true))
-        // Pushed down by a growing section above (#106): re-land while the list can scroll forward.
-        assertTrue(QuickLinks.needsRelanding(380f, false, 32f, 8f, true, true))
-        assertFalse(QuickLinks.needsRelanding(380f, false, 32f, 8f, false, true))
-        // Pushed below the laid-out items, or above them.
-        assertTrue(QuickLinks.needsRelanding(null, true, 32f, 8f, true, false))
-        assertFalse(QuickLinks.needsRelanding(null, true, 32f, 8f, false, true))
-        assertTrue(QuickLinks.needsRelanding(null, false, 32f, 8f, false, true))
-        // Pulled up by a shrinking section: re-land while the list can scroll back.
-        assertTrue(QuickLinks.needsRelanding(-100f, false, 32f, 8f, true, true))
-        assertFalse(QuickLinks.needsRelanding(-100f, false, 32f, 8f, true, false))
+        // Within the tolerance: no correction.
+        assertFalse(QuickLinks.needsReland(40, 32, 8, canScrollForward = true, canScrollBackward = true))
+        assertFalse(QuickLinks.needsReland(24, 32, 8, canScrollForward = true, canScrollBackward = true))
+        // Player Profile (#106): pushed below the laid-out items by the growing Rank History card.
+        assertTrue(QuickLinks.needsReland(null, 32, 8, canScrollForward = true, canScrollBackward = false, targetBelow = true))
+        assertFalse(QuickLinks.needsReland(null, 32, 8, canScrollForward = false, canScrollBackward = true, targetBelow = true))
+        // Pulled above them by a shrinking section.
+        assertTrue(QuickLinks.needsReland(null, 32, 8, canScrollForward = false, canScrollBackward = true, targetBelow = false))
+        assertFalse(QuickLinks.needsReland(null, 32, 8, canScrollForward = true, canScrollBackward = false, targetBelow = false))
     }
 
     @Test

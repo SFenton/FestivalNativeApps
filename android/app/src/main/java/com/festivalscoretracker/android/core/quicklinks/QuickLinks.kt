@@ -74,6 +74,50 @@ object QuickLinks {
     const val COMPLETE_THRESHOLD_DP = 8
 
     /**
+     * How long (ms) a jump keeps its section on the landing line while content that starts loading
+     * when it is first composed (rank history, bands) changes height; any user scroll, another jump or
+     * [MAX_LANDING_CORRECTIONS] re-landings end it sooner. Long enough for a live-service Rank History
+     * read above Top Songs on the player page (issue #106).
+     */
+    const val LANDING_HOLD_MS = 10_000L
+
+    /** Most times one jump re-lands its target while content above it resizes. */
+    const val MAX_LANDING_CORRECTIONS = 8
+
+    /**
+     * Whether a held jump must land again: the target left the landing line because content above it
+     * changed height (Statistics/Player Profile Rank History above Top Songs, issues #106 and #111), or
+     * content below it arrived after a jump the end of the list had clamped. Only drift the list can
+     * still correct counts: a target that cannot reach the line stays where it is.
+     *
+     * @param itemTop Target top below the visible top, in pixels, or null when it is not laid out.
+     * @param landingPx Landing line, in pixels.
+     * @param thresholdPx Landing tolerance, in pixels.
+     * @param canScrollForward The list can scroll further down (otherwise a lower target is clamped by its end).
+     * @param canScrollBackward The list can scroll further up (otherwise a higher target is clamped by its start).
+     * @param targetBelow When [itemTop] is null: true when the target lies below the laid-out items,
+     *   false when above, null when unknown (always re-land).
+     * @return True when scrolling to the target again would move it back to the landing line.
+     */
+    fun needsReland(
+        itemTop: Int?,
+        landingPx: Int,
+        thresholdPx: Int,
+        canScrollForward: Boolean,
+        canScrollBackward: Boolean,
+        targetBelow: Boolean? = null,
+    ): Boolean = when {
+        itemTop == null -> when (targetBelow) {
+            null -> true
+            true -> canScrollForward
+            false -> canScrollBackward
+        }
+        itemTop > landingPx + thresholdPx -> canScrollForward
+        itemTop < landingPx - thresholdPx -> canScrollBackward
+        else -> false
+    }
+
+    /**
      * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyStaggeredGridState.scrollToItem` that
      * lands an item's top [landingPx] below the visible viewport top. Lazy offsets are measured from the
      * end of the leading content padding, which content still scrolls through, so the padding is
@@ -95,45 +139,6 @@ object QuickLinks {
      * @return Scroll position, clamped to `[0, maxScroll]`.
      */
     fun scrollLandingTarget(sectionTop: Int, landingPx: Int, maxScroll: Int): Int = (sectionTop - landingPx).coerceIn(0, maxOf(0, maxScroll))
-
-    /** Most times one jump re-lands its target while content above it resizes. */
-    const val MAX_LANDING_CORRECTIONS = 8
-
-    /** How long (ms) a jump keeps its target on the landing line while nearby content resizes. */
-    const val LANDING_HOLD_MILLIS = 10_000L
-
-    /**
-     * Whether a landed jump's target must be scrolled back to the landing line (issue #106).
-     *
-     * A jump lands the target [landingPx] below the viewport top, so the section above it stays
-     * partly visible and is the lazy list's scroll anchor. When that section composes for the first
-     * time and grows as its own reads land (Player Profile Rank History), the target slides down, out
-     * of view on short windows. Only drift the list can still correct counts: a target near the end of
-     * the content that cannot reach the line (it can no longer scroll forward) stays where it is.
-     *
-     * @param targetTop Target top below the viewport top, in pixels, or null when it is not laid out.
-     * @param targetBelow When [targetTop] is null: whether the target lies below the laid-out items.
-     * @param landingPx Landing line below the viewport top, in pixels.
-     * @param thresholdPx Drift tolerated before re-landing, in pixels.
-     * @param canScrollForward Whether the list can scroll towards its end.
-     * @param canScrollBackward Whether the list can scroll towards its start.
-     * @return True to re-land the target.
-     */
-    fun needsRelanding(
-        targetTop: Float?,
-        targetBelow: Boolean,
-        landingPx: Float,
-        thresholdPx: Float,
-        canScrollForward: Boolean,
-        canScrollBackward: Boolean,
-    ): Boolean {
-        val drift = targetTop?.minus(landingPx) ?: if (targetBelow) Float.POSITIVE_INFINITY else Float.NEGATIVE_INFINITY
-        return when {
-            drift > thresholdPx -> canScrollForward
-            drift < -thresholdPx -> canScrollBackward
-            else -> false
-        }
-    }
 
     /**
      * Whether a page shows Quick Links at all.

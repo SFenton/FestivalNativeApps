@@ -1,9 +1,9 @@
 using System.Numerics;
 using Festival.App.Services;
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -15,7 +15,9 @@ namespace Festival.App.Controls;
 /// Native port of the web <c>InstrumentSelector</c>: a centred row of 64 epx instrument circles (a green disc grows behind
 /// the selected one), hidden/disabled/muted instruments, optional required selection, and a compact
 /// previous/centre/next mode chosen automatically when the row is too narrow (or forced by <see cref="CompactMode"/>).
-/// <see cref="DetailContent"/> expands below the row while an instrument is selected. Rules live in
+/// <see cref="DetailContent"/> fades in below the row while an instrument is selected. The row is a named UIA group (from
+/// this control's <c>AutomationProperties.Name</c>, default "Instrument"), arrow keys move between circles, muted
+/// instruments carry an item status, and the disc/ring use contrast role brushes. Rules live in
 /// <see cref="InstrumentSelectorState"/>; this control only renders and forwards input.
 /// </summary>
 public sealed partial class InstrumentSelector : UserControl
@@ -25,7 +27,7 @@ public sealed partial class InstrumentSelector : UserControl
         nameof(DetailContent), typeof(object), typeof(InstrumentSelector),
         new PropertyMetadata(null, (d, e) => ((InstrumentSelector)d).OnDetailContentChanged(e.NewValue)));
 
-    private static readonly SolidColorBrush SelectedFill = new(ColorHelper.FromArgb(0xFF, 0x2E, 0xCC, 0x71));
+    private const string SelectedBrushKey = "FSTInstrumentSelectedBrush";
     private readonly InstrumentSelectorState state = new();
     private readonly Dictionary<Instrument, (ToggleButton Button, Ellipse Disc)> buttons = [];
     private ToggleButton? compactButton;
@@ -42,6 +44,16 @@ public sealed partial class InstrumentSelector : UserControl
     {
         InitializeComponent();
         SizeChanged += (_, e) => UpdateCompact(e.NewSize.Width);
+        // Discs are code-built, so a contrast-theme switch must re-resolve their fill (inline brushes do not follow
+        // {ThemeResource}).
+        Loaded += (_, _) =>
+        {
+            ContrastTheme.Changed -= OnColorsChanged;
+            ContrastTheme.Changed += OnColorsChanged;
+            ApplyGroupName();
+            ApplyDiscFill();
+        };
+        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
     }
 
     /// <summary>Raised when the user changes the selection (<see langword="null"/> = cleared).</summary>
@@ -178,6 +190,7 @@ public sealed partial class InstrumentSelector : UserControl
         AutomationProperties.SetAutomationId(compactButton, idPrefix + ".compact");
         compactButton.Click += (_, _) => Commit(state.PressCompact(out var changed), changed);
         CompactHost.Child = compactButton;
+        AutomationProperties.SetAutomationId(Group, idPrefix + ".group");
         AutomationProperties.SetAutomationId(PreviousButton, idPrefix + ".previous");
         AutomationProperties.SetAutomationId(NextButton, idPrefix + ".next");
         UpdateCompact(ActualWidth);
@@ -191,7 +204,7 @@ public sealed partial class InstrumentSelector : UserControl
     {
         var disc = new Ellipse
         {
-            Fill = SelectedFill,
+            Fill = ContrastTheme.Brush(SelectedBrushKey),
             Scale = new Vector3(0, 0, 1),
             CenterPoint = new Vector3(32, 32, 0),
         };
@@ -224,7 +237,7 @@ public sealed partial class InstrumentSelector : UserControl
             var on = selected == instrument;
             button.IsChecked = on;
             button.IsEnabled = !state.IsDisabled(instrument);
-            button.Opacity = state.IsDisabled(instrument) ? 0.28 : state.IsMuted(instrument) ? 0.42 : 1;
+            Dim(button, state.IsDisabled(instrument), state.IsMuted(instrument));
             SetDisc(disc, on);
         }
         if (compactButton is not null && compactDisc is not null && compactIcon is not null && state.CompactKey is { } key)
@@ -235,12 +248,65 @@ public sealed partial class InstrumentSelector : UserControl
             ToolTipService.SetToolTip(compactButton, key.Label());
             compactButton.IsChecked = selected == key;
             compactButton.IsEnabled = !state.IsDisabled(key);
-            compactButton.Opacity = state.IsDisabled(key) ? 0.28 : state.IsCompactMuted() ? 0.42 : 1;
+            Dim(compactButton, state.IsDisabled(key), state.IsCompactMuted());
             SetDisc(compactDisc, selected is not null);
         }
-        DetailsPresenter.Visibility = state.HasSelection && DetailContent is not null ? Visibility.Visible : Visibility.Collapsed;
+        ShowDetails(state.HasSelection && DetailContent is not null);
         syncing = false;
     }
+
+    /// <summary>
+    /// Dims a circle's content (web opacity 0.28 disabled / 0.42 muted) rather than the button, so the system focus rect
+    /// and contrast ring stay at full strength, and announces a muted conflict as the button's item status.
+    /// </summary>
+    /// <param name="button">Circle button.</param>
+    /// <param name="disabled">Not selectable.</param>
+    /// <param name="muted">Conflicting but selectable.</param>
+    private static void Dim(ToggleButton button, bool disabled, bool muted)
+    {
+        if (button.Content is UIElement content) content.Opacity = disabled ? 0.28 : muted ? 0.42 : 1;
+        AutomationProperties.SetItemStatus(button, InstrumentSelectorState.ItemStatus(muted && !disabled));
+    }
+
+    /// <summary>Shows or hides the detail content, fading it in over 167 ms when motion is allowed.</summary>
+    /// <param name="show">Whether the details should be visible.</param>
+    private void ShowDetails(bool show)
+    {
+        var visible = DetailsPresenter.Visibility == Visibility.Visible;
+        if (show == visible) return;
+        if (show)
+        {
+            DetailsPresenter.Visibility = Visibility.Visible;
+            DetailsPresenter.OpacityTransition = Motion.Allowed ? new ScalarTransition { Duration = TimeSpan.FromMilliseconds(167) } : null;
+            DetailsPresenter.Opacity = 1;
+        }
+        else
+        {
+            DetailsPresenter.OpacityTransition = null;
+            DetailsPresenter.Opacity = 0;
+            DetailsPresenter.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Names the row group from this control's automation name (default "Instrument").</summary>
+    private void ApplyGroupName()
+    {
+        var name = AutomationProperties.GetName(this);
+        AutomationProperties.SetName(Group, string.IsNullOrWhiteSpace(name) ? "Instrument" : name);
+    }
+
+    /// <summary>Re-resolves the selected-disc brush for the current (contrast) theme.</summary>
+    private void ApplyDiscFill()
+    {
+        var fill = ContrastTheme.Brush(SelectedBrushKey);
+        foreach (var (_, disc) in buttons.Values) disc.Fill = fill;
+        if (compactDisc is not null) compactDisc.Fill = fill;
+    }
+
+    /// <summary>System colours changed (contrast theme on/off); hops to the UI thread.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(ApplyDiscFill);
 
     /// <summary>Grows or shrinks the green disc on the composition thread (instant under reduced motion).</summary>
     /// <param name="disc">Disc.</param>
@@ -257,9 +323,28 @@ public sealed partial class InstrumentSelector : UserControl
     {
         var compact = state.IsCompact(compactMode, width);
         if (compact == isCompact && Row.Visibility != CompactRow.Visibility) return;
+        var focusState = FocusedChild()?.FocusState ?? FocusState.Unfocused;
         isCompact = compact;
         Row.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactRow.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        // Collapsing the focused circle would drop keyboard focus to the window; hand it to the counterpart instead.
+        if (focusState != FocusState.Unfocused)
+        {
+            Control? target = compact ? compactButton
+                : state.FocusTarget() is { } instrument && buttons.TryGetValue(instrument, out var entry) ? entry.Button : null;
+            target?.Focus(focusState);
+        }
+    }
+
+    /// <summary>The selector button that currently has focus, if any.</summary>
+    /// <returns>Focused row, compact or arrow button, or <see langword="null"/>.</returns>
+    private Control? FocusedChild()
+    {
+        if (XamlRoot is null || FocusManager.GetFocusedElement(XamlRoot) is not Control focused) return null;
+        if (focused == compactButton || focused == PreviousButton || focused == NextButton) return focused;
+        foreach (var (button, _) in buttons.Values)
+            if (focused == button) return focused;
+        return null;
     }
 
     /// <summary>Shows the detail content under the row when set.</summary>

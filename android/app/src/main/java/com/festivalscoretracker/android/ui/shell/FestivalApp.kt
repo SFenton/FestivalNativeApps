@@ -144,6 +144,7 @@ import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.LocalShellPosture
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
@@ -527,7 +528,7 @@ private fun FestivalShell(
         }
     }
     val content = @Composable {
-        CompositionLocalProvider(LocalShellActions provides actions, LocalPageFind provides pageFind) {
+        CompositionLocalProvider(LocalShellActions provides actions, LocalPageFind provides pageFind, LocalShellPosture provides posture) {
             NavigationSuiteScaffoldLayout(navigationSuite = navigationSuite, navigationSuiteType = navigationType) {
                 Box(
                     Modifier
@@ -581,9 +582,11 @@ private fun FestivalShell(
     }
     // One parent at every width: hosting the pages bare beside a permanent drawer but inside the
     // modal drawer otherwise rebuilt the NavHost whenever the window crossed the expanded width
-    // (tablet rotation, unfolding, resizing) and sent every page back to the top (issue #106).
-    // The permanent layout keeps the modal sheet closed and empty, so its anchors (sheet width)
-    // and system-back order stay those of the modal layouts.
+    // (tablet rotation, unfolding, resizing) and reset page state: list scroll, an open license or
+    // Filter sheet, picked filters (issues #106, #122, #126). The permanent layout keeps the modal
+    // sheet closed and empty, so its anchors (sheet width) and system-back order stay those of the
+    // modal layouts. Moving the pages with movableContentOf instead let the moved NavHost's back
+    // callback outrank the drawer's (Back popped the page under an open drawer).
     val permanent = layout == NavigationLayout.PermanentDrawer
     // Material re-targets the drawer to the anchor nearest its old pixel offset when the sheet's
     // width changes, so a closed drawer reopened after a display-size (density) change such as

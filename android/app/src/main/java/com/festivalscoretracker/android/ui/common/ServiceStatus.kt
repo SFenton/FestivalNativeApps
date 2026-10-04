@@ -125,9 +125,10 @@ fun ServiceStatusView(
  * @param countdown Seconds until automatic retry.
  * @param onRetry Retry action.
  * @param modifier Modifier.
+ * @param retryTag Optional Retry button test tag.
  */
 @Composable
-fun ServiceStatusInline(issue: ServiceIssue, fallbackTitle: String, countdown: Int?, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun ServiceStatusInline(issue: ServiceIssue, fallbackTitle: String, countdown: Int?, onRetry: () -> Unit, modifier: Modifier = Modifier, retryTag: String? = null) {
     Row(
         modifier.fillMaxWidth().testTag("fst.service-status.inline"),
         verticalAlignment = Alignment.CenterVertically,
@@ -141,7 +142,7 @@ fun ServiceStatusInline(issue: ServiceIssue, fallbackTitle: String, countdown: I
                 color = BrandTokens.textSecondary,
             )
         }
-        TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp)) {
+        TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).then(if (retryTag != null) Modifier.testTag(retryTag) else Modifier)) {
             Text(if (countdown != null) "Retry Now" else "Retry")
         }
     }

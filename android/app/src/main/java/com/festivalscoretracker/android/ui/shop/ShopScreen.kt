@@ -19,7 +19,17 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import com.festivalscoretracker.android.core.shop.ShopColumnPolicy
+import com.festivalscoretracker.android.core.shop.ShopColumns
+import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
+import kotlin.math.roundToInt
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.drawBehind
@@ -41,10 +51,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -151,7 +160,10 @@ fun ShopScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilter by rememberSaveable { mutableStateOf(false) }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // Book/passport posture: content splits at a separating vertical hinge (issue #131).
+    val split = rememberHingeSplit()
+    BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
+        val hinge = split.value
         val compact = maxWidth < COMPACT_WIDTH
         val effective = if (compact) ShopViewMode.List else viewMode
         FestivalScreen(
@@ -180,17 +192,19 @@ fun ShopScreen(
         ) { padding ->
             val loadedRevealed = rememberRevealed(state.shop is LoadState.Loaded)
             when {
-                state.hidden -> HiddenView(padding)
+                state.hidden -> StartPane(hinge) { HiddenView(padding) }
                 else -> when (val shop = state.shop) {
-                    LoadState.Loading -> LoadingView("Loading Item Shop", Modifier.padding(padding))
-                    is LoadState.Failed -> Box(Modifier.testTag("fst.shop.error")) {
-                        ServiceStatusView(shop.issue, "Item Shop unavailable", shop.countdown, onRetry, contentPadding = padding)
+                    LoadState.Loading -> StartPane(hinge) { LoadingView("Loading Item Shop", Modifier.padding(padding)) }
+                    is LoadState.Failed -> StartPane(hinge) {
+                        Box(Modifier.testTag("fst.shop.error")) {
+                            ServiceStatusView(shop.issue, "Item Shop unavailable", shop.countdown, onRetry, contentPadding = padding)
+                        }
                     }
                     // A List ↔ Grid switch recomposes the new layout from the top with the web's
                     // fade/stagger again (web `useViewTransition`, operator 6.10).
                     is LoadState.Loaded -> key(effective) {
                         val switched = rememberViewSwitch(effective)
-                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched)
+                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, viewModel::resetFilter, padding, loadedRevealed && switched, hinge)
                     }
                 }
             }
@@ -223,17 +237,70 @@ private fun rememberViewSwitch(mode: ShopViewMode): Boolean {
     return shown
 }
 
+/** Gap between grid cells and between list rows across a hinge. */
+private val SHOP_GUTTER = 10.dp
+
+/** Side padding of the grid and list. */
+private val SHOP_SIDE = 16.dp
+
+/** A hinge leaving less than this on either side does not split the content. */
+private val SHOP_MIN_PANE = 240.dp
+
 /**
- * Web grid columns (`ShopPage`): 5 from 1100, 4 from 860, 3 from 600 CSS px, else 2.
+ * Keep a centred state (loading, failure, hidden, empty) on the leading side of a
+ * separating hinge so its text and buttons never sit on the fold.
  *
- * @param widthDp Content width.
- * @return Columns.
+ * @param hinge (start pane width, hinge width) in pixels, or null without a split.
+ * @param content The state.
  */
-internal fun shopGridColumns(widthDp: Float): Int = when {
-    widthDp >= 1100f -> 5
-    widthDp >= 860f -> 4
-    widthDp >= 600f -> 3
-    else -> 2
+@Composable
+private fun StartPane(hinge: Pair<Float, Float>?, content: @Composable () -> Unit) {
+    if (hinge == null) {
+        content()
+        return
+    }
+    val width = with(LocalDensity.current) { hinge.first.toDp() }
+    Box(Modifier.fillMaxHeight().width(width).testTag("fst.shop.start-pane")) { content() }
+}
+
+/**
+ * Grid cells and their horizontal arrangement in one object: [ShopColumnPolicy] sizes and
+ * places the cells so that, with a separating hinge, a wider gap sits on the fold.
+ *
+ * @property hinge Hinge start/end relative to the content's leading edge in pixels, or null.
+ * @property gutterPx Normal gap in pixels.
+ * @property minPanePx Smallest pane worth splitting for, in pixels.
+ * @property densityValue Pixels per dp (grid columns are chosen in dp).
+ * @property grid True for the card grid (web columns per pane), false for the one-cell-per-pane list.
+ */
+private data class ShopCells(
+    val hinge: Pair<Int, Int>?,
+    val gutterPx: Int,
+    val minPanePx: Int,
+    val densityValue: Float,
+    val grid: Boolean,
+) : GridCells, Arrangement.Horizontal {
+    override val spacing: Dp get() = (gutterPx / densityValue).dp
+
+    private fun resolve(available: Int): ShopColumns = ShopColumnPolicy.resolve(
+        available = available,
+        gutter = gutterPx,
+        hingeStart = hinge?.first,
+        hingeEnd = hinge?.second,
+        minPane = minPanePx,
+        uniform = grid,
+        columnsFor = { px -> if (grid) ShopColumnPolicy.gridColumns(px / densityValue) else 1 },
+    )
+
+    override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> = resolve(availableSize).sizes
+
+    override fun Density.arrange(totalSize: Int, sizes: IntArray, layoutDirection: LayoutDirection, outPositions: IntArray) {
+        val columns = resolve(totalSize)
+        sizes.indices.forEach { index ->
+            val start = columns.positions.getOrElse(index) { 0 }
+            outPositions[index] = if (layoutDirection == LayoutDirection.Rtl) totalSize - start - sizes[index] else start
+        }
+    }
 }
 
 @Composable
@@ -259,51 +326,63 @@ private fun ShopContent(
     onResetFilter: () -> Unit,
     padding: PaddingValues,
     revealed: Boolean,
+    hinge: Pair<Float, Float>?,
 ) {
     val shell = LocalShellActions.current
     val uri = LocalUriHandler.current
     val openOfficial: (ShopOfferItem) -> Unit = { item -> item.officialUrl?.let(uri::openUri) }
     val openDetail: (ShopOfferItem) -> Unit = { item -> item.detailSongId?.let { shell.navigate(SongDetailRoute(it)) } }
-    val contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
+    val contentPadding = PaddingValues(start = SHOP_SIDE, end = SHOP_SIDE, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
     val pulse = rememberShopPulse(active = state.offers.any { it.highlight != null })
-    val header: @Composable () -> Unit = {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
-        }
-    }
     if (state.offers.isEmpty()) {
-        Column(Modifier.fillMaxSize().padding(contentPadding)) {
-            header()
-            if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
+        StartPane(hinge) {
+            Column(Modifier.fillMaxSize().padding(contentPadding)) {
+                if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
+                if (state.filteredEmpty) NoMatchingOffers(onResetFilter, Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
+            }
         }
         return
     }
-    if (mode == ShopViewMode.Grid) BoxWithConstraints(Modifier.fillMaxSize()) {
-        val columns = shopGridColumns((maxWidth - 32.dp).value)
+    val grid = mode == ShopViewMode.Grid
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+        val side = with(density) { SHOP_SIDE.roundToPx() }
+        val pageWidth = constraints.maxWidth
+        // The hinge in the content's leading-edge coordinates (the cells mirror back for RTL).
+        val contentHinge = hinge?.let { (start, width) ->
+            val left = start.roundToInt()
+            val right = (start + width).roundToInt()
+            if (rtl) (pageWidth - right - side) to (pageWidth - left - side) else (left - side) to (right - side)
+        }
+        val cells = remember(contentHinge, density, grid) {
+            ShopCells(contentHinge, with(density) { SHOP_GUTTER.roundToPx() }, with(density) { SHOP_MIN_PANE.roundToPx() }, density.density, grid)
+        }
+        // The Details warning spans the row but stays on the leading pane (its Retry never sits on the fold).
+        val leadingWidth = remember(cells, pageWidth) {
+            val columns = ShopColumnPolicy.resolve(pageWidth - 2 * side, cells.gutterPx, contentHinge?.first, contentHinge?.second, cells.minPanePx) { 1 }
+            if (columns.split) with(density) { (columns.positions[0] + columns.sizes[0]).toDp() } else null
+        }
         LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
+            columns = cells,
             contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxSize().testTag("fst.shop.grid"),
+            horizontalArrangement = cells,
+            verticalArrangement = Arrangement.spacedBy(if (grid) 10.dp else 6.dp),
+            modifier = Modifier.fillMaxSize().testTag(if (grid) "fst.shop.grid" else "fst.shop.list"),
         ) {
-            item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
-            itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
-                    ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+            // Always present: a stable first key keeps the list anchored at the top when offers change.
+            item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+                Box(if (leadingWidth != null) Modifier.width(leadingWidth) else Modifier.fillMaxWidth()) {
+                    if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
                 }
             }
-        }
-    } else {
-        LazyColumn(
-            contentPadding = contentPadding,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.fillMaxSize().testTag("fst.shop.list"),
-        ) {
-            item(key = "header") { header() }
             itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
-                    ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                    if (grid) {
+                        ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                    } else {
+                        ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                    }
                 }
             }
         }
@@ -468,7 +547,8 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float
             if (item.officialUrl != null) {
                 IconButton(
                     onClick = onOfficial,
-                    modifier = Modifier.heightIn(min = 48.dp).testTag("fst.shop.external.${offer.songId}"),
+                    // M3 minimum touch target on both axes (the icon pair is narrower than 48 dp).
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).testTag("fst.shop.external.${offer.songId}"),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.ShoppingCart, contentDescription = "Open ${offer.title} in the Fortnite Item Shop", tint = BrandTokens.textPrimary, modifier = Modifier.size(20.dp))

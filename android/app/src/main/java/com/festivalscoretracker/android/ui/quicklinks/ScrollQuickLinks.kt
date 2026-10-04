@@ -57,10 +57,6 @@ internal class ScrollQuickLinkSections(private val scrollState: ScrollState) : Q
         frames[id] = top to top + it.size.height
     }
 
-    override val scrolling: Boolean get() = scrollState.isScrollInProgress
-    override val canScrollForward: Boolean get() = scrollState.canScrollForward
-    override val canScrollBackward: Boolean get() = scrollState.canScrollBackward
-
     override fun layout(): QuickLinkLayout {
         val scrolled = scrollState.value
         val items = ids.mapIndexedNotNull { index, id -> frames[id]?.let { (top, bottom) -> QuickLinkItem(index, top - scrolled, bottom - scrolled) } }
@@ -72,6 +68,10 @@ internal class ScrollQuickLinkSections(private val scrollState: ScrollState) : Q
         val target = QuickLinks.scrollLandingTarget(top, landingPx, scrollState.maxValue)
         if (animate) scrollState.animateScrollTo(target) else scrollState.scrollTo(target)
     }
+
+    override val isScrollInProgress: Boolean get() = scrollState.isScrollInProgress
+    override val canScrollForward: Boolean get() = scrollState.canScrollForward
+    override val canScrollBackward: Boolean get() = scrollState.canScrollBackward
 }
 
 /**

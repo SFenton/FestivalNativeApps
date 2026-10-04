@@ -34,6 +34,20 @@ class BandsSettingsJourneyTest {
     )
 
     @Test
+    fun bandsWithoutAnIdIsAccessibleAndClearOfTheFold() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bands"), stillBackground = true), transport)
+        h.waitForTag("fst.bands.not-found")
+        val order = h.readingOrder("bands-not-found")
+        val title = order.indexOfFirst { it.contains("Band not found") }
+        val message = order.indexOfFirst { it.contains("missing an ID") }
+        assertTrue("reading order $order", title >= 0 && message > title)
+        h.assertNothingStraddles("fst.bands.not-found.pane")
+        assertTrue(transport.requests.none { it.url.contains("/api/bands") || it.url.contains("/rankings/bands") })
+        h.assertAccessible()
+    }
+
+    @Test
     fun playerBandsToBandDetailAndTheSongBoard() {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(route = DebugLaunch.parseRoute("playerBands:${BandFixtures.PLAYER}"), profile = player, stillBackground = true), transport)

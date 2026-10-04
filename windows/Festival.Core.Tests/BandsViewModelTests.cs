@@ -394,7 +394,7 @@ public class SongBandLeaderboardViewModelTests
         Assert.False(row.Members[1].HasScore);
         Assert.Equal(new AppRoute.Band("sb1", "Band_Trios", "t1a:t1b"), row.Route);
         Assert.Equal("fst.song-band-leaderboard.row.sb1:1", row.AutomationId);
-        Assert.Equal("Rank 1, Lead 1 + Unknown User, 99,999 points, 99.0% accuracy, full combo, 6 stars", row.Announcement);
+        Assert.Equal("Rank 1, Lead 1 + Unknown User, 99,999 points, 99.0% accuracy, full combo, 5 gold stars", row.Announcement);
         Assert.Equal("Rank 1. Lead 1, Lead, 500 points. Unknown User, Bass. " +
                      "Team score 99,999 points, full combo, 99.0% accuracy, 5 gold stars", row.PageAnnouncement);
         var plain = vm.Rows[1];

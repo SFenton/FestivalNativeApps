@@ -211,7 +211,7 @@ private fun SearchSection(viewModel: ProfileSearchViewModel, onOpen: (PlayerSear
                 modifier = Modifier.align(Alignment.Center).testTag("fst.profile.hint"),
             )
             ProfileSearchState.Searching -> FestivalLoading("Searching", Modifier.align(Alignment.Center).testTag("fst.profile.loading"), size = 32.dp)
-            is ProfileSearchState.Failed -> ServiceStatusInline(current.issue, "Player search unavailable", null, viewModel::retry)
+            is ProfileSearchState.Failed -> ServiceStatusInline(current.issue, "Player search unavailable", null, viewModel::retry, retryTag = "fst.profile.retry")
             is ProfileSearchState.Results -> Column(Modifier.testTag("fst.profile.results")) {
                 if (current.results.isEmpty()) {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {

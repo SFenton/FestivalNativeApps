@@ -6,38 +6,43 @@
     xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
     <Page.Resources>
-        <!-- Web packageRow inside one frosted card: name + "NuGet · version", license badge, chevron; a row separator
-             between entries and an opaque-looking hover fill so the row reads as pressable. -->
+        <!-- Web packageRow inside one frosted card: name + "NuGet · version", license badge, chevron; a hairline between
+             entries and the shared row hover/press fills (Styles.xaml FSTRow*Brush), which map to system colours under a
+             contrast theme. Text and chevron inherit the button foreground so hover/press keep the theme's pair
+             (Highlight / HighlightText). When the row is narrow for the text size the badge moves under the name
+             (OnRowContentSizeChanged, Core LicenseRowLayout) and the name wraps rather than truncating. -->
         <DataTemplate x:Key="LicenseRowTemplate" x:DataType="vm:LicenseRowViewModel">
             <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="16,12" CornerRadius="0"
                     BorderThickness="0,0,0,1" Click="OnRowClick" Tag="{x:Bind}"
                     AutomationProperties.Name="{x:Bind AccessibleName}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
                 <Button.Resources>
                     <SolidColorBrush x:Key="ButtonBackground" Color="Transparent" />
-                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#1FFFFFFF" />
-                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#12FFFFFF" />
-                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
-                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#14FFFFFF" />
-                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#14FFFFFF" />
-                    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#14FFFFFF" />
+                    <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
+                    <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
+                    <StaticResource x:Key="ButtonBorderBrush" ResourceKey="FSTRowSeparatorBrush" />
+                    <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTRowSeparatorBrush" />
+                    <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTRowSeparatorBrush" />
                 </Button.Resources>
-                <Grid ColumnSpacing="12">
+                <Grid ColumnSpacing="12" SizeChanged="OnRowContentSizeChanged">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Spacing="2">
-                        <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
-                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Name}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" />
                     </StackPanel>
-                    <Border Grid.Column="1" VerticalAlignment="Center" CornerRadius="4" Padding="8,2" MaxWidth="220"
+                    <Border Grid.Column="1" Grid.RowSpan="2" VerticalAlignment="Center" CornerRadius="4" Padding="8,2" MaxWidth="220"
                             Background="{ThemeResource SubtleFillColorSecondaryBrush}">
                         <TextBlock Text="{x:Bind License}" Style="{StaticResource CaptionTextBlockStyle}" TextTrimming="CharacterEllipsis" />
                     </Border>
-                    <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
-                              Foreground="{ThemeResource FSTDeemphasisTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                    <FontIcon Grid.Column="2" Grid.RowSpan="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                              AutomationProperties.AccessibilityView="Raw" />
                 </Grid>
             </Button>
         </DataTemplate>
