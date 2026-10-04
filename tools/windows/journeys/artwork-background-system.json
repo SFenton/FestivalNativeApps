@@ -1,0 +1,19 @@
+[
+  {
+    "name": "ab-contrast",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "wait:3",
+      "assertstatus:id=fst.shell.artwork-background|save-data@5"
+    ]
+  },
+  {
+    "name": "ab-system-static",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "assertstatus:id=fst.shell.artwork-background|reduced-motion@20"
+    ]
+  }
+]
