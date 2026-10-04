@@ -134,15 +134,44 @@ final class ProfileJourneyTests: XCTestCase {
         assertSingleBackReturnsToRoot(in: app)
     }
 
+    /// Issue #290, the reported steps: choose a player from the profile button, select
+    /// them, return to Songs, then press the profile button again. It opens that player's
+    /// own profile (Statistics) instead of profile search, every time, and pressing it on
+    /// that page pushes nothing more.
+    @MainActor
+    func testProfileButtonOpensSelectedPlayerInsteadOfSearch() {
+        let app = launchFixtureApp()
+        openResult("fixture-player-1", query: "Fixture Player", in: app)
+        assertViewing("Fixture Player 1", in: app)
+        SongsUITestSupport.selectViewedPlayer(in: app)
+        let profile = app.buttons["fst.shell.profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 10))
+        XCTAssertTrue(profile.label.contains("Fixture Player 1"), profile.label)
+        let page = SongsUITestSupport.playerPage(in: app)
+        for attempt in 1...2 {
+            profile.tap()
+            XCTAssertTrue(page.waitForExistence(timeout: 15), "Press \(attempt) did not open the selected profile")
+            XCTAssertFalse(app.buttons["fst.profile.close"].exists, "Press \(attempt) opened profile search")
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                // Statistics is a sidebar row on iPad: the button selected it.
+                SongsUITestSupport.rootControl("Songs", app: app).tap()
+                XCTAssertTrue(page.waitForNonExistence(timeout: 10))
+            } else {
+                // Already on the selected player's page: nothing more is pushed.
+                app.buttons["fst.shell.profile"].firstMatch.tap()
+                XCTAssertFalse(app.buttons["fst.profile.close"].waitForExistence(timeout: 2))
+                assertSingleBackReturnsToRoot(in: app)
+            }
+        }
+    }
+
     /// The native search field keeps the sheet's title and Close while focused
-    /// (`.searchable` hides the navigation bar by default), the two-character hint sits
-    /// below the scope control, and no selected-profile container is shown.
+    /// (`.searchable` hides the navigation bar by default) and the two-character hint
+    /// sits below the scope control. Anonymous: with a selected player the profile
+    /// button opens their Statistics instead (issue #290).
     @MainActor
     func testSearchFocusKeepsTitleAndCloseInProfileSheet() {
-        let app = FestivalApp.launch([
-            "FST_API_BASE_URL": "http://127.0.0.1:8765",
-            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
-        ])
+        let app = launchFixtureApp()
         let profile = app.buttons["fst.shell.profile"]
         XCTAssertTrue(profile.waitForExistence(timeout: 15))
         profile.tap()
