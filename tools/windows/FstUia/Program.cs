@@ -742,7 +742,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
 
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
-    /// (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -768,6 +768,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                         _ => null,
                     },
                     "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
+                    "selected" => element.Patterns.SelectionItem.PatternOrDefault is { } item
+                        ? item.IsSelected.ValueOrDefault ? "true" : "false"
+                        : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
