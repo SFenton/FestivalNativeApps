@@ -57,17 +57,25 @@ public sealed partial class SongPathsView : UserControl
             if (IsLoaded) ScreenReader.Announce(this, announcement);
         };
         ApplySwapTransitions();
-        Loaded += (_, _) =>
-        {
-            Motion.Changed += OnMotionChanged;
-            ContrastTheme.Changed += OnColorsChanged;
-            ApplySwapTransitions();
-        };
-        Unloaded += (_, _) =>
-        {
-            Motion.Changed -= OnMotionChanged;
-            ContrastTheme.Changed -= OnColorsChanged;
-        };
+        Loaded += (_, _) => ApplySwapTransitions();
+    }
+
+    /// <summary>
+    /// Follows system Motion and contrast-theme changes while the dialog is open. Hosted in a <c>ContentDialog</c>, the view
+    /// gets one <c>Loaded</c> and then spurious <c>Unloaded</c> events while the dialog is still shown, so subscribing on
+    /// Loaded/Unloaded would leave a contrast switch unobserved (issue #223); <see cref="ShowAsync"/> owns the lifetime.
+    /// </summary>
+    private void Attach()
+    {
+        Motion.Changed += OnMotionChanged;
+        ContrastTheme.Changed += OnColorsChanged;
+    }
+
+    /// <summary>Stops following system changes once the dialog has closed.</summary>
+    private void Detach()
+    {
+        Motion.Changed -= OnMotionChanged;
+        ContrastTheme.Changed -= OnColorsChanged;
     }
 
     /// <summary>Paths model.</summary>
@@ -100,14 +108,23 @@ public sealed partial class SongPathsView : UserControl
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
         // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width.
         var dialogWidth = Math.Max(320, Math.Min(1200, xamlRoot.Size.Width - 24));
-        var dialog = FestivalDialog.Create(xamlRoot, title, new SongPathsView(paths) { Width = dialogWidth - 48 }, "fst.paths");
+        var view = new SongPathsView(paths) { Width = dialogWidth - 48 };
+        var dialog = FestivalDialog.Create(xamlRoot, title, view, "fst.paths");
         dialog.FullSizeDesired = true;
         dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
         dialog.Resources["ContentDialogMinWidth"] = Math.Min(548, dialogWidth);
         dialog.Resources["ContentDialogMaxHeight"] = Math.Max(400, xamlRoot.Size.Height - 48);
-        _ = paths.LoadAsync();
-        await FestivalDialog.ShowAsync(dialog);
-        paths.Close();
+        view.Attach();
+        try
+        {
+            _ = paths.LoadAsync();
+            await FestivalDialog.ShowAsync(dialog);
+        }
+        finally
+        {
+            view.Detach();
+            paths.Close();
+        }
     }
     #endregion
 
