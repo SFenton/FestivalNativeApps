@@ -161,6 +161,30 @@ public class SongSectionHeaderTests
     }
 
     [Fact]
+    public void Push_AJumpedTitleAFractionShortOfItsPlace_CountsAsPinned()
+    {
+        // Issue #231: layout rounding left a jumped-to title 0.3 epx short of the bar, naming the previous section.
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), Push(2, -Bar + 0.3, null));
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), Push(2, -Bar + SongSectionHeader.PinSlack, null));
+        Assert.Equal(new SongSectionHeader.PushState(1, 2, -Bar + 0.6), Push(2, -Bar + 0.6, null));
+    }
+
+    [Fact]
+    public void JumpCellWidth_FitsTheWidestLabelWithinTheGrid()
+    {
+        // Letters keep the 72-epx cell.
+        Assert.Equal(SongSectionHeader.JumpMinCell, SongSectionHeader.JumpCellWidth([11.2, 14.8], 900));
+        // "In Shop" first, "Leaving Tomorrow" later: every cell fits the widest label.
+        Assert.Equal(170 + SongSectionHeader.JumpLabelPadding, SongSectionHeader.JumpCellWidth([70, 169.3, 120], 900));
+        // Wider than the grid: one cell per row, trimmed.
+        Assert.Equal(300, SongSectionHeader.JumpCellWidth([500], 300));
+        // Not laid out yet, no labels or unmeasurable widths.
+        Assert.Equal(424, SongSectionHeader.JumpCellWidth([400], double.NaN));
+        Assert.Equal(SongSectionHeader.JumpMinCell, SongSectionHeader.JumpCellWidth([], 0));
+        Assert.Equal(SongSectionHeader.JumpMinCell, SongSectionHeader.JumpCellWidth([double.NaN, double.PositiveInfinity], 900));
+    }
+
+    [Fact]
     public void JumpPinDelta_ScrollsAJumpedTitleUnderTheBar()
     {
         Assert.Equal(46, SongSectionHeader.JumpPinDelta(46, Viewport));

@@ -12,6 +12,12 @@ public static class FadeInTiming
     /// <summary>Web <c>FADE_DURATION</c>.</summary>
     public static readonly TimeSpan Duration = TimeSpan.FromMilliseconds(400);
 
+    /// <summary>
+    /// Fade-out for a control leaving the page (<c>FadeIn.OnHide</c>): WinUI's <c>ControlFastAnimationDuration</c>, so
+    /// exits stay quicker than entrances, as Fluent motion asks.
+    /// </summary>
+    public static readonly TimeSpan HideDuration = TimeSpan.FromMilliseconds(167);
+
     /// <summary>Web <c>STAGGER_INTERVAL</c>.</summary>
     public static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(125);
 
