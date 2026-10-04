@@ -9,7 +9,9 @@
       "scrollinto:id=fst.instrument-selector.group@20"
     ],
     "after_ready": [
-      "wait:0.3"
+      "hover:20,20",
+      "key:esc",
+      "wait:0.5"
     ],
     "tabs": 14
   },
@@ -24,7 +26,9 @@
     ],
     "after_ready": [
       "scrollinto:id=fst.instrument-selector.muted.Solo_Bass@5",
-      "wait:0.3"
+      "hover:20,20",
+      "key:esc",
+      "wait:0.5"
     ],
     "tabs": 0
   },
@@ -41,7 +45,9 @@
       "scrollinto:id=fst.instrument-selector.detail.Solo_Guitar@5",
       "toggle:id=fst.instrument-selector.detail.Solo_Guitar",
       "scrollinto:id=fst.instrument-selector.detail.value@5",
-      "wait:0.3"
+      "hover:20,20",
+      "key:esc",
+      "wait:0.5"
     ],
     "tabs": 0
   },

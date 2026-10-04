@@ -85,7 +85,7 @@ public sealed partial class ControlLabWindow : Window
         Add(sections, "Detail content", root + ".detail", s =>
         {
             s.CompactMode = InstrumentSelectorCompactMode.Never;
-            var detail = new TextBlock { Text = "Detail content for the selected instrument", Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+            var detail = new TextBlock { Text = "Detail content for the selected instrument", Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, TextWrapping = TextWrapping.Wrap, MaxWidth = 280 };
             AutomationProperties.SetAutomationId(detail, root + ".detail.content");
             s.DetailContent = detail;
         });
