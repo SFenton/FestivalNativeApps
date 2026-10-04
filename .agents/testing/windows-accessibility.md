@@ -293,6 +293,15 @@ Fixed (all in the wide pane, `Controls/QuickLinksPane.xaml`):
 
 Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mode` accepts `+`-joined modes. Gotcha: `shot:…@screen` shows the lock screen on a locked console, so open-menu screenshots need an unlocked session; UIA assertions and window `print` shots still work.
 
+## Song Score Metadata validation (issue #228, 2026-10-04)
+
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/song-score-metadata.json --fixture tools/windows/song_metadata_fixture.py --scan` (every reachable pill state asserted by UIA name and test ID, inline/wrapped placement with `assertlevel:`/`assertbelow:`, keyboard row order, resize) at compact, medium, wide (1340 epx), maximized and both snaps, plus split view (maximized at display 100% and 150%), then under Desert, Night sky, light and dark theme, app contrast, display 100% and 150%, and text 200%: 0 Axe errors. Live public-service screenshots for `SFentonX`. Per-configuration results: [song-score-metadata/windows.md](../controls/song-score-metadata/windows.md#validation-issue-228-2026-10-04).
+
+Fixed:
+- Songs list section groups were named `Festival.App.Pages.SongGroup` (the type name), so Axe reported focusable siblings with the same name on any catalogue with more than one section; groups now take their label.
+- Pills had no automation IDs and Narrator could reach their inner text separately; each pill is now one raw element with `fst.songs.metadata.<field>.<songId>` and its spoken name.
+- Pills had a fixed 22-epx height and clipped at 200% text; they now grow with the text.
+- Wide windows never put the pills inline (the 1100-epx threshold sat on the split-view breakpoint), and a resize out of split view kept a stale list width; placement is now measured per page and re-decided on list resize, text-scale and contrast changes.
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
