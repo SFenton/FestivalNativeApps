@@ -8,7 +8,7 @@ Source: `FortniteFestivalWeb/src/components/shell/AnimatedBackground.tsx:7-250`,
 
 - Songs and Settings rotate at most **100 shuffled** album covers; Detail and Solo leaderboard show a **static, dimmed** song cover.
 - Each image shows ~5,000 ms; switching takes a 1,000 ms crossfade; a slow 6,000 ms zoom/pan uses one of ten presets (scale ≤1.18, translation ≤18 logical units).
-- Black dim layer at 0.7 alpha behind readable content.
+- Black dim layer at 0.7 alpha behind readable content, drawn only over a cover: with no art the brand surface shows undimmed (the web's `AnimatedBackground` renders nothing).
 
 ## States
 

@@ -119,6 +119,14 @@ Fixed:
 - The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
 - The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
 
+## Artwork Background validation (issue #217, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` with `journeys/artwork-background*.json` (animated, Reduce Motion, Disable Animated Artwork, Save Data, dialog and minimized `not-visible`, song cover, no art via `artwork_fixture.py`) at compact, medium, wide, snap-left and maximized; Desert and Night sky, Animation effects off, light and dark theme, text 200% and display 100%/150% at C/M/W. 0 Axe errors in every run. The live public service passed the same ItemStatus checks at all five sizes, under Desert, Night sky, text 200% and display 100%/150%. Per-configuration results: [artwork-background/windows.md](../controls/artwork-background/windows.md#validation-issue-217).
+
+The backdrop stays `AccessibilityView.Raw` (decorative: no Narrator stop, no Tab stop). Its state is exposed only to automation, as ItemStatus on a raw-view peer (`fst.shell.artwork-background`); `uiwin` searches the raw view for `assertstatus`.
+
+Fixed: without art the dim scrim darkened the brand surface to near-black (the web shows the undimmed purple); a late crossfade completion could blank the shown cover after a dialog or occlusion resumed playback.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
