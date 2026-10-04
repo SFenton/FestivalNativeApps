@@ -102,9 +102,16 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
+        <!-- Contrast themes: this window-colour plate (footer height, sized in code) hides the rows between and behind the
+             floating footer's controls instead of letting their text show through (issue #208, as the song leaderboard).
+             Never hit-testable; other themes keep the web's rows-under-footer look. -->
+        <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource FSTFloatingBackplateBrush}" />
+
         <!-- Web fixed footer: the pinned "your rank" row, then the pager, floating over the rows. -->
         <StackPanel x:Name="Footer" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
-            <controls:LeaderboardsSpotlight Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
+            <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
+                                            FocusedJump="OnFocusedJump"
                                             IdPrefix="fst.full-rankings.spotlight-footer"
                                             JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True"
                                             Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}" />

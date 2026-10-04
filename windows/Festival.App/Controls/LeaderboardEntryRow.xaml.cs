@@ -63,6 +63,11 @@ public sealed partial class LeaderboardEntryRow : UserControl
         }
     }
 
+    /// <summary>Moves focus to the row's button (a no-op for a row without a destination, which is not a tab stop).</summary>
+    /// <param name="state">How focus arrives.</param>
+    /// <returns>Whether the row's button took focus.</returns>
+    public bool FocusRow(FocusState state) => RowButton.Focus(state);
+
     /// <summary>The row's destination, if it has one.</summary>
     public AppRoute? Route => (Row as ILeaderboardEntryRow)?.Route;
 
@@ -192,6 +197,11 @@ public sealed partial class LeaderboardEntryRow : UserControl
         if (Row is ILeaderboardRankingRow && !(selected && IsHighContrast)) ValueText.Foreground = (Brush)resources["FSTRatingTextBrush"];
         else if (selected) ValueText.Foreground = (Brush)resources["FSTPlayerRowTextBrush"];
         else ValueText.ClearValue(TextBlock.ForegroundProperty);
+        // The selected row's text and chevron are already the system HighlightText-on-Highlight pair under a contrast theme;
+        // without this, WinUI's automatic adjustment repaints them as WindowText on white backplates inside the fill.
+        var adjustment = selected ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
+        RankText.HighContrastAdjustment = NameText.HighContrastAdjustment = MetaText.HighContrastAdjustment =
+            BayesianText.HighContrastAdjustment = ValueText.HighContrastAdjustment = Chevron.HighContrastAdjustment = adjustment;
     }
 
     /// <summary>Whether a Windows contrast theme is on.</summary>

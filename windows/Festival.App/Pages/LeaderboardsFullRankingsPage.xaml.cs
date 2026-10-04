@@ -22,8 +22,11 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     private const double SplitListWidth = 560;
 
     private int shownPage;
+    private FocusState jumpFocus = FocusState.Unfocused;
+    private (int Index, FocusState Focus)? revealSelected;
     private bool split;
     private string? detailAccountId;
+    private readonly Windows.UI.ViewManagement.UISettings plateUiSettings = new();
 
     /// <summary>Creates the page.</summary>
     public LeaderboardsFullRankingsPage()
@@ -31,6 +34,15 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         InitializeComponent();
         BoardFooter.Inset(Footer, RowsRepeater);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
+        Footer.SizeChanged += (_, _) => UpdateFooterPlate();
+        Scroller.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateFooterPlate());
+        Loaded += (_, _) =>
+        {
+            // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
+            plateUiSettings.ColorValuesChanged += OnPlateColorsChanged;
+            UpdateFooterPlate();
+        };
+        Unloaded += (_, _) => plateUiSettings.ColorValuesChanged -= OnPlateColorsChanged;
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -75,19 +87,64 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         shownPage = ViewModel.Page;
         Scroller.ChangeView(null, 0, null, true);
         var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
-        if (selected < 0) return;
+        revealSelected = selected < 0 ? null : (selected, jumpFocus);
+        jumpFocus = FocusState.Unfocused;
+        if (ViewModel.ShowRows) RevealSelected();
+    }
+
+    /// <summary>
+    /// Brings the selected player's row into view on a newly shown page and, after a focused "Your Page", moves focus
+    /// to it. Rows arrive while the list is still hidden by the load swap, so this runs again once content is revealed.
+    /// </summary>
+    private void RevealSelected()
+    {
+        if (revealSelected is not { } pending) return;
+        var (index, focus) = pending;
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (RowsRepeater.GetOrCreateElement(selected) is Microsoft.UI.Xaml.UIElement row)
-                row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+            if (!ViewModel.ShowRows || revealSelected != pending) return;
+            revealSelected = null;
+            if (RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
+            row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+            if (focus != FocusState.Unfocused) row.FocusRow(focus);
         });
     }
+
+    /// <summary>
+    /// "Your Page" was invoked while focused: it collapses once the player's row is on the page, so the arriving page
+    /// hands that focus to the player's row rather than letting it fall back to the title bar.
+    /// </summary>
+    /// <param name="sender">Spotlight.</param>
+    /// <param name="state">The jump button's focus kind.</param>
+    private void OnFocusedJump(object? sender, FocusState state) => jumpFocus = state;
 
     /// <summary>Replays the web row entrance after the shared load gate reveals a new page.</summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
-    private void OnContentRevealed(object? sender, EventArgs e) =>
+    private void OnContentRevealed(object? sender, EventArgs e)
+    {
         DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
+        RevealSelected();
+    }
+
+    #region Footer plate
+    /// <summary>
+    /// In a contrast theme, backs the floating footer (pinned row and pager) with a window-colour plate of its height so
+    /// rows scrolling underneath never show between or behind its controls; other themes keep the rows visible under it.
+    /// </summary>
+    private void UpdateFooterPlate()
+    {
+        var on = ContrastTheme.IsOn && Scroller.Visibility == Visibility.Visible && Footer.ActualHeight > 0;
+        FooterPlate.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        if (on) FooterPlate.Height = Footer.ActualHeight;
+    }
+
+    /// <summary>Re-evaluates the plate when the contrast theme changes (any thread).</summary>
+    /// <param name="sender">Ignored.</param>
+    /// <param name="args">Ignored.</param>
+    private void OnPlateColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(UpdateFooterPlate);
+    #endregion
 
     #region Split layout
     /// <summary>
