@@ -123,7 +123,9 @@ object BandLayout {
 
     /**
      * Card grid: as many ≥ [CARD_MIN] columns as fit; with a separating hinge, or a
-     * fold when two columns fit anyway, exactly two columns whose gutter is the hinge.
+     * balanced flat fold when two columns fit anyway, exactly two columns whose gutter is
+     * the hinge. An unbalanced flat fold (a tri-fold's off-centre fold) keeps the natural
+     * grid, as in [panes], instead of leaving its narrow side empty.
      *
      * @param contentWidth Content width.
      * @param hinge Vertical hinge in content coordinates.
@@ -131,7 +133,8 @@ object BandLayout {
      */
     fun grid(contentWidth: Float, hinge: Hinge?): Grid {
         val fit = max(1, ((contentWidth - 2 * EDGE + GUTTER) / (CARD_MIN + GUTTER)).toInt())
-        if (hinge != null && (hinge.separating || fit == 2)) {
+        val balanced = hinge != null && min(hinge.left, contentWidth - hinge.right) >= BALANCED_SHARE * contentWidth
+        if (hinge != null && (hinge.separating || (fit == 2 && balanced))) {
             val column = min(hinge.left, contentWidth - hinge.right) - 2 * EDGE
             return Grid(2, hinge.left - EDGE - column, contentWidth - hinge.right - EDGE - column, hinge.right - hinge.left + 2 * EDGE)
         }
