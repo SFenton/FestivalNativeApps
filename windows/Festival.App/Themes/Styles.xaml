@@ -73,6 +73,7 @@
             <!-- Rank History chart gridlines (web CartesianGrid stroke; the glass border tint). -->
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="#FF223047" />
+            <SolidColorBrush x:Key="FSTMutedPillFillBrush" Color="#FF223047" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="#FFFFFFFF" />
@@ -199,6 +200,7 @@
             <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTChartGridBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTMutedPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
