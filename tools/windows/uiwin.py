@@ -103,8 +103,11 @@ STEP_VERBS = {
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
-    "assertstatus": "status",
+    "assertstatus": "status", "assertstate": "state",
 }
+
+#: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
+STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "name": None}
 
 # endregion
 
@@ -174,7 +177,9 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
-    ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``).
+    ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
+    ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
+    (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``) or ``name`` equals ``<value>``.
 
     Args:
         step: A step string.
@@ -210,6 +215,22 @@ def parse_step(step: str) -> dict:
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertstatus needs an element selector, not coordinates")
         result["status"] = status.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "state":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        selector, sep, assertion = body.partition("|")
+        key, eq, value = assertion.partition("=")
+        key, value = key.strip().lower(), value.strip()
+        if not sep or not eq or key not in STATE_KEYS or not value:
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|name=<value>[@<seconds>]")
+        allowed = STATE_KEYS[key]
+        if allowed is not None and value.lower() not in allowed:
+            raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertstate needs an element selector, not coordinates")
+        result["key"], result["value"] = key, value if allowed is None else value.lower()
         if wait:
             result["timeout"] = float(wait)
     elif shape == "selector":

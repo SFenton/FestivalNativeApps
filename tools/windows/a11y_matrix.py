@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Windows accessibility matrix: Axe.Windows scans, Tab walks and screenshots per page, size and mode.
 
-Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, readiness
+Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, optional ``env``
+launch hooks such as ``FST_DEBUG_CONTROL_LAB``, readiness
 ``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
 shared ``desktop`` lock once (≤300 s), optionally applies a system accessibility mode, launches this
 worktree's build against the anonymized loopback fixture (``rivals_fixture.py``) with isolated settings
@@ -221,6 +222,26 @@ def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out:
     return [run_size(page, mode, size, exe, port, out, scan, tabs, hold) for size in sizes]
 
 
+def page_env(page: dict, data_dir: Path) -> dict[str, str]:
+    """Automation environment for one matrix page.
+
+    Args:
+        page: Page entry (``profile``, ``tab``, ``route`` and optional ``env`` launch hooks such as
+            ``FST_DEBUG_CONTROL_LAB``; page ``env`` wins over the derived values).
+        data_dir: Isolated app data directory.
+
+    Returns:
+        Environment variables to add to the app launch.
+    """
+    env = {"FST_DEBUG_DATA_DIR": str(data_dir)}
+    if page.get("profile"):
+        env["FST_DEBUG_PROFILE"] = page["profile"]
+    else:
+        env["FST_DEBUG_ANONYMOUS"] = "1"
+    env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
+    env.update({key: str(value) for key, value in page.get("env", {}).items()})
+    return env
+
 def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, scan: bool, tabs: int,
              hold: float) -> dict:
     """Launch, check and close one page at one size (see :func:`run_page`)."""
@@ -230,12 +251,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, 
     settings = state / "settings.json"
     if spec.get("app") or page.get("settings"):
         settings.write_text(json.dumps({**page.get("settings", {}), **spec.get("app", {})}), encoding="utf-8")
-    env = {"FST_DEBUG_DATA_DIR": str(state / "data")}
-    if page.get("profile"):
-        env["FST_DEBUG_PROFILE"] = page["profile"]
-    else:
-        env["FST_DEBUG_ANONYMOUS"] = "1"
-    env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
+    env = page_env(page, state / "data")
     warning = uiwin.prepare_automation(exe, env)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)

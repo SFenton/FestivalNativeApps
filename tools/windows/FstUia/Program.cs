@@ -578,6 +578,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
+            case "assertstate":
+                AssertState(window, step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -645,6 +648,44 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             if (seen == expected) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} status is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>
+    /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
+    /// (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">The element is missing or the state differs at the timeout.</exception>
+    private void AssertState(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var key = (string)step["key"]!;
+        var expected = (string)step["value"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            string? seen = null;
+            if (window.FindFirstDescendant(condition) is { } element)
+            {
+                seen = key switch
+                {
+                    "toggle" => element.Patterns.Toggle.PatternOrDefault?.ToggleState.ValueOrDefault switch
+                    {
+                        FlaUI.Core.Definitions.ToggleState.On => "on",
+                        FlaUI.Core.Definitions.ToggleState.Off => "off",
+                        FlaUI.Core.Definitions.ToggleState.Indeterminate => "indeterminate",
+                        _ => null,
+                    },
+                    "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
+                    _ => element.Properties.Name.ValueOrDefault,
+                };
+            }
+            if (seen == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {label} {key} is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
             Thread.Sleep(200);
         }
     }
