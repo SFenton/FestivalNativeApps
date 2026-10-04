@@ -168,9 +168,11 @@
                                         </StackPanel>
                                     </Grid>
                                 </Button>
+                                <!-- Wraps rather than clipping at large text sizes (a compact tile at 200% text cut it to "Leaving Tomorro"). -->
                                 <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16" Padding="8,3"
                                         CornerRadius="10" Visibility="{x:Bind IsLeaving}" IsHitTestVisible="False">
-                                    <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold" />
+                                    <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold"
+                                               TextWrapping="WrapWholeWords" TextAlignment="Center" />
                                 </Border>
                                 <controls:ShopPulseRing x:Name="ShopRing" />
                             </Grid>

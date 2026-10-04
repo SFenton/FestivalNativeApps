@@ -3,9 +3,10 @@ using System.Xml.Linq;
 namespace Festival.Core.Tests;
 
 /// <summary>
-/// Guards issue #206's Item Shop keyboard and Narrator fixes in markup: the tile grid is one Tab stop with arrow keys
-/// between tiles (the live Shop has well over a hundred tiles), and every full-page state title is a heading.
-/// The live checks are the <c>shop-grid-keys</c> journey in <c>tools/windows/journeys/a11y-keyboard.json</c>.
+/// Guards issue #206's Item Shop keyboard, Narrator and text-scaling fixes in markup: the tile grid is one Tab stop
+/// with arrow keys between tiles (the live Shop has well over a hundred tiles), every full-page state title is a
+/// heading, and the tile's Leaving Tomorrow pill wraps at large text sizes. The live checks are the <c>kb-shop-*</c>
+/// journeys in <c>tools/windows/journeys/a11y-keyboard.json</c> and the <c>text-200</c> a11y matrix runs.
 /// </summary>
 public class ShopMarkupTests
 {
@@ -25,6 +26,13 @@ public class ShopMarkupTests
         var grid = Page.Descendants().Single(e => e.Name.LocalName == "ItemsRepeater" && Attr(e, "Name") == "OfferGrid");
         Assert.Equal("Once", Attr(grid, "TabFocusNavigation"));
         Assert.Equal("Enabled", Attr(grid, "XYFocusKeyboardNavigation"));
+    }
+
+    [Fact]
+    public void LeavingPill_WrapsInsteadOfClipping()
+    {
+        var label = Page.Descendants().Single(e => e.Name.LocalName == "TextBlock" && Attr(e, "Name") == "BadgeLabel");
+        Assert.Equal("WrapWholeWords", Attr(label, "TextWrapping"));
     }
 
     [Theory]
