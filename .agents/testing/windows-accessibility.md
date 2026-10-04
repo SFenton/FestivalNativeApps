@@ -32,7 +32,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Item Shop | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
 | Leaderboards + Quick Links | ✅✅✅ | 20/21/21 | ✅ | ✅ | ✅ |
-| Full Rankings / Rank By menu | ✅✅✅ | 8/11/11 | ✅ | ✅ | ✅ |
+| Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
 | Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
@@ -85,6 +85,12 @@ Fixed:
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
 
+## Full Rankings validation (issue #208, 2026-10-03)
+
+Evidence: `a11y_matrix.py --fixture tools/windows/rankings_fixture.py --scan --tabs 30` with `journeys/full-rankings.json` (8 states) at compact, medium, wide, maximized, snap-left and snap-right; Desert and Night sky × compact/medium × 6 states; Aquatic, Dusk, light theme, display 100%/150% at medium; text 200% at C/M/W. Keyboard: `journeys/full-rankings-keyboard.json` (pager, menus + Esc, Your page, rows) 12/12 at C/M/W. Live public service (temp wrapper without `--base-url`, SFentonX on Lead and Pro Lead) at all five sizes plus contrast and text 200%. Axe 0 errors except item 8. Results per configuration in [full-rankings/windows.md](../pages/full-rankings/windows.md#validation-issue-208).
+
+Fixed: pager buttons lost focus to the window during the load swap; Your page left focus on its collapsed button and did not reveal the row, and focused rows could sit under the floating footer (WCAG 2.4.11); translucent floating cards, a hard-coded White ring and a system-backplated selected row under contrast themes; names truncated to "…" at 200% text on compact (the songs label now moves under the name and, when that is not enough, the row stacks on two lines, WCAG 1.4.4); missing Retry ID.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
@@ -94,5 +100,5 @@ Constraint: the lane host's console was locked for this pass, so SendInput Tab w
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
 7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean.
-8. Quick Links menu at compact: Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); medium scans clean.
+8. Quick Links menu at compact: Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); medium scans clean. Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
