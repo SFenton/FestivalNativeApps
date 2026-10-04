@@ -42,7 +42,7 @@ The checks used the winui-design and winui-code-review skills (no findings on th
 
 | Configuration | Result |
 |---|---|
-| Medium, every page (17 states + reload, unpinned, 4 keyboard) | Pass; Axe 0 except `reload` (PopupHost, after View Profile closes the flyout) |
+| Medium, every page (17 states + reload, unpinned, 4 keyboard) | Pass; Axe 0 except `reload` (PopupHost, after View Profile closes the flyout). The re-run after merging master also saw the PopupHost item on `viewed` and `view-selected`; the pre-merge build matched, so it is host timing, not a regression. `unpinned` needs `FST_PROFILE_FIXTURE_UNPINNED=1` in the matrix's environment |
 | Compact, wide, maximized, snap-left, snap-right | 7 pages × 5 sizes pass, Axe 0; the flyout stays 340 epx and inside the window at 500 epx |
 | Text 200% (compact) | All 17 pages and 4 keyboard pages pass; names, buttons and the band explanation wrap. Axe: PopupHost only, on `viewed`, `view-selected` and `reload` |
 | Desert, Night sky | 7 and 4 pages pass, Axe 0; flyout, results, avatars and dialogs repaint from system colours |
