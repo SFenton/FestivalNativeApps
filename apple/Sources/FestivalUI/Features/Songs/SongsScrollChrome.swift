@@ -261,6 +261,116 @@ final class SongsScrollChrome {
         guard !keys.isEmpty else { return nil }
         return keys.lastIndex { passedHeaders.contains($0) } ?? 0
     }
+
+    // MARK: Section push (issue #288)
+
+    /// The section bar's top edge (global). Read by the titles' geometry checks, so never
+    /// observed.
+    let barTop = TopInset()
+    /// The height of the bar's current title. Read by the titles' geometry checks, so
+    /// never observed.
+    let barHeight = TopInset()
+
+    /// Tops of the in-list section titles inside the push band
+    /// (``pushBandTop(titleTop:landingOffset:barHeight:)``), relative to the bar's top.
+    /// Read only by the section bar.
+    private(set) var titleTops: [String: CGFloat] = [:]
+
+    /// Title movement smaller than this is layout jitter.
+    nonisolated static let titleTopTolerance: CGFloat = 0.1
+
+    /// Record the section bar's top edge and its current title's height.
+    ///
+    /// - Parameters:
+    ///   - top: The bar's global `minY`.
+    ///   - height: The current title's height.
+    func setBarMetrics(top: CGFloat, height: CGFloat) {
+        if top.isFinite { barTop.value = top }
+        if height.isFinite, height > 0 { barHeight.value = height }
+        if top.isFinite, height.isFinite, height > 0 { setSectionBarBottom(top + height) }
+    }
+
+    /// Record where one in-list section title sits in the push band, or that it left it.
+    ///
+    /// - Parameters:
+    ///   - key: The title's key.
+    ///   - top: Its top relative to the bar's top, or nil outside the band.
+    /// - Returns: True when the recorded tops changed.
+    @discardableResult
+    func setTitleTop(_ key: String, top: CGFloat?) -> Bool {
+        guard let top, top.isFinite else {
+            guard titleTops[key] != nil else { return false }
+            titleTops[key] = nil
+            return true
+        }
+        if let old = titleTops[key], abs(old - top) < Self.titleTopTolerance { return false }
+        titleTops[key] = top
+        return true
+    }
+
+    /// How far the bar's title text sits above an in-list title's text when both frames
+    /// share a top: the two differ only in their top padding.
+    nonisolated static let titleAlignment: CGFloat = inlineTitleTopPadding - barTitlePadding
+
+    /// A title's top within the push band, where the section bar draws it itself.
+    ///
+    /// Below the band the title is an ordinary row. From the band's bottom
+    /// (`landingOffset + barHeight` below the bar's top) it is drawn by the bar at the same
+    /// place and hidden in the List, so the row fade under the bar never dims it. That
+    /// line is below the end of the fade, so the hand-off shows no change. Titles far
+    /// above the bar are clamped, so they stop reporting once pinned.
+    ///
+    /// - Parameters:
+    ///   - titleTop: The title's top minus the bar's top (global points).
+    ///   - landingOffset: ``landingOffset(fade:)``.
+    ///   - barHeight: The bar's current title height (0 while unknown).
+    /// - Returns: The clamped top, or nil below the band.
+    nonisolated static func pushBandTop(
+        titleTop: CGFloat, landingOffset: CGFloat, barHeight: CGFloat
+    ) -> CGFloat? {
+        guard titleTop.isFinite, titleTop <= landingOffset + max(0, barHeight) else { return nil }
+        return max(titleTop, -(titleAlignment + 1))
+    }
+
+    /// Where the section bar draws its titles (issue #288), relative to its top.
+    struct SectionBarLayout: Equatable {
+        /// The current section's title, or nil when nothing is pinned yet or it has been
+        /// pushed out.
+        var currentY: CGFloat?
+        /// The incoming section's title, or nil while it is still an ordinary row.
+        var nextY: CGFloat?
+    }
+
+    /// Lay out the section bar like a plain list's pinned headers (issue #288).
+    ///
+    /// A title follows its row 1:1 until it reaches the bar's top, then pins there. The
+    /// incoming title pushes the pinned one up as it enters the push band, so the pinned
+    /// title is fully out exactly when the incoming title reaches the landing line, where
+    /// it becomes current (``headerPassed(minY:topInset:landingOffset:)``) and where a jump
+    /// lands it (issue #286). Every position follows the scroll offset, so scrolling back
+    /// reverses the push with no jump.
+    ///
+    /// - Parameters:
+    ///   - currentTop: The current section title's band top
+    ///     (``pushBandTop(titleTop:landingOffset:barHeight:)``), nil outside the band.
+    ///   - currentPassed: The current title has passed the landing line (a jump, or a
+    ///     title that scrolled far above the bar).
+    ///   - nextTop: The next section title's band top, nil outside the band.
+    ///   - landingOffset: ``landingOffset(fade:)``.
+    ///   - barHeight: The bar's current title height.
+    /// - Returns: Title positions in bar space.
+    nonisolated static func sectionBarLayout(
+        currentTop: CGFloat?, currentPassed: Bool, nextTop: CGFloat?,
+        landingOffset: CGFloat, barHeight: CGFloat
+    ) -> SectionBarLayout {
+        var current = currentTop.map { max(0, $0 + titleAlignment) } ?? (currentPassed ? 0 : nil)
+        guard let nextTop else { return SectionBarLayout(currentY: current, nextY: nil) }
+        if let pinned = current {
+            let pushed = min(pinned, nextTop - landingOffset - barHeight)
+            current = pushed <= -barHeight ? nil : pushed
+        }
+        return SectionBarLayout(currentY: current, nextY: nextTop + titleAlignment)
+    }
 }
 
 // MARK: - Top inset

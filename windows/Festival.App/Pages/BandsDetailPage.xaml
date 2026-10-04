@@ -63,8 +63,9 @@
                         <controls:MarqueeText Text="{x:Bind Subtitle}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
-                        <Border CornerRadius="4" Padding="8,2" Background="{StaticResource FSTAccentPurpleBrush}" HorizontalAlignment="Right">
-                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" />
+                        <Border CornerRadius="4" Padding="7,1" Background="{ThemeResource FSTPercentilePillFillBrush}" HorizontalAlignment="Right"
+                                BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}" BorderThickness="1">
+                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource FSTPercentilePillTextBrush}" />
                         </Border>
                         <TextBlock Text="{x:Bind RankText}" FontSize="12" HorizontalAlignment="Right"
                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" />
@@ -84,8 +85,9 @@
                     <controls:BandsArtworkThumb Raw="{x:Bind AlbumArt}" />
                     <controls:MarqueeText Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
                     <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
-                        <Border CornerRadius="4" Padding="8,2" Background="{StaticResource FSTAccentPurpleBrush}" HorizontalAlignment="Right">
-                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" />
+                        <Border CornerRadius="4" Padding="7,1" Background="{ThemeResource FSTPercentilePillFillBrush}" HorizontalAlignment="Right"
+                                BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}" BorderThickness="1">
+                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource FSTPercentilePillTextBrush}" />
                         </Border>
                         <TextBlock Text="{x:Bind RankText}" FontSize="12" HorizontalAlignment="Right"
                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" />
@@ -186,8 +188,10 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Band Statistics" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                            <ComboBox x:Name="RankBy" Grid.Column="1" VerticalAlignment="Center" MinWidth="160"
+                            <TextBlock Text="Band Statistics" Style="{StaticResource FSTSectionHeaderStyle}" VerticalAlignment="Bottom"
+                                       AutomationProperties.HeadingLevel="Level2" />
+                            <!-- Visible Fluent header: the selected metric alone doesn't say what the box controls. -->
+                            <ComboBox x:Name="RankBy" Grid.Column="1" VerticalAlignment="Bottom" MinWidth="160" Header="Rank By"
                                       SelectionChanged="OnRankByChanged" AutomationProperties.Name="Rank By"
                                       AutomationProperties.AutomationId="fst.band.rank-by">
                                 <x:String>Adjusted Skill</x:String>
@@ -196,7 +200,9 @@
                                 <x:String>Total Score</x:String>
                             </ComboBox>
                         </Grid>
-                        <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Statistics, Mode=OneWay}" ItemTemplate="{StaticResource StatTemplates}">
+                        <!-- Local: Tab visits every link card (Rank and Best Song Rank), arrows move between cards. -->
+                        <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Statistics, Mode=OneWay}" ItemTemplate="{StaticResource StatTemplates}"
+                                       TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled">
                             <ItemsRepeater.Layout>
                                 <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
                             </ItemsRepeater.Layout>
@@ -230,14 +236,16 @@
                                         </ItemsRepeater.Layout>
                                         <ItemsRepeater.ItemTemplate>
                                             <DataTemplate x:DataType="vm:BandHistoryRow">
-                                                <Grid ColumnSpacing="12" Height="28" AutomationProperties.Name="{x:Bind Announcement}"
+                                                <!-- MinHeight and a text-scaled date column: rows grow with Windows text size instead of clipping. -->
+                                                <Grid ColumnSpacing="12" MinHeight="28" AutomationProperties.Name="{x:Bind Announcement}"
                                                       AutomationProperties.AutomationId="{x:Bind AutomationId}">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="72" />
+                                                        <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="Auto" MinWidth="56" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{x:Bind Date}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
+                                                    <TextBlock Text="{x:Bind Date}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
+                                                               controls:TextScaleLayout.ScaledMinWidth="72" />
                                                     <TextBlock Grid.Column="1" Text="{x:Bind Rank}" VerticalAlignment="Center"
                                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                                     <TextBlock Grid.Column="2" Text="{x:Bind Value}" VerticalAlignment="Center" HorizontalAlignment="Right"

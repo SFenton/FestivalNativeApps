@@ -34,6 +34,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
@@ -91,7 +92,7 @@ class BandsUiTest {
     fun bandsWithoutAnIdShowsBandNotFound() {
         launch("bands")
         waitForTag("fst.bands.not-found")
-        rule.onNodeWithText("Band Not Found").assertIsDisplayed()
+        rule.onNodeWithText("Band not found").assertIsDisplayed()
         assertTrue(transport.requests.none { it.url.contains("/api/bands") })
     }
 
@@ -140,6 +141,25 @@ class BandsUiTest {
     fun invalidPlayerAccountShowsNotFound() {
         launch("playerBands:bad.id")
         waitForTag("fst.player-bands.invalid")
+    }
+
+    private fun cardLeft(id: String) = rule.onNodeWithTag("fst.player-bands.row.$id").fetchSemanticsNode().boundsInRoot.left
+
+    @Test
+    @Config(qualifiers = "w900dp-h1200dp-xhdpi")
+    fun wideWindowShowsTwoCardColumns() {
+        launch("playerBands:${BandFixtures.PLAYER}")
+        waitForTag("fst.player-bands.row.band-1")
+        assertTrue(cardLeft("band-1") > cardLeft(BandFixtures.DUO_ID))
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h1200dp-xhdpi")
+    fun largeTextUsesOneCardColumn() {
+        RuntimeEnvironment.setFontScale(2f)
+        launch("playerBands:${BandFixtures.PLAYER}")
+        waitForTag("fst.player-bands.row.band-1")
+        assertEquals(cardLeft(BandFixtures.DUO_ID), cardLeft("band-1"), 0.5f)
     }
 
     // endregion

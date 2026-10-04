@@ -63,6 +63,11 @@ public sealed partial class LeaderboardEntryRow : UserControl
         }
     }
 
+    /// <summary>Moves focus to the row's button (a no-op for a row without a destination, which is not a tab stop).</summary>
+    /// <param name="state">How focus arrives.</param>
+    /// <returns>Whether the row's button took focus.</returns>
+    public bool FocusRow(FocusState state) => RowButton.Focus(state);
+
     /// <summary>The row's destination, if it has one.</summary>
     public AppRoute? Route => (Row as ILeaderboardEntryRow)?.Route;
 
@@ -192,6 +197,11 @@ public sealed partial class LeaderboardEntryRow : UserControl
         if (Row is ILeaderboardRankingRow && !(selected && IsHighContrast)) ValueText.Foreground = (Brush)resources["FSTRatingTextBrush"];
         else if (selected) ValueText.Foreground = (Brush)resources["FSTPlayerRowTextBrush"];
         else ValueText.ClearValue(TextBlock.ForegroundProperty);
+        // The selected row's text and chevron are already the system HighlightText-on-Highlight pair under a contrast theme;
+        // without this, WinUI's automatic adjustment repaints them as WindowText on white backplates inside the fill.
+        var adjustment = selected ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
+        RankText.HighContrastAdjustment = NameText.HighContrastAdjustment = MetaText.HighContrastAdjustment =
+            BayesianText.HighContrastAdjustment = ValueText.HighContrastAdjustment = Chevron.HighContrastAdjustment = adjustment;
     }
 
     /// <summary>Whether a Windows contrast theme is on.</summary>
@@ -211,13 +221,43 @@ public sealed partial class LeaderboardEntryRow : UserControl
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.MetaWidth;
-        MetaText.Visibility = plan.ShowMeta && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PlaceMeta(plan.MetaBelowName, plan.ValueBelowName);
+        MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ValueColumn.MinWidth = plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
         Pill.Visibility = plan.ShowAccuracy && score is { HasAccuracy: true } ? Visibility.Visible : Visibility.Collapsed;
         StarsColumn.MinWidth = plan.StarsWidth;
         StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Puts the songs label in its own right-aligned column, or under the name when the column would squeeze the name away
+    /// (issue #208: 200% text in a compact window left only an ellipsis). When the name is still squeezed the row stacks:
+    /// rank and name (across the rating's column) on the first line, the songs label from the rank's edge and the rating
+    /// on the second.
+    /// </summary>
+    /// <param name="below">Whether the label goes under the name.</param>
+    /// <param name="stacked">Whether the rating goes under the name too.</param>
+    private void PlaceMeta(bool below, bool stacked)
+    {
+        var nameColumn = Grid.GetColumn(NameText);
+        var ranked = RankText.Visibility == Visibility.Visible;
+        Grid.SetRowSpan(RankText, stacked ? 1 : 2);
+        Grid.SetRow(NameText, 0);
+        Grid.SetRowSpan(NameText, below || stacked ? 1 : 2);
+        Grid.SetColumnSpan(NameText, (ranked ? 1 : 2) + (stacked ? 2 : 0));
+        NameText.VerticalAlignment = below || stacked ? VerticalAlignment.Bottom : VerticalAlignment.Center;
+        Grid.SetRow(ValueStack, stacked ? 1 : 0);
+        Grid.SetRowSpan(ValueStack, stacked ? 1 : 2);
+        ValueStack.VerticalAlignment = stacked ? VerticalAlignment.Top : VerticalAlignment.Center;
+        Grid.SetRow(MetaText, below ? 1 : 0);
+        Grid.SetRowSpan(MetaText, below ? 1 : 2);
+        Grid.SetColumn(MetaText, !below ? 2 : stacked ? 0 : nameColumn);
+        Grid.SetColumnSpan(MetaText, !below ? 1 : stacked ? 2 : (ranked ? 1 : 2));
+        MetaText.VerticalAlignment = below ? VerticalAlignment.Top : VerticalAlignment.Center;
+        MetaText.HorizontalAlignment = below ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MetaText.TextAlignment = below ? TextAlignment.Left : TextAlignment.Right;
     }
     /// <summary>Re-evaluates the width-dependent columns.</summary>
     /// <param name="sender">Button.</param>

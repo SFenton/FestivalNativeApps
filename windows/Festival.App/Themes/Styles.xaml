@@ -67,6 +67,11 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
+            <!-- Band Detail song rows' "Top N%" pill (web purple percentile badge). -->
+            <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="#FF7C3AED" />
+            <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="#FFFFFFFF" />
+            <!-- Rank History chart gridlines (web CartesianGrid stroke; the glass border tint). -->
+            <SolidColorBrush x:Key="FSTChartGridBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="#FF223047" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
@@ -170,6 +175,10 @@
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <!-- Percentile pills become plain system pills (outlined by FSTNeutralPillStrokeBrush). -->
+            <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTChartGridBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTAccuracyPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />

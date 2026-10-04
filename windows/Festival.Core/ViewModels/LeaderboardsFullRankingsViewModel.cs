@@ -119,8 +119,12 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// <summary>Whether the full-page failure is shown.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
-    /// <summary>Whether the board chrome (pager, spotlight) is shown.</summary>
-    public bool ShowContent => State is (LoadState.Loaded or LoadState.Empty) && LoadSwap.ContentVisible;
+    /// <summary>
+    /// Whether the board chrome (pager) is shown: from the first loaded board on, it stays while another page swaps in,
+    /// like the web's fixed pagination (<c>hasLoadedOnce &amp;&amp; !error</c>), so a focused pager button keeps keyboard
+    /// focus across page changes (issue #208). Hidden for the full-page failure.
+    /// </summary>
+    public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
     /// <summary>Switches instrument (resets to page 1 and the spotlight).</summary>
     /// <param name="value">Instrument.</param>

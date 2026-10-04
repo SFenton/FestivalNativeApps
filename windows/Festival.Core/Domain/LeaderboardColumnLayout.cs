@@ -44,9 +44,19 @@ public sealed record LeaderboardSection(LeaderboardRowKind Kind, int RankChars, 
 /// <param name="AccuracyWidth">Accuracy column width (0 when hidden).</param>
 /// <param name="ShowStars">Whether the stars column shows.</param>
 /// <param name="StarsWidth">Stars column width (0 when hidden).</param>
+/// <param name="MetaBelowName">
+/// Whether a rankings row's songs label moves under the name instead of taking its own column, because the column would
+/// squeeze the name below its minimum (large text in a narrow row; issue #208).
+/// </param>
+/// <param name="ValueBelowName">
+/// Whether a rankings row still squeezes the name without the songs column, so it stacks on two lines: rank and name
+/// (spanning the rating's column) on the first, the songs label (from the rank's edge) and the rating on the second
+/// (issue #208: five-digit ranks and eleven-character ratings at 200% text).
+/// </param>
 public sealed record LeaderboardColumnPlan(
     double Gap, double RankWidth, bool ShowMeta, double MetaWidth, double ValueWidth,
-    bool ShowAccuracy, double AccuracyWidth, bool ShowStars, double StarsWidth)
+    bool ShowAccuracy, double AccuracyWidth, bool ShowStars, double StarsWidth, bool MetaBelowName = false,
+    bool ValueBelowName = false)
 {
     /// <summary>Whether the narrow (8 epx gap) layout applies.</summary>
     public bool Compact => Gap < LeaderboardColumnLayout.WideGap;
@@ -59,7 +69,8 @@ public sealed record LeaderboardColumnPlan(
 /// from a 520 epx row (<c>MEDIUM_BREAKPOINT</c>), stars from 700 epx (<c>MOBILE_BREAKPOINT</c> 768 less the page chrome),
 /// tighter gaps below 420 epx, the accuracy column always reserved in a section that has accuracy, and the rankings songs
 /// label never dropped. When the fixed columns would squeeze the name below its minimum (narrow rows or large text),
-/// stars go first, then the season.
+/// stars go first, then the season; a rankings songs label moves under the name instead, and if the name is still
+/// squeezed the rankings row stacks on two lines with the rating on the second.
 /// </summary>
 public static class LeaderboardColumnLayout
 {
@@ -142,9 +153,13 @@ public static class LeaderboardColumnLayout
 
         if (showStars && Required() > rowWidth) showStars = false;
         if (score && showMeta && !pinned && Required() > rowWidth) showMeta = false;
+        // Rankings never drop the songs label (web parity); it moves under the name rather than truncate the name away.
+        var metaBelow = !score && showMeta && known && Required() > rowWidth;
+        if (metaBelow) showMeta = false;
+        var valueBelow = !score && known && Required() > rowWidth;
         return new LeaderboardColumnPlan(
             gap, rank, showMeta, showMeta ? meta : 0, value,
-            accuracy > 0, accuracy, showStars, showStars ? StarsWidth : 0);
+            accuracy > 0, accuracy, showStars, showStars ? StarsWidth : 0, metaBelow, valueBelow);
     }
 }
 #endregion

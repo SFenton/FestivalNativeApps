@@ -376,7 +376,12 @@ final class SongsChromeJourneyTests: XCTestCase {
         // Z's few songs cannot lift its title to the top: the bar names Y, still at the top.
         tap("Z")
         let z = title("Z")
-        waitUntil("Did not reach the end for Z") { z.exists && z.isHittable }
+        // Issue #288: the bar draws a title over its own row until it pins, so the row is
+        // not hit-testable there; check that it is in view below the bar instead.
+        waitUntil("Did not reach the end for Z") {
+            z.exists && z.frame.minY >= top() - 1
+                && z.frame.maxY <= app.windows.firstMatch.frame.maxY
+        }
         if abs(z.frame.minY - line()) <= 3 {
             waitUntil("Section bar reads \(sectionBar.label), not Z") { sectionBar.label == "Z" }
         } else {
