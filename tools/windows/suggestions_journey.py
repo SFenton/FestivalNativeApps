@@ -153,8 +153,9 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
     "loading": (
         f"{PROFILE}-slow",
         {},
-        # The slow account answers after 120 s, so the spinner outlasts other lanes' turns on the desktop lock; the
-        # loaded transition itself is covered by every other scenario.
+        # The slow account answers after 120 s, but the app's 30 s request timeout ends the spinner first, so a drive
+        # that queued longer on the desktop lock sees "You're offline" and is retried (LOCK_BOUND); the loaded
+        # transition itself is covered by every other scenario.
         ["waitfor:id=fst.suggestions.loading@30", "waitgone:id=fst.suggestions.filter-button@2", "{shot:loading}",
          "scan:{scans}/loading"],
     ),
@@ -288,6 +289,24 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
         uiwin("close")
 
 
+LOCK_BOUND = {"loading"}
+"""Scenarios whose state only lasts the app's 30 s request timeout, so a long desktop-lock queue can outlive it."""
+LOCK_RETRIES = 3
+
+
+def lock_bound_miss(name: str, error: str) -> bool:
+    """Tells whether a failure is a time-bounded state that expired while the drive queued on the desktop lock.
+
+    Args:
+        name: Scenario key.
+        error: Failure message from :func:`run`.
+
+    Returns:
+        True when the scenario is in :data:`LOCK_BOUND` and its drive waited for the host lock.
+    """
+    return name in LOCK_BOUND and "waiting for host lock" in error
+
+
 def main() -> int:
     """Runs the selected scenarios.
 
@@ -317,11 +336,16 @@ def main() -> int:
             options.shots.mkdir(parents=True, exist_ok=True)
         for name in options.only or list(SCENARIOS):
             for size in options.sizes.split(",") if name == "loaded" else ["medium"]:
-                try:
-                    run(name, options.port, options.shots, size, options.exe)
-                except RuntimeError as error:
-                    failures += 1
-                    print(f"FAIL {name} [{size}]: {error}")
+                for attempt in range(LOCK_RETRIES + 1):
+                    try:
+                        run(name, options.port, options.shots, size, options.exe)
+                        break
+                    except RuntimeError as error:
+                        if attempt < LOCK_RETRIES and lock_bound_miss(name, str(error)):
+                            print(f"RETRY {name} [{size}]: state expired while queued on the desktop lock")
+                            continue
+                        failures += 1
+                        print(f"FAIL {name} [{size}]: {error}")
     finally:
         server.terminate()
     return 1 if failures else 0
