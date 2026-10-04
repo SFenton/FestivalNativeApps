@@ -183,19 +183,22 @@ final class SongsScrollChrome {
     /// - Parameters:
     ///   - key: The target title's key, already passed to ``watchLanding(_:)``.
     ///   - generation: ``jumpGeneration`` when the jump started.
-    func settleLanding(on key: String, generation: Int) async {
+    /// - Returns: The rounds waited before the settle ended (0 with no landing line).
+    @discardableResult
+    func settleLanding(on key: String, generation: Int) async -> Int {
         defer { if jumpGeneration == generation { probeKey = nil } }
-        guard landingLine.value > 0 else { return }
-        for _ in 0..<Self.landingRounds {
+        guard landingLine.value > 0 else { return 0 }
+        for round in 1...Self.landingRounds {
             try? await Task.sleep(for: .milliseconds(32))
-            guard jumpGeneration == generation, probeKey == key else { return }
+            guard jumpGeneration == generation, probeKey == key else { return round }
             guard let minY = probeMinY else { continue }
             probeMinY = nil
             guard let distance = Self.landingCorrection(
                 minY: minY, topInset: listTopInset.value, landingOffset: landingLine.value
-            ) else { return }
-            guard listNudger.moveContent(by: distance) else { return }
+            ) else { return round }
+            guard listNudger.moveContent(by: distance) else { return round }
         }
+        return Self.landingRounds
     }
 
     /// Correction rounds before a landing gives up (about a third of a second).

@@ -230,17 +230,13 @@ struct SongsSectionJumpTests {
         chrome.watchLanding("B")
         chrome.recordTitleTop("A", minY: 900)
         chrome.recordTitleTop("B", minY: 176)
-        let clock = ContinuousClock()
-        let start = clock.now
-        await chrome.settleLanding(on: "B", generation: chrome.jumpGeneration)
-        #expect(clock.now - start < .milliseconds(250))
+        // Rounds, not wall-clock time: parallel suites can hold the main actor.
+        #expect(await chrome.settleLanding(on: "B", generation: chrome.jumpGeneration) == 1)
         #expect(!chrome.listNudger.moveContent(by: 30))
 
         chrome.setLandingLine(0)
         chrome.watchLanding("C")
-        let flushStart = clock.now
-        await chrome.settleLanding(on: "C", generation: chrome.jumpGeneration)
-        #expect(clock.now - flushStart < .milliseconds(30))
+        #expect(await chrome.settleLanding(on: "C", generation: chrome.jumpGeneration) == 0)
     }
 
     /// A newer jump ends an older settle.
@@ -252,10 +248,7 @@ struct SongsSectionJumpTests {
         chrome.watchLanding("B")
         let generation = chrome.jumpGeneration
         chrome.jump(to: "C", in: keys)
-        let clock = ContinuousClock()
-        let start = clock.now
-        await chrome.settleLanding(on: "B", generation: generation)
-        #expect(clock.now - start < .milliseconds(250))
+        #expect(await chrome.settleLanding(on: "B", generation: generation) == 1)
     }
 
     @Test func topInsetIgnoresNonFiniteValuesAndNotifiesNoOne() {
