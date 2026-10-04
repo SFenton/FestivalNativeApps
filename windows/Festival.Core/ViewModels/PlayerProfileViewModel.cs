@@ -422,6 +422,11 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
             case nameof(FestivalSession.SelectedProfileStatus) or nameof(FestivalSession.SelectedProfile):
                 if (IsSelected && load is { IsCancellationRequested: false }) ApplyFromSession();
                 break;
+            case nameof(FestivalSession.ObservedPublicationId):
+                // A newer publication makes a viewed read unselectable: swap Select for the "changed" notice now,
+                // rather than only failing when Select is clicked.
+                RefreshIdentity();
+                break;
         }
     }
 }

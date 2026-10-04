@@ -74,6 +74,30 @@ object QuickLinks {
     const val COMPLETE_THRESHOLD_DP = 8
 
     /**
+     * How long (ms) a jump keeps its section on the landing line while content that starts loading
+     * when it is first composed (rank history, bands) changes height; any user scroll ends it sooner.
+     */
+    const val LANDING_HOLD_MS = 3_000L
+
+    /**
+     * Whether a held jump must land again: the target left the landing line because content above it
+     * changed height, or content below it arrived after a jump the end of the list had clamped.
+     *
+     * @param itemTop Target top below the visible top, in pixels, or null when it is not laid out.
+     * @param landingPx Landing line, in pixels.
+     * @param thresholdPx Landing tolerance, in pixels.
+     * @param canScrollForward The list can scroll further down (otherwise a lower target is clamped by its end).
+     * @param canScrollBackward The list can scroll further up (otherwise a higher target is clamped by its start).
+     * @return True when scrolling to the target again would move it back to the landing line.
+     */
+    fun needsReland(itemTop: Int?, landingPx: Int, thresholdPx: Int, canScrollForward: Boolean, canScrollBackward: Boolean): Boolean = when {
+        itemTop == null -> true
+        itemTop > landingPx + thresholdPx -> canScrollForward
+        itemTop < landingPx - thresholdPx -> canScrollBackward
+        else -> false
+    }
+
+    /**
      * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyStaggeredGridState.scrollToItem` that
      * lands an item's top [landingPx] below the visible viewport top. Lazy offsets are measured from the
      * end of the leading content padding, which content still scrolls through, so the padding is

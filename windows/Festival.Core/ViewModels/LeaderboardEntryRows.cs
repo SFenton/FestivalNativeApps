@@ -79,6 +79,15 @@ public interface ILeaderboardScoreRow : ILeaderboardEntryRow
     /// <summary>Explicit full combo (gold skewed badge).</summary>
     bool IsFullCombo { get; }
 
+    /// <summary>
+    /// Badge text (score-accuracy control): the accuracy, <c>FC</c> for a full combo without accuracy, or empty for no
+    /// badge (<see cref="ScoreFormatting.BadgeText"/>).
+    /// </summary>
+    string BadgeText => ScoreFormatting.BadgeText(Accuracy, IsFullCombo);
+
+    /// <summary>UIA automation ID of the badge (<c>fst.score.accuracy.…</c>), kept in the raw view under the row's one stop.</summary>
+    string BadgeAutomationId { get; }
+
     /// <summary>Stars, or 0 when the board does not show them.</summary>
     int StarCount { get; }
 
@@ -129,7 +138,7 @@ public static class LeaderboardColumns
         }
         var scores = all.OfType<ILeaderboardScoreRow>().ToList();
         return new LeaderboardSection(LeaderboardRowKind.Score, rank, Widest(scores.Select(r => r.Season)),
-            Widest(scores.Select(r => r.Score)), scores.Any(r => r.HasAccuracy), scores.Any(r => StarRating.From(r.StarCount) is not null));
+            Widest(scores.Select(r => r.Score)), scores.Any(r => r.BadgeText.Length > 0), scores.Any(r => StarRating.From(r.StarCount) is not null));
     }
 }
 #endregion

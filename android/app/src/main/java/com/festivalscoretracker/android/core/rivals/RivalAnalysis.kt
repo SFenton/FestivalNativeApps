@@ -210,6 +210,22 @@ object RivalHeadToHead {
     }
 
     /**
+     * Spoken rank lead for a song row's accessibility label: the exact unsigned gap with a
+     * singular/plural unit (the visible pill keeps the web's signed, abbreviated form).
+     *
+     * @param delta Signed rank delta (positive: the player leads).
+     * @param rivalName Rival's display name.
+     * @param locale Number locale.
+     * @return Text such as `you lead by 1 rank`, `Rival leads by 12,345 ranks` or `tied`.
+     */
+    fun leaderPhrase(delta: Long, rivalName: String, locale: Locale = Locale.getDefault()): String {
+        if (delta == 0L) return "tied"
+        val magnitude = abs(delta)
+        val gap = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " rank" else " ranks"
+        return if (delta > 0) "you lead by $gap" else "$rivalName leads by $gap"
+    }
+
+    /**
      * Signed score difference, player minus rival (missing scores count as zero).
      *
      * @param song Comparison.

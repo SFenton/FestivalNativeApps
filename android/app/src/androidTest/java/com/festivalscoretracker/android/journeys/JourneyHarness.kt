@@ -209,7 +209,8 @@ class JourneyHarness(private val rule: JourneyRule) {
      * semantic, not traversal), so the walk collects visible nodes depth-first, then follows
      * each chain of `traversalBefore` links from its head. Kept: nodes TalkBack focuses
      * (screen-reader focusable, clickable, or labelled outside such a node); a focusable
-     * node's label falls back to its descendants' text, as TalkBack composes it. Logged under
+     * node without a content description reads its text, its unfocusable descendants' labels
+     * (where Compose puts a merged node's description) and its state, as TalkBack composes it. Logged under
      * [READING_ORDER_TAG] as `<screen> | <index> | <role> | <label> | <w>x<h>`.
      *
      * @param screen Name for the log.
@@ -263,7 +264,9 @@ class JourneyHarness(private val rule: JourneyRule) {
             val own = ownLabel(node)
             val focusable = isFocusable(node) || (node.isFocusable && own.isNotEmpty())
             if (!focusable && (own.isEmpty() || insideFocusable[i])) return@forEach
-            val label = own.ifEmpty { descendantsLabel(node) }
+            // TalkBack speaks a content description alone; otherwise text, unfocusable children, then state.
+            val label = if (!node.contentDescription.isNullOrBlank()) own else listOfNotNull(node.text, descendantsLabel(node), node.stateDescription)
+                .map { it.toString().trim() }.filter { it.isNotEmpty() }.distinct().joinToString(", ")
             val role = buildList {
                 if (node.isHeading) add("heading")
                 if (node.isClickable) add("button")

@@ -131,7 +131,6 @@ import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.shop.ShopDetailAction
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
-import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Extras
 
@@ -479,8 +478,9 @@ private fun HeaderActions(song: Song, extras: SongDetailExtras, onOpenPaths: (So
 /**
  * Intensity for every charted instrument in two columns (web icon grid; operator 6.31:
  * two columns on unfolded/tablet widths too): icon + meter on compact panes, icon,
- * label and meter on wider ones. Each cell is one TalkBack stop naming the instrument
- * and its level.
+ * label and meter on wider ones. The label keeps an 8 dp gap before the meter and wraps
+ * (two lines, unlimited at large text) rather than truncating or touching it. Each cell
+ * is one TalkBack stop naming the instrument and its level.
  */
 @Composable
 private fun IntensityCard(song: Song, charted: List<Instrument>) {
@@ -501,7 +501,7 @@ private fun IntensityCard(song: Song, charted: List<Instrument>) {
                             ) {
                                 InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 28.dp, decorative = true)
                                 if (labelled) {
-                                    Text(instrument.label, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                                    Text(instrument.label, color = BrandTokens.textPrimary, maxLines = if (isLargeText()) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp, end = 8.dp))
                                     DifficultyMeter(raw)
                                 } else {
                                     // Web cell: icon, 12 px gap, meter, left-aligned in its column.
@@ -734,6 +734,9 @@ private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppR
 
 // region Score row
 
+/** The row identity in the `fst.score.accuracy.<id>` tag: the account, else `rank-<n>`. */
+internal val LeaderboardEntry.accuracyId: String get() = accountId.ifEmpty { "rank-$rank" }
+
 /**
  * Row inset plus the selected player's treatment (web `playerEntryRow`: purple
  * highlight with a purple border). Every row gets the same 4 dp inset so the selected
@@ -803,12 +806,13 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
         }
         if (plan.showAccuracy) {
             Box(Modifier.widthIn(min = plan.accuracyWidth.dp), contentAlignment = Alignment.Center) {
-                entry.accuracy?.let { AccuracyPill(it, entry.isFullCombo == true) }
+                // An empty slot (no accuracy, no FC) keeps the column, so badges stay aligned.
+                AccuracyPill(entry.accuracy, entry.isFullCombo == true, id = entry.accuracyId)
             }
         }
         if (plan.showStars) {
             Box(Modifier.width(plan.starsWidth.dp), contentAlignment = Alignment.CenterEnd) {
-                StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
+                entry.stars?.takeIf { it > 0 }?.let { StarRating(it, Modifier.testTag("fst.stars"), size = 20.dp) }
             }
         }
         if (navigable) RowChevron() else Spacer(Modifier.width(LeaderboardColumnLayout.CHEVRON_WIDTH.dp))
@@ -864,11 +868,11 @@ private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                     color = BrandTokens.textPrimary,
                 )
-                if (entry.accuracy != null) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
+                AccuracyPill(entry.accuracy, entry.isFullCombo == true, id = entry.accuracyId, expanded = true)
                 if (plan.showMeta) entry.season?.let {
                     Text(LeaderboardColumnLayout.seasonLabel(it), style = MaterialTheme.typography.labelLarge, color = BrandTokens.textSecondary, modifier = Modifier.semantics { contentDescription = "Season $it" })
                 }
-                if (plan.showStars) StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
+                if (plan.showStars) entry.stars?.takeIf { it > 0 }?.let { StarRating(it, Modifier.testTag("fst.stars"), size = 20.dp) }
             }
         }
         if (navigable) RowChevron(Modifier.padding(start = 4.dp)) else Spacer(Modifier.width(24.dp))

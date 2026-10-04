@@ -1,0 +1,105 @@
+[
+  {
+    "name": "instrument-selector-lab",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "instrument-selector"
+    },
+    "ready": [
+      "scrollinto:id=fst.instrument-selector.group@20"
+    ],
+    "after_ready": [
+      "hover:20,20",
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 14
+  },
+  {
+    "name": "instrument-selector-lab-states",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "instrument-selector"
+    },
+    "ready": [
+      "scrollinto:id=fst.instrument-selector.disabled.value@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.instrument-selector.muted.Solo_Bass@5",
+      "hover:20,20",
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "instrument-selector-lab-compact",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "instrument-selector"
+    },
+    "ready": [
+      "scrollinto:id=fst.instrument-selector.deferred.value@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.instrument-selector.detail.Solo_Guitar@5",
+      "toggle:id=fst.instrument-selector.detail.Solo_Guitar",
+      "scrollinto:id=fst.instrument-selector.detail.value@5",
+      "hover:20,20",
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "instrument-selector-songs-filter",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.filter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "scrollinto:id=fst.songs.filter.instrument.group@5",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "instrument-selector-history",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "scrollinto:id=fst.history.instrument.group@10"
+    ],
+    "after_ready": [
+      "wait:0.5"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "instrument-selector-paths",
+    "route": "/songs/fixture-pulse",
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths.warning@10",
+      "key:enter",
+      "waitfor:id=fst.paths@10",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 0
+  }
+]
