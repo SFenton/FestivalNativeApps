@@ -33,7 +33,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
-| Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
+| Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT, #209) | 9/12/12 | ✅ (#209) | ✅ | ✅ (+200% C/M/W, #209) |
 | Rivals / Compete | ✅✅✅ (#213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT, +live, #201) | 6/9/15 | UIA only (#201) | ✅ | ✅ (+200%) |
 | Rival Detail | ✅✅✅ (+snap/max, #202) | 12/14/14 | ✅ | ✅ | ✅ (200% C/M/W; display 100%/150%, #202) |
@@ -207,6 +207,18 @@ The console was locked, so keys were posted. Tab walks, Enter on a row and Alt+L
 ## Statistics validation (issue #204, 2026-10)
 
 Ran 11y_matrix.py --scan for statistics and statistics-chart at compact, medium, wide, snap-left, snap-right and maximized, then at compact/medium/wide under light and dark theme, Desert, Night sky, text 200% and display 100%/150%. The live public service (SFentonX) gave the same results at C/M/W, Desert and text 200%. Axe reported 0 errors in every run. Fixed: the Rank History chart under contrast themes (opaque outlined bars, WindowText gridlines) and its axis labels clipped at 200% text (measured gutters). Per-configuration results: [statistics/windows.md](../pages/statistics/windows.md#validation-issue-204).
+
+## Band Rankings validation (issue #209, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` on `band-rankings-paged|anonymous|empty|error` (fixture scenarios via each page's `"fixture"` list): compact/medium/wide/snap/maximized, Desert and Night sky, text 200% (C/M/W), display 100%/150% and the light system theme. All 0 Axe errors, no focus leaving the window and no repeated stops. `band-rankings.json` journeys pass 6/6. Per-configuration results are in [band-rankings/windows.md](../pages/band-rankings/windows.md#validation-issue-209-2026-10-03).
+
+Fixed:
+- Keyboard paging lost focus to Back, because the pager hid during the load swap.
+- Rows showed between the pager buttons under contrast themes.
+- A row without a band page misaligned its columns.
+- Band names collapsed to "…" at 200% text in compact windows. After merging master, issue #208's rule applies: the songs label moves under the name instead of being dropped.
+
+Driver note: `RadioMenuFlyoutItem`s expose Toggle, not Invoke. `invoke:` falls back to a click that misses the popup, so drive menu radio items with `toggle:` or the keyboard.
 
 ## Player Bands validation (issue #210, 2026-10)
 
