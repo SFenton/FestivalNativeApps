@@ -158,15 +158,10 @@
                                 <Button Content="Retry" HorizontalAlignment="Center" Command="{x:Bind ViewModel.History.RetryCommand}"
                                         AutomationProperties.Name="Retry score history" AutomationProperties.AutomationId="fst.history.retry" />
                             </StackPanel>
-                            <StackPanel Spacing="8" HorizontalAlignment="Center" Visibility="{x:Bind ViewModel.History.ShowError, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.service-status.inline">
-                                <TextBlock Text="{x:Bind ViewModel.History.Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Center"
-                                           AutomationProperties.LiveSetting="Assertive" AutomationProperties.AutomationId="fst.history.error" />
-                                <TextBlock Text="{x:Bind ViewModel.History.Status.Message, Mode=OneWay}" TextWrapping="Wrap" TextAlignment="Center" />
-                                <Button Content="{x:Bind ViewModel.History.Status.RetryLabel, Mode=OneWay}" HorizontalAlignment="Center"
-                                        Command="{x:Bind ViewModel.History.Status.RetryCommand}"
-                                        AutomationProperties.AutomationId="fst.history.retry" />
-                            </StackPanel>
+                            <controls:ServiceStatusInline HorizontalAlignment="Center" IsCentered="True"
+                                                          Visibility="{x:Bind ViewModel.History.ShowError, Mode=OneWay}"
+                                                          Status="{x:Bind ViewModel.History.Status}"
+                                                          TitleAutomationId="fst.history.error" RetryAutomationId="fst.history.retry" />
                         </StackPanel>
                     </Border>
                     <!-- Sort applies to the list (Fluent command menu; web list order is Score, descending). -->
@@ -237,12 +232,7 @@
                                                               Visibility="{x:Bind IsLoading, Mode=OneWay}" />
                                                 <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
                                                            Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
-                                                            AutomationProperties.AutomationId="fst.service-status.inline">
-                                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
-                                                </StackPanel>
+                                                <controls:ServiceStatusInline Visibility="{x:Bind ShowError, Mode=OneWay}" Status="{x:Bind Status}" />
                                             </StackPanel>
                                         </Border>
                                         <!-- Top-ten rows open the player; the player's own row eleven opens the full board at their
@@ -294,13 +284,8 @@
                                                 <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
                                                            Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
                                                            AutomationProperties.AutomationId="{x:Bind EmptyAutomationId}" />
-                                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
-                                                            AutomationProperties.AutomationId="fst.service-status.inline">
-                                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}"
-                                                            AutomationProperties.AutomationId="{x:Bind RetryAutomationId}" />
-                                                </StackPanel>
+                                                <controls:ServiceStatusInline Visibility="{x:Bind ShowError, Mode=OneWay}" Status="{x:Bind Status}"
+                                                                              RetryAutomationId="{x:Bind RetryAutomationId}" />
                                             </StackPanel>
                                         </Border>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" VerticalCacheLength="20"

@@ -127,14 +127,7 @@
                                                           AutomationProperties.Name="{x:Bind LoadingName}"
                                                           AutomationProperties.AutomationId="{x:Bind LoadingAutomationId}" />
                                         </Grid>
-                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="8,4">
-                                            <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"
-                                                       AutomationProperties.AutomationId="fst.service-status.inline" />
-                                            <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                                                       AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
-                                            <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
-                                        </StackPanel>
+                                        <controls:ServiceStatusInline Visibility="{x:Bind ShowError, Mode=OneWay}" Margin="8,4" Status="{x:Bind Status}" />
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
