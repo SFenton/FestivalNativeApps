@@ -122,15 +122,19 @@ struct AccountRankingRow: View {
 
 // MARK: - Shared row layout
 
-/// Compact rankings row content: `#rank`, a truncating name, the songs column and
-/// the accent-coloured value (web `RankingEntry.tsx`: `colRank`, `colName`,
-/// `colSongs`, `colRating` = `Colors.accentBlue*`), on one line. Text is primary
-/// white throughout (operator rule: no gray de-emphasis on these pages).
+/// Compact rankings row content: `#rank`, the name, the songs column and the
+/// accent-coloured value (web `RankingEntry.tsx`: `colRank`, `colName`, `colSongs`,
+/// `colRating` = `Colors.accentBlue*`), on one line. Text is primary white throughout
+/// (operator rule: no gray de-emphasis on these pages).
+///
+/// The name is a ``LeaderboardNameText``: it stays inside the name column and scrolls
+/// (marquee) when it does not fit, tail-truncating under Reduce Motion (issue #292,
+/// reversing batch 7.7's truncate-only rule).
 ///
 /// Adjusted/Weighted add their Bayesian value as a second, smaller line under the
 /// value (the web's compact two-row percentile layout). At accessibility Dynamic Type
-/// sizes the row stacks (rank + name, then songs + value) instead of truncating the
-/// name to nothing.
+/// sizes the row stacks (rank + name, then songs + value) and the name wraps instead
+/// of truncating or scrolling.
 ///
 /// Inside a fitted section the songs column shares the section's widest songs label,
 /// and the section may hide it on every row to give names their room (#38,
@@ -181,7 +185,6 @@ struct RankingRowLayout: View {
                     LeaderboardColumnSlot(template: columns?.rankLabel) { rankText }
                         .frame(minWidth: columns == nil ? rankWidth : nil, alignment: .leading)
                     nameText
-                        .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !hidesSongs {
                         LeaderboardColumnSlot(
@@ -233,18 +236,17 @@ struct RankingRowLayout: View {
             .accessibilityHidden(true)
     }
 
-    /// A row name as drawn: body text, bold for the selected player's row.
+    /// A row name at its natural one-line size, in the row's font, for width probes
+    /// (``RankingRowWidthProbe``); the row itself draws a ``LeaderboardNameText``.
     ///
     /// - Parameters:
     ///   - name: Display name.
     ///   - emphasized: The selected player's own row.
-    /// - Returns: A one-line, tail-truncating name.
+    /// - Returns: A one-line name.
     static func nameText(_ name: String, emphasized: Bool) -> some View {
         Text(name)
             .lineLimit(1)
-            .truncationMode(.tail)
-            .font(.body)
-            .fontWeight(emphasized ? .bold : .regular)
+            .font(LeaderboardNameText.font(emphasized: emphasized))
             .foregroundStyle(FestivalText.primary)
     }
 
@@ -256,10 +258,10 @@ struct RankingRowLayout: View {
             .fixedSize()
     }
 
-    /// Truncates like the web's `colName` (`truncate`): leaderboard names never marquee
-    /// (operator batch 7.7).
+    /// Scrolls when it does not fit, tail-truncating under Reduce Motion (issue #292
+    /// reverses batch 7.7's truncate-only rule); wraps at accessibility sizes.
     private var nameText: some View {
-        Self.nameText(name, emphasized: emphasized)
+        LeaderboardNameText(name: name, emphasized: emphasized)
     }
 
     private var songsText: some View {
@@ -309,6 +311,69 @@ struct RankingRowLayout: View {
             }
         }
         .fixedSize()
+    }
+}
+
+// MARK: - Leaderboard name
+
+/// A leaderboard row's player or band name (issue #292): one line that stays inside
+/// its column and scrolls with the shared ``MarqueeText`` when it does not fit; short
+/// names stay still. ``MarqueeText`` tail-truncates instead of scrolling under Reduce
+/// Motion (system or in-app), in inactive or hidden scenes and under the debug
+/// still-background flag, and VoiceOver always reads the full name.
+///
+/// At accessibility Dynamic Type sizes, where the rows already stack, the name wraps
+/// onto as many lines as it needs instead: the HIG's "Keep text truncation to a
+/// minimum as font size increases" (`typography`), and layout lets rows "grow to
+/// avoid clipping/overlap and allow multiple lines" (`layout`).
+///
+/// Shared by every leaderboard row (``RankingRowLayout``, `SongLeaderboardEntryRow`,
+/// `SongBandPreviewRow`). It stays a static-text element for VoiceOver and XCUITest.
+struct LeaderboardNameText: View {
+    /// How a name is laid out at a text size.
+    enum Presentation: Equatable {
+        /// One line; scrolls when it overflows, else tail-truncates (``MarqueeText``).
+        case marquee
+        /// As many lines as the name needs.
+        case wrapping
+    }
+
+    /// Display name, read in full by VoiceOver.
+    let name: String
+    /// Bold, for the selected player's own row (web `isPlayer`).
+    var emphasized: Bool = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            switch Self.presentation(for: dynamicTypeSize) {
+            case .marquee:
+                MarqueeText(name, font: Self.font(emphasized: emphasized))
+            case .wrapping:
+                Text(name)
+                    .font(Self.font(emphasized: emphasized))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .foregroundStyle(FestivalText.primary)
+        .accessibilityAddTraits(.isStaticText)
+    }
+
+    /// The name's layout at a text size.
+    ///
+    /// - Parameter size: Current Dynamic Type size.
+    /// - Returns: ``Presentation/wrapping`` at accessibility sizes, else
+    ///   ``Presentation/marquee``.
+    static func presentation(for size: DynamicTypeSize) -> Presentation {
+        size.isAccessibilitySize ? .wrapping : .marquee
+    }
+
+    /// The name's font: body, bold for the selected player's row.
+    ///
+    /// - Parameter emphasized: The selected player's own row.
+    /// - Returns: The row name font.
+    static func font(emphasized: Bool) -> Font {
+        emphasized ? .body.bold() : .body
     }
 }
 
