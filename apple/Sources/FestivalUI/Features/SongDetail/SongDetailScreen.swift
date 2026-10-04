@@ -547,6 +547,8 @@ extension SongDetailScreen {
         }
         .frame(maxWidth: 240)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
+        // A bar title stays on one line at every text size.
+        .environment(\.marqueeWrapsAtAccessibilitySizes, false)
     }
 }
 

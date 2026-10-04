@@ -1730,12 +1730,12 @@ private struct SongsSectionBar: View {
             currentPassed: chrome.passedHeaders.contains(keys[index]),
             nextTop: next, landingOffset: landing, barHeight: height
         )
-        // The title before the current one, pinned until the current one pushed it out.
+        // The title before the current one, only while the current one is pushing it out
+        // (issue #297: never pinned under the current title).
         let previous = index > 0 && chrome.passedHeaders.contains(keys[index]) ?
-            SongsScrollChrome.sectionBarLayout(
-                currentTop: nil, currentPassed: true, nextTop: tops[keys[index]],
-                landingOffset: landing, barHeight: height
-            ).currentY : nil
+            SongsScrollChrome.previousTitleY(
+                currentTop: tops[keys[index]], landingOffset: landing, barHeight: height
+            ) : nil
         return (index, previous, layout.currentY, layout.nextY)
     }
 
@@ -1815,6 +1815,11 @@ private struct SongsInlineSectionTitle: View {
             } action: { passed in
                 self.passed = passed
                 chrome.setHeader(key, passed: passed)
+            }
+            // Returning to the top forgets every passed title (issue #297); a built title
+            // re-asserts its own answer, which its geometry repeats only when it changes.
+            .onChange(of: chrome.listScrolled) {
+                if passed { chrome.setHeader(key, passed: true) }
             }
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.frame(in: .scrollView).minY

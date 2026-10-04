@@ -6,7 +6,8 @@
     xmlns:domain="using:Festival.Core.Domain"
     Background="Transparent">
 
-    <!-- Global search results (fst.global-search.*): field, All/Songs/Players/Bands scopes, Songs → Players sections. -->
+    <!-- Global search results (fst.global-search.*): field, All/Songs/Players/Bands scopes, then Songs → Players rows with
+         no section titles (issue #299: the scope bar names the scope). -->
     <Grid Padding="24,12,24,0" RowSpacing="8" MaxWidth="768" HorizontalAlignment="Stretch"
           AutomationProperties.AutomationId="fst.global-search.surface">
         <Grid.RowDefinitions>
@@ -42,8 +43,6 @@
                 <StackPanel HorizontalAlignment="Stretch" Spacing="16" Padding="0,4,0,24">
                     <!-- Songs -->
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.ShowSongsSection, Mode=OneWay}">
-                        <TextBlock Text="Songs" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
-                                   AutomationProperties.AutomationId="fst.global-search.section.songs" />
                         <TextBlock Text="{x:Bind ViewModel.SongsFailedText}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
                                    Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}" />
                         <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind ViewModel.HasSongRows, Mode=OneWay}">
@@ -85,12 +84,6 @@
 
                     <!-- Players -->
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.ShowPlayersSection, Mode=OneWay}">
-                        <TextBlock Text="Players" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
-                                   AutomationProperties.AutomationId="fst.global-search.section.players" />
-                        <ProgressRing IsActive="{x:Bind ViewModel.PlayersLoading, Mode=OneWay}" Visibility="{x:Bind ViewModel.PlayersLoading, Mode=OneWay}"
-                                      Width="28" Height="28" HorizontalAlignment="Left" Margin="0,8"
-                                      AutomationProperties.Name="Searching players"
-                                      AutomationProperties.AutomationId="fst.global-search.players-loading" />
                         <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind ViewModel.HasPlayerRows, Mode=OneWay}">
                             <ListView x:Name="PlayersList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48" ItemsSource="{x:Bind ViewModel.Players, Mode=OneWay}" SelectionMode="None"
                                       IsItemClickEnabled="True" ItemClick="OnPlayerClick" ContainerContentChanging="OnPlayerContainer"
@@ -127,7 +120,7 @@
                                 </ListView.ItemTemplate>
                             </ListView>
                         </Border>
-                        <controls:ServiceStatusView Status="{x:Bind ViewModel.PlayersStatus}" HorizontalAlignment="Left"
+                        <controls:ServiceStatusView Status="{x:Bind ViewModel.PlayersStatus}" ShowsRetry="False" HorizontalAlignment="Left"
                                                     Visibility="{x:Bind ViewModel.PlayersFailed, Mode=OneWay}"
                                                     AutomationProperties.AutomationId="fst.global-search.players-error" />
                     </StackPanel>
@@ -141,8 +134,8 @@
                            AutomationProperties.AutomationId="fst.global-search.hint" />
             </StackPanel>
 
-            <!-- Empty state (issue #99): centred title + subtitle like the web EmptyState and the Songs page; Retry whenever
-                 the players envelope is part of it (an empty envelope may be a server timeout). Scrolls at large text sizes. -->
+            <!-- Empty state (issue #99): centred title + subtitle like the web EmptyState and the Songs page. No Retry
+                 (issue #299): Enter in the field re-runs the search. Scrolls at large text sizes. -->
             <ScrollViewer HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                           Visibility="{x:Bind ViewModel.HasEmptyState, Mode=OneWay}">
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12" MaxWidth="480" Padding="0,24"
@@ -153,19 +146,17 @@
                                AutomationProperties.AutomationId="fst.global-search.empty.title" />
                     <TextBlock Text="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap"
                                HorizontalAlignment="Center" AutomationProperties.AutomationId="fst.global-search.empty.subtitle" />
-                    <Button Content="Retry" Command="{x:Bind ViewModel.RetryCommand}" HorizontalAlignment="Center"
-                            Visibility="{x:Bind ViewModel.CanRetryEmpty, Mode=OneWay}"
-                            AutomationProperties.Name="Retry search"
-                            AutomationProperties.AutomationId="fst.global-search.retry" />
                 </StackPanel>
             </ScrollViewer>
 
+            <!-- One spinner for the whole page (issue #299), centred in the area below the scope bar. -->
             <ProgressRing IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
-                          Width="40" Height="40" VerticalAlignment="Top" Margin="0,48,0,0"
-                          AutomationProperties.Name="Searching" />
+                          Width="40" Height="40" HorizontalAlignment="Center" VerticalAlignment="Center"
+                          AutomationProperties.Name="Searching"
+                          AutomationProperties.AutomationId="fst.global-search.loading" />
 
-            <!-- Bands: shown but never requested (the service's band search GET can write). -->
-            <InfoBar IsOpen="{x:Bind ViewModel.IsBandsScope, Mode=OneWay}" IsClosable="False" Severity="Informational"
+            <!-- Bands: shown but never requested (the service's band search GET can write); a short query shows the hint. -->
+            <InfoBar IsOpen="{x:Bind ViewModel.ShowBandsExplanation, Mode=OneWay}" IsClosable="False" Severity="Informational"
                      VerticalAlignment="Top" Margin="0,4,0,0" Title="Band search unavailable"
                      Message="{x:Bind ViewModel.BandsExplanation}"
                      AutomationProperties.AutomationId="fst.global-search.bands-unavailable">

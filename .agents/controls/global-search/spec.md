@@ -127,12 +127,12 @@ Band search is **not called** by native apps: when its projection is missing, th
 | `fst.global-search.scope.{songs,players,bands}` | Scope chips |
 | `fst.global-search.hint` | Short-query / empty / error message |
 | `fst.global-search.empty` | Centred empty state (Android/Windows; title `.empty.title`, subtitle `.empty.subtitle` on Windows) |
-| `fst.global-search.section.{songs,players}` | Section containers (headings inside); removed on Android and Apple by issue #299 |
+| `fst.global-search.section.{songs,players}` | Section containers (headings inside); removed on Android, Windows and Apple by issue #299 |
 | `fst.global-search.result.song`, `fst.global-search.result.player` | Each result row (repeated; accessible name = title/artist or display name) |
-| `fst.global-search.loading` | The one centred search spinner (Android, Apple) |
-| `fst.global-search.players-loading` | Players inline progress; removed on Android and Apple by issue #299 |
+| `fst.global-search.loading` | The one centred search spinner (Android, Windows, Apple) |
+| `fst.global-search.players-loading` | Players inline progress; removed on Android, Windows and Apple by issue #299 |
 | `fst.global-search.players-error` | Players failure / freeze message (Android, Windows, Apple; Apple also `fst.global-search.songs-error`) |
-| `fst.global-search.retry` | Players / empty-state Retry; removed on Android and Apple by issue #299 (the Apple empty state is now the static `fst.global-search.hint` element) |
+| `fst.global-search.retry` | Players / empty-state Retry; removed on Android, Windows and Apple by issue #299 (the Apple empty state is now the static `fst.global-search.hint` element) |
 | `fst.global-search.bands-unavailable` | Band explanation block and its Band Rankings button |
 
 ## Test matrix

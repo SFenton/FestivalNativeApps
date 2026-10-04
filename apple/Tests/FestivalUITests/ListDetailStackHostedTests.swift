@@ -88,6 +88,11 @@ private func hostListDetail(
     return (host, nativeHostedWindow(host, size: size))
 }
 
+/// Readiness budget for split/auto-select waits: under a loaded parallel suite the
+/// 120 ms auto-select window and the first loads outlasted the default 20 s (they pass
+/// in under a second alone).
+private let listDetailBudget: Duration = .seconds(90)
+
 private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: "Fixture Rival", scope: nil)
 
 // MARK: - Two populated columns
@@ -104,9 +109,7 @@ private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: 
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
         host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], excluding: ["Select a Rival"],
-        // Generous: under a loaded parallel suite the 120 ms auto-select window and the
-        // detail's first load outlasted the default 20 s.
-        timeout: .seconds(90)
+        timeout: listDetailBudget
     )
     _ = try nativeHostedPNG(image, filename: "list-detail-rivals-autoselected.png", environment: "FST_SHELL_RENDER_OUT")
     #expect(recorder.path == [fixtureRival])
@@ -120,7 +123,10 @@ private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: 
     let recorder = PathRecorder()
     let (host, window) = hostListDetail(section: .songs, path: [], layout: duoInner, size: size, recorder: recorder)
     defer { window.orderOut(nil) }
-    try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Root On Top", "Rows Select"], excluding: ["Loading"])
+    try await nativeHostedSettle(
+        host, untilText: ["Fixture List Root", "Root On Top", "Rows Select"], excluding: ["Loading"],
+        timeout: listDetailBudget
+    )
     #expect(recorder.path.isEmpty)
 }
 
@@ -141,7 +147,8 @@ private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: 
         )
         defer { window.orderOut(nil) }
         let image = try await nativeHostedSettle(
-            host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], excluding: ["Select a Rival"]
+            host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], excluding: ["Select a Rival"],
+            timeout: listDetailBudget
         )
         _ = try nativeHostedPNG(
             image, filename: "list-detail-inner-portrait-\(name).png", environment: "FST_SHELL_RENDER_OUT"
