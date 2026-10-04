@@ -1,0 +1,118 @@
+[
+  {
+    "name": "fr-anonymous",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "waitfor:id=fst.full-rankings.page-info@5"
+    ]
+  },
+  {
+    "name": "fr-selected-on-page",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-player-2:Fixture Player 2",
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-2@20",
+      "waitfor:id=fst.full-rankings.page-info@5"
+    ]
+  },
+  {
+    "name": "fr-selected-off-page",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-rank-40:Fixture Rank 40",
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "waitfor:id=fst.full-rankings.spotlight-jump@10"
+    ]
+  },
+  {
+    "name": "fr-jumped",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-rank-40:Fixture Rank 40",
+    "ready": [
+      "waitfor:id=fst.full-rankings.spotlight-jump@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.full-rankings.spotlight-jump",
+      "waitgone:id=fst.full-rankings.spotlight-jump@10",
+      "waitfor:id=fst.rankings.row.fixture-rank-26@10"
+    ]
+  },
+  {
+    "name": "fr-unranked",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-unranked:Fixture Unranked",
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "waitfor:name=Not yet ranked on Lead.@10"
+    ]
+  },
+  {
+    "name": "fr-spotlight-failed",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-rank-fail:Fixture Rank Fail",
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "waitfor:name=Retry@10"
+    ]
+  },
+  {
+    "name": "fr-last-page",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "ready": [
+      "waitfor:id=fst.full-rankings.page-last@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.full-rankings.page-last",
+      "waitfor:id=fst.rankings.row.fixture-rank-1176@10"
+    ]
+  },
+  {
+    "name": "fr-instrument-menu",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.full-rankings.list@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.full-rankings.instrument-menu",
+      "key:enter",
+      "waitfor:id=fst.full-rankings.instrument.Solo_Bass@5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ]
+  },
+  {
+    "name": "fr-rank-by-menu",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.full-rankings.list@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.rankings.rank-by-menu",
+      "key:enter",
+      "waitfor:id=fst.rankings.rank-by.fcrate@5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ]
+  },
+  {
+    "name": "fr-empty",
+    "route": "/leaderboards/all?instrument=Solo_PeripheralCymbals",
+    "ready": [
+      "waitfor:name=No ranked players yet.@20"
+    ]
+  },
+  {
+    "name": "fr-error",
+    "route": "/leaderboards/all?instrument=Solo_PeripheralDrums",
+    "ready": [
+      "waitfor:id=fst.service-status.retry@20"
+    ]
+  }
+]
