@@ -30,7 +30,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
 | Item Shop | ✅✅✅ | 6/10/10 | — | ✅ | ✅ |
-| Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
+| Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |

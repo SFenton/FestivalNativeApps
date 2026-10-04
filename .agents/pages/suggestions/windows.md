@@ -41,8 +41,24 @@ States: no player, loading, syncing (202), failed (catalogue or profile; Retry),
 
 - Compact (500 px): the shell keeps the `NavigationView` pane expanded, leaving ~350 px of content (shell lane).
 - Filter reset is not wired into Settings' Reset; no first-run slides; no scroll restoration across launches (the page and its mix are cached for the session).
-- Journey `tools/windows/journeys/paths-suggestions.json` covers the filter's Instrument Selector; incremental loading is not yet automated; `uiwin.py scroll` fails when other lanes' windows occlude the app.
+- Journey `tools/windows/journeys/paths-suggestions.json` covers the filter's Instrument Selector; `tools/windows/suggestions_journey.py` covers every other reachable state (below).
+
+## Validation (issue #205, 2026-10-03)
+
+Checked with the `winui-design` and `winui-code-review` skills. Fixes:
+- The filter's Instruments and General `Expander`s had no UIA name: Axe raised 4 NameNotNull errors with the flyout open. They now carry `AutomationProperties.Name` and HelpText.
+- Down/Up on a row scrolled the list instead of moving to the next song. Rows are now one Tab stop per card (`TabFocusNavigation="Once"`, XY keyboard navigation). `CardList.PreviewKeyDown` moves focus Up/Down across card boundaries (`FocusManager.TryMoveFocus` scoped to the list), and Tab moves between cards (`TabNavigation="Local"`). This follows winui-design: arrow keys within a group, Tab between groups.
+- The rival pill and the default percentile pill kept brand fills in contrast themes. They now use the neutral pill roles (ButtonFace / ButtonText with an outline), like the accuracy pill.
+- The syncing, choose-profile and no-results IDs sat on `StackPanel`s, which have no UIA peer. They moved to each state's title (`HeadingLevel` 2), and the syncing ring is named.
+
+Per configuration:
+- **Widths:** compact (500), medium, wide, maximized and resizing across breakpoints all lay out with the filter pinned above the list. Snapped width is covered by compact and medium.
+- **Themes:** the app is dark-only (documented deviation in [design/windows.md](../../design/windows.md)), so the system light theme still shows dark. The Desert and Night sky contrast themes use system colours.
+- **Text and display scale:** at 200% text, card titles clip into the motion-aware marquee and the full name stays in the row's Narrator name. Display scale 100% and 150% both pass.
+- **Keyboard:** the Filter button and cards each take one Tab stop, and arrow keys move between rows.
+- **Axe:** 0 errors in every one of the 24 runs: `a11y_matrix.py --only suggestions --scan --tabs 20` in normal, hc-desert, hc-night-sky, light, dark, scale-100, scale-150 and text-200 modes, each at compact, medium and wide. `suggestions_journey.py --axe` also scans the filter, filtered-empty, end-of-mix, loading, syncing and denied states.
+- **Not reachable:** the page's no-player panel is defensive. The shell redirects player-only routes to Songs, and the journey asserts that redirect. `fst.suggestions.error` sits on `ServiceStatusView`, which has no UIA peer, so tests use `fst.service-status.{title,retry}`.
 
 ## IDs
 
-`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,reset-filters,start-new-mix}`, `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.
+`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,reset-filters,start-new-mix}` (the state IDs are on the state titles; `error` is not exposed, see Validation), `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.

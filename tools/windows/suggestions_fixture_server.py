@@ -8,13 +8,18 @@ player names, album art or production data.
 Launch the app with ``--base-url http://127.0.0.1:8766/`` and ``FST_DEBUG_PROFILE=fixture-suggest:Fixture Player``
 (Debug only; in-memory settings) and optionally ``FST_DEBUG_SUGGESTIONS_SEED=1`` for a deterministic mix.
 
-Usage: python tools/windows/suggestions_fixture_server.py [--port 8766] [--syncing] [--no-rivals]
+State accounts for UI journeys (``tools/windows/suggestions_journey.py``): ``fixture-suggest-syncing`` answers 202,
+``fixture-suggest-denied`` 403 and ``fixture-suggest-slow`` the normal profile after ``--slow-seconds`` (loading state).
+
+Usage: python tools/windows/suggestions_fixture_server.py [--port 8766] [--syncing] [--no-rivals] [--slow-seconds 8]
 """
 
 import argparse
 import colorsys
 import json
+import re
 import sys
+import time
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -27,6 +32,8 @@ FIXTURE = ROOT / "windows" / "Festival.Core.Tests" / "Fixtures" / "suggestions-p
 ACCOUNT = "fixture-suggest"
 PUBLICATION = {"contractVersion": 1, "publicationId": 7, "previousPublicationId": None, "publishedScrapeId": 42,
                "publishedAt": "2026-01-01T00:00:00Z", "readyForPinning": True, "pinningEnabled": True, "unreadySurfaces": []}
+ACCOUNTS = {ACCOUNT, f"{ACCOUNT}-syncing", f"{ACCOUNT}-denied", f"{ACCOUNT}-slow"}
+PLAYER = re.compile(r"/api/player/([A-Za-z0-9-]+)(/rivals/all)?")
 INSTRUMENTS = ["Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals", "Solo_PeripheralGuitar",
                "Solo_PeripheralBass", "Solo_PeripheralVocals", "Solo_PeripheralCymbals", "Solo_PeripheralDrums"]
 
@@ -43,8 +50,8 @@ def songs_body(fixture: dict) -> dict:
     return {"count": len(songs), "currentSeason": 12, "songs": songs}
 
 
-def player_body(fixture: dict) -> dict:
-    """Compact public profile (si/ins/sc/acc/fc/st/sn/rk/te) for the fixture account."""
+def player_body(fixture: dict, account: str = ACCOUNT) -> dict:
+    """Compact public profile (si/ins/sc/acc/fc/st/sn/rk/te) for a fixture account."""
     scores = []
     for row in fixture["scores"]:
         compact = {"si": row["songId"], "ins": f"{1 << INSTRUMENTS.index(row['instrument']):02x}", "sc": row["score"],
@@ -55,7 +62,7 @@ def player_body(fixture: dict) -> dict:
             compact["rk"] = row["rank"]
             compact["te"] = row["totalEntries"]
         scores.append(compact)
-    return {"accountId": ACCOUNT, "displayName": "Fixture Player", "totalScores": len(scores), "scores": scores}
+    return {"accountId": account, "displayName": "Fixture Player", "totalScores": len(scores), "scores": scores}
 
 
 @lru_cache(maxsize=256)
@@ -80,6 +87,7 @@ class Handler(BaseHTTPRequestHandler):
     fixture: dict = {}
     syncing = False
     rivals = True
+    slow_seconds = 8.0
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: D102 - quiet server
         return
@@ -103,18 +111,31 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, PUBLICATION)
         elif path == "/api/songs":
             self._json(200, songs_body(self.fixture))
-        elif path == f"/api/player/{ACCOUNT}":
-            if self.syncing:
-                self._json(202, {"accountId": ACCOUNT, "displayName": "Fixture Player", "totalScores": 0, "scores": [],
-                                 "status": "syncing", "notYetPublished": True})
-            else:
-                self._json(200, player_body(self.fixture))
-        elif path == f"/api/player/{ACCOUNT}/rivals/all" and self.rivals:
-            self._json(200, dict(self.fixture["rivalsAll"], accountId=ACCOUNT))
+        elif (match := PLAYER.fullmatch(path)) and match.group(1) in ACCOUNTS:
+            self._player(match.group(1), match.group(2))
         elif path.startswith("/__fixture__/art/") and path.endswith(".png"):
             self._send(200, artwork(path.rsplit("/", 1)[-1][:-4]), "image/png")
         else:
             self._json(404, {"error": "not found"})
+
+
+    def _player(self, account: str, sub: str | None) -> None:
+        """Serve a fixture account's profile or rivals/all in its scripted state."""
+        if sub == "/rivals/all":
+            if self.rivals and account in (ACCOUNT, f"{ACCOUNT}-slow"):
+                self._json(200, dict(self.fixture["rivalsAll"], accountId=account))
+            else:
+                self._json(404, {"error": "not found"})
+            return
+        if account == f"{ACCOUNT}-denied":
+            self._json(403, {"status": "player_profile_denied"})
+        elif self.syncing or account == f"{ACCOUNT}-syncing":
+            self._json(202, {"accountId": account, "displayName": "Fixture Player", "totalScores": 0, "scores": [],
+                             "status": "syncing", "notYetPublished": True})
+        else:
+            if account == f"{ACCOUNT}-slow":
+                time.sleep(self.slow_seconds)
+            self._json(200, player_body(self.fixture, account))
 
 
 def main() -> None:
@@ -123,10 +144,12 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--syncing", action="store_true", help="answer the player read with HTTP 202 syncing")
     parser.add_argument("--no-rivals", action="store_true", help="404 the rivals/all read")
+    parser.add_argument("--slow-seconds", type=float, default=8.0, help="profile delay for fixture-suggest-slow")
     args = parser.parse_args()
     Handler.fixture = load()
     Handler.syncing = args.syncing
     Handler.rivals = not args.no_rivals
+    Handler.slow_seconds = args.slow_seconds
     ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
 
 
