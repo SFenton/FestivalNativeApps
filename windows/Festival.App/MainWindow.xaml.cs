@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         Instance = this;
         InitializeSettingsFeatures();
         InitializeGlobalSearch();
+        Shell.ProfileSearch.ResultsAnnounced += OnProfileResultsAnnounced;
         InitializeAccessibility();
         InitializeTitleBarInset();
         InitializeRoutePolicy();
@@ -368,6 +369,27 @@ public sealed partial class MainWindow : Window
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
     private void OnProfileFlyoutClosed(object sender, object e) => Shell.ProfileSearch.Deactivate();
+
+    /// <summary>
+    /// Speaks a settled profile search ("3 players", "No players found." or the failure) while the flyout is open:
+    /// the hint's live region alone does not make Narrator announce.
+    /// </summary>
+    /// <param name="sender">Search model.</param>
+    /// <param name="text">Announcement.</param>
+    private void OnProfileResultsAnnounced(object? sender, string text)
+    {
+        if (ProfileFlyout.IsOpen) Announce(ProfileSearchBox, text);
+    }
+
+    /// <summary>Names result rows for UI Automation (the item is a record, so the container would read its type).</summary>
+    /// <param name="sender">List.</param>
+    /// <param name="args">Container.</param>
+    private void OnProfileResultContainer(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.InRecycleQueue || args.Item is not GlobalPlayerResult player) return;
+        AutomationProperties.SetName(args.ItemContainer, player.AccessibleName);
+        AutomationProperties.SetAutomationId(args.ItemContainer, "fst.profile.result." + player.AccountId);
+    }
 
     /// <summary>Opens a search result's player page (viewing, not selecting) and closes the flyout.</summary>
     /// <param name="sender">List.</param>

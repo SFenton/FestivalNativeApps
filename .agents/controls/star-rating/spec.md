@@ -13,3 +13,4 @@ Source: `FortniteFestivalWeb/src/components/songs/metadata/MiniStars.tsx:8-38`, 
 - Always use the bundled web star images, never platform glyphs (SF Symbols, Material icons, Segoe glyphs).
 - Do not list or mention the star images on the Licenses page (operator rule, [licenses spec](../../pages/licenses/spec.md)).
 - Implementations: Apple `FestivalUI/Design/StarRating.swift`, Android `ui/design/StarRating.kt`, Windows `StarRow` + Core `StarRating`. The image row is one accessibility element with the spoken count.
+- Platform notes: [windows.md](windows.md).

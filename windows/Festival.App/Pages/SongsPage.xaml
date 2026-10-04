@@ -75,6 +75,7 @@
 
             <StackPanel x:Name="ActionButtons" Grid.Column="1" Orientation="Horizontal" Spacing="8">
             <DropDownButton x:Name="SortButton" AutomationProperties.Name="Sort Songs" MinHeight="{StaticResource FSTMinTargetSize}"
+                            AutomationProperties.HelpText="{x:Bind ViewModel.SortDescription, Mode=OneWay}"
                             AutomationProperties.AutomationId="fst.songs.sort">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE8CB;" FontSize="14" />
@@ -89,40 +90,39 @@
                                           SelectedIndex="{x:Bind ViewModel.SortDraft.ModeIndex, Mode=TwoWay}"
                                           AutomationProperties.AutomationId="fst.songs.sort.mode" />
                             <!-- Direction rows (operator batch 7.21): "Ascending" / "Descending" with the web's description as the
-                                 subtitle beside the arrow. -->
-                            <StackPanel Spacing="2" AutomationProperties.Name="Direction" AutomationProperties.AutomationId="fst.songs.sort.direction">
-                                <TextBlock Text="Direction" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,0,0,4" />
-                            <RadioButton GroupName="SongSortDirection" IsChecked="{x:Bind ViewModel.SortDraft.Ascending, Mode=TwoWay}"
-                                         AutomationProperties.Name="Ascending, A–Z, low–high" AutomationProperties.AutomationId="fst.songs.sort.direction.ascending">
-                                <Grid ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE74A;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="Ascending" />
-                                        <TextBlock Text="A–Z, low–high" Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                    </StackPanel>
-                                </Grid>
-                            </RadioButton>
-                            <RadioButton GroupName="SongSortDirection" IsChecked="{x:Bind ViewModel.SortDraft.Descending, Mode=TwoWay}"
-                                         AutomationProperties.Name="Descending, Z–A, high–low" AutomationProperties.AutomationId="fst.songs.sort.direction.descending">
-                                <Grid ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE74B;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="Descending" />
-                                        <TextBlock Text="Z–A, high–low" Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                    </StackPanel>
-                                </Grid>
-                            </RadioButton>
-                            </StackPanel>
+                                 subtitle beside the arrow. A RadioButtons group like Sort By (issue #218): one tab stop with arrow
+                                 keys inside, and UIA names the group by its header and reports each row's position in the set. -->
+                            <RadioButtons Header="Direction" SelectedIndex="{x:Bind ViewModel.SortDraft.DirectionIndex, Mode=TwoWay}"
+                                          AutomationProperties.AutomationId="fst.songs.sort.direction">
+                                <RadioButton AutomationProperties.Name="Ascending, A–Z, low–high" AutomationProperties.AutomationId="fst.songs.sort.direction.ascending">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE74A;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Ascending" />
+                                            <TextBlock Text="A–Z, low–high" Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </RadioButton>
+                                <RadioButton AutomationProperties.Name="Descending, Z–A, high–low" AutomationProperties.AutomationId="fst.songs.sort.direction.descending">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE74B;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Descending" />
+                                            <TextBlock Text="Z–A, high–low" Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </RadioButton>
+                            </RadioButtons>
                             <!-- Changes apply live; Reset restores the default sort. Light dismiss / Esc closes. -->
                             <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SortDraft.ResetCommand}"
                                     AutomationProperties.AutomationId="fst.songs.sort.reset">
@@ -373,8 +373,9 @@
                 <StackLayout Spacing="6" />
             </ItemsRepeater.Layout>
             <ItemsRepeater.ItemTemplate>
-                <DataTemplate x:DataType="x:String">
-                    <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Message="{x:Bind}" />
+                <DataTemplate x:DataType="vm:SongNotice">
+                    <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Message="{x:Bind Message}"
+                             AutomationProperties.AutomationId="{x:Bind AutomationId}" />
                 </DataTemplate>
             </ItemsRepeater.ItemTemplate>
         </ItemsRepeater>
@@ -388,9 +389,12 @@
                  list's viewport, so rows scroll away beneath the list's top edge and never show through it. The in-list
                  headers scroll up into it; the first section's in-list header is omitted (this bar names it). Rows fade
                  out over 28 epx at the list's top edge once scrolled (TopEdgeFade on ListFadeSource, issue #49). -->
-            <!-- A level-2 heading for UIA too: it is the only header of the first section and names the current one. -->
-            <TextBlock x:Name="StickyHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,8" Visibility="Collapsed"
-                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.section-header" />
+            <!-- A level-2 heading for UIA too: it is the only header of the first section and names the current one.
+                 StickyBar clips it so the next section's title can push it up and out (issue #288). -->
+            <Grid x:Name="StickyBar" SizeChanged="OnStickyBarSizeChanged">
+                <TextBlock x:Name="StickyHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,8" Visibility="Collapsed"
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.section-header" />
+            </Grid>
             <!-- The fade source: its composition visual is hidden while ListFadeHost paints the faded copy. Zoom's own XAML
                  opacity (the reveal) stays independent of it. -->
             <Grid x:Name="ListFadeSource" Grid.Row="1">
@@ -442,6 +446,7 @@
                                     <DataTemplate x:DataType="pages:SongGroup">
                                         <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,12,0,8"
                                                    Visibility="{x:Bind ShowInlineHeader}"
+                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}"
                                                    AutomationProperties.HeadingLevel="Level2" />
                                     </DataTemplate>
                                 </GroupStyle.HeaderTemplate>
@@ -480,6 +485,13 @@
             </Grid>
             <!-- Paints ListFadeSource with its top edge faded while the fade is on (TopEdgeFade); never hit-testable. -->
             <Border x:Name="ListFadeHost" Grid.Row="1" IsHitTestVisible="False" />
+            <!-- Issue #288: the next section's title, drawn here from the edge fade's depth up to the bar, where it pushes
+                 StickyHeader out (the in-list heading turns transparent meanwhile but stays the UIA heading, so this copy
+                 is Raw). Positions follow the scroll on the compositor; nothing animates on its own. -->
+            <Canvas x:Name="PushLayer" Grid.RowSpan="2" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
+                <TextBlock x:Name="IncomingHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0" Visibility="Collapsed"
+                           AutomationProperties.AccessibilityView="Raw" />
+            </Canvas>
 
             <ProgressRing Grid.RowSpan="2" x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                           AutomationProperties.Name="Loading songs" />

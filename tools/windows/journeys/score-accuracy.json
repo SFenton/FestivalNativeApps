@@ -1,0 +1,70 @@
+[
+  {"name": "score-accuracy-chart", "route": "/songs/fixture-pulse/Solo_Guitar", "ready": [
+    "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
+    "assertname:raw=fst.score.accuracy.fixture-player-1|99.5%",
+    "assertname:raw=fst.score.accuracy.fixture-player-2|100%",
+    "waitgone:raw=fst.score.accuracy.fixture-player-3",
+    "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, 5 stars",
+    "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
+    "scrollinto:raw=fst.score.accuracy.fixture-player-4@10",
+    "assertname:raw=fst.score.accuracy.fixture-player-4|FC",
+    "assertname:id=fst.song-leaderboard.row.fixture-player-4|Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, 5 stars",
+    "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.fixture-player-4",
+    "scrollinto:raw=fst.score.accuracy.fixture-player-5@10",
+    "assertname:raw=fst.score.accuracy.fixture-player-5|50%",
+    "scrollinto:raw=fst.score.accuracy.fixture-player-6@10",
+    "assertname:raw=fst.score.accuracy.fixture-player-6|12%",
+    "assertname:id=fst.song-leaderboard.row.fixture-player-6|Rank #6, Fixture Player 6, 99,400 points, 12% accuracy, 5 stars",
+    "scrollinto:raw=fst.score.accuracy.fixture-player-7@10",
+    "assertname:raw=fst.score.accuracy.fixture-player-7|105%",
+    "assertaligned:raw=fst.score.accuracy.fixture-player-4|raw=fst.score.accuracy.fixture-player-7",
+    "scrollinto:id=fst.song-leaderboard.row.fixture-player-1@10",
+    "wait:1"
+  ]},
+  {"name": "score-accuracy-offscreen", "route": "/songs/fixture-pulse/Solo_Guitar", "ready": [
+    "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
+    "waitgone:raw=fst.score.accuracy.fixture-player-20",
+    "scrollinto:raw=fst.score.accuracy.fixture-player-20@15",
+    "assertname:raw=fst.score.accuracy.fixture-player-20|98%",
+    "assertname:id=fst.song-leaderboard.row.fixture-player-20|Rank #20, Fixture Player 20, 98,000 points, 98% accuracy, full combo, 5 stars",
+    "scrollinto:raw=fst.score.accuracy.fixture-player-19@10",
+    "assertaligned:raw=fst.score.accuracy.fixture-player-19|raw=fst.score.accuracy.fixture-player-20",
+    "wait:1"
+  ]},
+  {"name": "score-accuracy-preview", "route": "/songs/fixture-pulse", "ready": [
+    "waitfor:id=fst.song-detail.title@30",
+    "scrollinto:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-1@20",
+    "assertname:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-1|99.5%",
+    "scrollinto:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-4@10",
+    "assertname:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-4|FC",
+    "assertname:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|Rank 4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable",
+    "waitgone:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-3",
+    "scrollinto:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-2@10",
+    "assertname:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-2|100%",
+    "assertaligned:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-2|raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-4",
+    "wait:1"
+  ]},
+  {"name": "score-accuracy-keyboard", "route": "/songs/fixture-pulse/Solo_Guitar", "tabs": 0, "ready": [
+    "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
+    "focus:id=fst.song-leaderboard.row.fixture-player-1",
+    "assertfocus:id=fst.song-leaderboard.row.fixture-player-1",
+    "key:down", "assertfocus:id=fst.song-leaderboard.row.fixture-player-2",
+    "key:down", "assertfocus:id=fst.song-leaderboard.row.fixture-player-3",
+    "key:down", "assertfocus:id=fst.song-leaderboard.row.fixture-player-4",
+    "key:up", "assertfocus:id=fst.song-leaderboard.row.fixture-player-3",
+    "key:tab", "assertfocus:id=fst.song-leaderboard.page-next",
+    "focus:id=fst.song-leaderboard.row.fixture-player-4",
+    "key:down", "key:down", "wait:0.5"
+  ]},
+  {"name": "score-accuracy-resize", "route": "/songs/fixture-pulse/Solo_Guitar", "tabs": 0, "ready": [
+    "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
+    "resize:compact", "wait:1.5",
+    "assertname:raw=fst.score.accuracy.fixture-player-2|100%",
+    "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
+    "resize:wide", "wait:1.5",
+    "assertname:raw=fst.score.accuracy.fixture-player-2|100%",
+    "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
+    "resize:medium", "wait:1.5",
+    "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2"
+  ]}
+]
