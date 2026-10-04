@@ -150,7 +150,8 @@
     "route": "/compete",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
-      "wait:4"
+      "waitfor:id=fst.rivals.section.common@20",
+      "wait:2"
     ]
   },
   {
