@@ -277,8 +277,20 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
         if (pid is null) throw new ArgumentException("target needs pid or process");
         return WaitForWindow(pid.Value, TimeSpan.FromSeconds(5))
+            ?? MinimizedWindow(pid.Value)
             ?? throw new InvalidOperationException($"no visible window for pid {pid}");
     }
+
+    /// <summary>
+    /// The app's minimized top-level window (UIA reports it offscreen, so <see cref="TopWindow"/> skips it), letting a
+    /// later request restore a window an earlier request minimized (e.g. <c>resize:restored</c>).
+    /// </summary>
+    /// <param name="pid">App process ID.</param>
+    /// <returns>The window, or <see langword="null"/> when none is minimized.</returns>
+    private Window? MinimizedWindow(int pid) => automation.GetDesktop().FindAllChildren(cf => cf.ByProcessId(pid))
+        .Where(e => e.Properties.NativeWindowHandle.ValueOrDefault is var hwnd && hwnd != IntPtr.Zero && Native.IsIconic(hwnd))
+        .Select(e => e.AsWindow())
+        .FirstOrDefault();
 
     private static JsonNode Describe(Window window)
     {
