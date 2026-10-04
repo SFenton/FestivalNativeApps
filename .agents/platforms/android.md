@@ -87,6 +87,8 @@ From Git Bash, pass Windows paths (`C:/…`) inside `--steps`: MSYS converts onl
 
 Compose `testTag`s appear as resource ids only when the app sets `testTagsAsResourceId`. Under TalkBack, `input tap` explores rather than activates.
 
+`rotate:` writes `user_rotation`, which did not rotate FST_Phone in issue #111 (2026-10-03). Use `shell:wm user-rotation lock 1` for landscape and `shell:wm user-rotation lock 0` to restore portrait.
+
 ## Emulator lock
 
 - One product emulator per host, shared by every lane through the `emulator` host lock (`tools/android/hostlock.py`). It is an OS byte-range lock on `~/.fst-locks/emulator.lock`, released automatically if the holder dies, plus a FIFO ticket queue in `~/.fst-locks/emulator.queue/`. `holder.json` records the command and the caller's worktree.
@@ -175,4 +177,6 @@ Measured 2026-09-29 (FST-and-a11y2) with `tools/android/frame_stats.py --animati
 - Shell continuity (issue #126): `FestivalApp` hosts the NavHost through `movableContentOf`, so the PermanentDrawer ⇄ ModalNavigationDrawer/Rail switch on rotation or resize keeps open sheets and their state. Without it the content's composition position moved and every open sheet closed.
 - Compact-height windows (`AdaptiveLayoutPolicy.isCompactHeight`, < 480 dp) move live-sheet Reset into the header beside Close, so a pinned footer never shrinks the form at 200 % text in landscape.
 - The sheet drag handle keeps a 48 dp actionable area (`Modifier.minimumInteractiveComponentSize()`). Material's handle is 32 dp wide and TalkBack-actionable, which fails ATF `TouchTargetSizeCheck`.
+- Scrolling content and folds (issue #131): full-width lists and grids flow around a separating vertical hinge rather than drawing over it. Item Shop does this with one `LazyVerticalGrid` whose custom `GridCells` + `Arrangement.Horizontal` leave a hinge-wide gap (pure `ShopColumnPolicy.resolve`). Like every hinge split, it is off under TalkBack or large text (`rememberSingleColumn`).
+- An M3 `IconButton` inside a row's trailing slot measured 40 dp wide in Robolectric (`minimumInteractiveComponentSize` did not widen it). Give row-trailing icon buttons an explicit `Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)` and assert the width in a UI test.
 - Host: Android SDK `C:/Users/sfent/AppData/Local/Android/Sdk`, JDK 17 (Temurin), Gradle 8.14.3 wrapper, AGP 8.11, Kotlin 2.2.10, compile/target SDK 36, min 26.

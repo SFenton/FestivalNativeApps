@@ -76,3 +76,5 @@ Operator decision 2026-10-03: a cheaper Songs row card with the same look (Lane 
 - **Known difference (macOS, bright art):** Liquid Glass passes more of the artwork's brightness and detail through than the thinnest material. Over the brightest, most colourful covers the Mac card reads up to ~15 levels darker and more frosted; over dark covers ~6 levels lighter (mean error over 8 backdrops < 1 level). iOS/iPadOS pairs differ by 1–3 levels. Evidence: `~/FestivalShowcase/native-perf/card/`.
 - System Increase Contrast (no in-app toggle): Liquid Glass darkens itself by 6–8 levels, so the iOS/iPadOS card uses an 88% tint there (pairs within 2–3 levels); the row still adds its own white 2 pt outline. The Mac keeps its veil (the system setting is not toggled on this host).
 - First-run demo replicas of the row (`FirstRunNativeSongsDemos`) keep `festivalGlass(.card)`: a handful of rows in a sheet, no scrolling cost.
+- 2026-10-04 (operator): the material Songs row card (`Design/RowCardSurface.swift`) is accepted on all Apple platforms, including the Mac's darker/more frosted look over bright covers; don't revert to per-row Liquid Glass.
+

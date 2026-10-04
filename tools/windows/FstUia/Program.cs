@@ -439,8 +439,25 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                $"class={p.ClassName.ValueOrDefault} rect={r.X},{r.Y},{r.Width},{r.Height}" +
                (p.HelpText.ValueOrDefault is { Length: > 0 } help ? $" help=\"{help}\"" : "") +
                A11yFlags(e) +
+               ToggleText(e) +
                (flags.Count > 0 ? $" [{string.Join(",", flags)}]" : "") +
                (patterns.Count > 0 ? $" patterns={string.Join(",", patterns)}" : "");
+    }
+
+    /// <summary>A toggle's state for tree lines (<c> toggle=On|Off|Indeterminate</c>), or empty.</summary>
+    /// <param name="e">Element.</param>
+    /// <returns>Suffix.</returns>
+    private static string ToggleText(AutomationElement e)
+    {
+        try
+        {
+            return e.Patterns.Toggle.PatternOrDefault is { } toggle ? $" toggle={toggle.ToggleState.ValueOrDefault}" : "";
+        }
+        catch (Exception)
+        {
+            // An element can disappear between the pattern check and the read; the line stays without a state.
+            return "";
+        }
     }
 
     /// <summary>
@@ -584,6 +601,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
+            case "assertstate":
+                AssertState(window, step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -651,6 +671,44 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             if (seen == expected) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} status is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>
+    /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
+    /// (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">The element is missing or the state differs at the timeout.</exception>
+    private void AssertState(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var key = (string)step["key"]!;
+        var expected = (string)step["value"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            string? seen = null;
+            if (window.FindFirstDescendant(condition) is { } element)
+            {
+                seen = key switch
+                {
+                    "toggle" => element.Patterns.Toggle.PatternOrDefault?.ToggleState.ValueOrDefault switch
+                    {
+                        FlaUI.Core.Definitions.ToggleState.On => "on",
+                        FlaUI.Core.Definitions.ToggleState.Off => "off",
+                        FlaUI.Core.Definitions.ToggleState.Indeterminate => "indeterminate",
+                        _ => null,
+                    },
+                    "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
+                    _ => element.Properties.Name.ValueOrDefault,
+                };
+            }
+            if (seen == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {label} {key} is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
             Thread.Sleep(200);
         }
     }

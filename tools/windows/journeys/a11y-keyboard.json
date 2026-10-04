@@ -1,5 +1,28 @@
 [
   {
+    "name": "kb-rival-detail-compact",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": ["compact"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rival-detail.title@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.rival-detail.view-profile",
+      "assertfocus:id=fst.rival-detail.view-profile",
+      "key:tab",
+      "assertfocus:id=fst.quick-links.open",
+      "key:tab",
+      "assertfocus:id=fst.rivalry.song.fixture-drift.Solo_Guitar",
+      "key:tab",
+      "assertfocus:id=fst.rival-detail.see-all",
+      "key:shift+tab",
+      "key:shift+tab",
+      "assertfocus:id=fst.quick-links.open"
+    ]
+  },
+  {
     "name": "kb-songs-order",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
@@ -73,6 +96,43 @@
       "waitfor:name=Title ↑@5",
       "key:esc",
       "assertfocus:id=fst.songs.sort@3"
+    ]
+  },
+  {
+    "name": "kb-songs-filter",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+f",
+      "key:tab",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "assertfocus:id=fst.songs.filter.year@3",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.duration",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.shop",
+      "key:space",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.shop-available@3",
+      "key:space",
+      "waitfor:name=No Results@10",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "key:shift+tab",
+      "assertfocus:id=fst.songs.filter.reset@3",
+      "key:enter",
+      "waitfor:id=fst.songs.row.fixture-pulse@10",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3"
     ]
   },
   {

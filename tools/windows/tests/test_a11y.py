@@ -97,6 +97,17 @@ class MatrixTests(unittest.TestCase):
         self.assertIn(f"shot:{Path('/out') / 'settings-wide-text-200'}-footer.png", steps)
         self.assertFalse(any("{stem}" in s for s in steps))
 
+    def test_page_env(self):
+        anon = m.page_env({"name": "lab", "route": "/songs", "env": {"FST_DEBUG_CONTROL_LAB": "instrument-selector"}},
+                          Path("/data"))
+        self.assertEqual(anon["FST_DEBUG_ANONYMOUS"], "1")
+        self.assertEqual(anon["FST_DEBUG_CONTROL_LAB"], "instrument-selector")
+        self.assertEqual(anon["FST_DEBUG_DATA_DIR"], str(Path("/data")))
+        player = m.page_env({"name": "p", "tab": "songs", "profile": "id:Name"}, Path("/d"))
+        self.assertEqual(player["FST_DEBUG_PROFILE"], "id:Name")
+        self.assertNotIn("FST_DEBUG_ANONYMOUS", player)
+        self.assertNotIn("FST_DEBUG_CONTROL_LAB", player)
+
     def test_focus_summary_and_table(self):
         focus = [{"id": "a", "in_window": True}, {"id": "b", "in_window": True}, {"id": "a", "in_window": True, "repeat": True},
                  {"name": "Start", "in_window": False}]

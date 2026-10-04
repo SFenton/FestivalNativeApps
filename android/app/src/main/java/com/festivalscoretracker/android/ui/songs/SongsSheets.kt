@@ -28,7 +28,6 @@ import com.festivalscoretracker.android.core.songs.SongStarsBucket
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.StarRating
-import com.festivalscoretracker.android.ui.design.starsDescription
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -570,7 +569,11 @@ internal fun bucketLabel(kind: SongBucketKind, key: Int): String = when {
     key == 0 -> "No Score"
     kind == SongBucketKind.Season -> "Season $key"
     kind == SongBucketKind.Percentile -> "Top $key%"
-    kind == SongBucketKind.Stars -> starsDescription(key)
+    kind == SongBucketKind.Stars -> when {
+        key >= 6 -> "Gold stars"
+        key == 1 -> "1 star"
+        else -> "$key stars"
+    }
     else -> "Intensity $key of 7"
 }
 
