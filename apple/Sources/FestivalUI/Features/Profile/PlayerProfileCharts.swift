@@ -506,6 +506,9 @@ struct RankHistoryCharts: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Legend: bars show Total Score, the line shows Rank")
+        // Static text, not a control: inside the swipe-to-page chart the audit
+        // otherwise judged it an 18 pt-tall interactive element ("Hit area is too small").
+        .accessibilityAddTraits(.isStaticText)
     }
 
     // MARK: Pagination
