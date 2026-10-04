@@ -165,7 +165,7 @@ struct FullRankingsScreen: View {
                         ForEach(payload.rankings.entries) { entry in
                             AccountRankingRow(
                                 entry: entry, metric: rankBy,
-                                isSelected: isSelectedAccount(entry.accountId), glassSurface: true
+                                isSelected: isSelectedAccount(entry.accountId), cardSurface: true
                             )
                             .macKeyboardRow(entry.id)
                         }
@@ -452,7 +452,7 @@ struct FullRankingsScreen: View {
                         Task { await loadSpotlight() }
                     }
                     .padding(12)
-                    .festivalGlass(.card, cornerRadius: 12)
+                    .festivalCard(cornerRadius: 12)
                     .padding(.horizontal, 16)
                 } else {
                     // The footer row's height, so it does not jump when the rank arrives.
@@ -465,12 +465,12 @@ struct FullRankingsScreen: View {
                 RankingSpotlightUnrankedRow(message: "You're not yet ranked on \(instrument.label).")
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .festivalGlassCapsule(.card)
+                    .festivalCardCapsule()
                     .padding(.horizontal, 16)
                     .accessibilityIdentifier("fst.full-rankings.spotlight-footer.unranked")
             case let .footer(entry):
                 HStack(spacing: 8) {
-                    AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, glassSurface: true)
+                    AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, cardSurface: true)
                     Button {
                         page = LeaderboardPaging.page(forRank: entry.rank(for: rankBy), pageSize: 25)
                     } label: {

@@ -89,7 +89,7 @@ struct SongScoreHistorySection: View {
                 }
                 .frame(minHeight: pinnedHeight, alignment: .top)
                 .padding(14)
-                .festivalGlass(.card, cornerRadius: 16)
+                .festivalCard(cornerRadius: 16)
                 Group {
                     VStack(spacing: 6) {
                         ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
@@ -505,7 +505,7 @@ struct ScoreHistoryListRow: View {
                 shape.fill(Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75))
                     .overlay(shape.stroke(BrandTokens.accentPurple.opacity(0.5), lineWidth: 1))
             } else {
-                Color.clear.festivalGlass(.card, cornerRadius: 12)
+                Color.clear.festivalCard(cornerRadius: 12)
             }
         }
         .accessibilityElement(children: .ignore)

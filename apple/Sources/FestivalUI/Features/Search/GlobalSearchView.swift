@@ -181,7 +181,7 @@ struct GlobalSearchResults: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .festivalGlass(.card, cornerRadius: 12)
+                        .festivalCard(cornerRadius: 12)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -230,7 +230,7 @@ struct GlobalSearchResults: View {
                             .foregroundStyle(BrandTokens.textPrimary)
                             .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
                             .padding(.horizontal, 16)
-                            .festivalGlass(.card, cornerRadius: 12)
+                            .festivalCard(cornerRadius: 12)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

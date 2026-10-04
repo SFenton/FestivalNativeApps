@@ -207,7 +207,7 @@ struct DualSourceMessage<Actions: View>: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
-        .festivalGlass(.card, cornerRadius: 22)
+        .festivalCard(cornerRadius: 22)
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)

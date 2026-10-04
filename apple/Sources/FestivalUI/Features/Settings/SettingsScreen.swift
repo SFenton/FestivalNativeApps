@@ -101,6 +101,7 @@ struct SettingsScreen: View {
             .padding(.bottom, 32)
             .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
         }
+        .debugPageScrollStress()
         .scrollDisabled(reorderDragging)
         .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
         .modifier(SettingsQuickLinks(controller: quickLinks, isEnabled: pane == nil))

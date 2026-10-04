@@ -55,7 +55,7 @@ struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
         .accessibilityHidden(true)
         .firstRunDemoTicker { active = (active + 1) % metrics.count }
     }

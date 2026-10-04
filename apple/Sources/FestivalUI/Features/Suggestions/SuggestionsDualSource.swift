@@ -205,7 +205,7 @@ struct SuggestionsCarouselPane: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, minHeight: 160)
-        .festivalGlass(.card, cornerRadius: 22)
+        .festivalCard(cornerRadius: 22)
     }
 
     // MARK: Loading

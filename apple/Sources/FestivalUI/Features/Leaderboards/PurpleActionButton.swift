@@ -4,8 +4,8 @@ import FestivalDesign
 // MARK: - Purple action surface
 
 /// The one purple "View full leaderboard" / "View all …" button look used everywhere
-/// (operator batch 6.29): full-width, 44 pt, white semibold text on accent-purple
-/// interactive Liquid Glass, and an opaque purple fill under Reduce Transparency, the
+/// (operator batch 6.29): full-width, 44 pt, white semibold text on the accent-purple
+/// material card (issue #291), and an opaque purple fill under Reduce Transparency, the
 /// app's contrast/transparency overrides, or before iOS/macOS 26 (white stays ≥ 4.5:1).
 struct PurpleActionLabel: View {
     let title: String
@@ -23,9 +23,17 @@ struct PurpleActionLabel: View {
     }
 }
 
-/// Accent-purple glass for ``PurpleActionLabel``.
+/// Accent-purple material card for ``PurpleActionLabel``.
+///
+/// The shared card's `ultraThinMaterial` and rim (``FestivalCardModifier``) under an
+/// accent-purple tint instead of tinted interactive Liquid Glass (HIG Materials: "Use
+/// Liquid Glass effects sparingly on custom controls"). Press feedback comes from the
+/// enclosing button's style (`.plain` dims the label while pressed).
 struct PurpleActionSurface: ViewModifier {
     static let cornerRadius: CGFloat = 12
+    /// Accent purple over the dark material: white text stays above 4.5:1 even if the
+    /// material passed a pure white backdrop through (about 4.8:1).
+    static let tint = BrandTokens.accentPurple.opacity(0.9)
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
@@ -35,7 +43,10 @@ struct PurpleActionSurface: ViewModifier {
         if reduceTransparency || lessTransparency || moreContrast {
             content.background(BrandTokens.accentPurple, in: shape)
         } else if #available(iOS 26.0, macOS 26.0, *) {
-            content.glassEffect(.regular.tint(BrandTokens.accentPurple).interactive(), in: shape)
+            content
+                .background(Self.tint, in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(RowCardStyle.rim, lineWidth: 1))
         } else {
             content.background(BrandTokens.accentPurple, in: shape)
         }

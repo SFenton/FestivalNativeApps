@@ -340,7 +340,7 @@ struct SongDetailScreen: View {
                         }
                     }
                     .padding(14)
-                    .festivalGlass(.card, cornerRadius: 16)
+                    .festivalCard(cornerRadius: 16)
                 }
                 .accessibilityIdentifier("fst.song-detail.intensity")
                 .festivalFadeIn(isLoaded: true, index: 1)

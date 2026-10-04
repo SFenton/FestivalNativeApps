@@ -62,7 +62,7 @@ struct SongSectionIndexScrubber: View {
         // The caller centers it in a region with a fixed top, so a collapsing large
         // title does not move it.
         .frame(width: 22)
-        .festivalGlassCapsule(.control)
+        .festivalCardCapsule()
         .contentShape(Rectangle())
         .background(
             GeometryReader { geometry in
