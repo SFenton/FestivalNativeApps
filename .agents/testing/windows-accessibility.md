@@ -119,6 +119,18 @@ Fixed:
 - The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
 - The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
 
+## Score Accuracy validation (issue #220, 2026-10-03)
+
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/score-accuracy.json --fixture tools/windows/score_accuracy_fixture.py --scan --tabs 15` (chart, offscreen, preview, keyboard and resize pages) at compact, medium, wide, maximized and both snaps, then at compact, medium and wide under Desert, Night sky, light and dark theme, display 100% and 150%, and text 200%: 0 Axe errors in every run, with each badge state asserted by name and column alignment. Live public-service screenshots of "Through the Fire and Flames" Lead. Per-configuration results: [score-accuracy/windows.md](../controls/score-accuracy/windows.md#validation-issue-220-2026-10-03).
+
+Fixed:
+- A full combo without an accuracy showed no badge; it now shows a gold `FC` and reads "full combo, accuracy unavailable".
+- Graded pills were 2 epx narrower per side than the gold FC outline (WinUI paints the background inside the border by default); the tint now fills the outer edge as the web's border-box does.
+- At 200% text the gold FC badge drifted ~2 epx left of the column (the skew pivot was a fixed 10 epx); it now pivots on the badge centre.
+- At 200% text a row realized while scrolling kept its one-line height after stacking, so its score and badge drew over the next row (live board, compact); rows now fit their columns in `MeasureOverride`.
+
+Open: Shift+Tab back into an `ItemsRepeater` row list focuses the last realized row, not the last-focused one (list-level, all boards).
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
