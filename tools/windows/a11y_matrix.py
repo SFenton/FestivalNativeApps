@@ -108,7 +108,9 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
 
     Args:
         page: Page definition: ``ready`` steps, optional ``setup`` (before ready), ``after_ready``
-            (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``.
+            (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``. ``{stem}`` in any step is
+            replaced by the output path stem for this page/size/mode, so extra shots such as
+            ``shot:{stem}-footer.png`` stay distinct per run.
         size: Window preset.
         out: Output directory.
         suffix: File-name suffix for the mode (``""`` for normal).
@@ -128,7 +130,7 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     if count:
         steps.append(f"tabwalk:{count}")
     steps.extend(page.get("teardown", []))
-    return steps
+    return [s.replace("{stem}", str(out / stem)) for s in steps]
 
 
 def summarize_focus(focus: list[dict]) -> dict:
@@ -172,11 +174,12 @@ def summary_table(results: list[dict]) -> str:
 # region Runner
 
 
-def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
+def start_fixture(log: Path, fixture: Path = FIXTURE) -> tuple[subprocess.Popen, int]:
     """Start the anonymized fixture service on a free loopback port.
 
     Args:
         log: Service output file.
+        fixture: Fixture script taking ``mock_service.py`` flags (default ``rivals_fixture.py``).
 
     Returns:
         Process and port.
@@ -185,7 +188,7 @@ def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
         RuntimeError: No port reported within 20 s.
     """
     handle = log.open("w", encoding="utf-8")
-    proc = subprocess.Popen([sys.executable, "-u", str(FIXTURE), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen([sys.executable, "-u", str(fixture), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
     for _ in range(200):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
@@ -315,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hold", type=float, default=300.0)
     parser.add_argument("--pages", type=Path, default=PAGES,
                         help="page list (e.g. journeys/a11y-keyboard.json: assertfocus journeys, run without --scan)")
+    parser.add_argument("--fixture", type=Path, default=FIXTURE,
+                        help="fixture service script (e.g. tools/windows/rankings_fixture.py for every Full Rankings state)")
     args = parser.parse_args(argv)
     if not args.exe.is_file():
         print(f"error: build first (tools/windows/build.ps1); no {args.exe}", file=sys.stderr)
@@ -326,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
         wanted = set(args.only.split(","))
         pages = [p for p in pages if p["name"] in wanted]
     sizes = [s for s in args.sizes.split(",") if s]
-    fixture, port = start_fixture(out / "fixture-service.log")
+    fixture, port = start_fixture(out / "fixture-service.log", args.fixture.resolve())
     results: list[dict] = []
     try:
         # Driver step logs (every focus stop) go to a file; the console gets one line per page and size.

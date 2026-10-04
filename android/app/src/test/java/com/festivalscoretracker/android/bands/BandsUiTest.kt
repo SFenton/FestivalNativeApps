@@ -3,6 +3,8 @@ package com.festivalscoretracker.android.bands
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
@@ -15,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -34,6 +37,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
@@ -91,7 +95,7 @@ class BandsUiTest {
     fun bandsWithoutAnIdShowsBandNotFound() {
         launch("bands")
         waitForTag("fst.bands.not-found")
-        rule.onNodeWithText("Band Not Found").assertIsDisplayed()
+        rule.onNodeWithText("Band not found").assertIsDisplayed()
         assertTrue(transport.requests.none { it.url.contains("/api/bands") })
     }
 
@@ -142,6 +146,25 @@ class BandsUiTest {
         waitForTag("fst.player-bands.invalid")
     }
 
+    private fun cardLeft(id: String) = rule.onNodeWithTag("fst.player-bands.row.$id").fetchSemanticsNode().boundsInRoot.left
+
+    @Test
+    @Config(qualifiers = "w900dp-h1200dp-xhdpi")
+    fun wideWindowShowsTwoCardColumns() {
+        launch("playerBands:${BandFixtures.PLAYER}")
+        waitForTag("fst.player-bands.row.band-1")
+        assertTrue(cardLeft("band-1") > cardLeft(BandFixtures.DUO_ID))
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h1200dp-xhdpi")
+    fun largeTextUsesOneCardColumn() {
+        RuntimeEnvironment.setFontScale(2f)
+        launch("playerBands:${BandFixtures.PLAYER}")
+        waitForTag("fst.player-bands.row.band-1")
+        assertEquals(cardLeft(BandFixtures.DUO_ID), cardLeft("band-1"), 0.5f)
+    }
+
     // endregion
 
     // region Band detail
@@ -156,8 +179,16 @@ class BandsUiTest {
         assertTrue(exists("fst.band.stat.rank"))
         rule.onNodeWithTag("fst.band.stat.rank").assert(hasContentDescription("Total Score Rank", substring = true))
         click("fst.band.rank-by")
+        rule.onNodeWithTag("fst.band.rank-by.totalscore").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Selected"))
+        rule.onNodeWithTag("fst.band.rank-by.fcrate").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Not selected"))
         click("fst.band.rank-by.fcrate")
         rule.onNodeWithTag("fst.band.stat.rank").assert(hasContentDescription("FC Rate Rank", substring = true))
+        click("fst.band.rank-by")
+        rule.onNodeWithTag("fst.band.rank-by.fcrate").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Selected"))
+        // Choosing the current metric again only closes the menu.
+        click("fst.band.rank-by.fcrate")
+        assertTrue(!exists("fst.band.rank-by.totalscore"))
+        rule.onNodeWithTag("fst.band.rank-by").assert(hasContentDescription("Rank by FC Rate"))
         waitForTag("fst.band.history-chart")
         assertTrue(exists("fst.band.history-row.2024-01-03"))
         waitForTag("fst.band.song-row.s-alpha")
@@ -217,6 +248,29 @@ class BandsUiTest {
         click("fst.quick-links.item.members")
         rule.waitUntil(10_000) { settle(100); !exists("fst.quick-links.sheet") }
         rule.onNodeWithTag("fst.band.members-section", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xxhdpi", fontScale = 2f)
+    fun largeTextReflowsBandDetail() {
+        launch(duoRoute)
+        waitForTag("fst.band.members-section")
+        // Heading above Rank By rather than beside it.
+        settle(1_000)
+        val heading = rule.onNodeWithTag("fst.band.statistics-section", useUnmergedTree = true).fetchSemanticsNode().let { it.positionInRoot.y + it.size.height }
+        val rankBy = rule.onNodeWithTag("fst.band.rank-by").fetchSemanticsNode().positionInRoot.y
+        assertTrue(rankBy >= heading)
+        // One stat tile per row: each tile spans the content width, so values are never clipped.
+        val rank = rule.onNodeWithTag("fst.band.stat.rank").fetchSemanticsNode().let { it.positionInRoot.x to it.size.width }
+        val tiles = rule.onAllNodes(SemanticsMatcher("band stat tile") { it.config.getOrElseNullable(SemanticsProperties.TestTag) { null }?.startsWith("fst.band.stat.") == true })
+            .fetchSemanticsNodes().map { it.positionInRoot.x to it.size.width }
+        assertTrue(tiles.size > 1)
+        assertTrue("$tiles", tiles.all { it == rank })
+        // Member names get the card's full width; the instrument icons wrap under them.
+        rule.onNodeWithTag("fst.band.member.${Fixtures.ACCOUNT_A}").assertIsDisplayed()
+        // Song rows put the percentile and rank under the title instead of beside it.
+        waitForTag("fst.band.song-row.s-alpha")
+        rule.onNodeWithTag("fst.band.song-row.s-alpha").performScrollTo().assertIsDisplayed()
     }
 
     @Test

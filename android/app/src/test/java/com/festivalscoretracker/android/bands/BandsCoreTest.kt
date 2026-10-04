@@ -311,12 +311,29 @@ class BandsCoreTest {
         assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, 1000f, folds[0]))
         assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1080f, 1000f, folds[1]))
         assertEquals(BandLayout.Panes(true, 450f, 0f), BandLayout.panes(1080f, 1000f, BandLayout.Hinge(450f, 450f, false)))
+        // ...nor the card grid (issue #117: 280 dp of the leading panel stayed empty); a balanced flat fold still does.
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(984f, BandLayout.Hinge(624f, 624f, false)))
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 12f), BandLayout.grid(984f, BandLayout.Hinge(264f, 264f, false)))
+        assertEquals(2, BandLayout.grid(984f, BandLayout.Hinge(624f, 624f, true)).columns)
+        assertEquals(BandLayout.Grid(2, 16f, 16f, 32f), BandLayout.grid(1000f, BandLayout.Hinge(500f, 500f, false)))
         // A separating hinge anchors panes even when unbalanced.
         assertEquals(BandLayout.Panes(true, 300f, 0f), BandLayout.panes(900f, 1000f, BandLayout.Hinge(300f, 300f, true)))
         // A physical hinge with width becomes the gutter.
         val hinge = BandLayout.hingeInContent(500f, 520f, 0f, 1000f, true)!!
         assertEquals(BandLayout.Panes(true, 500f, 20f), BandLayout.panes(1000f, 1000f, hinge))
         assertEquals(52f, BandLayout.grid(1000f, hinge).gutter)
+    }
+
+    @Test
+    fun splitsIsOneDecisionForPanesAndQuickLinks() {
+        assertTrue(BandLayout.splits(1280f, separatingHinge = false, singleColumn = false))
+        assertTrue(BandLayout.splits(673f, separatingHinge = true, singleColumn = false))
+        assertFalse(BandLayout.splits(700f, separatingHinge = false, singleColumn = false))
+        // TalkBack or narrow large text: one column even on an expanded window.
+        assertFalse(BandLayout.splits(1280f, separatingHinge = true, singleColumn = true))
+        // A separating hinge outside the content still splits, into equal panes.
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(673f, 600f, null, split = true))
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(1280f, 1200f, null, split = false))
     }
 
     @Test
@@ -328,6 +345,38 @@ class BandsCoreTest {
         // Flat folds (unfolded book, tri-fold) and no hinge keep one centred column.
         assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.listSplit(BandLayout.Hinge(452f, 452f, false)))
         assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.listSplit(null))
+    }
+
+    @Test
+    fun statColumnsDropToOneAtLargeText() {
+        // 100%: two to four 150 dp tiles.
+        assertEquals(2, BandLayout.statColumns(379f, 1f, largeText = false))
+        assertEquals(2, BandLayout.statColumns(200f, 1f, largeText = false))
+        assertEquals(4, BandLayout.statColumns(1000f, 1f, largeText = false))
+        // 200% phone: one full-width tile per row; a wide pane still fits two.
+        assertEquals(1, BandLayout.statColumns(379f, 2f, largeText = true))
+        assertEquals(2, BandLayout.statColumns(640f, 2f, largeText = true))
+        assertEquals(4, BandLayout.statColumns(2000f, 1.3f, largeText = true))
+        assertEquals(1, BandLayout.statColumns(100f, 0.5f, largeText = true))
+    }
+
+    @Test
+    fun memberColumnsLeaveRoomForNamesBesideIcons() {
+        // Seven instruments need 358 dp: an 800 dp tablet's ~650 dp column keeps one card per row.
+        assertEquals(1, BandLayout.memberColumns(650f, 7, largeText = false))
+        assertEquals(2, BandLayout.memberColumns(775f, 7, largeText = false))
+        // Few instruments fall back to the 260 dp minimum.
+        assertEquals(2, BandLayout.memberColumns(650f, 2, largeText = false))
+        // Large text stacks the icons under the name, so the 260 dp minimum applies.
+        assertEquals(2, BandLayout.memberColumns(650f, 7, largeText = true))
+        assertEquals(1, BandLayout.memberColumns(100f, 0, largeText = true))
+        assertEquals(383.5f, BandLayout.memberCardWidth(775f, 2))
+        assertEquals(650f, BandLayout.memberCardWidth(650f, 1))
+        // A 379 dp phone keeps the one-row card; a ~290 dp fold pane or large text stacks it.
+        assertTrue(BandLayout.memberInline(379f, 7, largeText = false))
+        assertTrue(!BandLayout.memberInline(290f, 7, largeText = false))
+        assertTrue(!BandLayout.memberInline(650f, 7, largeText = true))
+        assertTrue(BandLayout.memberInline(290f, 2, largeText = false))
     }
 
     // endregion

@@ -1,0 +1,85 @@
+[
+  {
+    "name": "kb-fr-pager",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.full-rankings.page-next@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.full-rankings.page-next",
+      "key:enter",
+      "waitfor:id=fst.rankings.row.fixture-rank-26@10",
+      "assertfocus:id=fst.full-rankings.page-next@3",
+      "key:right",
+      "waitfor:id=fst.rankings.row.fixture-rank-51@10",
+      "assertfocus:id=fst.full-rankings.page-next@3",
+      "key:left",
+      "waitfor:id=fst.rankings.row.fixture-rank-26@10",
+      "assertfocus:id=fst.full-rankings.page-next@3",
+      "focus:id=fst.full-rankings.page-first",
+      "key:enter",
+      "waitfor:id=fst.rankings.row.fixture-player-1@10",
+      "focus:id=fst.full-rankings.page-last",
+      "key:enter",
+      "waitfor:id=fst.rankings.row.fixture-rank-1176@10",
+      "assertfocus:id=fst.full-rankings.page-previous@3"
+    ]
+  },
+  {
+    "name": "kb-fr-menus-esc",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.full-rankings.list@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.full-rankings.instrument-menu",
+      "key:enter",
+      "waitfor:id=fst.full-rankings.instrument.Solo_Bass@5",
+      "key:esc",
+      "assertfocus:id=fst.full-rankings.instrument-menu@3",
+      "focus:id=fst.rankings.rank-by-menu",
+      "key:enter",
+      "waitfor:id=fst.rankings.rank-by.fcrate@5",
+      "key:esc",
+      "assertfocus:id=fst.rankings.rank-by-menu@3"
+    ]
+  },
+  {
+    "name": "kb-fr-jump",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-rank-40:Fixture Rank 40",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.full-rankings.spotlight-jump@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.full-rankings.spotlight-jump",
+      "key:enter",
+      "waitfor:id=fst.rankings.row.fixture-rank-40@10",
+      "assertfocus:id=fst.rankings.row.fixture-rank-40@3"
+    ]
+  },
+  {
+    "name": "kb-fr-rows",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.rankings.row.fixture-player-1",
+      "key:down",
+      "assertfocus:id=fst.rankings.row.fixture-player-2@3",
+      "key:down",
+      "assertfocus:id=fst.rankings.row.fixture-rank-3@3",
+      "key:up",
+      "assertfocus:id=fst.rankings.row.fixture-player-2@3",
+      "scrollinto:id=fst.rankings.row.fixture-rank-12",
+      "focus:id=fst.rankings.row.fixture-rank-12",
+      "key:down",
+      "assertfocus:id=fst.rankings.row.fixture-rank-14@3"
+    ]
+  }
+]

@@ -110,7 +110,8 @@ internal val LEADERBOARD_ROW_GAP = 2.dp
  * @property showSongs Whether one-line rows draw the songs column; it yields to names on
  *   narrow Compete cards (issue #38) and stays in the row's spoken description.
  * @property stacked Whether rows use the stacked layout (as at large text) because the row is
- *   too narrow for the name beside the other columns (Full Rankings beside a hinge, issue #115).
+ *   too narrow for the name beside the other columns (Full Rankings beside a hinge, issue #115;
+ *   Band Rankings, issue #116).
  */
 @Immutable
 data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp, val showSongs: Boolean = true, val stacked: Boolean = false)
@@ -127,8 +128,10 @@ val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
  * @param ratings Rating labels.
  * @param names Row names; when non-empty the songs column shows only if every name fits
  *   beside it in [rowWidth] (issue #38). Empty keeps the songs column at any width.
- * @param rowWidth Row width in dp (NaN before the first layout); used only with [names] or
- *   [keepNameMinimum].
+ * @param rowWidth Row width in dp (NaN before the first layout); used only with [names],
+ *   [stackNarrowNames] or [keepNameMinimum].
+ * @param stackNarrowNames Stack the rows when the one-line columns would leave names less
+ *   than their minimum in [rowWidth] (issue #116).
  * @param keepNameMinimum Keep a minimum name width in [rowWidth]: the songs column yields,
  *   then rows stack (issue #115).
  * @return Column widths.
@@ -140,12 +143,13 @@ fun rememberRankingColumns(
     ratings: List<String>,
     names: List<String> = emptyList(),
     rowWidth: Float = Float.NaN,
+    stackNarrowNames: Boolean = false,
     keepNameMinimum: Boolean = false,
 ): RankingColumns {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val typography = MaterialTheme.typography
-    val section = remember(ranks, songs, ratings, names, density, typography, keepNameMinimum) {
+    val section = remember(ranks, songs, ratings, names, stackNarrowNames, density, typography, keepNameMinimum) {
         fun widest(texts: List<String>, style: TextStyle): Float = with(density) {
             val px = texts.maxOfOrNull { measurer.measure(it, style.copy(fontWeight = FontWeight.Bold), maxLines = 1).size.width } ?: return@with 0f
             (px.toDp() + TEXT_SLACK).value
@@ -156,6 +160,7 @@ fun rememberRankingColumns(
             metaWidth = widest(songs, typography.bodyMedium),
             valueWidth = widest(ratings, typography.bodyLarge),
             nameWidth = widest(names, typography.bodyLarge),
+            stackNarrowNames = stackNarrowNames,
             keepsNameMinimum = keepNameMinimum,
         )
     }
@@ -198,13 +203,18 @@ fun rememberAccountColumns(
  *
  * @param entries Rows sharing the columns.
  * @param metric Band metric.
+ * @param stackBelow Row width in dp (NaN before the first layout) under which rows stack
+ *   rather than squeeze rosters below their minimum (Band Rankings, issue #116); null keeps
+ *   one-line rows at any width.
  * @return Column widths.
  */
 @Composable
-fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetric): RankingColumns = rememberRankingColumns(
+fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetric, stackBelow: Float? = null): RankingColumns = rememberRankingColumns(
     entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
     entries.map { it.songsLabel(metric) },
     entries.map { RankingFormatting.rating(it.ratingValue(metric), metric.asRankingMetric) },
+    rowWidth = stackBelow ?: Float.NaN,
+    stackNarrowNames = stackBelow != null,
 )
 
 /**

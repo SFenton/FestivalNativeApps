@@ -24,12 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -82,13 +80,13 @@ internal fun ServiceInfoSection(poller: ServiceInfoPoller) {
     )
     Text(ServiceInfoText.HINT, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
     GlassCard(Modifier.fillMaxWidth().testTag("fst.settings.service-info")) {
-        // Live summary: TalkBack hears state changes politely, like the web's aria-live block.
-        Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
-            StateRow(rows)
-            rows.phaseTitle?.let { title ->
-                HorizontalDivider(color = BrandTokens.glassBorder)
-                PhaseRow(title, rows)
-            }
+        // Not a live region (issue #121): announcing the 5 s poll while TalkBack scrolled the
+        // card into view silenced TalkBack's focus speech for the next items on a real device.
+        // Focusing the row still reads the current state, like every other Settings value.
+        StateRow(rows)
+        rows.phaseTitle?.let { title ->
+            HorizontalDivider(color = BrandTokens.glassBorder)
+            PhaseRow(title, rows)
         }
         rows.lastPublished?.let { published ->
             HorizontalDivider(color = BrandTokens.glassBorder)
