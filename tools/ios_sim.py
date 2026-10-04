@@ -54,6 +54,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -296,7 +297,47 @@ def output_paths(steps: list[str]) -> list[str]:
             paths.append(arg)
         elif verb == "appTree" and "|" in arg:
             paths.append(arg.split("|", 1)[1])
+        elif verb == "host":
+            try:
+                command, values = parse_host_command(arg)
+            except ValueError:
+                continue
+            if command == "capture":
+                paths.append(values[1])
     return paths
+
+
+#: ``host:`` driver-step commands and their argument counts (see ``run_host_command``).
+HOST_COMMANDS = {"pose": 1, "capture": 2, "menu": 1}
+
+
+def parse_host_command(text: str) -> tuple[str, list[str]]:
+    """Parse a ``host:`` step's command (``pose unfolded``, ``capture inner /tmp/a.png``,
+    ``menu Device/Keyboard/Toggle Software Keyboard``).
+
+    The last argument keeps its spaces (paths and menu titles may contain them).
+
+    Args:
+        text: The text after ``host:``.
+
+    Returns:
+        ``(command, arguments)``.
+
+    Raises:
+        ValueError: Unknown command or invalid arguments.
+    """
+    command, _, rest = text.strip().partition(" ")
+    if command not in HOST_COMMANDS:
+        raise ValueError(f"unknown host command {command!r}; choose from {sorted(HOST_COMMANDS)}")
+    count = HOST_COMMANDS[command]
+    values = rest.strip().split(None, count - 1) if rest.strip() else []
+    if len(values) != count:
+        raise ValueError(f"host command {command!r} takes {count} argument(s): {text!r}")
+    if command == "pose" and values[0] not in POSE_ACTIONS:
+        raise ValueError(f"host pose must be one of {POSE_ACTIONS}: {text!r}")
+    if command == "capture" and (values[0] not in (*DUO_PANELS, "auto") or not values[1].startswith("/")):
+        raise ValueError(f"host capture needs outer|inner|auto and an absolute path: {text!r}")
+    return command, values
 
 
 def driver_derived_data() -> Path:
@@ -496,7 +537,7 @@ def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | N
     expected = POSE_EXPECTED_CLASS[pose]
     actual = detect_pose(udid)
     print(f"duo pose: {actual}", file=sys.stderr)
-    if actual == expected and not (set_pose and pose == "half"):
+    if actual == expected and not (set_pose and pose != "folded"):
         return None
     if set_pose:
         try:
@@ -657,80 +698,30 @@ EXIT_POSE_MISMATCH = 3
 EXIT_NO_ACCESSIBILITY = 4
 EXIT_NO_CONTROL = 5
 
-#: Accessibility-tree walk bounds for the JXA dump (each property read is an Apple event).
-_HUB_MAX_DEPTH = 14
-_HUB_MAX_ELEMENTS = 2000
+#: Compiled accessibility helper (System Events reports DeviceHub with pid 0 and no
+#: windows on macOS 27, so JXA cannot see it; the AX API addressed by pid can).
+DEVICE_HUB_HELPER_SOURCE = REPO_ROOT / "tools" / "device_hub_ax.swift"
+DEVICE_HUB_HELPER = APPLE_DIR / "DerivedData" / "sim-tool" / "device_hub_ax"
+DEVICE_HUB_EXECUTABLE = DEVICE_HUB_APP / "Contents" / "MacOS" / "DeviceHub"
+XCODE_APP = Path(DEVELOPER_DIR).parent.parent
+XCODE_EXECUTABLE = XCODE_APP / "Contents" / "MacOS" / "Xcode"
 
-#: JavaScript for Automation run by ``osascript -l JavaScript``. ``dump`` returns the
-#: Device Hub window controls and menu items as JSON (each with a ``path``);
-#: ``press <path-json>`` activates Device Hub and presses that element.
-_DEVICE_HUB_JXA = r"""
-function run(argv) {
-  const MAX_DEPTH = %(depth)d, MAX_ELEMENTS = %(limit)d;
-  const se = Application('System Events');
-  const procs = se.applicationProcesses.whose({bundleIdentifier: '%(bundle)s'})();
-  let proc = null;
-  for (const p of procs) {
-    let count = 0;
-    try { count = p.windows.length; } catch (e) {}
-    if (count > 0 && (proc === null || p.frontmost())) proc = p;
-  }
-  if (proc === null) return JSON.stringify({error: 'no-window', processes: procs.length});
-  const read = (f) => { try { const v = f(); return v === undefined ? null : v; } catch (e) { return null; } };
-  if (argv[0] === 'press') {
-    const path = JSON.parse(argv[1]);
-    proc.frontmost = true;
-    delay(0.3);
-    let el;
-    if (path[0] === 'w') {
-      el = proc.windows[path[1]];
-      for (const i of path.slice(2)) el = el.uiElements[i];
-      try { el.actions.byName('AXPress').perform(); } catch (e) { se.click(el); }
-    } else {
-      el = proc.menuBars[0].menuBarItems[path[1]].menus[0].menuItems[path[2]];
-      if (path.length > 3) el = el.menus[0].menuItems[path[3]];
-      el.click();
-    }
-    return JSON.stringify({pressed: path});
-  }
-  const out = [];
-  const describe = (el, kind, path, windowTitle) => ({
-    kind: kind, path: path, window: windowTitle,
-    role: read(() => el.role()), subrole: read(() => el.subrole()),
-    title: read(() => el.name()), description: read(() => el.description()),
-    help: read(() => el.help()),
-    identifier: read(() => el.attributes.byName('AXIdentifier').value()),
-    enabled: read(() => el.enabled()),
-  });
-  const walk = (el, path, depth, windowTitle) => {
-    if (depth > MAX_DEPTH || out.length >= MAX_ELEMENTS) return;
-    const kids = read(() => el.uiElements()) || [];
-    for (let i = 0; i < kids.length && out.length < MAX_ELEMENTS; i++) {
-      const p = path.concat([i]);
-      out.push(describe(kids[i], 'control', p, windowTitle));
-      walk(kids[i], p, depth + 1, windowTitle);
-    }
-  };
-  const windows = proc.windows();
-  for (let w = 0; w < windows.length; w++) {
-    walk(windows[w], ['w', w], 0, read(() => windows[w].name()));
-  }
-  const bar = read(() => proc.menuBars[0].menuBarItems()) || [];
-  for (let m = 0; m < bar.length; m++) {
-    const items = read(() => bar[m].menus[0].menuItems()) || [];
-    for (let j = 0; j < items.length; j++) {
-      out.push(describe(items[j], 'menu', ['m', m, j], null));
-      const sub = read(() => items[j].menus[0].menuItems()) || [];
-      for (let k = 0; k < sub.length; k++) out.push(describe(sub[k], 'menu', ['m', m, j, k], null));
-    }
-  }
-  return JSON.stringify({pid: read(() => proc.unixId()), controls: out});
-}
-"""
+#: Menu paths: Xcode's entry to Device Hub, and Device Hub's new-window command.
+XCODE_DEVICE_HUB_MENU = ("Xcode", "Open Developer Tool", "Device Hub")
+DEVICE_HUB_NEW_WINDOW_MENU = ("File", "New Window")
+
+#: Device Hub shows a simulator by its name (window title ``<name> – iOS 27.1`` and the
+#: sidebar row ``TableRow.Device.<UDID>``). Only product simulators are listed.
+HUB_DEVICE_NAMES = {DEVICES["duo"]: "iPhone Duo (FST)"}
+
+#: Seconds allowed for each Device Hub opening step.
+HUB_OPEN_TIMEOUT = 45.0
 
 #: Words that identify each action's control in Device Hub's accessibility text
-#: (title, description, help or identifier). Uncalibrated guesses from DeviceKit's
-#: symbols (``rotate.device.left``); ``pose --list-controls`` prints the real tree.
+#: (title, description, help or identifier). Calibrated 2026-10-04 against Device Hub
+#: (Xcode 27.1): the device window's buttons are described "Closed", "Book", "Open" and
+#: "Rotate Right" (no Rotate Left; see ``pose_presses``). ``pose --list-controls`` prints
+#: the real tree.
 _POSE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "rotate-left": ("rotate left", "rotate.device.left", "rotateleft", "rotate-left", "counterclockwise"),
     "rotate-right": ("rotate right", "rotate.device.right", "rotateright", "rotate-right"),
@@ -773,6 +764,23 @@ def _control_text(control: dict) -> str:
     return " ".join(str(part) for part in parts).lower().replace("_", " ")
 
 
+def without_device_content(controls: list[dict]) -> list[dict]:
+    """Drop the simulated screen's own accessibility elements from a Device Hub dump.
+
+    Device Hub exposes the running iOS app's elements inside an ``iOSContentGroup``;
+    an app row such as "… Full combo …" must never be taken for a pose button.
+
+    Args:
+        controls: ``device_hub_ax dump`` entries (``path`` lists).
+
+    Returns:
+        The entries outside every ``iOSContentGroup`` subtree (the group itself is dropped too).
+    """
+    roots = [tuple(control["path"]) for control in controls if control.get("subrole") == "iOSContentGroup"]
+    return [control for control in controls
+            if not any(tuple(control["path"][:len(root)]) == root for root in roots)]
+
+
 def match_pose_control(action: str, controls: list[dict]) -> dict | None:
     """Pick the Device Hub control that performs a pose action.
 
@@ -788,7 +796,7 @@ def match_pose_control(action: str, controls: list[dict]) -> dict | None:
     """
     keywords, excluded = _POSE_KEYWORDS[action], _POSE_EXCLUDE[action]
     candidates = []
-    for control in controls:
+    for control in without_device_content(controls):
         if control.get("enabled") is False or control.get("role") not in _PRESSABLE_ROLES:
             continue
         if (control.get("subrole") or "") in ("AXCloseButton", "AXZoomButton",
@@ -924,62 +932,354 @@ class DeviceHubError(RuntimeError):
         self.code = code
 
 
-def _device_hub_script(*argv: str) -> dict:
-    """Run the Device Hub JXA script and parse its JSON reply.
+def _device_hub_script(*argv: str, timeout: float = 90) -> dict:
+    """Run the compiled Device Hub accessibility helper and parse its JSON reply.
 
     Args:
-        *argv: ``dump`` or ``press <path-json>``.
+        *argv: A ``device_hub_ax`` command and its arguments (see the Swift file header).
+        timeout: Seconds before the helper is abandoned.
 
     Returns:
         The decoded reply.
 
     Raises:
-        DeviceHubError: Permission refusals, a missing window or a script failure.
+        DeviceHubError: No Accessibility permission, or the helper reported an error.
     """
-    import json
-    script = _DEVICE_HUB_JXA % {"depth": _HUB_MAX_DEPTH, "limit": _HUB_MAX_ELEMENTS,
-                                "bundle": DEVICE_HUB_BUNDLE_ID}
-    result = subprocess.run(["osascript", "-l", "JavaScript", "-e", script, *argv],
-                            capture_output=True, text=True, timeout=120, check=False)
-    error = (result.stderr or "").strip()
-    if result.returncode:
-        if "-1743" in error or "Not authorized to send Apple events" in error:
-            raise DeviceHubError(accessibility_instructions(responsible_process(), automation=True),
-                                 EXIT_NO_ACCESSIBILITY)
-        if "-1719" in error or "-25211" in error or "assistive access" in error:
-            raise DeviceHubError(accessibility_instructions(responsible_process()),
-                                 EXIT_NO_ACCESSIBILITY)
-        raise DeviceHubError(f"Device Hub script failed: {error}", EXIT_NO_CONTROL)
-    reply = json.loads(result.stdout or "{}")
-    if reply.get("error") == "no-window":
-        raise DeviceHubError(
-            "Device Hub has no open window. Open it (Xcode > Open Developer Tool > Device Hub), "
-            "select \"iPhone Duo (FST)\" so its pose buttons show, then re-run.", EXIT_NO_CONTROL)
+    binary = ensure_hub_helper()
+    try:
+        result = subprocess.run([str(binary), *map(str, argv)], capture_output=True, text=True,
+                                timeout=timeout, check=False)
+    except subprocess.TimeoutExpired as error:
+        raise DeviceHubError(f"Device Hub helper timed out after {timeout:.0f}s ({argv[0]})",
+                             EXIT_NO_CONTROL) from error
+    try:
+        reply = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        reply = {"error": (result.stderr or result.stdout).strip()[-400:]}
+    if result.returncode == EXIT_NO_ACCESSIBILITY or reply.get("error") == "not-trusted":
+        raise DeviceHubError(accessibility_instructions(responsible_process()), EXIT_NO_ACCESSIBILITY)
+    if result.returncode or "error" in reply:
+        raise DeviceHubError(f"Device Hub helper {argv[0]} failed: {reply.get('error')}", EXIT_NO_CONTROL)
     return reply
 
 
-def ensure_device_hub() -> None:
-    """Launch Device Hub if it is not running (it hosts the pose controls)."""
-    running = subprocess.run(["pgrep", "-f", str(DEVICE_HUB_APP / "Contents/MacOS/DeviceHub")],
-                             capture_output=True, check=False)
-    if running.returncode:
-        _run(["open", "-g", str(DEVICE_HUB_APP)], check=False)
-        time.sleep(4)
+def hub_helper_stale(source: Path, binary: Path) -> bool:
+    """Whether the Device Hub helper needs recompiling.
 
-
-def list_device_hub_controls() -> list[dict]:
-    """Dump Device Hub's window controls and menu items (for calibration).
+    Args:
+        source: ``tools/device_hub_ax.swift``.
+        binary: Cached executable.
 
     Returns:
-        ``dump`` entries.
+        True when the binary is missing or older than its source.
+    """
+    return not binary.exists() or binary.stat().st_mtime < source.stat().st_mtime
+
+
+def ensure_hub_helper() -> Path:
+    """Compile ``tools/device_hub_ax.swift`` when stale (no lock needed; a few seconds).
+
+    Returns:
+        Path to the helper executable.
 
     Raises:
-        DeviceHubError: No permission or no window.
+        DeviceHubError: The helper did not compile.
+    """
+    if hub_helper_stale(DEVICE_HUB_HELPER_SOURCE, DEVICE_HUB_HELPER):
+        DEVICE_HUB_HELPER.parent.mkdir(parents=True, exist_ok=True)
+        built = _run(["xcrun", "swiftc", "-O", str(DEVICE_HUB_HELPER_SOURCE), "-o", str(DEVICE_HUB_HELPER)],
+                     check=False, capture_output=True, text=True)
+        if built.returncode:
+            raise DeviceHubError(f"device_hub_ax.swift did not compile:\n{built.stderr[-2000:]}", EXIT_NO_CONTROL)
+    return DEVICE_HUB_HELPER
+
+
+def process_pids(executable: Path) -> list[int]:
+    """List the pids running an executable (``pgrep -f``; read-only).
+
+    Args:
+        executable: Absolute executable path.
+
+    Returns:
+        Matching pids, ascending.
+    """
+    found = subprocess.run(["pgrep", "-f", str(executable)], capture_output=True, text=True, check=False)
+    return sorted(int(token) for token in found.stdout.split() if token.isdigit())
+
+
+def hub_device_name(udid: str) -> str:
+    """Device Hub's display name for a simulator (its window title and sidebar row).
+
+    Args:
+        udid: Simulator UDID.
+
+    Returns:
+        The simulator's name.
+
+    Raises:
+        DeviceHubError: The UDID has no known Device Hub name.
+    """
+    name = HUB_DEVICE_NAMES.get(udid)
+    if name is None:
+        raise DeviceHubError(f"No Device Hub name is known for {udid}; add it to HUB_DEVICE_NAMES.",
+                             EXIT_NO_CONTROL)
+    return name
+
+
+def hub_window_shows(title: str, device_name: str) -> bool:
+    """Whether a Device Hub window title names this device (``<name> – iOS 27.1``).
+
+    Prefix matching on the full name plus the separator keeps another project's
+    devices (``iPhone Duo (HASS)``) and similarly named devices out.
+
+    Args:
+        title: ``AXTitle`` of a Device Hub window.
+        device_name: Simulator name.
+
+    Returns:
+        True for a window showing exactly this device.
+    """
+    return title == device_name or any(title.startswith(f"{device_name} {dash} ") for dash in ("–", "—", "-"))
+
+
+def rank_device_windows(windows: list[dict], device_name: str) -> list[dict]:
+    """Order the Device Hub windows showing a device, most usable first.
+
+    Visible standard windows first (minimized and dialog-style windows last), then
+    the app's main window, then the newest process (the one Xcode's menu activates).
+
+    Args:
+        windows: ``device_hub_ax windows`` entries (``pid``/``window``/``title``/
+            ``subrole``/``minimized``/``main``).
+        device_name: Simulator name.
+
+    Returns:
+        Matching windows in preference order (possibly empty).
+    """
+    matching = [entry for entry in windows if hub_window_shows(entry.get("title", ""), device_name)]
+    return sorted(matching, key=lambda entry: (bool(entry.get("minimized")),
+                                               entry.get("subrole") != "AXStandardWindow",
+                                               not entry.get("main"), -int(entry.get("pid", 0))))
+
+
+def has_pose_controls(controls: list[dict]) -> bool:
+    """Whether a window dump contains Device Hub's fold controls (the device is booted and shown).
+
+    Args:
+        controls: ``device_hub_ax dump`` entries.
+
+    Returns:
+        True when the folded and unfolded buttons are present.
+    """
+    return all(match_pose_control(action, controls) is not None for action in ("folded", "unfolded"))
+
+
+def pose_presses(action: str, controls: list[dict]) -> list[dict]:
+    """Controls to press, in order, to perform a pose action.
+
+    Device Hub 27.1 shows only a Rotate Right button, so ``rotate-left`` falls back
+    to three right rotations.
+
+    Args:
+        action: One of ``POSE_ACTIONS``.
+        controls: ``device_hub_ax dump`` entries of the device window.
+
+    Returns:
+        The controls to press (empty when nothing matches).
+    """
+    control = match_pose_control(action, controls)
+    if control is not None:
+        return [control]
+    if action == "rotate-left" and (right := match_pose_control("rotate-right", controls)) is not None:
+        return [right] * 3
+    return []
+
+
+def choose_hub_process(pids: list[int], frontmost: int | None) -> int:
+    """Pick the DeviceHub process to open a new window in.
+
+    Several DeviceHub processes can run at once (other projects keep their own).
+    The one Xcode's menu just activated is frontmost; otherwise take the newest.
+
+    Args:
+        pids: Running DeviceHub pids (non-empty).
+        frontmost: Pid of the focused application, if known.
+
+    Returns:
+        The chosen pid.
+    """
+    return frontmost if frontmost in pids else max(pids)
+
+
+@dataclass(frozen=True)
+class HubWindow:
+    """A Device Hub window showing the target simulator with its pose controls.
+
+    Attributes:
+        pid: DeviceHub process id.
+        window: Index in that process's ``AXWindows``.
+        controls: Its ``dump`` entries (paths relative to the window).
+    """
+
+    pid: int
+    window: int
+    controls: list
+
+
+def hub_windows() -> list[dict]:
+    """List every Device Hub window (all DeviceHub processes).
+
+    Returns:
+        ``device_hub_ax windows`` entries; empty when Device Hub is not running.
+    """
+    pids = process_pids(DEVICE_HUB_EXECUTABLE)
+    return _device_hub_script("windows", *pids).get("windows", []) if pids else []
+
+
+def find_device_hub_window(udid: str) -> HubWindow | None:
+    """Find an open Device Hub window showing this simulator's pose controls.
+
+    Args:
+        udid: Booted simulator.
+
+    Returns:
+        The window, or None.
+    """
+    name = hub_device_name(udid)
+    for entry in rank_device_windows(hub_windows(), name):
+        if entry.get("minimized"):
+            _device_hub_script("raise", entry["pid"], entry["window"])
+            time.sleep(1.0)
+        controls = _device_hub_script("dump", entry["pid"], entry["window"]).get("controls", [])
+        if has_pose_controls(controls):
+            return HubWindow(entry["pid"], entry["window"], controls)
+    return None
+
+
+def _wait_for(probe, timeout: float, interval: float = 1.0):
+    """Poll ``probe()`` until it returns something truthy or the timeout passes.
+
+    Args:
+        probe: Zero-argument callable.
+        timeout: Seconds.
+        interval: Seconds between probes.
+
+    Returns:
+        The first truthy result, or None.
+    """
+    deadline = time.time() + timeout
+    while True:
+        result = probe()
+        if result or time.time() > deadline:
+            return result or None
+        time.sleep(interval)
+
+
+def open_device_hub_window(udid: str, timeout: float = HUB_OPEN_TIMEOUT) -> HubWindow:
+    """Return a Device Hub window showing this simulator, opening one if needed.
+
+    Order: reuse an open window that shows the device; otherwise launch Xcode if it
+    is not running and choose Xcode > Open Developer Tool > Device Hub; if Device Hub
+    still shows no window for the device, open a *new* Device Hub window (File > New
+    Window) and select the device's sidebar row there, so windows showing other
+    projects' devices are never repurposed. Never touches Xcode documents.
+
+    Args:
+        udid: Booted simulator (``HUB_DEVICE_NAMES`` must name it).
+        timeout: Seconds allowed for each wait (Xcode launch, Device Hub window, selection).
+
+    Returns:
+        The window and its controls.
+
+    Raises:
+        DeviceHubError: Permission missing, or a step timed out (the message says which).
+    """
+    name = hub_device_name(udid)
+    if (found := find_device_hub_window(udid)) is not None:
+        return found
+    if not process_pids(XCODE_EXECUTABLE):
+        print("launching Xcode for Device Hub ...", file=sys.stderr)
+        _run(["open", "-g", "-a", str(XCODE_APP)], check=False)
+    xcode = _wait_for(lambda: process_pids(XCODE_EXECUTABLE), timeout)
+    if not xcode:
+        raise DeviceHubError(f"Xcode did not start within {timeout:.0f}s.", EXIT_NO_CONTROL)
+
+    def press_menu() -> bool:
+        try:
+            _device_hub_script("menu", xcode[0], *XCODE_DEVICE_HUB_MENU)
+            return True
+        except DeviceHubError as error:
+            if error.code == EXIT_NO_ACCESSIBILITY:
+                raise
+            return False  # Xcode's menu bar is not ready yet
+    print("choosing Xcode > Open Developer Tool > Device Hub ...", file=sys.stderr)
+    if not _wait_for(press_menu, timeout, interval=2.0):
+        raise DeviceHubError(f"Xcode's menu {' > '.join(XCODE_DEVICE_HUB_MENU)} was not available within "
+                             f"{timeout:.0f}s. Open Device Hub by hand and select \"{name}\".", EXIT_NO_CONTROL)
+    if not _wait_for(lambda: process_pids(DEVICE_HUB_EXECUTABLE), timeout):
+        raise DeviceHubError(f"Device Hub did not start within {timeout:.0f}s.", EXIT_NO_CONTROL)
+    if (found := _wait_for(lambda: find_device_hub_window(udid), 8.0, interval=2.0)) is not None:
+        return found
+
+    before = {(entry["pid"], entry["window"], entry.get("title")) for entry in hub_windows()}
+    try:
+        frontmost = _device_hub_script("frontmost").get("pid")
+    except DeviceHubError:
+        frontmost = None
+    pid = choose_hub_process(process_pids(DEVICE_HUB_EXECUTABLE), frontmost)
+    print(f"opening a new Device Hub window for \"{name}\" ...", file=sys.stderr)
+    _device_hub_script("menu", pid, *DEVICE_HUB_NEW_WINDOW_MENU)
+
+    def new_window() -> dict | None:
+        fresh = [entry for entry in hub_windows() if entry["pid"] == pid and not entry.get("minimized")
+                 and (entry["pid"], entry["window"], entry.get("title")) not in before]
+        return fresh[0] if fresh else None
+    created = _wait_for(new_window, timeout)
+    if created is None:
+        raise DeviceHubError(f"Device Hub opened no new window within {timeout:.0f}s "
+                             f"({' > '.join(DEVICE_HUB_NEW_WINDOW_MENU)}).", EXIT_NO_CONTROL)
+    _device_hub_script("select-row", pid, created["window"], f"TableRow.Device.{udid}")
+    found = _wait_for(lambda: find_device_hub_window(udid), timeout, interval=2.0)
+    if found is None:
+        raise DeviceHubError(f"Selected \"{name}\" in a new Device Hub window, but its pose controls did not "
+                             f"appear within {timeout:.0f}s (is the simulator booted?).", EXIT_NO_CONTROL)
+    return found
+
+
+def list_device_hub_controls(udid: str) -> list[dict]:
+    """Dump the device window's controls and Device Hub's menus (for calibration).
+
+    Args:
+        udid: Booted simulator.
+
+    Returns:
+        ``dump`` entries (window controls, then menu items with paths starting ``-1``).
+
+    Raises:
+        DeviceHubError: No permission, or no window could be opened.
     """
     if not accessibility_trusted():
         raise DeviceHubError(accessibility_instructions(responsible_process()), EXIT_NO_ACCESSIBILITY)
-    ensure_device_hub()
-    return _device_hub_script("dump").get("controls", [])
+    hub = open_device_hub_window(udid)
+    return _device_hub_script("dump", hub.pid, hub.window, "--menus").get("controls", [])
+
+
+def press_device_hub_menu(udid: str, titles: list[str]) -> None:
+    """Choose a Device Hub menu command for this simulator's window.
+
+    The window is raised and made main first, so the command acts on this device.
+
+    Args:
+        udid: Booted simulator.
+        titles: Menu path, e.g. ``["Device", "Keyboard", "Toggle Software Keyboard"]``.
+
+    Raises:
+        DeviceHubError: No permission, no window, or no such menu item.
+    """
+    hub = open_device_hub_window(udid)
+    _device_hub_script("raise", hub.pid, hub.window)
+    time.sleep(0.5)
+    _device_hub_script("menu", hub.pid, *titles)
 
 
 def _panel_digest(udid: str) -> str | None:
@@ -1001,7 +1301,7 @@ def _panel_digest(udid: str) -> str | None:
         return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
 
 
-def set_duo_pose(udid: str, action: str, settle: float = 12.0) -> str:
+def set_duo_pose(udid: str, action: str, settle: float = 15.0) -> str:
     """Press Device Hub's control for a pose action and verify the result.
 
     Call under the simulator lock with the Duo booted. Poses are verified with the
@@ -1011,7 +1311,7 @@ def set_duo_pose(udid: str, action: str, settle: float = 12.0) -> str:
     Args:
         udid: Booted iPhone Duo.
         action: One of ``POSE_ACTIONS``.
-        settle: Seconds to wait for the pose to take effect.
+        settle: Seconds to wait for each press to take effect.
 
     Returns:
         The verified panel classification after the action.
@@ -1019,36 +1319,120 @@ def set_duo_pose(udid: str, action: str, settle: float = 12.0) -> str:
     Raises:
         DeviceHubError: Missing permission, no matching control, or verification failure.
     """
-    import json
     expected = POSE_EXPECTED_CLASS.get(action)
     before = detect_pose(udid)
-    if expected is not None and before == expected and action != "half":
+    if action == "folded" and before == expected:
+        # Only "folded" is certain from the lit panel; half and flat both light the inner one.
         print(f"duo pose already {before}", file=sys.stderr)
         return before
-    controls = list_device_hub_controls()
-    control = match_pose_control(action, controls)
-    if control is None:
+    if not accessibility_trusted():
+        raise DeviceHubError(accessibility_instructions(responsible_process()), EXIT_NO_ACCESSIBILITY)
+    hub = open_device_hub_window(udid)
+    presses = pose_presses(action, hub.controls)
+    if not presses:
         raise DeviceHubError(
-            f"No Device Hub control matched '{action}' among {len(controls)} elements. "
+            f"No Device Hub control matched '{action}' among {len(hub.controls)} elements. "
             "Run `python3 tools/ios_sim.py pose --list-controls` and update _POSE_KEYWORDS.",
             EXIT_NO_CONTROL)
-    print(f"pressing Device Hub control {control.get('role')} "
-          f"'{control.get('title') or control.get('description')}' at {control['path']}", file=sys.stderr)
-    digest = _panel_digest(udid) if expected is None else None
-    _device_hub_script("press", json.dumps(control["path"]))
-    deadline = time.time() + settle
-    while True:
-        time.sleep(1.5)
-        actual = detect_pose(udid)
-        if expected is None:
-            if actual == before and _panel_digest(udid) not in (None, digest):
-                return actual
-        elif actual == expected:
-            return actual
-        if time.time() > deadline:
-            raise DeviceHubError(
-                f"Pressed the {action} control but the Duo reads {actual} "
-                f"(expected {expected or before + ' with a re-laid-out panel'}).", EXIT_POSE_MISMATCH)
+    actual = before
+    for control in presses:
+        print(f"pressing Device Hub control {control.get('role')} "
+              f"'{control.get('title') or control.get('description')}' at {control['path']}", file=sys.stderr)
+        digest = _panel_digest(udid) if expected is None else None
+        _device_hub_script("press", hub.pid, hub.window, *control["path"])
+        deadline = time.time() + settle
+        while True:
+            time.sleep(1.5)
+            actual = detect_pose(udid)
+            if expected is None:
+                if actual == before and _panel_digest(udid) not in (None, digest):
+                    break
+            elif actual == expected:
+                break
+            if time.time() > deadline:
+                raise DeviceHubError(
+                    f"Pressed the {action} control but the Duo reads {actual} "
+                    f"(expected {expected or before + ' with a re-laid-out panel'}).", EXIT_POSE_MISMATCH)
+    if action == "half":
+        time.sleep(2.0)  # the fold region and hinge state settle after the panel lights
+    return actual
+
+# endregion
+
+# region Driver host bridge
+
+
+def run_host_command(udid: str, command: str, values: list[str]) -> None:
+    """Run one ``host:`` driver-step command. Call under the simulator lock.
+
+    Args:
+        udid: The simulator the drive runs on.
+        command: ``pose``, ``capture`` or ``menu`` (see ``parse_host_command``).
+        values: Its arguments.
+
+    Raises:
+        DeviceHubError: A Device Hub step failed.
+        RuntimeError: A capture failed.
+    """
+    if command == "pose":
+        set_duo_pose(udid, values[0])
+    elif command == "menu":
+        press_device_hub_menu(udid, [part.strip() for part in values[0].split("/")])
+    elif command == "capture":
+        panel, out = values
+        display = DUO_PANELS[POSE_PANEL.get(detect_pose(udid), "outer")] if panel == "auto" else DUO_PANELS[panel]
+        Path(out).parent.mkdir(parents=True, exist_ok=True)
+        result = _run(["xcrun", "simctl", "io", udid, "screenshot", f"--display={display}", out],
+                      check=False, capture_output=True)
+        if result.returncode:
+            raise RuntimeError(f"screenshot of {panel} failed: {result.stderr.decode(errors='replace')[-300:]}")
+
+
+class HostBridge:
+    """Serve ``host:`` driver steps while ``xcodebuild`` runs the driver test.
+
+    The test writes ``<n>.request`` files into ``directory`` (``FST_DRIVER_HOST_DIR``);
+    a background thread runs each command and answers ``<n>.done`` with ``ok`` or
+    ``error: <message>``. Use only while holding the simulator lock.
+
+    Args:
+        udid: Simulator under test.
+        directory: Handshake directory shared with the test process.
+    """
+
+    def __init__(self, udid: str, directory: Path) -> None:
+        self.udid = udid
+        self.directory = directory
+        self.stop = threading.Event()
+        self.thread = threading.Thread(target=self._serve, name="fst-host-bridge", daemon=True)
+
+    def __enter__(self) -> "HostBridge":
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self.stop.set()
+        self.thread.join(timeout=5)
+
+    def _serve(self) -> None:
+        handled: set[str] = set()
+        while not self.stop.is_set():
+            for request in sorted(self.directory.glob("*.request")):
+                if request.name in handled:
+                    continue
+                handled.add(request.name)
+                text = request.read_text(encoding="utf-8").strip()
+                print(f"host step: {text}", file=sys.stderr)
+                try:
+                    run_host_command(self.udid, *parse_host_command(text))
+                    reply = "ok"
+                except (DeviceHubError, RuntimeError, ValueError, OSError) as error:
+                    reply = f"error: {error}"
+                    print(f"host step failed: {error}", file=sys.stderr)
+                done = request.with_suffix(".done")
+                done.with_suffix(".tmp").write_text(reply, encoding="utf-8")
+                done.with_suffix(".tmp").rename(done)
+            self.stop.wait(0.25)
 
 # endregion
 
@@ -1163,6 +1547,13 @@ def cmd_drive(args: argparse.Namespace) -> int:
     except ValueError as error:
         print(error, file=sys.stderr)
         return 2
+    try:
+        host_steps = [parse_host_command(step.partition(":")[2]) for step in steps if step.startswith("host:")]
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 2
+    if code := scripting_preflight(args.set_pose or any(cmd in ("pose", "menu") for cmd, _ in host_steps)):
+        return code
     udid = resolve_device(args.device)
     derived = driver_derived_data()
 
@@ -1190,6 +1581,8 @@ def cmd_drive(args: argparse.Namespace) -> int:
 
     launch_env = _env()
     launch_env["TEST_RUNNER_FST_DRIVER_STEPS_FILE"] = str(steps_path)
+    host_dir = Path(tempfile.mkdtemp(prefix="fst-driver-host-"))
+    launch_env["TEST_RUNNER_FST_DRIVER_HOST_DIR"] = str(host_dir)
     if args.tab:
         launch_env["TEST_RUNNER_FST_DEBUG_TAB"] = args.tab
     if args.route:
@@ -1229,7 +1622,8 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 "test-without-building", "-quiet",
             ]
             print("+", " ".join(cmd), file=sys.stderr)
-            with open(log_path, "w") as log, ScreenRecording(udid, args.record, args.display):
+            with open(log_path, "w") as log, ScreenRecording(udid, args.record, args.display), \
+                    HostBridge(udid, host_dir):
                 try:
                     process = subprocess.run(
                         cmd, cwd=APPLE_DIR, env=launch_env,
@@ -1244,6 +1638,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
                     log.write(f"\nTIMEOUT after {args.timeout}s; killed.\n")
     finally:
         steps_path.unlink(missing_ok=True)
+        shutil.rmtree(host_dir, ignore_errors=True)
     elapsed = time.time() - start
 
     if process.returncode:
@@ -1471,41 +1866,40 @@ def cmd_pose(args: argparse.Namespace) -> int:
 
     Without flags, prints ``folded``/``unfolded``/``unknown`` from the lit panel.
     ``--set`` presses Device Hub's fold/unfold/partial/rotate control by UI scripting
-    and verifies the result; ``--list-controls`` prints Device Hub's accessibility
-    controls (to calibrate ``_POSE_KEYWORDS``). Both need the macOS Accessibility
-    permission for the responsible app; without it they print exactly which app to
-    allow and exit 4. This tool never changes privacy settings itself.
+    and verifies the result; ``--menu`` chooses a Device Hub menu command for the
+    device (e.g. ``Device/Keyboard/Toggle Software Keyboard``); ``--list-controls``
+    prints the device window's controls and Device Hub's menus (to calibrate
+    ``_POSE_KEYWORDS``). Each opens Device Hub (via Xcode's menu) and the device's
+    window when missing. They need the macOS Accessibility permission for the
+    responsible app; without it they print exactly which app to allow and exit 4.
+    This tool never changes privacy settings itself.
 
     Args:
-        args: Parsed CLI arguments (device, set, list_controls).
+        args: Parsed CLI arguments (device, set, menu, list_controls).
 
     Returns:
         0 on success; 1 unknown pose; 3 pose not reached; 4 no permission; 5 no control.
     """
-    if args.list_controls:
-        try:
-            controls = list_device_hub_controls()
-        except DeviceHubError as error:
-            print(error, file=sys.stderr)
-            return error.code
-        for control in controls:
-            text = " | ".join(str(control.get(key)) for key in
-                              ("role", "subrole", "title", "description", "help", "identifier"))
-            print(f"{control['kind']:7} {control['path']}  {text}")
-        return 0
-
-    if code := scripting_preflight(bool(args.set)):
+    if code := scripting_preflight(bool(args.set or args.menu or args.list_controls)):
         return code
 
     def action(udid: str) -> int:
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
-        if args.set:
-            try:
+        try:
+            if args.list_controls:
+                for control in list_device_hub_controls(udid):
+                    text = " | ".join(str(control.get(key) or "") for key in
+                                      ("role", "subrole", "title", "description", "help", "identifier"))
+                    print(f"{control['kind']:7} {control['path']}  {text}")
+                return 0
+            if args.set:
                 set_duo_pose(udid, args.set)
-            except DeviceHubError as error:
-                print(error, file=sys.stderr)
-                return error.code
+            if args.menu:
+                press_device_hub_menu(udid, [part.strip() for part in args.menu.split("/")])
+        except DeviceHubError as error:
+            print(error, file=sys.stderr)
+            return error.code
         pose = detect_pose(udid)
         print(pose)
         return 0 if pose != "unknown" else 1
@@ -1638,8 +2032,10 @@ def main(argv: list[str] | None = None) -> int:
     pose.add_argument("--device", default="duo", help=f"alias {sorted(DEVICES)} or UDID")
     pose.add_argument("--set", choices=POSE_ACTIONS,
                       help="press Device Hub's control for this pose/rotation and verify it (needs Accessibility)")
+    pose.add_argument("--menu", help="choose a Device Hub menu command for the device, e.g. "
+                                     "'Device/Keyboard/Toggle Software Keyboard' (needs Accessibility)")
     pose.add_argument("--list-controls", action="store_true",
-                      help="print Device Hub's accessibility controls (calibrates the pose keywords)")
+                      help="print Device Hub's device-window controls and menus (calibrates the pose keywords)")
     pose.set_defaults(func=cmd_pose)
 
     shutdown = sub.add_parser("shutdown", help="shut down one product simulator (serialized)")

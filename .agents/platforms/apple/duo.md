@@ -9,7 +9,7 @@ Sources: Xcode 27.1 SDK headers/swiftinterfaces (`UIHinge.h`, `UIVerticalBarEdge
 | | Outer (cover) display | Inner (unfolding) display |
 |---|---|---|
 | Panel / `simctl --display` | `primary`, 1398×2034 px @3x | `primary-1`, 2007×2853 px @3x, `nativeRotation` 270 |
-| Window (points) | 466×678 portrait / 678×466 landscape (measured: portrait) | 951×669 landscape / 669×951 portrait (from the profile; not yet captured) |
+| Window (points) | 466×678 portrait / 678×466 landscape (measured: portrait) | 951×669 landscape / 669×951 portrait (captured live 2026-10-04: framebuffer 2853×2007 / 2007×2853 px) |
 | Size class | compact width | regular width |
 | Idiom | `.phone` (`IsLargeFormatPhone`, Touch ID, no Face ID) | `.phone` — **`userInterfaceIdiom` cannot tell the displays apart** |
 | Camera | Front camera in a corner, always visible; grows into the Dynamic Island for Live Activities (`occlusion` region) | Under-display, occludes only while active |
@@ -51,16 +51,20 @@ The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../desi
 
 | Control | How | Scriptable? |
 |---|---|---|
-| Open / close / partially fold / rotate | Device Hub (Xcode ▸ Open Developer Tool ▸ Device Hub, or `Xcode.app/Contents/Applications/DeviceHub.app`): pose buttons under the device; ⌥-click shows a hinge-angle slider. An older Device Hub lacks the pose widget | **Only by UI scripting** (operator-approved 2026-09-28): `ios_sim.py pose --set folded\|unfolded\|half\|rotate-left\|rotate-right`, `shot --set-pose/--rotate`. No `simctl` subcommand or `XCUIDevice` API; Device Hub sends private vendor HID events. Needs the operator's Accessibility grant for the responsible app ([simulator-driver.md](../../workflow/simulator-driver.md#accessibility-permission-ui-scripting)); agents never change it |
+| Open / close / partially fold / rotate | Device Hub (Xcode ▸ Open Developer Tool ▸ Device Hub, or `Xcode.app/Contents/Applications/DeviceHub.app`): buttons under the device, described **Rotate Right**, **Closed**, **Book** (partially open) and **Open** (Xcode 27.1; no Rotate Left); ⌥-click shows a hinge-angle slider | **Only by UI scripting** (operator-approved 2026-09-28; Accessibility granted 2026-10-04): `ios_sim.py pose --set folded\|unfolded\|half\|rotate-left\|rotate-right`, `shot --set-pose/--rotate`, and mid-run `drive` steps `host:pose …`. No `simctl` subcommand or `XCUIDevice` API; Device Hub sends private vendor HID events. The tool opens Device Hub and the device's window itself when missing (Xcode menu, then File ▸ New Window + the device's sidebar row) and presses through the Accessibility API (`tools/device_hub_ax.swift`): System Events sees DeviceHub with pid 0 and no windows on macOS 27 ([simulator-driver.md](../../workflow/simulator-driver.md#duo-poses-and-panels)) |
 | `XCUIDevice.shared.orientation` / driver `rotate:` | Ignored on the outer display: window stays 466×678 portrait in all four orientations (re-measured 2026-09-28). Not the orientation mask: it still stays portrait with every orientation allowed (2026-10-02). Rotation needs Device Hub | Not a rotation |
 | `simctl io … screenConfig power off` | Blanks a panel; **not** a pose | — |
 | Which panel is lit | `python3 tools/ios_sim.py pose` (screenshots both panels, unlit = black) | Yes (read-only) |
 | Capture a panel | `shot --device duo --display outer\|inner\|auto`; `--pose folded\|unfolded\|half` fails with exit 3 and instructions if Device Hub is in another pose (`--set-pose` fixes it by scripting) | Yes |
 | Preview a portrait inner pose | `--env FST_DEBUG_DUO_POSE=half-portrait\|unfolded-portrait` (Debug builds): replaces only the hinge and fold (a 24 pt division across the middle for `half-portrait`), keeping the real window, size class and bar. Previews the portrait inner pose at outer-display size (layout evidence, not an inner-display capture); with dual-source shelved it shows the normal layout | Yes |
 | Record a transition | `drive --record file.mov --display outer\|inner` (`simctl io recordVideo` for the run) | Yes |
+| Fold/unfold with the app running | `drive` steps `host:pose unfolded`, `host:capture inner <path>`, `host:menu Device/Keyboard/Toggle Software Keyboard`: the host runs them mid-script, the app keeps its state | Yes |
+| Hardware keyboard | Device Hub has no "Connect Hardware Keyboard" item; **Device › Keyboard › Toggle Software Keyboard** hides the on-screen keyboard as a connected hardware keyboard would (`pose --menu`, `host:menu`) | Yes |
 | After a Duo session | `python3 tools/ios_sim.py shutdown --device duo` (one product simulator at a time) | Yes |
 
-- The Duo boots **closed** (outer display lit, inner black), so a pose set in Device Hub is lost whenever another lane's `boot_exclusive` shuts the Duo down; `--set-pose` re-applies it inside the capture's own lock hold. TODO(orchestrator): confirm a pose survives an app relaunch alone.
+- The Duo boots **closed** and in its default orientation, so a pose or rotation set in Device Hub is lost whenever another lane's `boot_exclusive` shuts the Duo down (observed 2026-10-04); `--set-pose`/`--rotate` re-apply it inside the capture's own lock hold. A pose survives an app relaunch (`shot` after `pose --set`, same boot).
+- Device Hub's device window also exposes the running app's accessibility elements (an `iOSContentGroup`); pose matching ignores that subtree, since app rows such as "… Full combo …" once matched the Open button.
+- Rotate Right from the default orientation turns the inner display portrait (669×951); the inner display opens landscape (951×669).
 - The driver's `back` step taps the system `BackButton` first: on Duo it lives in the vertical bar, not a navigation bar.
 - Camera transitions between displays cannot be tested in Simulator (Apple).
 
