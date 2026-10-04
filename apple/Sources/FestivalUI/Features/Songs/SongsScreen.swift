@@ -460,13 +460,18 @@ struct SongsScreen: View {
             text: $searchText, placement: Self.filterFieldPlacement,
             prompt: Text("Filter Songs")
         )
-        // Sort, Filter and Quick Links, then the account group, in the navigation bar
-        // (issue #92); Sort and Filter fold into one menu where the bar is too narrow.
+        // Sort, Filter and Quick Links, then the account group: in the iPhone tab-bar
+        // accessory on iOS 26.1+, the navigation bar elsewhere (issue #92); Sort and
+        // Filter fold into one menu where there is too little room.
         .modifier(SongsPageTools(
             session: session, quickLinks: quickLinks,
             canPresentFilter: canPresentFilter,
             sortCustomized: !(sortMode == .title && sortAscending),
             filterActive: generalFilterActive || appliedPlayerScoreFilter?.isActive == true,
+            stateToken: [
+                sortMode.label, String(sortAscending), sortPausedMessage ?? "",
+                filterAccessibilityValue,
+            ],
             sortAction: sortAction, filterAction: filterAction,
             presentSort: { sortPresented = true },
             presentFilter: { filterPresented = true }
@@ -1898,13 +1903,16 @@ private struct RowMaskShape: Shape {
     }
 }
 
-/// Songs' page tools in the persistent top bar (issue #92): Sort, Filter and Quick Links
-/// in one Liquid Glass group, then the account group (``FestivalRootTrailingItems``).
+/// Songs' page tools (issue #92): Sort, Filter and Quick Links, then the account group.
 ///
-/// Where the bar is too narrow (``SongsToolbarFold``) Sort and Filter fold into one
-/// "Sort and Filter" menu, so Quick Links, Notifications and Profile stay visible
-/// (HIG Toolbars, iOS: "Put only essential actions in the main area; use More for the
-/// rest"). It measures its own width, so a width change re-renders only this toolbar.
+/// On iOS 26.1+ iPhone they sit in the tab-bar accessory (``PageToolsRegistry``); Sort
+/// and Filter fold into one "Sort and Filter" menu when the accessory is too narrow for
+/// every item (``PageToolsAccessoryFit``: inline beside the minimized tab bar, small
+/// iPhones, accessibility text sizes). Elsewhere they are navigation-bar items, folding
+/// by ``SongsToolbarFold``. Either way Quick Links, Notifications and Profile stay
+/// visible (HIG Toolbars, iOS: "Put only essential actions in the main area; use More
+/// for the rest"). It measures its own width, so a width change re-renders only this
+/// modifier.
 private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
     let session: FestivalSession
     let quickLinks: QuickLinksController
@@ -1913,12 +1921,16 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
     let sortCustomized: Bool
     /// A filter is applied (the folded menu is tinted gold, like Filter).
     let filterActive: Bool
+    /// Every value the Sort and Filter buttons display (accessibility values), so the
+    /// accessory re-registers them when one changes.
+    let stateToken: [String]
     let sortAction: SortAction
     let filterAction: FilterAction
     let presentSort: () -> Void
     let presentFilter: () -> Void
     @Environment(\.deviceLayout) private var layout
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.pageToolsRegistry) private var pageTools
     @State private var width: CGFloat = 0
 
     private var folds: Bool {
@@ -1927,23 +1939,59 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
         )
     }
 
+    /// Whether Sort and Filter fold into one menu in the tab-bar accessory.
+    private func foldsInAccessory(_ registry: PageToolsRegistry) -> Bool {
+        PageToolsAccessoryFit.folds(
+            width: registry.accessoryWidth,
+            pageTools: (canPresentFilter ? 2 : 1) + (quickLinks.isAvailable ? 1 : 0),
+            accountItems: session.selectedPlayer == nil ? 1 : 2,
+            dynamicTypeSize: dynamicTypeSize
+        )
+    }
+
     func body(content: Content) -> some View {
+        let accessoryFolds = pageTools.map(foldsInAccessory) ?? false
+        let highlighted = sortCustomized || filterActive
         content
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
+            .festivalPageTool(
+                token: ["fold", String(highlighted), String(canPresentFilter)],
+                order: PageToolOrder.primary, isEnabled: accessoryFolds
+            ) {
+                SongsSortFilterMenu(
+                    canPresentFilter: canPresentFilter, highlighted: highlighted,
+                    presentSort: presentSort, presentFilter: presentFilter
+                )
+            }
+            .festivalPageTool(
+                token: stateToken + [String(sortCustomized)],
+                order: PageToolOrder.primary, isEnabled: !accessoryFolds
+            ) {
+                sortAction
+            }
+            .festivalPageTool(
+                token: stateToken + [String(filterActive)],
+                order: PageToolOrder.secondary, isEnabled: !accessoryFolds && canPresentFilter
+            ) {
+                filterAction
+            }
             .toolbar {
-                if folds {
-                    ToolbarItem(placement: .festivalPageAction) {
-                        SongsSortFilterMenu(
-                            canPresentFilter: canPresentFilter,
-                            highlighted: sortCustomized || filterActive,
-                            presentSort: presentSort, presentFilter: presentFilter
-                        )
-                    }
-                } else {
-                    ToolbarItemGroup(placement: .festivalPageAction) {
-                        sortAction
-                        if canPresentFilter {
-                            filterAction
+                // With the tab-bar accessory, Sort and Filter are there instead.
+                if pageTools == nil {
+                    if folds {
+                        ToolbarItem(placement: .festivalPageAction) {
+                            SongsSortFilterMenu(
+                                canPresentFilter: canPresentFilter,
+                                highlighted: highlighted,
+                                presentSort: presentSort, presentFilter: presentFilter
+                            )
+                        }
+                    } else {
+                        ToolbarItemGroup(placement: .festivalPageAction) {
+                            sortAction
+                            if canPresentFilter {
+                                filterAction
+                            }
                         }
                     }
                 }
@@ -1966,7 +2014,7 @@ private struct SongsSortFilterMenu: View {
     let presentFilter: () -> Void
 
     var body: some View {
-        Menu {
+        PageToolMenu("Sort and Filter", choices: choices) {
             Button(action: presentSort) {
                 Label("Sort…", systemImage: "arrow.up.arrow.down")
             }
@@ -1984,6 +2032,24 @@ private struct SongsSortFilterMenu: View {
         .tint(highlighted ? BrandTokens.gold : BrandTokens.accentBlue)
         .accessibilityLabel("Sort and Filter")
         .accessibilityIdentifier("fst.songs.tools")
+    }
+
+    /// Sort and Filter for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        var choices = [
+            PageToolMenuChoice(
+                id: "fst.songs.tools.sort",
+                label: AnyView(Label("Sort…", systemImage: "arrow.up.arrow.down")), action: presentSort
+            )
+        ]
+        if canPresentFilter {
+            choices.append(PageToolMenuChoice(
+                id: "fst.songs.tools.filter",
+                label: AnyView(Label("Filter…", systemImage: "line.3.horizontal.decrease")),
+                action: presentFilter
+            ))
+        }
+        return choices
     }
 }
 

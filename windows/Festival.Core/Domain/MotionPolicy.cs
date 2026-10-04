@@ -50,6 +50,27 @@ public static class FadeInTiming
 }
 #endregion
 
+#region Pinned row reveal
+/// <summary>
+/// When the selected player's pinned leaderboard row (the footer "your score" row) fades in (issue #295). It shares the
+/// rows' load gate, so it is hidden while a page loads and enters with the board's first row; a row that only arrives
+/// after the board is showing (the score index loaded late) fades in on its own instead of popping in.
+/// </summary>
+public static class PinnedRowReveal
+{
+    /// <summary>Delay of the pinned row's <c>fadeInUp</c> when the board reveals: the first row's stagger delay.</summary>
+    public static TimeSpan RevealDelay => FadeInTiming.StaggerDelay(0, FadeInTiming.MaxStaggered)!.Value;
+
+    /// <summary>Whether a pinned row change should fade the row in by itself, outside a board reveal.</summary>
+    /// <param name="hadRow">Whether a pinned row was shown before the change.</param>
+    /// <param name="hasRow">Whether a pinned row is shown after the change.</param>
+    /// <param name="phase">Board load phase at the change.</param>
+    /// <returns><see langword="true"/> only for a row that newly appears over an already revealed board.</returns>
+    public static bool FadesOnArrival(bool hadRow, bool hasRow, LoadSwapPhase phase) =>
+        !hadRow && hasRow && phase == LoadSwapPhase.ContentIn;
+}
+#endregion
+
 #region Motion switches
 /// <summary>Whether decorative motion (fade-ins, pulses, marquees) may run.</summary>
 public static class MotionSwitch

@@ -614,6 +614,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertlevel":
                 AssertVertical(window, step, verb == "assertbelow");
                 break;
+            case "assertgap":
+                AssertGap(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -987,6 +990,25 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"vertical centres {a:0.#} vs {b:0.#} px are not {(below ? "below" : "level")} ({(string)step["arg"]!})");
         response["vertical"] ??= new JsonArray();
         response["vertical"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>
+    /// Fails unless the vertical gap from the first element's bottom edge to the second's top edge is
+    /// <c>epx</c> effective pixels (window DPI), within 1 epx: list-end and footer spacing checks.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c>, <c>other</c> and <c>epx</c>.</param>
+    private void AssertGap(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var gap = (second.Top - first.Bottom) / scale;
+        var expected = (double)step["epx"]!;
+        if (Math.Abs(gap - expected) > 1)
+            throw new InvalidOperationException($"vertical gap {gap:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
+        response["gaps"] ??= new JsonArray();
+        response["gaps"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(gap, 1) });
     }
 
     #endregion

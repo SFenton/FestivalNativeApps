@@ -2,7 +2,7 @@
     x:Class="Festival.App.Controls.ServiceStatusView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- Shared failed-read status (service-status control): heading, message, countdown, Retry. -->
+    <!-- Shared failed-read status (service-status control): heading, message, countdown, optional Retry. -->
     <Border Style="{StaticResource FSTCardStyle}" MaxWidth="480" HorizontalAlignment="Center">
         <StackPanel Spacing="12">
             <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}"
@@ -12,9 +12,11 @@
                        AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
                        AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}"
+                       Visibility="{x:Bind CountdownVisibility(ShowsRetry, Status.SecondsRemaining), Mode=OneWay}"
                        AutomationProperties.AutomationId="fst.service-status.countdown" />
             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}"
                     Style="{StaticResource AccentButtonStyle}" MinWidth="120" MinHeight="36"
+                    Visibility="{x:Bind ShowsRetry, Mode=OneWay}"
                     AutomationProperties.AutomationId="fst.service-status.retry" />
         </StackPanel>
     </Border>

@@ -31,6 +31,8 @@ struct FullRankingsScreen: View {
     /// query on `FullRankingsPage.tsx`.
     @State private var spotlightState: RankLoadState<PlayerInstrumentRankingPayload> = .loading
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     private struct SpotlightKey: Equatable {
         let instrument: Instrument
@@ -162,7 +164,7 @@ struct FullRankingsScreen: View {
                     instrumentMenu(showsTitle: false)
                     RankByMenu(selection: $rankBy)
                 }
-            } else {
+            } else if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) {
                     HStack(spacing: 4) {
                         RankByMenu(selection: $rankBy)
@@ -179,6 +181,10 @@ struct FullRankingsScreen: View {
                 }
             }
             #endif
+        }
+        // iPhone tab-bar accessory (issue #92): Rank By.
+        .festivalPageTool(token: rankBy, order: PageToolOrder.primary) {
+            RankByMenu(selection: $rankBy)
         }
         .onChange(of: instrument) { _, _ in
             page = 1

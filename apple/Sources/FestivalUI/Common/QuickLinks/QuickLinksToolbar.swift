@@ -12,6 +12,9 @@ import FestivalDesign
 public struct QuickLinksToolbarItem: ToolbarContent {
     private let controller: QuickLinksController
     private let placement: ToolbarItemPlacement
+    /// Set where Quick Links sits in the iPhone tab-bar accessory instead (registered by
+    /// the `.quickLinks` container, issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Create the toolbar item.
     ///
@@ -27,6 +30,12 @@ public struct QuickLinksToolbarItem: ToolbarContent {
     public static var defaultPlacement: ToolbarItemPlacement { .festivalPageAction }
 
     public var body: some ToolbarContent {
+        if pageTools == nil {
+            item
+        }
+    }
+
+    @ToolbarContentBuilder private var item: some ToolbarContent {
         // Default priority in the iPhone Duo vertical bar: the bell and profile stay
         // visible first (issue #92, ``RootChromeRailItem``).
         #if os(iOS)
@@ -63,7 +72,7 @@ public struct QuickLinksMenu: View {
 
     public var body: some View {
         if controller.isAvailable {
-            Menu {
+            PageToolMenu(controller.title, choices: choices) {
                 Section(controller.title) {
                     Picker(controller.title, selection: selection) {
                         ForEach(controller.sections) { section in
@@ -91,6 +100,17 @@ public struct QuickLinksMenu: View {
 
     /// Reading returns the active section; writing requests a jump (re-selecting the
     /// active section jumps back to its start).
+    /// The sections for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        let controller = controller
+        return controller.sections.map { section in
+            PageToolMenuChoice(
+                id: "fst.quick-links.item.\(section.id)", label: AnyView(QuickLinkLabel(section: section)),
+                isSelected: section.id == controller.activeID, action: { controller.jump(to: section.id) }
+            )
+        }
+    }
+
     private var selection: Binding<String?> {
         Binding(
             get: { controller.activeID },

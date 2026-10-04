@@ -49,6 +49,24 @@ public sealed class MotionPolicyTests
         Assert.False(FadeInTiming.WithinWindow(TimeSpan.FromMilliseconds(-1)));
     }
 
+    [Fact]
+    public void PinnedRow_RevealsWithTheFirstRow()
+    {
+        Assert.Equal(FadeInTiming.StaggerDelay(0, 1), PinnedRowReveal.RevealDelay);
+        Assert.Equal(125, PinnedRowReveal.RevealDelay.TotalMilliseconds);
+    }
+
+    [Theory]
+    [InlineData(false, true, LoadSwapPhase.ContentIn, true)]
+    [InlineData(true, true, LoadSwapPhase.ContentIn, false)]
+    [InlineData(true, false, LoadSwapPhase.ContentIn, false)]
+    [InlineData(false, false, LoadSwapPhase.ContentIn, false)]
+    [InlineData(false, true, LoadSwapPhase.Loading, false)]
+    [InlineData(false, true, LoadSwapPhase.SpinnerOut, false)]
+    [InlineData(false, true, LoadSwapPhase.ContentOut, false)]
+    public void PinnedRow_FadesOnItsOwnOnlyWhenItArrivesOverAShownBoard(bool had, bool has, LoadSwapPhase phase, bool expected) =>
+        Assert.Equal(expected, PinnedRowReveal.FadesOnArrival(had, has, phase));
+
     [Theory]
     [InlineData(true, false, false, true)]
     [InlineData(false, false, false, false)]
