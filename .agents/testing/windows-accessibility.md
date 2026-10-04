@@ -163,6 +163,17 @@ Fixed:
 - The gold ring kept its old brush after a contrast-theme switch.
 - Profile: the instrument tiles were focusable siblings of the Overview tiles with the same names ("Songs Played: 2", Axe `SiblingUniqueAndFocusable` at wide, display 100%/150%); each instrument section is now a named group.
 
+## Profile Selection validation (issue #226, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --tabs 12 --fixture tools/windows/profile_fixture.py` with `journeys/profile-selection*.json` (17 states, reload, unpinned and 4 keyboard pages). Every page ran at medium. Seven pages ran at compact, wide, maximized and both snaps; Desert, Night sky, light and dark theme, and display 100%/150% ran at medium; text 200% at compact. Axe found 0 errors except the item 8 PopupHost finding on player pages reached through the flyout (`viewed`, `view-selected` at text 200%; `reload`). Live public-service screenshots and a recording (SFentonX). Per-configuration results: [profile-selection/windows.md](../controls/profile-selection/windows.md#validation-issue-226-2026-10-04).
+
+Fixed:
+- Narrator stayed silent when a profile search settled. The search box now announces "N players", "No players found." or the failure text while the flyout is open.
+- Result rows were unnamed record containers; each `ListViewItem` is now named after the player (`fst.profile.result.<accountId>`).
+- An open player page kept **Select Profile** after a newer publication was observed elsewhere; it now swaps to the "Published scores changed" notice.
+
+Seen: one Desert `results` capture rendered without the contrast theme; the re-run rendered Desert. Check screenshots, not only the PASS line, after a theme switch.
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
@@ -172,7 +183,7 @@ Fixed:
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
 7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
 
 ## Settings validation (issue #214, 2026-10-03)
