@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Compete's songs column yields to names on narrow cards (issue #38), measured with real text. */
+/** Songs columns yield to names on narrow Compete (issue #38) and Leaderboards (issue #114) cards, measured with real text. */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -75,5 +75,30 @@ class RankingColumnsUiTest {
         assertFalse(longUnknown.showSongs)
         // Other rankings (no name fitting) keep songs at any width.
         assertTrue(longUnfitted.showSongs)
+    }
+
+    @Test
+    fun overviewCardsDropSongsOnlyWhenNamesWouldCollapse() {
+        val long = rows("Sixteen Chars Nm", "Short", "Another LongName")
+        val results = arrayOfNulls<RankingColumns>(4)
+        rule.setContent {
+            FestivalTheme {
+                listOf(phoneRow, 300f, Float.NaN, 350f).forEachIndexed { index, width ->
+                    results[index] = rememberAccountColumns(long, RankingMetric.TotalScore, rowWidth = width)
+                }
+            }
+        }
+        rule.waitForIdle()
+        val (phone, hinge, unknown, grid) = results.map { requireNotNull(it) }
+        // A portrait phone card keeps songs and truncates long names (web `colName`).
+        assertTrue(phone.showSongs)
+        // So does a ~350 dp two-column grid card (FST_Resizable foldable preset), even with 9-digit scores.
+        assertTrue(grid.showSongs)
+        // A ~300 dp card beside a Book Fold hinge (issue #114) would squeeze names to "…": songs go.
+        assertFalse(hinge.showSongs)
+        assertEquals(0.dp, hinge.songs)
+        assertEquals(phone.rating, hinge.rating)
+        // Unmeasured cards keep songs until the first layout.
+        assertTrue(unknown.showSongs)
     }
 }

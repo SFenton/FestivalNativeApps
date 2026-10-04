@@ -17,6 +17,12 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     /// <summary>Smallest column width in effective pixels.</summary>
     public double MinColumnWidth { get; set; } = 360;
 
+    /// <summary>
+    /// Multiplies <see cref="MinColumnWidth"/> by the Windows text size (issue #207), so cards whose rows grow with text
+    /// get fewer, wider columns instead of squeezing names out.
+    /// </summary>
+    public bool ScaleWithText { get; set; }
+
     /// <summary>Largest number of columns.</summary>
     public int MaxColumns { get; set; } = 4;
 
@@ -67,7 +73,10 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     /// <param name="width">Available width.</param>
     /// <returns>1…<see cref="MaxColumns"/>.</returns>
     private int Columns(double width) =>
-        Math.Clamp((int)Math.Floor((width + Spacing) / (MinColumnWidth + Spacing)), 1, Math.Max(1, MaxColumns));
+        Math.Clamp((int)Math.Floor((width + Spacing) / (EffectiveMinColumnWidth + Spacing)), 1, Math.Max(1, MaxColumns));
+
+    /// <summary>Minimum column width after text scaling.</summary>
+    private double EffectiveMinColumnWidth => ScaleWithText ? MinColumnWidth * TextScaleLayout.Factor : MinColumnWidth;
 
     /// <summary>Equal column width.</summary>
     /// <param name="width">Available width.</param>

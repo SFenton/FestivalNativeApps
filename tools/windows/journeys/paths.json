@@ -1,0 +1,347 @@
+[
+  {
+    "name": "paths-warning",
+    "route": "/songs/fixture-pulse",
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths.warning@10",
+      "waitfor:name=Don't Show Again@5"
+    ],
+    "teardown": [
+      "invoke:name=OK",
+      "waitfor:id=fst.paths@10",
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-image",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "waitfor:name=Lead Expert CHOpt path@5",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-text",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true,
+      "pathDefaultView": "Text"
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.activation.1@15",
+      "waitfor:id=fst.paths.activation.2@5",
+      "wait:1.5"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-zoomed",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "invoke:id=fst.paths.zoom-in",
+      "invoke:id=fst.paths.zoom-in",
+      "waitfor:name=225%@5",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-column-reorder",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true,
+      "pathDefaultView": "Text",
+      "pathColumnOrder": [
+        "Score",
+        "Od",
+        "Time",
+        "Beat",
+        "Note"
+      ]
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.activation.1@15",
+      "wait:1.5"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-image-loading",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "expand:id=fst.paths.difficulty.compact",
+      "waitfor:name=Hard@5",
+      "select:name=Hard",
+      "waitgone:id=fst.paths.image@3"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-text-loading",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true,
+      "pathDefaultView": "Text"
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.activation.1@15",
+      "expand:id=fst.paths.difficulty.compact",
+      "waitfor:name=Hard@5",
+      "select:name=Hard",
+      "waitgone:id=fst.paths.activation.1@3"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-missing",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "expand:id=fst.paths.difficulty.compact",
+      "waitfor:name=Easy@5",
+      "select:name=Easy",
+      "waitfor:id=fst.paths.empty@15",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-offline",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "expand:id=fst.paths.difficulty.compact",
+      "waitfor:name=Medium@5",
+      "select:name=Medium",
+      "waitfor:id=fst.service-status.retry@15",
+      "waitfor:name=You're offline@5",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-instrument-switch",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "expand:id=fst.paths.instrument.compact",
+      "waitfor:name=Bass@5",
+      "select:name=Bass",
+      "waitfor:id=fst.paths.empty@15",
+      "expand:id=fst.paths.instrument.compact",
+      "waitfor:name=Lead@5",
+      "select:name=Lead",
+      "waitfor:id=fst.paths.image@15",
+      "waitfor:name=Lead Expert CHOpt path@5",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-difficulty-switch",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "expand:id=fst.paths.difficulty.compact",
+      "waitfor:name=Hard@5",
+      "select:name=Hard",
+      "waitfor:name=Lead Hard CHOpt path@15",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-image-loading-wide",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "select:name=Hard",
+      "waitgone:id=fst.paths.image@3"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-text-loading-wide",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true,
+      "pathDefaultView": "Text"
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.activation.1@15",
+      "select:name=Hard",
+      "waitgone:id=fst.paths.activation.1@3"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-missing-wide",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "select:name=Easy",
+      "waitfor:id=fst.paths.empty@15",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-offline-wide",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "select:name=Medium",
+      "waitfor:id=fst.service-status.retry@15",
+      "waitfor:name=You're offline@5",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-instrument-switch-wide",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "toggle:id=fst.paths.instrument.Solo_Bass",
+      "waitfor:id=fst.paths.empty@15",
+      "toggle:id=fst.paths.instrument.Solo_Guitar",
+      "waitfor:id=fst.paths.image@15",
+      "waitfor:name=Lead Expert CHOpt path@5",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-difficulty-switch-wide",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "select:name=Hard",
+      "waitfor:name=Lead Hard CHOpt path@15",
+      "wait:1"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  }
+]

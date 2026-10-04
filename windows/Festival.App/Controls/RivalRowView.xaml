@@ -42,9 +42,9 @@
                 </Border>
             </local:WrapPanel>
         </Grid>
-        <!-- In-card chevron: the row opens a page (batch 7.3). -->
+        <!-- In-card chevron: the row opens a page (batch 7.3); anonymous rows open nothing (#213). -->
         <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
-                  Visibility="{x:Bind Item.IsNavigable, Mode=OneWay}"
+                  Visibility="{x:Bind Item.HasProfile, Mode=OneWay}"
                   Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
     </Grid>
 </UserControl>

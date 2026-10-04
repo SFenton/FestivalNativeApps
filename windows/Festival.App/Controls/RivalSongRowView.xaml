@@ -35,7 +35,7 @@
                 <TextBlock AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Visibility="{x:Bind EffectiveCompact, Mode=OneWay}">
                     <Run Text="{x:Bind Item.UserRankText, Mode=OneWay}" FontWeight="{x:Bind local:RivalsUi.Weight(Item.IsWinning), Mode=OneWay}" />
-                    <Run Text="you · " />
+                    <Run Text="you ·" />
                     <Run Text="{x:Bind Item.RivalRankText, Mode=OneWay}" FontWeight="{x:Bind local:RivalsUi.Weight(Item.IsLosing), Mode=OneWay}" />
                     <Run Text="{x:Bind Item.RivalName, Mode=OneWay}" />
                 </TextBlock>

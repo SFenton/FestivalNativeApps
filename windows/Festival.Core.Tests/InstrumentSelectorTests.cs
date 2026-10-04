@@ -150,4 +150,27 @@ public class InstrumentSelectorTests
         state.Instruments = [Instrument.Bass, Instrument.Lead, Instrument.Vocals, Instrument.Drums];
         Assert.Equal(Instrument.Lead, state.CompactKey);
     }
+
+    [Fact]
+    public void ItemStatus_AnnouncesMutedConflictOnly()
+    {
+        Assert.Equal(InstrumentSelectorState.ConflictStatus, InstrumentSelectorState.ItemStatus(true));
+        Assert.Equal("", InstrumentSelectorState.ItemStatus(false));
+    }
+
+    [Fact]
+    public void FocusTarget_PrefersSelectionThenPreviewThenFirstEnabled()
+    {
+        var state = Make(Instrument.Lead, Instrument.Bass, Instrument.Drums);
+        state.Disabled = new HashSet<Instrument> { Instrument.Lead };
+        Assert.Equal(Instrument.Bass, state.FocusTarget());
+        state.DeferSelection = true;
+        state.Cycle(1, out _);
+        Assert.Equal(state.CompactKey, state.FocusTarget());
+        state.Selected = Instrument.Drums;
+        Assert.Equal(Instrument.Drums, state.FocusTarget());
+        state.Disabled = new HashSet<Instrument> { Instrument.Lead, Instrument.Bass, Instrument.Drums };
+        state.Selected = null;
+        Assert.Null(state.FocusTarget());
+    }
 }

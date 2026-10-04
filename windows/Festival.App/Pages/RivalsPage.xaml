@@ -142,9 +142,9 @@
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:RivalRowItem">
-                                                    <!-- Anonymous production rows (empty account ID) are plain text: no click, tab stop or Invoke (issue #200). -->
-                                                    <controls:LeaderboardRowButton Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind Route}" Click="OnRouteClick"
-                                                            IsActionable="{x:Bind IsNavigable}" IsHitTestVisible="{x:Bind IsNavigable}" IsTabStop="{x:Bind IsNavigable}"
+                                                    <!-- Anonymous leaderboard rows (empty account ID, #213) read as text and don't open anything. -->
+                                                    <controls:LeaderboardRowButton Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind ProfileRoute}" Click="OnRouteClick"
+                                                            IsActionable="{x:Bind HasProfile}" IsTabStop="{x:Bind HasProfile}" IsHitTestVisible="{x:Bind HasProfile}"
                                                             AutomationProperties.Name="{x:Bind AccessibleName}"
                                                             AutomationProperties.AutomationId="{x:Bind AutomationId}">
                                                         <controls:RivalRowView Item="{x:Bind}" />

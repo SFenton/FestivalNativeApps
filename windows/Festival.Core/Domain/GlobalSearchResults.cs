@@ -245,6 +245,20 @@ public static class GlobalSearchResults
         return $"{songText}, {playerText}";
     }
 
+    /// <summary>
+    /// Polite announcement for the players-only pickers (profile flyout, Rivals), which never search songs:
+    /// "3 players", "No players found." or the failure text the picker shows.
+    /// </summary>
+    /// <param name="players">Player count, or <see langword="null"/> when the account search failed.</param>
+    /// <param name="failure">Visible failure text, spoken when <paramref name="players"/> is <see langword="null"/>.</param>
+    /// <returns>Announcement text.</returns>
+    public static string PlayersAnnouncement(int? players, string failure) => players switch
+    {
+        null => failure.Length > 0 ? failure : "Player search failed.",
+        0 => NoPlayers,
+        { } p => Count(p, "player", "players"),
+    };
+
     /// <summary>Formats a count with its noun.</summary>
     /// <param name="count">Count.</param>
     /// <param name="one">Singular noun.</param>

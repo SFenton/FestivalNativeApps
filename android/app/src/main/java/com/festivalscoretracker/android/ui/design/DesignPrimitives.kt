@@ -22,8 +22,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -148,7 +150,9 @@ fun InstrumentIcon(instrument: Instrument, modifier: Modifier = Modifier, keyboa
 // region Difficulty meter
 
 /**
- * The branded seven-bar parallelogram meter (62 × 20), one accessible element.
+ * The branded seven-bar parallelogram meter (62 × 20), one image-like accessible element
+ * (decorative polygons are drawn, not separate nodes). A parent that speaks its own level
+ * (a row or bucket switch) clears the meter's semantics.
  *
  * @param level Service value.
  * @param modifier Modifier.
@@ -174,7 +178,10 @@ fun DifficultyMeter(level: Double, modifier: Modifier = Modifier, raw: Boolean =
         modifier
             .size(DifficultyMeterSpec.WIDTH.dp, DifficultyMeterSpec.HEIGHT.dp)
             .testTag("fst.songs.difficulty-meter")
-            .semantics { contentDescription = label },
+            .semantics {
+                contentDescription = label
+                role = Role.Image
+            },
     ) {
         val scale = size.width / DifficultyMeterSpec.WIDTH
         paths.forEachIndexed { index, vertices ->

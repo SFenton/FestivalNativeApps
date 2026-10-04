@@ -342,16 +342,37 @@ public class RivalsViewModelTests
         // Issue #200: production serves anonymous rows (empty account ID, no name); Android shows "Unknown User", unlinked.
         var board = RivalRowItem.From(new LeaderboardRivalSummary("", null, 728, 157, 571, 0, 13, 4), RivalDirection.Below,
             new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore));
-        Assert.False(board.IsNavigable);
+        Assert.False(board.HasProfile);
         Assert.Equal(RivalRowItem.AnonymousName, board.Name);
         Assert.Equal("Unknown User, rank 13, behind you, 571 songs ahead, 157 songs behind", board.AccessibleName);
         Assert.Equal("fst.rivals.row.rank-13", board.AutomationId);
         var song = RivalRowItem.From(new RivalSummary("", "Ghost", 1, 2, 1, 1, 0), RivalDirection.Above, null);
         Assert.Equal(RivalRowItem.AnonymousName, song.Name);
-        Assert.Equal("anonymous", song.RowKey);
+        Assert.Equal("rank-unknown", song.RowKey);
+        Assert.Null(song.ProfileRoute);
         var named = RivalRowItem.From(new RivalSummary("a1", "Alpha", 1, 2, 1, 1, 0), RivalDirection.Above, null);
-        Assert.True(named.IsNavigable);
+        Assert.True(named.HasProfile);
         Assert.Equal("a1", named.RowKey);
+    }
+
+    [Fact]
+    public void RivalRow_AnonymousLeaderboardRivalIsNotInteractive()
+    {
+        // Issue #213: production leaderboard-rival lists include a row with an empty account ID and no name.
+        var scope = new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore);
+        var anonymous = RivalRowItem.From(new LeaderboardRivalSummary("", null, 728, 157, 571, 857.2, 13, 4), RivalDirection.Below, scope);
+        Assert.False(anonymous.HasProfile);
+        Assert.Null(anonymous.ProfileRoute);
+        Assert.Equal(RivalRowItem.AnonymousName, anonymous.Name);
+        Assert.Equal("rank-13", anonymous.RowKey);
+        Assert.Equal("fst.rivals.row.rank-13", anonymous.AutomationId);
+        Assert.Equal("Unknown User, rank 13, behind you, 571 songs ahead, 157 songs behind", anonymous.AccessibleName);
+        Assert.Equal("rank-unknown", (anonymous with { LeaderboardRank = null }).RowKey);
+
+        var named = RivalRowItem.From(new LeaderboardRivalSummary("b2", "Beta", 40, 25, 15, 0, 12, 14), RivalDirection.Above, scope);
+        Assert.True(named.HasProfile);
+        Assert.Equal(named.Route, named.ProfileRoute);
+        Assert.Equal("fst.rivals.row.b2", named.AutomationId);
     }
 
     [Fact]
@@ -466,7 +487,7 @@ public class RivalsViewModelTests
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
         var closest = detail.Categories[0];
         Assert.Equal("View All 4 Songs", closest.SeeAllText);
-        Assert.Equal("View 1 song", detail.Categories[1].SeeAllText);
+        Assert.Equal("View 1 Song", detail.Categories[1].SeeAllText);
         Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "Fixture Rival Golf", scope), closest.SeeAllRoute);
         Assert.Equal("fst.rival-detail.category.closest_battles", closest.AutomationId);
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);

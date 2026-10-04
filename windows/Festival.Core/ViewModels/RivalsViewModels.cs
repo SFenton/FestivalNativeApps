@@ -47,12 +47,6 @@ public sealed record RivalRowItem(
     /// <summary>Name of an anonymous production row (Android <c>RivalText.UNKNOWN_USER</c>, Windows rankings).</summary>
     public const string AnonymousName = "Unknown User";
 
-    /// <summary>
-    /// Whether the row names a real account that opens Rival Detail. Production serves anonymous rows with an empty
-    /// account ID (issue #200); they show as "Unknown User" without a chevron, click or Invoke (Android <c>isNavigable</c>).
-    /// </summary>
-    public bool IsNavigable => AccountId.Length > 0;
-
     /// <summary>Whether the player leads this rival overall (green tint).</summary>
     public bool IsWinning => Direction == RivalDirection.Below;
 
@@ -72,12 +66,22 @@ public sealed record RivalRowItem(
     public string AccessibleName =>
         $"{Name}{(HasRank ? ", rank " + RankText[1..] : "")}, {(IsWinning ? "behind you" : "ahead of you")}, {AheadText}, {BehindText}";
 
+    /// <summary>
+    /// Whether the row has a rival to open. Production serves anonymous rows with an empty account ID (issues #200,
+    /// #213); they show as "Unknown User" without a chevron, click or Invoke, like anonymous ranking rows (Android
+    /// <c>isNavigable</c>).
+    /// </summary>
+    public bool HasProfile => ProfileText.IsValidAccountId(AccountId);
+
+    /// <summary>Rival Detail route, or <see langword="null"/> for an anonymous row.</summary>
+    public AppRoute.RivalDetail? ProfileRoute => HasProfile ? Route : null;
+
+    /// <summary>Stable row key: the account ID, or <c>rank-{n}</c> for an anonymous row.</summary>
+    public string RowKey => HasProfile ? AccountId
+        : "rank-" + (LeaderboardRank is { } rank ? rank.ToString(CultureInfo.InvariantCulture) : "unknown");
+
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => "fst.rivals.row." + RowKey;
-
-    /// <summary>The account ID, or <c>rank-N</c> / <c>anonymous</c> for an anonymous row (as rankings' <c>rank-N</c>).</summary>
-    public string RowKey => IsNavigable ? AccountId
-        : LeaderboardRank is { } rank ? string.Create(CultureInfo.InvariantCulture, $"rank-{rank}") : "anonymous";
 
     /// <summary>Row name: anonymous rows read "Unknown User", nameless accounts "Unknown Player".</summary>
     /// <param name="accountId">Validated account ID (empty when anonymous).</param>

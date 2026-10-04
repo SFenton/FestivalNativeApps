@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
+import com.festivalscoretracker.android.ui.design.popupTestTags
 
 // region Top bar actions
 
@@ -74,7 +75,7 @@ fun AdaptiveTopBarActions(inline: Boolean, onPageWidth: (Int) -> Unit, page: @Co
                 IconButton(onClick = { overflowOpen = true }, modifier = Modifier.testTag("fst.nav.overflow")) {
                     Icon(Icons.Filled.MoreVert, contentDescription = "More actions")
                 }
-                DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }, modifier = Modifier.popupTestTags()) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("fst.nav.overflow-menu"), content = page)
                 }
             }

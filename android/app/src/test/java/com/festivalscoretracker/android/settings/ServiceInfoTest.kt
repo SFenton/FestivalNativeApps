@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.unit.Density
@@ -616,5 +617,14 @@ class ServiceInfoSectionUiTest {
         render(reduceMotion = true, indeterminate)
         rule.onNodeWithTag("fst.settings.service-info.bar", useUnmergedTree = true).assertExists()
         rule.onNodeWithText("Computing Player Rivals · Calculating Player Rivals", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun pollingCardIsNotALiveRegion() {
+        // Issue #121: the polite live region silenced TalkBack's focus speech when the card
+        // scrolled into view; the state is read on focus instead.
+        render(reduceMotion = true, discovery)
+        rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion), useUnmergedTree = true).assertCountEquals(0)
+        rule.onNodeWithTag("fst.settings.service-info.state").assertExists()
     }
 }

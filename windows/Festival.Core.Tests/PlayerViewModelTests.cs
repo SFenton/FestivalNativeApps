@@ -136,6 +136,32 @@ public class PlayerProfileViewModelTests
     }
 
     [Fact]
+    public async Task Viewed_PublicationAdvanceSwapsSelectForChangedNotice()
+    {
+        var fake = new PlayerFakeService();
+        var session = fake.Session();
+        await session.LoadCatalogAsync();
+        using var vm = new PlayerProfileViewModel(session, PlayerWire.Id);
+        await vm.LoadAsync();
+        Assert.True(vm.CanSelect);
+        var raised = new List<string?>();
+        vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        fake.Service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => raised.Contains(nameof(PlayerProfileViewModel.IdentityAction)));
+        Assert.Contains(nameof(PlayerProfileViewModel.CanSelect), raised);
+        Assert.Contains(nameof(PlayerProfileViewModel.HasIdentityNotice), raised);
+        Assert.Equal(PlayerIdentityAction.Changed, vm.IdentityAction);
+        Assert.False(vm.CanSelect);
+        Assert.Equal("Published scores changed. Reload this page before selecting.", vm.IdentityNotice);
+
+        await vm.LoadAsync();
+        Assert.Equal(PlayerIdentityAction.Select, vm.IdentityAction);
+        Assert.False(vm.HasIdentityNotice);
+    }
+
+    [Fact]
     public async Task Viewed_SyncingFailedAndRetry()
     {
         var fake = new PlayerFakeService();
@@ -457,6 +483,12 @@ public class PlayerHistoryViewModelTests
         Assert.Equal(new StarRating(5, true), StarRating.From(row.StarCount));
         Assert.Equal(0, new ScoreHistoryRow(new ScoreHistoryEntry { ChangedAt = "x" }, false).StarCount);
         Assert.DoesNotContain("personal best", row.Announcement);
+        // Six stars read as the five gold images drawn (issue #221), and 0 / missing read nothing (no star images).
+        Assert.Contains(", 5 gold stars", row.Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain("6 stars", row.Announcement, StringComparison.Ordinal);
+        Assert.Contains(", 1 star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, Stars = 1, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain("star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, Stars = 0, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain("star", new ScoreHistoryRow(new ScoreHistoryEntry { NewScore = 5, ChangedAt = "x" }, false).Announcement, StringComparison.Ordinal);
     }
 }
 

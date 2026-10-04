@@ -73,6 +73,10 @@ public class LeaderboardUnifyTests
         Assert.False(best.PinsSeason);
         Assert.True(((ILeaderboardScoreRow)new ScoreHistoryListRow(point, false) { IsDetail = true }).PinsSeason);
         Assert.False(((ILeaderboardScoreRow)new LeaderboardRow(new LeaderboardEntry { AccountId = "x", Season = 9 })).PinsSeason);
+        // Issue #198: the detail row has its own ID, so it never duplicates the list row for the same score.
+        var detail = new ScoreHistoryListRow(point, false) { IsDetail = true };
+        Assert.Equal("fst.history.detail", detail.AutomationId);
+        Assert.NotEqual(best.AutomationId, detail.AutomationId);
     }
 
     [Fact]

@@ -49,5 +49,28 @@ public static class TextScaleLayout
         grid.MinItemWidth *= factor;
         grid.MinItemHeight *= factor;
     }
+
+    /// <summary>
+    /// <c>controls:TextScaleLayout.ScaledMinWidth="72"</c>: a minimum width in epx at 100% text that grows with the Windows text
+    /// size, so an Auto column sized for the longest label keeps rows aligned at 150–225% instead of clipping.
+    /// </summary>
+    public static readonly DependencyProperty ScaledMinWidthProperty = DependencyProperty.RegisterAttached(
+        "ScaledMinWidth", typeof(double), typeof(TextScaleLayout), new PropertyMetadata(0d, OnScaledMinWidthChanged));
+
+    /// <summary>Gets the unscaled minimum width.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>Minimum width at 100% text.</returns>
+    public static double GetScaledMinWidth(DependencyObject element) => (double)element.GetValue(ScaledMinWidthProperty);
+
+    /// <summary>Sets the unscaled minimum width.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="value">Minimum width at 100% text.</param>
+    public static void SetScaledMinWidth(DependencyObject element, double value) => element.SetValue(ScaledMinWidthProperty, value);
+
+    private static void OnScaledMinWidthChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is FrameworkElement element && e.NewValue is double width)
+            element.MinWidth = Festival.Core.Domain.TextScaling.ScaledWidth(width, Factor);
+    }
 }
 #endregion

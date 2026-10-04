@@ -72,7 +72,7 @@ public sealed partial class AllRivalsPage : Page
     /// <param name="wanted">Whether the page is wide enough.</param>
     private void ApplySplit(bool wanted)
     {
-        var on = wanted && ViewModel is { ShowContent: true } && ViewModel.Rows.Any(r => r.IsNavigable);
+        var on = wanted && ViewModel is { ShowContent: true } && ViewModel.Rows.Any(r => r.HasProfile);
         if (on == split) return;
         split = on;
         ListColumn.Width = on ? new GridLength(SplitListWidth) : new GridLength(1, GridUnitType.Star);
@@ -96,12 +96,12 @@ public sealed partial class AllRivalsPage : Page
             ApplySplit(ActualWidth >= SplitWidth);
             return;
         }
-        if (!ViewModel.ShowContent || !ViewModel.Rows.Any(r => r.IsNavigable))
+        if (!ViewModel.ShowContent || !ViewModel.Rows.Any(r => r.HasProfile))
         {
             ApplySplit(false);
             return;
         }
-        var target = ViewModel.Rows.FirstOrDefault(r => r.IsNavigable && r.AccountId == detailAccountId) ?? ViewModel.Rows.First(r => r.IsNavigable);
+        var target = ViewModel.Rows.FirstOrDefault(r => r.HasProfile && r.AccountId == detailAccountId) ?? ViewModel.Rows.First(r => r.HasProfile);
         if (!ReferenceEquals(RivalList.SelectedItem, target)) RivalList.SelectedItem = target;
         Show(target);
     }
@@ -112,15 +112,15 @@ public sealed partial class AllRivalsPage : Page
     private void OnRivalSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!split || RivalList.SelectedItem is not RivalRowItem row) return;
-        if (row.IsNavigable) Show(row);
-        else RivalList.SelectedItem = ViewModel.Rows.FirstOrDefault(r => r.IsNavigable && r.AccountId == detailAccountId);
+        if (row.HasProfile) Show(row);
+        else RivalList.SelectedItem = ViewModel.Rows.FirstOrDefault(r => r.HasProfile && r.AccountId == detailAccountId);
     }
 
     /// <summary>Opens a rival in the detail column (once per rival).</summary>
     /// <param name="row">Row.</param>
     private void Show(RivalRowItem row)
     {
-        if (!row.IsNavigable || (row.AccountId == detailAccountId && DetailFrame.Content is not null)) return;
+        if (!row.HasProfile || (row.AccountId == detailAccountId && DetailFrame.Content is not null)) return;
         detailAccountId = row.AccountId;
         DetailFrame.Navigate(typeof(RivalDetailPage), row.Route, new SuppressNavigationTransitionInfo());
     }
@@ -134,8 +134,9 @@ public sealed partial class AllRivalsPage : Page
         if (args.InRecycleQueue || args.Item is not RivalRowItem row) return;
         AutomationProperties.SetName(args.ItemContainer, row.AccessibleName);
         AutomationProperties.SetAutomationId(args.ItemContainer, "fst.all-rivals.row." + row.RowKey);
-        // Anonymous production rows (issue #200) stay readable list items but take no pointer input.
-        args.ItemContainer.IsHitTestVisible = row.IsNavigable;
+        // Anonymous production rows (issues #200, #213) stay readable list items but open nothing.
+        args.ItemContainer.IsHitTestVisible = row.HasProfile;
+        args.ItemContainer.IsTabStop = row.HasProfile;
     }
 
     /// <summary>Opens the rival.</summary>
@@ -143,7 +144,7 @@ public sealed partial class AllRivalsPage : Page
     /// <param name="e">Clicked row.</param>
     private void OnRivalClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not RivalRowItem { IsNavigable: true } row) return;
+        if (e.ClickedItem is not RivalRowItem { HasProfile: true } row) return;
         if (split) Show(row);
         else MainWindow.Instance?.Navigate(row.Route);
     }

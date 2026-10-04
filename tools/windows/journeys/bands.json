@@ -10,9 +10,9 @@
       "invoke:id=fst.player-bands.page-next",
       "waitfor:id=fst.player-bands.row.fixture-pband-quad-1@10",
       "shot:{shots}\\player-bands-page2.png",
-      "click:name=Trios",
+      "select:id=fst.player-bands.group.trios",
       "waitfor:id=fst.player-bands.row.fixture-pband-trio-1@10",
-      "click:name=Duos",
+      "select:id=fst.player-bands.group.duos",
       "waitfor:id=fst.player-bands.row.fixture-band-1@10",
       "invoke:id=fst.player-bands.row.fixture-band-1",
       "waitfor:id=fst.band.title@10",
@@ -33,6 +33,51 @@
       "waitfor:id=fst.band.title@10",
       "key:alt+left",
       "waitfor:id=fst.player-bands.title@10"
+    ]
+  },
+  {
+    "name": "player-bands-mixed-sizes",
+    "route": "/bands/player/fixture-player-1",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.player-bands.row.fixture-band-1@15",
+      "scrollinto:id=fst.player-bands.row.fixture-pband-trio-7@10",
+      "shot:{shots}\\player-bands-page1-trios.png",
+      "invoke:id=fst.player-bands.page-last",
+      "waitfor:id=fst.player-bands.row.fixture-pband-trio-8@10",
+      "waitfor:id=fst.player-bands.row.fixture-pband-quad-1@10",
+      "scrollinto:id=fst.player-bands.row.fixture-pband-quad-4@10",
+      "shot:{shots}\\player-bands-page2-quads.png",
+      "select:id=fst.player-bands.group.quads",
+      "waitfor:name=Quads · 4 bands@10",
+      "waitgone:id=fst.player-bands.page-next@5",
+      "waitfor:id=fst.player-bands.row.fixture-pband-quad-4@10"
+    ]
+  },
+  {
+    "name": "player-bands-empty",
+    "route": "/bands/player/fixture-player-2",
+    "preset": "compact",
+    "steps": [
+      "waitfor:id=fst.player-bands.empty@15",
+      "waitfor:name=No bands have been recorded for this player yet.@5",
+      "waitgone:id=fst.player-bands.page-next@5",
+      "select:id=fst.player-bands.group.quads",
+      "waitfor:name=No Quads have been recorded for this player yet.@10",
+      "shot:{shots}\\player-bands-empty.png"
+    ]
+  },
+  {
+    "name": "player-bands-error",
+    "route": "/bands/player/missing-player",
+    "preset": "medium",
+    "steps": [
+      "waitfor:name=Failed to load bands@15",
+      "waitfor:id=fst.service-status.retry@5",
+      "waitfor:id=fst.player-bands.title@5",
+      "shot:{shots}\\player-bands-error.png",
+      "invoke:id=fst.service-status.retry",
+      "waitfor:name=Failed to load bands@15"
     ]
   },
   {
@@ -102,8 +147,15 @@
     "preset": "medium",
     "steps": [
       "waitfor:id=fst.bands.title@15",
-      "waitfor:name=Band not found@10",
-      "shot:{shots}\\bands-not-found.png"
+      "waitfor:id=fst.bands.screen@5",
+      "waitfor:id=fst.bands.not-found@10",
+      "waitfor:name=Band not found@5",
+      "waitfor:id=fst.bands.not-found.message@5",
+      "waitfor:name=This band link is missing an ID and cannot be resolved.@5",
+      "shot:{shots}\\bands-not-found.png",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.leaderboards@10",
+      "waitgone:id=fst.bands.not-found@5"
     ]
   }
 ]

@@ -206,6 +206,28 @@ public class RivalsCoreTests
     }
 
     [Fact]
+    public async Task Client_KeepsAnonymousLeaderboardRivals()
+    {
+        // Issue #213: production serves an anonymous row (empty accountId, no displayName) in leaderboard-rival lists.
+        const string Row = "\"sharedSongCount\":728,\"aheadCount\":157,\"behindCount\":571,\"avgSignedDelta\":857.2,\"leaderboardRank\":13,\"userLeaderboardRank\":4";
+        var (client, _) = Client(_ => Wire.Ok($$"""{"instrument":"Solo_Guitar","rankBy":"totalscore","userRank":4,"above":[],"below":[{"accountId":"",{{Row}}},{"accountId":"r1","displayName":"R",{{Row}}}]}"""));
+        var list = await client.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore);
+        Assert.Equal(2, list.Below.Count);
+        Assert.Equal("", list.Below[0].AccountId);
+        Assert.Null(list.Below[0].DisplayName);
+        Assert.Equal(13, list.Below[0].LeaderboardRank);
+
+        var (unsafeId, _) = Client(_ => Wire.Ok($$"""{"above":[{"accountId":"bad id",{{Row}}}],"below":[]}"""));
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse,
+            (await Assert.ThrowsAsync<FestivalApiException>(() => unsafeId.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore))).Kind);
+        // A missing accountId is anonymous too (normalized to ""); song lists keep only an explicit "" (Client_RejectsMalformedLists).
+        var (missing, _) = Client(_ => Wire.Ok($$"""{"above":[{{{Row}}}],"below":[]}"""));
+        Assert.Equal("", (await missing.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore)).Above[0].AccountId);
+        var (songList, _) = Client(_ => Wire.Ok($$"""{"combo":"01","above":[{"accountId":"","rivalScore":1,{{Row}}}],"below":[]}"""));
+        Assert.Equal("", (await songList.GetRivalsListAsync(Me, "01")).Above[0].AccountId);
+    }
+
+    [Fact]
     public async Task Client_RejectsMismatchedDetailAndAllAccount()
     {
         var (client, _) = Client(r => Wire.Ok(r.RequestUri!.AbsolutePath.EndsWith("/all", StringComparison.Ordinal)
