@@ -94,13 +94,15 @@
     "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar",
     "assertbelow:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|id=fst.songs.row.fixture-pulse",
     "assertlevel:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_PeripheralDrums",
-    "resize:wide", "wait:1.5",
+    "resize:medium", "wait:1.5",
     "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Vocals|Tap Vocals, score missing despite a reported full combo",
     "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar",
     "assertlevel:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|id=fst.songs.row.fixture-pulse",
     "resize:compact", "wait:1.5",
     "assertbelow:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|id=fst.songs.row.fixture-orbit",
+    "resize:wide", "wait:1.5",
+    "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar",
     "resize:medium", "wait:1.5",
-    "assertaligned:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar"
+    "assertlevel:raw=fst.songs.instrument-status.fixture-orbit.Solo_Guitar|id=fst.songs.row.fixture-orbit"
   ]}
 ]
