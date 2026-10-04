@@ -55,6 +55,40 @@ class SongsAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Songs Filter with every section expanded (issue #126): ATF over the score toggles,
+     * Selected Instrument Filters and bucket groups, and no part of the sheet across a
+     * separating hinge (run with `--avd FST_Book_Fold --posture half` for the hinge check).
+     */
+    @Test
+    fun songsFilterExpandedSectionsStayAccessibleAndClearOfTheHinge() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, stillBackground = true), transport)
+        h.waitForTag("fst.songs.list")
+        h.tap("fst.songs.filter.open")
+        h.waitForTag("fst.songs.filter.form")
+        h.assertNothingStraddles("fst.songs.filter", "fst.songs.filter.form", "fst.songs.filter.done", "fst.songs.filter.reset")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.shop")
+        h.tap("fst.songs.filter.shop")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.global")
+        h.tap("fst.songs.filter.global")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.score.chart.Solo_Guitar")
+        h.tap("fst.songs.filter.score.chart.Solo_Guitar")
+        h.readingOrder("songs-filter-score")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.instrument")
+        h.tap(if (h.exists("fst.songs.filter.instrument.preview")) "fst.songs.filter.instrument.preview" else "fst.songs.filter.instrument.Solo_Guitar")
+        h.waitForTag("fst.songs.filter.stars")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.stars")
+        h.tap("fst.songs.filter.stars")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.stars.6")
+        h.readingOrder("songs-filter-instrument")
+        h.assertNothingStraddles("fst.songs.filter", "fst.songs.filter.form", "fst.songs.filter.stars.6")
+        h.tap("fst.songs.filter.done")
+        h.waitGone("fst.songs.filter.form")
+        h.waitForTag("fst.songs.filter.open")
+        h.assertAccessible()
+    }
+
     @Test
     fun songDetailBoardAndPaths() {
         h.enableAccessibilityChecks()
