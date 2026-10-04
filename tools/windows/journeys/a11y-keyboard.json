@@ -1,5 +1,28 @@
 [
   {
+    "name": "kb-rival-detail-compact",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": ["compact"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rival-detail.title@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.rival-detail.view-profile",
+      "assertfocus:id=fst.rival-detail.view-profile",
+      "key:tab",
+      "assertfocus:id=fst.quick-links.open",
+      "key:tab",
+      "assertfocus:id=fst.rivalry.song.fixture-drift.Solo_Guitar",
+      "key:tab",
+      "assertfocus:id=fst.rival-detail.see-all",
+      "key:shift+tab",
+      "key:shift+tab",
+      "assertfocus:id=fst.quick-links.open"
+    ]
+  },
+  {
     "name": "kb-songs-order",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
@@ -73,6 +96,43 @@
       "waitfor:name=Title ↑@5",
       "key:esc",
       "assertfocus:id=fst.songs.sort@3"
+    ]
+  },
+  {
+    "name": "kb-songs-filter",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+f",
+      "key:tab",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "assertfocus:id=fst.songs.filter.year@3",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.duration",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.shop",
+      "key:space",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter.shop-available@3",
+      "key:space",
+      "waitfor:name=No Results@10",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "key:shift+tab",
+      "assertfocus:id=fst.songs.filter.reset@3",
+      "key:enter",
+      "waitfor:id=fst.songs.row.fixture-pulse@10",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3"
     ]
   },
   {
@@ -231,6 +291,42 @@
     ]
   },
   {
+    "name": "kb-player-bands",
+    "route": "/bands/player/fixture-player-1",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.player-bands.row.fixture-band-1@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.player-bands.group.all",
+      "key:tab",
+      "assertfocus:id=fst.player-bands.row.fixture-band-1@3",
+      "key:down",
+      "assertfocus:id=fst.player-bands.row.fixture-pband-duo-2@3",
+      "key:tab",
+      "assertfocus:id=fst.player-bands.page-next@3",
+      "key:enter",
+      "waitfor:id=fst.player-bands.row.fixture-pband-trio-8@15",
+      "focus:id=fst.player-bands.row.fixture-pband-trio-8",
+      "key:shift+tab",
+      "assertfocus:id=fst.player-bands.group.all@3",
+      "key:right",
+      "assertfocus:id=fst.player-bands.group.duos@3",
+      "waitfor:name=Duos · 18 bands@10",
+      "waitfor:id=fst.player-bands.row.fixture-pband-duo-2@10",
+      "wait:1.5",
+      "key:tab",
+      "assertfocus:id=fst.player-bands.row.fixture-band-1@5",
+      "key:enter",
+      "waitfor:id=fst.band.title@10",
+      "key:alt+left",
+      "waitfor:id=fst.player-bands.title@10"
+    ]
+  },
+  {
     "name": "kb-leaderboards-cards",
     "route": "/leaderboards",
     "tabs": 0,
@@ -382,6 +478,36 @@
       "key:esc",
       "wait:0.5",
       "assertfocus:id=fst.shell.notifications@3"
+    ]
+  },
+  {
+    "name": "kb-bands-not-found-back",
+    "route": "/bands",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.bands.not-found@20"
+    ],
+    "after_ready": [
+      "key:alt+left",
+      "waitfor:id=fst.leaderboards@10",
+      "waitgone:id=fst.bands.not-found@5"
+    ]
+  },
+  {
+    "name": "kb-bands-not-found-back-button",
+    "route": "/bands",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.bands.not-found@20"
+    ],
+    "after_ready": [
+      "focus:id=PART_BackButton",
+      "assertfocus:id=PART_BackButton@3",
+      "key:enter",
+      "waitfor:id=fst.leaderboards@10",
+      "waitgone:id=fst.bands.not-found@5"
     ]
   },
   {

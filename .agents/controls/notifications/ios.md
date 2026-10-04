@@ -17,7 +17,7 @@ Source: `FortniteFestivalWeb/src/components/notifications/MobileNotificationsMod
 - "New" / "Older" headers are white (`FestivalText.primary`, no uppercase).
 - Web trailing column: 20pt wide, chevron centred vertically (white 72%), 9pt yellow `#FACC15` unread dot with a 2pt ring, centred 24pt above the chevron.
 - Built on the shared `FestivalModal` (with its `[AppRoute]` path): system Close top-right (`fst.notifications.close`).
-- Header fade (issue #94): rows fade to transparent as they scroll under the title and Close (shared `ModalTopEdgeFadeModifier`) instead of drawing behind them. HIG Color: "content may scroll under controls, but make sure the resting state, like the top of scrollable content, stays clearly legible"; the system scroll-edge effect stays automatic (HIG Scroll views: "Prefer the automatic style").
+- Header fade (issue #94, reopened 2026-10-03): like the web modal, rows never draw under the title and Close; once scrolled they fade out over the 40 pt below the header and are fully transparent at its edge, and the header has no glass band (top scroll-edge effect and bar background hidden; shared `ModalTopEdgeFadeModifier`). Platform default is content peeking through a glass scroll edge (HIG Materials: "Let content scroll and peek through while preserving control and navigation legibility"); the owner chose web parity, and with nothing behind the header HIG Scroll views applies: "Only use an edge effect when a scroll view is behind floating interface elements."
 
 ## Bell badge (issue #74)
 

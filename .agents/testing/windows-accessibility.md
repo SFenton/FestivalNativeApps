@@ -27,7 +27,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Songs Filter (web sections, percentile open) | ✅✅✅ (+AOT) | 20/20/20 | ✅ | ✅ | ✅ |
 | Song Detail + Paths dialog | ✅✅✅ | 16/17/17 | ✅ | ✅ | ✅ |
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
-| Player History | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
+| Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
 | Item Shop | ✅✅✅ | 6/10/10 | — | ✅ | ✅ |
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
@@ -35,11 +35,11 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
 | Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
 | Rivals / Compete | ✅✅✅ (#213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ |
-| All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
-| Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
+| All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT, +live, #201) | 6/9/15 | UIA only (#201) | ✅ | ✅ (+200%) |
+| Rival Detail | ✅✅✅ (+snap/max, #202) | 12/14/14 | ✅ | ✅ | ✅ (200% C/M/W; display 100%/150%, #202) |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
-| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
-| Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
+| Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ (#204 chart outlines) | ✅ (tiles scale; #204 chart gutters) |
+| Bands (Band not found, #211) | ✅✅✅ (+live) | 5/8/8 | ✅ | ✅ | ✅ (+200% C/M/W) |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
 | Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
@@ -88,6 +88,10 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Bands validation (issue #211, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 20` for `bands` at compact, medium, wide, snap-left and maximized; at medium under all four contrast themes, light and dark app mode, text 225%, display 100% and 150%, no animations and no transparency; and at text 200% at all three sizes. The live public service gave the same results for the five sizes, text 200%, Desert, Night sky, light mode and display 100%/150%. Axe reported 0 errors in every run. Keyboard journeys `kb-bands-not-found-back` and `kb-bands-not-found-back-button` pass at all sizes. Fixed: `fst.bands.screen`/`.not-found` were on panels with no UIA peer, and the failure was not announced on load. Results per configuration: [bands/windows.md](../pages/bands/windows.md#validation-issue-211-2026-10-03).
 
 ## Full Rankings validation (issue #208, 2026-10-03)
 
@@ -167,6 +171,17 @@ Fixed:
 - The gold ring kept its old brush after a contrast-theme switch.
 - Profile: the instrument tiles were focusable siblings of the Overview tiles with the same names ("Songs Played: 2", Axe `SiblingUniqueAndFocusable` at wide, display 100%/150%); each instrument section is now a named group.
 
+## Profile Selection validation (issue #226, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --tabs 12 --fixture tools/windows/profile_fixture.py` with `journeys/profile-selection*.json` (17 states, reload, unpinned and 4 keyboard pages). Every page ran at medium. Seven pages ran at compact, wide, maximized and both snaps; Desert, Night sky, light and dark theme, and display 100%/150% ran at medium; text 200% at compact. Axe found 0 errors except the item 8 PopupHost finding on player pages reached through the flyout (`viewed`, `view-selected` at text 200%; `reload`). Live public-service screenshots and a recording (SFentonX). Per-configuration results: [profile-selection/windows.md](../controls/profile-selection/windows.md#validation-issue-226-2026-10-04).
+
+Fixed:
+- Narrator stayed silent when a profile search settled. The search box now announces "N players", "No players found." or the failure text while the flyout is open.
+- Result rows were unnamed record containers; each `ListViewItem` is now named after the player (`fst.profile.result.<accountId>`).
+- An open player page kept **Select Profile** after a newer publication was observed elsewhere; it now swaps to the "Published scores changed" notice.
+
+Seen: one Desert `results` capture rendered without the contrast theme; the re-run rendered Desert. Check screenshots, not only the PASS line, after a theme switch.
+
 ## CHOpt Paths validation (issue #223, 2026-10-04)
 
 Evidence: `a11y_matrix.py --scan --tabs 12` with `journeys/paths.json` and `paths_fixture.py` (all 12 reachable states) at compact, medium, snap-left, wide and maximized; Desert, Night sky, Aquatic, Dusk, light and dark theme, text 200% and display 100%/150%. Axe was 0 everywhere except open item 8 at wide. The live public service (Everlong) passed the same sizes and modes. Per-configuration results: [chopt-paths/windows.md](../controls/chopt-paths/windows.md#validation-issue-223-2026-10-04).
@@ -177,6 +192,39 @@ Fixed:
 - The chart and table scrollers weren't Tab stops, so keyboard users couldn't scroll a long chart or table.
 
 Gotcha: a `UserControl` hosted in a `ContentDialog` gets one `Loaded` and then spurious `Unloaded` events while the dialog is still shown (`IsLoaded` stays true). Subscribe to system events for the dialog's lifetime, not on Loaded/Unloaded.
+
+## Statistics validation (issue #204, 2026-10)
+
+Ran 11y_matrix.py --scan for statistics and statistics-chart at compact, medium, wide, snap-left, snap-right and maximized, then at compact/medium/wide under light and dark theme, Desert, Night sky, text 200% and display 100%/150%. The live public service (SFentonX) gave the same results at C/M/W, Desert and text 200%. Axe reported 0 errors in every run. Fixed: the Rank History chart under contrast themes (opaque outlined bars, WindowText gridlines) and its axis labels clipped at 200% text (measured gutters). Per-configuration results: [statistics/windows.md](../pages/statistics/windows.md#validation-issue-204).
+
+## Player Bands validation (issue #210, 2026-10)
+
+Evidence: `a11y_matrix.py --scan --tabs 20` for `player-bands` at compact, medium, wide, snap-left, snap-right and maximized. It was then run at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors in all 18 runs. The live public service (SFentonX, temporary wrapper without `--base-url`) also gave 0 Axe errors at the same five sizes, under Desert, at text 200% and at display 150%. Results per configuration are in [player-bands/windows.md](../pages/player-bands/windows.md#validation-issue-210).
+
+Fixed:
+- Cards were clipped and virtualized by `UniformGridLayout`; they now use `LeaderboardsCardGridLayout`.
+- Every card part was a separate Narrator scan stop. Each card is now one stop whose name includes each member's instruments.
+- The size pill kept a navy fill under system text.
+- `.empty` sat on a panel.
+
+Tooling finding: after a UIA `focus:` step on a `SelectorBarItem`, arrow keys don't move between items (programmatic focus). Reach the bar with Tab or Shift+Tab before `key:right` (see `kb-player-bands`).
+
+## All Rivals validation (issue #201, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan` for `all-rivals`, `all-rivals-lead`, `-board`, `-empty` and `-freeze` at compact, medium, wide, snap-left, snap-right and maximized. `all-rivals` and `all-rivals-lead` were also run at compact/medium/wide under all four contrast themes, text 200%, light app mode, and display scale 100% and 150%. `journeys/all-rivals-split.json` ran at 150% (wide and maximized). Every run had 0 Axe errors. The live public service (temp wrapper without `--base-url`, SFentonX) also had 0 Axe errors under Night sky, text 200% and the 150% split.
+
+Fixed:
+- Single-instrument scopes (Lead Rivals and others) have no subtitle, but the empty subtitle `TextBlock` still took a line. That pushed the instrument icon off the title's centre. It now collapses (`HasSubtitle`), and long chart lists wrap.
+- The fixture served every rival's detail under one name, so a split-selection journey could not tell rivals apart. `rivals_fixture.py` now names each detail body after the requested rival.
+
+Per configuration:
+- Compact, medium, wide, maximized and snapped: single column below a 1100 epx page width. The lane host runs at 300% (1280 epx work area), so the split appears only under the 100% or 150% scale modes.
+- Light app mode: identical to dark, because the app is dark-only by design.
+- Contrast themes: system colours, no artwork, and focus is visible. The ahead/behind bars share one colour, but the pills carry the text.
+- Text 200%: the header and pills grow, and the subtitle wraps.
+- Keyboard: the same locked console as #196, so it was checked through UIA focusability and the Select and Invoke patterns. Every row is one focusable `ListItem` with an `fst.all-rivals.row.<id>` ID and a name such as "X, ahead of you, N songs ahead, M songs behind".
+
+Out of scope: at 300% the shell's default 1280×820 epx window is larger than the work area.
 
 ## Quick Links validation (issue #230, 2026-10-04)
 
@@ -198,10 +246,16 @@ Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mo
 4. The XAML choice menus (Rank By, Instrument, Band Size, Jump, Sort) share the implicit presenter name "Options". The invoking button names the choice, but per-menu names would read better.
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
-7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip.
+7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Every other size, mode and scroll position scans clean.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
 
 ## Settings validation (issue #214, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan --tabs 60 --pages journeys/settings-states.json` (expanded states, a shot per section) at compact and wide under normal, light and dark theme, Desert, Night sky, text 200%, display 100% and 150%, plus snap-right and maximized: 0 Axe errors, 53/55 distinct Tab stops, none outside the window or repeated. `settings-keyboard` (Space/Enter/Esc with focus kept) and the `journeys/settings.py` journeys pass. Fixed: Settings ignored contrast themes in its reorder lists, First Run chips, link-row hover and progress bar, and kept stale brushes when a contrast theme was switched on while the page was open. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-issue-214-2026-10-03).
+
+## App Navigation validation (issue #225, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --tabs 30 --pages journeys/a11y-navigation.json` (anonymous, player, band page, Settings, pane open at compact) at compact, medium, wide, snap-left, snap-right and maximized, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%: 0 Axe errors except the open minimal pane (WinUI popup-host finding, open issue 8). `journeys/navigation.py` covers `songs`, `leaderboards`, `settings`, `player`, `band`, `reselect`, the compact pane and keyboard use (8/8 pass). Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#validation-issue-225-2026-10-04).
+
+Fixed: keyboard focus entering the pane from the title bar (Tab from profile) or the minimal pane opening from the toggle landed on Songs rather than the selected section; NavigationView only does this for a Tab that passes through itself.

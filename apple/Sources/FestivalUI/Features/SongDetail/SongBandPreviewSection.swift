@@ -203,11 +203,7 @@ struct SongBandPreviewRow: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(entry.members) { member in
                 HStack(spacing: 8) {
-                    Text(member.resolvedName)
-                        .font(.body)
-                        .fontWeight(highlighted ? .bold : .regular)
-                        .foregroundStyle(FestivalText.primary)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    LeaderboardNameText(name: member.resolvedName, emphasized: highlighted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     HStack(spacing: 4) {
                         ForEach(member.chartedInstruments) { instrument in

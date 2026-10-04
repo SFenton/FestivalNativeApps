@@ -622,6 +622,32 @@ struct ProfileAvatar: View {
     }
 }
 
+/// ``ProfileAvatar`` drawn as a cached image on iOS/iPadOS (the bar item's
+/// ``MonogramImageCache``), so the fixed-size initial is artwork rather than text: the
+/// accessibility audit reported the 13 pt initial as "Dynamic Type font sizes are
+/// unsupported" even though it is hidden and its row speaks the player's name. The
+/// avatar keeps its size at every text size, like a bar button's image.
+struct ProfileAvatarImage: View {
+    let name: String
+    let size: CGFloat
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        Group {
+            #if canImport(UIKit)
+            if let image = MonogramImageCache.shared.image(name: name, size: size, scale: displayScale) {
+                Image(uiImage: image).renderingMode(.original)
+            } else {
+                ProfileAvatar(name: name, size: size)
+            }
+            #else
+            ProfileAvatar(name: name, size: size)
+            #endif
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Monogram bar item
 
 /// The selected player's monogram as a bar-button label (issue #15).
@@ -650,7 +676,13 @@ struct MonogramLabel: View {
             ProfileAvatar(name: name, size: size)
         }
         #else
-        ProfileAvatar(name: name, size: size)
+        // Titled, so the Mac toolbar item has a label (overflow menu, Icon and Text
+        // mode, Voice Control) instead of an empty one.
+        Label {
+            Text("Profile: \(name)")
+        } icon: {
+            ProfileAvatar(name: name, size: size)
+        }
         #endif
     }
 }

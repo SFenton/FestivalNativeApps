@@ -315,7 +315,14 @@ public sealed partial class AllRivalsViewModel : RivalPageViewModel
 
     /// <summary>Secondary line: leaderboard metric and rank, or the Common Rivals charts.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSubtitle))]
     private string subtitle = "";
+
+    /// <summary>
+    /// Whether the secondary line shows: single-chart song lists have none, and an empty line would push the icon off
+    /// the title's centre and leave an empty text element in the UI Automation tree.
+    /// </summary>
+    public bool HasSubtitle => Subtitle.Length > 0;
 
     /// <inheritdoc />
     public override string EmptyTitle => State == RivalPageState.Unknown
@@ -386,9 +393,9 @@ public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongIte
     /// <summary>Tone.</summary>
     public RivalCategorySentiment Sentiment => Category.Sentiment;
 
-    /// <summary>Web <c>rivals.detail.viewAll</c>.</summary>
+    /// <summary>Web <c>rivals.detail.viewAll</c>, in Title Case like every Rivals label (batch 7.16).</summary>
     public string SeeAllText => Category.Songs.Count == 1
-        ? "View 1 song"
+        ? "View 1 Song"
         : string.Create(CultureInfo.CurrentCulture, $"View All {Category.Songs.Count:N0} Songs");
 
     /// <summary>UIA automation ID.</summary>

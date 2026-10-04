@@ -326,6 +326,12 @@ class A11yCommandsTests(unittest.TestCase):
     def test_no_settings_runs_nothing(self):
         self.assertEqual(a11y_commands("UDID", None), ([], []))
 
+    def test_bold_text_writes_the_legibility_preference(self):
+        enable, restore = a11y_commands("UDID", ["bold-text"])
+        self.assertEqual(enable[0][4:6], ["defaults", "write"])
+        self.assertIn("EnhancedTextLegibilityEnabled", enable[0])
+        self.assertEqual(restore[0][4:7], ["defaults", "delete", "com.apple.Accessibility"])
+
     def test_unknown_setting_is_rejected(self):
         with self.assertRaises(ValueError):
-            a11y_commands("UDID", ["bold-text"])
+            a11y_commands("UDID", ["grayscale"])

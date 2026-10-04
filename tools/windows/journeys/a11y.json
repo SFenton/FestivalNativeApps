@@ -79,6 +79,16 @@
     ]
   },
   {
+    "name": "songs-filter-applied",
+    "tab": "songs",
+    "settings": {"songShopFilter": {"available": false, "unavailable": true}},
+    "ready": [
+      "waitfor:id=fst.songs.filter@20",
+      "wait:2"
+    ],
+    "tabs": 6
+  },
+  {
     "name": "song-detail",
     "route": "/songs/fixture-pulse",
     "profile": "fixture-player-1:Demo Player",
@@ -224,6 +234,39 @@
     ]
   },
   {
+    "name": "all-rivals-lead",
+    "route": "/rivals/all?category=Solo_Guitar",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.all-rivals.list@20"
+    ]
+  },
+  {
+    "name": "all-rivals-board",
+    "route": "/rivals/all?category=Solo_Guitar&mode=leaderboard&rankBy=totalscore",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.all-rivals.list@20",
+      "waitfor:name=Ranked by Total Score · You are #1@10"
+    ]
+  },
+  {
+    "name": "all-rivals-empty",
+    "route": "/rivals/all",
+    "profile": "fixture-player-empty:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rivals.page-empty@20"
+    ]
+  },
+  {
+    "name": "all-rivals-freeze",
+    "route": "/rivals/all",
+    "profile": "fixture-player-503:Demo Player",
+    "ready": [
+      "waitfor:id=fst.service-status.title@20"
+    ]
+  },
+  {
     "name": "rival-detail",
     "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8",
     "profile": "fixture-player-1:Demo Player",
@@ -248,6 +291,19 @@
     ]
   },
   {
+    "name": "statistics-chart",
+    "route": "/statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.player.name@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.player.percentiles.Solo_Guitar@10",
+      "scrollinto:id=fst.player.rank-history.Solo_Guitar@10",
+      "wait:1"
+    ]
+  },
+  {
     "name": "player",
     "route": "/player/fixture-player-2",
     "profile": "fixture-player-1:Demo Player",
@@ -260,7 +316,8 @@
     "route": "/bands",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
-      "waitfor:id=fst.bands.title@20"
+      "waitfor:id=fst.bands.title@20",
+      "waitfor:id=fst.bands.not-found@10"
     ]
   },
   {
