@@ -79,7 +79,8 @@
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                       AutomationProperties.AutomationId="fst.full-rankings.list">
             <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
-                           ElementPrepared="OnRowPrepared" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                           ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
+                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
                            ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
                 <ItemsRepeater.Layout>
                     <StackLayout Spacing="4" />

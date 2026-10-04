@@ -35,7 +35,8 @@
     "after_ready": [
       "invoke:id=fst.full-rankings.spotlight-jump",
       "waitgone:id=fst.full-rankings.spotlight-jump@10",
-      "waitfor:id=fst.rankings.row.fixture-rank-26@10"
+      "waitfor:id=fst.rankings.row.fixture-rank-40@10",
+      "wait:2"
     ]
   },
   {
