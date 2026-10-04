@@ -49,12 +49,30 @@ public sealed record LeaderboardSection(
 /// <param name="AccuracyWidth">Accuracy column width (0 when hidden).</param>
 /// <param name="ShowStars">Whether the stars column shows.</param>
 /// <param name="StarsWidth">Stars column width (0 when hidden).</param>
+/// <param name="MetaBelowName">
+/// Whether a rankings row's songs label moves under the name instead of taking its own column, because the column would
+/// squeeze the name below its minimum (large text in a narrow row; issue #208).
+/// </param>
+/// <param name="ValueBelowName">
+/// Whether a rankings row still squeezes the name without the songs column, so it stacks on two lines: rank and name
+/// (spanning the rating's column) on the first, the songs label (from the rank's edge) and the rating on the second
+/// (issue #208: five-digit ranks and eleven-character ratings at 200% text).
+/// </param>
+/// <param name="Stacked">
+/// Whether a score row's value columns move to a second line under the name (issue #207): the name keeps the first
+/// line's width when even the reduced columns would leave it less than <see cref="LeaderboardColumnLayout.MinNameWidth"/>.
+/// </param>
+/// <param name="SplitValues">
+/// When a score row is stacked, whether its pinned season and the score don't fit side by side under the name either, so
+/// the score (with its badge and stars) takes a third line.
+/// </param>
 /// <param name="ShowChevron">
 /// Whether the chevron column is reserved (any row of the section has a destination); a row without one leaves it blank.
 /// </param>
 public sealed record LeaderboardColumnPlan(
     double Gap, double RankWidth, bool ShowMeta, double MetaWidth, double ValueWidth,
-    bool ShowAccuracy, double AccuracyWidth, bool ShowStars, double StarsWidth, bool ShowChevron = true)
+    bool ShowAccuracy, double AccuracyWidth, bool ShowStars, double StarsWidth, bool MetaBelowName = false,
+    bool ValueBelowName = false, bool Stacked = false, bool SplitValues = false, bool ShowChevron = true)
 {
     /// <summary>Whether the narrow (8 epx gap) layout applies.</summary>
     public bool Compact => Gap < LeaderboardColumnLayout.WideGap;
@@ -66,8 +84,10 @@ public sealed record LeaderboardColumnPlan(
 /// The one per-section column fitter for Windows leaderboard rows (issue #37). Ports the web's rules: the season column
 /// from a 520 epx row (<c>MEDIUM_BREAKPOINT</c>), stars from 700 epx (<c>MOBILE_BREAKPOINT</c> 768 less the page chrome),
 /// tighter gaps below 420 epx, the accuracy column always reserved in a section that has accuracy, and the rankings songs
-/// label kept (it yields only when large text would squeeze the name below its minimum). When the fixed columns would
-/// squeeze the name below its minimum (narrow rows or large text), stars go first, then the season.
+/// label never dropped. When the fixed columns would squeeze the name below its minimum (narrow rows or large text),
+/// stars go first, then the season; a rankings songs label moves under the name instead, and if the name is still
+/// squeezed the rankings row stacks on two lines with the rating on the second, while a score row stacks its value
+/// columns under the name (Windows text scaling has no web equivalent, and an all-ellipsis name hides whose row it is).
 /// </summary>
 public static class LeaderboardColumnLayout
 {
@@ -145,17 +165,25 @@ public static class LeaderboardColumnLayout
         var showMeta = section.HasMeta && (!score || pinned || (known && rowWidth >= SeasonBreakpoint));
         var showStars = score && section.HasStars && known && rowWidth >= StarsBreakpoint;
 
+        var chevron = section.HasRoutes ? ChevronWidth * scale : 0;
+
         double Required() => RowPadding + rank + (showMeta ? meta : 0) + value + accuracy + (showStars ? StarsWidth : 0) +
-                             (section.HasRoutes ? ChevronWidth * scale : 0) + GapCount * gap + MinNameWidth * scale;
+                             chevron + GapCount * gap + MinNameWidth * scale;
 
         if (showStars && Required() > rowWidth) showStars = false;
         if (score && showMeta && !pinned && Required() > rowWidth) showMeta = false;
-        // Rankings keep their songs label like the web, unless large text would squeeze the name to nothing (issue #209;
-        // the spec lets accessibility text sizes change the columns). Narrator still reads the songs in the row's name.
-        if (!score && showMeta && Required() > rowWidth) showMeta = false;
+        // Rankings never drop the songs label (web parity); it moves under the name rather than truncate the name away.
+        var metaBelow = !score && showMeta && known && Required() > rowWidth;
+        if (metaBelow) showMeta = false;
+        var valueBelow = !score && known && Required() > rowWidth;
+        var stacked = score && known && Required() > rowWidth;
+        // Stacked, the season and score share the name's columns on the next line: everything but the rank, the badge,
+        // stars, chevron and the four gaps outside that span.
+        var under = rowWidth - RowPadding - rank - 4 * gap - accuracy - (showStars ? StarsWidth : 0) - chevron;
+        var split = stacked && showMeta && meta + gap + value > under;
         return new LeaderboardColumnPlan(
             gap, rank, showMeta, showMeta ? meta : 0, value,
-            accuracy > 0, accuracy, showStars, showStars ? StarsWidth : 0, section.HasRoutes);
+            accuracy > 0, accuracy, showStars, showStars ? StarsWidth : 0, metaBelow, valueBelow, stacked, split, section.HasRoutes);
     }
 }
 #endregion

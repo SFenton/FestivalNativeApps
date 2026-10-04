@@ -386,9 +386,9 @@ public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongIte
     /// <summary>Tone.</summary>
     public RivalCategorySentiment Sentiment => Category.Sentiment;
 
-    /// <summary>Web <c>rivals.detail.viewAll</c>.</summary>
+    /// <summary>Web <c>rivals.detail.viewAll</c>, in Title Case like every Rivals label (batch 7.16).</summary>
     public string SeeAllText => Category.Songs.Count == 1
-        ? "View 1 song"
+        ? "View 1 Song"
         : string.Create(CultureInfo.CurrentCulture, $"View All {Category.Songs.Count:N0} Songs");
 
     /// <summary>UIA automation ID.</summary>

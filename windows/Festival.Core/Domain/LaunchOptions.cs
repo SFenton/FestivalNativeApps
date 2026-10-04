@@ -8,10 +8,12 @@ namespace Festival.Core.Domain;
 /// Command-line flags win over environment variables:
 /// <c>--tab songs</c>, <c>--route /songs/{id}</c>, <c>--base-url http://127.0.0.1:8765/</c> (loopback only),
 /// <c>--perf-log path</c>, <c>--width 1280 --height 800</c>, <c>--reduce-motion</c>, <c>--no-art</c>,
-/// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--drift-fps N</c> (background drift steps/s),
+/// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--auto-scroll-speed N</c> (epx/s, implies
+/// auto-scroll), <c>--auto-scroll-span N</c> (turn back at N epx), <c>--drift-fps N</c> (background drift steps/s),
 /// <c>--frame-stats</c> (UI-thread frame intervals in the perf log), <c>--profile accountId:Name</c> (select a player in memory
 /// only, never persisted), <c>--anonymous</c> (no player, in memory only), <c>--settings-path file</c> (isolated settings file).
-/// <c>--automation</c> is resolved separately by <see cref="AutomationLaunch"/> and only accepted here as a flag.
+/// <c>--control-lab instrument-selector</c> (<c>FST_DEBUG_CONTROL_LAB</c>; opens a control's state lab instead of the shell, honoured only
+/// in Debug and automation launches). <c>--automation</c> is resolved separately by <see cref="AutomationLaunch"/> and only accepted here as a flag.
 /// </summary>
 public sealed record LaunchOptions
 {
@@ -42,6 +44,12 @@ public sealed record LaunchOptions
     /// <summary>Scrolls the Songs list continuously (frame-delivery perf scenario).</summary>
     public bool AutoScroll { get; init; }
 
+    /// <summary>Auto-scroll speed in epx per second (1–2000); <see langword="null"/> keeps the 6 epx-per-tick perf pace.</summary>
+    public int? AutoScrollSpeed { get; init; }
+
+    /// <summary>Offset in epx at which auto-scroll turns back up instead of the list's end (slow section-boundary recordings).</summary>
+    public int? AutoScrollSpan { get; init; }
+
     /// <summary>Logs UI-thread frame intervals to the perf log (measurement only; keeps XAML rendering every frame).</summary>
     public bool FrameStats { get; init; }
 
@@ -56,6 +64,12 @@ public sealed record LaunchOptions
 
     /// <summary>Settings file replacing the per-user default (<c>FST_SETTINGS_PATH</c>), so automation never touches real settings.</summary>
     public string? SettingsPath { get; init; }
+
+    /// <summary>Control state lab to open instead of the shell (one of <see cref="ControlLabs"/>), or <see langword="null"/>.</summary>
+    public string? ControlLab { get; init; }
+
+    /// <summary>Control labs the app can open (UI-automation harnesses for states no page reaches, e.g. disabled instruments).</summary>
+    public static IReadOnlyList<string> ControlLabs { get; } = ["instrument-selector"];
 
     /// <summary>Whether settings must stay in memory (a debug profile or anonymous launch).</summary>
     public bool InMemorySettings => DebugProfile is not null || Anonymous;
@@ -77,6 +91,7 @@ public sealed record LaunchOptions
             ["perf-log"] = environment("FST_PERF_LOG"),
             ["profile"] = environment("FST_DEBUG_PROFILE"),
             ["settings-path"] = environment("FST_SETTINGS_PATH"),
+            ["control-lab"] = environment("FST_DEBUG_CONTROL_LAB"),
         };
         var flags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (environment("FST_DEBUG_ANONYMOUS") == "1") flags.Add("anonymous");
@@ -136,8 +151,16 @@ public sealed record LaunchOptions
             if (candidate is { IsValid: true }) profile = candidate;
             else warnings.Add("Debug profile must be 'accountId:Display Name'.");
         }
+        string? controlLab = null;
+        if (values.GetValueOrDefault("control-lab") is { Length: > 0 } labText)
+        {
+            controlLab = ControlLabs.FirstOrDefault(l => string.Equals(l, labText.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (controlLab is null) warnings.Add($"Unknown control lab '{labText}'.");
+        }
+        var speed = Bounded(values.GetValueOrDefault("auto-scroll-speed"), 1, 2000);
         return new LaunchOptions
         {
+            ControlLab = controlLab,
             DebugProfile = profile,
             Anonymous = flags.Contains("anonymous") && profile is null,
             SettingsPath = values.GetValueOrDefault("settings-path") is { Length: > 0 } settingsPath ? settingsPath : null,
@@ -149,7 +172,9 @@ public sealed record LaunchOptions
             Height = Dimension(values.GetValueOrDefault("height")),
             ReduceMotion = flags.Contains("reduce-motion"),
             NoArt = flags.Contains("no-art"),
-            AutoScroll = flags.Contains("auto-scroll"),
+            AutoScroll = flags.Contains("auto-scroll") || speed is not null,
+            AutoScrollSpeed = speed,
+            AutoScrollSpan = Bounded(values.GetValueOrDefault("auto-scroll-span"), 1, 1_000_000),
             FrameStats = flags.Contains("frame-stats"),
             DriftFps = int.TryParse(values.GetValueOrDefault("drift-fps"), NumberStyles.None, CultureInfo.InvariantCulture, out var fps) && fps <= 240 ? fps : null,
             Warnings = warnings,
@@ -159,7 +184,14 @@ public sealed record LaunchOptions
     /// <summary>Parses a window dimension in 320–7680 DIPs.</summary>
     /// <param name="value">Text.</param>
     /// <returns>Dimension or <see langword="null"/>.</returns>
-    private static int? Dimension(string? value) =>
-        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n is >= 320 and <= 7680 ? n : null;
+    private static int? Dimension(string? value) => Bounded(value, 320, 7680);
+
+    /// <summary>Parses a whole number within inclusive bounds.</summary>
+    /// <param name="value">Text.</param>
+    /// <param name="min">Lowest accepted value.</param>
+    /// <param name="max">Highest accepted value.</param>
+    /// <returns>The number, or <see langword="null"/> when missing or out of range.</returns>
+    private static int? Bounded(string? value, int min, int max) =>
+        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var n) && n >= min && n <= max ? n : null;
 }
 #endregion

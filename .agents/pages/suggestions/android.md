@@ -48,7 +48,8 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 - A filter that disables every type skips generation (nothing could show).
 - **Rival name badge, native deviation (2026-10-02, issue #59 check of #29):** single-rival cards (`song_rival_spotlight_`/`gap_`/`protect_`/`slipping_`/`dominate_`) name the rival in their title, so rows drop the web's per-row name badge and show only the signed delta + icon (`SuggestionRowPresentation.showsRivalName`, as Apple). Mixed-rival cards (`song_rival_battleground` and the cross-pollination families) keep the badge. TalkBack still names the rival on badge-less rows: the row label ends "2 ranks behind Rival B1" (`rivalDeltaAccessibilityLabel`); mixed rows keep "rival X, ahead by 1 rank" (singular "rank" fixed at the same time). Verified on `FST_Phone` (fixture mode, seed 1) via the UI tree's `content-desc`.
 - Filter stays reachable while the cards scroll (issue #52): `FestivalScreen(pinActions = true)` pins the compact floating toolbar instead of hiding it on scroll; global search is already in the pinned top app bar.
-- Button copy follows the web (`Start a new mix`, `Reset Filters`, empty-state strings from `FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`).
+- Filter reads before the feed (issue #112): the shell reads the floating toolbar after page content (traversal index 1), but this feed loads cards as TalkBack scrolls, so linear navigation never reached Filter. `FestivalScreen(actionsReadFirst = true)` makes the top app bar a traversal group at −2 and the toolbar −1: top bar → Filter → cards. Other pages keep the default.
+- Button copy follows the web strings (`FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`) in the repo's Title Case for buttons ([design](../../design/README.md)): `Start a New Mix` (web "Start a new mix"), `Reset Filters`.
 
 ## Debug and fixtures
 
@@ -61,7 +62,10 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 | `core/suggestions/SuggestionParityTest`, `SuggestionCoreTest` | Apple parity; helpers, filter cascade/persistence, rival index edge cases, row layouts, skip streak, spotlight |
 | `suggestions/SuggestionDataTest` | Wire validation (identity, counts, duplicates, bounds, 202 envelope), instrument bit codes, keyless requests, rivals 404/500, filter store |
 | `suggestions/SuggestionsViewModelTest` | Batching, rival splice, remix to the cap + new mix, filter/visibility refilter, syncing/failure retry, player switch, new publication |
-| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded) and hosted renders of every phase/row layout, phone and expanded |
+| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded), traversal order (top bar → Filter → cards; other pages unchanged) and hosted renders of every phase/row layout, phone and expanded |
+| `journeys/SuggestionsAccessibilityJourneyTest` (connected, `device.py test`) | ATF on the feed and filter sheet, reading order in logcat `FST_A11Y`, no card across a separating hinge |
+
+Fixtures: `testing/SuggestionFixtures` (shared with `androidTest`).
 
 | Last measured | Logic lines | UI lines |
 |---|---|---|
@@ -73,10 +77,29 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 |---|---|
 | `FST_Phone` | One column, narrow rows, filter sheet, filter apply (`android/reports/screenshots/suggestions-{phone,phone-scrolled,filter-phone}.png`) |
 | `FST_Book_Fold` unfolded / half / folded | One wide column / hinge split (WindowManager reported `fold-[1038,0,1038,2152]`, HALF_OPENED): two columns with the gap on the fold / phone layout (`suggestions-book-{unfolded,half,folded}.png`) |
+| Every AVD and posture (live service) | See Validation (issue #112) |
+
+## Validation (issue #112, 2026-10-04)
+
+Live public service, SFentonX selected, dark scheme. Material 3 skill guidance checked: cards "Compact: full-width single column; Medium: multi-column; Expanded: max 4 cols", "Never place interactive content across the hinge", "Minimum touch target 48x48dp", accessibility "TalkBack/semantics (Compose), focus order".
+
+| Configuration | Found | Result |
+|---|---|---|
+| FST_Phone portrait/landscape, fs 1.0/2.0 | TalkBack swiped from the top bar straight into the endless cards; the pinned Filter (read after content) was never reached | Fixed: top bar → Filter → cards (Decisions). Layout passes: one column, rows wrap at 2.0, sheet scrolls; landscape 2.0 leaves little list room (pinned toolbar, as Songs) |
+| FST_Tablet landscape/portrait, fs 1.0/2.0 | — | Pass: two columns with the permanent drawer; rail at 2.0; filter sheet width-capped |
+| FST_Resizable phone/foldable/tablet/desktop, fs 1.0/2.0 | — | Pass: 1 / 1 wide (rail) / 2 / 3 columns |
+| FST_Book_Fold unfolded/half/folded, portrait/landscape, fs 1.0/2.0 | — | Pass: one wide column / two columns split at the hinge, nothing across it / phone layout; folded landscape 2 columns |
+| FST_Passport_Fold folded/unfolded, portrait/landscape, fs 1.0/2.0 | — | Pass: phone layout folded; one wide column with the rail unfolded (icon-only at 2.0) |
+| FST_TriFold folded/partial/unfolded, fs 1.0/2.0 | Folded at 2.0 the shared one-line top-bar title truncates ("Sugges…") | Pass (shared top-bar behaviour, as other pages); 1 / 1 / 2 columns |
+| Light theme | App stays dark | Documented dark-only deviation ([design](../../design/android.md)) |
+| Reduced motion (animator scale 0) | — | Cards show at once (no batch fade); marquees truncate |
+| TalkBack (FST_Phone, real) | Search, Notifications (N unread), Profile: <name>, Filter Suggestions, then card heading, description and one Button stop per row ("title, artist · year, metadata") | Coherent order after the fix |
+| Connected ATF journey | `SuggestionsAccessibilityJourneyTest` on FST_Phone and FST_Book_Fold half-open | 0 errors; no card straddles the hinge |
+
+Deliberate deviations kept: dark scheme only; width-capped `ModalBottomSheet` instead of an M3 side sheet on expanded windows (as Songs #101); 16 dp margins app-wide (M3 suggests 24 dp at medium+); pinned (always-visible) floating toolbar on compact windows (issue #52).
 
 ## Open
 
-- Passport, tri-fold, tablet and resizable captures; TalkBack walkthrough and ATF checks (accessibility phase).
 - No first-run slides, scroll restoration across launches or list-detail Song Detail pane (rows push).
 
 ## IDs

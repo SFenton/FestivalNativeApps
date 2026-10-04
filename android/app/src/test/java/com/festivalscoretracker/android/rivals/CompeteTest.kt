@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.rivals
 
+import com.festivalscoretracker.android.testing.CompeteFixtures
 import com.festivalscoretracker.android.testing.RivalsFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
@@ -24,6 +25,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.compete.ComboRankingsResponse
+import com.festivalscoretracker.android.core.compete.CompeteHeaderLayout
 import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.compete.CompeteScopes
 import com.festivalscoretracker.android.core.compete.CompeteText
@@ -75,49 +77,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-// region Fixtures
-
-/** Synthetic Compete routes: rankings (shared fixtures), combo boards and rivals for the selected player. */
-object CompeteFixtures {
-    /** Selected player (ranked 40th, outside the top 10). */
-    const val PLAYER = RankingsFixtures.SELECTED
-
-    /**
-     * Combo board JSON.
-     *
-     * @param comboId Combo.
-     * @param rows Rows.
-     * @return JSON.
-     */
-    fun comboBoard(comboId: String, rows: Int = 3): String {
-        val entries = (1..rows).joinToString(",") { rank ->
-            """{"rank":$rank,"accountId":"${RankingsFixtures.accountId(rank)}","displayName":"Synthetic Combo $rank","adjustedRating":0.1,"weightedRating":0.2,"fcRate":0.5,"totalScore":${1_000_000 - rank},"maxScorePercent":0.9,"songsPlayed":10,"totalChartedSongs":20,"fullComboCount":5,"computedAt":"2026-09-28T00:00:00Z"}"""
-        }
-        return """{"comboId":"$comboId","rankBy":"totalscore","page":1,"pageSize":10,"totalAccounts":30,"entries":[$entries]}"""
-    }
-
-    private fun combo(url: String): String = Regex("combo=([0-9a-fA-F]+)").find(url)?.groupValues?.get(1).orEmpty()
-
-    /**
-     * Standard transport with rankings, a Lead+Bass combo board and rivals.
-     *
-     * @return Transport.
-     */
-    fun transport(): FakeTransport = RankingsFixtures.install(FakeTransport.standard(), unranked = setOf("Solo_PeripheralVocals")).apply {
-        on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
-        on("/api/rankings/combo", headers = mapOf("X-FST-Publication-Id" to "7")) { comboBoard(combo(it.url)) }
-        on("/api/rankings/combo/$PLAYER", headers = mapOf("X-FST-Publication-Id" to "7")) {
-            """{"comboId":"${combo(it.url)}","rankBy":"totalscore","rank":2,"accountId":"$PLAYER","displayName":"Synthetic Player","totalScore":999998,"songsPlayed":10,"totalAccounts":30}"""
-        }
-        val ids = RivalsFixtures.RIVALS
-        on("/api/player/$PLAYER/rivals/Solo_Guitar") { RivalsFixtures.list("Solo_Guitar", listOf(RivalsFixtures.rival(ids[0], "Synthetic Alpha")), listOf(RivalsFixtures.rival(ids[1], "Synthetic Beta"))) }
-        on("/api/player/$PLAYER/rivals/03") { RivalsFixtures.list("03", listOf(RivalsFixtures.rival(ids[4], "Synthetic Combo")), emptyList()) }
-        on("/api/player/$PLAYER/rivals/03/${ids[4]}") { RivalsFixtures.detail(ids[4]) }
-    }
-}
-
-// endregion
-
 // region Logic
 
 /** Compete scopes, combo reads and view model. */
@@ -142,6 +101,27 @@ class CompeteLogicTest {
         assertEquals("No rivals found for Lead yet.", CompeteText.noRivals("Lead"))
         assertEquals("Track a player to see your closest rivals for Lead.", CompeteText.trackForRivals("Lead"))
         assertEquals("No scores recorded yet for Lead.", CompeteText.noRankings("Lead"))
+    }
+
+    @Test
+    fun scopeHeaderStacksInNarrowLanesAndLargeText() {
+        // Phone card (~379 dp): a combo board without See All keeps its title beside the icons...
+        assertFalse(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = false, largeText = false))
+        // ...but beside See All the title would wrap to three lines, so the icons stack.
+        assertTrue(CompeteHeaderLayout.stacks(379f, 4, hasSeeAll = true, largeText = false))
+        // Half-open book fold panel (~260 dp): the combo title would get a few dp, so the icons stack above it.
+        assertTrue(CompeteHeaderLayout.stacks(260f, 4, hasSeeAll = true, largeText = false))
+        assertTrue(CompeteHeaderLayout.stacks(250f, 4, hasSeeAll = false, largeText = false))
+        // One instrument plus See All still fits that panel.
+        assertFalse(CompeteHeaderLayout.stacks(260f, 1, hasSeeAll = true, largeText = false))
+        // Boundaries: combo icons 4×36 + 3×2, gap 8, combo title 140, gap 8 + link 80; single icon 36, gap 8, title 100, link 88.
+        assertFalse(CompeteHeaderLayout.stacks(386f, 4, hasSeeAll = true, largeText = false))
+        assertTrue(CompeteHeaderLayout.stacks(385.9f, 4, hasSeeAll = true, largeText = false))
+        assertFalse(CompeteHeaderLayout.stacks(232f, 1, hasSeeAll = true, largeText = false))
+        assertTrue(CompeteHeaderLayout.stacks(231.9f, 1, hasSeeAll = true, largeText = false))
+        assertFalse(CompeteHeaderLayout.stacks(108f, 0, hasSeeAll = false, largeText = false))
+        // Large text always stacks.
+        assertTrue(CompeteHeaderLayout.stacks(2000f, 1, hasSeeAll = false, largeText = true))
     }
 
     @Test
@@ -454,6 +434,38 @@ class CompeteUiTest {
         waitForTag("fst.compete.rivals-card.Solo_Bass")
         rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.rivals-card.Solo_Bass"))
         rule.onNodeWithText(CompeteText.noRivals("Bass")).assertIsDisplayed()
+    }
+
+    @Test
+    fun phoneCardsKeepComboTitlesBesideTheirIcons() {
+        launch(DebugLaunch(section = FestivalSection.Compete, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        waitForTag("fst.compete.leaderboard-card.0f")
+        rule.onNode(hasTestTag("fst.compete.scope-header.row").and(hasAnyAncestor(hasTestTag("fst.compete.leaderboard-card.0f")))).assertIsDisplayed()
+    }
+}
+
+/** Compete in a narrow lane (issue #120): a combo title moves below its icons instead of breaking after every word. */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w280dp-h700dp-xhdpi")
+class CompeteNarrowUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun narrowCardsStackComboIconsAboveTheTitle() {
+        val debug = DebugLaunch(section = FestivalSection.Compete, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true)
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = CompeteFixtures.transport(), settingsStore = InMemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+        rule.waitUntil(10_000) {
+            shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+            rule.waitForIdle()
+            rule.onAllNodesWithTag("fst.compete.leaderboard-card.0f").fetchSemanticsNodes().isNotEmpty()
+        }
+        fun header(kind: String, card: String) = hasTestTag("fst.compete.scope-header.$kind").and(hasAnyAncestor(hasTestTag(card)))
+        rule.onNode(header("stacked", "fst.compete.leaderboard-card.0f")).assertIsDisplayed()
+        // One instrument and its See All link still fit beside each other.
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(header("row", "fst.compete.leaderboard-card.Solo_Guitar"))
+        rule.onNode(header("row", "fst.compete.leaderboard-card.Solo_Guitar")).assertIsDisplayed()
     }
 }
 

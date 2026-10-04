@@ -63,6 +63,11 @@ public sealed partial class LeaderboardEntryRow : UserControl
         }
     }
 
+    /// <summary>Moves focus to the row's button (a no-op for a row without a destination, which is not a tab stop).</summary>
+    /// <param name="state">How focus arrives.</param>
+    /// <returns>Whether the row's button took focus.</returns>
+    public bool FocusRow(FocusState state) => RowButton.Focus(state);
+
     /// <summary>The row's destination, if it has one.</summary>
     public AppRoute? Route => (Row as ILeaderboardEntryRow)?.Route;
 
@@ -116,7 +121,6 @@ public sealed partial class LeaderboardEntryRow : UserControl
         var ranked = row.RankText.Length > 0;
         RankText.Visibility = ranked ? Visibility.Visible : Visibility.Collapsed;
         Grid.SetColumn(NameText, ranked ? 1 : 0);
-        Grid.SetColumnSpan(NameText, ranked ? 1 : 2);
         switch (row)
         {
             case ILeaderboardScoreRow score:
@@ -124,7 +128,8 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 MetaText.FontSize = 14;
                 ValueText.Text = score.Score;
                 BayesianText.Visibility = Visibility.Collapsed;
-                PillText.Text = score.Accuracy;
+                PillText.Text = score.BadgeText;
+                AutomationProperties.SetAutomationId(PillText, BadgeAutomationId(score));
                 Pill.Background = ScoreBadge.Fill(score.IsFullCombo, score.AccuracyValue);
                 Pill.BorderBrush = ScoreBadge.Stroke(score.IsFullCombo);
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
@@ -139,6 +144,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 BayesianText.Text = ranking.BayesianText;
                 BayesianText.Visibility = ranking.BayesianText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 StarsView.Stars = 0;
+                PillText.ClearValue(AutomationProperties.AutomationIdProperty);
                 break;
         }
         AutomationProperties.SetName(RowButton, row.Announcement);
@@ -153,6 +159,16 @@ public sealed partial class LeaderboardEntryRow : UserControl
         ApplySurface();
         UpdateColumns();
     }
+
+    /// <summary>
+    /// The badge's UIA ID: the model's <c>fst.score.accuracy.…</c>, or one derived from <see cref="RowAutomationId"/> so a
+    /// pinned copy of a listed row doesn't repeat the listed badge's ID.
+    /// </summary>
+    /// <param name="score">Score row.</param>
+    /// <returns>Automation ID.</returns>
+    private string BadgeAutomationId(ILeaderboardScoreRow score) =>
+        string.IsNullOrEmpty(rowAutomationId) ? score.BadgeAutomationId
+            : "fst.score.accuracy." + rowAutomationId[(rowAutomationId.LastIndexOf('.') + 1)..];
 
     /// <summary>
     /// Bold for the selected player (web <c>isPlayer</c>; operator batch 6.42): rank and name on score rows, plus the songs
@@ -194,6 +210,11 @@ public sealed partial class LeaderboardEntryRow : UserControl
         if (Row is ILeaderboardRankingRow && !(selected && IsHighContrast)) ValueText.Foreground = (Brush)resources["FSTRatingTextBrush"];
         else if (selected) ValueText.Foreground = (Brush)resources["FSTPlayerRowTextBrush"];
         else ValueText.ClearValue(TextBlock.ForegroundProperty);
+        // The selected row's text and chevron are already the system HighlightText-on-Highlight pair under a contrast theme;
+        // without this, WinUI's automatic adjustment repaints them as WindowText on white backplates inside the fill.
+        var adjustment = selected ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
+        RankText.HighContrastAdjustment = NameText.HighContrastAdjustment = MetaText.HighContrastAdjustment =
+            BayesianText.HighContrastAdjustment = ValueText.HighContrastAdjustment = Chevron.HighContrastAdjustment = adjustment;
     }
 
     /// <summary>Whether a Windows contrast theme is on.</summary>
@@ -212,16 +233,89 @@ public sealed partial class LeaderboardEntryRow : UserControl
         var plan = LeaderboardColumnLayout.Fit(section, width, TextScaleLayout.Factor, score?.PinsSeason == true);
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
-        MetaColumn.MinWidth = plan.MetaWidth;
-        MetaText.Visibility = plan.ShowMeta && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ValueColumn.MinWidth = plan.ValueWidth;
+        MetaColumn.MinWidth = plan.Stacked ? 0 : plan.MetaWidth;
+        MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ValueColumn.MinWidth = plan.Stacked ? 0 : plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
-        Pill.Visibility = plan.ShowAccuracy && score is { HasAccuracy: true } ? Visibility.Visible : Visibility.Collapsed;
+        Pill.Visibility = plan.ShowAccuracy && score is { BadgeText.Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         StarsColumn.MinWidth = plan.StarsWidth;
         StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         Chevron.Visibility = plan.ShowChevron ? Visibility.Visible : Visibility.Collapsed;
+        PlaceColumns(plan, RankText.Text.Length > 0);
     }
+
+    /// <summary>
+    /// Places the columns on one line, or under the name when large text in a narrow row would squeeze the name to an
+    /// ellipsis. A rankings row moves its songs label under the name (issue #208), and when the name is still squeezed
+    /// stacks: rank and name (across the rating's column) on the first line, the songs label from the rank's edge and the
+    /// rating on the second. A score row stacks its values (issue #207): the name across the first line, a pinned season
+    /// and the score, badge and stars under it in the name's columns (a third line when they don't fit side by side).
+    /// </summary>
+    /// <param name="plan">Section column plan.</param>
+    /// <param name="ranked">Whether the row has a rank (labelled rows put the name in the rank column too).</param>
+    private void PlaceColumns(LeaderboardColumnPlan plan, bool ranked)
+    {
+        var nameColumn = ranked ? 1 : 0;
+        var nameSpan = ranked ? 1 : 2;
+        var below = plan.MetaBelowName;
+        var rankingStack = plan.ValueBelowName;
+        var scoreStack = plan.Stacked;
+        var multiLine = below || rankingStack || scoreStack;
+        var underSpan = 4 - nameColumn;
+        var valueLine = plan.SplitValues ? 2 : 1;
+
+        Place(RankText, 0, rankingStack || scoreStack ? 1 : 3, 0, 1, VerticalAlignment.Center);
+        Place(NameText, 0, multiLine ? 1 : 3, nameColumn, nameSpan + (scoreStack ? 4 : rankingStack ? 2 : 0),
+            below || rankingStack ? VerticalAlignment.Bottom : VerticalAlignment.Center);
+
+        if (scoreStack) Place(MetaText, 1, 1, nameColumn, underSpan, VerticalAlignment.Center);
+        else if (below) Place(MetaText, 1, 1, rankingStack ? 0 : nameColumn, rankingStack ? 2 : nameSpan, VerticalAlignment.Top);
+        else Place(MetaText, 0, 3, 2, 1, VerticalAlignment.Center);
+        var left = below || scoreStack;
+        MetaText.HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MetaText.TextAlignment = left ? TextAlignment.Left : TextAlignment.Right;
+
+        if (scoreStack) Place(ValueStack, valueLine, 1, nameColumn, underSpan, VerticalAlignment.Center);
+        else if (rankingStack) Place(ValueStack, 1, 1, 3, 1, VerticalAlignment.Top);
+        else Place(ValueStack, 0, 3, 3, 1, VerticalAlignment.Center);
+        Place(Pill, scoreStack ? valueLine : 0, scoreStack ? 1 : 3, 4, 1, VerticalAlignment.Center);
+        Place(StarsHost, scoreStack ? valueLine : 0, scoreStack ? 1 : 3, 5, 1, VerticalAlignment.Center);
+        RowButton.Padding = scoreStack ? new Thickness(12, 6, 12, 6) : new Thickness(12, 0, 12, 0);
+    }
+
+    /// <summary>Puts an element in the row grid.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="row">First grid row.</param>
+    /// <param name="rowSpan">Grid rows spanned.</param>
+    /// <param name="column">First grid column.</param>
+    /// <param name="columnSpan">Grid columns spanned.</param>
+    /// <param name="vertical">Vertical alignment within the span.</param>
+    private static void Place(FrameworkElement element, int row, int rowSpan, int column, int columnSpan, VerticalAlignment vertical)
+    {
+        Grid.SetRow(element, row);
+        Grid.SetRowSpan(element, rowSpan);
+        Grid.SetColumn(element, column);
+        Grid.SetColumnSpan(element, columnSpan);
+        element.VerticalAlignment = vertical;
+    }
+    /// <summary>
+    /// Fits the columns to the width offered in the measure pass, before the grid measures, so a newly realized row
+    /// reports its stacked height at once (issue #220). Waiting for <see cref="OnSizeChanged"/> measured it on one line
+    /// first, and the virtualizing list could keep that height after the row stacked, drawing its values over the next row.
+    /// </summary>
+    /// <param name="availableSize">Space offered by the list.</param>
+    /// <returns>Desired size.</returns>
+    protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size availableSize)
+    {
+        if (double.IsFinite(availableSize.Width) && availableSize.Width != width)
+        {
+            width = availableSize.Width;
+            UpdateColumns();
+        }
+        return base.MeasureOverride(availableSize);
+    }
+
     /// <summary>Re-evaluates the width-dependent columns.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">New size.</param>

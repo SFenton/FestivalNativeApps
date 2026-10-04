@@ -29,6 +29,7 @@ import com.festivalscoretracker.android.core.nav.SuggestionsRoute
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.SuggestionFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
@@ -92,6 +93,54 @@ class SuggestionsUiTest {
         val row = rule.onAllNodes(hasTestTagPrefix("fst.suggestions.row.")).onFirst()
         row.performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.song-detail.list")
+    }
+
+    /** Nearest ancestor that is a traversal group (the root counts as one). */
+    private fun traversalParent(node: androidx.compose.ui.semantics.SemanticsNode): androidx.compose.ui.semantics.SemanticsNode {
+        var parent = node.parent!!
+        while (parent.parent != null && parent.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.IsTraversalGroup) != true) {
+            parent = parent.parent!!
+        }
+        return parent
+    }
+
+    private fun traversalIndex(node: androidx.compose.ui.semantics.SemanticsNode) =
+        node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TraversalIndex) ?: 0f
+
+    /** The traversal-group child of [ancestor] that contains [node]. */
+    private fun groupUnder(ancestor: androidx.compose.ui.semantics.SemanticsNode, node: androidx.compose.ui.semantics.SemanticsNode): androidx.compose.ui.semantics.SemanticsNode {
+        var current = node
+        while (traversalParent(current).id != ancestor.id) current = traversalParent(current)
+        return current
+    }
+
+    @Test
+    fun filterReadsAfterTheTopBarAndBeforeTheEndlessFeed() {
+        // Issue #112: the feed loads more cards as TalkBack scrolls, so a toolbar read after the
+        // content (the shell default) was never reached by swiping. Top bar (-2) → toolbar (-1) →
+        // cards (0) within one traversal group.
+        launch()
+        waitForTag("fst.suggestions.list")
+        val toolbar = rule.onNodeWithTag("fst.nav.floating-toolbar", useUnmergedTree = true).fetchSemanticsNode()
+        val topBar = rule.onNodeWithTag("fst.nav.top-bar", useUnmergedTree = true).fetchSemanticsNode()
+        val list = rule.onNodeWithTag("fst.suggestions.list", useUnmergedTree = true).fetchSemanticsNode()
+        val filter = rule.onNodeWithTag("fst.suggestions.filter-button", useUnmergedTree = true).fetchSemanticsNode()
+        val group = traversalParent(toolbar)
+        assertEquals(group.id, traversalParent(topBar).id)
+        assertEquals(-2f, traversalIndex(topBar))
+        assertEquals(-1f, traversalIndex(toolbar))
+        assertEquals(toolbar.id, groupUnder(group, filter).id)
+        assertTrue(traversalIndex(groupUnder(group, list)) >= 0f)
+    }
+
+    @Test
+    fun otherPagesStillReadTheirToolbarAfterTheContent() {
+        launch(debug = DebugLaunch(section = FestivalSection.Songs, profile = player, stillBackground = true))
+        waitForTag("fst.songs.list")
+        val toolbar = rule.onNodeWithTag("fst.nav.floating-toolbar", useUnmergedTree = true).fetchSemanticsNode()
+        val topBar = rule.onNodeWithTag("fst.nav.top-bar", useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals(1f, traversalIndex(toolbar))
+        assertEquals(0f, traversalIndex(topBar))
     }
 
     @Test

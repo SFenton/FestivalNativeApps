@@ -13,12 +13,17 @@ Journey file shape::
       "preset": "medium", "steps": ["waitfor:id=fst.player-bands.title@10", "..."]}]
 
 ``{shots}`` in a step expands to the ``--shots`` directory (Windows path). An optional
-``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks, and an optional
-``"fixture": ["--large-rankings"]`` runs that journey against its own fixture service with those flags.
+``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks,
+``"args": ["--reduce-motion"]`` extra app arguments, and an optional ``"fixture": ["--band-rankings", "empty"]``
+runs that journey against its own fixture service with those flags (``rivals_fixture.py`` unless ``--fixture``).
 
 Usage::
 
-    python tools/windows/ui_journey.py tools/windows/journeys/bands.json [--only NAME] [--shots DIR] [--exe aot]
+    python tools/windows/ui_journey.py tools/windows/journeys/bands.json [--only NAME] [--shots DIR] [--exe aot] [--large-catalogue]
+    python tools/windows/ui_journey.py tools/windows/journeys/star-rating.json --fixture tools/windows/star_rating_fixture.py
+
+``--fixture`` runs a wrapper script (which takes ``mock_service.py`` flags and prints the same ready line) instead of
+the plain mock service.
 """
 
 from __future__ import annotations
@@ -45,16 +50,17 @@ EXE = journey_exe.DEBUG_EXE
 # region Fixture service
 
 
-def start_mock(log: Path, extra: tuple[str, ...] = ()) -> tuple[subprocess.Popen, int]:
+def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | None = None) -> tuple[subprocess.Popen, int]:
     """Start the fixture service on a free loopback port, logging to a file.
 
-    A file (not a pipe) keeps a chatty service from blocking on a full pipe buffer. With ``extra`` flags the
-    Windows fixture wrapper (``rivals_fixture.py``, which takes ``--band-rankings`` and every mock service
-    flag) serves instead of the plain mock service.
+    A file (not a pipe) keeps a chatty service from blocking on a full pipe buffer. With a ``fixture`` script (for
+    a journey's ``fixture`` flags, the Windows wrapper ``rivals_fixture.py``, which takes ``--band-rankings`` and
+    every mock service flag) that script serves instead of the plain mock service.
 
     Args:
         log: Service output file.
-        extra: A journey's ``fixture`` flags (e.g. ``["--large-rankings"]``).
+        service_args: Extra ``mock_service.py`` flags (e.g. ``--large-catalogue``) and a journey's ``fixture`` flags.
+        fixture: Optional wrapper script around ``mock_service.py`` (it raises the listen backlog itself).
 
     Returns:
         The process and its port.
@@ -66,9 +72,9 @@ def start_mock(log: Path, extra: tuple[str, ...] = ()) -> tuple[subprocess.Popen
     # Python's default listen backlog (5) overflows when the app's artwork burst and page reads arrive together;
     # Windows then resets queued connections (WSAECONNABORTED), which the app correctly reports as offline.
     bootstrap = ("import sys; sys.path.insert(0, sys.argv[1]); import mock_service as m; "
-                 "m.FixtureServer.request_queue_size = 128; sys.argv = ['mock_service', '--port', '0']; m.main()")
-    command = ([sys.executable, "-u", str(FIXTURE), "--port", "0", *extra] if extra
-               else [sys.executable, "-u", "-c", bootstrap, str(MOCK.parent)])
+                 "m.FixtureServer.request_queue_size = 128; sys.argv = ['mock_service', '--port', '0', *sys.argv[2:]]; m.main()")
+    command = ([sys.executable, "-u", str(fixture), "--port", "0", *service_args] if fixture is not None
+               else [sys.executable, "-u", "-c", bootstrap, str(MOCK.parent), *service_args])
     proc = subprocess.Popen(command, stdout=handle, stderr=subprocess.STDOUT)
     for _ in range(200):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
@@ -109,6 +115,7 @@ def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:
     launch = uiwin("launch", str(EXE), "--route", journey["route"],
                    "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
                    "--preset", journey.get("preset", "medium"),
+                   *(f"--arg={arg}" for arg in journey.get("args", [])),
                    *(f"--extra={key}={value}" for key, value in journey.get("extra", {}).items()))
     if launch.returncode != 0:
         return False, "launch: " + launch.stderr.strip()
@@ -143,6 +150,10 @@ def main(argv: list[str] | None = None) -> int:
     journey_exe.add_argument(parser)
     parser.add_argument("--retries", type=int, default=1,
                         help="re-run a failed journey this many times; a later pass is reported as FLAKY")
+    parser.add_argument("--large-catalogue", action="store_true",
+                        help="also serve mock_service.py's synthetic 108-song catalogue (e.g. a raw-6 chart)")
+    parser.add_argument("--fixture", type=Path,
+                        help="fixture wrapper script taking mock_service.py flags (e.g. tools/windows/star_rating_fixture.py)")
     args = parser.parse_args(argv)
     global EXE
     EXE = args.exe
@@ -153,13 +164,14 @@ def main(argv: list[str] | None = None) -> int:
     journeys = json.loads(args.journeys.read_text(encoding="utf-8"))
     selected = [j for j in journeys if not args.only or j["name"] in args.only]
     services: dict[tuple[str, ...], tuple[subprocess.Popen, int]] = {}
+    base = ("--large-catalogue",) if args.large_catalogue else ()
     failures = 0
     try:
         for journey in selected:
             extra = tuple(journey.get("fixture", ()))
             if extra not in services:
                 log = "fixture-service.log" if not services else f"fixture-service-{len(services)}.log"
-                services[extra] = start_mock(args.shots / log, extra)
+                services[extra] = start_mock(args.shots / log, base + extra, args.fixture or (FIXTURE if extra else None))
             port = services[extra][1]
             ok, detail = run_journey(journey, port, args.shots.resolve())
             attempts = 1

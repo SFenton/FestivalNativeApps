@@ -24,7 +24,7 @@ Debug build, 3840×2160 at 300%, `a11y_matrix.py --scan --tabs 30` on the four f
 | Maximized, snapped left/right | ✅ paged and single page |
 | Light system theme | The app is dark-only by design (`App.xaml RequestedTheme="Dark"`, web parity). Deliberate deviation |
 | High contrast Desert / Night sky | ✅ after the `FooterPlate` fix. Before it, row borders and text showed between the floating pager's buttons, as on the song leaderboard (#197) |
-| Text size 200% | ✅ compact/medium/wide. At compact the rank, songs and rating columns used to leave the band name only "…". Rankings sections now drop the songs label when large text would squeeze the name below its minimum; the songs value stays in the row's Narrator name |
+| Text size 200% | ✅ compact/medium/wide. At compact the rank, songs and rating columns used to leave the band name only "…". Rankings rows now move the songs label (then the rating) under the name when large text would squeeze the name below its minimum (the shared #208 rule; this branch first dropped the label, and the merge kept #208's placement) |
 | Display scale 100% / 150% | ✅ medium and maximized |
 | Keyboard | Tab: title bar → pane → band size → Rank By → rows (one stop, Up/Down) → pager. Left/Right/Home/End/Ctrl+arrows page and focus stays on the pager after the fix below. Enter opens the menus, Esc returns focus to the button and Enter on a row opens Band Detail; Alt+Left comes back |
 | UIA | Each row is one Button named "Rank #N, members. Metric value, played / total songs"; rows without a band page aren't openable but keep their columns. The menu items are `RadioMenuFlyoutItem`s with the Toggle pattern (no Invoke). Page text is a polite live region named "Page N of M" |
@@ -35,6 +35,8 @@ Fixed:
 - **Column alignment:** a row without a band page (no `teamKey`) dropped its chevron, which shifted its songs and rating columns. The chevron slot is now reserved section-wide (`LeaderboardSection.HasRoutes`), and unopenable rows draw it transparent.
 - **Empty state:** the empty text gained `fst.band-rankings.empty`, wraps and is centred.
 
+Post-merge re-run (master with #207/#208, 2026-10-04): `band-rankings.json` journeys 6/6; Axe 0 errors with tab stops 9/12/12 paged and 7/10/10 anonymous at compact, medium and wide; text 200% at C/M/W also had 0 errors. At 200% compact, rows stack: rank and name on the first line, songs label and rating on the second.
+
 Design review (`winui-design`): Fluent `DropDownButton` + `MenuFlyout` radio items for band size and Rank By, theme brushes, system colours in contrast themes, defined loading/empty/error states. The custom pager stays for web Paginator parity (`winapp find-api` finds no `PagerControl` in the app's WinAppSDK). The web's `BandRankingPlayerCard` cards are the shared native leaderboard rows (operator batch 7.7).
 
 ## IDs
@@ -44,7 +46,6 @@ Design review (`winui-design`): Fluent `DropDownButton` + `MenuFlyout` radio ite
 ## Open
 
 - No selected-band pinned row (no selected-band identity on Windows) and no band-combo filter.
-- Full Rankings shares `ShowContent`'s old load-swap gating and has no contrast `FooterPlate`; it is outside this validation (#209).
 - Narrator audio was not scripted; announcements are covered by the UIA tree and `LoadAnnouncer` tests.
 
 ## Two columns

@@ -86,15 +86,18 @@ public sealed record LeaderboardRivalsListResponse(
     [JsonIgnore]
     public bool IsEmpty => Above.Count == 0 && Below.Count == 0;
 
-    /// <summary>Rejects missing lists or unsafe account IDs and drops unsafe names.</summary>
+    /// <summary>
+    /// Rejects missing lists or unsafe account IDs and drops unsafe names. Anonymous rows (empty <c>accountId</c>, no
+    /// <c>displayName</c>; production serves them, e.g. Lead total-score rank 13 for SFentonX) are kept with an empty ID.
+    /// </summary>
     /// <returns>A sanitized copy.</returns>
     /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResponse"/>.</exception>
     public LeaderboardRivalsListResponse Validated() => this with
     {
-        Above = RivalsValidation.Rivals(Above, r => r.AccountId, r => r.DisplayName, (r, n) => r with { DisplayName = n },
-            r => r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0),
-        Below = RivalsValidation.Rivals(Below, r => r.AccountId, r => r.DisplayName, (r, n) => r with { DisplayName = n },
-            r => r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0),
+        Above = RivalsValidation.Rivals(Above, r => r.AccountId, r => r.DisplayName, (r, n) => r with { AccountId = r.AccountId ?? "", DisplayName = n },
+            r => r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0, allowAnonymous: true),
+        Below = RivalsValidation.Rivals(Below, r => r.AccountId, r => r.DisplayName, (r, n) => r with { AccountId = r.AccountId ?? "", DisplayName = n },
+            r => r.SharedSongCount >= 0 && r.AheadCount >= 0 && r.BehindCount >= 0, allowAnonymous: true),
     };
 }
 #endregion
@@ -325,16 +328,22 @@ internal static class RivalsValidation
     /// <param name="name">Display name accessor.</param>
     /// <param name="withName">Copies a row with a sanitized name.</param>
     /// <param name="valid">Numeric checks.</param>
+    /// <param name="allowAnonymous">
+    /// Whether a row with an empty (or missing) account ID is kept as an anonymous, non-interactive row. Production
+    /// leaderboard-rival lists include such rows (issue #213), like the anonymous ranking rows. A populated but unsafe ID
+    /// still rejects the list.
+    /// </param>
     /// <returns>Sanitized rows.</returns>
     /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResponse"/>.</exception>
-    public static IReadOnlyList<T> Rivals<T>(IReadOnlyList<T>? rows, Func<T, string> id, Func<T, string?> name, Func<T, string?, T> withName, Func<T, bool> valid)
+    public static IReadOnlyList<T> Rivals<T>(IReadOnlyList<T>? rows, Func<T, string> id, Func<T, string?> name, Func<T, string?, T> withName, Func<T, bool> valid,
+        bool allowAnonymous = false)
         where T : class
     {
         if (rows is null) throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
         var result = new List<T>(rows.Count);
         foreach (var row in rows)
         {
-            if (row is null || !ProfileText.IsValidAccountId(id(row)) || !valid(row))
+            if (row is null || !(ProfileText.IsValidAccountId(id(row)) || (allowAnonymous && string.IsNullOrEmpty(id(row)))) || !valid(row))
                 throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
             result.Add(withName(row, SafeName(name(row))));
         }

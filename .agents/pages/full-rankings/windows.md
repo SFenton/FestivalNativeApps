@@ -11,7 +11,9 @@
 - Shared pager (`LeaderboardsPager`): First · Previous · "page / total" (polite live region, "Page 2 of 34,760") · Next · Last; First/Last collapse below 380 epx; hidden with one page; Left/Right/Home/End in the pager, Ctrl+Left/Right on the page.
 - Rows are the shared `LeaderboardEntryRow` (operator batch 7.7): separate frosted rows, the `X / Y` songs label then the blue rating, like the web `RankingEntry`.
 - Back restores the page, switcher and metric: pushed pages keep their view model per back-stack entry (`LeaderboardsPageState`, keyed by the route object Frame hands back).
-- Load-swap gate (issue #71): first load, F5, instrument/metric changes and paging run content out (300 ms) → centered ring → ring out (500 ms) → row stagger. Old rows stay only during content-out; new rows, empty and failure states are applied while hidden; rapid choices are latest-wins. Reduce Motion skips the waits and swaps immediately.
+- Load-swap gate (issue #71): first load, F5, instrument/metric changes and paging run content out (300 ms) → centered ring → ring out (500 ms) → row stagger. Old rows stay only during content-out; new rows, empty and failure states are applied while hidden; rapid choices are latest-wins. Reduce Motion skips the waits and swaps immediately. `ShowContent` is not gated by the swap (issue #208): collapsing the content mid-page-change dropped keyboard focus from the pager to the window.
+- **Your page** (issue #208) focuses the selected row first, then centres it (`StartBringIntoView`, ratio 0.5); `FocusedJump` tells the page the spotlight button is about to collapse. `OnRowsBringIntoViewRequested` grows every unaligned focus scroll by the floating footer's height (`LeaderboardPaging.RevealAboveFooter`), so a focused row never sits under the pager (WCAG 2.4.11; same pattern as Song Detail's pinned header).
+- At large text a ranking row that cannot fit moves the "X / Y" songs label under the name (`LeaderboardColumnPlan.MetaBelowName`, `LeaderboardEntryRow.PlaceMeta`) instead of truncating the name to "…" (issue #208, WCAG 1.4.4). If the name is still squeezed (live: "#1,450" with an 11-character rating at 200% text, compact), the row stacks on two lines (`ValueBelowName`): rank and name across the rating's column, then the songs label from the rank's edge and the rating. The songs label ellipsizes rather than clip. Applies to every ranking board that uses the shared row.
 
 ## Live findings (2026-09-28)
 
@@ -31,12 +33,32 @@ Fixture: `windows/reports/screenshots/full-rankings-{medium,compact,selected-wid
 
 ## IDs
 
-`fst.full-rankings.title`, `.list`, `.instrument-menu`, `.instrument.<instrument>`, `.page-first|page-previous|page-info|page-next|page-last`, `.spotlight-footer`, `.spotlight-footer.loading`, `.spotlight-footer.unranked`, `.spotlight-jump`, shared `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId>`.
+`fst.full-rankings.title`, `.list`, `.instrument-menu`, `.instrument.<instrument>`, `.page-first|page-previous|page-info|page-next|page-last`, `.spotlight-footer` (the pinned row's Button), `.spotlight-footer.loading` (the ring), `.spotlight-footer.unranked`, `.spotlight-footer.retry`, `.spotlight-jump`, shared `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId>`.
+
+## Validation (issue #208)
+
+Checked 2026-10-03 with the winui-design and winui-code-review skills. Fixture states (`tools/windows/rankings_fixture.py`, journeys `tools/windows/journeys/full-rankings.json`): anonymous, selected on page, selected off page, jumped, unranked, spotlight failed, empty, error. Keyboard journeys (`full-rankings-keyboard.json`): pager, menus + Esc, Your page, rows. Live public service: SFentonX on Lead (#4, on page 1) and Pro Lead (#1,450, page 58). Axe.Windows 0 errors in every row except the WinUI popup findings below.
+
+| Configuration | Finding |
+|---|---|
+| Compact (500 epx), snap-left/right | Switchers below the title, icon-only instrument switcher (First/Last collapse only below 380 epx). Tab stops 9–13. **Fixed:** at 200% text every name truncated to "…" (the songs label never drops); the label now moves under the name, and with live five-digit ranks and 11-character ratings the row stacks on two lines (fixture ranks were too short to show this; the label had been clipped to "222 / 7"). |
+| Medium (900), wide, maximized | Correct; two columns from 1100 epx. Tab stops 12–15. **Fixed:** after Your page the row could land under the floating footer; it is now focused and centred. |
+| Keyboard only | Header → instrument → Rank By → rows (one stop, arrows between rows) → pinned row / Your page → pager. Esc closes both menus and returns focus. **Fixed:** Next/Previous/First/Last lost focus to the window during the load swap (`ShowContent` was gated); Your page left focus on a collapsed button and did not scroll to the row. |
+| High Contrast (Desert, Night sky, Aquatic, Dusk) | **Fixed:** the floating spotlight cards were translucent over rows (now an opaque `FooterPlate` with ButtonFace in contrast themes), the loading ring was hard-coded White, and the selected row's fill was replaced by the system backplate (now Highlight with `HighContrastAdjustment="None"`). |
+| Light and dark system theme | Same rendering: the app is dark only ([design/windows.md](../../design/windows.md#content-branded-fluent-tokens)). |
+| Text 200% | Header and pager reflow; at compact the songs label wraps under the name or the row stacks (above). Medium and wide stay on one line. Live compact: 0 Axe errors, plus once the item 8 popup finding. |
+| Display 100% / 150% | Correct. |
+| Narrator / UIA | Rows are Buttons named "Rank #4, SFentonX. Total Score 105,593,371, 731 / 731 songs"; page info is a polite live region ("Page 2 of 34,694"); menus are radio items with checked state; Your page, Retry and the pinned row have names and IDs. Reading order follows the Tab order. |
+
+Deliberate deviations: a custom pager instead of `PagerControl` (web `Paginator` parity, Fluent circle buttons, keyboard arrows); in non-contrast themes rows scroll under the floating footer like the web backdrop; no scroll fade; the songs label below the name at large text differs from the web's single line. Axe reports `BoundingRectangleCompletelyObscuresContainer` on WinUI's own `PopupHost`/`InputSiteWindowClass` while a menu or the pager tooltip is open ([windows-accessibility.md](../../testing/windows-accessibility.md#open-issues) item 8); no app element is involved.
 
 ## Open
 
 - Paging does not update the back-stack route (a restored page comes from the kept view model, not the route).
 - No band-combo filter; no percentile/rank-history extras.
+- The shared `ServiceStatusView` Retry gets WinUI's default text backplate in Night sky (legible; shared control).
+
+Band Rankings got the same ungated `ShowContent` fix and a contrast `FooterPlate` in issue #209 ([band-rankings/windows.md](../band-rankings/windows.md#validation-issue-209-2026-10-03)).
 
 ## Pager (operator batch 6.30)
 
