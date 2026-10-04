@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -124,6 +126,16 @@ class RivalsDeviceJourneyTest {
         waitForTag("fst.rival-detail.title")
         tap("fst.rival-detail.see-all.closest_battles")
         waitForTag("fst.rivalry.title")
+        waitForTag("fst.rivals.song.s-alpha.Solo_Guitar")
+        assertNothingStraddles("fst.rivalry.title", "fst.rivals.song.s-alpha.Solo_Guitar", "fst.rivals.song.s-beta.Solo_Guitar")
+        tap("fst.rivalry.sort")
+        waitForTag("fst.rivalry.sort.menu")
+        rule.onNodeWithTag("fst.rivalry.sort.category").assertIsSelected()
+        tap("fst.rivalry.sort.title")
+        tap("fst.rivalry.sort")
+        waitForTag("fst.rivalry.sort.menu")
+        rule.onNodeWithTag("fst.rivalry.sort.title").assertIsSelected()
+        rule.onNodeWithTag("fst.rivalry.sort.category").assertIsNotSelected()
     }
 
     @Test
