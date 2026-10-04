@@ -44,7 +44,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
 | Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
 | Settings | ✅✅✅ | 30/30/30 | ✅ | ✅ | ✅ |
-| Licenses | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
+| Licenses | ✅✅✅ (+dialog, #215) | 21/23/23 (dialog 3) | ✅ (#215 journey) | ✅ | ✅ (+200% C/M/W, display 100%/150%, #215) |
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ | 1 (list) | ✅ | ✅ | ✅ |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ |
