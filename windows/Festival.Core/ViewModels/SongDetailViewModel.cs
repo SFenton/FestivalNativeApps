@@ -208,10 +208,11 @@ public sealed partial class SongDetailViewModel : ObservableObject
             var charted = VisibleCharted();
             var cards = charted.Select(i => new LeaderboardPreviewViewModel(session, found, i, scores)).ToList();
             await Task.WhenAll(cards.Count == 0 ? Task.CompletedTask : LoadBoardsAsync(found, cards), History.LoadAsync(found, charted));
-            // Scores may have settled while the reads ran (the session only updates published cards).
+            // Publish the cards before the final score read: a score change after this point reaches them through
+            // OnSessionChanged, and one before it is covered by the read below (else row eleven could be missed).
+            Leaderboards = cards;
             var latest = SongScoreSource.For(session);
             foreach (var card in cards) card.UpdatePlayer(latest);
-            Leaderboards = cards;
             PathInstruments = [.. charted.Where(i => i.HasPaths())];
             State = LoadState.Loaded;
             await LoadShopAsync();

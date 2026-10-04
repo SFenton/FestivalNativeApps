@@ -148,7 +148,25 @@ class MatrixTests(unittest.TestCase):
         for name in ("a11y.json", "a11y-keyboard.json"):
             for page in json.loads((m.PAGES.parent / name).read_text(encoding="utf-8")):
                 if "fixture" in page:
-                    self.assertTrue((m.REPO_ROOT / "tools" / "windows" / page["fixture"][0]).is_file(), page["name"])
+                    script, _ = m.page_fixture(page)
+                    self.assertTrue(script.is_file(), page["name"])
+
+    def test_page_fixture(self):
+        self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))
+        self.assertEqual(m.page_fixture({"fixture": ["--band-rankings", "empty"]}),
+                         (m.FIXTURE, ("--band-rankings", "empty")))
+        self.assertEqual(m.page_fixture({"fixture": ["shop_fixture.py", "--shop", "empty"]}),
+                         (m.REPO_ROOT / "tools" / "windows" / "shop_fixture.py", ("--shop", "empty")))
+
+    def test_mode_spec_combines(self):
+        self.assertEqual(m.mode_spec("normal"), {})
+        self.assertEqual(m.mode_spec("hc-desert"), {"system": {"high_contrast": "desert"}})
+        self.assertEqual(m.mode_spec("hc-desert+scale-150"),
+                         {"system": {"high_contrast": "desert", "display_scale": 150}})
+        self.assertEqual(m.mode_spec("text-200+app-contrast")["app"], {"moreContrast": True, "lessTransparency": True})
+        self.assertEqual(m.mode_spec("scale-100+scale-150"), {"system": {"display_scale": 150}})
+        with self.assertRaises(ValueError):
+            m.mode_spec("hc-desert+bogus")
 
     def test_pending_restore(self):
         import tempfile

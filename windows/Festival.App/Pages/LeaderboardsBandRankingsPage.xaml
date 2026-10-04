@@ -81,7 +81,8 @@
             </ItemsRepeater>
         </ScrollViewer>
         <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.EmptyText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
+                   AutomationProperties.AutomationId="fst.band-rankings.empty"
                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                    Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
         <ProgressRing Grid.Row="1" Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
@@ -91,8 +92,13 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
+        <!-- Contrast themes only: a window-colour plate (pager height, sized in code) hides the rows between and behind the
+             floating pager's buttons instead of letting their borders and text show through (issue #209, as the song
+             leaderboard's #197 plate). Never hit-testable. -->
+        <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
         <controls:LeaderboardsPager x:Name="Footer" Grid.Row="1" Grid.RowSpan="2" VerticalAlignment="Bottom" Pager="{x:Bind ViewModel.Pager}"
-                                    Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
+                                    Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" SizeChanged="OnFooterSizeChanged" />
 
         <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="3" Margin="12,-12,-24,-12" Visibility="Collapsed"
                IsNavigationStackEnabled="False" AutomationProperties.Name="Band details"

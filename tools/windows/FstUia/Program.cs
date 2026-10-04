@@ -607,6 +607,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertaligned":
                 AssertAligned(window, step);
                 break;
+            case "assertbelow":
+            case "assertlevel":
+                AssertVertical(window, step, verb == "assertbelow");
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -686,7 +690,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
 
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
-    /// (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -712,6 +716,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                         _ => null,
                     },
                     "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
+                    "selected" => element.Patterns.SelectionItem.PatternOrDefault is { } item
+                        ? item.IsSelected.ValueOrDefault ? "true" : "false"
+                        : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
@@ -750,6 +757,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        var sweepDown = true;
         while (true)
         {
             var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
@@ -757,7 +765,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             {
                 if (!found.Properties.IsOffscreen.ValueOrDefault) return;
                 if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
-                else PageTowards(found);
+                else sweepDown = PageTowards(found, sweepDown);
             }
             else PageDown(window);
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
@@ -783,9 +791,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         target?.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
     }
 
-    /// <summary>Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element.</summary>
+    /// <summary>
+    /// Scrolls the nearest vertically scrollable ancestor one page towards an off-screen element. An element with no
+    /// bounds (e.g. a list footer that has never been laid out in view) gives no direction, so the ancestor is swept
+    /// down to its end and then back up.
+    /// </summary>
     /// <param name="element">Element to bring closer to its viewport.</param>
-    private void PageTowards(AutomationElement element)
+    /// <param name="sweepDown">Sweep direction for an element without bounds.</param>
+    /// <returns>The sweep direction for the next call.</returns>
+    private bool PageTowards(AutomationElement element, bool sweepDown)
     {
         var walker = automation.TreeWalkerFactory.GetControlViewWalker();
         for (var parent = walker.GetParent(element); parent is not null; parent = walker.GetParent(parent))
@@ -793,12 +807,21 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             if (!parent.Patterns.Scroll.IsSupported || !parent.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault) continue;
             var target = element.BoundingRectangle;
             var viewport = parent.BoundingRectangle;
-            var amount = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom
-                ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement
-                : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement;
-            parent.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, amount);
-            return;
+            var scroll = parent.Patterns.Scroll.Pattern;
+            bool down;
+            if (target.IsEmpty)
+            {
+                var percent = scroll.VerticalScrollPercent.ValueOrDefault;
+                if (sweepDown && percent >= 100) sweepDown = false;
+                else if (!sweepDown && percent <= 0) sweepDown = true;
+                down = sweepDown;
+            }
+            else down = target.Top >= viewport.Bottom || target.Bottom > viewport.Bottom;
+            scroll.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount,
+                down ? FlaUI.Core.Definitions.ScrollAmount.LargeIncrement : FlaUI.Core.Definitions.ScrollAmount.LargeDecrement);
+            return sweepDown;
         }
+        return sweepDown;
     }
 
     private (ConditionBase Condition, string Label) Condition(JsonObject step, string key = "selector")
@@ -888,6 +911,26 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
         response["aligned"] ??= new JsonArray();
         response["aligned"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
+    }
+
+    /// <summary>
+    /// Compares two elements' vertical centres: <c>assertbelow</c> needs the first at least 8 px lower (e.g. a chip wrapped
+    /// under its row's text), <c>assertlevel</c> needs them within 4 px (e.g. a chip inline on its row's centre line).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c> selectors.</param>
+    /// <param name="below">Whether the first must be lower (else level).</param>
+    /// <exception cref="InvalidOperationException">The relation does not hold.</exception>
+    private void AssertVertical(Window window, JsonObject step, bool below)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var a = first.Top + first.Height / 2.0;
+        var b = second.Top + second.Height / 2.0;
+        if (below ? a - b < 8 : Math.Abs(a - b) > 4)
+            throw new InvalidOperationException($"vertical centres {a:0.#} vs {b:0.#} px are not {(below ? "below" : "level")} ({(string)step["arg"]!})");
+        response["vertical"] ??= new JsonArray();
+        response["vertical"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
     }
 
     #endregion

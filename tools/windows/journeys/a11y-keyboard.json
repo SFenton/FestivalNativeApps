@@ -435,7 +435,10 @@
       "focus:id=fst.quick-links.open",
       "key:enter",
       "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
-      "invoke:id=fst.quick-links.item.instrument:Solo_Drums",
+      "key:down",
+      "key:down",
+      "assertfocus:id=fst.quick-links.item.instrument:Solo_Drums@3",
+      "key:enter",
       "wait:1.5",
       "assertfocus:id=fst.rankings.row.fixture-player-1@3",
       "waitfor:id=fst.leaderboards.card.Solo_Drums@3"
@@ -452,7 +455,8 @@
       "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@20"
     ],
     "after_ready": [
-      "click:id=fst.quick-links.item.instrument:Solo_Drums",
+      "focus:id=fst.quick-links.item.instrument:Solo_Drums",
+      "key:enter",
       "wait:1.5",
       "assertfocus:id=fst.rankings.row.fixture-player-1@3",
       "waitfor:id=fst.leaderboards.card.Solo_Drums@3"

@@ -152,7 +152,9 @@ public sealed partial class LeaderboardEntryRow : UserControl
         // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
         // UIA reads them as text rather than an invokable button.
         RowButton.IsHitTestVisible = RowButton.IsTabStop = RowButton.IsActionable = row.Route is not null;
-        Chevron.Visibility = row.Route is not null ? Visibility.Visible : Visibility.Collapsed;
+        // The section reserves the chevron slot (UpdateColumns); a row without a destination leaves it blank so its
+        // values stay in line with openable rows (issue #209).
+        Chevron.Opacity = row.Route is not null ? 1 : 0;
         ApplyWeights(row);
         ApplySurface();
         UpdateColumns();
@@ -239,6 +241,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
         Pill.Visibility = plan.ShowAccuracy && score is { BadgeText.Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         StarsColumn.MinWidth = plan.StarsWidth;
         StarsHost.Visibility = plan.ShowStars && score is { StarCount: > 0 } ? Visibility.Visible : Visibility.Collapsed;
+        Chevron.Visibility = plan.ShowChevron ? Visibility.Visible : Visibility.Collapsed;
         PlaceColumns(plan, RankText.Text.Length > 0);
     }
 

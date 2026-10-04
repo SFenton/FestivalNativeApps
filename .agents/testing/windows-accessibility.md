@@ -29,11 +29,11 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/9/9 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
-| Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
+| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
+| Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
-| Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
+| Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT, #209) | 9/12/12 | ✅ (#209) | ✅ | ✅ (+200% C/M/W, #209) |
 | Rivals / Compete | ✅✅✅ (#213: +200%, display 100%/150%) | 9/10/10 | ✅ `kb-compete-order` | ✅ | ✅ |
 | All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT, +live, #201) | 6/9/15 | UIA only (#201) | ✅ | ✅ (+200%) |
 | Rival Detail | ✅✅✅ (+snap/max, #202) | 12/14/14 | ✅ | ✅ | ✅ (200% C/M/W; display 100%/150%, #202) |
@@ -47,7 +47,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Licenses | ✅✅✅ (+dialog, #215) | 21/23/23 (dialog 3) | ✅ (#215 journey) | ✅ | ✅ (+200% C/M/W, display 100%/150%, #215) |
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ | 1 (list) | ✅ | ✅ | ✅ |
-| Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ |
+| Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ (pane titles wrap, #230) |
 | First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
 
 ## Fixed in this pass
@@ -219,6 +219,18 @@ The console was locked, so keys were posted. Tab walks, Enter on a row and Alt+L
 
 Ran 11y_matrix.py --scan for statistics and statistics-chart at compact, medium, wide, snap-left, snap-right and maximized, then at compact/medium/wide under light and dark theme, Desert, Night sky, text 200% and display 100%/150%. The live public service (SFentonX) gave the same results at C/M/W, Desert and text 200%. Axe reported 0 errors in every run. Fixed: the Rank History chart under contrast themes (opaque outlined bars, WindowText gridlines) and its axis labels clipped at 200% text (measured gutters). Per-configuration results: [statistics/windows.md](../pages/statistics/windows.md#validation-issue-204).
 
+## Band Rankings validation (issue #209, 2026-10-03)
+
+Evidence: `a11y_matrix.py --scan --tabs 30` on `band-rankings-paged|anonymous|empty|error` (fixture scenarios via each page's `"fixture"` list): compact/medium/wide/snap/maximized, Desert and Night sky, text 200% (C/M/W), display 100%/150% and the light system theme. All 0 Axe errors, no focus leaving the window and no repeated stops. `band-rankings.json` journeys pass 6/6. Per-configuration results are in [band-rankings/windows.md](../pages/band-rankings/windows.md#validation-issue-209-2026-10-03).
+
+Fixed:
+- Keyboard paging lost focus to Back, because the pager hid during the load swap.
+- Rows showed between the pager buttons under contrast themes.
+- A row without a band page misaligned its columns.
+- Band names collapsed to "…" at 200% text in compact windows. After merging master, issue #208's rule applies: the songs label moves under the name instead of being dropped.
+
+Driver note: `RadioMenuFlyoutItem`s expose Toggle, not Invoke. `invoke:` falls back to a click that misses the popup, so drive menu radio items with `toggle:` or the keyboard.
+
 ## Player Bands validation (issue #210, 2026-10)
 
 Evidence: `a11y_matrix.py --scan --tabs 20` for `player-bands` at compact, medium, wide, snap-left, snap-right and maximized. It was then run at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors in all 18 runs. The live public service (SFentonX, temporary wrapper without `--base-url`) also gave 0 Axe errors at the same five sizes, under Desert, at text 200% and at display 150%. Results per configuration are in [player-bands/windows.md](../pages/player-bands/windows.md#validation-issue-210).
@@ -247,6 +259,18 @@ Per configuration:
 - Keyboard: the same locked console as #196, so it was checked through UIA focusability and the Select and Invoke patterns. Every row is one focusable `ListItem` with an `fst.all-rivals.row.<id>` ID and a name such as "X, ahead of you, N songs ahead, M songs behind".
 
 Out of scope: at 300% the shell's default 1280×820 epx window is larger than the work area.
+
+## Quick Links validation (issue #230, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan` with `journeys/quick-links.json` (every reachable state on Settings) at compact, medium, snap-left, maximized and wide (pane at display 150%/100%, and a short 1440×560 window); Desert, Night sky, light and dark theme, text 200% (combined with `scale-150` for the pane) and display 100%/150%; keyboard journeys `kb-quick-links-menu`/`kb-quick-links-pane`. Axe 0 everywhere except open item 8 while the menu is open. Live public service checked the same way. Per-configuration results: [quick-links/windows.md](../controls/quick-links/windows.md#validation-issue-230-2026-10-04).
+
+Fixed (all in the wide pane, `Controls/QuickLinksPane.xaml`):
+- Rows were 36 epx tall; now `FSTMinTargetSize` (40).
+- In a short window the list was clipped: Privacy Policy and Reset couldn't be reached and a focused row was off screen. The list now scrolls.
+- Arrow keys moved the "current section" selection without jumping (`SingleSelectionFollowsFocus`).
+- At 200% text, long titles ("Show Instrument Metadata") were cut mid-word; titles now wrap.
+
+Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mode` accepts `+`-joined modes. Gotcha: `shot:…@screen` shows the lock screen on a locked console, so open-menu screenshots need an unlocked session; UIA assertions and window `print` shots still work.
 
 ## Open issues
 
