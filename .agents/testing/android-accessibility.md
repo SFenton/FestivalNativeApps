@@ -11,6 +11,8 @@
 | Large text | 200% font scale plus the largest display size (`wm density` 1.3×: 546 on FST_Phone, 507 on FST_Book_Fold), 16 screens and sheets captured, fixed, recaptured | FST_Phone; FST_Book_Fold half-open |
 | Unit/Robolectric | `LargeTextUiTest` (rows at 200%, wrapping, axis style), `StatGridColumnsTest`, `NavigationPolicyTest` (two panes at large text) | JVM |
 
+Clipping checks: `TextLayoutResult.hasVisualOverflow` read through the `GetTextLayoutResult` semantics action reports overflow for any plain `Text` narrower than its parent allows: that path re-lays out the paragraph at the parent's max width and compares it with the node's size (issue #130: the zoom "100%"). It is reliable only for text that fills its width. Otherwise compare each line's width (`getLineRight − getLineLeft`) and `multiParagraph.height` with `size`, and check `isLineEllipsized` (`SongPathsDeviceTest.assertNoClippedText`).
+
 Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk reports (`<device>-<screen>.md`, `.log` with every spoken fragment) are in the showcase folder `and-a11y2/talkback/`; large-text captures (before `phone-*.png`, after `*-v2`/`-v3`/`-v4`) in `and-a11y2/bigtext/`.
 
 ## Findings and fixes
@@ -58,6 +60,7 @@ Status (2026-09-29, FST-and-a11y2): ATF journeys 0 errors (FST-and-next). Walk r
 | Chart axis "100" clipped to "10" | Axis ticks keep their 100% size (`chartAxisTextStyle()`; decorative, values listed below each chart) |
 | Half-open fold: 130 dp list pane, half-width cards wrapping a few letters per line | Two panes need the expanded width in text-scaled dp (`showsTwoPanes(…, fontScale)`); grids, hinge splits and Band Detail use one column (`rememberSingleColumn`), unless the window stays expanded in text-scaled dp |
 | Settings Version "Service" title crushed to one letter per line beside the origin (fs 2.0 phone, 360 dp tri-fold cover; issue #121) | Adaptive `ValueRow`: inline only when title and value fit at their intrinsic widths, otherwise the value stacks under the title (`LargeTextSettingsValueRowUiTest`) |
+| Paths text cards clipped Time "01:34:534" to "01:34:53" (phone, three weighted one-line columns); a phone-landscape 640 dp sheet used the five-column grid and clipped "187.", "01:34:" (issue #130) | Cards stack Beat/Time/Score at ≥ 1.3× and wrap; the grid needs 600 dp in 100%-text dp (`usesPathGrid`; `SongPathsSheetUiTest`) |
 
 Accepted: top app bar titles still ellipsize at 200% (Material small top app bar is one line; the page heading below repeats them); the floating pager covers part of a row until scrolled.
 
