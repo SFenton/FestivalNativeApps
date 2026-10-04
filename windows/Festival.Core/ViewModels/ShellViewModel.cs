@@ -5,6 +5,18 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Festival.Core.ViewModels;
 
+#region Profile button
+/// <summary>What the title-bar profile button does (web <c>getProfileClickDestination</c>, issue #290).</summary>
+public enum ProfileButtonAction
+{
+    /// <summary>No selected player: open the profile picker flyout.</summary>
+    OpenPicker,
+
+    /// <summary>A selected player: show their Statistics (their own profile), never the picker.</summary>
+    ShowStatistics,
+}
+#endregion
+
 #region Shell
 /// <summary>Navigation sections, the title-bar profile avatar and the profile selection flyout.</summary>
 public sealed partial class ShellViewModel : ObservableObject
@@ -53,6 +65,23 @@ public sealed partial class ShellViewModel : ObservableObject
 
     /// <summary>Accessible name of the avatar button.</summary>
     public string ProfileButtonName => session.SelectedPlayer is { } p ? $"Profile: {p.DisplayName}" : "Select a player profile";
+
+    /// <summary>
+    /// The avatar button's click: the selected player's Statistics, or the picker when anonymous. The picker stays
+    /// reachable with a player through the button's context menu (right-click, Shift+F10) and Ctrl+Shift+P.
+    /// </summary>
+    public ProfileButtonAction ProfileButtonAction =>
+        session.HasPlayer ? ProfileButtonAction.ShowStatistics : ProfileButtonAction.OpenPicker;
+
+    /// <summary>Avatar button tooltip: what a click does, and the picker shortcut.</summary>
+    public string ProfileButtonToolTip => session.SelectedPlayer is { } p
+        ? $"Show Statistics for {p.DisplayName}\nSwitch profile: Ctrl+Shift+P"
+        : "Select Player (Ctrl+Shift+P)";
+
+    /// <summary>Avatar button UIA help text (Narrator reads it after the name).</summary>
+    public string ProfileButtonHelp => session.HasPlayer
+        ? "Opens your statistics. Press Control+Shift+P or open the context menu to switch profile."
+        : "Opens profile selection.";
 
     /// <summary>The flyout's player search: the global-search engine limited to players.</summary>
     public GlobalSearchViewModel ProfileSearch { get; }
@@ -164,6 +193,9 @@ public sealed partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(ProfileName));
         OnPropertyChanged(nameof(ProfileInitials));
         OnPropertyChanged(nameof(ProfileButtonName));
+        OnPropertyChanged(nameof(ProfileButtonAction));
+        OnPropertyChanged(nameof(ProfileButtonToolTip));
+        OnPropertyChanged(nameof(ProfileButtonHelp));
     }
 }
 #endregion

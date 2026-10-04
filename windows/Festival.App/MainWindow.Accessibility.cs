@@ -12,7 +12,8 @@ namespace Festival.App;
 
 #region Shell accessibility
 /// <summary>
-/// Shell keyboard and screen-reader affordances: Ctrl+1…7 / Ctrl+comma section accelerators with tooltips, Alt access keys
+/// Shell keyboard and screen-reader affordances: Ctrl+1…7 / Ctrl+comma section accelerators with tooltips, Ctrl+Shift+P
+/// for the profile picker, Alt access keys
 /// on pane items, UIA landmarks (main content, search), no stray tab stop on the title bar itself, focus entering the pane
 /// on the selected section, and a contrast-theme hook for the artwork backdrop.
 /// </summary>
@@ -41,6 +42,7 @@ public sealed partial class MainWindow
             RootGrid.KeyboardAccelerators.Add(Accelerator(VirtualKey.Number1 + (position - 1), VirtualKeyModifiers.Control, () => ShowShortcut(position)));
         }
         RootGrid.KeyboardAccelerators.Add(Accelerator((VirtualKey)KeyboardShortcuts.CommaKey, VirtualKeyModifiers.Control, () => Show(AppSection.Settings)));
+        RootGrid.KeyboardAccelerators.Add(Accelerator(VirtualKey.P, VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift, OpenProfilePicker));
 
         // The TitleBar control is focusable by default, which adds an empty Tab stop between the page and the title bar buttons.
         AppTitleBar.IsTabStop = false;

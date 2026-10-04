@@ -199,6 +199,10 @@ JOURNEYS = [
                          "waitfor:id=fst.player.select@15", "invoke:id=fst.player.select",
                          "waitfor:id=fst.nav.statistics@10"],
                   expect=[selected("fst.nav.songs"), present("fst.player.deselect")], order=PLAYER_PANE),
+            # Issue #290: back on Songs, the profile button opens the selected player's Statistics, not the picker.
+            Phase(steps=["key:ctrl+1", SONGS_READY, "invoke:id=fst.shell.profile", "waitfor:id=fst.statistics@10",
+                         "waitfor:id=fst.player.deselect@15"],
+                  expect=[selected("fst.nav.statistics")], forbid=[present("fst.profile.search")], order=PLAYER_PANE),
         ],
     ),
     Journey(
