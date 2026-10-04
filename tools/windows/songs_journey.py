@@ -9,17 +9,27 @@ Songs states (search match/no results, sort modes, Jump index, General filter em
 players, damaged saved filter, service error) use only UIA patterns, so they also pass on a locked console. Official
 Shop links are never opened. With ``--shots DIR`` it also captures screenshots of each scenario.
 
+Songs Sort states (issue #218, ``songs-sort-*``): default/changed/reset/applied with a player (Last Played), a
+``{relaunch}`` step that restarts the app on the same settings file (relaunch-persisted), the instrument modes, a
+loaded and sectioned Item Shop sort (both directions, and one bucket after a search), a hidden Shop, and the one-member,
+empty and unavailable Shop feeds. The app sends no fixture ``scenario`` query, so those three run behind a loopback
+proxy (``SHOP_FEEDS``) that adds it to ``/api/shop`` only.
+
 Usage: ``python tools/windows/songs_journey.py [--port 18751] [--shots DIR] [--only NAME[,NAME…]] [--sizes compact,medium,wide]``
 """
 
 from __future__ import annotations
 
 import argparse
+import http.server
 import json
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -219,6 +229,142 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "waitfor:id=fst.songs.section-index-button@5",
         ],
     ),
+    # Songs Sort states (issue #218). The flyout applies every change live (no Cancel/Apply, so no discard-confirm);
+    # the button's summary label ("Year ↓") is the applied-state assertion. The player comes from the settings file, not
+    # FST_DEBUG_PROFILE: debug profiles keep settings in memory, and this scenario relaunches to read them back.
+    "songs-sort-states": (
+        {}, "/songs", {"selectedPlayer": {"accountId": "fixture-player-1", "displayName": "Fixture Player 1"}},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "waitfor:name=Title ↑",
+            "expand:id=fst.songs.sort",
+            "waitfor:id=fst.songs.sort.mode@5",
+            "waitfor:id=fst.songs.sort.direction",
+            "waitfor:id=fst.songs.sort.direction.ascending",
+            "waitfor:id=fst.songs.sort.direction.descending",
+            "waitfor:id=fst.songs.sort.reset",
+            "waitfor:name=Last Played",  # profile: a selected player adds Last Played
+            "waitfor:name=Item Shop",
+            "waitgone:name=Score",  # instrument modes need a chart filter
+            "{shot:songs-sort-default}",
+            "select:name=Year",
+            "waitfor:name=Year ↑@5",  # changed-mode, applied live
+            "select:id=fst.songs.sort.direction.descending",
+            "waitfor:name=Year ↓@5",  # changed-direction
+            "{shot:songs-sort-changed}",
+            "collapse:id=fst.songs.sort",
+            "waitgone:id=fst.songs.sort.mode@5",
+            "waitfor:name=2020s@5",  # applied: decade sections, no Jump index
+            "waitgone:id=fst.songs.section-index-button@5",
+            "{relaunch}",
+            "waitfor:name=Year ↓@20",  # relaunch-persisted
+            "waitfor:name=2020s@10",
+            "waitgone:id=fst.songs.section-index-button@5",
+            "expand:id=fst.songs.sort",
+            "invoke:id=fst.songs.sort.reset@5",
+            "waitfor:name=Title ↑@5",  # reset-draft applies the default at once
+            "collapse:id=fst.songs.sort",
+            "waitfor:id=fst.songs.section-index-button@5",
+        ],
+    ),
+    "songs-sort-anonymous": (
+        {"FST_DEBUG_ANONYMOUS": "1"}, "/songs", {},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "expand:id=fst.songs.sort",
+            "waitfor:id=fst.songs.sort.mode@5",
+            "waitfor:name=Has FC",
+            "waitgone:name=Last Played",
+            "collapse:id=fst.songs.sort",
+        ],
+    ),
+    "songs-sort-instrument": (
+        PLAYER, "/songs", {"songFilter": {"Instrument": "Lead"}},
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@20",
+            "expand:id=fst.songs.sort",
+            "waitfor:id=fst.songs.sort.mode@5",
+            "waitfor:name=Score",
+            "waitfor:name=Percentage",
+            "{shot:songs-sort-instrument}",
+            "select:name=Score",
+            "waitfor:name=Score ↑@5",
+            # Nine instrument modes make the form taller than the window: the flyout scrolls (large content).
+            "scrollinto:name=Max Score Diff@5",
+            "waitfor:name=Max Score Diff",
+            "scrollinto:id=fst.songs.sort.reset",
+            "invoke:id=fst.songs.sort.reset",
+            "waitfor:name=Title ↑@5",
+            "collapse:id=fst.songs.sort",
+        ],
+    ),
+    "songs-sort-shop": (
+        PLAYER, "/songs", {"songSort": "Shop"},
+        [
+            "waitfor:name=Item Shop ↑@20",
+            # Members first: Leaving Tomorrow (Fixture Orbit) then In Shop (Fixture Pulse). The first section is named by
+            # the sticky header (its in-list heading is collapsed), so the later bucket's ID is the assertion.
+            "waitfor:id=fst.songs.shop-section.in-shop@10",
+            "waitfor:id=fst.songs.section-index-button",
+            "waitgone:id=fst.songs.sort-paused",
+            "{shot:songs-sort-shop}",
+            "expand:id=fst.songs.sort",
+            "select:id=fst.songs.sort.direction.descending@5",
+            "collapse:id=fst.songs.sort",
+            "waitfor:id=fst.songs.shop-section.leaving-tomorrow@10",
+            # One bucket: a search leaving only the Leaving Tomorrow row drops headings and the Jump index.
+            "setvalue:id=fst.songs.search|orbit",
+            "waitgone:id=fst.songs.row.fixture-pulse@10",
+            "waitgone:id=fst.songs.shop-section.leaving-tomorrow",
+            "waitgone:id=fst.songs.shop-section.in-shop",
+            "waitgone:id=fst.songs.section-index-button",
+            "{shot:songs-sort-shop-one-bucket}",
+            "setvalue:id=fst.songs.search|",
+            "waitfor:id=fst.songs.row.fixture-pulse@10",
+        ],
+    ),
+    "songs-sort-shop-single": (
+        PLAYER, "/songs", {"songSort": "Shop"},
+        [
+            "waitfor:name=Item Shop ↑@20",
+            "waitfor:id=fst.songs.shop-section.not-in-shop@10",
+            "waitgone:id=fst.songs.sort-paused",
+        ],
+    ),
+    "songs-sort-shop-hidden": (
+        PLAYER, "/songs", {"songSort": "Shop", "hideShop": True},
+        [
+            "waitfor:id=fst.songs.sort-paused@20",
+            "waitgone:id=fst.songs.shop-section.in-shop",
+            "expand:id=fst.songs.sort",
+            "waitfor:id=fst.songs.sort.mode@5",
+            "waitfor:name=Has FC",
+            "waitgone:name=Item Shop",
+            "{shot:songs-sort-shop-hidden}",
+            "collapse:id=fst.songs.sort",
+        ],
+    ),
+    "songs-sort-shop-empty": (
+        PLAYER, "/songs", {"songSort": "Shop"},
+        [
+            # A known-empty feed still applies: every row is Not In Shop, one unlabeled section, no Jump, no notice.
+            "waitfor:name=Item Shop ↑@20",
+            "waitfor:id=fst.songs.row.fixture-pulse@10",
+            "waitgone:id=fst.songs.shop-section.not-in-shop",
+            "waitgone:id=fst.songs.section-index-button",
+            "waitgone:id=fst.songs.sort-paused",
+        ],
+    ),
+    "songs-sort-shop-unavailable": (
+        PLAYER, "/songs", {"songSort": "Shop"},
+        [
+            "waitfor:id=fst.songs.sort-paused@20",
+            "waitfor:name=Item Shop ↑",  # the saved choice stays; Title order shows until the Shop loads
+            "waitfor:id=fst.songs.section-index-button",
+            "waitgone:id=fst.songs.shop-section.in-shop",
+            "{shot:songs-sort-shop-unavailable}",
+        ],
+    ),
     "songs-jump": (
         PLAYER, "/songs", {},
         [
@@ -296,6 +442,102 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
 # Scenarios that only make sense at some window sizes (compact windows force the Shop grid, without the toggle).
 SIZES = {"shop": {"medium", "wide"}, "shop-compact": {"compact"}}
 
+# Scenarios whose /api/shop read carries a mock_service.py ``scenario`` query (through ShopScenarioProxy).
+SHOP_FEEDS = {
+    "songs-sort-shop-single": "shop-single",
+    "songs-sort-shop-empty": "shop-empty",
+    "songs-sort-shop-unavailable": "shop-error",
+}
+
+RELAUNCH = "{relaunch}"
+
+
+def shop_path(path: str, scenario: str) -> str:
+    """Adds the fixture ``scenario`` query to an ``/api/shop`` request path; other paths are unchanged.
+
+    Args:
+        path: Request path with any query.
+        scenario: mock_service.py Shop scenario (``shop-single``, ``shop-empty``, ``shop-error``).
+
+    Returns:
+        The path to forward.
+    """
+    parts = urllib.parse.urlsplit(path)
+    if parts.path != "/api/shop":
+        return path
+    query = [(k, v) for k, v in urllib.parse.parse_qsl(parts.query, keep_blank_values=True) if k != "scenario"]
+    query.append(("scenario", scenario))
+    return urllib.parse.urlunsplit(("", "", parts.path, urllib.parse.urlencode(query), ""))
+
+
+def segments(steps: list[str]) -> list[list[str]]:
+    """Splits scenario steps at ``{relaunch}`` markers (each segment runs in a fresh app on the same settings file).
+
+    Args:
+        steps: Scenario steps.
+
+    Returns:
+        One or more step lists.
+    """
+    out: list[list[str]] = [[]]
+    for step in steps:
+        if step == RELAUNCH:
+            out.append([])
+        else:
+            out[-1].append(step)
+    return out
+
+
+class ShopScenarioProxy(http.server.ThreadingHTTPServer):
+    """Loopback proxy to the fixture service that selects a Shop scenario for ``/api/shop`` (see :func:`shop_path`)."""
+
+    def __init__(self, upstream: int, scenario: str) -> None:
+        """Binds an ephemeral loopback port.
+
+        Args:
+            upstream: mock_service.py port.
+            scenario: Shop scenario for ``/api/shop``.
+        """
+        self.upstream, self.scenario = upstream, scenario
+        super().__init__(("127.0.0.1", 0), _ProxyHandler)
+
+    @property
+    def port(self) -> int:
+        """The bound port."""
+        return self.server_address[1]
+
+
+class _ProxyHandler(http.server.BaseHTTPRequestHandler):
+    """Forwards one request to the fixture service, keeping status, headers and body."""
+
+    server: ShopScenarioProxy
+    HOP = {"connection", "keep-alive", "transfer-encoding", "host", "content-length"}
+
+    def _forward(self) -> None:
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(length) if length else None
+        url = f"http://127.0.0.1:{self.server.upstream}{shop_path(self.path, self.server.scenario)}"
+        headers = {k: v for k, v in self.headers.items() if k.lower() not in self.HOP}
+        request = urllib.request.Request(url, data=body, headers=headers, method=self.command)
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                status, reply, payload = response.status, response.headers, response.read()
+        except urllib.error.HTTPError as error:
+            status, reply, payload = error.code, error.headers, error.read()
+        self.send_response(status)
+        for key, value in reply.items():
+            if key.lower() not in self.HOP:
+                self.send_header(key, value)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(payload)
+
+    do_GET = do_POST = do_HEAD = _forward
+
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A002  (base-class signature)
+        """Silences per-request logging."""
+
 
 def uiwin(*args: str) -> None:
     """Runs one uiwin.py command, raising on failure.
@@ -339,27 +581,38 @@ def run(name: str, port: int, shots: Path | None, size: str) -> None:
         size: Window preset.
     """
     env, route, settings, steps = SCENARIOS[name]
-    with tempfile.TemporaryDirectory() as folder:
-        settings_path = Path(folder) / "settings.json"
-        if settings:
-            settings_path.write_text(json.dumps({"version": 1, **settings}), encoding="utf-8")
-        args = ["launch", str(EXE), "--timeout", "60", "--wait", "1", "--preset", size,
-                "--extra", f"FST_SETTINGS_PATH={settings_path}"]
-        # A scenario's own FST_BASE_URL (e.g. a closed port) replaces the fixture origin; --base-url would override it.
-        if "FST_BASE_URL" not in env:
-            args.append(f"--arg=--base-url=http://127.0.0.1:{port}/")
-        for key, value in env.items():
-            args += ["--extra", f"{key}={value}"]
-        if route:
-            args += ["--route", route]
-        uiwin(*args)
-        try:
-            steps_file = Path(folder) / "steps.txt"
-            steps_file.write_text("\n".join(expand(steps, shots, size)), encoding="utf-8")
-            uiwin("drive", "--steps-file", str(steps_file))
+    proxy = None
+    if name in SHOP_FEEDS:
+        proxy = ShopScenarioProxy(port, SHOP_FEEDS[name])
+        threading.Thread(target=proxy.serve_forever, daemon=True).start()
+    origin = proxy.port if proxy else port
+    try:
+        with tempfile.TemporaryDirectory() as folder:
+            settings_path = Path(folder) / "settings.json"
+            if settings:
+                settings_path.write_text(json.dumps({"version": 1, **settings}), encoding="utf-8")
+            args = ["launch", str(EXE), "--timeout", "60", "--wait", "1", "--preset", size,
+                    "--extra", f"FST_SETTINGS_PATH={settings_path}"]
+            # A scenario's own FST_BASE_URL (e.g. a closed port) replaces the fixture origin; --base-url would override it.
+            if "FST_BASE_URL" not in env:
+                args.append(f"--arg=--base-url=http://127.0.0.1:{origin}/")
+            for key, value in env.items():
+                args += ["--extra", f"{key}={value}"]
+            if route:
+                args += ["--route", route]
+            for index, part in enumerate(segments(steps)):
+                uiwin(*args)
+                try:
+                    steps_file = Path(folder) / f"steps-{index}.txt"
+                    steps_file.write_text("\n".join(expand(part, shots, size)), encoding="utf-8")
+                    uiwin("drive", "--steps-file", str(steps_file))
+                finally:
+                    uiwin("close")
             print(f"PASS {name} [{size}]")
-        finally:
-            uiwin("close")
+    finally:
+        if proxy:
+            proxy.shutdown()
+            proxy.server_close()
 
 
 def main() -> int:

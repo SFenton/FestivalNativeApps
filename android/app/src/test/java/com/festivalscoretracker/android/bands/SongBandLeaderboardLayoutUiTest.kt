@@ -118,7 +118,7 @@ class SongBandLeaderboardLayoutUiTest {
     fun footerWrapsGoldStarsInsteadOfClippingThemAt200Percent() {
         show(2f, 260) { BandScoreFooter(entry) }
         val container = rule.onNodeWithTag("container").getUnclippedBoundsInRoot()
-        val stars = rule.onNodeWithContentDescription("Gold stars").getUnclippedBoundsInRoot()
+        val stars = rule.onNodeWithContentDescription("5 gold stars").getUnclippedBoundsInRoot()
         val score = rule.onNodeWithText("931,020").getUnclippedBoundsInRoot()
         // Five 14 dp stars with 2 dp gaps keep their full width, inside the card, under the score.
         assertEquals(78f, (stars.right - stars.left).value, 0.5f)
@@ -129,7 +129,7 @@ class SongBandLeaderboardLayoutUiTest {
     @Test
     fun footerKeepsOneLineAtDefaultText() {
         show(1f, 260) { BandScoreFooter(entry) }
-        val stars = rule.onNodeWithContentDescription("Gold stars").getUnclippedBoundsInRoot()
+        val stars = rule.onNodeWithContentDescription("5 gold stars").getUnclippedBoundsInRoot()
         val score = rule.onNodeWithText("931,020").getUnclippedBoundsInRoot()
         assertTrue("stars $stars score $score", stars.top < score.bottom)
     }

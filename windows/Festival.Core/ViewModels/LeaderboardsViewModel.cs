@@ -255,11 +255,13 @@ public sealed partial class RankingCardViewModel : ObservableObject
     /// <summary>Spotlight automation ID (<c>…spotlight</c>, <c>.loading</c>, <c>.unranked</c>).</summary>
     public string SpotlightAutomationId => AutomationId + ".spotlight";
 
-    /// <summary>Accessible name of "View All".</summary>
-    public string ViewAllName => $"View All {Instrument.Label()} Rankings";
+    /// <summary>Accessible name of "View All": the visible label first, then the board (WCAG 2.5.3 label in name),
+    /// e.g. "View All Rankings (868,901), Lead".</summary>
+    public string ViewAllName => RankingViewAll.Name(ViewAllText, Title);
 
     /// <summary>Button text, web <c>rankings.viewAllRankingsWithCount</c>: "View all rankings (868,901)".</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewAllName))]
     private string viewAllText = RankingViewAll.Label(0);
 
     /// <summary>Full Rankings route for this board and metric.</summary>
@@ -339,6 +341,13 @@ public static class RankingViewAll
     public static string Label(int total) => total > 0
         ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"View All Rankings ({total:N0})")
         : "View All Rankings";
+
+    /// <summary>Accessible name that starts with the visible label so voice control and Narrator match it (WCAG 2.5.3),
+    /// then names the board so equal buttons in different cards stay distinct.</summary>
+    /// <param name="label">Visible button text from <see cref="Label"/>.</param>
+    /// <param name="board">Card title, e.g. "Lead" or "Duos".</param>
+    /// <returns>"View All Rankings (868,901), Lead".</returns>
+    public static string Name(string label, string board) => $"{label}, {board}";
 }
 #endregion
 
@@ -382,11 +391,12 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
     /// <summary>"View All" automation ID.</summary>
     public string ViewAllAutomationId => AutomationId + ".view-all";
 
-    /// <summary>Accessible name of "View All".</summary>
-    public string ViewAllName => $"View All {BandType.Label()} Rankings";
+    /// <summary>Accessible name of "View All": the visible label first, then the band size (WCAG 2.5.3 label in name).</summary>
+    public string ViewAllName => RankingViewAll.Name(ViewAllText, Title);
 
     /// <summary>Button text with the ranked-team count.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewAllName))]
     private string viewAllText = RankingViewAll.Label(0);
 
     /// <summary>Band Rankings route.</summary>

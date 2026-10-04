@@ -309,7 +309,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Applies a resize op: <c>size</c> (width/height in effective pixels, centred in the
     /// work area), <c>snap-left</c>/<c>snap-right</c> (work-area halves), <c>maximize</c>,
-    /// <c>fullscreen</c> (whole monitor, covering the taskbar) or <c>restore</c>.
+    /// <c>minimize</c>, <c>fullscreen</c> (whole monitor, covering the taskbar) or <c>restore</c>.
     /// </summary>
     private JsonNode Resize(Window window, JsonObject op)
     {
@@ -320,6 +320,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (kind == "maximize")
         {
             Native.ShowWindow(hwnd, Native.SwMaximize);
+        }
+        else if (kind == "minimize")
+        {
+            Native.ShowWindow(hwnd, Native.SwMinimize);
         }
         else
         {
@@ -431,12 +435,47 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (e.Patterns.Value.IsSupported) patterns.Add("Value");
         if (e.Patterns.RangeValue.IsSupported) patterns.Add("RangeValue");
         if (e.Patterns.Scroll.IsSupported) patterns.Add("Scroll");
-        return $"{p.ControlType.ValueOrDefault} \"{p.Name.ValueOrDefault}\" id={p.AutomationId.ValueOrDefault} " +
+        return $"{Role(e)} \"{p.Name.ValueOrDefault}\" id={p.AutomationId.ValueOrDefault} " +
                $"class={p.ClassName.ValueOrDefault} rect={r.X},{r.Y},{r.Width},{r.Height}" +
                (p.HelpText.ValueOrDefault is { Length: > 0 } help ? $" help=\"{help}\"" : "") +
                A11yFlags(e) +
+               ToggleText(e) +
                (flags.Count > 0 ? $" [{string.Join(",", flags)}]" : "") +
                (patterns.Count > 0 ? $" patterns={string.Join(",", patterns)}" : "");
+    }
+
+    /// <summary>A toggle's state for tree lines (<c> toggle=On|Off|Indeterminate</c>), or empty.</summary>
+    /// <param name="e">Element.</param>
+    /// <returns>Suffix.</returns>
+    private static string ToggleText(AutomationElement e)
+    {
+        try
+        {
+            return e.Patterns.Toggle.PatternOrDefault is { } toggle ? $" toggle={toggle.ToggleState.ValueOrDefault}" : "";
+        }
+        catch (Exception)
+        {
+            // An element can disappear between the pattern check and the read; the line stays without a state.
+            return "";
+        }
+    }
+
+    /// <summary>
+    /// The element's control type name. FlaUI throws <see cref="NotSupportedException"/> for control type ids newer
+    /// than its enum (e.g. inside WinUI's FlipView/PipsPager), so those fall back to the localized type.
+    /// </summary>
+    /// <param name="e">Element.</param>
+    /// <returns>Control type name, or <c>Unknown(localized type)</c>.</returns>
+    internal static string Role(AutomationElement e)
+    {
+        try
+        {
+            return e.Properties.ControlType.ValueOrDefault.ToString();
+        }
+        catch (NotSupportedException)
+        {
+            return $"Unknown({e.Properties.LocalizedControlType.ValueOrDefault})";
+        }
     }
 
     #endregion
@@ -464,7 +503,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
-        foreach (var key in new[] { "focus", "scans" })
+        foreach (var key in new[] { "focus", "scans", "aligned" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -553,6 +592,18 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "scrollinto":
                 ScrollInto(window, step);
                 break;
+            case "assertname":
+                AssertName(window, step);
+                break;
+            case "assertaligned":
+                AssertAligned(window, step);
+                break;
+            case "assertstatus":
+                AssertStatus(window, step);
+                break;
+            case "assertstate":
+                AssertState(window, step);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -582,6 +633,86 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return new Point(bounds.X + (int)selector["x"]!, bounds.Y + (int)selector["y"]!);
     }
 
+    /// <summary>
+    /// Waits until an element matching the selector reports the expected UIA <c>ItemStatus</c>. Off-screen and raw-view
+    /// elements count (e.g. the decorative backdrop's state while the window is minimized). Unless the expected status is
+    /// <c>not-visible</c>, the window is brought to the front first (and every 2 s), since the backdrop pauses when covered.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, the expected <c>status</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">No match, or the status still differs at the timeout.</exception>
+    private void AssertStatus(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var expected = (string)step["status"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        // FindFirst's default cache request filters to the control view; a raw-view element needs a true tree filter.
+        var rawView = new FlaUI.Core.CacheRequest
+        {
+            TreeFilter = TrueCondition.Default,
+            TreeScope = FlaUI.Core.Definitions.TreeScope.Element,
+            AutomationElementMode = FlaUI.Core.Definitions.AutomationElementMode.Full,
+        };
+        rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
+        // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
+        // (a not-visible assertion must not restore a minimized window).
+        var front = expected != "not-visible";
+        var nextFront = DateTime.MinValue;
+        while (true)
+        {
+            if (front && DateTime.UtcNow >= nextFront)
+            {
+                EnsureForeground(window);
+                nextFront = DateTime.UtcNow.AddSeconds(2);
+            }
+            string? seen;
+            using (rawView.Activate())
+                seen = window.FindFirstDescendant(condition)?.Properties.ItemStatus.ValueOrDefault;
+            if (seen == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {label} status is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>
+    /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
+    /// (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">The element is missing or the state differs at the timeout.</exception>
+    private void AssertState(Window window, JsonObject step)
+    {
+        var (condition, label) = Condition(step);
+        var key = (string)step["key"]!;
+        var expected = (string)step["value"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            string? seen = null;
+            if (window.FindFirstDescendant(condition) is { } element)
+            {
+                seen = key switch
+                {
+                    "toggle" => element.Patterns.Toggle.PatternOrDefault?.ToggleState.ValueOrDefault switch
+                    {
+                        FlaUI.Core.Definitions.ToggleState.On => "on",
+                        FlaUI.Core.Definitions.ToggleState.Off => "off",
+                        FlaUI.Core.Definitions.ToggleState.Indeterminate => "indeterminate",
+                        _ => null,
+                    },
+                    "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
+                    _ => element.Properties.Name.ValueOrDefault,
+                };
+            }
+            if (seen == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {label} {key} is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
+            Thread.Sleep(200);
+        }
+    }
+
     /// <summary>Waits until no on-screen element matches the step's selector (an absence assertion).</summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
@@ -590,7 +721,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
-        while (window.FindAllDescendants(condition).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
+        while (InView(IsRaw(step), () => window.FindAllDescendants(condition)).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
         {
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"element {label} is still on screen");
             Thread.Sleep(200);
@@ -600,7 +731,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Brings an element that exists but is scrolled out of view (e.g. below the fold of a flyout's ScrollViewer) on
     /// screen through the UIA ScrollItem pattern, or by paging the nearest scrollable ancestor when the element has no
-    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console).
+    /// ScrollItem pattern (e.g. an Expander), so no mouse wheel is needed (works on a locked console). While nothing matches
+    /// yet (a virtualized list hasn't realized the item), it pages the window's largest scrollable region down.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector and an optional timeout (default 5 s).</param>
@@ -612,16 +744,35 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var sweepDown = true;
         while (true)
         {
-            var found = window.FindFirstDescendant(condition);
+            var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
             if (found is not null)
             {
                 if (!found.Properties.IsOffscreen.ValueOrDefault) return;
                 if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
                 else sweepDown = PageTowards(found, sweepDown);
             }
+            else PageDown(window);
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
             Thread.Sleep(200);
         }
+    }
+
+    /// <summary>
+    /// Pages the window's largest vertically scrollable region down one page, so a virtualized list realizes items that
+    /// don't exist yet (nothing happens once every region is at its end).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    private void PageDown(Window window)
+    {
+        var scrollable = automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Pane)
+            .Or(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.List))
+            .Or(automation.ConditionFactory.ByControlType(FlaUI.Core.Definitions.ControlType.Group));
+        var target = window.FindAllDescendants(scrollable)
+            .Where(e => e.Patterns.Scroll.IsSupported && e.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault &&
+                        e.Patterns.Scroll.Pattern.VerticalScrollPercent.ValueOrDefault < 100)
+            .OrderByDescending(e => e.BoundingRectangle.Width * e.BoundingRectangle.Height)
+            .FirstOrDefault();
+        target?.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
     }
 
     /// <summary>
@@ -657,15 +808,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return sweepDown;
     }
 
-    private (ConditionBase Condition, string Label) Condition(JsonObject step)
+    private (ConditionBase Condition, string Label) Condition(JsonObject step, string key = "selector")
     {
-        var selector = step["selector"]!.AsObject();
+        var selector = step[key]!.AsObject();
         var kind = (string)selector["kind"]!;
         var value = (string)selector["value"]!;
         var cf = automation.ConditionFactory;
         ConditionBase condition = kind switch
         {
-            "id" => cf.ByAutomationId(value),
+            "id" or "raw" => cf.ByAutomationId(value),
             "name" => cf.ByName(value),
             "class" => cf.ByClassName(value),
             _ => throw new ArgumentException($"selector {kind} cannot locate an element"),
@@ -673,17 +824,77 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         return (condition, $"{kind}={value}");
     }
 
-    internal AutomationElement Find(Window window, JsonObject step)
+    /// <summary>Whether a step's selector searches the raw view (<c>raw=</c>) instead of the control view.</summary>
+    private static bool IsRaw(JsonObject step, string key = "selector") => (string?)step[key]?["kind"] == "raw";
+
+    /// <summary>
+    /// Runs a descendant search in the control view or, for a <c>raw=</c> selector, the raw view: parts a control marks
+    /// <c>AccessibilityView=Raw</c> (e.g. a score row's badge text, so Narrator reads the row once) are not control
+    /// elements, and UIA's default search filter skips them.
+    /// </summary>
+    /// <typeparam name="T">Search result.</typeparam>
+    /// <param name="raw">Search the raw view.</param>
+    /// <param name="search">The search, run while the raw-view cache request is active.</param>
+    /// <returns>The search result.</returns>
+    private T InView<T>(bool raw, Func<T> search)
     {
-        var (condition, label) = Condition(step);
+        if (!raw) return search();
+        var request = new FlaUI.Core.CacheRequest
+        {
+            TreeFilter = TrueCondition.Default,
+            TreeScope = FlaUI.Core.Definitions.TreeScope.Element,
+            AutomationElementMode = FlaUI.Core.Definitions.AutomationElementMode.Full,
+        };
+        request.Add(automation.PropertyLibrary.Element.AutomationId);
+        using (request.Activate()) return search();
+    }
+
+    internal AutomationElement Find(Window window, JsonObject step, string key = "selector")
+    {
+        var (condition, label) = Condition(step, key);
+        var raw = IsRaw(step, key);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
-            var found = window.FindFirstDescendant(condition);
+            var found = InView(raw, () => window.FindFirstDescendant(condition));
             if (found is not null && !found.Properties.IsOffscreen.ValueOrDefault) return found;
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
+    }
+
+    /// <summary>Waits until the step's element is on screen with exactly the step's UIA Name.</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector, the expected <c>text</c> and an optional timeout (default 5 s).</param>
+    /// <exception cref="InvalidOperationException">The name still differs at the timeout.</exception>
+    private void AssertName(Window window, JsonObject step)
+    {
+        var expected = (string?)step["text"] ?? "";
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        while (true)
+        {
+            var actual = Find(window, step).Properties.Name.ValueOrDefault ?? "";
+            if (actual == expected) return;
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"element {(string)step["arg"]!} is named {actual!}, expected {expected}");
+            Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>Fails unless two on-screen elements share a horizontal centre (a vertically aligned column) within 2 px.</summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c> selectors.</param>
+    /// <exception cref="InvalidOperationException">The centres differ by more than 2 px.</exception>
+    private void AssertAligned(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var second = Find(window, step, "other").BoundingRectangle;
+        var a = first.Left + first.Width / 2.0;
+        var b = second.Left + second.Width / 2.0;
+        if (Math.Abs(a - b) > 2)
+            throw new InvalidOperationException($"centres differ: {a:0.#} vs {b:0.#} px ({(string)step["arg"]!})");
+        response["aligned"] ??= new JsonArray();
+        response["aligned"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["centre"] = a, ["other"] = b });
     }
 
     #endregion

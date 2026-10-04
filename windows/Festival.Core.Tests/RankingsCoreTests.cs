@@ -135,6 +135,15 @@ public sealed class LeaderboardPagingTests
         Assert.Equal(1, LeaderboardPaging.Corrected(3, 0));
         Assert.Equal(3, LeaderboardPaging.Corrected(3, 5));
     }
+
+    [Theory]
+    [InlineData(48, 120, 168)]
+    [InlineData(48, 0, 48)]
+    [InlineData(-5, 120, 120)]
+    [InlineData(48, double.NaN, 48)]
+    [InlineData(double.PositiveInfinity, 10, 10)]
+    public void RevealAboveFooterGrowsTargetByFooter(double height, double footer, double expected) =>
+        Assert.Equal(expected, LeaderboardPaging.RevealAboveFooter(height, footer));
 }
 
 public sealed class RankingSpotlightTests
