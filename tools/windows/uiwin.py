@@ -103,7 +103,7 @@ STEP_VERBS = {
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
-    "assertstatus": "status", "assertstate": "state",
+    "assertname": "setvalue", "assertaligned": "pair", "assertstatus": "status", "assertstate": "state",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
@@ -117,14 +117,15 @@ STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "fal
 def parse_selector(text: str) -> dict:
     """Parse a UIA selector.
 
-    Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>`` or
+    Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>``, ``raw=<AutomationId>`` (searches the
+    raw view, for parts a control marks ``AccessibilityView=Raw`` such as a score row's badge text) or
     ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only).
 
     Args:
         text: Selector text.
 
     Returns:
-        ``{"kind": "id"|"name"|"class", "value": ...}`` or ``{"kind": "xy", "x", "y"}``.
+        ``{"kind": "id"|"name"|"class"|"raw", "value": ...}`` or ``{"kind": "xy", "x", "y"}``.
 
     Raises:
         ValueError: Unrecognized selector.
@@ -134,9 +135,9 @@ def parse_selector(text: str) -> dict:
         return {"kind": "xy", "x": int(match.group(1)), "y": int(match.group(2))}
     kind, sep, value = text.partition("=")
     kind = kind.strip().lower()
-    if sep and kind in ("id", "name", "class") and value:
+    if sep and kind in ("id", "name", "class", "raw") and value:
         return {"kind": kind, "value": value}
-    raise ValueError(f"bad selector {text!r}; use id=, name=, class= or x,y")
+    raise ValueError(f"bad selector {text!r}; use id=, name=, class=, raw= or x,y")
 
 
 def parse_keys(combo: str) -> list[int]:
@@ -176,6 +177,8 @@ def parse_step(step: str) -> dict:
     ``scan:<dir>/<scan-id>`` runs an Axe.Windows scan (results in the ``scans`` output);
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
+    ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text;
+    ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column).
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
@@ -201,11 +204,21 @@ def parse_step(step: str) -> dict:
     if shape == "setvalue":
         selector, sep, text = arg.partition("|")
         if not sep:
-            raise ValueError(f"bad setvalue {arg!r}; use <selector>|<text>")
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<text>")
+        if verb == "assertname" and "@" in selector:
+            selector, _, wait = selector.rpartition("@")
+            result["timeout"] = float(wait)
         result["selector"] = parse_selector(selector)
         if result["selector"]["kind"] == "xy":
-            raise ValueError("setvalue needs an element selector, not coordinates")
+            raise ValueError(f"{verb} needs an element selector, not coordinates")
         result["text"] = step.partition(":")[2].lstrip().partition("|")[2]
+    elif shape == "pair":
+        first, sep, second = arg.partition("|")
+        if not sep:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>")
+        result["selector"], result["other"] = parse_selector(first), parse_selector(second)
+        if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")

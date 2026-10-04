@@ -375,6 +375,13 @@ class SongsCoreTest {
     }
 
     @Test
+    fun sortButtonStateNamesModeAndDirection() {
+        assertEquals("Title, ascending", SongSortDraft.describe(SongSortMode.Title, true))
+        assertEquals("Item Shop, descending", SongSortDraft.describe(SongSortMode.Shop, false))
+        assertEquals("Max Score %, ascending", SongSortDraft.describe(SongSortMode.MaxDistance, true))
+    }
+
+    @Test
     fun filterDraftTracksChangesAndSanitizesHiddenCharts() {
         val visible = setOf(Instrument.Lead, Instrument.Bass)
         val saved = SongPlayerScoreFilter(hasScores = setOf(Instrument.Drums, Instrument.Lead))
