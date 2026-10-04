@@ -68,6 +68,20 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertstate(self):
+        step = u.parse_step("assertstate:id=fst.instrument-selector.Solo_Guitar|toggle=On@3")
+        self.assertEqual(step["verb"], "assertstate")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.instrument-selector.Solo_Guitar"})
+        self.assertEqual((step["key"], step["value"], step["timeout"]), ("toggle", "on", 3.0))
+        named = u.parse_step("assertstate:id=x.value|name=Selected: Pro Drums + Cymbals")
+        self.assertEqual((named["key"], named["value"]), ("name", "Selected: Pro Drums + Cymbals"))
+        self.assertNotIn("timeout", named)
+        self.assertEqual(u.parse_step("assertstate:name=Lead|enabled=false")["value"], "false")
+        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
+                    "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
+                    "assertstate:id=x|name="):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
     def test_assertstatus(self):
         step = u.parse_step("assertstatus:id=fst.shell.artwork-background|reduced-motion@20")
         self.assertEqual(step["verb"], "assertstatus")

@@ -141,6 +141,15 @@ object AdaptiveLayoutPolicy {
     fun isRegularWidth(widthDp: Int): Boolean = widthDp >= MEDIUM_WIDTH_DP
 
     /**
+     * Whether a window is in Material's compact height class (landscape phones, folded
+     * landscape), where pinned sheet footers crowd out the content.
+     *
+     * @param heightDp Window height in dp.
+     * @return True below 480 dp.
+     */
+    fun isCompactHeight(heightDp: Int): Boolean = heightDp < MEDIUM_HEIGHT_DP
+
+    /**
      * Whether list-detail screens show both panes.
      *
      * @param widthDp **Window** width in dp (Material's expanded class), not the

@@ -200,7 +200,7 @@ private fun HistoryRow(row: ScoreHistoryRow) {
                     modifier = Modifier.weight(1f),
                 )
                 // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
-                if (row.accuracy != null || row.isFullCombo) AccuracyPill(row.entry.accuracy, row.isFullCombo)
+                AccuracyPill(row.entry.accuracy, row.isFullCombo)
             }
         }
     }

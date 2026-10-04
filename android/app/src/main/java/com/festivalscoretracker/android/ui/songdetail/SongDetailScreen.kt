@@ -734,6 +734,9 @@ private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppR
 
 // region Score row
 
+/** The row identity in the `fst.score.accuracy.<id>` tag: the account, else `rank-<n>`. */
+internal val LeaderboardEntry.accuracyId: String get() = accountId.ifEmpty { "rank-$rank" }
+
 /**
  * Row inset plus the selected player's treatment (web `playerEntryRow`: purple
  * highlight with a purple border). Every row gets the same 4 dp inset so the selected
@@ -803,7 +806,8 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
         }
         if (plan.showAccuracy) {
             Box(Modifier.widthIn(min = plan.accuracyWidth.dp), contentAlignment = Alignment.Center) {
-                entry.accuracy?.let { AccuracyPill(it, entry.isFullCombo == true) }
+                // An empty slot (no accuracy, no FC) keeps the column, so badges stay aligned.
+                AccuracyPill(entry.accuracy, entry.isFullCombo == true, id = entry.accuracyId)
             }
         }
         if (plan.showStars) {
@@ -864,7 +868,7 @@ private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
                     color = BrandTokens.textPrimary,
                 )
-                if (entry.accuracy != null) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
+                AccuracyPill(entry.accuracy, entry.isFullCombo == true, id = entry.accuracyId, expanded = true)
                 if (plan.showMeta) entry.season?.let {
                     Text(LeaderboardColumnLayout.seasonLabel(it), style = MaterialTheme.typography.labelLarge, color = BrandTokens.textSecondary, modifier = Modifier.semantics { contentDescription = "Season $it" })
                 }

@@ -294,7 +294,7 @@ class BandsUiTest {
         waitForTag("fst.song-band-leaderboard.row.band-1:1")
         rule.onNodeWithText("Duos · 30 entries").assertIsDisplayed()
         // Web AccuracyDisplay: the full combo is the gold accuracy pill, not an "FC" chip (7.11).
-        rule.onNodeWithContentDescription("Full combo, 100%", useUnmergedTree = true).assertExists()
+        rule.onNodeWithContentDescription("Full combo, accuracy 100%", useUnmergedTree = true).assertExists()
         assertTrue(rule.onAllNodesWithText("FC", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         assertTrue(rule.onAllNodesWithContentDescription("Accuracy 97.5%", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         waitForTag("fst.song-band-leaderboard.song")

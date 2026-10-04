@@ -58,9 +58,13 @@
                     <TextBlock x:Name="BayesianText" AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
                                Visibility="Collapsed" />
                 </StackPanel>
-                <!-- Web AccuracyDisplay: accuracy-tinted pill, or the skewed gold outline for a full combo; sized for at
-                     most "XX.X%" (operator batch 7.1). -->
+                <!-- Web AccuracyDisplay: accuracy-tinted pill, or the skewed gold outline for a full combo (gold "FC" when the
+                     full combo has no accuracy, never an invented 0%; score-accuracy spec); sized for at
+                     most "XX.X%" (operator batch 7.1). PillText carries the fst.score.accuracy.* ID in the raw view. The tint fills
+                     the outer edge like the web's border-box background under its 2 px transparent border, so graded pills
+                     are as wide as the gold FC outline. -->
                 <Border x:Name="Pill" AutomationProperties.AccessibilityView="Raw" Grid.Column="4" Grid.RowSpan="3" CornerRadius="4" Padding="4,1" Width="58" BorderThickness="2"
+                        BackgroundSizing="OuterBorderEdge" RenderTransformOrigin="0.5,0.5"
                         HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
                     <TextBlock x:Name="PillText" AutomationProperties.AccessibilityView="Raw" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" TextWrapping="NoWrap" />
                 </Border>
