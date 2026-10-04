@@ -324,11 +324,15 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>UIA automation ID (<c>fst.song-leaderboard.row.&lt;accountId&gt;</c>).</summary>
     public string AutomationId => "fst.song-leaderboard.row." + Entry.AccountId;
 
+    /// <summary>Badge UIA ID (<c>fst.score.accuracy.&lt;accountId&gt;</c>, as on Apple's full Solo chart).</summary>
+    public string BadgeAutomationId => "fst.score.accuracy." + Entry.AccountId;
+
     /// <summary>Screen-reader name.</summary>
     public string Announcement =>
         (IsSelected && Entry.Rank > 0 ? $"Your rank, {RankingFormatting.Ordinal(Entry.Rank)}. {Name}" :
          IsSelected ? $"Your score. {Name}" : $"Rank {RankText}, {Name}") +
-        $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") +
+        $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
+        (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
         (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

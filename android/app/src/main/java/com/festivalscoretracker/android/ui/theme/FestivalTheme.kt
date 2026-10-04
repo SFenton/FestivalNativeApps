@@ -39,6 +39,9 @@ object BrandTokens {
     val glassBorder = Color(0x14FFFFFF)
     val gold = Color(0xFFFFD700)
 
+    /** Web `goldStroke`: the outline of gold full-combo badges (`goldOutline`). */
+    val goldStroke = Color(0xFFCFA500)
+
     /** Web `purpleHighlight` (rgba 75 15 99 / 75%): the selected player's row on every board. */
     val purpleHighlight = Color(0xBF4B0F63)
 

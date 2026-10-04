@@ -123,6 +123,17 @@ class ProfileViewModelsTest {
     }
 
     @Test
+    fun reloadIsOfferedOnlyForAViewedPausedOrFailedSelection() {
+        // Issue #133: a viewed page whose publication changed (or whose select failed) needs its own way back.
+        PlayerIdentityAction.entries.forEach { action ->
+            assertEquals(action.name, action == PlayerIdentityAction.Changed, PlayerProfileUiState(identity = action).offersReload)
+        }
+        assertTrue(PlayerProfileUiState(identity = PlayerIdentityAction.Select, actionError = "failed").offersReload)
+        assertFalse(PlayerProfileUiState(identity = PlayerIdentityAction.Deselect, isSelected = true, actionError = "failed").offersReload)
+        assertFalse(PlayerProfileUiState(identity = PlayerIdentityAction.Changed, isSelected = true).offersReload)
+    }
+
+    @Test
     fun viewedProfileSelectsAndDeselectsWithoutNavigatingOrRereading() = runTest(main.dispatcher) {
         val store = store(this)
         val vm = viewModel(store, Fixtures.ACCOUNT_A)

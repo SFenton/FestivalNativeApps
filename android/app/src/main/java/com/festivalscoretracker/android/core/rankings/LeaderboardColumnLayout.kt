@@ -59,7 +59,8 @@ data class LeaderboardSection(
  * @property ranks Rank labels (`#1,234`).
  * @property seasons Season labels (`S15`) of rows that have one.
  * @property scores Grouped scores.
- * @property hasAccuracy Whether any row has an accuracy value.
+ * @property hasAccuracy Whether any row draws an accuracy badge (an accuracy value, or a full
+ *   combo, which shows `FC` without one).
  * @property hasStars Whether any row has 1–6 stars (anything else draws nothing).
  */
 data class ScoreSectionTexts(
@@ -81,7 +82,7 @@ data class ScoreSectionTexts(
             ranks = entries.map { RankingFormatting.rankLabel(it.rank, locale) },
             seasons = entries.mapNotNull { it.season?.let(LeaderboardColumnLayout::seasonLabel) },
             scores = entries.map { ScoreFormatting.score(it.score, locale) },
-            hasAccuracy = entries.any { it.accuracy != null },
+            hasAccuracy = entries.any { it.accuracy != null || it.isFullCombo == true },
             hasStars = entries.any { (it.stars ?: 0) in 1..LeaderboardColumnLayout.GOLD_STARS },
         )
     }

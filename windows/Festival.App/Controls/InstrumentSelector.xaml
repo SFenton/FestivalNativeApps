@@ -2,9 +2,12 @@
     x:Class="Festival.App.Controls.InstrumentSelector"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
     IsTabStop="False">
     <UserControl.Resources>
-        <!-- Web instrument circle: 64 epx, transparent until selected, then a green disc grows behind the 48 epx icon. -->
+        <!-- Web instrument circle: 64 epx, transparent until selected, then a green disc grows behind the 48 epx icon. Under a
+             contrast theme the role brushes (Themes/Styles.xaml) give every circle a ButtonText ring (GrayText when disabled,
+             Highlight on hover) and a Highlight selected disc, so targets and selection never rest on brand hue alone. -->
         <Style x:Key="FSTInstrumentCircleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Width" Value="64" />
             <Setter Property="Height" Value="64" />
@@ -16,15 +19,17 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Grid x:Name="Root" Background="Transparent" CornerRadius="32">
-                            <Ellipse x:Name="Hover" Fill="#1FFFFFFF" Opacity="0" />
+                            <Ellipse x:Name="Hover" Fill="{ThemeResource FSTInstrumentHoverBrush}" Opacity="0" />
                             <ContentPresenter x:Name="ContentPresenter" Content="{TemplateBinding Content}"
                                               HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                            <Ellipse x:Name="Ring" Stroke="{ThemeResource FSTInstrumentRingBrush}" StrokeThickness="2" IsHitTestVisible="False" />
                             <VisualStateManager.VisualStateGroups>
                                 <VisualStateGroup x:Name="CommonStates">
                                     <VisualState x:Name="Normal" />
                                     <VisualState x:Name="PointerOver">
                                         <VisualState.Setters>
                                             <Setter Target="Hover.Opacity" Value="1" />
+                                            <Setter Target="Ring.Stroke" Value="{ThemeResource FSTInstrumentRingHoverBrush}" />
                                         </VisualState.Setters>
                                     </VisualState>
                                     <VisualState x:Name="Pressed">
@@ -32,11 +37,16 @@
                                             <Setter Target="Hover.Opacity" Value="0.6" />
                                         </VisualState.Setters>
                                     </VisualState>
-                                    <VisualState x:Name="Disabled" />
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="Ring.Stroke" Value="{ThemeResource FSTInstrumentRingDisabledBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
                                     <VisualState x:Name="Checked" />
                                     <VisualState x:Name="CheckedPointerOver">
                                         <VisualState.Setters>
                                             <Setter Target="Hover.Opacity" Value="1" />
+                                            <Setter Target="Ring.Stroke" Value="{ThemeResource FSTInstrumentRingHoverBrush}" />
                                         </VisualState.Setters>
                                     </VisualState>
                                     <VisualState x:Name="CheckedPressed">
@@ -44,7 +54,11 @@
                                             <Setter Target="Hover.Opacity" Value="0.6" />
                                         </VisualState.Setters>
                                     </VisualState>
-                                    <VisualState x:Name="CheckedDisabled" />
+                                    <VisualState x:Name="CheckedDisabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="Ring.Stroke" Value="{ThemeResource FSTInstrumentRingDisabledBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
                                     <VisualState x:Name="Indeterminate" />
                                     <VisualState x:Name="IndeterminatePointerOver" />
                                     <VisualState x:Name="IndeterminatePressed" />
@@ -68,20 +82,28 @@
     </UserControl.Resources>
 
     <StackPanel>
-        <!-- Full row (auto-switches to compact arrows when it would not fit). -->
-        <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" />
-        <StackPanel x:Name="CompactRow" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Visibility="Collapsed">
-            <Button x:Name="PreviousButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnPrevious"
-                    AutomationProperties.Name="Previous instrument" ToolTipService.ToolTip="Previous instrument">
-                <FontIcon Glyph="&#xE76B;" FontSize="14" />
-            </Button>
-            <Border x:Name="CompactHost" />
-            <Button x:Name="NextButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnNext"
-                    AutomationProperties.Name="Next instrument" ToolTipService.ToolTip="Next instrument">
-                <FontIcon Glyph="&#xE76C;" FontSize="14" />
-            </Button>
-        </StackPanel>
-        <!-- Children expand under the row once an instrument is selected (web instrumentFiltersWrap). -->
-        <ContentPresenter x:Name="DetailsPresenter" Visibility="Collapsed" />
+        <!-- Named UIA group ("Instrument, group"; the UserControl itself has no peer) around the full row, which auto-switches
+             to compact arrows when it would not fit. Arrow keys move between circles (XY focus) as well as Tab. -->
+        <controls:AccessibleGroup x:Name="Group">
+            <Grid>
+                <StackPanel x:Name="Row" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center"
+                            XYFocusKeyboardNavigation="Enabled" />
+                <StackPanel x:Name="CompactRow" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Visibility="Collapsed"
+                            XYFocusKeyboardNavigation="Enabled">
+                    <Button x:Name="PreviousButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnPrevious"
+                            AutomationProperties.Name="Previous instrument" ToolTipService.ToolTip="Previous instrument">
+                        <FontIcon Glyph="&#xE76B;" FontSize="14" />
+                    </Button>
+                    <Border x:Name="CompactHost" />
+                    <Button x:Name="NextButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnNext"
+                            AutomationProperties.Name="Next instrument" ToolTipService.ToolTip="Next instrument">
+                        <FontIcon Glyph="&#xE76C;" FontSize="14" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </controls:AccessibleGroup>
+        <!-- Children expand under the row once an instrument is selected (web instrumentFiltersWrap); they fade in unless
+             motion is reduced. -->
+        <ContentPresenter x:Name="DetailsPresenter" Visibility="Collapsed" Opacity="0" />
     </StackPanel>
 </UserControl>

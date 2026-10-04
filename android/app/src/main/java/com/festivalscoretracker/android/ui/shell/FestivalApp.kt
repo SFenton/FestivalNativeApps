@@ -583,7 +583,7 @@ private fun FestivalShell(
     }
     // One movable page tree for both chrome branches: rotating a tablet between the rail and
     // the permanent drawer moves the NavHost instead of rebuilding it, so page state (an open
-    // license, list scroll, picked filters) survives the change (issue #122).
+    // license or Filter sheet, list scroll, picked filters) survives the change (issues #122, #126).
     val latestContent = rememberUpdatedState(content)
     val pages = remember { movableContentOf { latestContent.value() } }
     if (layout == NavigationLayout.PermanentDrawer) {

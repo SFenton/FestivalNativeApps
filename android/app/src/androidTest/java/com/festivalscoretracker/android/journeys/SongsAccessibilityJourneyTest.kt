@@ -60,6 +60,40 @@ class SongsAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Songs Filter with every section expanded (issue #126): ATF over the score toggles,
+     * Selected Instrument Filters and bucket groups, and no part of the sheet across a
+     * separating hinge (run with `--avd FST_Book_Fold --posture half` for the hinge check).
+     */
+    @Test
+    fun songsFilterExpandedSectionsStayAccessibleAndClearOfTheHinge() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, stillBackground = true), transport)
+        h.waitForTag("fst.songs.list")
+        h.tap("fst.songs.filter.open")
+        h.waitForTag("fst.songs.filter.form")
+        h.assertNothingStraddles("fst.songs.filter", "fst.songs.filter.form", "fst.songs.filter.done", "fst.songs.filter.reset")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.shop")
+        h.tap("fst.songs.filter.shop")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.global")
+        h.tap("fst.songs.filter.global")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.score.chart.Solo_Guitar")
+        h.tap("fst.songs.filter.score.chart.Solo_Guitar")
+        h.readingOrder("songs-filter-score")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.instrument")
+        h.tap(if (h.exists("fst.songs.filter.instrument.preview")) "fst.songs.filter.instrument.preview" else "fst.songs.filter.instrument.Solo_Guitar")
+        h.waitForTag("fst.songs.filter.stars")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.stars")
+        h.tap("fst.songs.filter.stars")
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.stars.6")
+        h.readingOrder("songs-filter-instrument")
+        h.assertNothingStraddles("fst.songs.filter", "fst.songs.filter.form", "fst.songs.filter.stars.6")
+        h.tap("fst.songs.filter.done")
+        h.waitGone("fst.songs.filter.form")
+        h.waitForTag("fst.songs.filter.open")
+        h.assertAccessible()
+    }
+
     /** Sort states on a device (issue #125): live mode/direction/Reset, Item Shop sections and the spoken sort state. */
     @Test
     fun songsSortStates() {
@@ -118,15 +152,29 @@ class SongsAccessibilityJourneyTest {
 
     @Test
     fun itemShop() {
+        val offers = arrayOf("fst.shop.song.s-alpha", "fst.shop.song.s-x", "fst.shop.song.s-beta", "fst.shop.external.s-alpha", "fst.shop.external.s-beta")
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(route = DebugLaunch.parseRoute("shop"), profile = player, stillBackground = true), transport)
         rule.waitUntil(15_000) { h.exists("fst.shop.list") || h.exists("fst.shop.grid") }
+        h.waitForTag("fst.shop.song.s-beta")
         h.readingOrder("shop")
+        // Book posture (`device.py test … --posture half`): no card or row on the fold (issue #131).
+        h.assertNothingStraddles(*offers)
         // Grid/List only switches on wide panes (compact phones always list).
         if (h.exists("fst.shop.view-toggle")) {
             h.tap("fst.shop.view-toggle")
+            h.waitForTag("fst.shop.song.s-beta")
             h.readingOrder("shop-toggled")
+            h.assertNothingStraddles(*offers)
         }
+        h.tap("fst.shop.filter.open")
+        h.waitForTag("fst.shop.filter.leaving")
+        h.readingOrder("shop-filter")
+        h.tap("fst.shop.filter.leaving")
+        h.waitGone("fst.shop.song.s-beta")
+        h.tap("fst.shop.filter.done")
+        h.waitGone("fst.shop.filter.leaving")
+        h.readingOrder("shop-filtered")
         h.assertAccessible()
     }
 

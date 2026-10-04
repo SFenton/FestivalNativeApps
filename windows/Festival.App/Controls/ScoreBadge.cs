@@ -9,7 +9,8 @@ namespace Festival.App.Controls;
 /// <summary>
 /// x:Bind helpers for a leaderboard row's accuracy badge (web <c>AccuracyDisplay</c>): a full combo is the gold outline
 /// badge (2 epx <c>#CFA500</c> stroke, gold bold italic text, skewed −8°, <c>goldOutlineSkew</c>); anything else is a pill
-/// tinted red→green by accuracy at 25% opacity (<c>accuracyBgColor</c>). The score comes first; there is no separate FC chip.
+/// tinted red→green by accuracy at 25% opacity (<c>accuracyBgColor</c>). The score comes first; there is no separate FC chip,
+/// but a full combo without an accuracy reads <c>FC</c> in the gold badge (<see cref="ScoreFormatting.BadgeText"/>).
 /// </summary>
 public static class ScoreBadge
 {
@@ -46,9 +47,12 @@ public static class ScoreBadge
     /// <returns>Font style.</returns>
     public static FontStyle Style(bool fullCombo) => fullCombo ? FontStyle.Italic : FontStyle.Normal;
 
-    /// <summary>The web's <c>skewX(-8deg)</c> for FC, else none.</summary>
+    /// <summary>
+    /// The web's <c>skewX(-8deg)</c> for FC, else none. It pivots on the badge's <c>RenderTransformOrigin</c> (0.5, 0.5, as
+    /// CSS's default <c>transform-origin</c>), so the badge stays centred in its column at every text size.
+    /// </summary>
     /// <param name="fullCombo">Explicit FC.</param>
     /// <returns>Transform or <see langword="null"/>.</returns>
-    public static Transform? Skew(bool fullCombo) => fullCombo ? new SkewTransform { AngleX = -8, CenterY = 10 } : null;
+    public static Transform? Skew(bool fullCombo) => fullCombo ? new SkewTransform { AngleX = -8 } : null;
 }
 #endregion
