@@ -446,11 +446,7 @@ private fun VersionSection(
     LaunchedEffect(Unit) { loadServiceVersion() }
     Header("Festival Score Tracker Version", "Festival Score Tracker information to help with debugging.")
     GlassCard(Modifier.fillMaxWidth()) {
-        ValueRow(
-            "App Version",
-            AppBuildInfo.versionText(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.GIT_SHA),
-            "fst.settings.app-version",
-        )
+        AppVersionRow()
         Divider()
         ValueRow("Build", if (debug) "Debug" else "Release", "fst.settings.build")
         Divider()
@@ -566,6 +562,19 @@ private fun ToggleRow(
         }
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
+}
+
+/**
+ * Settings → App Version: `versionName (versionCode)`, plus ` · <sha7>` on builds stamped with
+ * a commit ([AppBuildInfo], issues #43/#151).
+ *
+ * @param versionText Text to show; defaults to this build's [BuildConfig] identity.
+ */
+@Composable
+internal fun AppVersionRow(
+    versionText: String = AppBuildInfo.versionText(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.GIT_SHA),
+) {
+    ValueRow("App Version", versionText, "fst.settings.app-version")
 }
 
 /**

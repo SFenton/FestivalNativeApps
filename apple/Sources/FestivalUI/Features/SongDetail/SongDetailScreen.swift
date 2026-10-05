@@ -47,6 +47,9 @@ struct SongDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
     @Environment(\.deviceLayout) private var deviceLayout
+    /// Set while Song Detail can split: its full boards and score history open in the
+    /// trailing pane (`OnDemandSplitPolicy`).
+    @Environment(\.listDetailSelect) private var splitSelect
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
 
@@ -72,6 +75,14 @@ struct SongDetailScreen: View {
     }
 
     private var previewInstruments: [Instrument] { charted.filter(visibleInstruments.contains) }
+
+    /// Opens an instrument's score history in the trailing pane while Song Detail can
+    /// split, else nil (the section expands in place).
+    private var openFullHistory: ((Instrument) -> Void)? {
+        guard let splitSelect, splitSelect.accepts(.playerHistory(song, .lead)) else { return nil }
+        let song = song
+        return { instrument in splitSelect(.playerHistory(song, instrument)) }
+    }
 
     /// Whether the Score History section is drawn (a selected player with rows).
     private var showsScoreHistory: Bool { session.selectedPlayer != nil && !historyEntries.isEmpty }
@@ -354,7 +365,8 @@ struct SongDetailScreen: View {
                         entries: historyEntries, pool: previewInstruments,
                         keyboardIcon: song.usesKeyboardIcon,
                         instrument: $historyInstrument, expanded: $historyExpanded,
-                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason
+                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason,
+                        openFullHistory: openFullHistory
                     )
                     .festivalFadeIn(isLoaded: true, index: 2)
                     .id(SongScoreHistorySection.anchor)

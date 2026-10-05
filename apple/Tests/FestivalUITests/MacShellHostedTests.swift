@@ -124,8 +124,7 @@ private let macFixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", nam
 
 @MainActor
 private func hostMacListDetail(
-    section: FestivalSection, path: [AppRoute], size: CGSize, row: AppRoute?, recorder: MacPathRecorder,
-    collapseDelay: Duration = .milliseconds(2500)
+    section: FestivalSection, path: [AppRoute], size: CGSize, row: AppRoute?, recorder: MacPathRecorder
 ) -> (NSHostingView<NativeHostedRoot<some View>>, NSWindow) {
     let session = offlineMacSession(player: false)
     let view = MacPathHost(path: path, recorder: recorder) { binding in
@@ -141,33 +140,49 @@ private func hostMacListDetail(
             }
         }
     }
-    .environment(\.macListCollapseDelay, collapseDelay)
     .frame(width: size.width, height: size.height)
     .preferredColorScheme(.dark)
     let host = nativeHostedView(view, size: size)
     return (host, nativeHostedWindow(host, size: size))
 }
 
-/// Wide content: two columns, and the first row fills the detail (never an empty pane).
+/// Wide content, nothing open: the list page is full width (no trailing pane) and its
+/// rows would open the trailing pane; nothing is auto-selected (operator 2026-10-04).
 @MainActor
-@Test func macListDetailAutoSelectsFirstRow() async throws {
+@Test func macSplitStartsFullWidth() async throws {
     let recorder = MacPathRecorder()
     let (host, window) = hostMacListDetail(
-        section: .rivals, path: [], size: CGSize(width: 1060, height: 760), row: macFixtureRival, recorder: recorder,
-        collapseDelay: .seconds(120)
+        section: .rivals, path: [], size: CGSize(width: 1060, height: 760), row: macFixtureRival, recorder: recorder
+    )
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture List Root", "Rows Select", "Fixture Row"], excluding: ["No Player Selected"],
+        timeout: .seconds(60)
+    )
+    _ = try nativeHostedPNG(image, filename: "mac-split-full-width.png", environment: "FST_SHELL_RENDER_OUT")
+    #expect(recorder.path.isEmpty)
+    #expect(recorder.split == false)
+}
+
+/// An open item fills the trailing half of the content area beside the list.
+@MainActor
+@Test func macSplitOpenItemFillsTrailingHalf() async throws {
+    let recorder = MacPathRecorder()
+    let (host, window) = hostMacListDetail(
+        section: .rivals, path: [macFixtureRival], size: CGSize(width: 1060, height: 760), row: macFixtureRival,
+        recorder: recorder
     )
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
         host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], timeout: .seconds(60)
     )
-    _ = try nativeHostedPNG(image, filename: "mac-list-detail.png", environment: "FST_SHELL_RENDER_OUT")
-    #expect(recorder.path == [macFixtureRival])
+    _ = try nativeHostedPNG(image, filename: "mac-split-open.png", environment: "FST_SHELL_RENDER_OUT")
     #expect(recorder.split == true)
 }
 
-/// Narrow content (minimum window): one column whose rows push; nothing auto-selected.
+/// Narrow content (minimum window): one stack whose rows push.
 @MainActor
-@Test func macListDetailOneColumnWhenNarrow() async throws {
+@Test func macSplitPushesWhenNarrow() async throws {
     let recorder = MacPathRecorder()
     let (host, window) = hostMacListDetail(
         section: .rivals, path: [], size: CGSize(width: 560, height: 700), row: macFixtureRival, recorder: recorder
@@ -178,15 +193,15 @@ private func hostMacListDetail(
     #expect(recorder.split == false)
 }
 
-/// A list with no rows collapses to one column instead of a spinner beside it.
+/// Songs never splits: its rows push even in a wide content area.
 @MainActor
-@Test func macListDetailEmptyListCollapses() async throws {
+@Test func macSongsNeverSplits() async throws {
     let recorder = MacPathRecorder()
     let (host, window) = hostMacListDetail(
         section: .songs, path: [], size: CGSize(width: 1060, height: 760), row: nil, recorder: recorder
     )
     defer { window.orderOut(nil) }
-    try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push"], excluding: ["Loading"])
+    try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push"])
     #expect(recorder.path.isEmpty)
 }
 #endif

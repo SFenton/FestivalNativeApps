@@ -45,8 +45,12 @@ struct LayoutSignals: Sendable, Equatable {
     var occlusions: [CGRect] = []
     /// Active `ReservedRegion.Kind.division` frames (the fold while partially open).
     var divisions: [CGRect] = []
-    /// True while the platform shell is the iPad/macOS `NavigationSplitView` sidebar.
-    /// Phones (including iPhone Duo) keep the tab shell; see `.agents/design/apple/duo.md`.
+    /// Every `ReservedRegion.Kind.division` frame, active or not (`.includeInactive`):
+    /// where the hinge runs even while the inner display lies flat.
+    var hinges: [CGRect] = []
+    /// True for the wide shell: a regular-width iPad window (sections in the overlay
+    /// flyout) or the macOS sidebar window. Phones (including iPhone Duo) keep the tab
+    /// shell; see `.agents/design/apple/split-view.md`.
     var usesSidebarShell = false
 }
 
@@ -60,7 +64,8 @@ struct LayoutSignals: Sendable, Equatable {
 /// - Section navigation stays the system `TabView` on every phone pose. On iPhone Duo the
 ///   system moves it into the vertical bar (folded, and unfolded landscape); the app never
 ///   draws its own rail.
-/// - Regular width (Duo inner display, iPad) shows list/detail pages as two columns.
+/// - List pages split on demand in landscape (``OnDemandSplitPolicy``), at the window's
+///   midpoint or the iPhone Duo hinge (``splitHinge``).
 /// - Custom floating overlays (drawer, scrubber, pinned footers) inset by ``overlayInsets``,
 ///   which adds camera/Dynamic Island occlusions that the safe area does not cover.
 struct DeviceLayout: Sendable, Equatable {
@@ -88,7 +93,7 @@ struct DeviceLayout: Sendable, Equatable {
         case tabBar
         /// System vertical bar on the given edge (Duo folded, Duo inner landscape).
         case verticalBar(HorizontalEdge)
-        /// `NavigationSplitView` sidebar (iPad/macOS shell).
+        /// The wide shell: the iPad overlay flyout (regular width) or the macOS sidebar.
         case sidebar
 
         /// True for the system vertical bar on either edge.
@@ -121,6 +126,8 @@ struct DeviceLayout: Sendable, Equatable {
     let overlayInsets: EdgeInsets
     /// The active fold region, if the inner display is partially folded.
     let foldFrame: CGRect?
+    /// The hinge region even while flat (an inactive division), if the system reports one.
+    var hingeFrame: CGRect?
     /// Window safe-area insets (on iPhone Duo they already include the vertical bar).
     var safeAreaInsets = EdgeInsets()
     /// Window size in points (zero before the first geometry pass).
@@ -190,10 +197,23 @@ struct DeviceLayout: Sendable, Equatable {
             pose: pose, orientation: orientation,
             widthClass: width >= Self.regularColumnWidth ? .regular : .compact,
             sectionChrome: sectionChrome, contentArrangement: .stack,
-            overlayInsets: overlayInsets, foldFrame: foldFrame,
+            overlayInsets: overlayInsets, foldFrame: foldFrame, hingeFrame: hingeFrame,
             safeAreaInsets: safeAreaInsets, size: size, heightClass: heightClass,
             windowWidthClassOverride: windowWidthClass
         )
+    }
+
+    /// The hinge an on-demand split aligns its divider to, in window coordinates: the
+    /// active fold, else the hinge the system reports while flat, else (iPhone Duo inner
+    /// display with no reported region) the line through the window's middle, where the
+    /// inner display's hinge runs. Nil without a hinge (iPhone, iPad, Mac, folded Duo).
+    var splitHinge: CGRect? {
+        if let foldFrame { return foldFrame }
+        if let hingeFrame { return hingeFrame }
+        guard pose == .unfolded || pose == .partiallyFolded, size.width > 0, size.height > 0 else { return nil }
+        return orientation == .landscape
+            ? CGRect(x: size.width / 2, y: 0, width: 0, height: size.height)
+            : CGRect(x: 0, y: size.height / 2, width: size.width, height: 0)
     }
 
     /// Default before the first geometry pass: an ordinary compact phone.
@@ -225,6 +245,7 @@ struct DeviceLayout: Sendable, Equatable {
                 safeArea: signals.safeAreaInsets, occlusions: signals.occlusions, bounds: bounds
             ),
             foldFrame: fold,
+            hingeFrame: fold ?? signals.hinges.first { $0.intersects(bounds) },
             safeAreaInsets: signals.safeAreaInsets,
             size: signals.size,
             heightClass: signals.heightClass

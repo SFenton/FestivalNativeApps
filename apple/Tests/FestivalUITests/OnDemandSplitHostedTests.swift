@@ -1,0 +1,194 @@
+#if os(macOS)
+import AppKit
+import CoreGraphics
+import Foundation
+import SwiftUI
+import Testing
+@testable import FestivalCore
+@testable import FestivalUI
+
+// MARK: - Fixtures
+
+/// iPhone Duo inner display, landscape (regular width, vertical bar, fully open).
+private let duoInner = DeviceLayout.resolve(LayoutSignals(
+    size: CGSize(width: 951, height: 669), widthClass: .regular,
+    safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
+    verticalBarEdge: .trailing, hinge: .fullyOpen
+))
+
+/// iPhone Duo outer display, portrait (compact width, folded).
+private let duoOuter = DeviceLayout.resolve(LayoutSignals(
+    size: CGSize(width: 466, height: 678), widthClass: .compact,
+    safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+    verticalBarEdge: .trailing, hinge: .closed
+))
+
+/// A session that never reaches the network.
+@MainActor
+private func offlineSession() -> FestivalSession {
+    FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+}
+
+/// Records the section path a hosted `OnDemandSplitStack` writes.
+@MainActor
+private final class PathRecorder {
+    var path: [AppRoute] = []
+}
+
+/// Owns the path as real state so selection writes land (a `.constant` would drop them).
+private struct PathHost<Content: View>: View {
+    @State var path: [AppRoute]
+    let recorder: PathRecorder
+    @ViewBuilder let content: (Binding<[AppRoute]>) -> Content
+
+    var body: some View {
+        content($path).onChange(of: path, initial: true) { _, new in recorder.path = new }
+    }
+}
+
+/// Host one section's `OnDemandSplitStack` under an injected layout.
+///
+/// - Parameters:
+///   - section: Section owning the path.
+///   - path: The initial section path.
+///   - layout: Injected `\.deviceLayout`.
+///   - size: Host size in points.
+///   - recorder: Receives the path as the stack writes it.
+/// - Returns: The host and its offscreen window (retain both while asserting).
+@MainActor
+private func hostSplit(
+    section: FestivalSection, path: [AppRoute], layout: DeviceLayout, size: CGSize,
+    recorder: PathRecorder = PathRecorder()
+) -> (NSHostingView<NativeHostedRoot<some View>>, NSWindow) {
+    let session = offlineSession()
+    let view = PathHost(path: path, recorder: recorder) { binding in
+        OnDemandSplitStack(
+            section: section, session: session, visibleInstruments: Set(Instrument.allCases),
+            path: binding, isVisible: true
+        ) { rootIsTop in
+            List {
+                Text("Fixture List Root")
+                Text(rootIsTop ? "Root On Top" : "Root Covered")
+                SelectModeProbe()
+                ColumnWidthProbe()
+            }
+        }
+    }
+    .environment(\.deviceLayout, layout)
+    .frame(width: size.width, height: size.height)
+    .preferredColorScheme(.dark)
+    let host = nativeHostedView(view, size: size)
+    return (host, nativeHostedWindow(host, size: size))
+}
+
+private let splitBudget: Duration = .seconds(90)
+
+private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: "Fixture Rival", scope: nil)
+
+private let duoInnerPortrait = DeviceLayout.resolve(LayoutSignals(
+    size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+))
+
+// MARK: - Starts full width
+
+/// Landscape inner display, nothing open: the list page is full width (regular width
+/// class, no trailing pane), and its rows would open the trailing pane.
+@MainActor
+@Test func splitStartsFullWidth() async throws {
+    let size = CGSize(width: 951, height: 669)
+    let recorder = PathRecorder()
+    let (host, window) = hostSplit(section: .rivals, path: [], layout: duoInner, size: size, recorder: recorder)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture List Root", "Root On Top", "Rows Select", "Width Regular"],
+        excluding: ["Close", "No Player Selected"], timeout: splitBudget
+    )
+    _ = try nativeHostedPNG(image, filename: "split-rivals-full-width.png", environment: "FST_SHELL_RENDER_OUT")
+    #expect(recorder.path.isEmpty, "Nothing is auto-selected (operator 2026-10-04)")
+}
+
+/// An open item fills the trailing half beside the list, which keeps its own top page
+/// and now sees a compact pane width; the trailing root has a Close button.
+@MainActor
+@Test func splitOpenItemFillsTrailingHalf() async throws {
+    let size = CGSize(width: 951, height: 669)
+    let (host, window) = hostSplit(section: .rivals, path: [fixtureRival], layout: duoInner, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select", "Width Compact"],
+        timeout: splitBudget
+    )
+    _ = try nativeHostedPNG(image, filename: "split-rivals-open.png", environment: "FST_SHELL_RENDER_OUT")
+}
+
+/// Portrait inner display, folded and iPhone: one stack whose rows push.
+@MainActor
+@Test func splitPushesInPortraitAndCompact() async throws {
+    for (layout, size) in [
+        (duoInnerPortrait, CGSize(width: 669, height: 951)),
+        (duoOuter, CGSize(width: 466, height: 678)),
+        (DeviceLayout.standardPhone, CGSize(width: 466, height: 678)),
+    ] {
+        let recorder = PathRecorder()
+        let (host, window) = hostSplit(section: .rivals, path: [], layout: layout, size: size, recorder: recorder)
+        defer { window.orderOut(nil) }
+        try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push"], timeout: splitBudget)
+        #expect(recorder.path.isEmpty)
+    }
+}
+
+/// Songs never splits; the Leaderboards overview does (cards open players).
+@MainActor
+@Test func splitPageClassificationHosted() async throws {
+    let size = CGSize(width: 951, height: 669)
+    let (songs, songsWindow) = hostSplit(section: .songs, path: [], layout: duoInner, size: size)
+    defer { songsWindow.orderOut(nil) }
+    try await nativeHostedSettle(songs, untilText: ["Fixture List Root", "Rows Push", "Width Regular"], timeout: splitBudget)
+    let (boards, boardsWindow) = hostSplit(section: .leaderboards, path: [], layout: duoInner, size: size)
+    defer { boardsWindow.orderOut(nil) }
+    try await nativeHostedSettle(boards, untilText: ["Fixture List Root", "Rows Select"], timeout: splitBudget)
+}
+
+// MARK: - Selected row
+
+/// A row whose route is the current selection gets the selected treatment; others do not.
+@MainActor
+@Test func listDetailSelectableHighlightsOnlyTheSelectedRow() async throws {
+    let size = CGSize(width: 320, height: 120)
+    let selected = AppRoute.player(accountId: "a", displayName: "A")
+    func render(selection: AppRoute?) async throws -> CGImage {
+        let host = nativeHostedView(
+            VStack(spacing: 0) {
+                Text("Row A").frame(maxWidth: .infinity, minHeight: 60).listDetailSelectable(selected)
+                Text("Row B").frame(maxWidth: .infinity, minHeight: 60)
+                    .listDetailSelectable(.player(accountId: "b", displayName: "B"))
+            }
+            .background(Color.black)
+            .environment(\.listDetailSelection, selection)
+            .frame(width: size.width, height: size.height),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        return try await nativeHostedSettle(host, untilText: ["Row A", "Row B"])
+    }
+    let plain = try await render(selection: nil)
+    let highlighted = try await render(selection: selected)
+    #expect(nativeHostedSignature(plain) != nativeHostedSignature(highlighted))
+    // Selecting a route no row shows leaves every row plain.
+    let other = try await render(selection: .player(accountId: "z", displayName: nil))
+    #expect(nativeHostedSignature(plain) == nativeHostedSignature(other))
+}
+
+/// Shows whether list rows would open the trailing pane or push.
+private struct SelectModeProbe: View {
+    @Environment(\.listDetailSelect) private var select
+    var body: some View { Text(select == nil ? "Rows Push" : "Rows Select") }
+}
+
+/// Shows the width class the page sees (its pane's, while a split is open).
+private struct ColumnWidthProbe: View {
+    @Environment(\.deviceLayout) private var layout
+    var body: some View { Text(layout.widthClass == .regular ? "Width Regular" : "Width Compact") }
+}
+#endif

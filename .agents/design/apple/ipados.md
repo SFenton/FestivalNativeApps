@@ -23,12 +23,10 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 
 ## List/detail
 
-- **Three columns**: Songs, Leaderboards › Full Rankings and Rivals show sidebar | list | detail as one three-column `NavigationSplitView` (`.balanced`), each column with its own toolbar (HIG split-views.md iPadOS "two vertical panes (Mail) or three (Keynote)"). For these sections `ListDetailStack` draws the whole shell split itself, sidebar included (`SidebarShellContext` from the root): sidebar | stack or sidebar | list | detail, two distinct split views, so changing arrangement replaces the split. Rejected on iPadOS 26.5: a split **nested** in the root split's detail column (worked once, but after one stack had been shown there it never reappeared: the column's navigation controller kept the stack's pushed pages) and an `HStack` of two `NavigationStack`s (both toolbars and the Filter Songs field merged into one bar).
-- **When**: `ListDetailPolicy.usesSplit` splits the sidebar shell from a **1000 pt window** (11-inch landscape; portrait shows the sidebar beside a full-width list), by window width alone so the layout never flips while someone opens an overlaid sidebar. Rotation and window resizing reflow live (HIG windows.md "Make sure windows adapt fluidly to different sizes"; multitasking.md "adapt to every window size"). A shared column visibility keeps a hidden sidebar hidden across destinations; in portrait the system may tuck the sidebar away in three columns.
-- **Column layouts**: pages see a per-column `DeviceLayout` (`DeviceLayout.column(width:)`): the list column is compact, the detail and one-stack columns are regular only from 600 pt (window minus the sidebar's reported trailing edge, minus the 320 pt list column), so Leaderboards and Profile do not squeeze two card columns into ~500 pt. Widths come from the root (window probe + `FestivalSidebar` extent): geometry modifiers around a `NavigationStack` hoisted into a split column stopped updating.
-- **Never empty**: the detail restores the last selection, else auto-selects the **top-most** row on screen (rows offer route + `minY`, `ListDetailAutoSelectCollector` picks the smallest after 120 ms; lazy lists call `onAppear` out of order). Selected rows keep the accent highlight (split-views.md "Persistently highlight").
-- **Collapsing**: when the split becomes one stack (portrait, a narrower window, the compact tab shell) a detail nobody chose (auto-selected or restored) is popped so the list shows, like Mail; a row the person picked stays pushed (`ListDetailPolicy.pathDroppingAutomaticDetail`). `ListDetailStack` pops it in place; it also reports its automatic detail to the root (`listDetailAutomaticReporter`), which pops it when the window falls back to the compact tab shell. That root step fixed the case where another section was in front as the window narrowed (Songs' stack was not on screen to pop itself, so the ⅓ window's Songs tab opened on the old detail).
-- Shop stays a grid that pushes Song Detail (a grid beside a detail column would leave two cramped columns).
+Superseded 2026-10-04 by [split-view.md](split-view.md): no persistent sidebar (the destinations are in the overlay flyout, `ShellPresentation.Navigation.flyout`) and no always-on columns. List pages split **on demand** in a landscape regular window at the exact midpoint (`OnDemandSplitStack`, `OnDemandSplitPolicy`); portrait and compact windows push. Implementation, page table and measurements live in split-view.md.
+
+- Rejected on iPadOS 26.5 for the old three-column layout (still true): a `NavigationSplitView` nested in another split's detail column never reappeared after one stack had been shown there. The on-demand split is an `HStack` of two `NavigationStack`s with no `NavigationSplitView` around it, so each pane keeps its own bar.
+- Shop stays a grid that pushes Song Detail.
 
 ## Grids and sheets
 
@@ -59,25 +57,22 @@ Exact tiles from the window-controls menu (long-press Zoom; driver `tile:`), FST
 
 | Tile | Landscape | Portrait | Shell |
 |---|---|---|---|
-| Full | 1210 pt | 834 pt | Sidebar; three columns only in landscape (≥ 1000 pt) |
+| Full | 1210 pt | 834 pt | Flyout shell; list pages split on demand in landscape only |
 | ½ (Left/Right) | 600 pt | 412 pt | Compact → phone tabs |
 | ⅓ (Arrange thirds) | 396.5 pt | 375 pt (minimum) | Compact → phone tabs |
 | Drag-resized | 375 pt minimum … full; ~830 pt after growing from the minimum (regular) | same | By size class |
 
-iPadOS decides the size class; the app never checks a width for the shell (layout.md "Choose layout from size classes"; multitasking.md "Apps don't control or receive notice of the chosen configuration, so adapt to every window size"). Journeys: `testExactTilesDropUnchosenDetail`, `testChosenDetailSurvivesCompactTile`, `testNarrowWindowFallsBackToTabs`.
+iPadOS decides the size class; the app never checks a width for the shell (layout.md "Choose layout from size classes"; multitasking.md "Apps don't control or receive notice of the chosen configuration, so adapt to every window size"). Journey: `testNarrowWindowFallsBackToTabs`.
 
 ## Page status (iPad Pro 11", live SFentonX captures in `~/FestivalShowcase/native-ipad/`)
 
-| Page | Landscape (1194 pt) | Portrait (834 pt) | ½ window (regular) | ⅓ / Slide Over (compact) |
-|---|---|---|---|---|
-| Songs → Song Detail | Sidebar \| list \| detail (top row auto-selected) | Sidebar + list; detail pushes | Sidebar + list | iPhone tabs, drawer, floating Sort/Filter |
-| Leaderboards → Full Rankings → Player | Two card columns; Full Rankings splits list \| player | One card column (column < 600 pt) | One column | iPhone (Compete slot) |
-| Rivals → Rival Detail | Sidebar \| rivals \| rival | Sidebar + list | Sidebar + list | iPhone (Compete) |
-| Statistics / Player | Two instrument columns, adaptive stat grid | One column | One column | iPhone |
-| Item Shop | Adaptive art grid, List/Grid toggle | Grid | Grid | iPhone list |
-| Suggestions, Settings | One readable column | Same | Same | iPhone |
-
-Song Detail cards are two columns only when the page is ≥ ~730 pt (a wide window with the sidebar hidden); in the three-column detail and beside the portrait sidebar they stay one.
+| Page | Landscape (1194 pt) | Portrait (834 pt) | ⅓ / ½ tiles (compact) |
+|---|---|---|---|
+| Songs → Song Detail | Full width, two cards per row under each header; Song Detail pushes full width, its full boards and score history open in the trailing half | One card per row; everything pushes | iPhone tabs, drawer |
+| Leaderboards → Full/Band Rankings → Player/Band | Overview and rankings full width; a player or band opens in the trailing half | Push | iPhone (Compete slot) |
+| Rivals → Rival Detail | Rivals full width; a rival opens in the trailing half (Rivalry pushes inside it) | Push | iPhone (Compete) |
+| Settings → Licenses | Licenses opens in the trailing half | Push | iPhone |
+| Statistics, Item Shop, Suggestions, Compete | Full width, existing adaptive grids | Same | iPhone |
 
 ## Menu bar
 
@@ -103,8 +98,8 @@ iPadOS 26 reveals a menu bar (pointer at, or swipe down from, the top edge). `Fe
 | Shortcut | Action | Note |
 |---|---|---|
 | ⌘F, ⌘K | Global search | keyboards.md: Command-F "Open Find window" |
-| ⌘1…⌘9 | Visible destinations in sidebar order (tab order when compact); the current one pops to its root | `SidebarMenu.destination(forDigit:in:)`, `FestivalShellCommands.digit(for:)` |
-| ⌘[ | Back in the frontmost column (`ListDetailPolicy.pathAfterBack`) | Repurposes the standard Command-[ "Left-align selection": the app has no text editing (keyboards.md "Only consider it when the standard action doesn't make sense") |
+| ⌘1…⌘9 | Visible destinations in flyout order (tab order when compact); the current one pops to its root | `SidebarMenu.destination(forDigit:in:)`, `FestivalShellCommands.digit(for:)` |
+| ⌘[ | Back one page: the trailing pane's pushed page, then the open item (closing the split), then the list page | Repurposes the standard Command-[ "Left-align selection": the app has no text editing (keyboards.md "Only consider it when the standard action doesn't make sense") |
 | ⌘R | Refresh the frontmost refreshable page (`RefreshCommandRegistry`, `festivalRefreshable`) | Songs, Leaderboards, Suggestions, Band Detail |
 | ⇧⌘P | Select / Switch Profile | keyboards.md "Prefer [Shift] as secondary modifier complementing a related shortcut" |
 | ⌥⌘↓ / ⌥⌘↑ | Next / Previous Quick Links section | keyboards.md: Option "for less-common commands" | Pointer: list/detail rows use the highlight effect on their rounded card shape (no scale: rows sit edge to edge), sidebar footer buttons the highlight effect, system bar buttons their defaults (pointing-devices.md "highlight for small elements ... hover for large ones"; "reserve scaling for elements that can grow without crowding neighbors (not table rows)").
@@ -126,3 +121,4 @@ HIG keyboards.md: "Support Full Keyboard Access when possible"; "iPadOS navigate
 - Never fix row counts or hardcode device sizes: chips wrap (5 + 4 where the web tablet shows 9 in one row) as the detail width changes.
 - A Form in a centered sheet may need scrolling to expose Reset above a pinned footer.
 - Always exercise Hide Sidebar with a detail visible: badge padding once caused a main-thread layout loop there.
+- 2026-10-04: the three-column sidebar|list|detail layout and persistent sidebar are superseded by [split-view.md](split-view.md) (overlay flyout, on-demand split at the exact midpoint in landscape only).

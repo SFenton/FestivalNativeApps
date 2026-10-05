@@ -17,6 +17,9 @@ import UIKit
 /// - `tap:<identifier-or-label>` — tap the first element whose
 ///   accessibility identifier matches; falls back to an exact label match.
 /// - `tapText:<label>` — tap the first element with an exact label match.
+/// - `tapRail:<identifier>|<menu label>` — tap a bar item, or, when the bar overflowed it
+///   (iPhone Duo vertical bar), open the system `…` (More) menu and tap its entry.
+/// - `tapIfExists:<identifier-or-label>` — tap only if the element appears within 3 s.
 /// - `hold:<identifier-or-label>` — long-press (1.2 s) an element, e.g. to open its
 ///   context menu.
 /// - `tapXY:<x>,<y>` — tap a point. Both components `<= 1.0` are treated as
@@ -69,6 +72,8 @@ import UIKit
 enum DriverStep {
     case tap(String)
     case tapText(String)
+    case tapRail(String, String)
+    case tapIfExists(String)
     case hold(String)
     case tapXY(Double, Double)
     case swipe(Direction, identifier: String?)
@@ -129,6 +134,13 @@ enum DriverStep {
         case "tap":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tap(arg)
+        case "tapRail":
+            let bits = arg.split(separator: "|", maxSplits: 1).map(String.init)
+            guard bits.count == 2, !bits[0].isEmpty, !bits[1].isEmpty else { throw ParseError.malformed(raw) }
+            return .tapRail(bits[0], bits[1])
+        case "tapIfExists":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .tapIfExists(arg)
         case "tapText":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tapText(arg)
@@ -400,6 +412,24 @@ final class DriverTests: XCTestCase {
             } else {
                 candidate.tap()
             }
+        case let .tapRail(identifier, label):
+            let item = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+            if item.waitForExistence(timeout: 3), item.isHittable {
+                item.tap()
+            } else {
+                let more = app.buttons.matching(identifier: "BottomOverflowBarButtonItem").firstMatch
+                guard more.waitForExistence(timeout: 3) else { throw DriverError.elementNotFound(identifier) }
+                more.tap()
+                let entry = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@ OR identifier == %@", label, identifier)).firstMatch
+                guard entry.waitForExistence(timeout: 3) else { throw DriverError.elementNotFound(label) }
+                entry.tap()
+            }
+        case let .tapIfExists(target):
+            let candidate = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier == %@ OR label == %@", target, target)
+            ).firstMatch
+            if candidate.waitForExistence(timeout: 3) { candidate.tap() }
         case let .tapText(label):
             let candidate = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label)).firstMatch

@@ -232,7 +232,10 @@ private struct WhatsNewSectionView: View {
 
 extension View {
     /// Present What's New full height: a cover on iPhone (no rounded sheet corners over
-    /// the page), a large sheet elsewhere.
+    /// the page), a large sheet elsewhere. On the iPhone Duo inner display a centered
+    /// sheet instead, like the app's other modals there (HIG iPhone Duo: inner sheets
+    /// are centered with horizontal bars; a cover stretched the iPhone page over the
+    /// whole open display).
     ///
     /// - Parameters:
     ///   - isPresented: Presentation binding.
@@ -244,9 +247,51 @@ extension View {
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         #if os(iOS)
-        fullScreenCover(isPresented: isPresented, onDismiss: onDismiss, content: content)
+        modifier(WhatsNewPresentation(isPresented: isPresented, onDismiss: onDismiss, sheet: content))
         #else
         sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
         #endif
+    }
+}
+
+#if os(iOS)
+/// Cover or centered sheet for What's New, chosen when it opens and kept until it
+/// closes, so folding or unfolding never re-presents it (or runs `onDismiss` early).
+private struct WhatsNewPresentation<Sheet: View>: ViewModifier {
+    @Binding var isPresented: Bool
+    let onDismiss: (() -> Void)?
+    let sheet: () -> Sheet
+    @Environment(\.deviceLayout) private var layout
+    /// The style latched while presented; nil while closed.
+    @State private var latchedSheet: Bool?
+
+    private var asSheet: Bool { latchedSheet ?? WhatsNewPresentationStyle.usesSheet(layout) }
+
+    func body(content: Content) -> some View {
+        content
+            .fullScreenCover(
+                isPresented: Binding(get: { isPresented && !asSheet }, set: { isPresented = $0 }),
+                onDismiss: onDismiss, content: sheet
+            )
+            .sheet(
+                isPresented: Binding(get: { isPresented && asSheet }, set: { isPresented = $0 }),
+                onDismiss: onDismiss, content: sheet
+            )
+            .onChange(of: isPresented, initial: true) { _, presented in
+                latchedSheet = presented ? WhatsNewPresentationStyle.usesSheet(layout) : nil
+            }
+    }
+}
+#endif
+
+/// Which presentation What's New uses on iOS.
+enum WhatsNewPresentationStyle {
+    /// Whether to use a centered sheet: the iPhone Duo inner display (a hinged pose at
+    /// regular width). iPhone, the folded Duo and iPad keep the full-screen cover.
+    ///
+    /// - Parameter layout: The window's published layout.
+    /// - Returns: True on the Duo inner display.
+    nonisolated static func usesSheet(_ layout: DeviceLayout) -> Bool {
+        layout.pose != .standard && layout.windowWidthClass == .regular
     }
 }

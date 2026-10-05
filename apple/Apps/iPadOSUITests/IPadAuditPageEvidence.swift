@@ -62,8 +62,8 @@ enum IPadAuditPageEvidence {
         var evidence: Evidence
         /// Texts partly hidden by the bars or the screen edge (scroll them clear).
         var obscured: [IPadAuditTextEvidence.Locator]
-        /// Visible static texts with their heights at the audited size.
-        var texts: [(locator: IPadAuditTextEvidence.Locator, height: CGFloat)]
+        /// Visible static texts with their frames at the audited size.
+        var texts: [(locator: IPadAuditTextEvidence.Locator, frame: CGRect)]
     }
 
     // MARK: - Measuring
@@ -107,8 +107,8 @@ enum IPadAuditPageEvidence {
                 visible.obscured.append(locator)
                 continue
             }
-            visible.texts.append((locator, frame.height))
-            guard let measurement = reading(for: frame, lines: lines, capture: capture),
+            visible.texts.append((locator, frame))
+            guard let measurement = reading(for: frame, label: node.label, lines: lines, capture: capture),
                   measurement.glyphPixels >= 40 else { continue }
             visible.evidence.add(label: node.label, ratio: measurement.ratio)
         }
@@ -141,14 +141,23 @@ enum IPadAuditPageEvidence {
         guard let root = try? app.snapshot() else { return (0, []) }
         var checked = 0
         var failing: [String] = []
-        for node in flatten(root) where node.elementType == .staticText && !node.label.isEmpty
-            && content.contains(node.frame) && node.frame.height >= 8 {
-            checked += 1
-            let seen = IPadAuditTextEvidence.recognizedText(in: node.frame, capture: capture)
-            if !IPadAuditTextEvidence.showsWhole(node.label, in: seen) {
-                failing.append("\(node.label.prefix(40)) → \((seen ?? "").prefix(40))")
+        // Leaf texts only: a combined element's label also carries text that is spoken but
+        // not drawn (a Songs row's per-instrument status), so its children are read instead.
+        // Navigation-bar titles are UIKit's (a large title truncates by design) and are
+        // reported apart.
+        func walk(_ node: XCUIElementSnapshot, inBar: Bool) {
+            let bar = inBar || node.elementType == .navigationBar
+            if node.elementType == .staticText, !node.label.isEmpty, content.contains(node.frame),
+               node.frame.height >= 8, !node.children.contains(where: { $0.elementType == .staticText }) {
+                checked += 1
+                let seen = IPadAuditTextEvidence.recognizedText(in: node.frame, capture: capture)
+                if !IPadAuditTextEvidence.readsUntruncated(node.label, in: seen) {
+                    failing.append((bar ? "[system bar] " : "") + "\(node.label.prefix(40)) → \((seen ?? "").prefix(40))")
+                }
             }
+            node.children.forEach { walk($0, inBar: bar) }
         }
+        walk(root, inBar: false)
         return (checked, failing)
     }
 
@@ -169,7 +178,9 @@ enum IPadAuditPageEvidence {
     static func contentRect(_ app: XCUIApplication) -> CGRect {
         let window = app.windows.firstMatch.frame
         var bottom = window.maxY
-        for element in [app.tabBars.firstMatch, app.descendants(matching: .any)["fst.page-tools"]] where element.exists {
+        // Only bars on screen: a sheet covering the tab bar leaves it in the tree but not hittable.
+        for element in [app.tabBars.firstMatch, app.descendants(matching: .any)["fst.page-tools"]]
+            where element.exists && element.isHittable {
             let frame = element.frame
             if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
         }
@@ -201,7 +212,8 @@ enum IPadAuditPageEvidence {
     /// Rendered contrast of the text inside `frame`.
     ///
     /// Each recognized word whose centre lies in the frame is measured on its own tight
-    /// box (2 pt of surface around it), and the weakest word is the reading. Element
+    /// box (2 pt of surface around it), and the weakest word is the reading; when the
+    /// element has a label, only words of that label count. Element
     /// frames and whole lines mislead: a selected sidebar row's blue symbol read the
     /// row's white text at 3.8:1 instead of 13.4:1, and one recognized line can span two
     /// adjacent pills of different colours. Single-character words are left out when
@@ -210,16 +222,25 @@ enum IPadAuditPageEvidence {
     ///
     /// - Parameters:
     ///   - frame: Element frame in screen points.
+    ///   - label: The element's label, when known.
     ///   - lines: Recognized lines of the same capture.
     ///   - capture: The capture.
     /// - Returns: The reading, or nil when nothing measurable is inside the frame.
     static func reading(
-        for frame: CGRect, lines: [Line], capture: IPadAuditRenderedContrast.Capture
+        for frame: CGRect, label: String = "", lines: [Line], capture: IPadAuditRenderedContrast.Capture
     ) -> IPadAuditRenderedContrast.Measurement? {
         let bounds = frame.insetBy(dx: -2, dy: -2)
         let inside = lines.flatMap(\.words).filter { bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
         let alphanumerics: (String) -> Int = { $0.filter { $0.isLetter || $0.isNumber }.count }
-        let words = inside.contains { alphanumerics($0.text) >= 2 } ? inside.filter { alphanumerics($0.text) >= 2 } : inside
+        var words = inside.contains { alphanumerics($0.text) >= 2 } ? inside.filter { alphanumerics($0.text) >= 2 } : inside
+        // Words of the element's own label: a symbol recognized as letters ("ooo" for
+        // chart bars) is not the text being judged.
+        let wanted = IPadAuditTextEvidence.normalized(label)
+        let ofLabel = words.filter { word in
+            let seen = IPadAuditTextEvidence.normalized(word.text)
+            return !seen.isEmpty && IPadAuditTextEvidence.approximateSubstringDistance(seen, in: wanted) <= max(1, seen.count / 4)
+        }
+        if !wanted.isEmpty, !ofLabel.isEmpty { words = ofLabel }
         let readings = words.compactMap { IPadAuditRenderedContrast.measure($0.frame.insetBy(dx: -2, dy: -2), in: capture) }
         guard let weakest = readings.min(by: { $0.ratio < $1.ratio }) else {
             return IPadAuditRenderedContrast.measure(frame, in: capture)
@@ -227,6 +248,24 @@ enum IPadAuditPageEvidence {
         return IPadAuditRenderedContrast.Measurement(
             ratio: weakest.ratio, glyphPixels: readings.reduce(0) { $0 + $1.glyphPixels }
         )
+    }
+
+    /// Height of the drawn text inside `frame`: the tallest recognized word of the label.
+    ///
+    /// Growth measured on glyphs, not frames: a 44 pt minimum row height kept a sidebar
+    /// row's frame the same at AX1 while its text grew 1.65×.
+    ///
+    /// - Returns: The height in points, or nil when no word of the label is recognized.
+    static func textHeight(in frame: CGRect, label: String, lines: [Line]) -> CGFloat? {
+        let bounds = frame.insetBy(dx: -2, dy: -2)
+        let wanted = IPadAuditTextEvidence.normalized(label)
+        let words = lines.flatMap(\.words).filter { word in
+            guard bounds.contains(CGPoint(x: word.frame.midX, y: word.frame.midY)) else { return false }
+            let seen = IPadAuditTextEvidence.normalized(word.text)
+            return seen.count >= 2
+                && IPadAuditTextEvidence.approximateSubstringDistance(seen, in: wanted) <= max(1, seen.count / 4)
+        }
+        return words.map(\.frame.height).max()
     }
 
     /// Recognized text lines (and their words) with frames in screen points.

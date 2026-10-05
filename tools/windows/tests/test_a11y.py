@@ -149,6 +149,29 @@ class MatrixTests(unittest.TestCase):
                  {"name": "songs-selected", "profile": "fixture-player-1:Demo Player"},
                  {"name": "real", "profile": "abc:Real Player"}]
         self.assertEqual([p["name"] for p in m.live_pages(pages)], ["shop", "real"])
+        scrolled = m.launch_args(None, {"name": "s", "args": ["--auto-scroll-span", "500"]}, Path("/s.json"))
+        self.assertEqual(scrolled[-2:], ["--auto-scroll-span", "500"])
+
+    def test_songs_scroll_pages(self):
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "songs-scroll.json").read_text(encoding="utf-8"))}
+        # Issue #245 (#45 on Windows): wheel, UIA-pattern and auto-scroll ping-pong round trips near the top, fixture
+        # (large catalogue) and live variants; each fixture page ends back at the top with "#" pinned.
+        for name in ("songs-scroll", "songs-scroll-uia"):
+            self.assertEqual(pages[name]["fixture"], ["--large-catalogue"])
+            self.assertEqual(pages[name]["after_ready"][-3], "assertname:id=fst.songs.section-header|#")
+        self.assertEqual(sorted(p["name"] for p in m.live_pages(list(pages.values()))),
+                         ["songs-pingpong-frames-live", "songs-pingpong-live", "songs-scroll-live",
+                          "songs-scroll-resize-live", "songs-scroll-uia-live"])
+        resize = pages["songs-scroll-resize-live"]["after_ready"]
+        self.assertEqual([s for s in resize if s.startswith("resize:")],
+                         ["resize:compact", "resize:wide", "resize:maximized", "resize:snap-left", "resize:medium"])
+        self.assertEqual(resize[-2], "assertname:id=fst.songs.section-header|#")
+        self.assertIn("--auto-scroll-span", pages["songs-pingpong"]["args"])
+        for page in pages.values():
+            for step in m.page_steps(page, "medium", Path("out"), "", scan=False, tabs=0):
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step)
 
     def test_page_fixtures_exist(self):
         import json

@@ -42,3 +42,26 @@ import Testing
     #expect(ModalTopEdgeFade.headerHeight(safeAreaInset: .nan, containerOffset: 40) == 40)
     #expect(ModalTopEdgeFade.headerHeight(safeAreaInset: .infinity, containerOffset: .nan) == 0)
 }
+
+/// Content that fades itself under pinned headers asks for a 0 pt ramp: a hard edge once
+/// scrolled, still fully drawn at rest (issue #301).
+@Test func modalFadeZeroRampIsAHardEdgeOnceScrolled() {
+    #expect(ModalTopEdgeFade.progress(scrollOffset: 0, rampHeight: 0) == 0)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: -12, rampHeight: 0) == 0)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: 0.5, rampHeight: 0) == 1)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: .nan, rampHeight: 0) == 0)
+    #expect(ModalTopEdgeFade.progress(scrollOffset: 10, rampHeight: 20) == 0.5)
+}
+
+/// The smallest requested ramp wins when several views set one.
+@Test func modalFadeRampPreferenceKeepsTheSmallest() {
+    var value: CGFloat? = ModalTopEdgeFadeRampKey.defaultValue
+    ModalTopEdgeFadeRampKey.reduce(value: &value) { nil }
+    #expect(value == nil)
+    ModalTopEdgeFadeRampKey.reduce(value: &value) { 12 }
+    #expect(value == 12)
+    ModalTopEdgeFadeRampKey.reduce(value: &value) { 0 }
+    #expect(value == 0)
+    ModalTopEdgeFadeRampKey.reduce(value: &value) { 30 }
+    #expect(value == 0)
+}

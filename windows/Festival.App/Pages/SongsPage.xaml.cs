@@ -80,11 +80,11 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
     private int pendingPin = -1;
 
-    /// <summary>Whether a settled re-read of the pinned header is queued after a final view change.</summary>
-    private bool stickyRecheckQueued;
-
     /// <summary>Section the pinned bar names while the list is shown; the open index focuses its letter.</summary>
     private int stickySection;
+
+    /// <summary>Whether a settled view change's after-layout header re-read is queued (<see cref="OnScrollerViewChanged"/>).</summary>
+    private bool stickySettlePending;
 
     /// <summary>How the open index focuses its letter: with a focus rectangle unless a pointer opened it.</summary>
     private FocusState letterFocus = FocusState.Keyboard;
@@ -244,20 +244,26 @@ public sealed partial class SongsPage : Page, IPageBack
     }
 
     /// <summary>
-    /// Re-reads the pinned header on every view change and once more after the final one settles: a jump without
-    /// animation (the UI Automation Scroll pattern assistive technology uses, or <c>ChangeView</c> with animation off)
-    /// raises a single final change before the list realizes rows at the new offset, so the first read still saw the
-    /// old rows and left the previous section named (issue #247: "#" over the L rows).
+    /// Re-reads the pinned header on every view change, and once more after layout when a view change settles: a single
+    /// large jump (a UIA Scroll pattern set, keyboard End or a scroll-bar page) raises one final change before the panel
+    /// realizes the rows now in view, which would otherwise leave the header naming the old section (issue #249).
     /// </summary>
-    /// <param name="sender">Scroll viewer.</param>
+    /// <param name="sender">The list's scroll viewer.</param>
     /// <param name="e">View change.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
         UpdateStickyHeader();
-        if (e.IsIntermediate || stickyRecheckQueued) return;
-        stickyRecheckQueued = DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        if (e.IsIntermediate || stickySettlePending) return;
+        stickySettlePending = true;
+        void Settle(object? _, object __)
         {
-            stickyRecheckQueued = false;
+            SongList.LayoutUpdated -= Settle;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settle;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            stickySettlePending = false;
             UpdateStickyHeader();
         });
     }
@@ -352,9 +358,11 @@ public sealed partial class SongsPage : Page, IPageBack
     private void UpdateEdgeFade(bool headerShown)
     {
         var settings = App.Session.Settings;
-        var enabled = headerShown && SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
+        var enabled = SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
             settings.LessTransparency, settings.MoreContrast);
-        edgeFade.Update(enabled ? SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0) : 0);
+        var strength = SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0);
+        edgeFade.Update(headerShown && enabled ? strength : 0);
+        ListFadeHost.SetStatus(SongHeaderEdgeFade.Status(headerShown, enabled, strength));
     }
 
     /// <summary>Follows appearance changes that switch the edge fade on or off while the page is shown.</summary>

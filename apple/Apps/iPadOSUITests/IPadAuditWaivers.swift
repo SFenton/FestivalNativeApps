@@ -108,7 +108,10 @@ enum IPadAuditWaivers {
                     guard page.growthChecked > 0, page.notGrowing.isEmpty else { return false }
                 }
                 if requiresPageWhole {
-                    guard page.wholeChecked > 0, page.notWhole.isEmpty else { return false }
+                    // Navigation-bar titles are UIKit's: listed in the evidence, not blocking.
+                    guard page.wholeChecked > 0, page.notWhole.allSatisfy({ $0.hasPrefix("[system bar]") }) else {
+                        return false
+                    }
                 }
                 return minimumPageFloor != nil || requiresSheetTextInTree || requiresPageGrowth || requiresPageWhole
             }
@@ -197,12 +200,13 @@ enum IPadAuditWaivers {
             evidence: "No element; every visible static text on the page is ≥ 1.35× taller at AX5",
             unattributedOnly: true, requiresPageGrowth: true
         ),
-        // (b) "Text clipped" without an element: every static text on screen at AX5 is read
-        // back whole from the capture.
+        // (b) "Text clipped" without an element: every static text on screen at AX5 reads
+        // back untruncated (no ellipsis, not cut short); a navigation-bar large title is
+        // UIKit's and is listed apart.
         Waiver(
             id: "unattributed-text-clipped-page-whole", kind: .falsePositive, auditType: .textClipped,
             reason: "Text clipped",
-            evidence: "No element; every static text on screen at AX5 is read back whole",
+            evidence: "No element; every static text on screen at AX5 reads back untruncated (navigation-bar titles listed apart)",
             unattributedOnly: true, requiresPageWhole: true
         ),
         // (c) "Potentially inaccessible text" without an element over a sheet: every line
