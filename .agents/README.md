@@ -8,7 +8,7 @@
 |---|---|
 | **Fix a tracker bug or build a tracker feature** (start here) | [skills/fix-reported-issue/SKILL.md](skills/fix-reported-issue/SKILL.md) → the owning [patterns](patterns/README.md) (`python3 tools/pattern_guard.py index`) → page/control spec + your platform file |
 | Touch any shared behavior (fades, materials, chrome, modals, rows, loading, empty states, Quick Links, section headers) | [patterns/README.md](patterns/README.md): canonical component per platform, numbered rules, known debt |
-| A design choice the owner hasn't made | [skills/design-proposal/SKILL.md](skills/design-proposal/SKILL.md) (Needs Decision) |
+| A design choice the owner hasn't made | [skills/design-decision/SKILL.md](skills/design-decision/SKILL.md): decide, document, owner may override |
 | Port or change a page | [pages/README.md](pages/README.md) → `pages/<id>/spec.md` + your platform file; procedure: [skills/port-page/SKILL.md](skills/port-page/SKILL.md) |
 | Port or change a control | [controls/README.md](controls/README.md) → `controls/<id>/spec.md` + your platform file; procedure: [skills/add-control/SKILL.md](skills/add-control/SKILL.md) |
 | Call a service endpoint | [platforms/service-safety.md](platforms/service-safety.md) (blocked endpoints, headers, keys) |

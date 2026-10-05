@@ -111,6 +111,20 @@ class BandRankingsScenarioTests(unittest.TestCase):
         self.assertEqual(sent, [(200, {"entries": [{"rank": 3, "accountId": "", "displayName": None}]}, "e")])
         self.assertNotIn("_json", vars(handler))
 
+    def test_songs_unavailable_fails_only_the_catalogue(self):
+        original = ms.FixtureHandler.do_GET
+        served, answered = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        try:
+            f.install_songs_unavailable()
+            handler = type("H", (), {"_json": lambda self, status, body: answered.append((self.path, status, body))})
+            for path in ("/api/songs", "/api/songs?x=1", "/api/shop"):
+                ms.FixtureHandler.do_GET(type("H", (handler,), {"path": path})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(served, ["/api/shop"])
+        self.assertEqual([(p, s) for p, s, _ in answered], [("/api/songs", 503), ("/api/songs?x=1", 503)])
+
 
 ms = f.mock_service
 

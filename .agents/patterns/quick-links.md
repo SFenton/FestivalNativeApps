@@ -18,7 +18,7 @@ Quick Links presents sections in page order and moves directly to the selected s
 ## Rules
 
 1. **R1. One controller per scroll container.** Pages declare stable web-compatible section IDs and hand their ordered list, frames, jump, and active state to the canonical controller; do not build a second menu, sheet, rail, or tracker.
-2. **R2. Keep on-page order.** Parent sections precede nested sections and every presentation preserves that order. Apple menus must use `.menuOrder(.fixed)` (#6, #11).
+2. **R2. Keep on-page order.** Parent sections precede nested sections and every presentation preserves that order. Apple menus must use `.menuOrder(.fixed)` (#6, #11). Every Quick Links page has a test comparing the rendered section order with the open chooser; on Android these are `QuickLinksPageOrderUiTest` and `QuickLinksPageSweepUiTest`, and Songs is covered for every bucketed sort (#158).
 3. **R3. Hide inert navigation.** Show an entry point only with at least two current sections; remove unavailable sections rather than offering a no-op choice.
 4. **R4. Land and mark together.** Use the shared 32-unit landing/active line and jump ownership from [section-jump-landing](section-jump-landing.md); selected items remain current through arrival and near-end clamping.
 5. **R5. Use native presentation.** **Approved variants:** Apple uses the tab-bar accessory sheet or toolbar menu (#92 follow-up); Android uses a compact bottom sheet and wider dropdown menu (operator 2026-09-28); Windows uses `QuickLinksMenuButton` or a wide pane. Material 3: "Material Android is Compose-first."
