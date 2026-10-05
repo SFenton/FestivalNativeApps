@@ -148,6 +148,24 @@ enum IPadAuditTextEvidence {
         return approximateSubstringDistance(wanted, in: seen) <= max(1, wanted.count / 10)
     }
 
+    /// True when the recognized text shows no sign of truncation: no ellipsis, readable,
+    /// and not a strict prefix of the label (cut off). Unlike ``showsWhole(_:in:)`` it
+    /// accepts a label that differs from the drawn text ("39 of 50 songs" spoken for a
+    /// drawn "39 / 50").
+    ///
+    /// - Parameters:
+    ///   - label: The element's accessibility label.
+    ///   - recognized: Text recognized from the rendered element.
+    /// - Returns: Whether the drawn text is untruncated.
+    static func readsUntruncated(_ label: String, in recognized: String?) -> Bool {
+        guard let recognized, !recognized.contains("…"), !recognized.contains("...") else { return false }
+        if showsWhole(label, in: recognized) { return true }
+        let seen = normalized(recognized), wanted = normalized(label)
+        guard seen.count >= 2 else { return false }
+        let isCutPrefix = seen.count < wanted.count && Array(wanted.prefix(seen.count)) == seen
+        return !isCutPrefix
+    }
+
     /// Lowercased letters and digits.
     static func normalized(_ text: String) -> [Character] {
         Array(text.lowercased().filter { $0.isLetter || $0.isNumber })

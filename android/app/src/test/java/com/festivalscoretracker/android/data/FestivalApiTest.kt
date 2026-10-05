@@ -5,15 +5,22 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.service.ServiceFreezeReason
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.encoding.Decoder
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -209,6 +216,74 @@ class FestivalApiTest {
         val refreshed = api.catalog(refresh = true)
         assertEquals(3, refreshed.catalog.songs.size)
         assertEquals("W/\"songs\"", transport.sent("/api/songs").last().headers["If-None-Match"])
+    }
+
+    @Test
+    fun refreshOfUnchangedBodyReusesDecodedCatalogButRedecodesChangedBody() = runTest {
+        var mode = "etag"
+        val transport = FakeTransport.standard()
+        transport.onRaw("/api/songs") { request ->
+            when {
+                mode == "changed" -> HttpResult(200, Fixtures.songsJson.replace("\"Alpha Tune\"", "\"Alpha Tune 2\"").toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
+                mode == "same200" -> HttpResult(200, Fixtures.songsJson.toByteArray(), mapOf("X-FST-Publication-Id" to "7", "ETag" to "W/\"songs\""))
+                request.headers["If-None-Match"] == "W/\"songs\"" -> HttpResult(304, ByteArray(0), mapOf("X-FST-Publication-Id" to "7"))
+                else -> HttpResult(200, Fixtures.songsJson.toByteArray(), mapOf("X-FST-Publication-Id" to "7", "ETag" to "W/\"songs\""))
+            }
+        }
+        val decoding = CountingDispatcher()
+        val api = FestivalApi("https://fixture.test", transport, decoding, offloadBytes = 0)
+        val first = api.catalog()
+        val decodes = decoding.dispatches.get()
+        assertSame(first, api.catalog(refresh = true))
+        mode = "same200"
+        assertSame(first, api.catalog(refresh = true))
+        assertEquals("only the forced /api/publication re-check decodes on an unchanged refresh", decodes + 2, decoding.dispatches.get())
+        assertEquals(3, transport.sent("/api/songs").size)
+        mode = "changed"
+        val updated = api.catalog(refresh = true)
+        assertNotSame(first, updated)
+        assertEquals("Alpha Tune 2", updated.catalog.songs.first().title)
+        assertTrue(decoding.dispatches.get() > decodes)
+        decoding.close()
+    }
+
+    @Test
+    fun largeBodiesDecodeAndValidateOnDecodeDispatcherNotCaller() = runTest {
+        val decoding = CountingDispatcher()
+        val api = FestivalApi("https://fixture.test", FakeTransport.standard(), decoding, offloadBytes = 4)
+        val caller = Thread.currentThread()
+        val threads = mutableListOf<Thread>()
+        val recording = object : DeserializationStrategy<String> by String.serializer() {
+            override fun deserialize(decoder: Decoder): String = String.serializer().deserialize(decoder).also { threads += Thread.currentThread() }
+        }
+        assertEquals("ok", api.decode(recording, "\"ok\"".toByteArray()))
+        var validatedOn: Thread? = null
+        assertEquals(2, api.decode(recording, "\"ok\"".toByteArray()) { validatedOn = Thread.currentThread(); it.length })
+        assertEquals("", api.decode(recording, "\"\"".toByteArray()))
+        assertEquals(listOf(decoding.thread, decoding.thread, caller), threads)
+        assertSame(decoding.thread, validatedOn)
+        assertNotSame(caller, decoding.thread)
+        assertEquals(2, decoding.dispatches.get())
+        assertEquals(3, api.catalog().catalog.songs.size)
+        assertTrue(decoding.dispatches.get() >= 4)
+        val malformed = runCatching { api.decode(recording, "not json".toByteArray()) }.exceptionOrNull()
+        assertTrue(malformed is FestivalApiException.InvalidResponse)
+        assertEquals(64 * 1024, FestivalApi.OFFLOAD_BYTES)
+        decoding.close()
+    }
+
+    /** Single named thread that counts dispatches, standing in for `Dispatchers.Default`. */
+    private class CountingDispatcher : CoroutineDispatcher() {
+        private val executor = Executors.newSingleThreadExecutor { Thread(it, "fst-decode-test") }
+        val thread: Thread = executor.submit<Thread> { Thread.currentThread() }.get()
+        val dispatches = AtomicInteger()
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatches.incrementAndGet()
+            executor.execute(block)
+        }
+
+        fun close() = executor.shutdown()
     }
 
     @Test

@@ -92,8 +92,11 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
     [
         new("global", "Global Statistics", "\uE9D2"),
         .. Instruments.Select(i => new QuickLinkSection(i.QuickLinkId, i.Label, Instrument: i.Instrument)),
-        new("bands", "Bands", "\uE716"),
+        new(BandsQuickLinkId, "Bands", "\uE716"),
     ];
+
+    /// <summary>Quick Links section ID of Bands, the section after the instrument cards.</summary>
+    public const string BandsQuickLinkId = "bands";
 
     /// <summary>Why the last Select failed.</summary>
     [ObservableProperty]

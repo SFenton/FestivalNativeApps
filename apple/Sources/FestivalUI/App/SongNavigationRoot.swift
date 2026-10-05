@@ -5,8 +5,9 @@ import FestivalDesign
 
 /// Songs, Detail and solo scores share one scene-owned navigation path.
 ///
-/// On an iPhone Duo inner display the path is shown as the Songs list beside a Song
-/// Detail column (`ListDetailStack`); everywhere else it is one stack.
+/// Songs itself never splits (`.agents/design/apple/split-view.md`); Song Detail does:
+/// in a landscape regular window its full leaderboards and score history open in the
+/// trailing pane (`OnDemandSplitStack`). Everywhere else it is one stack.
 struct SongNavigationRoot: View {
     let session: FestivalSession
     @Binding var path: [AppRoute]
@@ -50,7 +51,7 @@ struct SongNavigationRoot: View {
     }
 
     var body: some View {
-        ListDetailStack(
+        OnDemandSplitStack(
             section: .songs, session: session, visibleInstruments: visibleInstruments,
             path: $path, isVisible: isVisible
         ) { rootIsTop in

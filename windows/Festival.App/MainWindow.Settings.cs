@@ -50,6 +50,8 @@ public sealed partial class MainWindow
         {
             // Every modal closes on a click outside it, like Esc (operator batch 6.14; web modals).
             Controls.DialogChrome.LightDismiss(dialog);
+            // Tall dialogs stay below the caption buttons instead of growing under them (issue #244).
+            Controls.DialogChrome.ClearOfTitleBar(dialog, Instance?.AppTitleBar.ActualHeight ?? 0);
             Instance?.SetModalOpen(true);
             return await dialog.ShowAsync();
         }

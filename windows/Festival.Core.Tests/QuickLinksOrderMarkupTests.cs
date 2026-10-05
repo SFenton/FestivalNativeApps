@@ -8,7 +8,8 @@ namespace Festival.Core.Tests;
 /// its sections in a view model while the XAML lays them out, so the two lists could drift apart. These tests read each
 /// page's <c>QuickLinkAnchor.Id</c> markers in document order (every Quick Links page is a single vertical stack, with
 /// repeated cards in row-major repeaters) and require the declared menu order to match. The live check that the real menu
-/// matches on-screen geometry is <c>tools/windows/journeys/quick-links-order.json</c>.
+/// matches on-screen geometry is <c>tools/windows/journeys/quick-links-order.json</c>, plus the Settings and profile
+/// <c>ql-menu-order</c>/<c>ql-pane-order</c>/<c>ql-profile-*-order</c> journeys in <c>quick-links.json</c> (#46/#246).
 /// </summary>
 public class QuickLinksOrderMarkupTests
 {

@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -119,6 +120,60 @@ fun systemIncreasesContrast(context: Context): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return false
     val manager = context.getSystemService(UiModeManager::class.java) ?: return false
     return manager.contrast > 0f
+}
+
+/** Secure setting behind Accessibility › High contrast text, read before API 36's public API. */
+private const val HIGH_CONTRAST_TEXT_SETTING = "high_text_contrast_enabled"
+
+/**
+ * Whether the OS draws high-contrast text (Accessibility › High contrast text). API 36 exposes it
+ * publicly; earlier releases only through its secure setting, which a device may refuse to share
+ * (then false).
+ *
+ * @param context Any context.
+ * @return True while high-contrast text is on.
+ */
+fun systemHighContrastText(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        return context.getSystemService(AccessibilityManager::class.java)?.isHighContrastTextEnabled == true
+    }
+    return runCatching { Settings.Secure.getInt(context.contentResolver, HIGH_CONTRAST_TEXT_SETTING, 0) == 1 }.getOrDefault(false)
+}
+
+/**
+ * [systemHighContrastText], followed live: the switch neither recreates the activity nor
+ * recomposes (issue #157).
+ *
+ * @return True while high-contrast text is on.
+ */
+@Composable
+fun rememberSystemHighContrastText(): Boolean {
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(systemHighContrastText(context)) }
+    DisposableEffect(context) {
+        val stop: () -> Unit = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            val manager = context.getSystemService(AccessibilityManager::class.java)
+            val listener = AccessibilityManager.HighContrastTextStateChangeListener { enabled = it }
+            manager?.addHighContrastTextStateChangeListener(context.mainExecutor, listener)
+            val remove: () -> Unit = { manager?.removeHighContrastTextStateChangeListener(listener) }
+            remove
+        } else {
+            val resolver = context.contentResolver
+            val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean) {
+                    enabled = systemHighContrastText(context)
+                }
+            }
+            val watching = runCatching {
+                resolver.registerContentObserver(Settings.Secure.getUriFor(HIGH_CONTRAST_TEXT_SETTING), false, observer)
+            }.isSuccess
+            val unregister: () -> Unit = { if (watching) resolver.unregisterContentObserver(observer) }
+            unregister
+        }
+        enabled = systemHighContrastText(context)
+        onDispose { stop() }
+    }
+    return enabled
 }
 
 // endregion

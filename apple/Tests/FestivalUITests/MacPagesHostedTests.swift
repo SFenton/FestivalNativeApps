@@ -94,36 +94,34 @@ private struct MacPageHost<Content: View>: View {
     assertRendersContent(host, image: image, containing: ["Lead", "Bass", "Fixture Rank 1"])
 }
 
-/// Full Rankings beside the top-ranked player: the topmost row auto-selects into the
-/// detail column (never an empty pane, never a lazily-built lower row).
+/// Full Rankings starts full width (nothing auto-selected); with a player open it sits
+/// beside the player's profile in the trailing half.
 @MainActor
-@Test func macFullRankingsAutoSelectsTopRankedPlayer() async throws {
+@Test func macFullRankingsSplitsOnDemand() async throws {
     let size = CGSize(width: 1060, height: 760)
     let session = macRankingsSession()
-    let recorder = MacPageRecorder()
     let start = AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore")
-    let host = nativeHostedView(
-        MacPageHost(path: [start], recorder: recorder) { binding in
-            MacListDetailStack(
-                section: .leaderboards, session: session, visibleInstruments: Set(Instrument.allCases),
-                path: binding, isVisible: true, onSplitChange: { _ in }
-            ) { _ in LeaderboardsScreen(session: session) }
-        }
-        // A loaded test host can take longer than 2.5 s to show the first row; the list
-        // would then collapse to one column and never auto-select into the detail.
-        .environment(\.macListCollapseDelay, .seconds(120))
-        .frame(width: size.width, height: size.height)
-        .preferredColorScheme(.dark)
-        .macHostedStorage(),
-        size: size
-    )
-    let window = nativeHostedWindow(host, size: size)
-    defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, timeout: .seconds(60)) {
-        recorder.path.count == 2
+    let opened = AppRoute.player(accountId: "fixture-rank-1", displayName: "Fixture Rank 1")
+    for (path, name) in [([start], "full-width"), ([start, opened], "open")] {
+        let recorder = MacPageRecorder()
+        let host = nativeHostedView(
+            MacPageHost(path: path, recorder: recorder) { binding in
+                MacListDetailStack(
+                    section: .leaderboards, session: session, visibleInstruments: Set(Instrument.allCases),
+                    path: binding, isVisible: true, onSplitChange: { _ in }
+                ) { _ in LeaderboardsScreen(session: session) }
+            }
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .macHostedStorage(),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1"], timeout: .seconds(60))
+        _ = try nativeHostedPNG(image, filename: "mac-full-rankings-\(name).png", environment: "FST_SHELL_RENDER_OUT")
+        #expect(recorder.path == path, "Nothing is auto-selected")
     }
-    _ = try nativeHostedPNG(image, filename: "mac-full-rankings-split.png", environment: "FST_SHELL_RENDER_OUT")
-    #expect(recorder.path == [start, .player(accountId: "fixture-rank-1", displayName: "Fixture Rank 1")])
 }
 /// The accessibility node with an identifier (selector-checked KVC, as
 /// `nativeHostedAccessibility` does).
@@ -143,42 +141,4 @@ private func macAccessibilityNode(_ root: Any, identifier: String, depth: Int = 
     return nil
 }
 
-/// The list column follows a remembered divider width (clamped so the detail keeps its
-/// minimum), else 38%; the divider is a slider to assistive technologies whose value is
-/// the list width.
-@MainActor
-@Test func macListDetailDividerUsesRememberedWidth() async throws {
-    let size = CGSize(width: 1060, height: 600)
-    for (stored, expected) in [(0.0, 1060 * 0.38), (500.0, 500.0), (2000.0, 579.0)] {
-        let defaults = UserDefaults(suiteName: "fst.tests.mac-divider.\(UUID().uuidString)")!
-        defaults.set(true, forKey: "fst.accessibility.reduceMotion")
-        defaults.set(stored, forKey: MacLayoutPolicy.listWidthKey)
-        let session = macRankingsSession()
-        let recorder = MacPageRecorder()
-        let start = AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore")
-        let host = nativeHostedView(
-            MacPageHost(path: [start], recorder: recorder) { binding in
-                MacListDetailStack(
-                    section: .leaderboards, session: session, visibleInstruments: Set(Instrument.allCases),
-                    path: binding, isVisible: true, onSplitChange: { _ in }
-                ) { _ in LeaderboardsScreen(session: session) }
-            }
-            // As above: a slow first row must not collapse the split being measured.
-            .environment(\.macListCollapseDelay, .seconds(120))
-            .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark)
-            .defaultAppStorage(defaults),
-            size: size
-        )
-        let window = nativeHostedWindow(host, size: size)
-        defer { window.orderOut(nil) }
-        var value: Double?
-        try await nativeHostedSettle(host, timeout: .seconds(60)) {
-            let node = macAccessibilityNode(host, identifier: "fst.nav.column-divider")
-            value = (node?.value(forKey: "accessibilityValue") as? NSNumber)?.doubleValue
-            return node?.value(forKey: "accessibilityRole") as? String == "AXSlider" && value != nil
-        }
-        #expect(abs((value ?? 0) - expected) < 0.5, "stored \(stored): \(String(describing: value))")
-    }
-}
 #endif
