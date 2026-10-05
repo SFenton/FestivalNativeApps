@@ -1,0 +1,104 @@
+[
+  {
+    "name": "index-open",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.section-header@40",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "assertfocus:name=#@5"
+    ],
+    "teardown": [
+      "focus:id=fst.songs.section-index-button",
+      "key:esc",
+      "waitgone:id=fst.songs.section-index@5"
+    ]
+  },
+  {
+    "name": "index-far-jumps",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.section-header@40",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=P",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|P",
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=B",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|B",
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=V",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|V",
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=#",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|#",
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=Q",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|Q"
+    ]
+  },
+  {
+    "name": "index-far-scroll",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.section-header@40",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=P",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|P",
+      "scrollto:id=fst.songs.list,74",
+      "assertname:id=fst.songs.section-header|S",
+      "scrollto:id=fst.songs.list,30",
+      "assertname:id=fst.songs.section-header|F",
+      "scrollto:id=fst.songs.list,0",
+      "assertname:id=fst.songs.section-header|#",
+      "invoke:id=fst.songs.section-index-button",
+      "waitfor:id=fst.songs.section-index@5",
+      "invoke:name=M",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|M"
+    ]
+  },
+  {
+    "name": "index-keyboard",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.section-header@40",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "focus:id=fst.songs.section-index-button",
+      "key:enter",
+      "waitfor:id=fst.songs.section-index@5",
+      "assertfocus:name=#@5",
+      "key:right",
+      "key:right",
+      "assertfocus:name=B@3",
+      "key:enter",
+      "waitgone:id=fst.songs.section-index@5",
+      "assertname:id=fst.songs.section-header|B",
+      "focus:id=fst.songs.section-index-button",
+      "key:esc",
+      "assertfocus:id=fst.songs.section-index-button"
+    ]
+  }
+]
