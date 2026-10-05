@@ -30,7 +30,7 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 - One controller per list: `rememberQuickLinks` keys only on the scroller, `pinnedHeaders` and density; `title` and `sections` are snapshot state set each composition. The shell's floating toolbar re-runs a page's `actions` only on state reads, so a controller recreated by a title change (Songs' "<Sort> Quick Links") left a stale entry with no sections and hid `fst.quick-links.open` (Linux CI flake in `SongsParityUiTest`). Covered by `QuickLinksControllerUiTest`.
 - Programmatic jumps do not reach the top bar's nested-scroll state, so pass `FestivalScreen(scrolled = listState.canScrollBackward)` or content shows through the transparent bar.
 - TalkBack: entry label includes the current section; items expose `selected` + "Current section" state; the sheet has a pane title. Test IDs `fst.quick-links.open`, `.sheet`, `.menu`, `.list`, `.item.<id>`.
-- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest`, and was re-validated on every AVD in #154.
+- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest` (Settings, profile) and `QuickLinksPageSweepUiTest` (every other page, #158), and was re-validated on every AVD in #154 and #158.
 
 ## Adoption
 
@@ -39,7 +39,11 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 | Settings | Done: `app-settings`, `diagnostics` (debug), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows) |
 | Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
-| Song Detail, Band, Compete, Rivals, Rivalry, Rival Detail, Leaderboards | Owning lanes: follow the spec IDs/labels with the API above |
+| Song Detail (pushed page only) | Done: `intensity`, `score-history` (only when the page shows the card: one `showHistory` flag feeds `SongDetailLayout.items` and `.quickLinks`), `instrument-<wire>` per visible chart, `band-<wire>` per band size |
+| Compete | Done: `leaderboards`, `rivals` (staggered grid headers; none while a full-page issue shows) |
+| Leaderboards | Done: `rank-history` (selected player), `instrument:<wire>`, `band:<wire>` |
+| Band Detail (one pane) | Done: `members`, `summary`, `statistics`, `rank-history`, `songs` (`rememberScrollQuickLinks`; no Quick Links in two panes) |
+| Rivals, Rival Detail, Rivalry | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`), `rival-category:<key>`, `<songId>:<wire>:<index>` per song |
 
 ## Validation (issue #137)
 
@@ -74,6 +78,26 @@ Re-check of the #46 order on the live public service (Settings with 12 sections 
 - Tooling note: right after a cold boot, `uiautomator dump` sometimes failed and aborted `device.py drive`. A warm-up dump before launching fixes it, and FST_Tablet portrait at 2.0 passed on rerun. This is not an app fault.
 - Tests: `quicklinks/QuickLinksPageOrderUiTest` (Robolectric) reads the real Settings and profile pages. For both the sheet (411 dp) and the menu (1280 dp and phone landscape), it asserts that every section is listed once in the page's `IndexForKey` order, that the jump updates the entry label, and that exactly the jumped item is `selected` on reopen. Reversing `controller.sections` in the sheet or the menu fails all 6 tests. `QuickLinksDeviceTest` passes on FST_Phone and FST_Tablet.
 - M3 (material-3 skill): bottom sheet at compact width, menu for larger windows, 48 dp targets, menu small shape at level 2, modal sheet extra-large at level 1. Deliberate deviations are unchanged from #137.
+
+## Validation (issue #158)
+
+Check of #50 on every page with Quick Links, against the live public service (`SFentonX`, "Everlong"; anonymous for the no-player case). Each case opened Quick Links on Song Detail and Compete and read the `fst.quick-links.item.*` ids from the a11y tree, sorted by position. Phone portrait also covered Leaderboards and the Rivals hub. **Every menu lists sections in on-page top-to-bottom order, and Score History is listed exactly when the page shows it. #50's inversion does not reproduce, so there is no app change.**
+
+| Configuration | Entry point | Song Detail | Compete |
+|---|---|---|---|
+| FST_Phone portrait, dark 1.0 / light 2.0 | Toolbar sheet | `intensity`, `score-history`, instruments… (anonymous: no `score-history`) | `leaderboards`, `rivals` |
+| FST_Phone landscape, dark 1.0 / light 2.0 | Top-bar menu | `intensity`, `score-history`, instruments… | `leaderboards`, `rivals` |
+| FST_Tablet landscape dark 1.0, portrait light 2.0 | Top-bar menu | `intensity`, `score-history`, 9 instruments, `band-Band_Duets`/`Trios`/`Quad` (matches the page) | `leaderboards` (Current), `rivals` |
+| FST_Resizable compact / medium / expanded | Sheet / menu / menu | Compact: `intensity`, `score-history`, instruments…; medium/expanded: full list as the tablet | Expanded: `leaderboards`, `rivals` |
+| FST_Book_Fold folded / half-open / unfolded | Sheet / menu / menu | Page order. Half-open shows Intensity and Score History side by side, listed start pane first, and the menu stays in the end pane | Unfolded: `leaderboards`, `rivals` |
+| FST_Passport_Fold folded / unfolded | Sheet / menu | Page order (`intensity`, `score-history`, instruments, bands) | Folded and unfolded: `leaderboards`, `rivals` |
+| FST_TriFold folded / partial / unfolded | Sheet / menu / menu | Page order; the menu stays within one panel | Unfolded: `leaderboards`, `rivals` |
+
+Phone portrait also checked Leaderboards (`rank-history`, then instruments) and the Rivals hub (Lead … Pro Drums, as on the page).
+
+- Tooling note: when other lanes switch AVDs, every job cold-boots, and the first `uiautomator dump` after launch often fails. Two or three `shell:uiautomator dump` warm-up steps before the first `waitfor` fixed Passport folded and TriFold partial/unfolded. Other lanes install their own builds of the same package, so reinstall the APK in the same lock hold as each check.
+- Tests: `quicklinks/QuickLinksPageSweepUiTest` (Robolectric, 15 cases) scrolls each real page through the fixture service, records its section anchors top to bottom, and asserts that the open menu lists the same ids in the same order. It covers the compact sheet (411 dp) and the menu (1280 dp). Pages: Song Detail with history (`score-history` second), without a player, and with a player but no history for the song (no `score-history`); Compete; Leaderboards; Band Detail; the Rivals hub (song and leaderboard tabs); Rival Detail; Rivalry. Together with `QuickLinksPageOrderUiTest` (Settings, profile) this covers every Quick Links page. Inverting `showHistory` in `SongDetailLayout.quickLinks` fails all 4 Song Detail cases, and reversing `RivalQuickLinks.compete()` fails both Compete cases. Wide Compete opens through `CompeteRoute`, because the permanent drawer has no Compete destination. Close the menu by tapping an item, not Back: Back also pops a pushed page. `QuickLinksDeviceTest` (ATF checks, TalkBack order, animator scale 0, 2.0 targets) passes on FST_Phone and FST_Tablet.
+- M3 (material-3 skill: `layout-and-responsive`, `component-catalog`, `typography-and-shape`): a modal bottom sheet at compact width and an anchored menu for medium and expanded windows, 48 dp rows, menu items with leading icons. There are no new deviations; the #137 list stands.
 
 ## Open
 
