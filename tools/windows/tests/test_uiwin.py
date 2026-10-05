@@ -133,6 +133,32 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_span(self):
+        step = u.parse_step("markspan:id=fst.history.instrument.group|id=fst.history.sort.open|card")
+        self.assertEqual(step["verb"], "markspan")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.history.instrument.group"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.history.sort.open"})
+        self.assertEqual(step["name"], "card")
+        self.assertEqual(u.parse_step("assertspan:name=A|name=B|card-2")["name"], "card-2")
+        for bad in ("assertspan:id=a|id=b", "assertspan:id=a|id=b|", "markspan:id=a|card", "assertspan:1,2|id=b|c",
+                    "markspan:id=a|id=b|bad name"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_film(self):
+        start, stop = u.parse_step("film:out/fade"), u.parse_step("filmstop:out/fade")
+        self.assertEqual((start["verb"], stop["verb"]), ("film", "filmstop"))
+        self.assertEqual(start["arg"], stop["arg"])
+        self.assertTrue(Path(start["arg"]).is_absolute())
+        with self.assertRaises(ValueError):
+            u.parse_step("filmstop:")
+
+    def test_keys_sequence(self):
+        step = u.parse_step("keys:left space shift+tab")
+        self.assertEqual(step["seq"], [[0x25], [0x20], [0x10, 0x09]])
+        with self.assertRaises(ValueError):
+            u.parse_step("keys:left nosuchkey")
+
     def test_assertinset(self):
         step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
         self.assertEqual(step["verb"], "assertinset")

@@ -101,12 +101,13 @@ STEP_VERBS = {
     "toggle": "selector", "select": "selector", "expand": "selector",
     "collapse": "selector", "focus": "selector", "reveal": "selector", "waitfor": "selector", "waitgone": "selector",
     "scrollinto": "selector",
-    "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
+    "type": "text", "key": "keys", "keys": "keyseq", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
     "assertinset": "gap", "assertstatus": "status", "assertstate": "state",
+    "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -199,6 +200,15 @@ def parse_step(step: str) -> dict:
     edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
     pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top.
+    ``markspan:<sel>|<sel>|<name>`` records the distance from the first element's top edge to the second's (epx)
+    under ``<name>`` and ``assertspan:<sel>|<sel>|<name>`` fails unless that distance is unchanged within 1 epx
+    in the same drive (a card that must keep its height across a transition, measured top to top so scrolling
+    doesn't matter).
+    ``film:<dir>`` starts a background ``PrintWindow`` capture (frames scaled to at most 1280 px, up to 300) while
+    the following steps run, and ``filmstop:<dir>`` ends it and writes ``f0000.jpg``… and ``frames.json`` (each
+    frame's offset in ms) to ``<dir>``: motion evidence for a short transition such as a fade.
+    ``keys:<chord> <chord>…`` presses space-separated chords (``key:`` syntax) back to back without the per-step
+    pause, e.g. ``keys:left space left space`` for several picks inside one ~400 ms transition.
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
@@ -250,6 +260,15 @@ def parse_step(step: str) -> dict:
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
         result["epx"] = float(epx)
+    elif shape == "span":
+        first, sep, rest = arg.partition("|")
+        second, sep2, name = rest.rpartition("|")
+        if not sep or not sep2 or not re.fullmatch(r"[A-Za-z0-9_.-]+", name.strip()):
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>|<name>")
+        result["selector"], result["other"] = parse_selector(first), parse_selector(second)
+        if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
+        result["name"] = name.strip()
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")
@@ -288,6 +307,8 @@ def parse_step(step: str) -> dict:
             raise ValueError(f"{verb} needs an element selector, not coordinates")
     elif shape == "keys":
         result["vk"] = parse_keys(arg)
+    elif shape == "keyseq":
+        result["seq"] = [parse_keys(chord) for chord in arg.split()]
     elif shape == "scroll":
         target, _, amount = arg.rpartition(",")
         if target:
