@@ -631,6 +631,19 @@ class FullRankingsDesktopUiTest : LeaderboardsHarness() {
         val pager = node("fst.full-rankings.pager").fetchSemanticsNode().boundsInRoot
         assertEquals(list.center.x, pager.center.x, with(rule.density) { 2.dp.toPx() })
     }
+
+    /** Issue #149: the pinned "your rank" row spans the capped board, lining up with its rows. */
+    @Test
+    fun desktopPinnedRankSpansTheBoard() {
+        launch("fullRankings:Solo_Guitar", selected)
+        waitForTag("fst.full-rankings.spotlight-footer")
+        val tag = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        waitForTag(tag)
+        val row = node(tag).fetchSemanticsNode().boundsInRoot
+        val footer = node("fst.full-rankings.spotlight-footer").fetchSemanticsNode().boundsInRoot
+        assertEquals(row.left, footer.left, 0.5f)
+        assertEquals(row.right, footer.right, 0.5f)
+    }
 }
 
 @RunWith(AndroidJUnit4::class)
@@ -709,6 +722,39 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
         launch("songLeaderboard:s-alpha:Solo_Guitar")
         waitForDescription("Page 1 of 3")
         rule.waitUntil(10_000) { settle(100); exists("fst.stars") }
+    }
+
+    /**
+     * Issue #149: on a wide window the pinned score row spans the rows' card, so its season,
+     * score, accuracy and stars columns sit under the rows' (the footer used to stop at 720 dp,
+     * centred, while the rows filled the window).
+     */
+    @Test
+    fun expandedSongLeaderboardPinnedRowLinesUpWithTheRows() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForTag("fst.song-leaderboard.spotlight-footer")
+        rule.waitUntil(10_000) { settle(100); exists("fst.stars") }
+        val rowTag = SemanticsMatcher("score row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.song-leaderboard.row.") == true }
+        val footer = rule.onAllNodes(rowTag and hasAnyAncestor(hasTestTag("fst.song-leaderboard.spotlight-footer")), useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val row = rule.onAllNodes(rowTag and hasAnyAncestor(hasTestTag("fst.song-leaderboard.list")), useUnmergedTree = true)
+            .fetchSemanticsNodes().map { it.boundsInRoot }.first { it.width > 0f }
+        assertTrue("the board is wider than the old 720 dp footer cap", with(rule.density) { row.width.toDp() } > 900.dp)
+        assertEquals(row.left, footer.left, 0.5f)
+        assertEquals(row.right, footer.right, 0.5f)
+        val footerScore = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag("fst.song-leaderboard.spotlight-footer")), useUnmergedTree = true)
+            .fetchSemanticsNodes().single().boundsInRoot
+        val rowScores = rule.onAllNodes(hasTestTag("fst.score") and hasAnyAncestor(hasTestTag("fst.song-leaderboard.list")), useUnmergedTree = true)
+            .fetchSemanticsNodes().map { it.boundsInRoot }.filter { it.width > 0f }
+        assertTrue(rowScores.size > 1)
+        for (bounds in rowScores) assertEquals(footerScore.right, bounds.right, 0.5f)
+        // The pager keeps its own width, centred under the board.
+        val pager = node("fst.song-leaderboard.pager").fetchSemanticsNode().boundsInRoot
+        assertTrue(pager.width < row.width)
+        assertEquals(row.center.x, pager.center.x, with(rule.density) { 2.dp.toPx() })
     }
 }
 
