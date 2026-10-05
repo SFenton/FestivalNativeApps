@@ -307,5 +307,27 @@ struct MacAccessibilityTreeTests {
         #expect(title.role == "AXHeading", "the song title is a heading: \(title)")
         #expect(macAccessibilityFindings(nodes) == [])
     }
+
+    /// Song Detail beside its score history: the standalone history page carries the
+    /// registered `fst.history` page root (as on Android/Windows, issue #302) and its
+    /// section keeps its own identifiers.
+    @Test func macTreeScoreHistoryPageKeepsChildIdentifiers() async throws {
+        let session = try await macTreeSession(player: true)
+        let songs = try await session.catalog().catalog.songs
+        let song = try #require(songs.first { $0.songId == "fixture-pulse" })
+        let (host, window, model) = hostMacRootTree(session, initial: .songs)
+        defer { window.orderOut(nil) }
+        model.navigation.paths[.songs] = [.songDetail(song), .playerHistory(song, .lead)]
+        _ = try await nativeHostedSettle(host, timeout: macTreeBudget, until: {
+            let ids = nativeHostedAccessibility(host).identifiers
+            return ids.contains("fst.split.trailing") && ids.contains("fst.song-detail.history.chart")
+        })
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: "song-detail-score-history-split")
+        let ids = Set(nodes.map(\.identifier))
+        #expect(ids.contains("fst.history"), "the history page root is identified")
+        #expect(ids.contains("fst.song-detail.history.row.0"), "the history rows keep their identifiers")
+        #expect(!ids.contains("fst.score-history.page"), "the unregistered identifier is gone")
+    }
 }
 #endif

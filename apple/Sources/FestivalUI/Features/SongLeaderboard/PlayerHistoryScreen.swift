@@ -115,7 +115,8 @@ struct SongScoreHistoryPage: View {
         .navigationTitle("Score History")
         .festivalBackground(.song(song.albumArt), session: session)
         .task(id: session.selectedPlayer?.accountId) { await load() }
-        .accessibilityIdentifier("fst.score-history.page")
+        // The player-history page root, as on Android and Windows.
+        .accessibilityIdentifier("fst.history")
     }
 
     private func load() async {
