@@ -45,12 +45,14 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        var route = (AppRoute.SongLeaderboard)e.Parameter;
         ViewModel = LeaderboardsPageState<SongLeaderboardViewModel>.GetOrCreate(e.Parameter,
-            () => new SongLeaderboardViewModel(App.Session, (AppRoute.SongLeaderboard)e.Parameter), out _);
+            () => new SongLeaderboardViewModel(App.Session, route), out var created);
         ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
         ViewModel.PropertyChanged += OnViewModelChanged;
         ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
-        shownPage = ViewModel.Page;
+        // An arrival from Song Detail's spotlight row (navToPlayer) brings the highlighted row into view on first load.
+        shownPage = created && route.RevealSelected ? 0 : ViewModel.Page;
         spotlightShown = ViewModel.ShowSpotlight;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title} leaderboard, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title} leaderboard, no entries" : null,
@@ -70,7 +72,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         base.OnNavigatedFrom(e);
     }
 
-    /// <summary>Loads art once the song resolves, scrolls to the top on page changes and fades in a late pinned row.</summary>
+    /// <summary>Loads art once the song resolves, reveals the selected row (else scrolls to the top) on page changes and fades in a late pinned row.</summary>
     /// <param name="sender">View model.</param>
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
