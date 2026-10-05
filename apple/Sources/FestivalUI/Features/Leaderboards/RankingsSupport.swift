@@ -282,7 +282,7 @@ struct RankingRowLayout: View {
                 .font(.body)
                 .fontWeight(emphasized ? .bold : .semibold)
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.accentBlue)
+                .foregroundStyle(RankingRatingText.color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             if let bayesian {
@@ -302,7 +302,7 @@ struct RankingRowLayout: View {
                 .font(.body)
                 .fontWeight(emphasized ? .bold : .semibold)
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.accentBlue)
+                .foregroundStyle(RankingRatingText.color)
             if let bayesian {
                 Text(bayesian)
                     .font(.caption)
@@ -1163,4 +1163,16 @@ struct BandRankByMenu: View {
             )
         }
     }
+}
+
+// MARK: - Rating text colour
+
+/// The ranking rating's text colour on the dark row surfaces.
+///
+/// `BrandTokens.accentBlue` (the web's `colRating`) rendered 4.1–4.2:1 on a leaderboard
+/// row for 17 pt semibold text on iPad, below WCAG AA 4.5:1 (HIG Accessibility: 3:1 only
+/// for bold or 18 pt and up). A lighter blue of the same hue keeps the accent (≈ 7:1 on the row card).
+enum RankingRatingText {
+    /// Lighter accent blue for text on dark surfaces.
+    static let color = Color(.sRGB, red: 0.38, green: 0.64, blue: 1.0, opacity: 1)
 }
