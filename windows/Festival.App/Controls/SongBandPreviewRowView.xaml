@@ -36,7 +36,8 @@
                 </Grid.RowDefinitions>
                 <TextBlock x:Name="RankText" Text="{x:Bind Row.Rank, Mode=OneWay}" VerticalAlignment="Top" Margin="0,4,0,0"
                            Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.AccessibilityView="Raw" />
-                <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Row.Members, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw">
+                <ItemsRepeater x:Name="MembersRepeater" Grid.Column="1" ItemsSource="{x:Bind Row.Members, Mode=OneWay}"
+                               ElementPrepared="OnMemberPrepared" AutomationProperties.AccessibilityView="Raw">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="4" />
                     </ItemsRepeater.Layout>
@@ -76,9 +77,9 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="ScoreText" Text="{x:Bind Row.Score, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
                                VerticalAlignment="Center" TextWrapping="NoWrap" AutomationProperties.AccessibilityView="Raw" />
-                    <Border Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
+                    <Border x:Name="FcBadge" Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
                             Visibility="{x:Bind Row.IsFullCombo, Mode=OneWay}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                        <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
+                        <TextBlock x:Name="FcText" Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
                     </Border>
                     <!-- As the Song Band Leaderboard row: contrast themes get a ButtonFace fill with ButtonText text and outline. -->
                     <Border Grid.Column="2" CornerRadius="4" Padding="6,1" BorderThickness="1"

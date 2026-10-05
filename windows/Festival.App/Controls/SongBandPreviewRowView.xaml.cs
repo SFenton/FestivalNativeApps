@@ -2,6 +2,7 @@ using Festival.App.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App.Controls;
 
@@ -72,6 +73,35 @@ public sealed partial class SongBandPreviewRowView : UserControl
             ScoreText.ClearValue(TextBlock.ForegroundProperty);
             Chevron.ClearValue(IconElement.ForegroundProperty);
         }
+        // The FC badge has no fill, so on the selected row under a contrast theme its outline follows the HighlightText
+        // text instead of disappearing into the Highlight fill (as LeaderboardEntryRow's badge).
+        FcBadge.BorderBrush = ContrastTheme.Brush(selected && ContrastTheme.IsOn ? "FSTPlayerRowTextBrush" : "FSTEmphasisStrokeBrush");
+        // The selected row's text is already the system HighlightText-on-Highlight pair under a contrast theme; without
+        // this, WinUI's automatic adjustment paints Window backplate boxes inside the fill (issue #264, as LeaderboardEntryRow).
+        var adjustment = Adjustment;
+        RankText.HighContrastAdjustment = ScoreText.HighContrastAdjustment = FcText.HighContrastAdjustment =
+            Chevron.HighContrastAdjustment = adjustment;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(MembersRepeater); i++)
+            SetAdjustment(VisualTreeHelper.GetChild(MembersRepeater, i), adjustment);
+    }
+
+    /// <summary>Backplate setting for the row's text: none on the selected (Highlight) row, the app default otherwise.</summary>
+    private ElementHighContrastAdjustment Adjustment =>
+        Row?.IsSelected == true ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
+
+    /// <summary>Applies the row's backplate setting to a member line as the repeater realizes or recycles it.</summary>
+    /// <param name="sender">Members repeater.</param>
+    /// <param name="args">Prepared element.</param>
+    private void OnMemberPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args) =>
+        SetAdjustment(args.Element, Adjustment);
+
+    /// <summary>Sets <paramref name="value"/> on an element and every descendant (the property is not inherited).</summary>
+    /// <param name="element">Root element.</param>
+    /// <param name="value">Adjustment.</param>
+    private static void SetAdjustment(DependencyObject element, ElementHighContrastAdjustment value)
+    {
+        if (element is UIElement ui) ui.HighContrastAdjustment = value;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++) SetAdjustment(VisualTreeHelper.GetChild(element, i), value);
     }
 
     /// <summary>Opens Band Detail.</summary>
