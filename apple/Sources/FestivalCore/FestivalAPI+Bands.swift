@@ -141,8 +141,9 @@ extension FestivalAPI {
     ///   - pageSize: Rows per page; 25 matches the Solo chart's page size.
     ///   - combo: Optional instrument-combo filter.
     ///   - accountId: Selected player, sent only as the `accountId` query so the service
-    ///     returns that player's best band row (`selectedPlayerEntry`) for the pinned
-    ///     footer; never as a selected-profile header.
+    ///     returns that player's best band row (`selectedPlayerEntry`, a pure `SELECT`
+    ///     in `MetaDatabase.GetSongBandLeaderboardEntryForAccount`); never as a
+    ///     selected-profile header.
     /// - Returns: Validated band score rows and explicit offline freshness.
     /// - Throws: Invalid parameters, service failures or malformed wire responses.
     public func songBandLeaderboard(

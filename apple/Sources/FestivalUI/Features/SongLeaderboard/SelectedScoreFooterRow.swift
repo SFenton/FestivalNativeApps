@@ -15,12 +15,18 @@ import FestivalDesign
 struct SelectedScoreFooterRow: View {
     let entry: LeaderboardEntry
     let currentSeason: Int?
+    /// Draw the stars right after the score when the columns show stars: the band
+    /// footer (issue #306, web `starsAfterScore`); the Solo footer never draws stars.
+    var starsAfterScore = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         HStack(spacing: 8) {
-            SongLeaderboardEntryRow(entry: entry, isPlayer: true, currentSeason: currentSeason)
+            SongLeaderboardEntryRow(
+                entry: entry, isPlayer: true, currentSeason: currentSeason,
+                starsAfterScore: starsAfterScore
+            )
             Image(systemName: "chevron.forward")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(FestivalText.deemphasized)
@@ -39,21 +45,5 @@ struct SelectedScoreFooterRow: View {
             }
         }
         .contentShape(Rectangle())
-    }
-}
-
-extension LeaderboardEntry {
-    /// A band board row as a pinned footer row: the band's members as the name, with
-    /// its rank, team score, accuracy, stars and season (web `SongBandLeaderboardPage`
-    /// footer `LeaderboardEntry` with `formatBandTeamName`).
-    ///
-    /// - Parameter band: The selected band's row.
-    init(selectedBand band: SongBandLeaderboardEntry) {
-        self.init(
-            accountId: band.teamKey.isEmpty ? band.bandId : band.teamKey,
-            displayName: band.membersLabel, score: band.score, rank: band.rank,
-            accuracy: Double(band.accuracy), isFullCombo: band.isFullCombo,
-            stars: band.stars, season: band.season, difficulty: Double(band.difficulty)
-        )
     }
 }

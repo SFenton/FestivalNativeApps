@@ -86,7 +86,7 @@ extension FestivalSession {
     ///   - page: One-based page number.
     ///   - pageSize: Rows per page.
     ///   - combo: Optional instrument-combo filter.
-    ///   - accountId: Selected player for the `accountId` query (their best band row).
+    ///   - accountId: Selected player for the `accountId` footer query, if any.
     /// - Returns: Validated band score rows and publication provenance.
     /// - Throws: Client configuration, transport, decoding or validation failures.
     func songBandLeaderboard(

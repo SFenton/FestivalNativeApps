@@ -29,10 +29,10 @@ public enum PublicEndpoint: Sendable {
     case bandProfile(bandType: String, teamKey: String, combo: String?)
     case bandRankHistory(bandType: String, teamKey: String, combo: String?, days: Int)
     case bandSongExtremes(bandType: String, teamKey: String, combo: String?, limit: Int)
-    /// One page of a song's band board for one size
-    /// (`GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=[&accountId=]`).
-    /// `accountId` only asks for the selected player's best band row
-    /// (`selectedPlayerEntry`); it is never a selected-profile header.
+    /// One page of a song's band leaderboard
+    /// (`GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=[&combo=][&accountId=]`).
+    /// `accountId` is a query parameter that only asks for the selected player's best
+    /// band row (`selectedPlayerEntry`); it is never a selected-profile header.
     case songBandLeaderboard(
         songId: String, bandType: String, top: Int, offset: Int, combo: String?, accountId: String? = nil
     )
@@ -252,7 +252,7 @@ public enum PublicEndpoint: Sendable {
     ///
     /// - Returns: False for account profiles, including HTTP 202 syncing envelopes,
     ///   for a player's own bands list (also account-scoped) and for band previews
-    ///   and band board pages that carry a selected player's `accountId`.
+    ///   or band leaderboard pages that carry a selected player's `accountId`.
     var allowsSnapshotCache: Bool {
         switch self {
         case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,

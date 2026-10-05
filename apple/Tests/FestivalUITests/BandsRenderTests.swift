@@ -224,6 +224,60 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-loaded.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
+    // No selected player: no pinned band footer (issue #306).
+    #expect(!nativeHostedAccessibility(host).identifiers.contains(songBandFooterID))
+}
+
+private let songBandFooterID = "fst.song-band-leaderboard.spotlight-footer"
+
+/// A selected player with a Duos score here gets their band pinned above the pager
+/// (issue #306), labelled with its rank and destination (issue #307), at an iPhone width
+/// and at a Mac window width where the footer adds season and stars.
+@MainActor
+@Test(arguments: [CGSize(width: 402, height: 900), CGSize(width: 1000, height: 760)])
+func songBandLeaderboardScreenPinsTheSelectedPlayersBand(size: CGSize) async throws {
+    let (session, storage, suite) = try await bandsFixtureSession(selected: "fixture-player-1")
+    defer { if let suite { storage?.removePersistentDomain(forName: suite) } }
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    let host = nativeHostedView(
+        NavigationStack {
+            SongBandLeaderboardScreen(session: session, song: song, bandType: "Band_Duets")
+        }
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "song-band-leaderboard-footer-\(Int(size.width)).png",
+        environment: "FST_BANDS_RENDER_OUT"
+    )
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains(songBandFooterID))
+    // Rank 29 sits on page 2, so page 1's footer jumps to it (issue #307).
+    #expect(tree.contains("Your band's rank, 29th. Jump to your band's position."))
+    #expect(tree.identifiers.contains("fst.song-band-leaderboard.page-info"))
+}
+
+/// The footer is per band size: the player has no Trios band here, so none shows.
+@MainActor
+@Test func songBandLeaderboardScreenHidesTheFooterWithoutABandOfThatSize() async throws {
+    let (session, storage, suite) = try await bandsFixtureSession(selected: "fixture-player-1")
+    defer { if let suite { storage?.removePersistentDomain(forName: suite) } }
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    let host = nativeHostedView(
+        NavigationStack {
+            SongBandLeaderboardScreen(session: session, song: song, bandType: "Band_Trios")
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 700)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    #expect(!nativeHostedAccessibility(host).identifiers.contains(songBandFooterID))
 }
 
 @MainActor

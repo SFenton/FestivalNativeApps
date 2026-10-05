@@ -9,51 +9,61 @@ import FestivalDesign
 /// (`FortniteFestivalWeb/src/pages/leaderboard/band/SongBandLeaderboardPage.tsx`).
 ///
 /// `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=[&accountId=]` is a pure
-/// read (`MetaDatabase.GetSongBandLeaderboard`/`GetSongBandLeaderboardEntryForAccount`,
-/// only `SELECT`s). With a selected player, `accountId` returns their best band
-/// (`selectedPlayerEntry`), highlighted on its page and pinned above the pager.
+/// read (`MetaDatabase.GetSongBandLeaderboard` and, with `accountId`,
+/// `GetSongBandLeaderboardEntryForAccount`, only `SELECT`s).
+///
+/// With a selected player who has a band score here, the band's row is pinned above
+/// the pager like the Solo chart's player footer (web `FixedLeaderboardPlayerFooter`,
+/// issue #306) and follows the Solo footer's rule (issue #307): off-page it jumps to
+/// the band's row, on-page it opens the band.
 struct SongBandLeaderboardScreen: View {
     let session: FestivalSession
     let song: Song
     @State private var bandType: BandType
     @State private var page: Int
     @State private var state: RankLoadState<SongBandLeaderboardPayload> = .loading
+    /// The last loaded page and the request it answered: keeps the footer and pager in
+    /// place while the next page loads, so only the rows reload (issue #93).
+    @State private var shown: Shown?
     /// The band whose row is highlighted and brought into view: Song Detail's selected
-    /// band row opens this board at its page (issue #307, web `navToPlayer`).
+    /// band row and the footer's jump open this board at its page (issue #307, web
+    /// `navToPlayer`).
     @State private var focus: SongBandRowFocus?
     /// The focused row still needs scrolling into view once its page loads.
     @State private var focusPending: Bool
-    /// Width of the pinned footer, which decides its season/stars columns.
-    @State private var footerWidth: CGFloat = 0
-    /// The last loaded page: keeps the pinned footer and pager in place while the next
-    /// page loads, so only the rows reload (Song Leaderboard, issue #93); cleared when
-    /// the band size changes.
-    @State private var shownLeaderboard: SongBandLeaderboardResponse?
-    /// Top edge of the pinned footer and pager in ``pageSpace``; nil without either.
+    /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
-    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
-    /// above the chrome, then shrinking to nothing (issues #293, #305).
+    /// Height of the rows' bottom fade, shrinking to 0 at the end of the list (#293).
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
+    /// The page's measured width, for the footer's fitted columns.
+    @State private var chartWidth: CGFloat = 0
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
 
+    /// Space between two band cards, between the last card and the footer or pager,
+    /// and below the last card in the list (issues #293, #305).
+    nonisolated private static let rowGap: CGFloat = 6
+    /// Coordinate space shared by the rows' fade mask and the pinned chrome.
+    nonisolated private static let pageSpace = "fst.song-band-leaderboard.page"
+
     private struct RequestKey: Equatable {
         let bandType: BandType
         let page: Int
-        /// Selected player for the footer's `accountId` query.
+        /// Selected player sent as the `accountId` query, so a selection change reloads.
         let accountId: String?
+    }
+
+    /// A loaded page together with the request it answered.
+    private struct Shown {
+        let key: RequestKey
+        let payload: SongBandLeaderboardPayload
     }
 
     private var requestKey: RequestKey {
         RequestKey(bandType: bandType, page: page, accountId: session.selectedPlayer?.accountId)
     }
-
-    /// Coordinate space shared by the rows' fade mask and the pinned pager.
-    nonisolated private static let pageSpace = "fst.song-band-leaderboard.page"
-    /// Space between two band cards, and between the last card and the pager.
-    nonisolated private static let rowGap: CGFloat = 6
 
     /// Create the screen.
     ///
@@ -139,10 +149,12 @@ struct SongBandLeaderboardScreen: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             ForEach(payload.leaderboard.entries) { entry in
+                                // The selected player's band, or the band this page was
+                                // opened for, gets the purple highlight (web `isSelected`).
                                 SongBandPreviewRow(
                                     entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
                                 )
-                                    .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                                .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
                             }
                         }
                         .padding(.horizontal, 16)
@@ -163,20 +175,24 @@ struct SongBandLeaderboardScreen: View {
                     }
                 }
                 .rankingsListRailClearance(layout)
-                // Cards fade out above the pinned pager like the solo board's rows
-                // (issue #305): a sibling pager under the scroll view cut them off
-                // with a hard edge.
+                // Cards fade out above the pinned footer and pager like the solo
+                // board's rows (issues #305, #306): a sibling pager under the scroll
+                // view cut them off with a hard edge.
                 .bottomChromeFade(
                     chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
                 )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Pinned outside the reload gate so the selected band's footer and the pager
-        // stay put while only the cards reload, as a bottom safe-area inset for the same tab-bar reason as
-        // `SoloLeaderboardScreen` (issue #93).
+        // Pinned outside the reload gate, as a bottom safe-area inset like the Solo
+        // chart's: the footer and pager stay put while another page loads, and the
+        // scroll view keeps its frame while only its content inset changes.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomChrome
+        }
+        .leaderboardSectionColumns(footerColumns)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+            chartWidth = width
         }
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
@@ -186,7 +202,7 @@ struct SongBandLeaderboardScreen: View {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
             #if os(iOS)
-            if case let .loaded(payload) = state {
+            if let payload = chromePayload {
                 RankingsPagerToolbarContent(
                     page: page, totalPages: payload.leaderboard.pageCount,
                     idPrefix: "fst.song-band-leaderboard"
@@ -203,25 +219,53 @@ struct SongBandLeaderboardScreen: View {
         .onChange(of: bandType) { _, _ in
             focusPending = false
             page = 1
-            shownLeaderboard = nil
         }
         .task(id: requestKey) { await load() }
     }
 
     // MARK: Pinned bottom chrome
 
-    /// The selected band's footer and the pager, floating over the page background
-    /// with no band behind them, like the Solo board's (issue #93). Built from the last
-    /// loaded page, so paging keeps both in place while only the cards reload.
+    /// The last loaded page while it still answers the current band size and selected
+    /// player: paging keeps the footer and pager, while a band-size or player change
+    /// drops them until the new page arrives, so a Duos footer never sits on Trios.
+    private var chromePayload: SongBandLeaderboardPayload? {
+        guard let shown, shown.key.bandType == requestKey.bandType,
+              shown.key.accountId == requestKey.accountId else { return nil }
+        return shown.payload
+    }
+
+    /// The selected player's band row for the footer; nil without a selected player
+    /// or a band score of this size on this song.
+    private var footerEntry: SongBandLeaderboardEntry? {
+        guard session.selectedPlayer != nil else { return nil }
+        return chromePayload?.leaderboard.selectedEntry
+    }
+
+    /// The footer's columns: rank and score fitted to the footer row (web
+    /// `selectedFooterRankWidth`), season from 520 pt and stars from 768 pt of width,
+    /// matching the web footer's desktop-only season/stars.
+    private var footerColumns: LeaderboardRowColumns {
+        let row = footerEntry.map { [$0] } ?? []
+        return LeaderboardRowColumns.fit(
+            .songLeaderboard, width: Double(chartWidth),
+            ranks: row.map(\.rank), scores: row.map(\.score)
+        )
+    }
+
+    /// The player's band footer and the pager, floating over the page background with
+    /// no band behind them, like the Solo chart (HIG Materials: "Let content scroll and
+    /// peek through while preserving control and navigation legibility").
     private var bottomChrome: some View {
         let spacing = chromeSpacing
         return VStack(spacing: 0) {
-            selectedBandFooter
-                .padding(.top, spacing.footerTop)
-                .padding(.bottom, spacing.footerBottom)
-            if let shownLeaderboard {
+            if let entry = footerEntry {
+                selectedBandFooter(entry)
+                    .padding(.top, spacing.footerTop)
+                    .padding(.bottom, spacing.footerBottom)
+            }
+            if let payload = chromePayload {
                 RankingsPagerView(
-                    page: page, totalPages: shownLeaderboard.pageCount,
+                    page: page, totalPages: payload.leaderboard.pageCount,
                     idPrefix: "fst.song-band-leaderboard", topPadding: spacing.pagerTop
                 ) { destination in
                     page = destination
@@ -231,17 +275,15 @@ struct SongBandLeaderboardScreen: View {
         .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
-    /// Padding that rests the last card one row gap above the footer, or above the
-    /// pager without a footer, and the footer one row gap above the pager (issue #293).
+    /// Padding that rests the last card one gap above the footer (or the pager without
+    /// one) and the footer one gap above the pager (issue #293).
     private var chromeSpacing: PinnedChromeSpacing {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
-            hasFooter: shownLeaderboard?.selectedEntry != nil,
-            hasPager: shownLeaderboard != nil && !layout.sectionChrome.isVerticalBar
+            hasFooter: footerEntry != nil,
+            hasPager: chromePayload != nil && !layout.sectionChrome.isVerticalBar
         )
     }
-
-    // MARK: Selected-band footer
 
     /// The footer's action. The loaded page's rows decide; while the next page loads,
     /// the band's rank against the requested page does, so the footer keeps its place
@@ -261,48 +303,45 @@ struct SongBandLeaderboardScreen: View {
         )
     }
 
-    /// The selected player's band pinned above the pager (web `SongBandLeaderboardPage`
-    /// `FixedLeaderboardPlayerFooter`), drawn like the Solo board's footer
-    /// (``SelectedScoreFooterRow``) and following its rule (issue #307,
-    /// ``SongBandRowNavigation/footerAction(for:pageEntries:)``): while the band's row
-    /// is on this page it opens Band Detail; otherwise it jumps to the page holding
-    /// the band's rank and brings the highlighted row into view.
-    @ViewBuilder
-    private var selectedBandFooter: some View {
-        if let entry = shownLeaderboard?.selectedEntry {
-            let action = footerAction(for: entry)
-            let row = SelectedScoreFooterRow(
-                entry: LeaderboardEntry(selectedBand: entry), currentSeason: session.catalogCurrentSeason
-            )
-            Group {
-                switch action {
-                case .openProfile:
-                    NavigationLink(value: SongBandRowNavigation.bandRoute(entry)) { row }
-                        .accessibilityLabel(action.footerLabel(for: .band, rank: entry.rank))
-                        .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-open")
-                case let .jump(destination):
-                    Button {
-                        jump(to: destination, focusing: entry)
-                    } label: {
-                        row
-                    }
+    /// The selected player's band as one Solo-style footer row (the shared
+    /// ``SelectedScoreFooterRow``: rank, the members' names scrolling when long, score,
+    /// stars on wide layouts and the accuracy/full-combo badge), following the Solo
+    /// footer's rule (issue #307, ``SongBandRowNavigation/footerAction(for:pageEntries:)``):
+    /// while the band's row is on this page it opens Band Detail (web
+    /// `getBandProfileRoute`); otherwise it jumps to the page holding the band's rank
+    /// and brings the highlighted row into view.
+    ///
+    /// - Parameter entry: The selected player's band row.
+    /// - Returns: The pinned footer button or link.
+    private func selectedBandFooter(_ entry: SongBandLeaderboardEntry) -> some View {
+        let action = footerAction(for: entry)
+        let row = SelectedScoreFooterRow(
+            entry: entry.footerLeaderboardEntry, currentSeason: session.catalogCurrentSeason,
+            starsAfterScore: true
+        )
+        return Group {
+            switch action {
+            case .openProfile:
+                NavigationLink(value: SongBandRowNavigation.bandRoute(entry)) { row }
                     .accessibilityLabel(action.footerLabel(for: .band, rank: entry.rank))
-                    .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-jump")
+                    .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-open")
+            case let .jump(destination):
+                Button {
+                    jump(to: destination, focusing: entry)
+                } label: {
+                    row
                 }
+                .accessibilityLabel(action.footerLabel(for: .band, rank: entry.rank))
+                .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-jump")
             }
-            .buttonStyle(.plain)
-            // The footer's own columns, like the web's `computeRankWidth([rank])`, with
-            // season from 520 pt and stars from 768 pt of footer width.
-            .leaderboardSectionColumns(LeaderboardRowColumns.fit(
-                .songLeaderboard, width: Double(footerWidth),
-                ranks: [entry.rank], scores: [entry.score]
-            ))
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { footerWidth = $0 }
-            .padding(.horizontal, 16)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
         }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
     }
+
+    // MARK: Band size
 
     private var bandTypeMenu: some View {
         PageToolMenu("Band Size", choices: bandTypeChoices) {
@@ -345,7 +384,7 @@ struct SongBandLeaderboardScreen: View {
                 page = corrected
                 return
             }
-            shownLeaderboard = payload.leaderboard
+            shown = Shown(key: requested, payload: payload)
             state = .loaded(payload)
         } catch is CancellationError {
             return
