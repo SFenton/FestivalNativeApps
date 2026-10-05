@@ -438,6 +438,7 @@ struct RankHistoryCharts: View {
                 }
             }
         }
+        .chartPlotFrameReporter()
         .frame(height: Self.plotHeight)
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
         .accessibilityAdjustableAction { direction in
@@ -448,6 +449,13 @@ struct RankHistoryCharts: View {
             }
         }
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
+        .chartAxisElements(ChartAxisLabels(
+            leading: "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
+            trailing: "Rank scale, " + ChartAxisLabels.span(
+                scale.rankTicks.first.map { "#\($0.formatted())" }, scale.rankTicks.last.map { "#\($0.formatted())" }
+            ),
+            bottom: "Dates, " + ChartAxisLabels.span(visible.first?.label, visible.last?.label)
+        ))
 
         if paging.needsPagination {
             // Swipe a page at a time (web `SWIPE_THRESHOLD` 50 pt): left shows newer
