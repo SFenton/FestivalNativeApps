@@ -99,7 +99,7 @@ struct SuggestionsScreen: View {
                 }
             }
         }
-        .navigationTitle("Suggestions")
+        .festivalNavigationTitle("Suggestions")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             if pageTools == nil, showsFilter {

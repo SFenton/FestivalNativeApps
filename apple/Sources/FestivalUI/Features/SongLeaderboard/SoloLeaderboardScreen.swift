@@ -205,7 +205,7 @@ struct SoloLeaderboardScreen: View {
         .onChange(of: loadedRowsKey) { _, _ in staggerSettled = false }
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
-        .navigationTitle(song.title)
+        .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
             ToolbarItem(placement: .principal) {

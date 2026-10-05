@@ -109,7 +109,7 @@ struct PlayerBandsScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .festivalBackground(.carousel, session: session)
-        .navigationTitle(displayName.map { "\($0)'s Bands" } ?? "Bands")
+        .festivalNavigationTitle(displayName.map { "\($0)'s Bands" } ?? "Bands")
         .toolbar {
             #if os(iOS)
             if case let .loaded(payload) = state {

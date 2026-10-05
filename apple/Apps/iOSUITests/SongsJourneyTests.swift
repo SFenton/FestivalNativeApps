@@ -1503,6 +1503,66 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "songs-unpinned-rollover-in-place")
     }
 
+    /// A live publication refresh while Song Detail is on screen keeps VoiceOver on that
+    /// page (issue #304): the live loop picks the new generation up with no user action,
+    /// the page anchor (an invisible heading named with the page title) replaces the hidden
+    /// content through the spinner, and it is still the focus target after the rebuild.
+    ///
+    /// XCUITest cannot run VoiceOver, so `FST_UI_TEST_PAGE_ANCHOR=1` keeps the anchor
+    /// without it; `PublicationRefreshFocusTests` covers when focus moves to it.
+    ///
+    /// - Throws: A popped route, a missing or misnamed anchor, or old content left readable.
+    @MainActor
+    func testLiveRolloverKeepsVoiceOverOnDetail() async throws {
+        continueAfterFailure = false
+        let app = SongsUITestSupport.fixtureApp()
+        // A fresh `--unpinned --rollover-on-command` listener (spent after one advance).
+        let port = ProcessInfo.processInfo.environment["FST_LIVE_ROLLOVER_FIXTURE_PORT"]
+            .flatMap(Int.init) ?? (UIDevice.current.userInterfaceIdiom == .pad ? 8780 : 8779)
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
+        // The mock has no socket: the live loop re-reads the publication between
+        // reconnect attempts (1 s → 30 s backoff), which is what picks up the advance.
+        app.launchEnvironment["FST_LIVE_PUBLICATION_UPDATES"] = "1"
+        app.launchEnvironment["FST_UI_TEST_PAGE_ANCHOR"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let detail = app.staticTexts["Intensity"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        let anchor = app.descendants(matching: .any)["fst.publication.page-anchor"]
+        XCTAssertFalse(anchor.exists, "No page anchor before a refresh")
+
+        try await SongsUITestSupport.advanceFixturePublication(port: port)
+
+        let refreshed = anchor.waitForExistence(timeout: 45)
+        if !refreshed {
+            SongsUITestSupport.record(app, name: "songs-live-rollover-no-anchor")
+        }
+        XCTAssertTrue(refreshed, "The live loop refreshes the open page with no user action")
+        XCTAssertEqual(anchor.label, "Fixture Pulse", "The anchor names the current page")
+        // One atomic tree: the anchor's value and the hidden content change in the same
+        // update, while the spinner lingers in the tree through its fade-out.
+        let tree = try app.snapshot()
+        let anchorNode = Self.firstNode(in: tree) { $0.identifier == "fst.publication.page-anchor" }
+        if (anchorNode?.value as? String) == "Loading new scores" {
+            XCTAssertNil(
+                Self.firstNode(in: tree) { $0.elementType == .staticText && $0.label == "Intensity" },
+                "Old content is hidden from VoiceOver during the spinner"
+            )
+        }
+        let spinner = app.descendants(matching: .any)["fst.publication.refreshing"]
+        XCTAssertTrue(spinner.waitForNonExistence(timeout: 15), "The refresh spinner fades out")
+
+        XCTAssertTrue(detail.waitForExistence(timeout: 10), "Song Detail is rebuilt in place")
+        XCTAssertTrue(anchor.exists, "Focus is restored to the page anchor after the rebuild")
+        XCTAssertEqual(anchor.label, "Fixture Pulse")
+        XCTAssertTrue((anchor.value as? String ?? "").isEmpty, "The loading value clears")
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Published scores changed.")
+        ).firstMatch.exists)
+    }
+
     /// Keep old Songs unfiltered and unbadged when only new Shop/profile reads succeed.
     ///
     /// - Throws: Mixed-publication rows, false No Results or an unowned fixture response.
@@ -1742,4 +1802,19 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "songs-shop-quick-links-jumped")
     }
 
+    /// Depth-first search of one accessibility snapshot.
+    ///
+    /// - Parameters:
+    ///   - node: Snapshot root.
+    ///   - matches: Predicate for the wanted node.
+    /// - Returns: The first matching node, or `nil`.
+    private static func firstNode(
+        in node: XCUIElementSnapshot, where matches: (XCUIElementSnapshot) -> Bool
+    ) -> XCUIElementSnapshot? {
+        if matches(node) { return node }
+        for child in node.children {
+            if let found = firstNode(in: child, where: matches) { return found }
+        }
+        return nil
+    }
 }
