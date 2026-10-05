@@ -86,7 +86,7 @@
     "preset": "wide",
     "steps": [
       "waitfor:id=fst.song-detail.title@20",
-      "scroll:id=fst.song-detail.title,-30",
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2@10",
       "waitfor:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2@10",
       "invoke:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2",
       "waitfor:id=fst.player.name@15"

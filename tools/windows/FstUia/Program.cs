@@ -908,6 +908,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             "class" => cf.ByClassName(value),
             _ => throw new ArgumentException($"selector {kind} cannot locate an element"),
         };
+        if ((string?)selector["class"] is { } className)
+            return (new AndCondition(condition, cf.ByClassName(className)), $"{kind}={value}&class={className}");
         return (condition, $"{kind}={value}");
     }
 

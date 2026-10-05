@@ -9,6 +9,9 @@ name for a deterministic "Demo Rival N" before serving. Everything else (routes,
 list (``/api/rankings/bands/{bandType}`` without ``teamKey``) with a zero-team board, an HTTP 500, or two rows
 whose second has no band identity and blank member names (shown as "Unknown User", not openable).
 
+``--songs-delay SECONDS`` (issue #240) answers ``/api/songs`` only after the delay, so a first-run guide opened at
+launch shows its placeholder demo rows before the catalogue arrives.
+
 Usage: ``python tools/windows/rivals_fixture.py --port 8765`` (same flags as mock_service.py), then launch the
 app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-player-1:Demo Player``.
 """
@@ -17,6 +20,7 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -122,6 +126,59 @@ def take_band_rankings(argv: list[str]) -> tuple[str | None, list[str]]:
 
 # endregion
 
+# region Late catalogue
+
+#: Catalogue route delayed by ``--songs-delay``.
+SONGS_PATH = "/api/songs"
+
+
+def install_songs_delay(seconds: float) -> None:
+    """Answer catalogue reads only after a delay, so UI opened at launch sees the catalogue arrive later.
+
+    Args:
+        seconds: Delay before each ``/api/songs`` response.
+    """
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if urlsplit(self.path).path == SONGS_PATH:
+            time.sleep(seconds)
+        original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+def take_songs_delay(argv: list[str]) -> tuple[float | None, list[str]]:
+    """Split ``--songs-delay <seconds>`` (or ``=<seconds>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The delay in seconds (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing, non-numeric or negative delay.
+    """
+    delay, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--songs-delay":
+            value = next(items, None)
+        elif arg.startswith("--songs-delay="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        try:
+            delay = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            delay = -1.0
+        if delay < 0:
+            raise SystemExit("--songs-delay needs a non-negative number of seconds")
+    return delay, rest
+
+# endregion
+
 
 def name_detail_bodies(names: dict[str, str]) -> None:
     """Make each rival detail body carry the requested rival's demo name.
@@ -148,9 +205,12 @@ def name_detail_bodies(names: dict[str, str]) -> None:
 def main() -> None:
     """Anonymize the Rivals fixtures, then hand over to the mock service's own CLI."""
     scenario, rest = take_band_rankings(sys.argv[1:])
+    songs_delay, rest = take_songs_delay(rest)
     sys.argv[1:] = rest
     if scenario:
         install_band_rankings(scenario)
+    if songs_delay:
+        install_songs_delay(songs_delay)
     names: dict[str, str] = {}
     for payload in (
         mock_service.RIVALS_LIST_DEMO,

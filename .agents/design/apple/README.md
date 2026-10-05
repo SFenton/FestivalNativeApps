@@ -9,4 +9,5 @@
 | [iphone.md](iphone.md) | iPhone on iOS 26+ (Liquid Glass) and iOS 17–25 (classic) — owned by the Copilot iPhone sessions |
 | [ipados.md](ipados.md) | iPad split view, sidebar, window sizes |
 | [duo.md](duo.md) | iPhone Duo outer/inner layouts and poses |
+| [split-view.md](split-view.md) | **List/detail and flyout rules (operator redesign 2026-10-04):** on-demand split at the exact midpoint/fold, page classification, overlay flyout on iPad/Duo |
 | [macos.md](macos.md) | Mac sidebar/split layouts — **current phase (Opus)** |

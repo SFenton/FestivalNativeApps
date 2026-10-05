@@ -287,6 +287,11 @@ public enum PlayerStatLinks {
 public enum StatGridColumns {
     /// Narrowest tile before another column is dropped.
     public static let minimumTileWidth: Double = 140
+    /// Narrowest tile at accessibility text sizes: fewer, wider columns where three or four
+    /// would fit (HIG Typography: "Reduce the number of text columns as size increases").
+    /// At AX5 a 3-column iPad grid truncated "2 (66.6%)" even on two lines; iPhone keeps
+    /// its two columns (``minimumColumns``).
+    public static let accessibilityMinimumTileWidth: Double = 224
     /// Space between tiles, both axes.
     public static let spacing: Double = 8
     /// iPhone portrait always gets two columns, even at large Dynamic Type.

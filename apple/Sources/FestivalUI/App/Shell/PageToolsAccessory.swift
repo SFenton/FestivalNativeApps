@@ -383,6 +383,21 @@ extension View {
 /// Implementation of ``SwiftUICore/View/festivalPageToolsAccessory(isEnabled:)``.
 struct PageToolsAccessoryHost: ViewModifier {
     let isEnabled: Bool
+
+    /// Whether the window hosts the page-tools accessory: a horizontal tab bar in a
+    /// compact-width window (iPhone, compact iPad windows).
+    ///
+    /// The iPhone Duo inner display in portrait also has a horizontal tab bar, but at
+    /// regular width with a list/detail split: there the accessory showed only
+    /// Notifications while every page (Song Detail's Item Shop and Paths included)
+    /// handed its tools to it, so they vanished. Regular-width windows keep their
+    /// navigation-bar items, as the vertical bar and the iPad sidebar do.
+    ///
+    /// - Parameter layout: The window's published layout.
+    /// - Returns: True for a compact-width horizontal tab bar.
+    nonisolated static func hostsAccessory(in layout: DeviceLayout) -> Bool {
+        layout.sectionChrome == .tabBar && layout.windowWidthClass == .compact
+    }
     @State private var registry = PageToolsRegistry()
     @Environment(\.deviceLayout) private var layout
     @Environment(\.festivalSession) private var session
@@ -391,7 +406,7 @@ struct PageToolsAccessoryHost: ViewModifier {
         #if os(iOS)
         if #available(iOS 26.1, *) {
             // One branch for both chromes, so a chrome change never rebuilds the tabs.
-            let horizontal = layout.sectionChrome == .tabBar
+            let horizontal = Self.hostsAccessory(in: layout)
             let hasContent = registry.hasContent(hasPlayer: session?.selectedPlayer != nil)
             content
                 // The tab view's width does not change while the accessory morphs.

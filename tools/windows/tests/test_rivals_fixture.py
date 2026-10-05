@@ -46,6 +46,30 @@ class BandRankingsScenarioTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 f.take_band_rankings(bad)
 
+    def test_take_songs_delay(self):
+        self.assertEqual(f.take_songs_delay(["--port", "0"]), (None, ["--port", "0"]))
+        self.assertEqual(f.take_songs_delay(["--songs-delay", "12", "--port", "0"]), (12.0, ["--port", "0"]))
+        self.assertEqual(f.take_songs_delay(["--songs-delay=0.5"]), (0.5, []))
+        for bad in (["--songs-delay"], ["--songs-delay", "soon"], ["--songs-delay=-1"]):
+            with self.assertRaises(SystemExit):
+                f.take_songs_delay(bad)
+
+    def test_songs_delay_holds_only_the_catalogue(self):
+        original = ms.FixtureHandler.do_GET
+        served, slept = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        real_sleep = f.time.sleep
+        f.time.sleep = slept.append
+        try:
+            f.install_songs_delay(3)
+            for path in ("/api/songs", "/api/songs?x=1", "/api/shop"):
+                ms.FixtureHandler.do_GET(type("H", (), {"path": path})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+            f.time.sleep = real_sleep
+        self.assertEqual(served, ["/api/songs", "/api/songs?x=1", "/api/shop"])
+        self.assertEqual(slept, [3, 3])
+
 
 ms = f.mock_service
 

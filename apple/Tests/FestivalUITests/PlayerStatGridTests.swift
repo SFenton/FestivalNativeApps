@@ -23,6 +23,17 @@ import FestivalDesign
     #expect(layout.metrics(for: nil).columns == 2)
 }
 
+/// Accessibility sizes drop to fewer, wider columns where three or four would fit; two
+/// columns stay the floor.
+@Test func statTileGridUsesWiderTilesAtAccessibilitySizes() {
+    let regular = StatTileGridLayout()
+    let large = StatTileGridLayout(minimumTileWidth: StatGridColumns.accessibilityMinimumTileWidth)
+    #expect(regular.metrics(for: 480).columns == 3)
+    #expect(large.metrics(for: 480).columns == 2)
+    #expect(large.metrics(for: 343).columns == 2)
+    #expect(large.metrics(for: 720).columns == 3)
+}
+
 @Test func statTileHintsNameTheirDestination() {
     #expect(PlayerStatTileView.hint(for: .songs(.instrument(.hasScores, .lead))) == "Shows these songs in Songs")
     #expect(PlayerStatTileView.hint(for: .songDetail(songId: "pulse", instrument: .lead)) == "Opens the song")
@@ -30,6 +41,16 @@ import FestivalDesign
 }
 
 // MARK: - Rank history sizing
+
+/// Tile values wrap to a second line only at accessibility text sizes (AX5 truncated
+/// "2 (66.6%)" in an iPad tile).
+@MainActor
+@Test func statTileValuesWrapOnlyAtAccessibilitySizes() {
+    #expect(PlayerStatTileView.valueLineLimit(.large) == 1)
+    #expect(PlayerStatTileView.valueLineLimit(.xxxLarge) == 1)
+    #expect(PlayerStatTileView.valueLineLimit(.accessibility1) == 2)
+    #expect(PlayerStatTileView.valueLineLimit(.accessibility5) == 2)
+}
 
 @Test func rankHistoryChartWidthComesFromTheCardWidth() {
     #expect(RankHistoryCharts.chartWidth(forCardWidth: 0) == 0)

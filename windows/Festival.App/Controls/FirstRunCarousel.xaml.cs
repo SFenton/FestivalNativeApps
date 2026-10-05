@@ -33,7 +33,13 @@ public sealed partial class FirstRunCarousel : UserControl
             HideFlipViewArrows();
             FitSlidesHeight();
             // Containers realize after load; activate the first slide's demo once they exist.
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateActiveDemo);
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                UpdateActiveDemo();
+                // The pips already use system colour pairs under a contrast theme (issue #232); WinUI's automatic text
+                // backplate otherwise boxes the selected glyph inside its Highlight fill (issue #239).
+                DialogChrome.WithoutBackplate(Pips);
+            });
         };
         // WinUI can raise a late Unloaded while the content is still in the live tree; keep slide announcements then.
         Unloaded += (_, _) =>

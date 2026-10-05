@@ -2,7 +2,8 @@
 """Windows accessibility matrix: Axe.Windows scans, Tab walks and screenshots per page, size and mode.
 
 Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, optional ``env``
-launch hooks such as ``FST_DEBUG_CONTROL_LAB``, optional ``fixture`` flags such as ``["--band-rankings", "empty"]``,
+launch hooks such as ``FST_DEBUG_CONTROL_LAB``, optional ``args`` app flags such as ``["--auto-scroll-span", "500"]``,
+optional ``fixture`` flags such as ``["--band-rankings", "empty"]``,
 readiness ``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
 shared ``desktop`` lock once (≤300 s), optionally applies a system accessibility mode, launches this
 worktree's build against the anonymized loopback fixture (``rivals_fixture.py``) with isolated settings
@@ -142,7 +143,8 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
         page: Page definition: ``ready`` steps, optional ``setup`` (before ready), ``after_ready``
             (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``. ``{stem}`` in any step is
             replaced by the output path stem for this page/size/mode, so extra shots such as
-            ``shot:{stem}-footer.png`` stay distinct per run.
+            ``shot:{stem}-footer.png`` stay distinct per run; ``{repo}`` becomes the repository root (e.g. app
+            assets to pick in a file dialog).
         size: Window preset.
         out: Output directory.
         suffix: File-name suffix for the mode (``""`` for normal).
@@ -162,7 +164,7 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     if count:
         steps.append(f"tabwalk:{count}")
     steps.extend(page.get("teardown", []))
-    return [s.replace("{stem}", str(out / stem)) for s in steps]
+    return [s.replace("{stem}", str(out / stem)).replace("{repo}", str(REPO_ROOT)) for s in steps]
 
 
 def launch_args(port: int | None, page: dict, settings: Path) -> list[str]:
@@ -170,14 +172,14 @@ def launch_args(port: int | None, page: dict, settings: Path) -> list[str]:
 
     Args:
         port: Loopback fixture port, or ``None`` for the app's default keyless public origin (``--live``).
-        page: Page definition (``first_run``).
+        page: Page definition (``first_run``; optional ``args``, extra app flags such as ``--auto-scroll-span``).
         settings: Isolated settings file.
 
     Returns:
         Command-line arguments.
     """
     base = [] if port is None else ["--base-url", f"http://127.0.0.1:{port}/"]
-    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}"]
+    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}", *page.get("args", [])]
 
 
 def live_pages(pages: list[dict]) -> list[dict]:

@@ -273,13 +273,37 @@ private struct FirstRunPageTabStyle: ViewModifier {
 private struct FirstRunSlideView: View {
     let page: FirstRunPageKey
     let slide: FirstRunSlide
+    @Environment(\.deviceLayout) private var layout
 
     var body: some View {
-        VStack(spacing: 20) {
+        Group {
+            if layout.heightClass == .compact {
+                // Compact height (iPhone Duo outer display in landscape, a ~200 pt page):
+                // the full layout ran under the dots and Next, hiding the title and text.
+                // A shorter demo in a scroll view keeps every line reachable.
+                ScrollView { content(compact: true) }
+                    .scrollBounceBehavior(.basedOnSize)
+            } else {
+                content(compact: false)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(slide.title). \(description)")
+    }
+
+    /// The demo, title and description.
+    ///
+    /// - Parameter compact: Compact height: a fixed 120 pt demo and tighter spacing.
+    /// - Returns: The slide's content.
+    private func content(compact: Bool) -> some View {
+        VStack(spacing: compact ? 12 : 20) {
             // Demos vary (a 5-row leaderboard is ~260 pt); give them room below the
             // toolbar's Close and clip so nothing ever draws over the sheet chrome.
             FirstRunDemoContent(page: page, slide: slide)
-                .frame(maxWidth: .infinity, minHeight: 170, idealHeight: 260, maxHeight: 320)
+                .frame(
+                    maxWidth: .infinity, minHeight: compact ? 120 : 170,
+                    idealHeight: compact ? 120 : 260, maxHeight: compact ? 120 : 320
+                )
                 .clipped()
                 .padding(.horizontal, 20)
             VStack(spacing: 8) {
@@ -296,10 +320,8 @@ private struct FirstRunSlideView: View {
             .padding(.horizontal, 28)
             Spacer(minLength: 0)
         }
-        .padding(.top, 36)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(slide.title). \(description)")
+        .padding(.top, compact ? 8 : 36)
+        .frame(maxWidth: .infinity, maxHeight: compact ? nil : .infinity, alignment: .top)
     }
 
     /// The slide's description in this platform's words (``FirstRunCopy``).

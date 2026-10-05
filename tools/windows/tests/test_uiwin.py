@@ -19,6 +19,9 @@ class SelectorAndKeyTests(unittest.TestCase):
         self.assertEqual(u.parse_selector("id=fst.songs.list"), {"kind": "id", "value": "fst.songs.list"})
         self.assertEqual(u.parse_selector("NAME=Refresh songs"), {"kind": "name", "value": "Refresh songs"})
         self.assertEqual(u.parse_selector(" 12, 34 "), {"kind": "xy", "x": 12, "y": 34})
+        self.assertEqual(u.parse_selector("id=1&class=Button"), {"kind": "id", "value": "1", "class": "Button"})
+        self.assertEqual(u.parse_selector("name=A&B&class=Edit"), {"kind": "name", "value": "A&B", "class": "Edit"})
+        self.assertEqual(u.parse_selector("raw=a&class=b"), {"kind": "raw", "value": "a&class=b"})
         for bad in ("fst.x", "id=", "role=button"):
             with self.assertRaises(ValueError):
                 u.parse_selector(bad)
@@ -252,6 +255,9 @@ class TaskAndParserTests(unittest.TestCase):
                                     "--extra", "K=V", "--arg=--flag"])
         self.assertEqual((launch.preset, launch.extra, launch.arg), ("compact", ["K=V"], ["--flag"]))
         self.assertIs(launch.func, u.cmd_launch)
+        self.assertEqual((launch.steps, launch.steps_file), (None, None))
+        held = parser.parse_args(["launch", "app.exe", "--steps", "wait:1; tree:t.txt"])
+        self.assertEqual(held.steps, "wait:1; tree:t.txt")
         shot = parser.parse_args(["shot", "a.png", "--pid", "5", "--mode", "screen"])
         self.assertEqual((shot.pid, shot.mode, shot.hold), (5, "screen", 300.0))
         perf = parser.parse_args(["perf-sample", "--process", "Festival.App", "--presentmon"])

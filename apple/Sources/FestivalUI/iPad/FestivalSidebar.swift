@@ -59,6 +59,13 @@ struct FestivalSidebar: View {
                     .tag(RootTab.section(section))
                     .accessibilityIdentifier("fst.nav.\(section.rawValue)")
             }
+            if footerScrollsWithRows {
+                Section {
+                    footer
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+            }
         }
         .listStyle(.sidebar)
         // On the list only: applied after the footer inset it would rename every
@@ -70,7 +77,9 @@ struct FestivalSidebar: View {
         .onDisappear { onExtentChange(0) }
         // No title: HIG Toolbars, "Never use the app name"; the rows are the context.
         .navigationTitle("")
-        .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !footerScrollsWithRows { footer }
+        }
         .confirmationDialog(
             "Deselect \(session.selectedPlayer?.displayName ?? "Profile")?",
             isPresented: $deselectPending, titleVisibility: .visible
@@ -101,7 +110,14 @@ struct FestivalSidebar: View {
 
     // MARK: Footer
 
-    /// Selected player (or Select Profile), then Settings, pinned below the rows.
+    /// At accessibility text sizes the footer is the list's last section, scrolling with
+    /// the rows. Pinned there, at AX5 in landscape it took half the sidebar and the rows
+    /// it inset still drew through its clear background, overlapping the profile card and
+    /// Settings (HIG Typography: "Consider adjusting your layout at large font sizes").
+    private var footerScrollsWithRows: Bool { dynamicTypeSize.isAccessibilitySize }
+
+    /// Selected player (or Select Profile), then Settings, pinned below the rows (or last
+    /// in the list at accessibility sizes: ``footerScrollsWithRows``).
     private var footer: some View {
         VStack(spacing: 4) {
             profileRow

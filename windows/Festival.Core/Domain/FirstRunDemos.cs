@@ -710,6 +710,21 @@ public static class FirstRunDemos
         return pool;
     }
 
+    /// <summary>UIA ItemStatus of a demo showing catalogue songs (issue #240).</summary>
+    public const string CatalogueStatus = "catalogue";
+
+    /// <summary>UIA ItemStatus of a demo still showing redacted placeholder rows.</summary>
+    public const string PlaceholderStatus = "placeholder";
+
+    /// <summary>
+    /// The decorative demo's UIA ItemStatus (read by UI tests only; the demo is Raw, so Narrator never reads it):
+    /// whether its rows come from the catalogue or are still placeholders.
+    /// </summary>
+    /// <param name="pool">Pool from <see cref="SongPool"/>.</param>
+    /// <returns><see cref="CatalogueStatus"/> when the first row is a real song, else <see cref="PlaceholderStatus"/>.</returns>
+    public static string DataStatus(IReadOnlyList<FirstRunDemoSong> pool) =>
+        pool.Count > 0 && !pool[0].IsPlaceholder ? CatalogueStatus : PlaceholderStatus;
+
     /// <summary>
     /// Shop song IDs Shop demos may prefer: the already-loaded feed's order, only when it shares the catalogue's observed
     /// publication and the Shop isn't hidden. Demos never fetch the Shop.
