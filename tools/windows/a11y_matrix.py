@@ -2,7 +2,8 @@
 """Windows accessibility matrix: Axe.Windows scans, Tab walks and screenshots per page, size and mode.
 
 Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, optional ``env``
-launch hooks such as ``FST_DEBUG_CONTROL_LAB``, optional ``fixture`` flags such as ``["--band-rankings", "empty"]``,
+launch hooks such as ``FST_DEBUG_CONTROL_LAB``, optional ``args`` app flags such as ``["--auto-scroll-span", "500"]``,
+optional ``fixture`` flags such as ``["--band-rankings", "empty"]``,
 readiness ``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
 shared ``desktop`` lock once (≤300 s), optionally applies a system accessibility mode, launches this
 worktree's build against the anonymized loopback fixture (``rivals_fixture.py``) with isolated settings
@@ -170,14 +171,14 @@ def launch_args(port: int | None, page: dict, settings: Path) -> list[str]:
 
     Args:
         port: Loopback fixture port, or ``None`` for the app's default keyless public origin (``--live``).
-        page: Page definition (``first_run``).
+        page: Page definition (``first_run``; optional ``args``, extra app flags such as ``--auto-scroll-span``).
         settings: Isolated settings file.
 
     Returns:
         Command-line arguments.
     """
     base = [] if port is None else ["--base-url", f"http://127.0.0.1:{port}/"]
-    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}"]
+    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}", *page.get("args", [])]
 
 
 def live_pages(pages: list[dict]) -> list[dict]:

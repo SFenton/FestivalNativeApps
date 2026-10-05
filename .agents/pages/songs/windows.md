@@ -55,7 +55,8 @@ From a **1100 epx page** (e.g. a 1440 epx window with the expanded pane) the pag
 `python tools/windows/songs_journey.py [--sizes compact,medium,wide] [--shots DIR] [--only NAME[,NAME…]]` (fixture `tools/mock_service.py`, throwaway `FST_SETTINGS_PATH`): selected-player rows → Item Shop sort → Leaving Tomorrow filter → reset → Song Detail; Item Shop grid/list/compact → Song Detail; Paths image → text → not generated; Karaoke warning dismissal; no player; hidden Shop. Lock-tolerant state scenarios (UIA patterns only, so they also run on a locked console): `songs-search` (match → No Results → clear), `songs-sort` (Artist ↓ → Year sections, Jump hidden → reset), `songs-jump` (zoomed-out letter grid with the current letter focused → Esc from Jump and grid → letter → rows and heading), `songs-filter-empty` (decade filter → No Results → Clear Filters), `songs-syncing` (202 notice + "Scores syncing" rows), `songs-denied` (403 notice + "Scores unavailable"), `songs-filter-invalid` (unsupported saved decade → readable pause + reset) and `songs-error` (unreachable origin → retryable service status). The `songs-sort-*` scenarios cover every reachable Sort state, including a `{relaunch}` step and Shop feeds behind a loopback proxy ([songs-sort/windows.md](../../controls/songs-sort/windows.md#states-and-reachability)). Rows expose `fst.songs.row.<songId>`. IDs must sit on UIA-visible elements (text, buttons), not `Border`/`StackPanel`/`ItemsRepeater` (`fst.songs.empty`, `fst.songs.sort.form` and `fst.songs.notices` have no UIA peer: wait on `name=No Results`, `fst.songs.sort.mode` or `class=Microsoft.UI.Xaml.Controls.InfoBar`).
 
 Instrument status chips have their own fixture and journey pages (`tools/windows/instrument_status_fixture.py`, `tools/windows/journeys/instrument-status.json`, run through `a11y_matrix.py`): every chip state, the resize breakpoint (`assertbelow`/`assertlevel`) and chip IDs `fst.songs.instrument-status.<songId>.<ServiceId>` ([instrument status chips](../../controls/songs-instrument-status-chips/windows.md)).
-## Validation (issue #194, 2026-10-03)
+
+Scroll round trips near the top (issue #245) live in `tools/windows/journeys/songs-scroll.json` (UIA `scrollto:`, wheel, resize-while-scrolled and auto-scroll ping-pong pages; fixture and `--live` variants), run through `a11y_matrix.py --pages` ([testing](../../testing/windows.md#accessibility)).## Validation (issue #194, 2026-10-03)
 
 Checked against the live public service (keyless default origin, public player SFentonX, throwaway settings/data dirs) on a 3840×2160 display whose native scale is 300%, so compact/medium/wide presets give 500/900/1280 epx windows; the 1440 epx two-column layout was checked at 100% and 150% display scale. The console was locked: UIA patterns, posted keys and PrintWindow captures were used, not real input.
 
@@ -74,6 +75,25 @@ Checked against the live public service (keyless default origin, public player S
 | UIA states | All `songs_journey.py` state scenarios above pass at compact, medium and wide (fixture) |
 
 Deliberate deviations from the `winui-design` skill: Dark-only (`RequestedTheme="Dark"`, web parity over album-art backgrounds; contrast themes still map to system colours); the loading state is an accessible-named `ProgressRing` without visible text (repo-wide convention, brief load); Jump uses `SemanticZoom` instead of the web scrubber; the filter's full-width red Reset and the Shop pulse ring follow the web. The `InfoBar` notices have no Title, so their UIA name is empty; Narrator reads the message child and the open notification, and Axe reports no error.
+
+## Validation (issue #245, 2026-10-04)
+
+Re-check of #45 (iOS #5: crash/hang/header oscillation when scrolling down and back up near the top). Not reproducible; no app code changed. Why it cannot oscillate here: the sticky `StickyHeader` sits in a fixed Auto row above the `ListView` (built-in sticky group headers off); its visibility depends only on the section label (`SongSectionHeader.Push(...).Current >= 0`), never on the scroll offset, and the push offset and edge fade are compositor expressions, so scrolling never changes layout. The #45 stale-width finding (rows kept the inline layout after shrinking across 760 epx) is fixed: `OnListSizeChanged` → `UpdateTrailingPlacement` reads the list's own new width.
+
+Live public service (keyless default origin, no player), console locked (UIA `scrollto:` patterns and PrintWindow, no real wheel input); `tools/windows/journeys/songs-scroll.json` through `a11y_matrix.py --live`:
+
+| Configuration | Result |
+|---|---|
+| Compact 500, medium 900, wide 1280, maximized, snapped (normal) | Pass: deep → 2/0/1/0/3/0/100/0 % round trip, `#` header and first rows back; Axe 0; Tab walk 8–9 stops, none outside the app |
+| Resize while scrolled (medium → compact → wide → maximized → snapped → medium) | Pass: `#` restored at each width, Axe 0 |
+| Light / Dark app mode | Pass, identical (Dark-only by design); Axe 0 at compact and wide |
+| High contrast Desert, Night sky | Pass: system colours on header and rows; Axe 0 |
+| Text 200% | Pass: compact rows grow, nothing clipped; Axe 0 |
+| Display scale 100% / 150% | Pass; Axe 0 at compact and wide |
+| Auto-scroll ping-pong near the top (`--auto-scroll-speed 1500 --auto-scroll-span 1500`, 12 s) | Pass at all five sizes (live and fixture) and in `hc-desert+text-200` and `scale-150`: process alive, Sort flyout opens/closes mid-scroll, header and search still present |
+| Keyboard | Pass: `kb-songs-order`, `kb-songs-sort-esc`, `kb-section-accelerators` at compact/medium/wide |
+
+Axe on a list scanned *during* the ping-pong reports transient `ClickablePointOnScreen` / `IsControlElementPropertyExists` / `ControlShouldSupportSetInfoXAML` findings on containers being recycled (name `Festival.Core.ViewModels.SongRowItem` before binding); settled scans of the same rows report 0, so ping-pong pages run without `--scan`. Wheel pages (`songs-scroll`, `songs-scroll-live`) need an unlocked console (`SendInput` is denied while LogonUI owns the input desktop); the #45 run covered wheel input. `winui-design`: the page already follows "use the platform collection + virtualisation" (`winapp find-ui` → Gallery grouped `ListView` with `AreStickyGroupHeadersEnabled="False"`).
 
 ## Gotchas
 
