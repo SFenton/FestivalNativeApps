@@ -125,6 +125,14 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_foreground(self):
+        # Issue #258: deactivate the app without covering it, then reactivate it.
+        self.assertEqual(u.parse_step("foreground:off"), {"verb": "foreground", "arg": "off"})
+        self.assertEqual(u.parse_step("foreground: ON")["arg"], "on")
+        for bad in ("foreground:", "foreground:maybe", "foreground:id=x"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertgap(self):
         step = u.parse_step("assertgap:id=fst.song-leaderboard.row.p-25|id=fst.song-leaderboard.page-first|4")
         self.assertEqual(step["verb"], "assertgap")

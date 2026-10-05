@@ -95,7 +95,7 @@ class ContractTests(unittest.TestCase):
         self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|~^placeholder( |$)", steps)
         self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue( |$)@{j.SONGS_DELAY + 20}", steps)
         self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|~^catalogue( |$)@5")
-        rotating = {"rotation", "rotation-reduced"}
+        rotating = {"rotation", "rotation-reduced", "rotation-background"}
         self.assertTrue(all(s.fixture == ("--large-catalogue",) for s in j.SCENARIOS if s.name in rotating))
         self.assertTrue(all(s.fixture == () for s in j.SCENARIOS if s is not late and s.name not in rotating))
 
@@ -120,6 +120,26 @@ class ContractTests(unittest.TestCase):
         self.assertNotRegex(status, j.SWAPPED_INSTANT)
         # Rotation steps never contain the step separator.
         self.assertNotIn(";", steps)
+
+    def test_rotation_background_holds_while_inactive_and_resumes(self):
+        # Issue #258: a visible but deactivated window holds the swap count, and reactivation resumes it.
+        scenario = next(s for s in j.SCENARIOS if s.name == "rotation-background")
+        steps = scenario.phases[0].steps
+        off, on = steps.index("foreground:off"), steps.index("foreground:on")
+        self.assertLess(off, on)
+        self.assertEqual(steps[off - 1], j._rotation("songs-song-list", j.FIRST_TICK_FADE, j.SWAP_WAIT))
+        held = j._rotation("songs-song-list", j.FIRST_TICK_BACKGROUND)
+        self.assertEqual(steps[off + 1:on], [held, "wait:12", held])
+        self.assertEqual(steps[on + 1], j._rotation("songs-song-list", j.RESUMED_FADE, j.SWAP_WAIT))
+        self.assertRegex("catalogue rotation=background swaps=1 swap=fade", j.FIRST_TICK_BACKGROUND)
+        self.assertNotRegex("catalogue rotation=running swaps=1 swap=fade", j.FIRST_TICK_BACKGROUND)
+        self.assertNotRegex("catalogue rotation=background swaps=3 swap=fade", j.FIRST_TICK_BACKGROUND)
+        for resumed in ("catalogue rotation=running swaps=2 swap=fade", "catalogue rotation=running swaps=12 swap=fade"):
+            self.assertRegex(resumed, j.RESUMED_FADE)
+        self.assertNotRegex("catalogue rotation=running swaps=1 swap=fade", j.RESUMED_FADE)
+        self.assertNotRegex("catalogue rotation=background swaps=2 swap=fade", j.RESUMED_FADE)
+        for step in steps:
+            j.uiwin.parse_step(step)
 
     def test_states_covered(self):
         product = json.loads((REPO / "contracts" / "product.json").read_text(encoding="utf-8"))

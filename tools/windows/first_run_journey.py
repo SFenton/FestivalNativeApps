@@ -18,6 +18,9 @@ Every reachable ``first-run`` contract state (``contracts/product.json``) runs a
 * ``rotation`` (issue #258, validating #58): the visible rotating demo swaps rows with the web fade, a static neighbour
   holds still, a paged-away demo pauses, and a minimized window holds the visible demo still until it is restored.
 * ``rotation-reduced``: with Reduce Motion the visible demo keeps rotating but swaps instantly.
+* ``rotation-background``: a window that stays visible and uncovered but loses activation to the taskbar holds its
+  demo still, then resumes once reactivated (rotation runs only while the app is in the foreground). Needs an unlocked
+  console, like ``keyboard``.
 
 Each phase is one ``drive`` call (a launching phase runs inside the ``launch`` call's desktop-lock hold) and the UIA
 tree dumped after it is checked with regular expressions (pips are named "Page N", so the slide count is asserted
@@ -156,6 +159,10 @@ SWAPPED_FADE = r"^catalogue rotation=running swaps=[1-9]\d* swap=fade$"
 SWAPPED_INSTANT = r"^catalogue rotation=running swaps=[1-9]\d* swap=instant$"
 #: Exactly one rotation tick so far (three rows swap one at a time).
 FIRST_TICK_FADE = r"^catalogue rotation=running swaps=1 swap=fade$"
+#: The first tick's single swap, held while the visible window is not the foreground window.
+FIRST_TICK_BACKGROUND = r"^catalogue rotation=background swaps=1 swap=fade$"
+#: Rotation resumed after a hold at one swap: at least a second swap, with the fade.
+RESUMED_FADE = r"^catalogue rotation=running swaps=([2-9]|[1-9]\d+) swap=fade$"
 SWAP_WAIT = 15
 
 
@@ -352,6 +359,20 @@ SCENARIOS = [
         settings={"reduceMotion": True},
         fixture=("--large-catalogue",),
         phases=[Phase([OPEN, _rotation("songs-song-list", SWAPPED_INSTANT, SWAP_WAIT)], expect=[_slide("Song List")])],
+    ),
+    Scenario(
+        name="rotation-background",
+        state="demo rotation paused while the visible window is inactive (issue #258: foreground only)",
+        fixture=("--large-catalogue",),
+        phases=[
+            # Right after the first tick the taskbar takes activation: the window stays visible and uncovered, yet the
+            # demo holds its one swap for 12 s (two or more ticks if it kept running), then resumes once reactivated.
+            Phase([OPEN, _rotation("songs-song-list", FIRST_TICK_FADE, SWAP_WAIT), "foreground:off",
+                   _rotation("songs-song-list", FIRST_TICK_BACKGROUND), "wait:12",
+                   _rotation("songs-song-list", FIRST_TICK_BACKGROUND), "foreground:on",
+                   _rotation("songs-song-list", RESUMED_FADE, SWAP_WAIT)],
+                  expect=[_slide("Song List")]),
+        ],
     ),
 ]
 
