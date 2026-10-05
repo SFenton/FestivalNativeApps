@@ -87,6 +87,25 @@ Deliberate deviations: the menu button sits in the scrolling page header (web pa
 
 **Bands after a virtualizing repeater (#246).** Bands is laid out *below* the instruments `ItemsRepeater`, so its position depends on the repeater's estimated card heights. At 200% text these swing widely: the same profile was estimated at 11,875, 5,067 and 2,812 epx before realizing at 4,651. The #46 re-aim loop then failed in two ways. It either cycled with period 4 (1988 → 1286 → 3387 → 817 …) and never converged, even with 12 corrections, or it settled at the end clamp of an underestimated extent; when the cards realized, the view sat on Pro Lead. `QuickLinksBinder.LeadIn` now lets a page name an element to bring into view first. The profile returns the last instrument card (`GetOrCreateElement(count - 1)`), whose `StartBringIntoView` realizes it at an exact position, and `CheckLanding` aims at Bands from there. Traced runs now land on the first check (offset = scrollable end, extent 4,651).
 
+## Order validation (issue #250, 2026-10-05)
+
+Issue #50 re-checked iOS #11 (nested sections listed bottom-up) on Windows. It found every menu already in page order but committed no test, and #250 re-validated it. Result: **not reproduced, no app change**. Two order guards were added:
+
+- `QuickLinksOrderMarkupTests` (Core) reads each page's `QuickLinkAnchor.Id` markers in XAML document order. Bound anchors inside a repeater template count as `template:<x:DataType>`. The tests require the declared order to match for Settings (Debug and Release), Band Detail, Song Detail, Player Profile, Leaderboards, Rivals and Rival Detail. Song Detail runs through the real view model with and without a player. Score History is listed exactly when `History.IsVisible`, the same binding that shows the card.
+- `tools/windows/journeys/quick-links-order.json` (`a11y_matrix.py --scan`) opens each real menu and asserts each item's centre is below the previous item's (`assertbelow`). It checks for the anonymous Song Detail that Score History is absent. At wide sizes it does the same over the pane rows. On Song Detail and Compete it toggles every item in turn (UIA Toggle, locked-console safe) and requires the button to read "current section X".
+
+| Configuration | Result |
+|---|---|
+| Menu: compact, medium, snap-left (Song Detail and Rival Detail compact only: web mobile-only) | Pass: every page's menu is in page order; Song Detail and Compete jump-walks land on each section |
+| Pane: wide and maximized at display 150% (Settings, Compete, Leaderboards, Profile, Band) | Pass: rows in page order |
+| Pane: wide and maximized at display 100% | Pass |
+| High contrast: Desert (compact menus), Night sky + display 150% (wide panes) | Pass |
+| Text 200%, compact menus | Pass. Score History sits below the fold, so the journey `reveal`s `fst.history` (`waitfor` needs it on screen) |
+| Light system theme (Song Detail, Compete) | Pass; the app stays dark by design |
+| Keyboard | `kb-quick-links-menu` (compact, medium) and `kb-quick-links-pane` (wide, display 150%) pass; Down/Enter in the menu follows the visual order |
+| Live service (SFentonX) | Song Detail menu and wide Compete pane match the page order. Live Compete has no Common section, so the first entry is Lead Rivals |
+| Axe | 0, except WinUI's `PopupHost` after a menu was opened (open item 8) |
+
 ## Open
 
 The Axe popup-host finding with the menu open (open item 8) is in WinUI, not app markup.
