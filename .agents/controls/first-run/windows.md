@@ -36,6 +36,24 @@ Debug build, Rivals fixture (`a11y_matrix.py --only first-run`, forced Songs car
 
 Reachable states run in `tools/windows/first_run_journey.py`; all 7 scenarios pass: `hidden-all-seen`, `new-slides-only` (unviewed slides, version bump), `gated` (anonymous 6, player 9, Shop hidden 3, one-slide Leaderboards), `waiting-not-ready`, `replay-all`, `dismissed` (Close, Esc, Done). **`waiting-not-ready` failed before** the restore re-queue above.
 
+## Validation (issue #240, 2026-10-04)
+
+Rechecked #24's title on the **live public service** (`a11y_matrix.py --live --only first-run --scan`, forced Songs guide, 3840×2160 at 300% host). The title is the standard `ContentDialog.Title`. WinUI's implicit `DefaultContentDialogStyle` styles code-built dialogs like the Gallery sample (`winapp find-ui gallery-contentdialog-1`), so the title has no custom styling:
+
+| Configuration | Result |
+|---|---|
+| compact, medium, wide, maximized, snap-left, snap-right | Pass: title "Songs" in the dialog header above the slide; pips and Next/Back/Close clear of it; Axe 0; 4 tab stops, none outside the dialog |
+| Light, Dark theme | Pass (dialog forced dark, by design) |
+| HC Desert, HC Night Sky | Pass: title in system text colour; Axe 0 (one compact capture caught a mid-switch frame; the re-run rendered Desert colours) |
+| text 200% (compact to maximized), 200% + 150% display | Pass: title one line at all sizes, slide text not clipped. **Failed after the demo fix below:** real song rows scaled their text and overflowed the fixed 210 epx illustration (first row clipped at the top, last at the bottom); placeholders had hidden this. Fixed: demo TextBlocks/FontIcons set `IsTextScaleFactorEnabled = false`. The demo is a decorative, Narrator-hidden picture of the app, so it keeps a fixed scale while the title and description still scale. |
+| display 100%, 150% | Pass |
+| keyboard | Pass: focus starts on Next and stays in the dialog; runner `keyboard` scenario |
+| Narrator / UIA | Dialog window named after the page for every page's Settings replay (`titles` scenario: Songs … Item Shop, each with Next, disabled Back, Close and pips) |
+
+**Defect found and fixed: guide demos stayed blank on a first launch.** A guide that opens before the catalogue arrives (the normal first launch) kept its redacted placeholder rows for good, in every configuration above. Opening the dialog re-realizes the FlipView's first slides, and WinUI raises their `Unloaded` *after* the new `Loaded` while `IsLoaded` is still true. `FirstRunDemo` treated that as removal: it unsubscribed from `Session.Catalog` and motion changes and cancelled art loads, so the visible demo never rebuilt. The fix ignores `Unloaded` while `IsLoaded`, makes the `Loaded` subscriptions idempotent, and adds the same guard to `FirstRunCarousel`'s slide-change announcement handler. The demo now has a raw-view peer exposing `fst.first-run.demo.<slideId>` with ItemStatus `placeholder`/`catalogue` (`FirstRunDemos.DataStatus`) for tests. Narrator still skips it. The new `late-catalogue` journey delays `/api/songs` (`rivals_fixture.py --songs-delay`). **It failed before the fix** (still `placeholder` after the catalogue arrived) and passes after. Journey launching phases now run inside the `uiwin launch --steps` lock hold, so timing-sensitive first checks don't queue behind other lanes.
+
+After the fix: all 9 `first_run_journey.py` scenarios pass (lifecycle, gated, waiting-not-ready, replay-all, `titles`, keyboard, late-catalogue); xUnit 1778 passed, coverage 98.93% logic / 98.00% UX; the live matrix re-ran Pass with Axe 0 for every size, HC Desert, and text 200% (compact, medium, maximized).
+
 ## Debug
 
 `FST_DEBUG_FIRST_RUN` (Debug/automation env) or `--first-run off|on|force`: Debug and [automation](../../platforms/windows.md) launches default **off** (automation is never blocked), Release default normal. `force` shows every gate-passing slide on each evaluation. Settings replay works in every mode.
@@ -43,4 +61,4 @@ Reachable states run in `tools/windows/first_run_journey.py`; all 7 scenarios pa
 ## Open
 
 - Demos approximate the web's per-slide `render()` rather than copying each 1:1; the issue #58 rotation core now uses the web pools and timings for the 12 rotating demos.
-- IDs: `fst.first-run.dialog`, `.carousel`, `.slides`, `.pips`; replay rows `fst.settings.first-run.<pageKey>`. Screenshot: `windows/reports/screenshots/first-run-replay-wide.png`.
+- IDs: `fst.first-run.dialog`, `.carousel`, `.slides`, `.pips`, raw-view `fst.first-run.demo.<slideId>`; replay rows `fst.settings.first-run.<pageKey>`. Screenshot: `windows/reports/screenshots/first-run-replay-wide.png`.
