@@ -178,7 +178,7 @@ public sealed partial class FirstRunDemo : UserControl
                     "near_fc_any" => instruments[i % instruments.Length],
                     _ => template.Instrument,
                 };
-                rows.Children.Add(new TextBlock { Text = $"{song.Row.Title} · {value}", FontSize = 12, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
+                rows.Children.Add(new TextBlock { Text = $"{song.Row.Title} · {value}", FontSize = 12, IsTextScaleFactorEnabled = false, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
             }
         }
         Apply(0);
@@ -678,7 +678,7 @@ public sealed partial class FirstRunDemo : UserControl
             button.BorderThickness = new Thickness(1);
         }
         var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(20, 0, 20, 0) };
-        label.Children.Add(new FontIcon { Glyph = paths ? "" : "", FontSize = 16, Foreground = new SolidColorBrush(Colors.White), VerticalAlignment = VerticalAlignment.Center });
+        label.Children.Add(new FontIcon { Glyph = paths ? "" : "", FontSize = 16, IsTextScaleFactorEnabled = false, Foreground = new SolidColorBrush(Colors.White), VerticalAlignment = VerticalAlignment.Center });
         label.Children.Add(Text(paths ? "View Paths" : "Item Shop", 15, true));
         button.Children.Add(label);
         // The song header the button sits under on Song Detail; the button's own breathe is the motion.
@@ -907,7 +907,11 @@ public sealed partial class FirstRunDemo : UserControl
         return pill;
     }
 
-    /// <summary>White demo text.</summary>
+    /// <summary>
+    /// White demo text at a fixed size: the demo is a decorative, Narrator-hidden picture of the app inside a fixed
+    /// 210 epx illustration, so Windows text scaling would only clip it (issue #240); the slide's title and
+    /// description below it scale.
+    /// </summary>
     /// <param name="text">Text.</param>
     /// <param name="size">Font size.</param>
     /// <param name="bold">Semibold.</param>
@@ -915,7 +919,7 @@ public sealed partial class FirstRunDemo : UserControl
     /// <returns>Text block.</returns>
     private static TextBlock Text(string text, double size, bool bold, HorizontalAlignment alignment = HorizontalAlignment.Left) => new()
     {
-        Text = text, FontSize = size, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis,
+        Text = text, FontSize = size, IsTextScaleFactorEnabled = false, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis,
         FontWeight = bold ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
         HorizontalAlignment = alignment, VerticalAlignment = VerticalAlignment.Center,
     };
