@@ -176,7 +176,8 @@
       "key:up",
       "assertfocus:id=fst.song-detail.band-row.Band_Quad.8@3",
       "key:enter",
-      "waitfor:id=fst.band.title@15",
+      "waitgone:id=fst.song-detail.title@15",
+      "waitfor:name=Band not found@15",
       "key:alt+left",
       "waitfor:id=fst.song-detail.title@15"
     ]
