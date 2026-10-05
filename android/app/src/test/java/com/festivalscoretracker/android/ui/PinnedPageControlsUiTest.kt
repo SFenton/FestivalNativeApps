@@ -33,6 +33,8 @@ import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.ProfileFixtures
+import com.festivalscoretracker.android.testing.SongsFixtures
 import com.festivalscoretracker.android.testing.SuggestionFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
@@ -44,6 +46,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 // region Harness
 
@@ -53,20 +56,16 @@ import org.robolectric.annotation.Config
  * and come back to the same place at the top.
  */
 private class PinnedHarness(val rule: AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>) {
-    /** Forty songs over ten years, so the Year sort has several Quick Links sections and the list scrolls. */
-    val transport = FakeTransport.standard().apply {
-        val songs = (1..40).joinToString(",") { i ->
-            """{"songId":"s-$i","title":"${'A' + (i - 1) / 2} Song ${"%02d".format(i)}","artist":"Band $i","year":${1980 + i},"durationSeconds":120,"difficulty":{"guitar":1}}"""
-        }
-        on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { """{"count":40,"currentSeason":15,"songs":[$songs]}""" }
-    }
+    /** Forty songs over forty years, so the Year sort has several Quick Links sections and the list scrolls. */
+    val transport = SongsFixtures.scrollingCatalogueTransport()
 
-    fun launchSongs(reduceMotion: Boolean = false) {
+    fun launchSongs(reduceMotion: Boolean = false, player: SelectedPlayer? = null) {
         val prefs = mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.SONG_SORT) to "Year")
         if (reduceMotion) prefs[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true
-        launch(DebugLaunch(stillBackground = true), transport, InMemoryPreferences(prefs))
+        if (player != null) ProfileFixtures.register(transport)
+        launch(DebugLaunch(profile = player, stillBackground = true), transport, InMemoryPreferences(prefs))
         waitForTag("fst.songs.row.s-1")
-        waitForTag("fst.quick-links.open")
+        waitOrExplain("Quick Links or ⋮") { exists("fst.quick-links.open") || exists("fst.nav.overflow") }
     }
 
     fun launchSuggestions() {
@@ -122,12 +121,53 @@ private class PinnedHarness(val rule: AndroidComposeTestRule<ActivityScenarioRul
         settle()
     }
 
+    /** Swipes [list] back up until [tag] is composed again (short windows need more swipes). */
+    fun scrollBackTo(list: String, tag: String) {
+        repeat(30) {
+            if (exists(tag)) return
+            scroll(list, down = false, times = 1)
+        }
+        waitForTag(tag)
+    }
+
     /** Opens [button], waits for [sheet], then closes it with [close] and waits for it to go. */
     fun opensWhileScrolled(button: String, sheet: String, close: String) {
         click(button)
         waitForTag(sheet)
         click(close)
         waitGone(sheet)
+    }
+
+    /**
+     * Opens Quick Links' medium/expanded menu while scrolled and jumps to its last section, which
+     * keeps the list scrolled; the menu closes on the jump.
+     */
+    fun jumpsWithQuickLinksMenu(focusTop: () -> Unit = {}) {
+        click("fst.quick-links.open")
+        waitForTag("fst.quick-links.menu")
+        focusTop()
+        val last = rule.onAllNodes(
+            SemanticsMatcher("Quick Links item") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.quick-links.item.") == true },
+        ).fetchSemanticsNodes().maxBy { it.boundsInRoot.top }.config[SemanticsProperties.TestTag]
+        click(last)
+        waitGone("fst.quick-links.menu")
+        focusTop()
+        assertTrue("the jump kept the list scrolled", !exists("fst.songs.row.s-1"))
+    }
+
+    /** Opens ⋮, then [button] inside its menu, waits for [sheet], closes it with [close]; the menu closes too (window focus is moved as on a device). */
+    fun opensFromOverflowWhileScrolled(button: String, sheet: String, close: String, focusTop: () -> Unit) {
+        click("fst.nav.overflow")
+        waitForTag("fst.nav.overflow-menu")
+        focusTop()
+        assertTrue("$button in ⋮", within("fst.nav.overflow-menu", button))
+        click(button)
+        waitForTag(sheet)
+        focusTop()
+        click(close)
+        waitGone(sheet)
+        focusTop()
+        waitGone("fst.nav.overflow-menu")
     }
 
     /** Tag and top edge of the topmost Suggestions card on screen. */
@@ -322,6 +362,44 @@ class ExpandedPinnedPageControlsUiTest {
     fun suggestionsFilterStaysInTheTopBar() = suggestionsStayPinned(h)
 }
 
+/**
+ * Narrow list pane (phone landscape, list-detail): the page tools sit behind ⋮ (issue #101). ⋮,
+ * the pinned search field and global search stay put while scrolled; Sort, Filter and Quick Links
+ * open from ⋮ while scrolled and ⋮'s menu closes after each (issue #160). Native graphics, so the
+ * title measures real text and the tools really overflow.
+ */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w923dp-h411dp-land-xxhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class OverflowPinnedPageControlsUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    private val h by lazy { PinnedHarness(rule) }
+
+    @Test
+    fun songsOverflowSearchAndGlobalSearchStayPinnedAndToolsOpenFromOverflow() {
+        h.launchSongs(player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
+        val present = listOf("fst.nav.overflow", "fst.songs.sort.open", "fst.quick-links.open", "fst.nav.floating-toolbar").filter(h::exists)
+        assertTrue("page tools behind ⋮: present $present, top bar ${h.bounds("fst.nav.top-bar")}", h.exists("fst.nav.overflow") && !h.exists("fst.songs.sort.open"))
+        val atTop = listOf("fst.nav.overflow", "fst.songs.search", "fst.global-search.open").associateWith(h::bounds)
+        h.scroll("fst.songs.list", down = true)
+        assertTrue("scrolled away from the first row", !h.exists("fst.songs.row.s-1"))
+        h.assertSame(atTop, "while scrolled")
+        val focus = { rule.focusTopWindow() }
+        h.opensFromOverflowWhileScrolled("fst.songs.sort.open", "fst.songs.sort.form", "fst.songs.sort.done", focus)
+        h.opensFromOverflowWhileScrolled("fst.songs.filter.open", "fst.songs.filter.form", "fst.songs.filter.done", focus)
+        h.click("fst.nav.overflow")
+        h.waitForTag("fst.nav.overflow-menu")
+        focus()
+        h.jumpsWithQuickLinksMenu(focus)
+        h.waitGone("fst.nav.overflow-menu")
+        h.assertSame(atTop, "after the tools")
+        h.scrollBackTo("fst.songs.list", "fst.songs.row.s-1")
+        h.assertSame(atTop, "back at the top")
+    }
+}
+
 private fun songsStayPinned(h: PinnedHarness) {
     h.launchSongs()
     assertTrue("no floating toolbar on wider windows", !h.exists("fst.nav.floating-toolbar"))
@@ -333,8 +411,9 @@ private fun songsStayPinned(h: PinnedHarness) {
     h.assertSame(atTop, "while scrolled")
     h.opensWhileScrolled("fst.songs.sort.open", "fst.songs.sort.form", "fst.songs.sort.done")
     h.opensWhileScrolled("fst.songs.filter.open", "fst.songs.filter.form", "fst.songs.filter.done")
-    h.scroll("fst.songs.list", down = false, times = 6)
-    h.waitForTag("fst.songs.row.s-1")
+    h.jumpsWithQuickLinksMenu()
+    h.assertSame(atTop, "after Quick Links")
+    h.scrollBackTo("fst.songs.list", "fst.songs.row.s-1")
     h.assertSame(atTop, "back at the top")
 }
 

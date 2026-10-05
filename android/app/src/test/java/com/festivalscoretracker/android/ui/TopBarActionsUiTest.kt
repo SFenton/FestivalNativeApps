@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -138,15 +139,7 @@ class TopBarActionsUiTest {
     }
 
     /** Robolectric never moves window focus between the activity, popups and dialogs; give it to the top-most window as the window manager does. */
-    private fun focusTopWindow() {
-        rule.waitForIdle()
-        val global = Class.forName("android.view.WindowManagerGlobal")
-        val instance = global.getMethod("getInstance").invoke(null)
-        @Suppress("UNCHECKED_CAST")
-        val views = (global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as List<View>).toList()
-        rule.runOnIdle { views.forEachIndexed { index, view -> view.dispatchWindowFocusChanged(index == views.lastIndex) } }
-        rule.waitForIdle()
-    }
+    private fun focusTopWindow() = rule.focusTopWindow()
 
     @Test
     fun overflowRefocusRule() {
@@ -170,4 +163,18 @@ class TopBarActionsUiTest {
         assertEquals(300, TopBarActionFit.afterTitleLayout(true, inline = false, hasPageActions = true, widthPx = 430, collapsedAtPx = 300))
         assertEquals(null, TopBarActionFit.afterTitleLayout(false, inline = true, hasPageActions = true, widthPx = 430, collapsedAtPx = null))
     }
+}
+
+/**
+ * Robolectric never moves window focus between the activity, popups and dialogs; give it to the
+ * top-most window as the window manager does (the ⋮ menu closes on refocus, issue #160).
+ */
+internal fun ComposeTestRule.focusTopWindow() {
+    waitForIdle()
+    val global = Class.forName("android.view.WindowManagerGlobal")
+    val instance = global.getMethod("getInstance").invoke(null)
+    @Suppress("UNCHECKED_CAST")
+    val views = (global.getDeclaredField("mViews").apply { isAccessible = true }.get(instance) as List<View>).toList()
+    runOnIdle { views.forEachIndexed { index, view -> view.dispatchWindowFocusChanged(index == views.lastIndex) } }
+    waitForIdle()
 }
