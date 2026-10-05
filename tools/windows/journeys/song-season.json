@@ -2,10 +2,10 @@
   {"name": "season-narrow", "route": "/songs/fixture-pulse", "profile": "fixture-player-1:Fixture Player 1", "sizes": ["compact"],
    "note": "Issue #62/#262: rows under 520 epx (500 epx window: history and top-score rows ~450 epx) hide the season; the tapped bar's detail row always shows it. Run with tools/windows/a11y_matrix.py --pages.",
    "ready": [
-    "waitfor:id=fst.history.bar.0@40",
-    "toggle:id=fst.history.bar.0",
+    "scrollinto:id=fst.history.bar.1@40",
+    "toggle:id=fst.history.bar.1",
     "waitfor:id=fst.history.detail@5",
-    "waitfor:raw=fst.score.season.history.20240101000000.detail@5",
+    "waitfor:raw=fst.score.season.history.20240105000000.detail@5",
     "scrollinto:id=fst.song-detail.history.row.20240101000000@10",
     "waitfor:raw=fst.score.accuracy.history.20240101000000@5",
     "waitgone:raw=fst.score.season.history.20240101000000@3",
@@ -20,10 +20,10 @@
   {"name": "season-single-column", "route": "/songs/fixture-pulse", "profile": "fixture-player-1:Fixture Player 1", "sizes": ["680x800"],
    "note": "One card column: history and top-score rows ~580 epx (at least 520) show the season, and the top-score row names read it.",
    "ready": [
-    "waitfor:id=fst.history.bar.0@40",
-    "toggle:id=fst.history.bar.0",
+    "scrollinto:id=fst.history.bar.1@40",
+    "toggle:id=fst.history.bar.1",
     "waitfor:id=fst.history.detail@5",
-    "waitfor:raw=fst.score.season.history.20240101000000.detail@5",
+    "waitfor:raw=fst.score.season.history.20240105000000.detail@5",
     "scrollinto:id=fst.song-detail.history.row.20240101000000@10",
     "waitfor:raw=fst.score.season.history.20240101000000@5",
     "waitfor:raw=fst.score.season.history.20240105000000@5",
@@ -36,10 +36,10 @@
   {"name": "season-two-column", "route": "/songs/fixture-pulse", "profile": "fixture-player-1:Fixture Player 1", "sizes": ["900x700"],
    "note": "Two card columns: full-width history rows (~800 epx) show the season, top-score rows (~390 epx) hide it again.",
    "ready": [
-    "waitfor:id=fst.history.bar.0@40",
-    "toggle:id=fst.history.bar.0",
+    "scrollinto:id=fst.history.bar.1@40",
+    "toggle:id=fst.history.bar.1",
     "waitfor:id=fst.history.detail@5",
-    "waitfor:raw=fst.score.season.history.20240101000000.detail@5",
+    "waitfor:raw=fst.score.season.history.20240105000000.detail@5",
     "scrollinto:id=fst.song-detail.history.row.20240101000000@10",
     "waitfor:raw=fst.score.season.history.20240101000000@5",
     "waitfor:raw=fst.score.season.history.20240105000000@5",
@@ -52,8 +52,8 @@
   {"name": "season-resize", "route": "/songs/fixture-pulse", "profile": "fixture-player-1:Fixture Player 1", "sizes": ["compact"],
    "note": "Live resize across the breakpoint: the season and the row name follow the row width without a reload.",
    "ready": [
-    "waitfor:id=fst.history.bar.0@40",
-    "toggle:id=fst.history.bar.0",
+    "scrollinto:id=fst.history.bar.1@40",
+    "toggle:id=fst.history.bar.1",
     "waitfor:id=fst.history.detail@5",
     "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@10",
     "waitgone:raw=fst.score.season.preview.Solo_Guitar.fixture-player-2@3",
@@ -67,6 +67,6 @@
     "waitgone:raw=fst.score.season.preview.Solo_Guitar.fixture-player-2@3",
     "assertname:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|Rank 2, Fixture Player 2, 99,800 points, 98% accuracy, full combo",
     "scrollinto:id=fst.history.detail@10",
-    "waitfor:raw=fst.score.season.history.20240101000000.detail@5"
+    "waitfor:raw=fst.score.season.history.20240105000000.detail@5"
   ]}
 ]

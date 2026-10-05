@@ -36,6 +36,23 @@ Checked 2026-10 with the winui-design and winui-code-review skills, `a11y_matrix
 | Display 100% / 150% | Correct. |
 | Narrator / UIA | Buttons named with state ("Open in Item Shop, Leaving Tomorrow"; band rows "Rank 1, …"; bars "date, score, accuracy"), headings and the chart summary name; reading order follows the Tab order. |
 
+## Validation (issue #262)
+
+Season display (#62), checked 2026-10 with the winui-design and winui-code-review skills, `a11y_matrix.py` on the fixture (`tools/windows/journeys/song-season.json`, `score-accuracy.json`) and the live public service (SFentonX, "Never Back Down"). The visual rule held everywhere. The one bug was that preview and full-leaderboard rows never read a visible season (fixed, see the #262 bullet above). The rule uses the row width, not the window width: winui-design's "Show/hide — Secondary metadata is optional at small widths" applied per row, as the web's card-width `SEASON_BREAKPOINT` does.
+
+| Configuration | Finding |
+|---|---|
+| Compact (500 epx) | Preview and history rows are about 450 epx, so the season is hidden and not read. The tapped bar's detail row shows and reads it (live: "S15"). |
+| 680 epx and snap-left/right (640) | One card column, so preview rows are 540–580 epx and show and read the season (live: "S4", "S10" …). Full song leaderboard rows show it from snap width up. |
+| Medium (900), wide and maximized (1280) | Two card columns, so preview rows are under 520 epx and hide the season. Full-width history rows show it. |
+| Live resize compact → 680 → compact | The season appears and the row name gains ", season N", then both drop again (`season-resize`). |
+| Light and dark system theme | Same rendering (the app is dark only, a deliberate deviation). Axe 0. |
+| High Contrast Desert | All four journeys pass. Axe 0. |
+| Text 200% | The chart pages to one bar at compact. The detail row keeps the season; list rows follow the 520 rule. Axe 0. |
+| Display 100% / 150% | Correct. Axe reports only the known WinUI `PopupHost` item (the bar tooltip, [windows-accessibility.md](../../testing/windows-accessibility.md) open item 8). |
+| Keyboard only | Tab walk: 19–21 stops, none outside the app and no repeats. |
+| Narrator / UIA | Row names read ", season N" only while it is shown (before ", you" on the selected player's row, before the stars on the full board). Season text has `fst.score.season.<badge key>`. `score-accuracy.json` passes 42/42 across 6 sizes. |
+
 ## Open
 
 Promoted selected-band section (no selected-band identity yet, as iOS); FC/stars styling of preview rows; scrolling to the initial instrument (`?instrument=`); chart page-change animation (bars redraw without the web's Recharts tween); Recharts `monotone` curve (straight segments here). `tools/mock_service.py` has no `/all` route (the fallback covers it). TODO(orchestrator): delete `PlayerHistoryPage`/`PlayerHistoryViewModel` once its tests move (shared `PlayerViewModelTests.cs`).
