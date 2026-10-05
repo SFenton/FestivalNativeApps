@@ -122,8 +122,24 @@ public struct QuickLinksMenu: View {
 // MARK: - Row label
 
 /// One quick link's icon and title, indented by depth.
+///
+/// Instrument artwork is pre-sized to the adjacent SF Symbols (issue #303): menus and
+/// the iPhone accessory sheet draw a plain image at its 144 pt intrinsic size.
 struct QuickLinkLabel: View {
     let section: QuickLinkSection
+
+    /// Instrument icon side at the default text size: the 20 pt of an enclosed-circle SF
+    /// Symbol (`globe`, `star.circle`) beside 17 pt body text on iOS/iPadOS, 16 pt beside
+    /// macOS's 13 pt menu text (HIG Icons: "Keep all icons consistent in size").
+    #if os(macOS)
+    static let instrumentIconBaseSide: CGFloat = 16
+    #else
+    static let instrumentIconBaseSide: CGFloat = 20
+    #endif
+
+    /// Scales with Dynamic Type like the row text (HIG Typography: "Increase the size of
+    /// meaningful interface icons as font size increases").
+    @ScaledMetric(relativeTo: .body) private var instrumentIconSide = QuickLinkLabel.instrumentIconBaseSide
 
     var body: some View {
         Label {
@@ -133,8 +149,7 @@ struct QuickLinkLabel: View {
             case let .system(name):
                 Image(systemName: name)
             case let .instrument(instrument):
-                Image(InstrumentIcon.assetName(for: instrument, keyboard: false), bundle: .module)
-                    .renderingMode(.original)
+                InstrumentIcon.menuImage(for: instrument, keyboard: false, side: instrumentIconSide)
             case nil:
                 EmptyView()
             }

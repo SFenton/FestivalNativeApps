@@ -197,6 +197,25 @@ def live_pages(pages: list[dict]) -> list[dict]:
     return [p for p in pages if "fixture" not in p and not str(p.get("profile", "")).startswith("fixture-")]
 
 
+def mode_pages(pages: list[dict], mode: str) -> list[dict]:
+    """Pages that apply to one ``--mode``.
+
+    A page may list ``modes`` (it runs only when the mode includes one of them, e.g. ``["text-200"]``) and
+    ``skip_modes`` (it is skipped when the mode includes any of them). Pages with measured insets that scale
+    with system text use this to carry a variant per text size.
+
+    Args:
+        pages: Page definitions.
+        mode: ``--mode`` value; ``+`` joins several modes.
+
+    Returns:
+        The pages for this mode, in order.
+    """
+    parts = set(mode.split("+"))
+    return [p for p in pages
+            if (not p.get("modes") or parts & set(p["modes"])) and not parts & set(p.get("skip_modes", ()))]
+
+
 def page_fixture(page: dict, default: Path = FIXTURE) -> tuple[Path, tuple[str, ...]]:
     """Fixture script and flags for one page.
 
@@ -439,6 +458,7 @@ def main(argv: list[str] | None = None) -> int:
     sizes = [s for s in args.sizes.split(",") if s]
     if args.live:
         pages = live_pages(pages)
+    pages = mode_pages(pages, args.mode)
     # One fixture service per distinct (script, flags) pair (most pages share the default one).
     fixtures: dict[tuple[Path, tuple[str, ...]], tuple[subprocess.Popen, int]] = {}
     results: list[dict] = []

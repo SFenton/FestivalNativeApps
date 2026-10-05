@@ -5,7 +5,7 @@ import FestivalDesign
 
 // MARK: - Mac stack
 
-/// One `NavigationStack` with every `AppRoute` destination, for a Mac column.
+/// One `NavigationStack` with every `AppRoute` destination, for a Mac pane.
 struct MacStack<Root: View>: View {
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
@@ -13,36 +13,37 @@ struct MacStack<Root: View>: View {
     /// The destination's whole path, for screens that pop or replace.
     @Binding var fullPath: [AppRoute]
     let isVisible: Bool
-    /// Whether this column carries the window's global toolbar group (the single stack,
-    /// or the detail column of two): toolbar items placed outside a `NavigationStack`
-    /// disappear once a page is pushed, so every page of this column adds them.
+    /// Whether this pane carries the window's global toolbar group (the leading or only
+    /// pane): toolbar items placed outside a `NavigationStack` disappear once a page is
+    /// pushed, so every page of this pane adds them.
     let providesGlobalToolbar: Bool
     /// Widest root content (``MacLayoutPolicy/pageMaxWidth(for:isShopRoot:)``).
     let rootMaxWidth: CGFloat
-    /// The split's selection and select action when this is a list column: arrow keys
-    /// then move the detail column's selection (``MacKeyboardNavigation``).
-    let listSelection: AppRoute?
-    let listSelect: ListDetailSelectAction?
+    /// The on-demand split context of a list page's pane: arrow keys and Return then
+    /// open rows in the trailing pane (``MacKeyboardNavigation``).
+    let paneContext: SplitPaneContext?
+    /// Closes the trailing pane (Escape), while one is open beside this pane.
+    let close: (() -> Void)?
     let root: Root
 
-    /// Create a column stack.
+    /// Create a pane stack.
     ///
     /// - Parameters:
     ///   - session: Shared app session.
     ///   - visibleInstruments: Settings-visible charts.
-    ///   - stackPath: This column's path.
+    ///   - stackPath: This pane's path.
     ///   - fullPath: The destination's whole path.
     ///   - isVisible: Whether the destination is on screen.
     ///   - providesGlobalToolbar: Whether its pages carry the global toolbar group.
     ///   - rootMaxWidth: Widest root content.
-    ///   - listSelection: The split's selection (list column only).
-    ///   - listSelect: The split's select action (list column only).
-    ///   - root: Column root.
+    ///   - paneContext: The split context of a list page's pane, or nil.
+    ///   - close: Closes the trailing pane, or nil.
+    ///   - root: Pane root.
     init(
         session: FestivalSession, visibleInstruments: Set<Instrument>,
         stackPath: Binding<[AppRoute]>, fullPath: Binding<[AppRoute]>, isVisible: Bool,
         providesGlobalToolbar: Bool = true, rootMaxWidth: CGFloat = MacLayoutPolicy.pageMaxWidth(for: nil),
-        listSelection: AppRoute? = nil, listSelect: ListDetailSelectAction? = nil,
+        paneContext: SplitPaneContext? = nil, close: (() -> Void)? = nil,
         @ViewBuilder root: () -> Root
     ) {
         self.session = session
@@ -52,8 +53,8 @@ struct MacStack<Root: View>: View {
         self.isVisible = isVisible
         self.providesGlobalToolbar = providesGlobalToolbar
         self.rootMaxWidth = rootMaxWidth
-        self.listSelection = listSelection
-        self.listSelect = listSelect
+        self.paneContext = paneContext
+        self.close = close
         self.root = root()
     }
 
@@ -61,22 +62,25 @@ struct MacStack<Root: View>: View {
         MacColumnLayoutReader { columnLayout in
             stack(columnLayout: columnLayout)
         }
-        // Each column publishes its own layout, so its pages pick one or two card
-        // columns and readable widths from the column's width, not the window's.
+        // Each pane publishes its own layout, so its pages pick one or two card
+        // columns and readable widths from the pane's width, not the window's.
         .publishesDeviceLayout(usesSidebarShell: true)
     }
 
-    /// The column's `NavigationStack`. Pushed pages get the column layout explicitly:
+    /// The pane's `NavigationStack`. Pushed pages get the pane layout explicitly:
     /// an environment value published around the stack did not reach its pushed
     /// destinations (Band Detail read the default zero-width compact layout).
     private func stack(columnLayout: DeviceLayout) -> some View {
-        NavigationStack(path: $stackPath) {
+        let isList = paneContext?.selection != nil
+        return NavigationStack(path: $stackPath) {
             root
                 .modifier(MacKeyboardNavigation(
-                    selection: listSelection, select: listSelect, push: push, isTop: stackPath.isEmpty
+                    selection: paneContext?.selection, select: paneContext?.select, push: push,
+                    isTop: stackPath.isEmpty, close: close
                 ))
+                .splitPaneContext(paneContext)
                 .environment(\.macPageIsTop, stackPath.isEmpty)
-                .environment(\.macColumnIsList, listSelect != nil)
+                .environment(\.macColumnIsList, isList)
                 .modifier(MacPageWidth(maxWidth: rootMaxWidth))
                 .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                 .navigationDestination(for: AppRoute.self) { route in
@@ -85,9 +89,12 @@ struct MacStack<Root: View>: View {
                         path: $fullPath, isVisible: isVisible
                     )
                     .modifier(MacKeyboardNavigation(
-                        selection: nil, select: nil, push: push, isTop: stackPath.last == route
+                        selection: paneContext?.selection, select: paneContext?.select, push: push,
+                        isTop: stackPath.last == route, close: close
                     ))
+                    .splitPaneContext(paneContext)
                     .environment(\.macPageIsTop, stackPath.last == route)
+                    .environment(\.macColumnIsList, isList)
                     .modifier(MacPageWidth(maxWidth: MacLayoutPolicy.pageMaxWidth(for: route)))
                     .modifier(MacGlobalToolbar(isEnabled: providesGlobalToolbar))
                     .environment(\.deviceLayout, columnLayout)
@@ -95,8 +102,7 @@ struct MacStack<Root: View>: View {
         }
     }
 
-    /// Return on a keyboard-highlighted row: push in this column (in a split's columns
-    /// the stack path is always empty and the push becomes a path write).
+    /// Return on a keyboard-highlighted row: push in this pane.
     private func push(_ route: AppRoute) {
         stackPath.append(route)
     }
@@ -124,190 +130,182 @@ struct MacPageWidth: ViewModifier {
     }
 }
 
-// MARK: - List/detail stack
+// MARK: - On-demand split (Mac content area)
 
-extension EnvironmentValues {
-    /// How long a Mac list page may show no row before its second column collapses
-    /// (2.5 s; hosted tests lengthen it so a loaded test machine cannot race it).
-    @Entry var macListCollapseDelay: Duration = .milliseconds(2500)
-}
-
-/// A Mac destination's content: one stack, or **two populated columns** (list and
-/// detail) when the window is wide enough, as decided by ``MacLayoutPolicy`` over the
-/// shared ``ListDetailPolicy`` path cut.
+/// A Mac destination's content: one stack, split on demand
+/// (`.agents/design/apple/split-view.md`). A list page (Rivals, Leaderboards, Full and
+/// Band Rankings, Song Detail) starts full width; selecting a row splits the content
+/// area right of the sidebar 50/50 at its exact midpoint, fixed (no drag), and shows the
+/// item in the trailing pane; Close, Escape, ⌘[ or Back return to full width. A content
+/// area narrower than two 360 pt panes pushes instead (``OnDemandSplitPolicy``).
 ///
-/// The detail column is never empty: it restores the last selection, else the first
-/// list row to appear selects itself (`listDetailAutoSelect`, the same contract
-/// `ListDetailLink` rows use on iPhone Duo). A list that shows no row within 2.5 s
-/// collapses to one column, and its first row to appear later splits it again.
-/// The columns sit beside a draggable 1 pt ``MacColumnDivider``; the list takes 38% of
-/// the width within ``MacLayoutPolicy/listColumn`` until the person drags it, and the
-/// dragged width is remembered (an `HSplitView` lost its divider position when a
-/// pushed list page split after first layout, leaving the detail at zero width).
+/// While a list page is on top, both panes draw their top route as their root and turn
+/// pushes into path writes: inside the window's `NavigationSplitView` a page pushed in a
+/// nested stack covered both panes (or never showed). The leading pane keeps the list
+/// page's identity while items open and close, so it keeps its scroll position;
+/// switching between one stack and the split (a list page pushed or popped to) rebuilds
+/// the page.
 struct MacListDetailStack<Root: View>: View {
     let section: FestivalSection
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
     @Binding var path: [AppRoute]
     let isVisible: Bool
-    /// Reports whether two columns are showing (Go › Back rules).
+    /// Reports whether the trailing pane is open (Go › Back and Edit › Copy rules).
     let onSplitChange: (Bool) -> Void
-    /// Builds the root page, given whether it is the top of its column.
+    /// Builds the root page, given whether it is the top of its pane.
     let root: (Bool) -> Root
 
+    /// The content area's width.
+    @State private var width: CGFloat = 0
+
+    private var cut: OnDemandSplitPolicy.Cut? { OnDemandSplitPolicy.cut(section: section, path: path) }
+
+    /// The panes the content area allows for the list page on top, or nil.
+    private var geometry: OnDemandSplitPolicy.Geometry? {
+        guard cut != nil else { return nil }
+        return OnDemandSplitPolicy.geometry(OnDemandSplitPolicy.Context(
+            container: CGRect(x: 0, y: 0, width: width, height: 1),
+            isLandscape: true, isRegular: true, hinge: nil
+        ))
+    }
+
+    /// The two arrangements; a fresh identity for each, so the window's split view never
+    /// keeps presenting one stack's pushed page over the other.
     private enum Arrangement { case stack, split }
 
-    @State private var width: CGFloat = 0
-    @State private var lastSelection: AppRoute?
-    @State private var emptyLists: Set<[AppRoute]> = []
-    /// Rows offered for auto-select (the top-most one on screen wins).
-    @State private var autoSelectCollector = ListDetailAutoSelectCollector()
-    @State private var collapsedCollector = ListDetailAutoSelectCollector()
-    /// The list width the person dragged the divider to (0 = automatic 38%).
-    @AppStorage(MacLayoutPolicy.listWidthKey) private var storedListWidth = 0.0
-    /// Live width during a divider drag.
-    @State private var dragListWidth: CGFloat?
-    /// How long a list may show no row before it collapses to one column.
-    @Environment(\.macListCollapseDelay) private var collapseDelay
-
-    /// The list column width drawn now: a live drag, else the remembered width, else
-    /// automatic; always clamped by ``MacLayoutPolicy/listWidth(forContentWidth:preferred:)``.
-    private var listColumnWidth: CGFloat {
-        MacLayoutPolicy.listWidth(
-            forContentWidth: width, preferred: dragListWidth ?? (storedListWidth > 0 ? storedListWidth : nil)
-        )
-    }
-
-    private var cut: ListDetailPolicy.Split? { ListDetailPolicy.split(section: section, path: path) }
-
-    private var split: ListDetailPolicy.Split? {
-        guard let cut else { return nil }
-        let collapsed = cut.selection == nil && emptyLists.contains(cut.list)
-        return MacLayoutPolicy.showsSplit(width: width, hasListPage: true, emptyListCollapsed: collapsed)
-            ? cut : nil
-    }
-
     var body: some View {
+        let geometry = geometry
+        let splitCut: OnDemandSplitPolicy.Cut? = geometry == nil ? nil : cut
+        let open = splitCut?.selection != nil
         Group {
-            if let split {
-                splitView(split)
-                    .task(id: split.list) { await populate(split) }
-                    // A fresh identity per arrangement: otherwise the split view keeps
-                    // presenting the one-column stack's pushed page over the columns.
-                    .id(Arrangement.split)
+            if let splitCut {
+                // One backdrop behind both panes while a list page is on top, open
+                // or not (`SplitPaneChrome`).
+                OnDemandSplitLayout(
+                    geometry: open ? geometry : nil,
+                    backdrop: SplitPaneChrome.sharesBackdrop ? session.backgroundCoordinator : nil
+                ) {
+                    leadingPane(cut: splitCut, open: open)
+                } trailing: {
+                    if let top = splitCut.detail.last {
+                        trailingPane(cut: splitCut, top: top)
+                    }
+                }
+                .id(Arrangement.split)
             } else {
                 MacStack(
                     session: session, visibleInstruments: visibleInstruments,
                     stackPath: $path, fullPath: $path, isVisible: isVisible
                 ) {
                     root(path.isEmpty)
-                        // A list that collapsed while it was still loading: its first row
-                        // brings the second column back, already selected.
-                        .environment(\.listDetailAutoSelect, collapsedAutoSelect)
                 }
                 .id(Arrangement.stack)
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .onChange(of: split != nil, initial: true) { _, isSplit in onSplitChange(isSplit) }
-        .onChange(of: cut?.selection) { _, selection in
-            if let selection { lastSelection = selection }
-            autoSelectCollector.reset()
+        .onChange(of: open, initial: true) { _, open in onSplitChange(open) }
+    }
+
+    /// The leading pane while a list page is on top: the list page as its root (its
+    /// identity stays while items open and close, so it keeps its scroll position), a
+    /// Back button when it was pushed, and rows that open the trailing pane.
+    ///
+    /// - Parameters:
+    ///   - cut: The path's cut.
+    ///   - open: Whether the trailing pane is open.
+    /// - Returns: The leading pane.
+    private func leadingPane(cut: OnDemandSplitPolicy.Cut, open: Bool) -> some View {
+        let context = SplitPaneContext(
+            paneWidth: nil, role: .leading, selection: cut.selection,
+            select: ListDetailSelectAction(section: section, page: cut.page) { route in
+                path = OnDemandSplitPolicy.path(selecting: route, in: path, section: section)
+            }
+        )
+        let closeAction: (() -> Void)? = open ? { close() } : nil
+        let page = cut.list.last
+        return MacStack(
+            session: session, visibleInstruments: visibleInstruments,
+            stackPath: pushes(keeping: cut.list.count), fullPath: $path, isVisible: isVisible,
+            rootMaxWidth: MacLayoutPolicy.pageMaxWidth(for: page),
+            paneContext: context, close: closeAction
+        ) {
+            Group {
+                if let page {
+                    destination(page)
+                } else {
+                    root(true)
+                }
+            }
+            .id(page)
+            .toolbar {
+                if !cut.list.isEmpty {
+                    ToolbarItem(placement: .navigation) {
+                        Button {
+                            path = Array(cut.list.dropLast())
+                        } label: {
+                            Label("Back", systemImage: "chevron.backward")
+                        }
+                        .help("Back (⌘[)")
+                        .accessibilityIdentifier("fst.split.list-back")
+                    }
+                }
+            }
         }
     }
 
-    // MARK: Columns
-
-    private func splitView(_ split: ListDetailPolicy.Split) -> some View {
-        HStack(spacing: 0) {
-            // Neither column shows pushed pages: inside the window's
-            // `NavigationSplitView` a page pushed in a nested stack is presented over
-            // both columns (list) or not at all (detail). Each column draws its top
-            // route as its root, and links pushed there extend the path instead.
-            MacStack(
-                session: session, visibleInstruments: visibleInstruments,
-                stackPath: pushes(after: path.count - split.detail.count), fullPath: $path,
-                isVisible: isVisible, providesGlobalToolbar: false,
-                listSelection: split.selection, listSelect: selectAction
-            ) {
-                Group {
-                    if let page = split.list.last {
-                        listColumn(destination(page), split: split)
-                    } else {
-                        listColumn(root(true), split: split)
-                    }
-                }
-                .id(split.list.last)
-            }
-            .frame(width: listColumnWidth)
-            MacColumnDivider(
-                listWidth: listColumnWidth, range: MacLayoutPolicy.listWidthRange(forContentWidth: width),
-                dragWidth: $dragListWidth
-            ) { preferred in
-                // Remember the clamped width, so a later wider window does not jump.
-                storedListWidth = preferred.map {
-                    Double(MacLayoutPolicy.listWidth(forContentWidth: width, preferred: $0))
-                } ?? 0
-            }
-            MacStack(
-                session: session, visibleInstruments: visibleInstruments,
-                stackPath: pushes(after: path.count), fullPath: $path, isVisible: isVisible
-            ) {
-                Group {
-                    if let top = split.detail.last {
-                        destination(top).id(top)
-                    } else {
-                        FestivalLoadingView(accessibilityLabel: "Loading")
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
+    /// The trailing pane: its top route as root, with Close (the item itself) or Back
+    /// (a page pushed from it) in the window toolbar.
+    private func trailingPane(cut: OnDemandSplitPolicy.Cut, top: AppRoute) -> some View {
+        MacStack(
+            session: session, visibleInstruments: visibleInstruments,
+            stackPath: pushes(keeping: path.count), fullPath: $path, isVisible: isVisible,
+            providesGlobalToolbar: false, rootMaxWidth: MacLayoutPolicy.pageMaxWidth(for: top),
+            paneContext: SplitPaneContext(role: .trailing)
+        ) {
+            destination(top)
+                .id(top)
                 .toolbar {
-                    if let back = MacSidebarPolicy.backPath(path, section: section, split: true) {
-                        ToolbarItem(placement: .navigation) {
+                    ToolbarItem(placement: .navigation) {
+                        if cut.detail.count > 1 {
                             Button {
-                                path = back
+                                path = Array(path.dropLast())
                             } label: {
                                 Label("Back", systemImage: "chevron.backward")
                             }
                             .help("Back (⌘[)")
-                            .accessibilityIdentifier("fst.nav.split-back")
+                            .accessibilityIdentifier("fst.split.back")
+                        } else {
+                            SplitCloseButton { close() }
                         }
                     }
                 }
-            }
-            .frame(maxWidth: .infinity)
         }
-        // A container element, so its identifier names the split and does not replace
-        // the divider's and rows' own identifiers.
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.nav.list-detail")
+        .accessibilityIdentifier("fst.split.trailing")
     }
 
-    /// A column stack's path as the stack sees it: always empty (the column draws its
-    /// top route as root). A link pushed there replaces everything after `prefix`
-    /// routes of the destination path with the pushed routes, through the shared
-    /// list/detail write rules.
+    /// A pane stack's path as it sees it: always empty (the pane draws its top route as
+    /// root; inside the window's `NavigationSplitView` a page pushed in a nested stack
+    /// covered both panes or never showed). A link pushed there replaces everything
+    /// after `count` routes with the pushed routes, through the shared write rules, so a
+    /// push from the list page closes the open item and opens full width.
     ///
-    /// - Parameter prefix: Routes of the destination path kept before the push.
-    /// - Returns: The binding for the column's `NavigationStack`.
-    private func pushes(after prefix: Int) -> Binding<[AppRoute]> {
+    /// - Parameter count: Routes of the destination path kept before the push.
+    /// - Returns: The binding for the pane's `NavigationStack`.
+    private func pushes(keeping count: Int) -> Binding<[AppRoute]> {
         Binding {
             []
         } set: { pushed in
             guard !pushed.isEmpty else { return }
-            let kept = Array(path.prefix(max(0, prefix)))
-            path = ListDetailPolicy.path(settingList: kept + pushed, in: path, section: section)
+            let kept = Array(path.prefix(max(0, count)))
+            path = OnDemandSplitPolicy.path(settingList: kept + pushed, in: path, section: section)
         }
     }
 
-    /// Give the list column's root the selection and the select actions. Pages pushed
-    /// inside the list column keep plain links; their detail routes are lifted into the
-    /// detail column by ``ListDetailPolicy/path(settingList:in:section:)``.
-    private func listColumn(_ page: some View, split: ListDetailPolicy.Split) -> some View {
-        page
-            .environment(\.listDetailSelection, split.selection)
-            .environment(\.listDetailSelect, selectAction)
-            .environment(\.listDetailAutoSelect, split.selection == nil ? autoSelectAction : nil)
+    /// Close the trailing pane: back to the full-width list page.
+    private func close() {
+        if let list = OnDemandSplitPolicy.pathClosingDetail(path, section: section) { path = list }
     }
 
     private func destination(_ route: AppRoute) -> some View {
@@ -316,47 +314,5 @@ struct MacListDetailStack<Root: View>: View {
             path: $path, isVisible: isVisible
         )
     }
-
-    // MARK: Selection
-
-    private func populate(_ split: ListDetailPolicy.Split) async {
-        guard split.selection == nil else { return }
-        if let lastSelection, split.page.accepts(lastSelection) {
-            selectAction(lastSelection)
-            return
-        }
-        try? await Task.sleep(for: collapseDelay)
-        guard !Task.isCancelled, cut?.selection == nil else { return }
-        emptyLists.insert(split.list)
-    }
-
-    private var selectAction: ListDetailSelectAction {
-        ListDetailSelectAction(section: section) { route in
-            let current = cut?.list ?? []
-            path = ListDetailPolicy.path(settingList: current + [route], in: path, section: section)
-        }
-    }
-
-    private var autoSelectAction: ListDetailAutoSelectAction {
-        autoSelectCollector.select = { route in
-            guard split != nil, cut?.selection == nil else { return }
-            selectAction(route)
-        }
-        return ListDetailAutoSelectAction(section: section, collector: autoSelectCollector)
-    }
-
-    /// Offered to the one-column root only while its list collapsed for lack of rows.
-    private var collapsedAutoSelect: ListDetailAutoSelectAction? {
-        guard let cut, cut.selection == nil, emptyLists.contains(cut.list),
-              MacLayoutPolicy.showsSplit(width: width, hasListPage: true, emptyListCollapsed: false)
-        else { return nil }
-        collapsedCollector.select = { route in
-            guard let current = self.cut, current.selection == nil else { return }
-            emptyLists.remove(current.list)
-            selectAction(route)
-        }
-        return ListDetailAutoSelectAction(section: section, collector: collapsedCollector)
-    }
-
 }
 #endif

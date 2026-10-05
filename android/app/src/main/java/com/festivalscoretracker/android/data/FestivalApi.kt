@@ -10,6 +10,9 @@ import com.festivalscoretracker.android.core.model.ProfileSearchText
 import com.festivalscoretracker.android.core.model.Publication
 import com.festivalscoretracker.android.core.model.SongsResponse
 import java.io.ByteArrayInputStream
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -168,16 +171,30 @@ private data class Conflict(val status: String? = null)
  * pinned reads within one publication, and the decoded catalogue. A newer
  * publication clears them and is announced on [publicationChanges].
  *
+ * Callers are usually main-dispatched view models, and OkHttp resumes them on
+ * their own dispatcher, so a body of at least [offloadBytes] decodes on
+ * [decodeDispatcher]: the multi-megabyte catalogue/profile JSON must never be
+ * parsed on the UI thread (a pull-to-refresh stalled the Songs list ~0.5 s,
+ * #155). Smaller bodies decode in place, where a thread hop would cost more.
+ *
  * @param origin HTTPS origin, or a loopback/emulator-host HTTP fixture origin.
  * @param transport Injected transport.
+ * @param decodeDispatcher Off-main dispatcher for JSON decoding and validation.
+ * @param offloadBytes Smallest body decoded on [decodeDispatcher].
  */
-class FestivalApi(origin: String, transport: HttpTransport) {
+class FestivalApi(
+    origin: String,
+    transport: HttpTransport,
+    private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val offloadBytes: Int = OFFLOAD_BYTES,
+) {
     private val base: HttpUrl
     private val gate = RequestGate(transport)
     private val mutex = Mutex()
     private var current: Publication? = null
     private val etagCache = mutableMapOf<String, CachedBody>()
     private var catalogMemo: CatalogPayload? = null
+    private var catalogMemoBody: ByteArray? = null
     private val publicationFlow = MutableStateFlow<Int?>(null)
 
     private data class CachedBody(val publicationId: Int, val etag: String, val body: ByteArray)
@@ -226,6 +243,7 @@ class FestivalApi(origin: String, transport: HttpTransport) {
             if (previous?.publicationId != new.publicationId) {
                 etagCache.clear()
                 catalogMemo = null
+                catalogMemoBody = null
             }
             current = new
         }
@@ -310,7 +328,13 @@ class FestivalApi(origin: String, transport: HttpTransport) {
     /**
      * Fetch and validate the song catalogue, memoized for the current publication.
      *
-     * @param refresh Re-check the publication and bypass the decoded memo.
+     * A refresh always re-reads the publication and the catalogue, but when the
+     * body is unchanged for the same publication (a 304 serving the cached array,
+     * or a 200 with identical bytes, as the live service answers conditional
+     * reads) the memo is reused instead of re-decoding megabytes of identical
+     * JSON (pull-to-refresh, #155).
+     *
+     * @param refresh Re-check the publication and revalidate the catalogue.
      * @return Catalogue and observed publication.
      */
     suspend fun catalog(refresh: Boolean = false): CatalogPayload {
@@ -321,10 +345,18 @@ class FestivalApi(origin: String, transport: HttpTransport) {
             if (memo != null) return memo
         }
         val (body, publicationId) = readPinned(ServiceEndpoint.Songs)
-        val catalog = decode(SongsResponse.serializer(), body)
-        catalog.validate()
+        val unchanged = mutex.withLock {
+            catalogMemo?.takeIf { it.publicationId == publicationId && catalogMemoBody.let { old -> old === body || old.contentEquals(body) } }
+        }
+        if (unchanged != null) return unchanged
+        val catalog = decode(SongsResponse.serializer(), body) { it.also(SongsResponse::validate) }
         val payload = CatalogPayload(catalog, publicationId)
-        mutex.withLock { if (current?.publicationId == publicationId) catalogMemo = payload }
+        mutex.withLock {
+            if (current?.publicationId == publicationId) {
+                catalogMemo = payload
+                catalogMemoBody = body
+            }
+        }
         return payload
     }
 
@@ -425,15 +457,35 @@ class FestivalApi(origin: String, transport: HttpTransport) {
     // endregion
 
     /**
-     * Decode a body with the tolerant decoder, mapping malformed JSON to
+     * Decode a body with the tolerant decoder, off the caller's thread when it is
+     * at least [offloadBytes], mapping malformed JSON to
      * [FestivalApiException.InvalidResponse] (feature reads use this too).
      *
      * @param strategy Serializer.
      * @param body Body bytes.
      * @return Decoded value.
      */
+    internal suspend fun <T> decode(strategy: DeserializationStrategy<T>, body: ByteArray): T =
+        decode(strategy, body) { it }
+
+    /**
+     * [decode] followed by [transform] (validation, indexing), both on
+     * [decodeDispatcher] for a body of at least [offloadBytes].
+     *
+     * @param strategy Serializer.
+     * @param body Body bytes.
+     * @param transform Validation/projection of the decoded value.
+     * @return Transformed value.
+     */
+    internal suspend fun <T, R> decode(strategy: DeserializationStrategy<T>, body: ByteArray, transform: (T) -> R): R =
+        if (body.size < offloadBytes) {
+            transform(decodeBlocking(strategy, body))
+        } else {
+            withContext(decodeDispatcher) { transform(decodeBlocking(strategy, body)) }
+        }
+
     @OptIn(ExperimentalSerializationApi::class)
-    internal fun <T> decode(strategy: DeserializationStrategy<T>, body: ByteArray): T =
+    private fun <T> decodeBlocking(strategy: DeserializationStrategy<T>, body: ByteArray): T =
         try {
             JSON.decodeFromStream(strategy, ByteArrayInputStream(body))
         } catch (error: IllegalArgumentException) {
@@ -441,6 +493,9 @@ class FestivalApi(origin: String, transport: HttpTransport) {
         }
 
     companion object {
+        /** Default [offloadBytes]: fixture-sized bodies stay in place, service catalogues/profiles move. */
+        const val OFFLOAD_BYTES = 64 * 1024
+
         /** Hosts treated as loopback fixture origins (`10.0.2.2` is the emulator's host alias). */
         val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1", "::1", "10.0.2.2")
 

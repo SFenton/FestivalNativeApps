@@ -48,15 +48,20 @@ From a **1100 epx page** (e.g. a 1440 epx window with the expanded pane) the pag
 | Right-edge scrubber | `SemanticZoom` + Jump button | Windows-native quick jump (Start, Mail, Photos) |
 | Marquee always scrolls on overflow | Same (operator 2026-09-28): scrolls whenever it overflows, phase-aligned; stops when motion is off, the window is hidden or the row is unrealized | Composition animation only; see perf notes in [design/windows.md](../../design/windows.md#motion) |
 | Cancel on a changed draft confirms discard | Light-dismiss flyout discards | Fluent flyout convention |
-| iPhone search/tools dock into the nav bar on scroll (iOS #13) and bottom accessory (iOS #42) | Search, Sort, Filter and Jump sit in the `Actions` row above the `ListView`; only the list scrolls | Fluent persistent page header; checked for issue #52 (2026-10-01): UIA rects identical before/after scrolling at compact and medium, Sort/Filter flyouts and Jump open while scrolled, Esc returns focus. No change; no scroll transition, so Animation effects off is moot. Rechecked for issue #84 (2026-10-02): `NavigationView` (`PaneDisplayMode=Auto`) has no bottom tab bar to minimize into, so the iOS #42 accessory does not apply; Sort/Filter/Jump keep `FSTMinTargetSize` 40 epx and Quick Links stays a header `DropDownButton` (pane at ≥ 1150 epx). No change |
+| iPhone search/tools dock into the nav bar on scroll (iOS #13) and bottom accessory (iOS #42) | Search, Sort, Filter and Jump sit in the `Actions` row above the `ListView`; only the list scrolls | Fluent persistent page header; checked for issue #52 (2026-10-01): UIA rects identical before/after scrolling at compact and medium, Sort/Filter flyouts and Jump open while scrolled, Esc returns focus. No change; no scroll transition, so Animation effects off is moot. Rechecked for issue #84 (2026-10-02): `NavigationView` (`PaneDisplayMode=Auto`) has no bottom tab bar to minimize into, so the iOS #42 accessory does not apply; Sort/Filter/Jump keep `FSTMinTargetSize` 40 epx and Quick Links stays a header `DropDownButton` (pane at ≥ 1150 epx). No change. Re-validated for issue #252 with `journeys/anchored-controls.json` ([below](#validation-issue-252-2026-10-05)) |
 
 ## UI journeys
 
 `python tools/windows/songs_journey.py [--sizes compact,medium,wide] [--shots DIR] [--only NAME[,NAME…]]` (fixture `tools/mock_service.py`, throwaway `FST_SETTINGS_PATH`): selected-player rows → Item Shop sort → Leaving Tomorrow filter → reset → Song Detail; Item Shop grid/list/compact → Song Detail; Paths image → text → not generated; Karaoke warning dismissal; no player; hidden Shop. Lock-tolerant state scenarios (UIA patterns only, so they also run on a locked console): `songs-search` (match → No Results → clear), `songs-sort` (Artist ↓ → Year sections, Jump hidden → reset), `songs-jump` (zoomed-out letter grid with the current letter focused → Esc from Jump and grid → letter → rows and heading), `songs-filter-empty` (decade filter → No Results → Clear Filters), `songs-syncing` (202 notice + "Scores syncing" rows), `songs-denied` (403 notice + "Scores unavailable"), `songs-filter-invalid` (unsupported saved decade → readable pause + reset) and `songs-error` (unreachable origin → retryable service status). The `songs-sort-*` scenarios cover every reachable Sort state, including a `{relaunch}` step and Shop feeds behind a loopback proxy ([songs-sort/windows.md](../../controls/songs-sort/windows.md#states-and-reachability)). Rows expose `fst.songs.row.<songId>`. IDs must sit on UIA-visible elements (text, buttons), not `Border`/`StackPanel`/`ItemsRepeater` (`fst.songs.empty`, `fst.songs.sort.form` and `fst.songs.notices` have no UIA peer: wait on `name=No Results`, `fst.songs.sort.mode` or `class=Microsoft.UI.Xaml.Controls.InfoBar`).
 
+
+Scroll stress (issue #247; iOS #8/#22 check): `python tools/windows/songs_scroll_stress.py [--sizes compact,medium,wide] [--rounds 2] [--live [--profile ID:NAME]] [--keep DIR] [--out result.json]`. Each phase holds one `desktop` lock from launch to close, so other lanes' GUI work and queue waits stay out of the measurement. `near-top` ping-pongs the list over its first 1500 epx at 2000 epx/s (`--auto-scroll-speed/--auto-scroll-span`); `flings` uses UIA Scroll-pattern jumps (top ↔ 2–5%, bottom → 55% → top) and posted End/Home, so both run on a locked console (`--wheel` adds real wheel bursts on an unlocked one). It fails on any `songs-sections` perf event after the data settled (one per `SongsViewModel.Sections` pipeline run, i.e. a rebuild/re-sort), a `ui-frames` `max=` over 250 ms, missing 5 s frame summaries (hang), the list not back at `scroll=0`, a sticky section header that does not match the rows after non-animated jumps to 25/50/75/100/0% (`sticky_mismatch`, run after the measured window because tree dumps walk the whole list; issue #288's push keeps the previous section current while the next title is still visible below the bar), or an app that does not exit cleanly on close (`FstUia close` reports `exitCode`/`killed`). The UIA Scroll pattern itself costs UI time: 40 no-op `scrollto 0` calls at the top gave up to 88 ms frame gaps, so `flings` maxima (typically 125–180 ms) include driver overhead that `near-top` (in-app timer, ≤ 105 ms) does not. `tools/windows/journeys/songs-scroll-a11y.json` runs the top/mid/bottom/back-to-top scroll states through `a11y_matrix.py` (live-safe: anonymous, no fixture rows).
+
 Instrument status chips have their own fixture and journey pages (`tools/windows/instrument_status_fixture.py`, `tools/windows/journeys/instrument-status.json`, run through `a11y_matrix.py`): every chip state, the resize breakpoint (`assertbelow`/`assertlevel`) and chip IDs `fst.songs.instrument-status.<songId>.<ServiceId>` ([instrument status chips](../../controls/songs-instrument-status-chips/windows.md)).
 
-Scroll round trips near the top (issue #245) live in `tools/windows/journeys/songs-scroll.json` (UIA `scrollto:`, wheel, resize-while-scrolled and auto-scroll ping-pong pages; fixture and `--live` variants), run through `a11y_matrix.py --pages` ([testing](../../testing/windows.md#accessibility)).## Validation (issue #194, 2026-10-03)
+Scroll round trips near the top (issue #245) live in `tools/windows/journeys/songs-scroll.json` (UIA `scrollto:`, wheel, resize-while-scrolled and auto-scroll ping-pong pages; fixture and `--live` variants), run through `a11y_matrix.py --pages` ([testing](../../testing/windows.md#accessibility)).
+
+## Validation (issue #194, 2026-10-03)
 
 Checked against the live public service (keyless default origin, public player SFentonX, throwaway settings/data dirs) on a 3840×2160 display whose native scale is 300%, so compact/medium/wide presets give 500/900/1280 epx windows; the 1440 epx two-column layout was checked at 100% and 150% display scale. The console was locked: UIA patterns, posted keys and PrintWindow captures were used, not real input.
 
@@ -95,10 +100,51 @@ Live public service (keyless default origin, no player), console locked (UIA `sc
 
 Axe on a list scanned *during* the ping-pong reports transient `ClickablePointOnScreen` / `IsControlElementPropertyExists` / `ControlShouldSupportSetInfoXAML` findings on containers being recycled (name `Festival.Core.ViewModels.SongRowItem` before binding); settled scans of the same rows report 0, so ping-pong pages run without `--scan`. Wheel pages (`songs-scroll`, `songs-scroll-live`) need an unlocked console (`SendInput` is denied while LogonUI owns the input desktop); the #45 run covered wheel input. `winui-design`: the page already follows "use the platform collection + virtualisation" (`winapp find-ui` → Gallery grouped `ListView` with `AreStickyGroupHeadersEnabled="False"`).
 
+## Validation (issue #247, 2026-10-05): scroll stress
+
+Cross-check of iOS #8/#22 (crash, hang or rebuild/re-sort when scrolling fast near the top or flinging back to the top). Same host as #194: 3840×2160 display at 150%, locked console (UIA patterns, posted keys, PrintWindow captures). Fixture runs use `--large-catalogue` (110 songs); live runs use the keyless public origin with 731 songs, anonymous and with the public player SFentonX.
+
+| Configuration | Result |
+|---|---|
+| Fixture stress, compact/medium/wide × 2 rounds (fixed Release) | Pass 12/12: 0 rebuilds; near-top max 47–83 ms; flings max 132–221 ms; header and clean-exit checks pass |
+| Live stress SFentonX, compact/medium/wide/maximized/snap-left/snap-right | 11/12 phases pass: 0 rebuilds, all back at the top, clean exit; near-top max ≤ 108 ms. One maximized fling phase showed a single 796 ms frame gap in its first seconds; it did not recur in 8 repeat maximized/snap-left fling phases, with or without `--no-art` (max 141–196 ms) |
+| Live stress anonymous, medium | Pass: near-top max 52 ms, flings max 60 ms |
+| Sticky header after non-animated jumps (25/50/75/100/0%) | Failed before the fix ('#' over L, 'F' over L, 'L' over S, 'S' over Y); passes at every size after it (first gotcha below) |
+| Close during `--auto-scroll` | Crashed 3/3 (0xc000027b) before the fix, 0/3 after; the stress tool now fails on a non-zero exit code |
+| Axe.Windows + tab walk, `songs-scroll-a11y.json` (anonymous and SFentonX), live | Normal mode at all six sizes: Axe 0. The SFentonX bottom page read 99% after one jump at snapped widths (virtualized extent re-estimate); a second jump reaches 100%, and the journey now does that. The mid page likewise read 51% at display scale 100%, so it now jumps to 50% twice. Light, dark, high contrast Night sky/Desert, text 200%, display scale 100%/150% on subsets: Axe 0, and the extent re-checks pass on the fixed Release build |
+| Keyboard | `kb-songs-order`, `kb-songs-sort-esc`, `kb-songs-sort-groups`, `kb-songs-filter`, `kb-section-accelerators` pass at compact/medium/wide (fixed Release) |
+
+Scrolling never touches `SongsViewModel`: the only per-scroll work is `UpdateStickyHeader` (`SongSectionHeader.FirstVisibleRow`/`Push` over realized containers), so no scroll path can rebuild or re-sort. Rare single long frame gaps appear only in UIA-driven live fling phases with selected-player rows (3 of about 30 live fling phases in total, all in the first seconds of Scroll-pattern traffic). None came in in-app timer scrolling (near-top) or fixture runs, and the app stayed responsive and returned to the top every time.
+
+## Validation (issue #252, 2026-10-05)
+
+Re-check of #52 (Songs Search, Sort, Filter and Jump/Quick Links, plus the title-bar global search, stay reachable while scrolling). Already met; no app code changed. The controls sit in the fixed `Actions` row above `fst.songs.list` and the global search in the title bar, so only the list scrolls. There is no dock transition, so Animation effects off has nothing to reduce, and scrolling back to the top cannot shift the layout. `winui-design`: matches "use the platform collection + virtualisation" with a constrained-height `ListView` rather than a list inside a scroller, and no required command is hidden at small widths (compact shows Jump as an icon button and global search as a button; Ctrl+E opens Search). `winapp find-ui` lists only the Gallery `CommandBar` for a header above a scrolling list, and a persistent page header is the Fluent equivalent of the iOS nav-bar dock.
+
+New automated check: `tools/windows/journeys/anchored-controls.json` through `a11y_matrix.py` (see [testing/windows.md](../../testing/windows.md)). Each page:
+- pins every control's window-relative rect;
+- `scrollto:` mid-list and asserts the rects are unchanged (≤ 1 px);
+- while scrolled, Ctrl+F focuses Search, then Tab → Sort → Enter (Reset scrolled into view) → Esc returns focus, the same for Filter, and Tab → Jump → Enter → Esc;
+- scrolls to the end and back to the top, then asserts the `#` header and the pins again.
+
+`*-resize` pages repeat the checks after `resize:` compact → wide → maximized → snap-left → snap-right → medium. `tools/windows/tests/test_anchored_controls.py` checks the journey file.
+
+| Configuration | Result |
+|---|---|
+| Fixture (large catalogue): compact, medium, wide, maximized, snap-left, snap-right; resize across breakpoints | Pass; Axe 0 |
+| Fixture: hc-desert, hc-night-sky, light theme, display scale 100% and 150%, Animation effects off (compact, wide); text 200% (compact, medium, wide) | Pass; Axe 0. Light looks identical (Dark-only by design); contrast themes use system colours; at compact with 200% text, Sort/Filter/Jump sit on a second header row that stays fixed |
+| Live service (`SFentonX`): compact, medium, wide, maximized, snap-left, snap-right; resize across breakpoints | Pass; Axe 0 |
+| Live: hc-desert, text 200%, display scale 150%, light theme (compact, wide) | Pass; Axe 0. At 200% text the player's longer Sort list puts Reset below the fold; the flyout scrolls (default `FlyoutPresenter`), and `scrollinto:` reaches it |
+| Live: app auto-scroll ping-pong (`anchored-songs-frames-live`, 80 PrintWindow frames, medium) | Pass: 40 `assertpinned` checks during the motion |
+| Keyboard / Narrator (UIA) | Pass: while scrolled, focus goes Search → Sort → Filter → Jump, and Esc returns focus to the button that opened the flyout. UIA names: "Search songs", "Sort Songs" (HelpText carries the current sort), "Filter Songs" and "Jump to Section". The drop-downs expose Button with ExpandCollapse. Scrolling does not change the UIA tree order (header before list) |
+
+One run (fixture, Animation effects off, wide, Suggestions global search) saw focus "(none)" after Ctrl+E; a rerun passed. The foreground was lost on the shared desktop; it is not a product failure.
+
 ## Gotchas
 
 - `SongsViewModel` re-reads the catalogue, Shop and scores on `FestivalSession.PublicationAdvanced`; until the catalogue is re-read, Shop accents and scores stay paused (`ShopOffersForCatalog` is null on mismatch).
 - Trailing content is built in the phase-1 `ContainerContentChanging` pass (text renders first); crossing the 760 epx breakpoint re-realizes rows.
+- A non-animated jump (UIA Scroll pattern from Narrator/automation, `ChangeView(…, disableAnimation: true)`) raises its last `ViewChanged` before the rows at the new offset are realized, so a header read from that event alone keeps the old letter ('#' over L rows after a jump to 50%). `OnScrollerViewChanged` re-reads once on the next `LayoutUpdated` and once more at Low dispatcher priority after a final (non-intermediate) change (issues #247, #249).
+- `--auto-scroll` drives `ChangeView` from a 16 ms `DispatcherQueueTimer`; a tick after the window closed failed fast in `CoreMessagingXP.dll` (0xc000027b, WER `combase` 8000ffff) at every perf-run close. The timer now stops on page `Unloaded` and window `Closed` (issue #247).
 
 ## Open
 
