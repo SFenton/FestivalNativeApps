@@ -70,6 +70,8 @@
       "scrollto:id=fst.songs.list,30",
       "assertname:id=fst.songs.section-header|F",
       "scrollto:id=fst.songs.list,0",
+      "wait:1",
+      "scrollto:id=fst.songs.list,0",
       "assertname:id=fst.songs.section-header|#",
       "invoke:id=fst.songs.section-index-button",
       "waitfor:id=fst.songs.section-index@5",
