@@ -30,13 +30,13 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 - One controller per list: `rememberQuickLinks` keys only on the scroller, `pinnedHeaders` and density; `title` and `sections` are snapshot state set each composition. The shell's floating toolbar re-runs a page's `actions` only on state reads, so a controller recreated by a title change (Songs' "<Sort> Quick Links") left a stale entry with no sections and hid `fst.quick-links.open` (Linux CI flake in `SongsParityUiTest`). Covered by `QuickLinksControllerUiTest`.
 - Programmatic jumps do not reach the top bar's nested-scroll state, so pass `FestivalScreen(scrolled = listState.canScrollBackward)` or content shows through the transparent bar.
 - TalkBack: entry label includes the current section; items expose `selected` + "Current section" state; the sheet has a pane title. Test IDs `fst.quick-links.open`, `.sheet`, `.menu`, `.list`, `.item.<id>`.
-- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed.
+- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest`, and was re-validated on every AVD in #154.
 
 ## Adoption
 
 | Page | Status |
 |---|---|
-| Settings | Done: `app-settings`, `diagnostics` (debug), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `reset` (no `refresh-profile-name`/`export` rows) |
+| Settings | Done: `app-settings`, `diagnostics` (debug), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows) |
 | Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
 | Song Detail, Band, Compete, Rivals, Rivalry, Rival Detail, Leaderboards | Owning lanes: follow the spec IDs/labels with the API above |
@@ -56,6 +56,24 @@ Checked on the live public service (Settings page) on every FST AVD, light/dark 
 
 - M3 alignment: sheet = `ModalBottomSheet` + `NavigationDrawerItem` (selected = `secondaryContainer`-equivalent pill), menu = `DropdownMenu`/`DropdownMenuItem` (280 dp cap, scrolls), 48 dp targets. Deliberate deviations: 30 dp `Toc` glyph in the 48 dp button (web parity); `NavigationDrawerItem` exposes Role.Tab (M3 default); dark scheme only.
 - Tests: `QuickLinksUiTest` (Robolectric, every state, inset, menu label) on `testing/QuickLinksHarness.kt`; `androidTest/…/quicklinks/QuickLinksDeviceTest` (ATF checks, TalkBack order, animator scale 0, 2× sheet targets, 2× menu titles break only at spaces — glyph wrapping needs a device).
+
+## Validation (issue #154)
+
+Re-check of the #46 order on the live public service (Settings with 12 sections in debug: `app-settings` … `privacy-policy`, `reset`; player profile `SFentonX`: Global, 9 instruments, Top Songs, Bands). Each case opened Quick Links, jumped (Settings → Service Info, profile → Top Songs; on phone landscape → Show Instrument Metadata / Drums), then reopened it. **The order matches the page everywhere, so no app change was needed.**
+
+| Configuration | Entry point | Finding |
+|---|---|---|
+| FST_Phone portrait, dark 1.0 / light 2.0 | Toolbar sheet | Page order. After a drag up, the jumped item is selected on reopen. At 2.0 titles wrap and nothing clips |
+| FST_Phone landscape, dark 1.0 / light 2.0 | Top-bar menu (scrolls) | Page order. Jump lands, and "Current" shows under the item on reopen. Rows are 48 dp |
+| FST_Tablet landscape dark 1.0, portrait light 2.0 | Top-bar menu | Page order, jump and reopen state correct. Rows are 48 dp, and 2-line titles wrap only between words |
+| FST_Resizable phone / tablet portrait / desktop | Sheet / menu / menu | Compact, medium and expanded all correct |
+| FST_Book_Fold folded / unfolded / half-open | Sheet / menu / menu | Correct. Half-open anchors the menu in the end pane; no row crosses the hinge |
+| FST_Passport_Fold folded / unfolded / half-open | Sheet / menu / menu | Correct |
+| FST_TriFold folded / partial / unfolded | Sheet / menu / menu | Correct. Unfolded places the menu right of the second hinge |
+
+- Tooling note: right after a cold boot, `uiautomator dump` sometimes failed and aborted `device.py drive`. A warm-up dump before launching fixes it, and FST_Tablet portrait at 2.0 passed on rerun. This is not an app fault.
+- Tests: `quicklinks/QuickLinksPageOrderUiTest` (Robolectric) reads the real Settings and profile pages. For both the sheet (411 dp) and the menu (1280 dp and phone landscape), it asserts that every section is listed once in the page's `IndexForKey` order, that the jump updates the entry label, and that exactly the jumped item is `selected` on reopen. Reversing `controller.sections` in the sheet or the menu fails all 6 tests. `QuickLinksDeviceTest` passes on FST_Phone and FST_Tablet.
+- M3 (material-3 skill): bottom sheet at compact width, menu for larger windows, 48 dp targets, menu small shape at level 2, modal sheet extra-large at level 1. Deliberate deviations are unchanged from #137.
 
 ## Open
 

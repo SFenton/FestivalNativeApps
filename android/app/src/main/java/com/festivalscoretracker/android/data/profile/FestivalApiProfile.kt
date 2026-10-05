@@ -93,8 +93,9 @@ internal object ProfileEndpoints {
  */
 suspend fun FestivalApi.playerProfile(accountId: String): PlayerProfilePayload {
     val read = readPinnedResponse(ProfileEndpoints.player(accountId))
-    val profile = decode(PlayerProfileResponse.serializer(), read.body).normalized()
-    val state = profile.validate(accountId)
+    val (profile, state) = decode(PlayerProfileResponse.serializer(), read.body) { wire ->
+        wire.normalized().let { it to it.validate(accountId) }
+    }
     if ((state == PlayerProfileState.Syncing) != (read.status == 202)) throw FestivalApiException.InvalidResponse()
     return PlayerProfilePayload(profile, state, read.responsePublicationId, read.observedPublicationId)
 }
