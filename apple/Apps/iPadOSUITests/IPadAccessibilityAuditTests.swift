@@ -199,7 +199,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static let shell: [Page] = [
         Page(name: "flyout", profile: true, ready: "fst.songs.list", open: { app in
             // The proof is a row inside the panel, so the panel is the "sheet" region.
-            tapFirst(app, ["fst.shell.drawer.open"]) ? "fst.shell.drawer.songs" : nil
+            openDrawer(app) ? "fst.shell.drawer.songs" : nil
         }, sheet: true),
         // Song Detail opened from its Songs row, as a person does: a page pushed by
         // `FST_DEBUG_SONG` did not scroll under XCUITest drags or scroll-to-tap.
@@ -553,6 +553,25 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             return known
         default: return false
         }
+    }
+
+    /// Open the flyout or drawer: its toolbar button, or on the folded iPhone Duo rail the
+    /// system overflow menu that holds it (`/duo` W1: the hamburger overflows there).
+    ///
+    /// - Returns: True once the drawer shows.
+    @MainActor
+    static func openDrawer(_ app: XCUIApplication) -> Bool {
+        if tapFirst(app, ["fst.shell.drawer.open"], timeout: 5) {
+            return anyElement(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5)
+        }
+        let more = app.buttons.matching(NSPredicate(format: "label IN %@", ["More", "Show More"])).firstMatch
+        guard more.waitForExistence(timeout: 5) else { return false }
+        more.tap()
+        let item = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == 'Open Navigation' OR label == 'Menu'")).firstMatch
+        guard item.waitForExistence(timeout: 5) else { return false }
+        item.tap()
+        return anyElement(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5)
     }
 
     /// Open a song's detail page from its Songs row.
