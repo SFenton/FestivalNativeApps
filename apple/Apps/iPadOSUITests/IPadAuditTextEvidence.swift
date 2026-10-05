@@ -56,7 +56,7 @@ enum IPadAuditTextEvidence {
         /// The element at ``ordinal``, scrolled inside `content` (default: the window) if
         /// needed, at most eight slow drags.
         @MainActor
-        func resolve(in app: XCUIApplication, within content: CGRect? = nil) -> XCUIElement? {
+        func resolve(in app: XCUIApplication, within content: CGRect? = nil, fallbackX: CGFloat? = nil) -> XCUIElement? {
             let window = content ?? app.windows.firstMatch.frame
             let origin = app.coordinate(withNormalizedOffset: .zero)
             for _ in 0..<8 {
@@ -64,7 +64,9 @@ enum IPadAuditTextEvidence {
                 // A slow drag by about the distance needed: a flick's momentum overshot a
                 // Form's last header past the top and back again.
                 var distance: CGFloat = 400
-                var x = window.midX
+                // Not built yet (lazy rows): drag where the audited element was. The
+                // window's middle is a split's divider, which scrolls neither pane.
+                var x = fallbackX.map { min(max($0, window.minX + 20), window.maxX - 20) } ?? window.midX
                 if ordinal < found.count {
                     let frame = found[ordinal].frame
                     if window.contains(frame) { return found[ordinal] }
