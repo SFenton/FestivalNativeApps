@@ -827,6 +827,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "rememberBandRankWidth"
           }
         ],
         "windows": [

@@ -103,6 +103,7 @@ import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.ui.bands.BandScoreRow
+import com.festivalscoretracker.android.ui.bands.rememberBandRankWidth
 import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.common.FestivalLoadGate
 import com.festivalscoretracker.android.ui.common.FestivalLoading
@@ -541,13 +542,14 @@ private fun BandPreview(
         SectionHeader(type.label)
         when (state) {
             LoadState.Loading -> Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
-                FestivalLoading(null, size = 28.dp)
+                FestivalLoading("Loading ${type.label} scores", Modifier.testTag("fst.song-detail.band-loading.${type.wireId}"), size = 28.dp)
             }
             is LoadState.Failed -> GlassCard(Modifier.fillMaxWidth()) {
                 ServiceStatusInline(
                     state.issue, "${type.label} scores unavailable", state.countdown,
                     onRetry = { viewModel.retryBandPreview(type, accountId) },
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    retryTag = "fst.song-detail.band-retry.${type.wireId}",
                 )
             }
             is LoadState.Loaded -> {
@@ -563,15 +565,17 @@ private fun BandPreview(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val open = { entry: SongBandLeaderboardEntry -> navigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
+                        val rankWidth = rememberBandRankWidth(board.entries + listOfNotNull(outside))
                         board.entries.forEachIndexed { index, entry ->
                             BandScoreRow(
                                 entry, song,
                                 selected = board.selectedPlayerEntry?.sameBand(entry) == true,
+                                rankWidth = rankWidth,
                                 tag = "fst.song-detail.band-row.${type.wireId}.$index",
                             ) { open(entry) }
                         }
                         outside?.let { entry ->
-                            BandScoreRow(entry, song, selected = true, tag = "fst.song-detail.band-selected.${type.wireId}") { open(entry) }
+                            BandScoreRow(entry, song, selected = true, rankWidth = rankWidth, tag = "fst.song-detail.band-selected.${type.wireId}") { open(entry) }
                         }
                         ViewFullLeaderboardButton(
                             onClick = { navigate(SongBandLeaderboardRoute(song.songId, type.wireId)) },
@@ -610,7 +614,7 @@ private fun InstrumentCard(
             Column(Modifier.padding(vertical = 4.dp)) {
                 when (state) {
                     LoadState.Loading -> Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
-                        FestivalLoading(null, size = 28.dp)
+                        FestivalLoading("Loading ${instrument.label} scores", Modifier.testTag("fst.song-detail.loading.${instrument.wireId}"), size = 28.dp)
                     }
                     is LoadState.Failed -> ServiceStatusInline(
                         state.issue, "${instrument.label} scores unavailable", state.countdown,

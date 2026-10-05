@@ -2,7 +2,10 @@ package com.festivalscoretracker.android.ui.songs
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.SemanticsMatcher
@@ -27,6 +30,9 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import com.festivalscoretracker.android.data.HttpRequest
+import com.festivalscoretracker.android.data.HttpResult
+import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -34,6 +40,7 @@ import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
+import kotlinx.coroutines.CompletableDeferred
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -72,7 +79,7 @@ class SongsParityUiTest {
 
     private fun prefs(vararg pairs: Preferences.Pair<*>) = InMemoryPreferences(mutablePreferencesOf(*pairs))
 
-    private fun launch(debug: DebugLaunch, prefs: InMemoryPreferences = InMemoryPreferences()) {
+    private fun launch(debug: DebugLaunch, prefs: InMemoryPreferences = InMemoryPreferences(), transport: HttpTransport = this.transport) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = prefs)
         rule.setContent { FestivalApp(container, debug) }
         settle()
@@ -267,8 +274,47 @@ class SongsParityUiTest {
         // Trios ranks the player's band 2nd: highlighted in place, not appended.
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-row.Band_Trios.1"))
         assertFalse(exists("fst.song-detail.band-selected.Band_Trios"))
+        // TalkBack names the highlighted band (issue #172); other rows read plainly. One Button stop each, opening Band Detail.
+        assertTrue(description("fst.song-detail.band-row.Band_Trios.1").startsWith("Your band, Rank 2, "))
+        assertTrue(description("fst.song-detail.band-row.Band_Trios.0").startsWith("Rank 1, "))
+        rule.onNodeWithTag("fst.song-detail.band-row.Band_Trios.1")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(SemanticsMatcher("opens Band Detail") { it.config.getOrNull(SemanticsActions.OnClick)?.label == "Open band" })
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-selected.Band_Duets"))
+        assertTrue(description("fst.song-detail.band-selected.Band_Duets").startsWith("Your band, Rank 12, "))
         click("fst.song-detail.band-selected.Band_Duets")
         waitForTag("fst.band.screen")
+    }
+
+    private fun description(tag: String): String =
+        rule.onNodeWithTag(tag).fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
+
+    @Test
+    fun songDetailBandPreviewRetryShowsALabelledSpinnerThenRows() {
+        BandFixtures.install(transport)
+        var fail = true
+        val gate = CompletableDeferred<Unit>()
+        val gated = object : HttpTransport {
+            override suspend fun send(request: HttpRequest): HttpResult {
+                if ("/bands/Band_Trios" in request.url) {
+                    if (fail) return HttpResult(500, ByteArray(0))
+                    gate.await()
+                }
+                return transport.send(request)
+            }
+        }
+        launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true), transport = gated)
+        waitForTag("fst.song-detail.list")
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-retry.Band_Trios"))
+        fail = false
+        click("fst.song-detail.band-retry.Band_Trios")
+        // Loading: a labelled spinner in the section (M3 progress indicators name what loads).
+        waitForTag("fst.song-detail.band-loading.Band_Trios")
+        assertEquals("Loading Trios scores", description("fst.song-detail.band-loading.Band_Trios"))
+        gate.complete(Unit)
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-row.Band_Trios.0"))
+        assertFalse(exists("fst.song-detail.band-retry.Band_Trios"))
+        assertTrue(exists("fst.song-detail.band-view-all.Band_Trios"))
     }
 
     @Test
