@@ -14,7 +14,7 @@
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "wait:0.8",
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
-      "assertname:id=fst.history.chart|Bass score history, 2 of 2 scores from Jan 31, 2024 to Feb 1, 2024.",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "waitgone:id=fst.history.page-back@2",
       "toggle:id=fst.history.instrument.Solo_Drums",
       "wait:0.8",
@@ -27,7 +27,7 @@
       "toggle:id=fst.history.instrument.Solo_Bass",
       "wait:0.8",
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
-      "assertname:id=fst.history.chart|Bass score history, 2 of 2 scores from Jan 31, 2024 to Feb 1, 2024.",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
       "assertstate:id=fst.history.instrument.Solo_Guitar|toggle=off",
       "toggle:id=fst.history.instrument.Solo_Guitar",
@@ -56,13 +56,57 @@
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "wait:0.8",
       "waitgone:id=fst.history.detail@3",
-      "assertname:id=fst.history.chart|Bass score history, 2 of 2 scores from Jan 31, 2024 to Feb 1, 2024.",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "shot:{stem}-bass.png"
     ],
-    "tabs": 0
+    "tabs": 0,
+    "skip_sizes": {
+      "text-150": [
+        "compact"
+      ],
+      "text-200": [
+        "compact"
+      ],
+      "text-225": [
+        "compact"
+      ]
+    }
   },
   {
     "name": "history-swap-keyboard",
+    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "profile": "fixture-history-multi:History Multi",
+    "ready": [
+      "waitfor:id=fst.history.chart@20",
+      "scrollinto:id=fst.history.instrument.group@10"
+    ],
+    "after_ready": [
+      "focus:id=fst.history.instrument.Solo_Guitar",
+      "key:right",
+      "assertfocus:id=fst.history.instrument.Solo_Bass@3",
+      "key:space",
+      "wait:0.8",
+      "assertfocus:id=fst.history.instrument.Solo_Bass@3",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
+      "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
+      "key:right",
+      "assertfocus:id=fst.history.instrument.Solo_Drums@3",
+      "key:enter",
+      "wait:0.8",
+      "assertfocus:id=fst.history.instrument.Solo_Drums@3",
+      "assertstate:id=fst.history.instrument.Solo_Drums|toggle=on",
+      "shot:{stem}-focus.png",
+      "keys:left space left space right space",
+      "wait:0.8",
+      "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
+      "assertstate:id=fst.history.instrument.Solo_Guitar|toggle=off",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
+      "assertfocus:id=fst.history.instrument.Solo_Bass@3"
+    ],
+    "tabs": 6
+  },
+  {
+    "name": "history-swap-keyboard-span",
     "route": "/songs/fixture-pulse/Solo_Guitar/history",
     "profile": "fixture-history-multi:History Multi",
     "ready": [
@@ -80,7 +124,7 @@
       "wait:0.8",
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "assertfocus:id=fst.history.instrument.Solo_Bass@3",
-      "assertname:id=fst.history.chart|Bass score history, 2 of 2 scores from Jan 31, 2024 to Feb 1, 2024.",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
       "key:right",
       "assertfocus:id=fst.history.instrument.Solo_Drums@3",
@@ -96,10 +140,19 @@
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "assertstate:id=fst.history.instrument.Solo_Bass|toggle=on",
       "assertstate:id=fst.history.instrument.Solo_Guitar|toggle=off",
-      "assertname:id=fst.history.chart|Bass score history, 2 of 2 scores from Jan 31, 2024 to Feb 1, 2024.",
+      "assertname:id=fst.history.chart|Bass score history, * of 2 scores *",
       "assertfocus:id=fst.history.instrument.Solo_Bass@3"
     ],
-    "tabs": 6
+    "tabs": 6,
+    "skip_modes": [
+      "hc-aquatic",
+      "hc-desert",
+      "hc-dusk",
+      "hc-night-sky",
+      "text-150",
+      "text-200",
+      "text-225"
+    ]
   },
   {
     "name": "history-swap-instant",
@@ -117,7 +170,7 @@
     "after_ready": [
       "markspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "toggle:id=fst.history.instrument.Solo_Bass",
-      "assertname:id=fst.history.chart@0.1|Bass score history, 2 of 2 scores from Jan 31, 2024 to Feb 1, 2024.",
+      "assertname:id=fst.history.chart@0.1|Bass score history, * of 2 scores *",
       "assertspan:id=fst.history.subtitle|id=fst.history.sort.open|card",
       "waitgone:id=fst.history.page-back@0.1",
       "toggle:id=fst.history.instrument.Solo_Guitar",

@@ -1083,18 +1083,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
-    /// <summary>Waits until the step's element is on screen with exactly the step's UIA Name.</summary>
+    /// <summary>
+    /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches
+    /// any run of characters (e.g. a chart name whose visible page depends on the text size).
+    /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, the expected <c>text</c> and an optional timeout (default 5 s).</param>
     /// <exception cref="InvalidOperationException">The name still differs at the timeout.</exception>
     private void AssertName(Window window, JsonObject step)
     {
         var expected = (string?)step["text"] ?? "";
+        var pattern = expected.Contains('*')
+            ? new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(expected).Replace(@"\*", ".*", StringComparison.Ordinal) + "$", System.Text.RegularExpressions.RegexOptions.Singleline)
+            : null;
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         while (true)
         {
             var actual = Find(window, step).Properties.Name.ValueOrDefault ?? "";
-            if (actual == expected) return;
+            if (pattern?.IsMatch(actual) ?? actual == expected) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {(string)step["arg"]!} is named {actual!}, expected {expected}");
             Thread.Sleep(200);

@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import a11y_matrix  # noqa: E402  (sibling module)
 import uiwin  # noqa: E402  (sibling module)
 
 JOURNEYS = Path(__file__).resolve().parents[1] / "journeys"
@@ -40,9 +41,37 @@ class HistorySwapJourneyTests(unittest.TestCase):
     def test_spans_are_marked_before_they_are_asserted(self):
         for page in PAGES + LIVE:
             seen = [step for step in steps(page) if step.startswith(("markspan:", "assertspan:"))]
+            if page["name"] == "history-swap-keyboard":
+                self.assertEqual(seen, [], "keyboard focus checks must run where the card is taller than the window")
+                continue
             self.assertEqual(seen[0], f"markspan:{SPAN}", page["name"])
             self.assertTrue(all(step == f"assertspan:{SPAN}" for step in seen[1:]), page["name"])
             self.assertGreater(len(seen), 1, page["name"])
+
+    def test_detail_page_skips_compact_large_text(self):
+        # With a bar's detail row at compact and large text, the subtitle and the sort button never share the screen.
+        detail = next(p for p in PAGES if p["name"] == "history-swap-detail")
+        self.assertEqual(a11y_matrix.page_sizes(detail, ["compact", "medium", "wide"], "text-200"), ["medium", "wide"])
+        self.assertEqual(a11y_matrix.page_sizes(detail, ["compact", "medium", "wide"], "hc-desert"),
+                         ["compact", "medium", "wide"])
+
+    def test_chart_names_ignore_the_visible_page(self):
+        # Large text pages the chart to fewer bars, so the name's "N of 2 scores from …" range varies by size.
+        for page in PAGES:
+            for step in steps(page):
+                if step.startswith("assertname:id=fst.history.chart"):
+                    self.assertTrue(step.endswith("|Bass score history, * of 2 scores *"), step)
+
+    def test_keyboard_span_page_skips_modes_where_the_card_overflows(self):
+        # Focusing the selector scrolls it into view; when the card is taller than the window the sort button (the
+        # span's bottom anchor) then leaves the screen, and UIA reports an off-screen rectangle as empty.
+        plain, spanned = (next(p for p in PAGES if p["name"] == name)
+                          for name in ("history-swap-keyboard", "history-swap-keyboard-span"))
+        self.assertIn("text-200", spanned["skip_modes"])
+        self.assertIn("hc-desert", spanned["skip_modes"])
+        self.assertNotIn("skip_modes", plain)
+        self.assertEqual([s for s in steps(spanned) if "span:" not in s and "sort.open" not in s],
+                         [s for s in steps(plain) if "sort.open" not in s])
 
     def test_rapid_switching_ends_on_the_last_pick(self):
         page = next(page for page in PAGES if page["name"] == "history-swap")
@@ -52,7 +81,7 @@ class HistorySwapJourneyTests(unittest.TestCase):
         self.assertTrue(any(step.startswith("assertname:id=fst.history.chart|Bass ") for step in run[rapid:]))
 
     def test_posted_keys_switch_within_one_fade(self):
-        page = next(page for page in PAGES if page["name"] == "history-swap-keyboard")
+        page = next(page for page in PAGES if page["name"] == "history-swap-keyboard-span")
         run = steps(page)
         burst = run.index("keys:left space left space right space")
         self.assertEqual(run[burst + 1], f"assertspan:{SPAN}")
