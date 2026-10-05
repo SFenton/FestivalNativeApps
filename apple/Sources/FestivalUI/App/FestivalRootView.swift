@@ -335,11 +335,14 @@ public struct FestivalRootView: View {
                 // iPad at regular width: the selected section (or Search) full width; the
                 // destinations live in the overlay flyout (`split-view.md`, operator
                 // 2026-10-04: no persistent sidebar column).
-                if searchActive {
-                    searchView(asTab: false)
-                } else {
-                    content(for: selected)
+                Group {
+                    if searchActive {
+                        searchView(asTab: false)
+                    } else {
+                        content(for: selected)
+                    }
                 }
+                .modifier(ShellKeyFocus(key: searchActive ? nil : selected))
             } else {
                 tabs(visibleSections)
             }
@@ -943,6 +946,33 @@ public struct FestivalRootView: View {
     }
 }
 
+
+// MARK: - Keyboard focus (iPad flyout shell)
+
+/// Keeps a keyboard focus target in the iPad flyout shell. The persistent sidebar list
+/// used to hold focus; without it, switching sections destroyed the focused view and
+/// the window was left with no first responder, so the menu bar's shortcuts (⌘1…⌘9,
+/// ⌘[, Escape) stopped reaching it (live, 2026-10-05: ⌘3 ignored after ⌘2). The page
+/// container takes focus again whenever the section changes.
+private struct ShellKeyFocus: ViewModifier {
+    /// The shown section (nil for Search, whose field manages its own focus).
+    let key: FestivalSection?
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .focusable(key != nil)
+            .focusEffectDisabled()
+            .focused($focused)
+            .onChange(of: key, initial: true) { _, key in
+                if key != nil { focused = true }
+            }
+        #else
+        content
+        #endif
+    }
+}
 
 // MARK: - Menu bar publishing
 
