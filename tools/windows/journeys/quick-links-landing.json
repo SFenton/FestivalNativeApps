@@ -166,6 +166,45 @@
       "assertinset:name=Duos&class=AccessibleGroup|id=fst.song-detail|97.7",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Duos@5",
       "shot:{stem}-duos.png"
+    ],
+    "skip_modes": [
+      "text-150",
+      "text-200",
+      "text-225"
+    ]
+  },
+  {
+    "name": "qll-song-menu-text-200",
+    "route": "/songs/fixture-pulse",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument-Solo_Drums@5",
+      "toggle:id=fst.quick-links.item.instrument-Solo_Drums",
+      "waitgone:id=fst.quick-links.item.instrument-Solo_Drums@5",
+      "wait:1",
+      "assertinset:name=Drums, 1 total entry&class=AccessibleGroup|id=fst.song-detail|113.3",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums@5",
+      "shot:{stem}-drums.png",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band-Band_Duets@5",
+      "toggle:id=fst.quick-links.item.band-Band_Duets",
+      "waitgone:id=fst.quick-links.item.band-Band_Duets@5",
+      "wait:1",
+      "assertinset:name=Duos&class=AccessibleGroup|id=fst.song-detail|115.3",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Duos@5",
+      "shot:{stem}-duos.png"
+    ],
+    "modes": [
+      "text-200"
     ]
   }
 ]
