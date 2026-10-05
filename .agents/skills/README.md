@@ -1,12 +1,16 @@
 # Skills router
 
-> **What:** repeatable step-by-step procedures. **Read when:** doing one of these tasks; follow the steps rather than re-deriving them.
+> **What:** repeatable step-by-step procedures, stored as agent skills (`<name>/SKILL.md` with `name`/`description` frontmatter, so Copilot CLI loads them on demand from `.agents/skills`). **Read when:** doing one of these tasks; follow the steps rather than re-deriving them.
 
 | Skill | Use for |
 |---|---|
-| [port-page.md](port-page.md) | Bringing a web route to a native platform |
-| [add-control.md](add-control.md) | Adding or porting a control with states and test IDs |
-| [add-endpoint.md](add-endpoint.md) | Adding a keyless service read to the Apple client |
-| [screenshot-compare.md](screenshot-compare.md) | Visual smoke check of a native screen against the web app |
+| [fix-reported-issue](fix-reported-issue/SKILL.md) | Any tracker issue: intent → precedent → reproduce → fix the pattern → sweep → test → docs → report |
+| [consistency-sweep](consistency-sweep/SKILL.md) | Finding every place a behavior lives (all platforms + web) and the canonical one |
+| [design-decision](design-decision/SKILL.md) | Making a design call knowingly: options, evidence, choice, documented rationale (owner may override with `/choose`) |
+| [web-parity-check](web-parity-check/SKILL.md) | Reading the web as the behavior reference: states, constants, copy, timings |
+| [port-page](port-page/SKILL.md) | Bringing a web route to a native platform |
+| [add-control](add-control/SKILL.md) | Adding or porting a control with states and test IDs |
+| [add-endpoint](add-endpoint/SKILL.md) | Adding a keyless service read to the Apple client |
+| [screenshot-compare](screenshot-compare/SKILL.md) | Visual smoke check of a native screen against the web app |
 
-TODO(orchestrator): add `add-route.md` once the `AppRoute` / `AppRouteDestination` seam workflow is settled.
+TODO(orchestrator): add `add-route` once the `AppRoute` / `AppRouteDestination` seam workflow is settled.

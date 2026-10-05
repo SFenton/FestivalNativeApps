@@ -28,7 +28,8 @@ struct MacAXNode: CustomStringConvertible {
 
     var description: String {
         "\(String(repeating: " ", count: depth))\(role)\(subrole.isEmpty ? "" : "/\(subrole)")"
-            + " '\(spokenName)'" + (identifier.isEmpty ? "" : " #\(identifier)") + (selected ? " [selected]" : "")
+            + " '\(spokenName)'" + (!value.isEmpty && value != spokenName ? " = '\(value)'" : "")
+            + (identifier.isEmpty ? "" : " #\(identifier)") + (selected ? " [selected]" : "")
             + (isElement ? "" : " (not element)")
     }
 }
@@ -101,6 +102,10 @@ func macAccessibilityFindings(_ nodes: [MacAXNode]) -> [String] {
         if macNamedRoles.contains(node.role), node.spokenName.trimmingCharacters(in: .whitespaces).isEmpty {
             findings.append("unnamed \(node.role) #\(node.identifier)")
         }
+        // Swift Charts names an unlabelled mark by its plotted range ("0 to 1").
+        if node.spokenName.range(of: #"^\d+(\.\d+)? to \d+(\.\d+)?$"#, options: .regularExpression) != nil {
+            findings.append("chart mark named by its plotted range '\(node.spokenName)' #\(node.identifier)")
+        }
         if node.role == "AXImage", index + 1 < elements.count,
            !node.spokenName.isEmpty, elements[index + 1].spokenName == node.spokenName {
             findings.append("image repeats '\(node.spokenName)' (\(elements[index + 1].role))")
@@ -139,7 +144,6 @@ private func hostMacRootTree(_ session: FestivalSession, initial: MacDestination
     let model = MacAppModel(session: session, storage: nil, initial: initial)
     let host = nativeHostedView(
         MacRootView(model: model)
-            .environment(\.macListCollapseDelay, .seconds(120))
             .frame(width: size.width, height: size.height),
         size: size
     )
@@ -223,7 +227,6 @@ struct MacAccessibilityTreeTests {
             let size = MacWindowMetrics.defaultSize
             let model = MacAppModel(session: try await macTreeSession(player: player), storage: nil, initial: .songs)
             let controller = NSHostingController(rootView: MacRootView(model: model)
-                .environment(\.macListCollapseDelay, .seconds(120))
                 .frame(width: size.width, height: size.height))
             controller.sceneBridgingOptions = [.toolbars, .title]
             let window = NSWindow(contentViewController: controller)
@@ -258,6 +261,33 @@ struct MacAccessibilityTreeTests {
         }
     }
 
+    /// With a split open, the window toolbar carries the trailing pane's Close button,
+    /// named and tooltipped with its shortcut, and no two items share a label.
+    @Test func macTreeSplitToolbarNamesClose() async throws {
+        let size = MacWindowMetrics.defaultSize
+        let model = MacAppModel(session: try await macTreeSession(player: true), storage: nil, initial: .leaderboards)
+        model.navigation.paths[.leaderboards] = [
+            .fullRankings(instrument: .lead, rankBy: "totalscore"),
+            .player(accountId: "fixture-player-2", displayName: "Fixture Player 2"),
+        ]
+        let controller = NSHostingController(rootView: MacRootView(model: model).frame(width: size.width, height: size.height))
+        controller.sceneBridgingOptions = [.toolbars, .title]
+        let window = NSWindow(contentViewController: controller)
+        window.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        window.setFrame(NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height), display: false)
+        window.orderOut(nil)
+        defer { window.close() }
+        let deadline = ContinuousClock.now + nativeHostedReadinessBudget(.seconds(20))
+        while !(window.toolbar?.items.contains { $0.label == "Close" } ?? false), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let items = try #require(window.toolbar?.items)
+        let labels = items.map(\.label)
+        let close = try #require(items.first { $0.label == "Close" }, "Close in \(labels)")
+        #expect(close.toolTip == "Close (Esc)")
+        #expect(Set(labels).count == labels.count, "no two toolbar items share a label: \(labels)")
+    }
+
     // MARK: - Pages
 
     /// Every Mac destination (fixture data): no unnamed control or image, no decorative
@@ -275,28 +305,100 @@ struct MacAccessibilityTreeTests {
         let nodes = macAccessibilityTree(host)
         macAccessibilityDump(nodes, name: "page-\(destination.rawValue)")
         #expect(macAccessibilityFindings(nodes) == [], "\(destination.title)")
-        if destination != .shop {
+        // The fixture catalogue fits one Songs section, so its list shows no section
+        // heading; Songs no longer shows Song Detail beside it (operator 2026-10-04).
+        if destination != .shop && destination != .songs {
             #expect(nodes.contains { $0.role == "AXHeading" && !$0.spokenName.isEmpty }, "\(destination.title) has headings")
         }
     }
 
-    /// Songs list | detail: the auto-selected song row reports the selected state and reads
-    /// before the detail, whose song title is a heading.
-    @Test func macTreeSongsSplitSelectionAndOrder() async throws {
-        let (host, window, _) = hostMacRootTree(try await macTreeSession(player: false), initial: .songs)
+    /// Song Detail beside its full leaderboard: the song page (leading half) reads before
+    /// the trailing pane, and the song title is a heading.
+    @Test func macTreeSongDetailSplitOrder() async throws {
+        let session = try await macTreeSession(player: false)
+        let song = try #require(try await session.catalog().catalog.songs.first)
+        let (host, window, model) = hostMacRootTree(session, initial: .songs)
         defer { window.orderOut(nil) }
-        try await nativeHostedSettle(host, timeout: macTreeBudget, until: {
-            nativeHostedAccessibility(host).identifiers.contains("fst.song-detail.intensity")
+        model.navigation.paths[.songs] = [.songDetail(song), .songLeaderboard(song, .lead, 1)]
+        let image = try await nativeHostedSettle(host, timeout: macTreeBudget, until: {
+            let ids = nativeHostedAccessibility(host).identifiers
+            return ids.contains("fst.song-detail.intensity") && ids.contains("fst.split.trailing")
         })
+        _ = try nativeHostedPNG(image, filename: "mac-song-detail-split.png", environment: "FST_SHELL_RENDER_OUT")
         let nodes = macAccessibilityTree(host).filter(\.isElement)
-        macAccessibilityDump(nodes, name: "songs-split")
-        let rows = nodes.enumerated().filter { $0.element.identifier.hasPrefix("fst.songs.row.") }
-        #expect(rows.filter(\.element.selected).count == 1, "one selected song row: \(rows.map(\.element))")
+        macAccessibilityDump(nodes, name: "song-detail-split")
         let detail = try #require(nodes.firstIndex { $0.identifier == "fst.song-detail.intensity" })
         let sidebar = try #require(nodes.firstIndex { $0.identifier == "fst.nav.songs" })
-        #expect(sidebar < (rows.first?.offset ?? .max), "sidebar before list")
-        #expect((rows.last?.offset ?? .max) < detail, "list before detail")
-        #expect(nodes[detail...].contains { $0.role == "AXHeading" }, "detail headings")
+        #expect(sidebar < detail, "sidebar before the song page")
+        let title = try #require(nodes.first { $0.identifier == "fst.song-detail.hero-title" })
+        #expect(title.role == "AXHeading", "the song title is a heading: \(title)")
+        #expect(macAccessibilityFindings(nodes) == [])
+    }
+
+    /// Each list page beside its open item in the fixed-divider Mac split (Lane SPLIT,
+    /// 2026-10-05): the sidebar reads first, the list before the trailing pane, the opened
+    /// row is the one selected element (HIG Split views: "Persistently highlight the current
+    /// selection"), the divider stays out of the tree, and nothing is unnamed. (Close
+    /// sits in the window toolbar: `macTreeToolbarItemsAreLabelled`.)
+    @Test(arguments: [
+        ("full-rankings", MacDestination.leaderboards,
+         [AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore"),
+          .player(accountId: "fixture-player-2", displayName: "Fixture Player 2")], "fst.rankings.row."),
+        ("leaderboards", .leaderboards,
+         [.player(accountId: "fixture-player-2", displayName: "Fixture Player 2")], "fst.rankings.row."),
+        ("rivals", .rivals,
+         [.rivalDetail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "uwphe", scope: nil)], "fst.rivals.row."),
+    ])
+    func macTreeSplitPagesReadLeadingThenTrailing(
+        name: String, destination: MacDestination, path: [AppRoute], rowPrefix: String
+    ) async throws {
+        let (host, window, model) = hostMacRootTree(try await macTreeSession(player: true), initial: destination)
+        defer { window.orderOut(nil) }
+        model.navigation.paths[destination] = path
+        _ = try await nativeHostedSettle(host, timeout: macTreeBudget, until: {
+            let ids = nativeHostedAccessibility(host).identifiers
+            return ids.contains("fst.split.trailing") && ids.contains { $0.hasPrefix(rowPrefix) }
+        })
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: "split-\(name)")
+        let elements = nodes.filter(\.isElement)
+        let sidebar = try #require(elements.firstIndex { $0.identifier == "fst.nav.\(destination.rawValue)" })
+        let row = try #require(elements.firstIndex { $0.identifier.hasPrefix(rowPrefix) })
+        let trailing = try #require(nodes.firstIndex { $0.identifier == "fst.split.trailing" })
+        let firstRowInTree = try #require(nodes.firstIndex { $0.identifier.hasPrefix(rowPrefix) })
+        #expect(sidebar < row, "\(name): sidebar before the list")
+        #expect(firstRowInTree < trailing, "\(name): the list reads before the trailing pane")
+        #expect(!elements.contains { $0.identifier == "fst.split.divider" }, "\(name): the divider is decorative")
+        if case .player(let accountId, _) = path.last {
+            // Leaderboards lists the same player on every instrument card: each of those
+            // rows opens the same item, so each reads selected; no other row does.
+            let selected = elements.filter { $0.identifier.hasPrefix(rowPrefix) && $0.selected }
+            #expect(!selected.isEmpty && selected.allSatisfy { $0.identifier == "\(rowPrefix)\(accountId)" },
+                    "\(name): only the opened item's rows are selected: \(selected)")
+        }
+        #expect(macAccessibilityFindings(elements) == [], "\(name)")
+    }
+
+    /// Song Detail beside its score history: the standalone history page carries the
+    /// registered `fst.history` page root (as on Android/Windows, issue #302) and its
+    /// section keeps its own identifiers.
+    @Test func macTreeScoreHistoryPageKeepsChildIdentifiers() async throws {
+        let session = try await macTreeSession(player: true)
+        let songs = try await session.catalog().catalog.songs
+        let song = try #require(songs.first { $0.songId == "fixture-pulse" })
+        let (host, window, model) = hostMacRootTree(session, initial: .songs)
+        defer { window.orderOut(nil) }
+        model.navigation.paths[.songs] = [.songDetail(song), .playerHistory(song, .lead)]
+        _ = try await nativeHostedSettle(host, timeout: macTreeBudget, until: {
+            let ids = nativeHostedAccessibility(host).identifiers
+            return ids.contains("fst.split.trailing") && ids.contains("fst.song-detail.history.chart")
+        })
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: "song-detail-score-history-split")
+        let ids = Set(nodes.map(\.identifier))
+        #expect(ids.contains("fst.history"), "the history page root is identified")
+        #expect(ids.contains("fst.song-detail.history.row.0"), "the history rows keep their identifiers")
+        #expect(!ids.contains("fst.score-history.page"), "the unregistered identifier is gone")
     }
 }
 #endif

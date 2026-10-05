@@ -213,4 +213,18 @@ private func chartPixels<Content: View>(_ chart: Content) throws -> CGImage {
     #expect(QuickLinkSection(id: "global", title: "Global Statistics").accessibilityTitle
         == "Global Statistics")
 }
+
+/// Each rank-history bar speaks its snapshot's rank and Total Score (VoiceOver otherwise
+/// reads Swift Charts' plotted index range, "0 to 1").
+@MainActor
+@Test func rankHistoryBarsSpeakRankAndTotalScore() {
+    let point = RankHistoryCharts.Point(
+        id: "2026-09-27", index: 6, label: "9/27/26", rank: 4, value: 89_400_000, rankedAccountCount: 506
+    )
+    #expect(RankHistoryCharts.accessibilityValue(point) == "Rank 4 of 506, total score 89,400,000")
+    let unranked = RankHistoryCharts.Point(
+        id: "2026-09-26", index: 5, label: "9/26/26", rank: 12, value: 1_000, rankedAccountCount: nil
+    )
+    #expect(RankHistoryCharts.accessibilityValue(unranked) == "Rank 12, total score 1,000")
+}
 #endif

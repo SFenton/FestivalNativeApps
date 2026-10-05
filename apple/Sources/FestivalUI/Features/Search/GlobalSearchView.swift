@@ -428,7 +428,8 @@ extension EnvironmentValues {
 extension View {
     /// Add the account group (bell when a profile is selected, then the profile button)
     /// to a pushed page's toolbar, so the persistent top bar matches its tab root
-    /// (issue #92).
+    /// (issue #92). With the iPhone tab-bar accessory only Profile is added; the bell is
+    /// in the accessory (issue #300).
     ///
     /// - Returns: The page with the trailing account items.
     func pageTrailingItems() -> some View {
@@ -448,7 +449,8 @@ struct PageTrailingItems: ViewModifier {
     @State private var pageProvidesAccount = false
     /// The macOS shell shows the account items once for the whole window.
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
-    /// Set where the tab-bar accessory draws the account group instead (issue #92).
+    /// Set where the tab-bar accessory draws the bell instead (issue #92); Profile stays
+    /// in the bar (issue #300).
     @Environment(\.pageToolsRegistry) private var pageTools
 
     func body(content: Content) -> some View {
@@ -459,15 +461,16 @@ struct PageTrailingItems: ViewModifier {
                 // batch 7, issue #92); root screens carry them in their own trailing items.
                 // This outer modifier's items are laid out before the page's, so on iOS
                 // they are the only `.primaryAction` items (pinned to the trailing edge),
-                // in their own glass group after the page's tools (issue #85).
-                if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar, pageTools == nil {
+                // in their own glass group after the page's tools (issue #85). With the
+                // iPhone tab-bar accessory the bell is there and Profile stays here (#300).
+                if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar {
                     #if os(iOS)
                     if #available(iOS 26.0, *) {
                         if RootChromeTrailingGroups.separatesAccount(chrome: layout.sectionChrome) {
                             ToolbarSpacer(.fixed, placement: .primaryAction)
                         }
                     }
-                    if session.selectedPlayer != nil {
+                    if session.selectedPlayer != nil, pageTools == nil {
                         ToolbarItem(placement: .primaryAction) {
                             NotificationsButton(session: session, pushRoute: pushRoute)
                         }

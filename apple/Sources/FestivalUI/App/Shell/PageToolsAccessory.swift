@@ -7,8 +7,9 @@ import FestivalDesign
 /// Positions of a page's tools in the tab-bar accessory, leading to trailing (issue #92).
 ///
 /// The page's own actions come first in the page's order (Songs: Sort, then Filter),
-/// then Quick Links. The account group (Notifications, Profile) always follows them and
-/// is drawn by the accessory itself, so Profile is always the trailing-most item.
+/// then Quick Links. Notifications (a profile is selected) is drawn by the accessory
+/// itself, pinned to its trailing edge; Profile is the navigation bar's trailing-most
+/// item (issue #300).
 enum PageToolOrder {
     /// The page's first action (Songs Sort, Find Rival, Rank By…).
     static let primary = 10
@@ -43,10 +44,10 @@ final class PageToolsRegistry {
     private(set) var entries: [Entry] = []
     /// Pages on screen, in the order they appeared; the last is the front page.
     private(set) var pageScopes: [UUID] = []
-    /// The accessory's measured width (0 before it is laid out).
-    private(set) var accessoryWidth: CGFloat = 0
-    /// Whether the accessory sits inline beside the minimized tab bar.
-    private(set) var isInline = false
+    /// The tab view's measured width (0 before it is laid out). Unlike the accessory's
+    /// own width it does not change while the system morphs the accessory between
+    /// expanded and inline, so fit decisions made from it stay put (issue #300).
+    private(set) var windowWidth: CGFloat = 0
     /// A page-tool menu shown as a sheet because it sits in the accessory
     /// (``PageToolMenu``); the host presents it.
     var inlineMenu: PageToolInlineMenu?
@@ -105,15 +106,22 @@ final class PageToolsRegistry {
             .map(\.element)
     }
 
-    /// Record the accessory's layout, skipping identical reports so observers are not
+    /// Whether the accessory has anything to show: the front page's tools, or
+    /// Notifications for a selected profile. An empty accessory is hidden rather than
+    /// drawn as an empty capsule (issue #300).
+    ///
+    /// - Parameter hasPlayer: A profile is selected (the accessory shows Notifications).
+    /// - Returns: True when the accessory should be enabled.
+    func hasContent(hasPlayer: Bool) -> Bool {
+        hasPlayer || !frontItems.isEmpty
+    }
+
+    /// Record the tab view's width, skipping identical reports so observers are not
     /// invalidated on every layout pass.
     ///
-    /// - Parameters:
-    ///   - width: Its width in points.
-    ///   - inline: It sits inline beside the minimized tab bar.
-    func reportAccessory(width: CGFloat, inline: Bool) {
-        if accessoryWidth != width { accessoryWidth = width }
-        if isInline != inline { isInline = inline }
+    /// - Parameter width: Its width in points.
+    func reportWindow(width: CGFloat) {
+        if windowWidth != width { windowWidth = width }
     }
 
     /// Show a page-tool menu as a sheet (a `Menu` in the accessory is unreliable).
@@ -269,54 +277,72 @@ struct PageToolInlineMenuSheet: View {
 
 // MARK: - Fit
 
-/// Whether a page's tools fit the tab-bar accessory unfolded (pure, unit-tested; issue #92).
+/// Fixed slot layout and fold rule for the tab-bar accessory (pure, unit-tested; issues
+/// #92, #300).
 ///
-/// Every item keeps at least a 44 pt hit target (HIG Buttons: "the hit region is at
-/// least 44x44 pt"). When the accessory is too narrow for all of them (inline beside the
-/// minimized tab bar, or a small iPhone) or text is at an accessibility size, a page
-/// folds its secondary actions into one menu (Songs: "Sort and Filter"); Quick Links,
-/// Notifications and Profile always stay visible (HIG Toolbars, iOS: "Put only essential
-/// actions in the main area; use More for the rest").
+/// Every item has a fixed 44 pt slot (HIG Buttons: "the hit region is at least 44x44
+/// pt"): page tools from the leading edge, Notifications pinned to the trailing edge
+/// after a divider. Slots never stretch to share the width, so a push, pop or tab switch
+/// only swaps the page tools and Notifications never moves.
+///
+/// The fold decision never reads the accessory's live width. The system morphs the
+/// accessory between expanded (window − 54 pt) and inline beside the minimized tab bar
+/// (window − 180 pt; 222 pt on a 402 pt iPhone 17 Pro, 260 pt on a 440 pt Pro Max,
+/// measured 2026-10-04), and swapping items mid-morph was the jitter of issue #300.
+/// Instead a page folds (Songs: Sort and Filter into one "Sort and Filter") only when
+/// its items would not fit the *inline* width for this window, or at accessibility text
+/// sizes, so the expanded and inline accessory always show the same items. Quick Links
+/// and Notifications always stay visible (HIG Toolbars, iOS: "Put only essential actions
+/// in the main area; use More for the rest").
 enum PageToolsAccessoryFit {
-    /// Minimum width of one item's hit target.
+    /// Width of one item's slot, which is also its hit target.
     static let slot: CGFloat = 44
-    /// Gap between neighbouring items.
-    static let spacing: CGFloat = 4
-    /// Width the divider between the page tools and the account group takes.
+    /// Width of the hairline divider before Notifications (the 44 pt slots either side
+    /// already give it clear space).
     static let divider: CGFloat = 1
     /// Leading plus trailing padding inside the accessory capsule.
     static let padding: CGFloat = 12
+    /// How much narrower than the window the inline accessory capsule is (the minimized
+    /// tab bar, the Search tab button and the margins; measured on iOS 26.5).
+    static let inlineInset: CGFloat = 180
 
-    /// Width all items need unfolded.
+    /// Content width the items need, excluding ``padding``.
     ///
     /// - Parameters:
     ///   - pageTools: Page actions plus Quick Links.
-    ///   - accountItems: Notifications (when shown) plus Profile.
-    /// - Returns: The minimum accessory width in points.
-    static func requiredWidth(pageTools: Int, accountItems: Int) -> CGFloat {
-        let tools = max(0, pageTools)
-        let account = max(0, accountItems)
-        let items = tools + account
-        let dividers = tools > 0 && account > 0 ? 1 : 0
-        let gaps = max(0, items + dividers - 1)
-        return CGFloat(items) * slot + CGFloat(dividers) * divider
-            + CGFloat(gaps) * spacing + padding
+    ///   - showsBell: Notifications shows (a profile is selected).
+    /// - Returns: The minimum content width in points.
+    static func requiredWidth(pageTools: Int, showsBell: Bool) -> CGFloat {
+        let tools = CGFloat(max(0, pageTools)) * slot
+        guard showsBell else { return tools }
+        return tools + (pageTools > 0 ? divider : 0) + slot
     }
 
-    /// Whether the page folds its secondary actions into one menu.
+    /// The inline accessory's content width for a window (capsule minus ``padding``):
+    /// 210 pt on a 402 pt iPhone, 183 pt on a 375 pt one.
+    ///
+    /// - Parameter windowWidth: The tab view's width.
+    /// - Returns: Its content width in points, never negative.
+    static func inlineWidth(windowWidth: CGFloat) -> CGFloat {
+        max(0, windowWidth - inlineInset - padding)
+    }
+
+    /// Whether the page folds its secondary actions into one menu, the same expanded and
+    /// inline.
     ///
     /// - Parameters:
-    ///   - width: The accessory's measured width; zero (not yet measured) never folds
-    ///     on width alone.
+    ///   - windowWidth: The tab view's width; zero (not yet measured) never folds on
+    ///     width alone.
     ///   - pageTools: Unfolded page actions plus Quick Links.
-    ///   - accountItems: Notifications (when shown) plus Profile.
+    ///   - showsBell: Notifications shows (a profile is selected).
     ///   - dynamicTypeSize: Current text size; accessibility sizes always fold.
     /// - Returns: True to fold.
     static func folds(
-        width: CGFloat, pageTools: Int, accountItems: Int, dynamicTypeSize: DynamicTypeSize
+        windowWidth: CGFloat, pageTools: Int, showsBell: Bool, dynamicTypeSize: DynamicTypeSize
     ) -> Bool {
         if dynamicTypeSize.isAccessibilitySize { return true }
-        return width > 0 && width < requiredWidth(pageTools: pageTools, accountItems: accountItems)
+        guard windowWidth > 0 else { return false }
+        return inlineWidth(windowWidth: windowWidth) < requiredWidth(pageTools: pageTools, showsBell: showsBell)
     }
 }
 
@@ -338,11 +364,14 @@ extension View {
     /// Host the page-tools accessory on the iPhone root `TabView` (issue #92).
     ///
     /// iOS 26.1+ with a horizontal tab bar: the front page's tools (``PageToolsRegistry``)
-    /// and the account group sit in the system tab-bar bottom accessory, which moves
+    /// and Notifications sit in the system tab-bar bottom accessory, which moves
     /// inline beside the tab bar when scrolling minimizes it (HIG Tab bars: "With an
     /// attached accessory such as Music's MiniPlayer, scrolling down can minimize the
     /// bar and move the accessory inline"). Elsewhere it publishes nothing, so pages keep
     /// their navigation-bar items.
+    ///
+    /// The accessory hides while it has nothing to show (no profile and a page without
+    /// tools; ``PageToolsRegistry/hasContent(hasPlayer:)``).
     ///
     /// - Parameter isEnabled: False hides the accessory (the Search tab is open).
     /// - Returns: The tab view with the accessory attached.
@@ -354,16 +383,37 @@ extension View {
 /// Implementation of ``SwiftUICore/View/festivalPageToolsAccessory(isEnabled:)``.
 struct PageToolsAccessoryHost: ViewModifier {
     let isEnabled: Bool
+
+    /// Whether the window hosts the page-tools accessory: a horizontal tab bar in a
+    /// compact-width window (iPhone, compact iPad windows).
+    ///
+    /// The iPhone Duo inner display in portrait also has a horizontal tab bar, but at
+    /// regular width with a list/detail split: there the accessory showed only
+    /// Notifications while every page (Song Detail's Item Shop and Paths included)
+    /// handed its tools to it, so they vanished. Regular-width windows keep their
+    /// navigation-bar items, as the vertical bar and the iPad sidebar do.
+    ///
+    /// - Parameter layout: The window's published layout.
+    /// - Returns: True for a compact-width horizontal tab bar.
+    nonisolated static func hostsAccessory(in layout: DeviceLayout) -> Bool {
+        layout.sectionChrome == .tabBar && layout.windowWidthClass == .compact
+    }
     @State private var registry = PageToolsRegistry()
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.festivalSession) private var session
 
     func body(content: Content) -> some View {
         #if os(iOS)
         if #available(iOS 26.1, *) {
             // One branch for both chromes, so a chrome change never rebuilds the tabs.
-            let horizontal = layout.sectionChrome == .tabBar
+            let horizontal = Self.hostsAccessory(in: layout)
+            let hasContent = registry.hasContent(hasPlayer: session?.selectedPlayer != nil)
             content
-                .tabViewBottomAccessory(isEnabled: horizontal && isEnabled) {
+                // The tab view's width does not change while the accessory morphs.
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+                    registry.reportWindow(width: width)
+                }
+                .tabViewBottomAccessory(isEnabled: horizontal && isEnabled && hasContent) {
                     PageToolsAccessoryBar(registry: registry)
                         .environment(\.pageToolsRegistry, registry)
                 }
@@ -384,52 +434,52 @@ struct PageToolsAccessoryHost: ViewModifier {
 // MARK: - Accessory bar
 
 #if os(iOS)
-/// The tab-bar accessory's contents: the front page's tools, a divider, then
-/// Notifications (a profile is selected) and Profile, always the trailing-most item.
+/// The tab-bar accessory's contents: the front page's tools from the leading edge, then
+/// a divider and Notifications (a profile is selected) pinned to the trailing edge.
+/// Profile is the navigation bar's trailing-most item instead (issue #300).
 ///
-/// Items share the width evenly; each label fills its slot (``PageToolsAccessoryLabelStyle``)
-/// so the whole slot, at least 44×44 pt, is the hit target. The accessory's height is
-/// fixed by the system, so text stops growing at ``maxTypeSize``; long-pressing an item
-/// shows the Large Content Viewer instead. VoiceOver reads the items left to right.
+/// Every item has a fixed 44 × 44 pt slot (``PageToolsAccessoryFit``,
+/// ``PageToolsAccessoryLabelStyle``), so items never redistribute when a page with a
+/// different number of tools comes to the front, and the expanded and inline accessory
+/// show the same items. The accessory's height is fixed by the system, so text stops
+/// growing at ``maxTypeSize``; long-pressing an item shows the Large Content Viewer
+/// instead. VoiceOver reads the items left to right.
 @available(iOS 26.1, *)
 struct PageToolsAccessoryBar: View {
     let registry: PageToolsRegistry
     @Environment(\.festivalSession) private var session
-    @Environment(\.profileButtonAction) private var profileButtonAction
     @Environment(\.openNotifications) private var openNotifications
     @Environment(\.pushRoute) private var pushRoute
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
 
     /// The largest Dynamic Type size the fixed-height accessory lays out.
     static let maxTypeSize = DynamicTypeSize.xxxLarge
 
     var body: some View {
         let tools = registry.frontItems
-        let inline = placement == .inline
-        HStack(spacing: PageToolsAccessoryFit.spacing) {
+        HStack(spacing: 0) {
             ForEach(tools) { item in
                 item.content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: PageToolsAccessoryFit.slot)
+                    .frame(maxHeight: .infinity)
                     .accessibilityShowsLargeContentViewer()
             }
-            if !tools.isEmpty, session != nil {
-                Divider()
-                    .frame(height: 24)
-                    .accessibilityHidden(true)
-            }
-            if let session {
-                if session.selectedPlayer != nil {
-                    // The root presents the sheet: one attached in the accessory never shows.
-                    NotificationsButton(
-                        session: session, pushRoute: pushRoute,
-                        open: openNotifications.map { action in { action() } },
-                        drawsBadgeOnIcon: true
-                    )
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityShowsLargeContentViewer()
+            Spacer(minLength: 0)
+            if let session, session.selectedPlayer != nil {
+                if !tools.isEmpty {
+                    Divider()
+                        .frame(height: 24)
+                        .frame(width: PageToolsAccessoryFit.divider)
+                        .accessibilityHidden(true)
                 }
-                RootProfileButton(session: session) { profileButtonAction() }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // The root presents the sheet: one attached in the accessory never shows.
+                NotificationsButton(
+                    session: session, pushRoute: pushRoute,
+                    open: openNotifications.map { action in { action() } },
+                    drawsBadgeOnIcon: true
+                )
+                    .frame(width: PageToolsAccessoryFit.slot)
+                    .frame(maxHeight: .infinity)
+                    .accessibilityShowsLargeContentViewer()
             }
         }
         .labelStyle(PageToolsAccessoryLabelStyle())
@@ -441,17 +491,11 @@ struct PageToolsAccessoryBar: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Page Tools")
         .accessibilityIdentifier("fst.page-tools")
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-            registry.reportAccessory(width: width, inline: inline)
-        }
-        .onChange(of: inline) { _, now in
-            registry.reportAccessory(width: registry.accessoryWidth, inline: now)
-        }
     }
 }
 #endif
 
-/// Icon-only label that fills its accessory slot, at least 44×44 pt (issue #92).
+/// Icon-only label that fills its fixed 44 × 44 pt accessory slot (issues #92, #300).
 ///
 /// The frame and hit shape live inside the label so every button's hit region is the
 /// full slot (menus in the accessory are buttons too, ``PageToolMenu``). HIG Buttons:
@@ -461,10 +505,8 @@ struct PageToolsAccessoryLabelStyle: LabelStyle {
         // The system icon-only style keeps the title as the VoiceOver label.
         Label(configuration)
             .labelStyle(.iconOnly)
-            .frame(
-                minWidth: PageToolsAccessoryFit.slot, maxWidth: .infinity,
-                minHeight: PageToolsAccessoryFit.slot, maxHeight: .infinity
-            )
+            .frame(width: PageToolsAccessoryFit.slot)
+            .frame(minHeight: PageToolsAccessoryFit.slot, maxHeight: .infinity)
             .contentShape(Rectangle())
     }
 }

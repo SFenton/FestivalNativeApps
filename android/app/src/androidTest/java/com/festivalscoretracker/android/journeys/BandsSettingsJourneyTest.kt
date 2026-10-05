@@ -1,14 +1,21 @@
 package com.festivalscoretracker.android.journeys
 
+import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.festivalscoretracker.android.BuildConfig
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.settings.AppBuildInfo
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -80,6 +87,19 @@ class BandsSettingsJourneyTest {
         h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true), transport)
         h.waitForTag("fst.settings.list")
         h.readingOrder("settings")
+        // App Version: one read-only item with this build's identity, plus " · <sha7>" when the
+        // build is stamped (FST_GIT_SHA / -PfstGitSha; issues #43/#151).
+        h.scrollTo("fst.settings.list", "fst.settings.app-version")
+        val version = AppBuildInfo.versionText(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.GIT_SHA)
+        rule.onNodeWithTag("fst.settings.app-version").assertTextEquals("App Version", version)
+        val stampedCommit = AppBuildInfo.shortCommit(BuildConfig.GIT_SHA)
+        assertEquals(stampedCommit != null, version.endsWith("${AppBuildInfo.COMMIT_SEPARATOR}$stampedCommit"))
+        // UiAutomation caches nodes and Compose may not invalidate them after a programmatic scroll; read fresh ones.
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
+        runCatching { automation.waitForIdle(500, 5_000) }
+        val versionOrder = h.readingOrder("settings-version")
+        assertTrue("reading order $versionOrder", versionOrder.any { it.contains(version) })
         h.scrollTo("fst.settings.list", "fst.settings.reset")
         h.tap("fst.settings.reset")
         h.waitForTag("fst.settings.reset.dialog")

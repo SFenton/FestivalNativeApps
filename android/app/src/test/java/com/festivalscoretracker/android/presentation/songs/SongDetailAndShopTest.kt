@@ -242,6 +242,40 @@ class SongDetailAndShopTest {
         assertEquals("text:Bass:Medium", calls.last())
     }
 
+    /** Issue #164: the view model outlives the sheet, so each new opening restarts at Settings' default. */
+    @Test
+    fun pathsNewOpeningResetsToTheSavedDefault() = runTest(main.dispatcher) {
+        val calls = mutableListOf<String>()
+        val vm = SongPathsViewModel(
+            listOf(Instrument.Lead, Instrument.Bass),
+            PathDisplayMode.Image,
+            { chart, difficulty -> calls += "image:${chart.name}:${difficulty.name}"; image() },
+            { chart, difficulty -> calls += "text:${chart.name}:${difficulty.name}"; text() },
+        )
+        vm.reduceMotion = true
+        vm.beginOpening(1, PathDisplayMode.Image)
+        advanceUntilIdle()
+        assertEquals(listOf("image:Lead:Expert"), calls)
+
+        vm.selectInstrument(Instrument.Bass)
+        vm.selectDifficulty(PathDifficulty.Hard)
+        advanceUntilIdle()
+        // Recomposition or rotation repeats the same opening: the selection stays.
+        vm.beginOpening(1, PathDisplayMode.Text)
+        advanceUntilIdle()
+        assertEquals(Instrument.Bass, vm.state.value.instrument)
+        assertEquals(PathDisplayMode.Image, vm.state.value.display)
+        assertEquals("image:Bass:Hard", calls.last())
+
+        // Reopened after Settings changed to Text: first chart, Expert, text table.
+        vm.beginOpening(2, PathDisplayMode.Text)
+        assertEquals(PathLoad.Loading, vm.state.value.load)
+        advanceUntilIdle()
+        assertEquals(PathSelection(Instrument.Lead, PathDifficulty.Expert, PathDisplayMode.Text), vm.state.value.selection)
+        assertEquals(3, (vm.state.value.load as PathLoad.Text).data.rows.size)
+        assertEquals("text:Lead:Expert", calls.last())
+    }
+
     @Test
     fun pathsNetworkFailureIsClassified() = runTest(main.dispatcher) {
         val vm = SongPathsViewModel(listOf(Instrument.Lead), PathDisplayMode.Text, { _, _ -> image() }, { _, _ -> throw FestivalApiException.InvalidResponse() })

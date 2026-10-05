@@ -38,9 +38,14 @@ struct PlayerStatGrid: View {
     /// Accessibility identifier scope: `overview` or an instrument's raw value.
     let scope: String
     let onSelect: (PlayerStatLink) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        StatTileGridLayout(spacing: StatGridColumns.spacing) {
+        StatTileGridLayout(
+            spacing: StatGridColumns.spacing,
+            minimumTileWidth: dynamicTypeSize.isAccessibilitySize
+                ? StatGridColumns.accessibilityMinimumTileWidth : StatGridColumns.minimumTileWidth
+        ) {
             ForEach(tiles) { tile in
                 PlayerStatTileView(tile: tile, scope: scope, onSelect: onSelect)
             }
@@ -52,6 +57,8 @@ struct PlayerStatGrid: View {
 /// with each row as tall as its tallest tile.
 struct StatTileGridLayout: Layout {
     var spacing: CGFloat = StatGridColumns.spacing
+    /// Narrowest tile before a column is dropped (wider at accessibility sizes).
+    var minimumTileWidth: Double = StatGridColumns.minimumTileWidth
 
     /// Column count and tile width for a proposed width.
     ///
@@ -59,7 +66,9 @@ struct StatTileGridLayout: Layout {
     /// - Returns: Columns and the width of one tile.
     func metrics(for width: CGFloat?) -> (columns: Int, tileWidth: CGFloat) {
         let resolved = width ?? CGFloat(StatGridColumns.minimumTileWidth * 2) + spacing
-        let columns = StatGridColumns.count(forWidth: Double(resolved), spacing: Double(spacing))
+        let columns = StatGridColumns.count(
+            forWidth: Double(resolved), minimumTileWidth: minimumTileWidth, spacing: Double(spacing)
+        )
         let tileWidth = max(0, (resolved - spacing * CGFloat(columns - 1)) / CGFloat(columns))
         return (columns, tileWidth)
     }
@@ -114,6 +123,7 @@ struct PlayerStatTileView: View {
     let tile: StatTile
     let scope: String
     let onSelect: (PlayerStatLink) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var identifier: String { "fst.player.stat.\(scope).\(tile.id)" }
 
@@ -141,6 +151,19 @@ struct PlayerStatTileView: View {
         }
     }
 
+    /// Lines a tile value may take: one, or two at accessibility text sizes.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: The value's line limit.
+    static func valueLineLimit(_ size: DynamicTypeSize) -> Int { size.isAccessibilitySize ? 2 : 1 }
+
+    /// How far a tile value may shrink to fit: further at accessibility sizes, where a
+    /// two-column grid in a 375 pt window still cut "(66.6%)" at AX5 after wrapping.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: The minimum scale factor.
+    static func valueMinimumScale(_ size: DynamicTypeSize) -> CGFloat { size.isAccessibilitySize ? 0.5 : 0.6 }
+
     private var spokenValue: String {
         if tile.isPlaceholder { return "Loading" }
         return tile.goldStars ? "5 gold stars" : tile.value
@@ -161,9 +184,13 @@ struct PlayerStatTileView: View {
                     Text(tile.value)
                         .font(.title3.bold())
                         .monospacedDigit()
-                        .foregroundStyle(tile.tint ?? BrandTokens.accentBlue)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(tile.tint ?? AccentText.blue)
+                        // One line, shrinking to fit; at accessibility sizes the value may
+                        // also wrap ("2 (66.6%)" truncated to "2 (66…" in an iPad tile at
+                        // AX5: HIG Typography "Keep text truncation to a minimum").
+                        .lineLimit(Self.valueLineLimit(dynamicTypeSize))
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(Self.valueMinimumScale(dynamicTypeSize))
                         .redacted(reason: tile.isPlaceholder ? .placeholder : [])
                 }
             }

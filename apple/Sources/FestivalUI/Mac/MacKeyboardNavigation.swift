@@ -285,10 +285,10 @@ private struct MacKeyboardRowHighlight: ViewModifier {
     let cornerRadius: CGFloat
     let ring: Bool
     @Environment(\.macKeyboardNavigator) private var navigator
-    @Environment(\.listDetailSelect) private var splitSelect
+    @Environment(\.listDetailSelection) private var splitSelection
 
     func body(content: Content) -> some View {
-        let highlighted = splitSelect == nil && navigator?.highlight == id
+        let highlighted = splitSelection == nil && navigator?.highlight == id
         content
             .overlay {
                 if highlighted {
@@ -335,19 +335,22 @@ struct MacSelectionHighlight: View {
 /// Arrow-key navigation for one Mac column page (``MacStack`` applies it to every
 /// page): the page is one keyboard focus stop while it offers rows; ↑/↓ (←/→ in a
 /// grid, Home/End) move the selection, Return opens, Escape clears an unopened
-/// highlight. In a split's list column the selection *is* the detail column's route,
-/// so the detail follows every move (HIG Split views: "selecting an item in the
-/// primary pane shows its contents in the secondary"); elsewhere the highlight moves
-/// and Return pushes. The highlighted row scrolls into view.
+/// highlight. Return opens the highlighted row: in the trailing pane when the list page
+/// can split on demand, else pushed. While an item is open the selection *is* the
+/// trailing pane's route, so it follows every move (HIG Split views: "selecting an item
+/// in the primary pane shows its contents in the secondary") and Escape closes it. The
+/// highlighted row scrolls into view.
 struct MacKeyboardNavigation: ViewModifier {
-    /// The split's selection (list column only).
+    /// The open item, while the trailing pane shows one (list page only).
     let selection: AppRoute?
-    /// Selects a route into the detail column (list column only).
+    /// Opens a route in the trailing pane (a list page that can split).
     let select: ListDetailSelectAction?
     /// Pushes a route in this column (one-column arrangement).
     let push: (AppRoute) -> Void
     /// Whether this page is the top of its stack.
     let isTop: Bool
+    /// Closes the trailing pane (Escape while an item is open).
+    var close: (() -> Void)?
     @State private var navigator = MacKeyboardNavigator()
     @State private var autoFocused = false
     @FocusState private var focused: Bool
@@ -387,9 +390,9 @@ struct MacKeyboardNavigation: ViewModifier {
         }
     }
 
-    /// The highlighted row: the split's selection, else the keyboard highlight.
+    /// The highlighted row: the open item, else the keyboard highlight.
     private var currentID: String? {
-        if select != nil, let selection, let row = navigator.row(for: selection) { return row.id }
+        if let selection, let row = navigator.row(for: selection) { return row.id }
         return navigator.highlight
     }
 
@@ -412,7 +415,11 @@ struct MacKeyboardNavigation: ViewModifier {
             open(row)
             return true
         case .escape:
-            guard select == nil, navigator.highlight != nil else { return false }
+            if selection != nil, let close {
+                close()
+                return true
+            }
+            guard selection == nil, navigator.highlight != nil else { return false }
             navigator.highlight = nil
             return true
         default: return false
@@ -421,7 +428,7 @@ struct MacKeyboardNavigation: ViewModifier {
         else { return false }
         navigator.highlight = row.id
         navigator.scroll(to: row)
-        if let select, let route = row.route { select(route) }
+        if selection != nil, let select, let route = row.route, select.accepts(route) { select(route) }
         return true
     }
 
@@ -429,7 +436,7 @@ struct MacKeyboardNavigation: ViewModifier {
     private func open(_ row: MacKeyRow) {
         switch row.action {
         case let .route(route):
-            if let select { select(route) } else { push(route) }
+            if let select, select.accepts(route) { select(route) } else { push(route) }
         case let .url(url):
             openURL(url)
         }

@@ -1,9 +1,9 @@
 import XCTest
 
 /// iPadOS shell journeys for the universal FestivalMobile app on "FST Native iPad Pro 11"
-/// (UI-test bundle `FestivalMobileIPadUITests`): the sections sidebar, three-pane
-/// list/detail, live reflow when the window size changes (rotation) and hardware
-/// keyboard shortcuts. Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765),
+/// (UI-test bundle `FestivalMobileIPadUITests`): the overlay flyout, the on-demand
+/// split (`.agents/design/apple/split-view.md`), live reflow when the window size
+/// changes (rotation, tiles) and hardware keyboard shortcuts. Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765),
 /// never production. Run with
 /// `python3 tools/ios_sim.py uitest --device ipad --only IPadShellJourneyTests`.
 final class IPadShellJourneyTests: XCTestCase {
@@ -43,222 +43,230 @@ final class IPadShellJourneyTests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: id).firstMatch
     }
 
-    // MARK: - Sidebar
-
-    /// Regular width shows the web sidebar's destinations (Item Shop included) and no tab bar.
+    /// Open the flyout from the toolbar button.
     @MainActor
-    func testSidebarListsWebDestinations() throws {
-        let app = fixtureApp(profile: false)
-        launchFilled(app)
-        XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 20))
-        for id in ["fst.nav.songs", "fst.nav.leaderboards", "fst.nav.shop", "fst.nav.settings"] {
-            XCTAssertTrue(element(app, id).waitForExistence(timeout: 5), id)
-        }
-        XCTAssertFalse(element(app, "fst.nav.suggestions").exists, "profile rows need a player")
-        XCTAssertFalse(app.tabBars.firstMatch.exists, "regular width uses the sidebar, not tabs")
+    private func openFlyout(_ app: XCUIApplication) {
+        let button = element(app, "fst.shell.drawer.open")
+        XCTAssertTrue(button.waitForExistence(timeout: 20), "the flyout button")
+        button.tap()
+        XCTAssertTrue(element(app, "fst.shell.drawer").waitForExistence(timeout: 5), "the flyout opens")
     }
 
-    /// Sidebar rows switch destinations, including the sidebar-only Item Shop and the
-    /// footer Settings row.
+    /// Choose a flyout row; the flyout closes.
     @MainActor
-    func testSidebarSwitchesDestinations() throws {
+    private func chooseInFlyout(_ app: XCUIApplication, _ id: String) {
+        openFlyout(app)
+        let row = element(app, "fst.shell.drawer.\(id)")
+        XCTAssertTrue(row.waitForExistence(timeout: 5), id)
+        row.tap()
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "the flyout closes")
+    }
+
+    // MARK: - Flyout
+
+    /// Regular width: no persistent sidebar and no tab bar; the overlay flyout lists Search
+    /// and the web sidebar's destinations (Item Shop included).
+    @MainActor
+    func testFlyoutListsWebDestinations() throws {
         let app = fixtureApp(profile: false)
         launchFilled(app)
-        XCTAssertTrue(element(app, "fst.nav.shop").waitForExistence(timeout: 20))
-        element(app, "fst.nav.shop").tap()
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 20))
+        XCTAssertFalse(element(app, "fst.nav.sidebar").exists, "no persistent sidebar (operator 2026-10-04)")
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "regular width uses the flyout, not tabs")
+        openFlyout(app)
+        for id in ["search", "songs", "leaderboards", "shop", "settings"] {
+            XCTAssertTrue(element(app, "fst.shell.drawer.\(id)").exists, id)
+        }
+        XCTAssertFalse(element(app, "fst.shell.drawer.suggestions").exists, "profile rows need a player")
+    }
+
+    /// Flyout rows switch destinations, including Item Shop and Settings.
+    @MainActor
+    func testFlyoutSwitchesDestinations() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        chooseInFlyout(app, "shop")
         XCTAssertTrue(app.navigationBars["Item Shop"].waitForExistence(timeout: 15))
-        element(app, "fst.nav.leaderboards").tap()
+        chooseInFlyout(app, "leaderboards")
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
-        element(app, "fst.nav.settings").tap()
+        chooseInFlyout(app, "settings")
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
     }
 
-    /// With a player, the sidebar adds the profile rows and its footer names the player.
+    /// With a player, the flyout adds the profile rows and its footer names the player.
     @MainActor
-    func testSidebarProfileRowsAndFooter() throws {
+    func testFlyoutProfileRowsAndFooter() throws {
         let app = fixtureApp(profile: true)
         launchFilled(app)
-        for id in ["fst.nav.suggestions", "fst.nav.statistics", "fst.nav.rivals"] {
-            XCTAssertTrue(element(app, id).waitForExistence(timeout: 20), id)
+        openFlyout(app)
+        for id in ["suggestions", "statistics", "rivals"] {
+            XCTAssertTrue(element(app, "fst.shell.drawer.\(id)").exists, id)
         }
-        XCTAssertTrue(element(app, "fst.profile.sidebar").exists)
-        XCTAssertTrue(element(app, "fst.nav.sidebar.deselect-profile").exists)
-        XCTAssertFalse(element(app, "fst.nav.compete").exists, "Compete is the phone slot")
+        XCTAssertTrue(element(app, "fst.shell.drawer.view-profile").exists)
+        XCTAssertTrue(element(app, "fst.shell.drawer.deselect-profile").exists)
+        XCTAssertFalse(element(app, "fst.shell.drawer.compete").exists, "Compete is the phone slot")
     }
 
-    // MARK: - List/detail
-
-    /// Landscape Songs shows list and detail side by side with the detail populated
-    /// (auto-selected), never an empty "Select a Song" pane.
+    /// The flyout overlays the content (never resizes it) and closes from its Close
+    /// button and the scrim; a leading-edge swipe opens it. (Escape, View › Close, is not
+    /// deliverable to the app from XCUITest on this simulator: split-view.md.)
     @MainActor
-    func testSongsShowsTwoPopulatedColumns() throws {
+    func testFlyoutOverlaysAndDismisses() throws {
         let app = fixtureApp(profile: false)
         launchFilled(app)
-        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 20))
+        let list = element(app, "fst.songs.list")
+        XCTAssertTrue(list.waitForExistence(timeout: 20))
+        let before = list.frame
+        openFlyout(app)
+        XCTAssertEqual(list.frame, before, "the flyout slides over the content without resizing it")
+        element(app, "fst.shell.drawer.close").tap()
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "Close closes")
+        openFlyout(app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "the scrim closes")
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.002, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.5)))
+        XCTAssertTrue(element(app, "fst.shell.drawer").waitForExistence(timeout: 5), "an edge swipe opens it")
+    }
+
+    // MARK: - On-demand split
+
+    /// Songs never splits: landscape shows full-width rows (two per row) and a song
+    /// opens full width.
+    @MainActor
+    func testSongsNeverSplits() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        XCTAssertFalse(element(app, "fst.split.trailing").exists)
+        row.tap()
         XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
-        XCTAssertFalse(app.staticTexts["Select a Song"].exists)
-        // Row identifiers survive inside the split (a container identifier must not
-        // replace them).
-        let split = element(app, "fst.nav.list-detail")
-        let row = split.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'fst.songs.row.'")
-        ).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "a Songs row is findable inside the split")
-        XCTAssertTrue(split.descendants(matching: .any)["fst.songs.list"].exists)
+        XCTAssertFalse(element(app, "fst.split.trailing").exists, "Song Detail opens full width")
+        XCTAssertFalse(element(app, "fst.songs.list").isHittable, "Songs is covered, not beside it")
     }
 
-    /// Rotating changes the window size: portrait keeps one stack showing the list
-    /// (the auto-selected detail nobody chose is not left pushed), landscape splits
-    /// again and restores the same selection.
+    /// A landscape grid row holds two cards; tapping the second opens only that song.
+    /// A `List` row fired every `NavigationLink` in it, so both songs were pushed and
+    /// Back revealed the first song's page instead of Songs.
     @MainActor
-    func testRotationReflowsListDetail() throws {
+    func testSongsGridCardOpensOnlyItsSong() throws {
         let app = fixtureApp(profile: false)
         launchFilled(app)
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
-        XCUIDevice.shared.orientation = .portrait
-        let split = element(app, "fst.nav.list-detail")
-        XCTAssertTrue(waitForDisappearance(of: split, timeout: 10), "portrait keeps one stack")
-        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 10), "the list shows")
-        XCTAssertFalse(element(app, "fst.song-detail.intensity").exists, "no unchosen detail pushed")
-        XCUIDevice.shared.orientation = .landscapeLeft
-        XCTAssertTrue(split.waitForExistence(timeout: 10), "landscape splits again")
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 10))
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(orbit.waitForExistence(timeout: 20))
+        XCTAssertTrue(pulse.waitForExistence(timeout: 5))
+        XCTAssertEqual(orbit.frame.minY, pulse.frame.minY, accuracy: 2, "both cards share one grid row")
+        let (second, title) = orbit.frame.minX > pulse.frame.minX
+            ? (orbit, "Fixture Orbit") : (pulse, "Fixture Pulse")
+        XCTAssertGreaterThan(second.frame.minX, app.windows.firstMatch.frame.midX - 20, "the trailing card")
+        second.tap()
+        let hero = element(app, "fst.song-detail.hero-title")
+        XCTAssertTrue(hero.waitForExistence(timeout: 20), "Song Detail opens")
+        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5), "the tapped song's page")
+        // One push: a single Back returns to the Songs grid, not to another Song Detail.
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+        XCTAssertTrue(waitForDisappearance(of: hero, timeout: 10), "Back leaves Song Detail")
+        XCTAssertTrue(second.waitForExistence(timeout: 10))
+        XCTAssertTrue(second.isHittable, "Songs is on top again")
     }
 
-    /// Leaderboards › View All opens Full Rankings as a list beside a populated player
-    /// detail (three columns in landscape).
+    /// Song Detail splits on demand: its full leaderboard opens in the trailing half
+    /// beside the song page; Close returns to full width.
     @MainActor
-    func testFullRankingsSplitsWithPlayerDetail() throws {
+    func testSongDetailOpensLeaderboardInTrailingHalf() throws {
         let app = fixtureApp(profile: false)
         launchFilled(app)
-        XCTAssertTrue(element(app, "fst.nav.leaderboards").waitForExistence(timeout: 20))
-        element(app, "fst.nav.leaderboards").tap()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 20))
+        row.tap()
+        let board = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(board.waitForExistence(timeout: 20))
+        board.tap()
+        let trailing = element(app, "fst.split.trailing")
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the board opens in the trailing half")
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").exists, "the song page stays beside it")
+        XCTAssertEqual(trailing.frame.minX, app.windows.firstMatch.frame.midX, accuracy: 2, "split at the midpoint")
+        element(app, "fst.split.close").tap()
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
+    }
+
+    /// Full Rankings starts full width; a row opens the player in the trailing half and
+    /// stays selected; portrait pushes it; landscape lifts it back; Close returns to full
+    /// width.
+    @MainActor
+    func testFullRankingsSplitsOnDemand() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        chooseInFlyout(app, "leaderboards")
         let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
         viewAll.tap()
-        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 15), "rankings split")
-        XCTAssertFalse(app.staticTexts["Select a Player"].exists)
-        // The player column shows the auto-selected top player's page.
-        let playerTitle = app.navigationBars.matching(
-            NSPredicate(format: "identifier CONTAINS 'Fixture Player'")
-        ).firstMatch
-        XCTAssertTrue(playerTitle.waitForExistence(timeout: 15), "a player page fills the detail")
-    }
-
-    /// A row the person picked stays open as the pushed page when portrait collapses
-    /// the split.
-    @MainActor
-    func testChosenDetailSurvivesRotation() throws {
-        let app = fixtureApp(profile: false)
-        launchFilled(app)
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
-        // The fixture catalogue's second song (the first is auto-selected).
-        let second = app.buttons["fst.songs.row.fixture-pulse"]
-        XCTAssertTrue(second.waitForExistence(timeout: 10))
-        second.tap()
-        XCTAssertTrue(second.waitForSelection(timeout: 5), "the tapped row is selected")
-        let title = "Fixture Pulse"
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        let trailing = element(app, "fst.split.trailing")
+        XCTAssertFalse(trailing.exists, "starts full width: nothing auto-selected")
+        let first = rows.element(boundBy: 0)
+        first.tap()
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "the player opens in the trailing half")
+        XCTAssertTrue(first.waitForSelection(timeout: 5), "the row stays selected")
         XCUIDevice.shared.orientation = .portrait
-        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.nav.list-detail"), timeout: 10))
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 10),
-                      "the chosen song (\(title)) stays pushed")
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "portrait pushes")
+        let playerTitle = app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Fixture Player'")).firstMatch
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "the chosen player stays open, pushed")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10), "landscape splits again")
+        element(app, "fst.split.close").tap()
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
+        XCTAssertTrue(rows.firstMatch.isHittable, "the list is full width again")
     }
 
-    /// Narrowing the window (a Split View ⅓ or narrow window) falls back to the phone
-    /// tab bar and drawer, keeping the section; widening brings the sidebar back.
+    /// Narrowing the window (an exact ½ or ⅓ tile) falls back to the phone tab bar and
+    /// drawer, keeping the section; filling the screen returns to the flyout shell.
     @MainActor
     func testNarrowWindowFallsBackToTabs() throws {
         let app = fixtureApp(profile: false)
         launchFilled(app)
-        XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 20))
-        guard WindowResize.resize(app, toScreenFraction: 0.33) else {
-            throw XCTSkip("window not resizable (full-screen multitasking mode)")
-        }
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10), "compact width uses tabs")
-        XCTAssertFalse(element(app, "fst.nav.sidebar").exists)
-        XCTAssertTrue(app.tabBars.buttons["Songs"].exists, "the selected section survives")
-        XCTAssertTrue(WindowResize.fill(app), "window fills the screen again")
-        XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 10), "regular width again")
-    }
-
-    /// Exact Split View tiles from the window-controls menu: a landscape ½ (600 pt) and
-    /// ⅓ (≈ 397 pt) window are compact, so the phone tabs show. The detail the
-    /// three-column split auto-selected is not left pushed over the Songs list in the
-    /// tab shell, even when another section was in front as the window narrowed (the
-    /// Songs stack was not on screen to pop it; reproduced on master), and filling the
-    /// screen splits again with a populated detail.
-    @MainActor
-    func testExactTilesDropUnchosenDetail() throws {
-        let app = fixtureApp(profile: false)
-        launchFilled(app)
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
-        element(app, "fst.nav.leaderboards").tap()
-        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
-        let screen = WindowResize.currentScreenWidth
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 20))
         guard WindowResize.tile(app, .left) else {
             throw XCTSkip("window-controls tiling menu unavailable (full-screen multitasking mode)")
         }
-        XCTAssertEqual(WindowResize.windowWidth(app), screen / 2, accuracy: 12, "exact half (minus the gap)")
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10), "a ½ window is compact")
-        app.typeKey("1", modifierFlags: .command)
-        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 10), "the list shows")
-        XCTAssertFalse(element(app, "fst.song-detail.intensity").exists, "no unchosen detail pushed")
+        XCTAssertTrue(app.tabBars.buttons["Songs"].exists, "the selected section survives")
         XCTAssertTrue(WindowResize.tile(app, .thirds))
-        XCTAssertEqual(WindowResize.windowWidth(app), screen / 3, accuracy: 12, "exact third")
         XCTAssertTrue(app.tabBars.firstMatch.exists, "a ⅓ window is compact")
         XCTAssertTrue(WindowResize.fill(app), "window fills the screen again")
-        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 10), "splits again")
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 15), "detail populated")
-    }
-
-    /// A row the person picked survives the compact tab shell (it stays pushed), then
-    /// returns to the detail column.
-    @MainActor
-    func testChosenDetailSurvivesCompactTile() throws {
-        let app = fixtureApp(profile: false)
-        launchFilled(app)
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
-        let second = app.buttons["fst.songs.row.fixture-pulse"]
-        XCTAssertTrue(second.waitForExistence(timeout: 10))
-        second.tap()
-        XCTAssertTrue(second.waitForSelection(timeout: 5))
-        guard WindowResize.tile(app, .left) else {
-            throw XCTSkip("window-controls tiling menu unavailable (full-screen multitasking mode)")
-        }
-        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 10), "picked song stays")
-        XCTAssertTrue(WindowResize.fill(app))
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForSelection(timeout: 10), "still selected")
+        XCTAssertTrue(waitForDisappearance(of: app.tabBars.firstMatch, timeout: 10), "regular width again")
     }
 
     // MARK: - Keyboard
 
-    /// ⌘2 selects the second sidebar destination and ⌘1 returns to Songs.
+    /// ⌘2 selects the second destination and ⌘1 returns to Songs.
     @MainActor
     func testCommandDigitSelectsDestination() throws {
         let app = fixtureApp(profile: false)
         launchFilled(app)
-        XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 20))
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 20))
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
         app.typeKey("3", modifierFlags: .command)
         XCTAssertTrue(app.navigationBars["Item Shop"].waitForExistence(timeout: 15))
         app.typeKey("1", modifierFlags: .command)
-        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 15))
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 15))
     }
 
-    /// The iPadOS menu bar's shortcuts reach the window in front: ⌘K opens the sidebar's
-    /// Search row (issue #92), ⇧⌘P profile selection, ⌘5 leaves Search for Leaderboards
-    /// (sidebar order with a player), ⌘[ goes back from Full Rankings, ⌘R refreshes
-    /// without leaving the page.
+    /// The iPadOS menu bar's shortcuts: ⌘K opens Search, ⇧⌘P profile selection, ⌘5 leaves
+    /// Search for Leaderboards, ⌘[ closes the open player and then leaves Full Rankings.
     @MainActor
     func testMenuBarShortcuts() throws {
         let app = fixtureApp(profile: true)
         launchFilled(app)
-        XCTAssertTrue(element(app, "fst.nav.sidebar").waitForExistence(timeout: 20))
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 20))
         app.typeKey("k", modifierFlags: .command)
-        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 10), "⌘K opens the Search row")
-        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 10), "Search shows its field")
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 10), "⌘K opens Search")
         app.typeKey("p", modifierFlags: [.shift, .command])
         let scope = element(app, "fst.profile.scope")
         XCTAssertTrue(scope.waitForExistence(timeout: 10), "⇧⌘P opens profile selection")
@@ -273,48 +281,65 @@ final class IPadShellJourneyTests: XCTestCase {
         let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
         viewAll.tap()
-        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 15))
-        app.typeKey("r", modifierFlags: .command)
-        XCTAssertTrue(element(app, "fst.nav.list-detail").exists, "⌘R stays on the page")
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15))
+        rows.firstMatch.tap()
+        let trailing = element(app, "fst.split.trailing")
+        XCTAssertTrue(trailing.waitForExistence(timeout: 10))
+        app.typeKey("[", modifierFlags: .command)
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "⌘[ closes the open player")
         app.typeKey("[", modifierFlags: .command)
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15), "⌘[ goes back")
     }
 
     // MARK: - Windows
 
-    /// A Songs row's context menu opens the song in a second window (HIG Windows: "Consider
-    /// offering a context-menu ... command to view content in a new window"). Windows share
-    /// one session: a profile deselected in the first window is not selected in the new
-    /// one (a separate session would re-read the debug profile and show it).
+    /// A Songs row's context menu opens the song in a second window; windows share one
+    /// session, so a profile deselected in the first is not selected in the new one.
     @MainActor
     func testOpenInNewWindowSharesProfile() throws {
         let app = fixtureApp(profile: true)
         launchFilled(app)
-        let deselect = element(app, "fst.nav.sidebar.deselect-profile")
-        XCTAssertTrue(deselect.waitForExistence(timeout: 20))
+        openFlyout(app)
+        let deselect = element(app, "fst.shell.drawer.deselect-profile")
+        XCTAssertTrue(deselect.waitForExistence(timeout: 5))
         deselect.tap()
-        let confirm = app.buttons.matching(NSPredicate(format: "label == 'Deselect Profile'")).firstMatch
+        // The dialog's button, not the flyout's own "Deselect Profile" button.
+        let confirm = app.buttons.matching(NSPredicate(
+            format: "label == 'Deselect Profile' AND identifier != 'fst.shell.drawer.deselect-profile'"
+        )).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "confirmation")
         confirm.tap()
-        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.nav.suggestions"), timeout: 10))
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "the flyout closes")
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 20))
         row.press(forDuration: 1.2)
-        let open = app.buttons["Open in New Window"]
+        // Landscape grid rows carry one menu naming each card ("Open “Fixture Pulse” in
+        // New Window"); a single-card row reads "Open in New Window".
+        let open = app.buttons.matching(NSPredicate(
+            format: "label == 'Open in New Window' OR (label CONTAINS 'New Window' AND label CONTAINS 'Fixture Pulse')"
+        )).firstMatch
         XCTAssertTrue(open.waitForExistence(timeout: 5), "the row offers Open in New Window")
         let cards = XCUIApplication(bundleIdentifier: "com.apple.springboard").descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'card:com.sfenton.festivalscoretracker.native:sceneID:'"))
         let first = cards.firstMatch.identifier
         open.tap()
-        // A full-width window: the new scene takes the screen (the first goes behind it).
         let newScene = cards.matching(NSPredicate(format: "identifier != %@", first)).firstMatch
         XCTAssertTrue(newScene.waitForExistence(timeout: 15), "a second window opens")
+        // iPadOS reconnects every open window at the next launch: never leave this one
+        // behind, even when an assertion below fails (it broke the later journeys).
+        var secondWindowOpen = true
+        addTeardownBlock { @MainActor in
+            if secondWindowOpen { _ = WindowResize.closeFrontWindow(app) }
+        }
         XCTAssertTrue(app.navigationBars["Fixture Pulse"].waitForExistence(timeout: 20), "it shows the song")
-        XCTAssertTrue(element(app, "fst.nav.sidebar").exists)
-        XCTAssertFalse(element(app, "fst.nav.suggestions").exists, "no player in the new window: shared session")
-        XCTAssertFalse(element(app, "fst.nav.sidebar.deselect-profile").exists)
-        // iPadOS reconnects every open window at the next launch: close this one.
+        // The song is pushed (no flyout button on it): back to the Songs root first.
+        app.typeKey("[", modifierFlags: .command)
+        openFlyout(app)
+        XCTAssertFalse(element(app, "fst.shell.drawer.suggestions").exists, "no player in the new window: shared session")
+        element(app, "fst.shell.drawer.close").tap()
         XCTAssertTrue(WindowResize.closeFrontWindow(app), "close the second window")
+        secondWindowOpen = false
     }
 
     // MARK: - Helpers

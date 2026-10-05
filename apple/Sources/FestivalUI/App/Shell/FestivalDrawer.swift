@@ -15,6 +15,8 @@ enum DrawerIntent: Equatable {
     case chooseProfile
     /// Deselect the current profile (already confirmed by the user).
     case deselectProfile
+    /// Show global search (the iPad flyout's Search row).
+    case openSearch
 }
 
 /// One drawer navigation row.
@@ -33,7 +35,8 @@ enum DrawerMenu {
     /// links, Licenses from Settings.
     ///
     /// A destination that is a visible tab switches to it; otherwise it is pushed on the
-    /// current stack. Item Shop honours Settings › Hide Item Shop.
+    /// current stack. Item Shop honours Settings › Hide Item Shop; it is pushed, except in
+    /// the iPad flyout, where it is a destination of its own.
     ///
     /// - Parameters:
     ///   - profile: Selected profile kind.
@@ -64,11 +67,16 @@ enum DrawerMenu {
         items.append(destination(.leaderboards, route: .leaderboards))
         if !hideShop {
             items.append(DrawerItem(
-                id: "shop", title: "Item Shop", symbol: "bag", intent: .push(.shop)
+                id: "shop", title: "Item Shop", symbol: "bag",
+                intent: visibleSections.contains(.shop) ? .select(.shop) : .push(.shop)
             ))
         }
         return items
     }
+
+    /// The iPad flyout's Search row, above the destinations (it replaces the persistent
+    /// sidebar's Search row; HIG Search fields: "keep search available across sections").
+    static let search = DrawerItem(id: "search", title: "Search", symbol: "magnifyingglass", intent: .openSearch)
 
     /// Rows pinned at the bottom of the drawer after the profile row (web sidebar footer).
     static let more: [DrawerItem] = [
@@ -97,7 +105,7 @@ enum DrawerMenu {
         switch item.intent {
         case let .select(section): section == selected && topRoute == nil
         case let .push(route): route == topRoute
-        case .chooseProfile, .deselectProfile: false
+        case .chooseProfile, .deselectProfile, .openSearch: false
         }
     }
 }
@@ -284,8 +292,9 @@ private extension View {
 /// Leading slide-over navigation panel on dark Liquid Glass (web hamburger `Sidebar`).
 ///
 /// Dismisses on scrim tap, a leading swipe, the close button, or the VoiceOver
-/// escape gesture (two-finger Z). The panel is announced as modal so VoiceOver
-/// focus stays inside it.
+/// escape gesture (two-finger Z); the iPad and iPhone Duo flyout also on Escape. The
+/// panel is announced as modal so VoiceOver focus stays inside it. It always slides
+/// over the content and never resizes it (`.agents/design/apple/split-view.md`).
 struct FestivalDrawer: View {
     let session: FestivalSession
     let visibleSections: [FestivalSection]
@@ -294,11 +303,23 @@ struct FestivalDrawer: View {
     var selected: FestivalSection = .songs
     /// Route on top of the selected section's stack, if any.
     var topRoute: AppRoute?
+    /// The iPad flyout: a Search row heads the list (Search is not a tab there).
+    var showsSearch = false
+    /// Global search is showing (the Search row's current highlight).
+    var searchActive = false
+    /// Escape closes the panel (iPad and iPhone Duo hardware keyboards).
+    var closesOnEscape = false
+    /// The iPad / Duo flyout: at accessibility text sizes the footer (profile, Settings)
+    /// scrolls with the rows instead of staying pinned, so it stays reachable (the old
+    /// iPad sidebar's AX5 rule, Lane A11Y2). The iPhone drawer keeps its pinned footer.
+    var footerScrollsAtAccessibilitySizes = false
     let onIntent: (DrawerIntent) -> Void
     let onClose: () -> Void
 
     @State private var dragOffset: CGFloat = 0
     @State private var deselectPending = false
+    /// Moves assistive-technology focus to the panel's title once it slid in.
+    @State private var openFocus: AccessibilityFocusRequest?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
@@ -337,6 +358,7 @@ struct FestivalDrawer: View {
                     // Never dim or intercept taps on the system vertical bar (iPhone Duo).
                     .padding(placement.scrimInsets)
                 panel(topInset: placement.contentTop, bottomInset: placement.contentBottom)
+                    .accessibilityFocusMove(openFocus)
                     .frame(width: width)
                     .frame(maxHeight: .infinity)
                     .drawerPanelShape(.glass)
@@ -349,6 +371,14 @@ struct FestivalDrawer: View {
                     .gesture(dismissDrag(width: width))
                     .accessibilityAddTraits(.isModal)
                     .accessibilityAction(.escape, onClose)
+                if closesOnEscape {
+                    // Hardware Escape (HIG Keyboards): an invisible cancel button.
+                    Button("Close Navigation", action: onClose)
+                        .keyboardShortcut(.escape, modifiers: [])
+                        .frame(width: 0, height: 0)
+                        .opacity(0)
+                        .accessibilityHidden(true)
+                }
             }
             #if DEBUG && os(iOS)
             // Full-window radii: the display's own corners, for comparison.
@@ -357,6 +387,7 @@ struct FestivalDrawer: View {
             .ignoresSafeArea()
         }
         .preferredColorScheme(.dark)
+        .onAppear { openFocus = AccessibilityFocusRequest(target: .topHeading, token: 1) }
         .confirmationDialog(
             "Deselect \(session.selectedPlayer?.displayName ?? "Profile")?",
             isPresented: $deselectPending, titleVisibility: .visible
@@ -401,23 +432,36 @@ struct FestivalDrawer: View {
             header
                 .padding(.top, topInset)
             ScrollView {
-                group(DrawerMenu.browse(
+                group((showsSearch ? [DrawerMenu.search] : []) + DrawerMenu.browse(
                     profile: profile, visibleSections: visibleSections, hideShop: hideShop
                 ))
+                if footerScrolls {
+                    footer.padding(.top, 12).padding(.bottom, bottomInset)
+                }
             }
             .scrollBounceBehavior(.basedOnSize)
-            // Web sidebar footer: the profile row (or Select Profile), then Settings.
-            VStack(alignment: .leading, spacing: 2) {
-                profileSection
-                group(DrawerMenu.more)
+            if !footerScrolls {
+                footer.padding(.bottom, bottomInset)
             }
-            .padding(.bottom, bottomInset)
         }
         .padding(.horizontal, DrawerCorners.contentInset)
         .drawerPanelShape(.clip)
         // A container element, so the identifier does not replace the rows' own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.shell.drawer")
+    }
+
+    /// Whether the footer scrolls with the rows (``footerScrollsAtAccessibilitySizes``).
+    private var footerScrolls: Bool {
+        footerScrollsAtAccessibilitySizes && dynamicTypeSize.isAccessibilitySize
+    }
+
+    /// Web sidebar footer: the profile row (or Select Profile), then Settings.
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            profileSection
+            group(DrawerMenu.more)
+        }
     }
 
     private var header: some View {
@@ -491,7 +535,9 @@ struct FestivalDrawer: View {
     private func group(_ items: [DrawerItem]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(items) { item in
-                let current = DrawerMenu.isCurrent(item, selected: selected, topRoute: topRoute)
+                let current = item.intent == .openSearch
+                    ? searchActive
+                    : !searchActive && DrawerMenu.isCurrent(item, selected: selected, topRoute: topRoute)
                 DrawerRow(title: item.title, symbol: item.symbol, isCurrent: current) {
                     onIntent(item.intent)
                 }
@@ -601,5 +647,49 @@ struct DrawerRowStyle: ButtonStyle {
                 Color.white.opacity(configuration.isPressed ? 0.12 : 0),
                 in: RoundedRectangle(cornerRadius: DrawerCorners.rowRadius, style: .continuous)
             )
+    }
+}
+
+// MARK: - Edge swipe
+
+/// Opens the iPad / iPhone Duo flyout with a swipe in from the leading edge, like the
+/// iPhone drawer it matches (`.agents/design/apple/split-view.md`). Enabled only at a
+/// section root, where the system's own edge swipe (Back) has nothing to pop.
+struct FlyoutEdgeSwipe: ViewModifier {
+    let isEnabled: Bool
+    let open: () -> Void
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    /// How far from the leading edge a swipe must start.
+    static let edgeWidth: CGFloat = 24
+    /// How far it must travel towards the trailing edge.
+    static let minimumTravel: CGFloat = 60
+
+    /// Whether a drag is a leading-edge swipe that opens the flyout.
+    ///
+    /// - Parameters:
+    ///   - start: The drag's start x from the leading edge.
+    ///   - translation: Its translation (positive = towards the trailing edge).
+    /// - Returns: True when it started at the edge and travelled mostly sideways.
+    static func opens(startFromLeading start: CGFloat, translation: CGSize) -> Bool {
+        start <= edgeWidth && translation.width >= minimumTravel
+            && abs(translation.height) < translation.width
+    }
+
+    func body(content: Content) -> some View {
+        content.simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .local)
+                .onEnded { value in
+                    guard isEnabled else { return }
+                    let rtl = layoutDirection == .rightToLeft
+                    // `.local` x is already measured from the leading edge in SwiftUI.
+                    let translation = CGSize(
+                        width: rtl ? -value.translation.width : value.translation.width,
+                        height: value.translation.height
+                    )
+                    if Self.opens(startFromLeading: value.startLocation.x, translation: translation) { open() }
+                },
+            isEnabled: isEnabled
+        )
     }
 }

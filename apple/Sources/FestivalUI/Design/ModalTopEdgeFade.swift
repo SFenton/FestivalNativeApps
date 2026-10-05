@@ -34,12 +34,16 @@ enum ModalTopEdgeFade {
 
     /// How far the fade below the header has grown.
     ///
-    /// - Parameter scrollOffset: Distance scrolled from the content's resting top (content
-    ///   offset plus top inset); negative while pulled down past the top.
+    /// - Parameters:
+    ///   - scrollOffset: Distance scrolled from the content's resting top (content offset
+    ///     plus top inset); negative while pulled down past the top.
+    ///   - rampHeight: The ramp's height; 0 (content that fades itself, issue #301) is a
+    ///     hard edge as soon as the content scrolls.
     /// - Returns: 0 at rest or when pulled down (no fade), rising linearly to 1 (full fade)
-    ///   after ``rampHeight`` points; 0 for a non-finite reading.
-    static func progress(scrollOffset: CGFloat) -> CGFloat {
+    ///   after `rampHeight` points; 0 for a non-finite reading.
+    static func progress(scrollOffset: CGFloat, rampHeight: CGFloat = ModalTopEdgeFade.rampHeight) -> CGFloat {
         guard scrollOffset.isFinite else { return 0 }
+        guard rampHeight > 0 else { return scrollOffset > 0 ? 1 : 0 }
         return min(max(scrollOffset / rampHeight, 0), 1)
     }
 
@@ -82,6 +86,11 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
     @State private var containerOffset: CGFloat = 0
     /// Distance the content's scroll view has scrolled from its resting top.
     @State private var scrollOffset: CGFloat = 0
+    /// Ramp height the content asked for (``ModalTopEdgeFadeRampKey``); nil uses
+    /// ``ModalTopEdgeFade/rampHeight``.
+    @State private var rampOverride: CGFloat?
+
+    private var rampHeight: CGFloat { rampOverride ?? ModalTopEdgeFade.rampHeight }
 
     private var headerHeight: CGFloat {
         ModalTopEdgeFade.headerHeight(safeAreaInset: safeAreaInset, containerOffset: containerOffset)
@@ -91,6 +100,7 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
         content
             .modifier(ModalScrollOffsetReader(offset: $scrollOffset))
             .modifier(ModalHeaderBackgroundHidden())
+            .onPreferenceChange(ModalTopEdgeFadeRampKey.self) { rampOverride = $0 }
             .background {
                 Color.clear
                     .onGeometryChange(for: CGFloat.self) { proxy in
@@ -114,14 +124,16 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
                         colors: [
                             .black.opacity(
                                 ModalTopEdgeFade.edgeOpacity(
-                                    progress: ModalTopEdgeFade.progress(scrollOffset: scrollOffset)
+                                    progress: ModalTopEdgeFade.progress(
+                                        scrollOffset: scrollOffset, rampHeight: rampHeight
+                                    )
                                 )
                             ),
                             .black,
                         ],
                         startPoint: .top, endPoint: .bottom
                     )
-                    .frame(height: ModalTopEdgeFade.rampHeight)
+                    .frame(height: rampHeight)
                     Color.black
                 }
                 // Reach under the header so the mask covers (and hides) it.

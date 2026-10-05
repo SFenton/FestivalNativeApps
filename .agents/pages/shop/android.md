@@ -62,6 +62,29 @@ Debug APK, `device.py drive --route shop --extra FST_DEBUG_STILL_BACKGROUND=1`, 
 
 Robolectric: `SongsUiTest.shopFilter*` covers filtering, reopen state, Reset, no-match and the button's state description; `SongDetailAndShopTest.shopOfferFilterDescribesItsStateForTalkBack` covers the text.
 
+## Validation (issue #144, 2026-10-04, live public service): shared Song Row
+
+Checks that the #18 list row (`ShopListRow` → `SongRowCard`) matches Songs in every configuration. Drives used `device.py drive --route shop --extra FST_DEBUG_STILL_BACKGROUND=1`, toggling wide panes to List. Live data had 1 Leaving Tomorrow offer (red outline and label under the subtitle) and no New offer. No defects: no code change.
+
+| Configuration | Finding |
+|---|---|
+| FST_Phone portrait/landscape, 1.0×/2.0× | Same glass card, art, title/subtitle and chevron as the Songs row. The cart + chevron is a 48 dp button (126 px at 420 dpi). At 2.0× titles and subtitles wrap inside the row. Landscape (923 dp) defaults to the grid; List shows the same rows. |
+| Motion | With animator scale 1 a long subtitle scrolls as a marquee. With scale 0 (reduced motion) it holds still and ends in "…" (`FestivalMarqueeText`). |
+| Light vs dark | Identical: the app is dark-only by design. |
+| FST_Tablet landscape/portrait | Drawer or rail, List via the toggle, rows wrap at 2.0×. |
+| FST_Resizable phone/foldable/tablet/desktop | List rows at every width; desktop centres them in the 1040 dp cap (also at 2.0×). |
+| FST_Book_Fold / FST_Passport_Fold | Folded is the compact list. Unfolded is one full-width list. Half-open at 1.0× is one row per pane with the gap on the fold. Half-open at 2.0× is one full-width column, by design (see Layouts). |
+| FST_TriFold folded/partial/unfolded | Compact list, then the rail with full-width rows (the emulator reports no `FoldingFeature`). 2.0× wraps inside the rows. |
+| TalkBack (FST_Phone) | Item Shop, Search, Choose profile, then each row ("Title. Artist · Year", list position on the first), followed by its "Open … in the Fortnite Item Shop. Button". |
+| Connected | `SongsAccessibilityJourneyTest#itemShop` passes on FST_Phone (ATF touch-target, label and contrast checks). |
+
+`ShopListRowUiTest` (Robolectric) pins the shared-row contract:
+- A row opens Song Details when matched, else the official link.
+- The row is one TalkBack stop that reads its title, subtitle and badge with no hidden description and no selected state, and the cart link is a separate stop.
+- A long title runs as a one-line marquee.
+- Under reduced motion a long title holds still and ends in "…".
+- At 2.0× a long title wraps inside the row.
+
 ## Open
 
 The drawer still lists Item Shop while Hide Item Shop is on (shell-owned `ShellChrome.kt`); rotation push updates; Quick Links; device journey for the toggle (never open the real link in automation).

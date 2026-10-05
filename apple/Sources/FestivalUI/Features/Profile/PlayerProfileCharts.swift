@@ -380,6 +380,14 @@ struct RankHistoryCharts: View {
             )
             .foregroundStyle(Self.barColor(point).opacity(0.8))
             .cornerRadius(4)
+            // One VoiceOver element per snapshot: without these, Swift Charts names each
+            // bar by its plotted index range ("0 to 1") and reads the line and point marks
+            // again (measured in the Mac accessibility tree, Lane A11Y2).
+            .accessibilityLabel(point.label)
+            .accessibilityValue(Self.accessibilityValue(point))
+            // Only the visible page: bars paged out of the plot kept elements with frames
+            // left of the card (over the iPad sidebar); the pager and Audio Graph reach them.
+            .accessibilityHidden(!range.contains(point.index))
             LineMark(
                 x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank)),
@@ -388,12 +396,14 @@ struct RankHistoryCharts: View {
             .foregroundStyle(Self.rankLineColor)
             .lineStyle(StrokeStyle(lineWidth: 2))
             .interpolationMethod(.monotone)
+            .accessibilityHidden(true)
             PointMark(
                 x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank))
             )
             .foregroundStyle(Self.rankLineColor)
             .symbolSize(30)
+            .accessibilityHidden(true)
         }
         .chartYScale(domain: 0 ... scale.valueTop)
         .chartXScale(domain: Double(range.lowerBound) - 0.5 ... Double(max(range.lowerBound + 1, range.upperBound)) - 0.5)
@@ -428,6 +438,7 @@ struct RankHistoryCharts: View {
                 }
             }
         }
+        .chartPlotFrameReporter()
         .frame(height: Self.plotHeight)
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
         .accessibilityAdjustableAction { direction in
@@ -438,6 +449,13 @@ struct RankHistoryCharts: View {
             }
         }
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
+        .chartAxisElements(ChartAxisLabels(
+            leading: "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
+            trailing: "Rank scale, " + ChartAxisLabels.span(
+                scale.rankTicks.first.map { "#\($0.formatted())" }, scale.rankTicks.last.map { "#\($0.formatted())" }
+            ),
+            bottom: "Dates, " + ChartAxisLabels.span(visible.first?.label, visible.last?.label)
+        ))
 
         if paging.needsPagination {
             // Swipe a page at a time (web `SWIPE_THRESHOLD` 50 pt): left shows newer
@@ -465,6 +483,10 @@ struct RankHistoryCharts: View {
     }
 
     /// A rotated axis title beside the plot, like the web's rotated Recharts labels.
+    ///
+    /// Read as "Total Score axis" before the bars and "Rank axis" after them: visible
+    /// text hidden from assistive technologies was what the iPad audit reported as
+    /// "Potentially inaccessible text" on Statistics.
     private func axisTitle(_ text: String, degrees: Double) -> some View {
         Text(text)
             .font(.caption)
@@ -472,7 +494,7 @@ struct RankHistoryCharts: View {
             .fixedSize()
             .rotationEffect(.degrees(degrees))
             .frame(width: 16)
-            .accessibilityHidden(true)
+            .accessibilityLabel("\(text) axis")
     }
 
     // MARK: Legend
@@ -558,6 +580,15 @@ struct RankHistoryCharts: View {
         .disabled(!enabled)
         .accessibilityLabel(label)
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).\(id)")
+    }
+
+    /// VoiceOver value for one snapshot's bar: its rank (of N) and Total Score.
+    ///
+    /// - Parameter point: One plotted snapshot.
+    /// - Returns: For example "Rank 4 of 506, total score 89,400,000".
+    static func accessibilityValue(_ point: Point) -> String {
+        let field = point.rankedAccountCount.map { " of \($0.formatted())" } ?? ""
+        return "Rank \(point.rank.formatted())\(field), total score \(Int(point.value).formatted())"
     }
 
     /// Show the window whose oldest visible snapshot is `index`.

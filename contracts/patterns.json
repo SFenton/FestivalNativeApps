@@ -1,0 +1,1326 @@
+{
+  "schemaVersion": 1,
+  "description": "Cross-page, cross-platform behavior patterns (.agents/patterns/README.md). Checked by tools/pattern_guard.py. canonical: files and symbols that own the behavior per platform; guards: regexes that must not match outside 'allow' (or listed 'debt') globs, ignoring comment lines.",
+  "webRoot": "FortniteFestivalWeb/src",
+  "patterns": [
+    {
+      "id": "scroll-edge",
+      "title": "Scroll edge: content under pinned chrome",
+      "status": "current",
+      "doc": ".agents/patterns/scroll-edge.md",
+      "summary": "Content is clear at any pinned edge (page/sheet header, pinned section title, bottom chrome) and ramps opaque over 40 (top) / 36 (bottom) units; pinned titles are never dimmed; one mechanism per edge kind per platform.",
+      "keywords": [
+        "fade",
+        "mask",
+        "scrim",
+        "scroll edge",
+        "under header",
+        "sticky header",
+        "pinned header",
+        "section header",
+        "footer fade"
+      ],
+      "web": [
+        {
+          "path": "hooks/ui/useScrollMask.ts",
+          "symbol": "useScrollMask"
+        },
+        {
+          "path": "hooks/ui/useScrollFade.ts",
+          "symbol": "useScrollFade"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/Chrome/PageChrome.swift",
+            "symbol": "TopEdgeScrim"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/ModalTopEdgeFade.swift",
+            "symbol": "ModalTopEdgeFadeModifier"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/ModalPinnedHeaderFade.swift",
+            "symbol": "ModalPinnedHeaderFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SectionBarEdgeFade.swift",
+            "symbol": "SectionBarEdgeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
+            "symbol": "ScrollEdgeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "bottomChromeFade"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongHeaderEdgeFade.kt",
+            "symbol": "SongHeaderEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/BoardFooterEdgeFade.kt"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SongHeaderEdgeFade.cs",
+            "symbol": "SongHeaderEdgeFade"
+          },
+          {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "TopEdgeFade"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BoardFooterEdgeFade.cs"
+          },
+          {
+            "path": "windows/Festival.App/Controls/BoardFooterFade.cs"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-mask",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.mask\\s*[({]",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/**",
+            "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
+            "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
+          ],
+          "debt": [
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
+          ],
+          "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
+        },
+        {
+          "id": "apple-edge-effect",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "scrollEdgeEffect(Style|Hidden)",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/Chrome/PageChrome.swift",
+            "apple/Sources/FestivalUI/Design/ModalTopEdgeFade.swift"
+          ],
+          "message": "System scroll-edge effects are configured only by TopEdgeScrim and the modal shell (scroll-edge R1, R6)."
+        },
+        {
+          "id": "android-dstin",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "BlendMode\\.DstIn",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt"
+          ],
+          "debt": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt"
+          ],
+          "message": "Alpha masks for scroll edges belong to the edge-fade components (scroll-edge R1)."
+        },
+        {
+          "id": "windows-mask",
+          "glob": "windows/**/*.cs",
+          "regex": "CompositionMaskBrush",
+          "allow": [
+            "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "windows/Festival.App/Controls/BoardFooterFade.cs",
+            "windows/**/*Tests*/**"
+          ],
+          "message": "Composition masks for scroll edges belong to TopEdgeFade/BoardFooterFade (scroll-edge R1)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "section-jump-landing",
+          "section-headers",
+          "modal-shell"
+        ],
+        "controls": [
+          "songs-section-index",
+          "quick-links",
+          "notifications"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        10,
+        49,
+        93,
+        94,
+        286,
+        288,
+        297,
+        298,
+        301,
+        305
+      ]
+    },
+    {
+      "id": "section-jump-landing",
+      "title": "Section-jump landing",
+      "status": "current",
+      "doc": ".agents/patterns/section-jump-landing.md",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear.",
+      "keywords": [
+        "quick links",
+        "section jump",
+        "landing offset",
+        "active section",
+        "section index",
+        "scroll anchor"
+      ],
+      "web": [
+        {
+          "path": "hooks/ui/usePageQuickLinks.ts",
+          "symbol": "DEFAULT_QUICK_LINK_SCROLL_OFFSET"
+        },
+        {
+          "path": "hooks/ui/usePageQuickLinks.ts",
+          "symbol": "usePageQuickLinks"
+        },
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "SongsPage"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/QuickLinks.swift",
+            "symbol": "QuickLinks"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/ListScrollNudger.swift",
+            "symbol": "ListScrollNudger"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsScrollChrome.swift",
+            "symbol": "SongsScrollChrome"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/quicklinks/QuickLinks.kt",
+            "symbol": "QuickLinks"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt",
+            "symbol": "QuickLinksController"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
+            "symbol": "SongsScreen"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/QuickLinks.cs",
+            "symbol": "QuickLinks"
+          },
+          {
+            "path": "windows/Festival.App/Controls/QuickLinksBinder.cs",
+            "symbol": "QuickLinksBinder"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongSectionHeader.cs",
+            "symbol": "SongSectionHeader"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-list-nudger",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "ListScrollNudger\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongsScrollChrome.swift"
+          ],
+          "debt": [],
+          "message": "List landing correction belongs to SongsScrollChrome and the shared Quick Links path (section-jump-landing R1)."
+        },
+        {
+          "id": "android-lazy-offset",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "lazyLandingScrollOffset",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/quicklinks/QuickLinks.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt"
+          ],
+          "debt": [],
+          "message": "Lazy-list landing offsets belong to the shared Quick Links implementation (section-jump-landing R1)."
+        },
+        {
+          "id": "windows-jump-pin",
+          "glob": "windows/**/*.cs",
+          "regex": "JumpPinDelta",
+          "allow": [
+            "windows/Festival.Core/Domain/SongSectionHeader.cs",
+            "windows/Festival.App/Pages/SongsPage.xaml.cs",
+            "windows/Festival.Core.Tests/SongSectionHeaderTests.cs"
+          ],
+          "debt": [],
+          "message": "Windows Songs jump pinning belongs to SongSectionHeader (section-jump-landing R1)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "scroll-edge",
+          "section-headers",
+          "quick-links"
+        ],
+        "controls": [
+          "quick-links",
+          "songs-section-index"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        9,
+        286,
+        298
+      ]
+    },
+    {
+      "id": "section-headers",
+      "title": "Section headers",
+      "status": "current",
+      "doc": ".agents/patterns/section-headers.md",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap.",
+      "keywords": [
+        "section header",
+        "section title",
+        "sticky header",
+        "pinned header",
+        "card header",
+        "heading"
+      ],
+      "web": [
+        {
+          "path": "components/common/SectionHeader.tsx",
+          "symbol": "SectionHeader"
+        },
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "SettingsPage"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
+            "symbol": "FestivalSectionHeader"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGlassSection"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "symbol": "SongsSectionBar"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
+            "symbol": "SectionHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
+            "symbol": "SongsScreen"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTSectionHeaderStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/CardHeader.cs",
+            "symbol": "CardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongsPage.xaml",
+            "symbol": "StickyHeader"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-songs-bar",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "SongsSectionBar",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
+          ],
+          "debt": [],
+          "message": "Pinned Songs header rendering belongs to SongsSectionBar (section-headers R4)."
+        },
+        {
+          "id": "android-sticky-header",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "stickyHeader\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt"
+          ],
+          "debt": [],
+          "message": "Pinned section headers belong to the canonical Songs list (section-headers R4)."
+        },
+        {
+          "id": "windows-sticky-copy",
+          "glob": "windows/**/*.xaml",
+          "regex": "x:Name=\"(StickyHeader|IncomingHeader)\"",
+          "allow": [
+            "windows/Festival.App/Pages/SongsPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows pinned-header copies belong to SongsPage (section-headers R4, R6)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "scroll-edge",
+          "section-jump-landing",
+          "quick-links"
+        ],
+        "controls": [
+          "quick-links",
+          "songs-section-index"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        288,
+        291,
+        297
+      ]
+    },
+    {
+      "id": "surface-materials",
+      "title": "Surface materials",
+      "status": "current",
+      "doc": ".agents/patterns/surface-materials.md",
+      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency.",
+      "keywords": [
+        "material",
+        "glass",
+        "Liquid Glass",
+        "frosted card",
+        "card surface",
+        "ultraThinMaterial",
+        "transparency"
+      ],
+      "web": [
+        {
+          "path": "components/common/FrostedCard.tsx",
+          "symbol": "FrostedCard"
+        },
+        {
+          "path": "pages/leaderboards/components/RankingCard.tsx",
+          "symbol": "RankingCard"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/RowCardSurface.swift",
+            "symbol": "FestivalCardModifier"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
+            "symbol": "FestivalGlassSection"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/GlassSurface.swift",
+            "symbol": "FestivalGlassModifier"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
+            "symbol": "GlassCard"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
+            "symbol": "BrandTokens"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTCardSurfaceBrush"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongRowCard.xaml.cs",
+            "symbol": "SongRowCard"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
+            "symbol": "LeaderboardEntryRow"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-glass-effect",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.glassEffect\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/GlassSurface.swift"
+          ],
+          "debt": [],
+          "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
+        },
+        {
+          "id": "apple-raw-material-background",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "(?:\\.background|\\.fill)\\(\\.(?:ultraThinMaterial|thinMaterial|regularMaterial|thickMaterial)\\b",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/**",
+            "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
+            "apple/Sources/FestivalUI/Features/FirstRun/FirstRunCarouselView.swift",
+            "apple/Sources/FestivalUI/Features/FirstRun/Demo/FirstRunDemoSupport.swift"
+          ],
+          "debt": [],
+          "message": "Raw standard-material backgrounds belong in Design or an approved exception (surface-materials R3)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "modal-shell",
+          "section-headers"
+        ],
+        "controls": [],
+        "pages": [
+          "songs",
+          "song-detail",
+          "leaderboards"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        291
+      ]
+    },
+    {
+      "id": "page-tools-and-nav-chrome",
+      "title": "Page tools and navigation chrome",
+      "status": "current",
+      "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface.",
+      "keywords": [
+        "navigation",
+        "page tools",
+        "toolbar",
+        "tab accessory",
+        "floating toolbar",
+        "global search",
+        "quick links",
+        "profile"
+      ],
+      "web": [
+        {
+          "path": "components/shell/mobile/BottomNav.tsx",
+          "symbol": "BottomNav"
+        },
+        {
+          "path": "components/shell/HeaderActions.tsx",
+          "symbol": "HeaderActions"
+        },
+        {
+          "path": "pages/songs/components/SongsToolbar.tsx",
+          "symbol": "SongsToolbar"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/PageToolsAccessory.swift",
+            "symbol": "PageToolsRegistry"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "FestivalRootTrailingItems"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
+            "symbol": "FloatingToolbar"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
+            "symbol": "GlobalSearchEntry"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/TopBarActions.kt",
+            "symbol": "AdaptiveTopBarActions"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/MainWindow.xaml",
+            "symbol": "GlobalSearchBox"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongsPage.xaml",
+            "symbol": "Actions"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-tab-accessory",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "tabViewBottomAccessory",
+          "allow": [
+            "apple/Sources/FestivalUI/App/Shell/PageToolsAccessory.swift"
+          ],
+          "message": "Only the shared page-tools shell may attach a tab-bar accessory (page-tools-and-nav-chrome R2)."
+        },
+        {
+          "id": "android-floating-toolbar",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\bFloatingToolbar\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
+          ],
+          "message": "The shell alone renders the compact floating toolbar (page-tools-and-nav-chrome R4, R6)."
+        },
+        {
+          "id": "windows-titlebar-content",
+          "glob": "windows/**/*.xaml",
+          "regex": "<TitleBar\\.Content>",
+          "allow": [
+            "windows/Festival.App/MainWindow.xaml"
+          ],
+          "message": "Global title-bar command content belongs to the main shell (page-tools-and-nav-chrome R5, R6)."
+        }
+      ],
+      "related": {
+        "patterns": [],
+        "controls": [
+          "app-navigation",
+          "global-search",
+          "quick-links",
+          "songs-filter",
+          "songs-sort"
+        ],
+        "pages": [
+          "songs",
+          "shop",
+          "leaderboards",
+          "suggestions"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        52,
+        84,
+        92,
+        160,
+        300
+      ]
+    },
+    {
+      "id": "modal-shell",
+      "title": "Modal shell",
+      "status": "current",
+      "doc": ".agents/patterns/modal-shell.md",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit.",
+      "keywords": [
+        "modal",
+        "sheet",
+        "dialog",
+        "alert",
+        "close",
+        "dismiss",
+        "content dialog",
+        "bottom sheet"
+      ],
+      "web": [
+        {
+          "path": "components/modals/components/ModalShell.tsx",
+          "symbol": "ModalShell"
+        },
+        {
+          "path": "components/modals/Modal.tsx",
+          "symbol": "Modal"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "symbol": "FestivalModal"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
+            "symbol": "FestivalSheetCloseItem"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalSheet"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalAlertDialog"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/FestivalDialog.cs",
+            "symbol": "FestivalDialog"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-content-dialog",
+          "glob": "windows/**/*.cs",
+          "regex": "new\\s+ContentDialog\\b",
+          "allow": [
+            "windows/Festival.App/Controls/FestivalDialog.cs",
+            "windows/Festival.Core.Tests/**"
+          ],
+          "message": "Create WinUI dialogs through FestivalDialog (modal-shell R1)."
+        },
+        {
+          "id": "android-bottom-sheet",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\bModalBottomSheet\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt"
+          ],
+          "message": "Create Material bottom sheets through FestivalModalSheet (modal-shell R1)."
+        },
+        {
+          "id": "android-alert-dialog",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\bAlertDialog\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt"
+          ],
+          "message": "Create Material alerts through FestivalAlertDialog (modal-shell R1)."
+        },
+        {
+          "id": "apple-manual-modal-close",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "ToolbarItem\\s*\\{.*(?:Image\\(systemName:\\s*\"xmark|Button\\(\"Close\")",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/**"
+          ],
+          "message": "Modal Close belongs to FestivalSheetCloseItem, not a hand-made toolbar control (modal-shell R4)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "scroll-edge"
+        ],
+        "controls": [
+          "chopt-paths",
+          "feedback-form",
+          "first-run",
+          "notifications",
+          "privacy-policy",
+          "profile-selection",
+          "whats-new"
+        ],
+        "pages": [
+          "settings",
+          "song-detail",
+          "rivals"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        23,
+        24,
+        25,
+        94,
+        96
+      ]
+    },
+    {
+      "id": "leaderboard-row",
+      "title": "Leaderboard row",
+      "status": "current",
+      "doc": ".agents/patterns/leaderboard-row.md",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform.",
+      "keywords": [
+        "leaderboard",
+        "ranking",
+        "score row",
+        "row height",
+        "columns",
+        "marquee",
+        "pager",
+        "pinned player"
+      ],
+      "web": [
+        {
+          "path": "pages/songinfo/topScoresLayout.ts",
+          "symbol": "resolveTopScoresColumns"
+        },
+        {
+          "path": "pages/leaderboards/helpers/rankingHelpers.ts",
+          "symbol": "computeRankWidth"
+        },
+        {
+          "path": "components/leaderboard/PaginatedLeaderboard.tsx",
+          "symbol": "PaginatedLeaderboard"
+        },
+        {
+          "path": "components/common/MarqueeText.tsx",
+          "symbol": "MarqueeText"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/LeaderboardRowColumns.swift",
+            "symbol": "LeaderboardRowColumns"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/LeaderboardRowMetrics.swift",
+            "symbol": "LeaderboardRowMetrics"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "RankingRowLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "RankingsPagerView"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/LeaderboardColumnLayout.kt",
+            "symbol": "LeaderboardColumnLayout"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "LeaderboardNameText"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "RankingsPager"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
+            "symbol": "ScoreRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/LeaderboardColumnLayout.cs",
+            "symbol": "LeaderboardColumnLayout"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/LeaderboardEntryRows.cs",
+            "symbol": "LeaderboardRowMetrics"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LeaderboardEntryRow.xaml.cs",
+            "symbol": "LeaderboardEntryRow"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
+            "symbol": "LeaderboardsPager"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-name-owner",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "struct\\s+LeaderboardNameText\\b",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift"
+          ],
+          "debt": [],
+          "message": "Leaderboard marquee behavior has one shared owner (leaderboard-row R3)."
+        },
+        {
+          "id": "android-row-metrics",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "val\\s+LEADERBOARD_ROW_MIN_HEIGHT\\s*=\\s*48\\.dp",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt"
+          ],
+          "debt": [],
+          "message": "The leaderboard row baseline is defined once (leaderboard-row R2)."
+        },
+        {
+          "id": "windows-row-metrics",
+          "glob": "windows/**/*.cs",
+          "regex": "class\\s+LeaderboardRowMetrics\\b",
+          "allow": [
+            "windows/Festival.Core/ViewModels/LeaderboardEntryRows.cs"
+          ],
+          "debt": [],
+          "message": "The leaderboard row baseline is defined once (leaderboard-row R2)."
+        },
+        {
+          "id": "windows-pager-owner",
+          "glob": "windows/Festival.App/Controls/**/*.xaml",
+          "regex": "x:Class=\"Festival\\.App\\.Controls\\.LeaderboardsPager\"",
+          "allow": [
+            "windows/Festival.App/Controls/LeaderboardsPager.xaml"
+          ],
+          "debt": [],
+          "message": "Board pagination belongs to the shared pager (leaderboard-row R5)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "scroll-edge",
+          "surface-materials",
+          "load-transition"
+        ],
+        "controls": [],
+        "pages": [
+          "song-detail",
+          "song-leaderboard",
+          "leaderboards",
+          "compete"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        37,
+        38,
+        90,
+        292,
+        293,
+        294,
+        295
+      ]
+    },
+    {
+      "id": "load-transition",
+      "title": "Load transition",
+      "status": "current",
+      "doc": ".agents/patterns/load-transition.md",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; entrances never replay while scrolling and reduced motion removes fades.",
+      "keywords": [
+        "loading",
+        "spinner",
+        "reload",
+        "load gate",
+        "fade",
+        "stagger",
+        "transition",
+        "reduce motion"
+      ],
+      "web": [
+        {
+          "path": "hooks/data/useLoadPhase.ts",
+          "symbol": "useLoadPhase"
+        },
+        {
+          "path": "components/page/LoadGate.tsx",
+          "symbol": "LoadGate"
+        },
+        {
+          "path": "components/leaderboard/PaginatedLeaderboard.tsx",
+          "symbol": "PaginatedLeaderboard"
+        },
+        {
+          "path": "pages/songinfo/components/path/PathsModal.tsx",
+          "symbol": "PathsModal"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/ReloadTransition.swift",
+            "symbol": "ReloadTransition"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalReloadGate.swift",
+            "symbol": "FestivalReloadGate"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
+            "symbol": "FestivalFadeInScope"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PathSwitchTransition.swift",
+            "symbol": "PathSwitchTransition"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/LoadSwapPhase.kt",
+            "symbol": "LoadSwapPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
+            "symbol": "rememberLoadSwap"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt",
+            "symbol": "FestivalLoadGate"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongPathsViewModel.kt",
+            "symbol": "PathSwapPhase"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/LoadSwap.cs",
+            "symbol": "LoadSwap"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LoadSwapVisual.cs",
+            "symbol": "LoadSwapVisual"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FadeIn.cs",
+            "symbol": "FadeIn"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",
+            "symbol": "PathSwapTiming"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-reload-gate",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "FestivalReloadGate\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongBandLeaderboardScreen.swift",
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift",
+            "apple/Sources/FestivalUI/Features/Profile/PlayerBandsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Suggestions/SuggestionsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Leaderboards/BandRankingsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Leaderboards/LeaderboardsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift"
+          ],
+          "debt": [],
+          "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
+        },
+        {
+          "id": "android-load-swap",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "rememberLoadSwap\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/LeaderboardsScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/BandRankingsScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankHistoryCard.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/FullRankingsScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt"
+          ],
+          "debt": [],
+          "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
+        },
+        {
+          "id": "windows-load-swap",
+          "glob": "windows/**/*.xaml",
+          "regex": "LoadSwapVisual\\.Swap",
+          "allow": [
+            "windows/Festival.App/Pages/LeaderboardsFullRankingsPage.xaml",
+            "windows/Festival.App/Pages/BandsPlayerBandsPage.xaml",
+            "windows/Festival.App/Pages/LeaderboardsPage.xaml",
+            "windows/Festival.App/Pages/LeaderboardsSongPage.xaml",
+            "windows/Festival.App/Pages/LeaderboardsBandRankingsPage.xaml",
+            "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml"
+          ],
+          "debt": [],
+          "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "leaderboard-row"
+        ],
+        "controls": [],
+        "pages": [
+          "songs",
+          "song-detail",
+          "song-leaderboard",
+          "leaderboards"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        30,
+        60,
+        70,
+        71
+      ]
+    },
+    {
+      "id": "empty-error-states",
+      "title": "Empty and error states",
+      "status": "current",
+      "doc": ".agents/patterns/empty-error-states.md",
+      "summary": "Loading, empty and failed outcomes stay distinct: centered scoped title/subtitle empty states, one native loading indicator, and explicit unavailable messages without global-search Retry controls.",
+      "keywords": [
+        "empty",
+        "no results",
+        "error",
+        "unavailable",
+        "loading",
+        "spinner",
+        "retry",
+        "search"
+      ],
+      "web": [
+        {
+          "path": "components/common/EmptyState.tsx",
+          "symbol": "EmptyState"
+        },
+        {
+          "path": "components/search/SearchModal.tsx",
+          "symbol": "SearchModal"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchEmptyState.swift",
+            "symbol": "GlobalSearchEmptyStateView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift",
+            "symbol": "FestivalLoadingView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/ServiceStatusViews.swift",
+            "symbol": "ServiceUnavailableView"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt",
+            "symbol": "FestivalEmptyState"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "FestivalLoading"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Pages/SearchPage.xaml",
+            "symbol": "fst.global-search.empty"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ServiceStatusView.xaml",
+            "symbol": "ServiceStatusView"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "global-search-retry",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "fst\\.global-search\\.(?:retry|players-retry)",
+          "allow": [],
+          "message": "Global Search reruns from submit or edit; it has no Retry control (empty-error-states R3)."
+        },
+        {
+          "id": "global-search-section-heading",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "fst\\.global-search\\.section\\.(?:songs|players|bands)",
+          "allow": [],
+          "message": "Global Search scope controls replace redundant result-section headings (empty-error-states R3)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "load-transition"
+        ],
+        "controls": [
+          "global-search",
+          "service-status"
+        ],
+        "pages": [
+          "songs",
+          "leaderboards",
+          "compete"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        35,
+        65,
+        99,
+        299
+      ]
+    },
+    {
+      "id": "quick-links",
+      "title": "Quick Links",
+      "status": "current",
+      "doc": ".agents/patterns/quick-links.md",
+      "summary": "One native Quick Links controller per page preserves web section order, uses a 32-unit shared landing/current line, and exposes an accessible current section through the platform chooser.",
+      "keywords": [
+        "quick links",
+        "jump to section",
+        "section navigation",
+        "active section",
+        "menu order",
+        "section index"
+      ],
+      "web": [
+        {
+          "path": "hooks/ui/usePageQuickLinks.ts",
+          "symbol": "usePageQuickLinks"
+        },
+        {
+          "path": "hooks/ui/usePageQuickLinks.ts",
+          "symbol": "DEFAULT_QUICK_LINK_SCROLL_OFFSET"
+        },
+        {
+          "path": "components/page/PageQuickLinks.tsx",
+          "symbol": "PageQuickLinksRail"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/QuickLinks.swift",
+            "symbol": "QuickLinks"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/QuickLinks/QuickLinksController.swift",
+            "symbol": "QuickLinksController"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/QuickLinks/QuickLinksToolbar.swift",
+            "symbol": "QuickLinksMenu"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/quicklinks/QuickLinks.kt",
+            "symbol": "QuickLinks"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt",
+            "symbol": "QuickLinksController"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt",
+            "symbol": "QuickLinksAction"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/QuickLinks.cs",
+            "symbol": "QuickLinks"
+          },
+          {
+            "path": "windows/Festival.App/Controls/QuickLinksHost.cs",
+            "symbol": "QuickLinksHost"
+          },
+          {
+            "path": "windows/Festival.App/Controls/QuickLinksMenuButton.cs",
+            "symbol": "QuickLinksMenuButton"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-menu",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "QuickLinksMenu\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/QuickLinks/QuickLinksToolbar.swift",
+            "apple/Sources/FestivalUI/Common/QuickLinks/QuickLinksModifiers.swift"
+          ],
+          "debt": [],
+          "message": "Apple Quick Links menus are constructed only by the shared toolbar component (quick-links R1, R2)."
+        },
+        {
+          "id": "android-controller",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "QuickLinksController\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt"
+          ],
+          "debt": [],
+          "message": "Android Quick Links controllers belong to the shared Compose implementation (quick-links R1)."
+        },
+        {
+          "id": "windows-menu-button",
+          "glob": "windows/**/*.cs",
+          "regex": "class\\s+\\w*QuickLinks\\w*\\s*:\\s*DropDownButton",
+          "allow": [
+            "windows/Festival.App/Controls/QuickLinksMenuButton.cs"
+          ],
+          "debt": [],
+          "message": "Windows Quick Links menu UI belongs to QuickLinksMenuButton (quick-links R1, R5)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "section-jump-landing",
+          "section-headers",
+          "scroll-edge"
+        ],
+        "controls": [
+          "quick-links",
+          "songs-section-index"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        6,
+        11,
+        12,
+        15,
+        286,
+        303
+      ]
+    }
+  ]
+}

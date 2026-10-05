@@ -53,7 +53,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="GlobalSearchButton" Visibility="Collapsed" Padding="8" Background="Transparent" BorderThickness="0"
                         MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
-                        VerticalAlignment="Center" ToolTipService.ToolTip="Search (Ctrl+E)"
+                        VerticalAlignment="Center" ToolTipService.ToolTip="Search songs and players (Ctrl+E)"
                         AutomationProperties.Name="Search songs and players"
                         AutomationProperties.AutomationId="fst.global-search.open">
                     <FontIcon Glyph="&#xE721;" FontSize="16" />
@@ -98,7 +98,9 @@
                                         <Button Content="Deselect" Click="OnDeselectProfile"
                                                 AutomationProperties.AutomationId="fst.profile.deselect" />
                                     </StackPanel>
-                                    <MenuFlyoutSeparator Margin="0,4,0,0" />
+                                    <!-- A plain divider: a MenuFlyoutSeparator outside a menu is a focusable Control with no
+                                         automation name, so Tab stopped on it silently (issue #254). -->
+                                    <Rectangle Height="1" Margin="-4,5,-4,1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                                 </StackPanel>
                                 <TextBlock Text="Find a Profile" Style="{StaticResource BodyStrongTextBlockStyle}"
                                            AutomationProperties.HeadingLevel="Level2" />

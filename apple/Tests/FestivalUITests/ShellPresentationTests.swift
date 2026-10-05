@@ -105,13 +105,32 @@ func duoInnerDisplayUsesRegularSections(layout: DeviceLayout) {
     #expect(presentation.sections(profile: .none) == [.songs, .leaderboards, .settings])
 }
 
-/// iPad/macOS: the sidebar shell always uses the regular set, even before the first
-/// geometry pass publishes a layout (the default is `.standardPhone`).
+/// The wide shell always uses the regular set, even before the first geometry pass
+/// publishes a layout (the default is `.standardPhone`): the iPad flyout (an overlay,
+/// so it uses the drawer; operator 2026-10-04) and the macOS persistent sidebar.
 @Test(arguments: [DeviceLayout.standardPhone, Layouts.largeIPhoneLandscape])
 func sidebarShellUsesRegularSections(layout: DeviceLayout) {
-    let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: true)
-    #expect(presentation == ShellPresentation(navigation: .sidebar, usesRegularSectionSet: true))
-    #expect(!presentation.usesDrawer)
+    let iPad = ShellPresentation.resolve(layout: layout, usesSidebarShell: true, persistentSidebar: false)
+    #expect(iPad == ShellPresentation(navigation: .flyout, usesRegularSectionSet: true))
+    #expect(iPad.usesDrawer)
+    #expect(iPad.listsSidebarDestinations)
+    let mac = ShellPresentation.resolve(layout: layout, usesSidebarShell: true, persistentSidebar: true)
+    #expect(mac == ShellPresentation(navigation: .sidebar, usesRegularSectionSet: true))
+    #expect(!mac.usesDrawer)
+}
+
+/// The iPad flyout lists Search and every sidebar destination, Item Shop selected
+/// rather than pushed; the iPhone drawer is unchanged.
+@Test func flyoutListsSidebarDestinations() {
+    let iPadVisible = SidebarMenu.sections(profile: .player, hideShop: false)
+    let iPad = DrawerMenu.browse(profile: .player, visibleSections: iPadVisible, hideShop: false)
+    #expect(iPad.map(\.intent) == [
+        .select(.songs), .select(.suggestions), .select(.statistics), .select(.rivals),
+        .select(.leaderboards), .select(.shop),
+    ])
+    #expect(DrawerMenu.search.intent == .openSearch)
+    let phone = DrawerMenu.browse(profile: .player, visibleSections: [.songs, .suggestions, .compete, .settings], hideShop: false)
+    #expect(phone.last?.intent == .push(.shop))
 }
 
 /// Folding and unfolding swap Compete and Leaderboards in place (same slot).

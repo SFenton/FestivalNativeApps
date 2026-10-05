@@ -78,6 +78,8 @@ fun firstRunPage(entry: NavBackStackEntry?): FirstRunPageKey? {
  * @param settings Current settings (gate facts; non-null means `ready`).
  * @param compact Compact window width.
  * @param blocked Another modal owns the screen (e.g. the profile sheet).
+ * @param destinationResolved The navigation stack has a destination (a null [page] then means
+ *   "no carousel here", which settles the launch for What's New).
  * @param demoSongs Where song demos read real catalogue songs; null shows placeholders.
  */
 @Composable
@@ -87,13 +89,21 @@ fun FirstRunHost(
     settings: AppSettings,
     compact: Boolean,
     blocked: Boolean,
+    destinationResolved: Boolean = true,
     demoSongs: FirstRunDemoSongsSource? = null,
 ) {
     val active by center.active.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val hasPlayer = settings.selectedPlayer != null
-    LaunchedEffect(page, hasPlayer, settings.shopHighlightEnabled, settings.experimentalRanks, compact, blocked) {
-        if (page == null || blocked) return@LaunchedEffect
+    LaunchedEffect(page, hasPlayer, settings.shopHighlightEnabled, settings.experimentalRanks, compact, blocked, destinationResolved) {
+        if (blocked) return@LaunchedEffect
+        if (page == null) {
+            if (destinationResolved) {
+                delay(SETTLE_MS)
+                center.markLaunchSettled()
+            }
+            return@LaunchedEffect
+        }
         delay(SETTLE_MS)
         center.tryBegin(page, settings, compact)
     }
@@ -130,7 +140,7 @@ class FirstRunDemoSongsSource(
  * @return Demo songs.
  */
 @Composable
-private fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideShop: Boolean): FirstRunDemoCatalog {
+internal fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideShop: Boolean): FirstRunDemoCatalog {
     val catalog by produceState<CatalogPayload?>(null, source) {
         value = try {
             source.loadCatalog()

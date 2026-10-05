@@ -308,7 +308,8 @@ struct FestivalRootTrailingItems: ToolbarContent {
     /// Notification rows open their destination on the current tab (issue #75).
     @Environment(\.pushRoute) private var pushRoute
     @Environment(\.deviceLayout) private var layout
-    /// Set where the account group lives in the iPhone tab-bar accessory instead.
+    /// Set where the bell lives in the iPhone tab-bar accessory instead; Profile stays
+    /// here, the bar's trailing-most item (issue #300).
     @Environment(\.pageToolsRegistry) private var pageTools
     #if !os(iOS)
     @Environment(\.openGlobalSearch) private var openGlobalSearch
@@ -319,6 +320,8 @@ struct FestivalRootTrailingItems: ToolbarContent {
         #if os(iOS)
         if pageTools == nil {
             barItems
+        } else {
+            accessoryProfileItem
         }
         #else
         if !shellOwnsGlobalToolbar {
@@ -335,6 +338,19 @@ struct FestivalRootTrailingItems: ToolbarContent {
     }
 
     #if os(iOS)
+    /// With the tab-bar accessory (iPhone, iOS 26.1+), Profile alone as the navigation
+    /// bar's trailing-most item, its own glass group: the accessory keeps only the page
+    /// tools and the bell, so its items never change while the system morphs it (issue
+    /// #300; HIG Toolbars: "Trailing: important always-available items").
+    @ToolbarContentBuilder private var accessoryProfileItem: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            RootProfileButton(session: session) { profileButtonAction() }
+        }
+    }
+
     /// The bell and profile as navigation-bar items.
     @ToolbarContentBuilder private var barItems: some ToolbarContent {
         if #available(iOS 26.0, *) {

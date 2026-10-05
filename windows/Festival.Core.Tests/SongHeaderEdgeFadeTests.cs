@@ -49,4 +49,15 @@ public sealed class SongHeaderEdgeFadeTests
     [InlineData(0.5f, 1, 0.5f)]
     public void MaskAlpha_ScalesWithStrength(float stop, double strength, float expected) =>
         Assert.Equal(expected, SongHeaderEdgeFade.MaskAlpha(stop, strength), 6);
+
+    [Theory]
+    [InlineData(false, true, 1, "hidden")]
+    [InlineData(false, false, 0, "hidden")]
+    [InlineData(true, false, 1, "hard-edge")]
+    [InlineData(true, false, 0, "hard-edge")]
+    [InlineData(true, true, 0, "top")]
+    [InlineData(true, true, 0.25, "fading")]
+    [InlineData(true, true, 1, "fading")]
+    public void Status_NamesEachReachableEdgeState(bool headerShown, bool enabled, double strength, string expected) =>
+        Assert.Equal(expected, SongHeaderEdgeFade.Status(headerShown, enabled, strength));
 }

@@ -46,6 +46,85 @@ class BandRankingsScenarioTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 f.take_band_rankings(bad)
 
+    def test_take_songs_delay(self):
+        self.assertEqual(f.take_songs_delay(["--port", "0"]), (None, ["--port", "0"]))
+        self.assertEqual(f.take_songs_delay(["--songs-delay", "12", "--port", "0"]), (12.0, ["--port", "0"]))
+        self.assertEqual(f.take_songs_delay(["--songs-delay=0.5"]), (0.5, []))
+        for bad in (["--songs-delay"], ["--songs-delay", "soon"], ["--songs-delay=-1"]):
+            with self.assertRaises(SystemExit):
+                f.take_songs_delay(bad)
+
+    def test_songs_delay_holds_only_the_catalogue(self):
+        original = ms.FixtureHandler.do_GET
+        served, slept = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        real_sleep = f.time.sleep
+        f.time.sleep = slept.append
+        try:
+            f.install_songs_delay(3)
+            for path in ("/api/songs", "/api/songs?x=1", "/api/shop"):
+                ms.FixtureHandler.do_GET(type("H", (), {"path": path})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+            f.time.sleep = real_sleep
+        self.assertEqual(served, ["/api/songs", "/api/songs?x=1", "/api/shop"])
+        self.assertEqual(slept, [3, 3])
+
+    def test_take_song_leaderboard(self):
+        self.assertEqual(f.take_song_leaderboard(["--port", "0"]), (None, ["--port", "0"]))
+        self.assertEqual(f.take_song_leaderboard(["--song-leaderboard", "anonymous", "--port", "0"]),
+                         ("anonymous", ["--port", "0"]))
+        self.assertEqual(f.take_song_leaderboard(["--song-leaderboard=anonymous"]), ("anonymous", []))
+        for bad in (["--song-leaderboard"], ["--song-leaderboard", "empty"], ["--song-leaderboard="]):
+            with self.assertRaises(SystemExit):
+                f.take_song_leaderboard(bad)
+
+    def test_anonymous_song_leaderboard_blanks_only_the_lead_rank_three_row(self):
+        def board():
+            return {"entries": [{"rank": r, "accountId": f"fixture-player-{r}", "displayName": f"P{r}"} for r in (2, 3, 4)]}
+
+        lead = f.anonymize_song_leaderboard("/api/leaderboard/fixture-pulse/Solo_Guitar?top=10", board())
+        self.assertEqual([(e["accountId"], e["displayName"]) for e in lead["entries"]],
+                         [("fixture-player-2", "P2"), ("", None), ("fixture-player-4", "P4")])
+        for path in ("/api/leaderboard/fixture-pulse/Solo_Drums", "/api/leaderboard/fixture-pulse/all",
+                     "/api/leaderboard/fixture-pulse/bands/Band_Duets"):
+            self.assertEqual(f.anonymize_song_leaderboard(path, board()), board(), path)
+        self.assertIsNone(f.anonymize_song_leaderboard("/api/leaderboard/fixture-pulse/Solo_Guitar", None))
+
+    def test_song_leaderboard_wraps_the_response_of_each_request(self):
+        original = ms.FixtureHandler.do_GET
+        sent = []
+
+        class Handler:
+            path = "/api/leaderboard/fixture-pulse/Solo_Guitar?top=10"
+
+            def _json(self, status, payload, *, etag=None):
+                sent.append((status, payload, etag))
+
+        ms.FixtureHandler.do_GET = lambda handler: handler._json(200, {"entries": [{"rank": 3, "accountId": "a"}]}, etag="e")
+        try:
+            f.install_song_leaderboard("anonymous")
+            handler = Handler()
+            ms.FixtureHandler.do_GET(handler)
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(sent, [(200, {"entries": [{"rank": 3, "accountId": "", "displayName": None}]}, "e")])
+        self.assertNotIn("_json", vars(handler))
+
+    def test_songs_unavailable_fails_only_the_catalogue(self):
+        original = ms.FixtureHandler.do_GET
+        served, answered = [], []
+        ms.FixtureHandler.do_GET = lambda handler: served.append(handler.path)
+        try:
+            f.install_songs_unavailable()
+            handler = type("H", (), {"_json": lambda self, status, body: answered.append((self.path, status, body))})
+            for path in ("/api/songs", "/api/songs?x=1", "/api/shop"):
+                ms.FixtureHandler.do_GET(type("H", (handler,), {"path": path})())
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(served, ["/api/shop"])
+        self.assertEqual([(p, s) for p, s, _ in answered], [("/api/songs", 503), ("/api/songs?x=1", 503)])
+
 
 ms = f.mock_service
 

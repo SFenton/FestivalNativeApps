@@ -80,8 +80,20 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
     private int pendingPin = -1;
 
+    /// <summary>Whether the pinned header waits for the next layout pass to read rows a far scroll has not realized yet.</summary>
+    private bool headerRecheckPending;
+
+    /// <summary>Consecutive post-layout header re-reads that still found no realized row in view.</summary>
+    private int headerRechecks;
+
+    /// <summary>Most post-layout header re-reads in a row before giving up until the next view change.</summary>
+    private const int HeaderRecheckLimit = 4;
+
     /// <summary>Section the pinned bar names while the list is shown; the open index focuses its letter.</summary>
     private int stickySection;
+
+    /// <summary>Whether a settled view change's after-layout header re-read is queued (<see cref="OnScrollerViewChanged"/>).</summary>
+    private bool stickySettlePending;
 
     /// <summary>How the open index focuses its letter: with a focus rectangle unless a pointer opened it.</summary>
     private FocusState letterFocus = FocusState.Keyboard;
@@ -142,6 +154,9 @@ public sealed partial class SongsPage : Page, IPageBack
         switch (e.PropertyName)
         {
             case nameof(SongsViewModel.Sections):
+                // Every pipeline run (search, sort, filter, data); the scroll stress journey requires none while only
+                // scrolling (issue #247).
+                PerfLog.Event("songs-sections");
                 // A new search, sort or filter closes the jump index: its letters described the old list.
                 if (!Zoom.IsZoomedInViewActive) Zoom.IsZoomedInViewActive = true;
                 RebindGroups();
@@ -191,15 +206,22 @@ public sealed partial class SongsPage : Page, IPageBack
     /// push it out like a plain list's pinned headers (issue #288; <see cref="SongSectionHeader.Push"/>). Runs on scroll
     /// view changes only (no per-frame work while idle); the push positions follow the scroll on the compositor. The
     /// first visible row comes from the realized rows' geometry: <see cref="ItemsStackPanel.FirstVisibleIndex"/> can
-    /// still describe the layout before a jump-index pick (issue #48: R → B kept "A" pinned).
+    /// still describe the layout before a jump-index pick (issue #48: R → B kept "A" pinned). When no realized row is in
+    /// view yet (a far scroll's last view change precedes realization, issue #248), it reads the rows again after the
+    /// next layout pass.
     /// </summary>
     private void UpdateStickyHeader()
     {
         EnsureScroller();
         var panel = SongList.ItemsPanelRoot as ItemsStackPanel;
         var fallback = panel is { FirstVisibleIndex: >= 0 } ? panel.FirstVisibleIndex : 0;
-        var row = SongSectionHeader.FirstVisibleRow(fallback, stickyRowCount, RealizedRows(panel),
-            scroller?.ViewportHeight ?? SongList.ActualHeight);
+        if (!SongSectionHeader.TryFirstVisibleRow(stickyRowCount, RealizedRows(panel),
+                scroller?.ViewportHeight ?? SongList.ActualHeight, out var row))
+        {
+            row = stickyRowCount > 0 ? Math.Clamp(fallback, 0, stickyRowCount - 1) : 0;
+            RecheckHeaderAfterLayout();
+        }
+        else headerRechecks = 0;
         var section = SongSectionHeader.SectionAt(groupStarts, row);
         var own = TitleAt(section);
         var next = TitleAt(section + 1);
@@ -208,6 +230,29 @@ public sealed partial class SongsPage : Page, IPageBack
         if (Zoom.IsZoomedInViewActive) stickySection = push.Current;
         var incoming = push.Incoming < 0 ? null : push.Incoming == section ? own : next;
         ShowStickyHeader(push.Current >= 0 ? stickyLabels[push.Current] : "", incoming);
+    }
+
+    /// <summary>
+    /// Reads the pinned header again once the list has laid out the rows at its new position (bounded to
+    /// <see cref="HeaderRecheckLimit"/> passes so a list that never realizes rows cannot keep re-arming it).
+    /// </summary>
+    private void RecheckHeaderAfterLayout()
+    {
+        if (headerRecheckPending || stickyRowCount <= 0 || !ViewModel.ShowList || !Zoom.IsZoomedInViewActive) return;
+        if (headerRechecks >= HeaderRecheckLimit)
+        {
+            headerRechecks = 0;
+            return;
+        }
+        headerRecheckPending = true;
+        headerRechecks++;
+        void Settled(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Settled;
+            headerRecheckPending = false;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settled;
     }
 
     /// <summary>Sets the pinned header's text and visibility.</summary>
@@ -231,10 +276,35 @@ public sealed partial class SongsPage : Page, IPageBack
     {
         if (scroller is null && (scroller = FindScrollViewer(SongList)) is not null)
         {
-            scroller.ViewChanged += (_, _) => UpdateStickyHeader();
+            scroller.ViewChanged += OnScrollerViewChanged;
             StartPushAnimations(scroller);
         }
         return scroller;
+    }
+
+    /// <summary>
+    /// Re-reads the pinned header on every view change, and once more after layout when a view change settles: a single
+    /// large jump (a UIA Scroll pattern set, keyboard End or a scroll-bar page) raises one final change before the panel
+    /// realizes the rows now in view, which would otherwise leave the header naming the old section (issue #249).
+    /// </summary>
+    /// <param name="sender">The list's scroll viewer.</param>
+    /// <param name="e">View change.</param>
+    private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        UpdateStickyHeader();
+        if (e.IsIntermediate || stickySettlePending) return;
+        stickySettlePending = true;
+        void Settle(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Settle;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settle;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            stickySettlePending = false;
+            UpdateStickyHeader();
+        });
     }
 
     /// <summary>A section's visible in-list title and its text top relative to the list viewport's top.</summary>
@@ -327,9 +397,11 @@ public sealed partial class SongsPage : Page, IPageBack
     private void UpdateEdgeFade(bool headerShown)
     {
         var settings = App.Session.Settings;
-        var enabled = headerShown && SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
+        var enabled = SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
             settings.LessTransparency, settings.MoreContrast);
-        edgeFade.Update(enabled ? SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0) : 0);
+        var strength = SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0);
+        edgeFade.Update(headerShown && enabled ? strength : 0);
+        ListFadeHost.SetStatus(SongHeaderEdgeFade.Status(headerShown, enabled, strength));
     }
 
     /// <summary>Follows appearance changes that switch the edge fade on or off while the page is shown.</summary>
@@ -894,63 +966,8 @@ public sealed partial class SongsPage : Page, IPageBack
     /// </summary>
     private void UpdateButtonTints()
     {
-        MarkApplied(SortButton, ViewModel.IsSortChanged);
-        MarkApplied(FilterButton, ViewModel.IsFilterActive);
-        AutomationProperties.SetItemStatus(FilterButton, ViewModel.FilterStatus);
-    }
-
-    /// <summary>
-    /// Gold text by default. Under a contrast theme gold resolves to WindowText (invisible), so an applied button takes
-    /// the system Highlight / HighlightText pair, like a checked toggle, and its icon/label drop the automatic
-    /// Window-colored text backplate that would otherwise cover the Highlight fill.
-    /// </summary>
-    /// <param name="button">Sort or Filter button.</param>
-    /// <param name="applied">Whether a non-default choice is applied.</param>
-    private static void MarkApplied(ContentControl button, bool applied)
-    {
-        button.ClearValue(ForegroundProperty);
-        button.ClearValue(BackgroundProperty);
-        var highlighted = applied && ContrastTheme.IsOn;
-        if (button.Content is Panel content)
-        {
-            foreach (var child in content.Children)
-                child.HighContrastAdjustment = highlighted ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
-        }
-        if (FindNamed(button, "ChevronIcon") is IconElement chevron)
-        {
-            chevron.ClearValue(IconElement.ForegroundProperty);
-            if (highlighted) chevron.Foreground = Brush("SystemColorHighlightTextColorBrush");
-        }
-        if (!applied) return;
-        if (highlighted)
-        {
-            button.Background = Brush("SystemColorHighlightColorBrush");
-            button.Foreground = Brush("SystemColorHighlightTextColorBrush");
-        }
-        else
-        {
-            button.Foreground = Brush("FSTEmphasisBrush");
-        }
-    }
-
-    /// <summary>Looks up an app brush.</summary>
-    /// <param name="key">Resource key.</param>
-    /// <returns>Brush.</returns>
-    private static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
-
-    /// <summary>Finds a named template part (e.g. the DropDownButton <c>ChevronIcon</c>) below an element.</summary>
-    /// <param name="root">Element whose visual tree is searched.</param>
-    /// <param name="name">Template part name.</param>
-    /// <returns>The part, or <see langword="null"/> before the template applies.</returns>
-    private static FrameworkElement? FindNamed(DependencyObject root, string name)
-    {
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is FrameworkElement { Name: var childName } element && childName == name) return element;
-            if (FindNamed(child, name) is { } found) return found;
-        }
-        return null;
+        AppliedButtonState.Apply(SortButton, ViewModel.IsSortChanged);
+        AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
     }
     #endregion
 
@@ -965,8 +982,13 @@ public sealed partial class SongsPage : Page, IPageBack
         var clock = System.Diagnostics.Stopwatch.StartNew();
         autoScroll = DispatcherQueue.CreateTimer();
         autoScroll.Interval = TimeSpan.FromMilliseconds(16);
+        // A tick after the window closes calls into torn-down XAML and fails fast in CoreMessagingXP (0xc000027b), so the
+        // perf run's close looked like a crash (issue #247).
+        Unloaded += StopAutoScroll;
+        if (MainWindow.Instance is { } window) window.Closed += StopAutoScroll;
         autoScroll.Tick += (_, _) =>
         {
+            if (autoScroll is null) return;
             var elapsed = clock.Elapsed.TotalSeconds;
             clock.Restart();
             if (EnsureScroller() is not { } viewer) return;
@@ -978,6 +1000,17 @@ public sealed partial class SongsPage : Page, IPageBack
             viewer.ChangeView(null, Math.Clamp(next, 0, end), null, true);
         };
         autoScroll.Start();
+    }
+
+    /// <summary>Stops <c>--auto-scroll</c> when the page unloads or the window closes.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void StopAutoScroll(object sender, object e)
+    {
+        Unloaded -= StopAutoScroll;
+        if (MainWindow.Instance is { } window) window.Closed -= StopAutoScroll;
+        autoScroll?.Stop();
+        autoScroll = null;
     }
 
     /// <summary>Finds the first ScrollViewer below an element.</summary>

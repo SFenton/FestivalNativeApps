@@ -12,6 +12,14 @@ enum FestivalDebugLaunch {
         let value = ProcessInfo.processInfo.environment["FST_DEBUG_SONG"]
         return (value?.isEmpty ?? true) ? nil : value
     }
+
+    /// `FST_DEBUG_SONG_BAND=<bandType>` (e.g. `Band_Duets`) with `FST_DEBUG_SONG`
+    /// pushes that song's full band leaderboard instead of its Detail page, so
+    /// screenshots of every device and pose reach it without scrolling (issue #306).
+    static var songBandType: String? {
+        let value = ProcessInfo.processInfo.environment["FST_DEBUG_SONG_BAND"]
+        return (value?.isEmpty ?? true) ? nil : value
+    }
 }
 #endif
 
@@ -44,12 +52,15 @@ struct SongsScreen: View {
     @State private var scrollChrome = SongsScrollChrome()
     /// Far programmatic jumps teleport behind this fade (``ListJump``).
     @State private var jumpFade = ListJumpFade()
+    /// The navigation bar's bottom edge and the list's SwiftUI safe-area top (window
+    /// points), measured in compact height only (iPhone Duo outer landscape,
+    /// ``SongsDrawerOverlap``).
+    @State private var drawerBarBottom = CGFloat.nan
+    @State private var listSafeTop = CGFloat.nan
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
-    @Environment(\.listDetailScrollAnchor) private var listScrollAnchor
     /// The anchor this instance already scrolled to.
-    @State private var restoredScrollAnchor: AppRoute?
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage(SongGeneralFilter.storageKey) private var generalFilterData = Data()
@@ -508,8 +519,13 @@ struct SongsScreen: View {
         #if DEBUG
         .navigationDestination(item: $debugPushedSong) { song in
             // Same pushed-page chrome (Search + avatar) as `FestivalTabStack` destinations.
-            SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
-                .pageTrailingItems()
+            if let bandType = FestivalDebugLaunch.songBandType {
+                SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
+                    .pageTrailingItems()
+            } else {
+                SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
+                    .pageTrailingItems()
+            }
         }
         .task(id: FestivalDebugLaunch.songTitleOrId) {
             guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId
@@ -978,6 +994,29 @@ struct SongsScreen: View {
         max(0, scrubberTrailingReserve - songRowInsets.trailing)
     }
 
+    /// Top padding that clears the pinned Filter field where SwiftUI lays the list out
+    /// above the navigation bar's bottom (iPhone Duo outer landscape, `/duo` P3).
+    private var drawerOverlap: CGFloat {
+        SongsDrawerOverlap.padding(
+            barBottom: drawerBarBottom, safeTop: listSafeTop,
+            compactHeight: deviceLayout.heightClass == .compact
+        )
+    }
+
+    /// Measures the bar bottom and the list's safe-area top, in compact height only.
+    @ViewBuilder private var drawerOverlapReader: some View {
+        #if os(iOS)
+        if deviceLayout.heightClass == .compact {
+            SongsDrawerBarReader { barBottom in
+                if barBottom != drawerBarBottom { drawerBarBottom = barBottom }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
+                listSafeTop = top
+            }
+        }
+        #endif
+    }
+
     private func populatedList(
         payload: CatalogPayload, visible: [Song], effectiveMode: SongSortMode
     ) -> some View {
@@ -1026,12 +1065,10 @@ struct SongsScreen: View {
                         // for a header-less section.
                         ForEach(groups) { group in
                             inlineGroupHeader(group)
-                            ForEach(group.songs) { song in
-                                songLink(
-                                    for: song, catalogueObservation: payload.observedPublicationId,
-                                    fadeIndex: fadeOrder[song.songId]
-                                )
-                            }
+                            songRows(
+                                group.songs, catalogueObservation: payload.observedPublicationId,
+                                fadeOrder: fadeOrder
+                            )
                         }
                     } else if let groups {
                         // Before iOS 26: sticky section titles (operator, 2026-09-28) on an
@@ -1039,23 +1076,19 @@ struct SongsScreen: View {
                         // are the scrubber's and Quick Links' jump targets.
                         ForEach(groups) { group in
                             Section {
-                                ForEach(group.songs) { song in
-                                    songLink(
-                                        for: song, catalogueObservation: payload.observedPublicationId,
-                                        fadeIndex: fadeOrder[song.songId]
-                                    )
-                                }
+                                songRows(
+                                    group.songs, catalogueObservation: payload.observedPublicationId,
+                                    fadeOrder: fadeOrder
+                                )
                             } header: {
                                 groupHeader(group)
                             }
                         }
                     } else {
-                        ForEach(visible) { song in
-                            songLink(
-                                for: song, catalogueObservation: payload.observedPublicationId,
-                                fadeIndex: fadeOrder[song.songId]
-                            )
-                        }
+                        songRows(
+                            visible, catalogueObservation: payload.observedPublicationId,
+                            fadeOrder: fadeOrder
+                        )
                     }
                 }
                 .listStyle(.plain)
@@ -1092,6 +1125,8 @@ struct SongsScreen: View {
                     scrollChrome.setScrolled(scrolled)
                 })
                 .scrollContentBackground(.hidden)
+                // iPhone Duo outer landscape: start below the pinned Filter field (`/duo` P3).
+                .safeAreaPadding(.top, drawerOverlap)
                 // Reserve room for the trailing section-index scrubber so its glass
                 // capsule never overlaps a row's own trailing content (difficulty
                 // meter, Shop badge, instrument-status chips) — the scrubber is an
@@ -1126,13 +1161,9 @@ struct SongsScreen: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
+            .background { drawerOverlapReader }
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
-            // iPhone Duo fold/unfold rebuilt this list: scroll back to the song that was
-            // open (`/duo` D6). The anchor is nil on iPhone, so this never runs there.
-            .onAppear { restoreListScroll(visible, proxy: scrollProxy) }
-            .onChange(of: visible.count) { _, _ in restoreListScroll(visible, proxy: scrollProxy) }
-            .onChange(of: listScrollAnchor) { _, _ in restoreListScroll(visible, proxy: scrollProxy) }
             .onChange(of: reorderKey) { _, _ in
                 scrollChrome.resetHeaders()
                 let top: AnyHashable? = groups?.first?.id ?? visible.first.map { AnyHashable($0.id) }
@@ -1174,26 +1205,6 @@ struct SongsScreen: View {
                 #endif
             }
         }
-    }
-
-    /// Scroll a rebuilt list back to the section's anchor song, once per anchor.
-    ///
-    /// - Parameters:
-    ///   - songs: Songs currently listed.
-    ///   - proxy: Reader proxy for the Songs List.
-    private func restoreListScroll(_ songs: [Song], proxy: ScrollViewProxy) {
-        guard let id = ListDetailScrollRestore.target(
-            anchor: listScrollAnchor, restored: restoredScrollAnchor,
-            rowIDs: Set(songs.map(\.id)),
-            rowID: { route in
-                if case let .songDetail(song) = route { return song.id }
-                return nil
-            }
-        ) else { return }
-        restoredScrollAnchor = listScrollAnchor
-        var instant = Transaction()
-        instant.disablesAnimations = true
-        withTransaction(instant) { proxy.scrollTo(id, anchor: .center) }
     }
 
     /// Jump instantly to a section's title from the A–Z rail (like Contacts and the Quick
@@ -1384,8 +1395,95 @@ struct SongsScreen: View {
     ///   - song: Validated catalogue song to display.
     ///   - catalogueObservation: Observed generation of the retained catalogue.
     /// - Returns: One accessible Song Detail link with effective Shop highlighting.
+    // MARK: Rows and the landscape grid
+
+    /// Song cards per list row: two side by side under each section header in a
+    /// landscape regular window (iPad, iPhone Duo inner display; operator 2026-10-04,
+    /// `split-view.md`: Songs never splits, it uses the width instead), else one. The
+    /// Mac keeps one single-line row per song, like a table.
+    private var songColumns: Int {
+        #if os(macOS)
+        1
+        #else
+        SongGridPolicy.columns(layout: deviceLayout)
+        #endif
+    }
+
+    /// One section's songs as list rows: one card per row, or pairs in the landscape grid.
+    ///
+    /// - Parameters:
+    ///   - songs: The section's songs, in order.
+    ///   - catalogueObservation: Observed generation of the retained catalogue.
+    ///   - fadeOrder: Stagger index per song id for rows that just loaded.
+    /// - Returns: The rows.
+    @ViewBuilder
+    private func songRows(_ songs: [Song], catalogueObservation: Int, fadeOrder: [String: Int]) -> some View {
+        let columns = songColumns
+        if columns > 1 {
+            ForEach(SongGridPolicy.rows(songs, columns: columns), id: \.first!.id) { pair in
+                songGridRow(pair, columns: columns, catalogueObservation: catalogueObservation, fadeOrder: fadeOrder)
+            }
+        } else {
+            ForEach(songs) { song in
+                songLink(
+                    for: song, catalogueObservation: catalogueObservation,
+                    fadeIndex: fadeOrder[song.songId]
+                )
+            }
+        }
+    }
+
+    /// One grid row: up to `columns` cards of equal width (a short last row keeps its
+    /// card at column width), each its own accessible link.
+    private func songGridRow(
+        _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int]
+    ) -> some View {
+        HStack(alignment: .top, spacing: SongGridPolicy.spacing) {
+            ForEach(songs) { song in
+                songCell(
+                    for: song, catalogueObservation: catalogueObservation,
+                    fadeIndex: fadeOrder[song.songId], windowMenu: false, gridCard: true
+                )
+                .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+                    .frame(maxWidth: .infinity)
+            }
+            ForEach(songs.count..<columns, id: \.self) { _ in
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+            }
+        }
+        // One menu for the row: a `List` row honours a single context menu.
+        .openInNewWindowMenu(songs.map { (title: $0.title, route: FestivalWindowRoute.song(songId: $0.songId)) })
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(songRowInsets)
+        .macKeyboardRow(songs[0].id)
+    }
+
+    /// One Songs list row (a single card).
     private func songLink(
         for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil
+    ) -> some View {
+        songCell(for: song, catalogueObservation: catalogueObservation, fadeIndex: fadeIndex)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(songRowInsets)
+            .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+            .macKeyboardRow(song.id)
+    }
+
+    /// A song card with its Song Detail link, context menu, fade and selected state.
+    ///
+    /// - Parameters:
+    ///   - song: Validated catalogue song to display.
+    ///   - catalogueObservation: Observed generation of the retained catalogue.
+    ///   - fadeIndex: Stagger index when the row just loaded, else nil.
+    ///   - windowMenu: Attach this card's own "Open in New Window" menu.
+    ///   - gridCard: The card shares its `List` row with another (landscape grid), so
+    ///     it opens through its own borderless button (``SongGridCardLink``).
+    /// - Returns: The decorated card.
+    private func songCell(
+        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil, windowMenu: Bool = true,
+        gridCard: Bool = false
     ) -> some View {
         let highlight = ShopPresentationPolicy.highlight(
             for: shopOffersForCurrentSongs?[song.songId],
@@ -1397,8 +1495,7 @@ struct SongsScreen: View {
         // trailing disclosure chevron. `NavigationLink` still owns the push (kept
         // invisible and stretched to the card's bounds) so the row remains one
         // accessible, combined VoiceOver stop with the standard Link action.
-        // `ListDetailLink` is that link, or a button filling the detail column in an
-        // iPhone Duo list/detail split.
+        // `ListDetailLink` is that link (Songs never splits, so it always pushes).
         let row = SongRowView(
             song: song, instrument: instrument,
             session: session, highContrast: highContrast,
@@ -1419,12 +1516,7 @@ struct SongsScreen: View {
         // focus ring would be invisible too).
         let link = ListDetailLink(value: AppRoute.songDetail(song)) { row }
         #else
-        let link = ZStack {
-            row
-            ListDetailLink(value: AppRoute.songDetail(song)) { EmptyView() }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(0)
-        }
+        let link = SongCardLink(route: AppRoute.songDetail(song), gridCard: gridCard) { row }
         #endif
         return link
         .contentShape(Rectangle())
@@ -1433,7 +1525,7 @@ struct SongsScreen: View {
             MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
         }
         #else
-        .openInNewWindowMenu(.song(songId: song.songId))
+        .modifier(SongCellWindowMenu(song: song, enabled: windowMenu))
         #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
@@ -1449,11 +1541,6 @@ struct SongsScreen: View {
         // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
         #endif
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .listRowInsets(songRowInsets)
-        .accessibilityIdentifier("fst.songs.row.\(song.songId)")
-        .macKeyboardRow(song.id)
     }
 
     /// Rows primed before the very first reveal, and how long priming may block it.
@@ -1902,13 +1989,14 @@ private struct RowMaskShape: Shape {
 /// Songs' page tools (issue #92): Sort, Filter and Quick Links, then the account group.
 ///
 /// On iOS 26.1+ iPhone they sit in the tab-bar accessory (``PageToolsRegistry``); Sort
-/// and Filter fold into one "Sort and Filter" menu when the accessory is too narrow for
-/// every item (``PageToolsAccessoryFit``: inline beside the minimized tab bar, small
-/// iPhones, accessibility text sizes). Elsewhere they are navigation-bar items, folding
-/// by ``SongsToolbarFold``. Either way Quick Links, Notifications and Profile stay
-/// visible (HIG Toolbars, iOS: "Put only essential actions in the main area; use More
-/// for the rest"). It measures its own width, so a width change re-renders only this
-/// modifier.
+/// and Filter fold into one "Sort and Filter" menu when the inline accessory for this
+/// window would be too narrow for every item, or at accessibility text sizes
+/// (``PageToolsAccessoryFit``). The decision never follows the accessory's own width, so
+/// the expanded and inline accessory show the same items (issue #300). Elsewhere they are
+/// navigation-bar items, folding by ``SongsToolbarFold``. Either way Quick Links,
+/// Notifications and Profile stay visible (HIG Toolbars, iOS: "Put only essential
+/// actions in the main area; use More for the rest"). It measures its own width, so a
+/// width change re-renders only this modifier.
 private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
     let session: FestivalSession
     let quickLinks: QuickLinksController
@@ -1938,9 +2026,9 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
     /// Whether Sort and Filter fold into one menu in the tab-bar accessory.
     private func foldsInAccessory(_ registry: PageToolsRegistry) -> Bool {
         PageToolsAccessoryFit.folds(
-            width: registry.accessoryWidth,
+            windowWidth: registry.windowWidth,
             pageTools: (canPresentFilter ? 2 : 1) + (quickLinks.isAvailable ? 1 : 0),
-            accountItems: session.selectedPlayer == nil ? 1 : 2,
+            showsBell: session.selectedPlayer != nil,
             dynamicTypeSize: dynamicTypeSize
         )
     }
@@ -2065,3 +2153,136 @@ private struct PinnedHeaderBacking: ViewModifier {
     }
 }
 
+
+/// A Songs card's own Open in New Window menu (iPad), off inside a grid row, whose row
+/// carries one menu for both cards.
+#if !os(macOS)
+// MARK: - Card links (iOS/iPadOS)
+
+/// A Song card's Song Detail link on iOS/iPadOS.
+///
+/// A one-card row keeps the invisible ``ListDetailLink`` stretched over the card (the
+/// `List` row is the tap target). A landscape grid row holds two cards, and a `List`
+/// row fires every `NavigationLink` it contains on one tap, so both songs opened;
+/// grid cards use ``SongGridCardLink`` instead.
+private struct SongCardLink<Label: View>: View {
+    let route: AppRoute
+    let gridCard: Bool
+    let label: Label
+
+    /// Create a card link.
+    ///
+    /// - Parameters:
+    ///   - route: Song Detail route.
+    ///   - gridCard: The card shares its `List` row with another card.
+    ///   - label: The card.
+    init(route: AppRoute, gridCard: Bool, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.gridCard = gridCard
+        self.label = label()
+    }
+
+    var body: some View {
+        if gridCard {
+            SongGridCardLink(route: route) { label }
+        } else {
+            ZStack {
+                label
+                ListDetailLink(value: route) { EmptyView() }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(0)
+            }
+        }
+    }
+}
+
+/// One grid card's own Song Detail button: borderless, so the `List` row does not
+/// claim the tap and only the touched card opens (HIG Lists and tables: each item is
+/// its own target).
+///
+/// It routes like ``ListDetailLink``: the trailing pane when a split accepts the route,
+/// else a push on the section's stack (`\.pushRoute`); outside the root shell (hosted
+/// tests) a plain `NavigationLink`.
+private struct SongGridCardLink<Label: View>: View {
+    let route: AppRoute
+    let label: Label
+    @Environment(\.listDetailSelect) private var select
+    @Environment(\.pushRoute) private var pushRoute
+
+    /// Create a grid card link.
+    ///
+    /// - Parameters:
+    ///   - route: Song Detail route.
+    ///   - label: The card.
+    init(route: AppRoute, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.label = label()
+    }
+
+    /// The action opening `route`, or nil when only a `NavigationLink` can.
+    private var open: (@MainActor () -> Void)? {
+        if let select, select.accepts(route) { return { select(route) } }
+        if let pushRoute { return { pushRoute(route) } }
+        return nil
+    }
+
+    var body: some View {
+        Group {
+            if let open {
+                Button(action: open) { label }
+                    .buttonStyle(.plain)
+                    // VoiceOver's activate on the combined card runs this card's push.
+                    .accessibilityAction(.default, open)
+            } else {
+                NavigationLink(value: route) { label }
+                    .buttonStyle(.plain)
+            }
+        }
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .hoverEffect(.highlight)
+    }
+}
+#endif
+
+private struct SongCellWindowMenu: ViewModifier {
+    let song: Song
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.openInNewWindowMenu(.song(songId: song.songId))
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Landscape grid policy
+
+/// Pure rules for the Songs landscape grid (`.agents/design/apple/split-view.md`).
+enum SongGridPolicy {
+    /// Gap between the two cards of a grid row.
+    static let spacing: CGFloat = 12
+
+    /// Cards per row: two in a landscape window that is regular in both dimensions (iPad
+    /// landscape, iPhone Duo inner display in landscape), else one (iPhone, portrait,
+    /// compact Split View windows, folded Duo).
+    ///
+    /// - Parameter layout: The page's device layout.
+    /// - Returns: 1 or 2.
+    static func columns(layout: DeviceLayout) -> Int {
+        layout.orientation == .landscape && layout.windowWidthClass == .regular
+            && layout.heightClass == .regular ? 2 : 1
+    }
+
+    /// Chunk a section's songs into rows of `columns`, keeping order (row-major).
+    ///
+    /// - Parameters:
+    ///   - songs: The section's songs.
+    ///   - columns: Cards per row (at least 1).
+    /// - Returns: The rows; only the last may be short.
+    static func rows<Item>(_ songs: [Item], columns: Int) -> [[Item]] {
+        let size = max(1, columns)
+        return stride(from: 0, to: songs.count, by: size).map { Array(songs[$0..<min($0 + size, songs.count)]) }
+    }
+}

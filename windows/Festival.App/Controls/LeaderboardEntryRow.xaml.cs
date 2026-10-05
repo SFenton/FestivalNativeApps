@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Festival.App.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -32,7 +33,21 @@ public sealed partial class LeaderboardEntryRow : UserControl
         InitializeComponent();
         IsTabStop = false;
         NameText.IsTextTrimmedChanged += (_, _) => UpdateNameToolTip();
+        // The surface, text and badge brushes are set from code, so a contrast-theme switch while a board is open must
+        // re-resolve them (issue #242: inline brush assignments do not follow {ThemeResource}).
+        Loaded += (_, _) =>
+        {
+            ContrastTheme.Changed -= OnColorsChanged;
+            ContrastTheme.Changed += OnColorsChanged;
+            ApplySurface();
+        };
+        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
     }
+
+    /// <summary>Re-applies the row's brushes on the UI thread after a system colour change.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(ApplySurface);
 
     /// <summary>Row model.</summary>
     public object? Row
@@ -131,10 +146,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 BayesianText.Visibility = Visibility.Collapsed;
                 PillText.Text = score.BadgeText;
                 AutomationProperties.SetAutomationId(PillText, BadgeAutomationId(score));
-                Pill.Background = ScoreBadge.Fill(score.IsFullCombo, score.AccuracyValue);
-                Pill.BorderBrush = ScoreBadge.Stroke(score.IsFullCombo);
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
-                PillText.Foreground = ScoreBadge.Text(score.IsFullCombo);
                 PillText.FontStyle = ScoreBadge.Style(score.IsFullCombo);
                 StarsView.Stars = score.StarCount;
                 break;
@@ -186,11 +198,25 @@ public sealed partial class LeaderboardEntryRow : UserControl
         PillText.FontWeight = FontWeights.SemiBold;
     }
 
-    /// <summary>Selected (purpleHighlight), current (muted) or plain frosted surface, and the matching text colours.</summary>
+    /// <summary>
+    /// Selected (purpleHighlight), current (muted) or plain frosted surface, the matching text colours and a score row's
+    /// accuracy badge brushes. Re-run on a system colour change, because code-set brushes do not follow a contrast theme.
+    /// </summary>
     private void ApplySurface()
     {
         var selected = (Row as ILeaderboardEntryRow)?.IsSelected == true;
         var resources = Application.Current.Resources;
+        // A full-combo badge has no fill of its own, so on the selected row under a contrast theme its WindowText outline
+        // and text would sit on Highlight (low contrast, then a system backplate): it follows the row's HighlightText.
+        var badgeOnHighlight = false;
+        if (Row is ILeaderboardScoreRow score)
+        {
+            badgeOnHighlight = selected && score.IsFullCombo && IsHighContrast;
+            Pill.Background = ScoreBadge.Fill(score.IsFullCombo, score.AccuracyValue);
+            Pill.BorderBrush = badgeOnHighlight ? (Brush)resources["FSTPlayerRowTextBrush"] : ScoreBadge.Stroke(score.IsFullCombo);
+            PillText.Foreground = badgeOnHighlight ? (Brush)resources["FSTPlayerRowTextBrush"] : ScoreBadge.Text(score.IsFullCombo);
+        }
+        PillText.HighContrastAdjustment = badgeOnHighlight ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
         Surface.Background = (Brush)resources[selected ? "FSTPlayerRowBrush" : current ? "FSTCurrentRowBrush" : "FSTCardSurfaceBrush"];
         Surface.BorderBrush = (Brush)resources[selected ? "FSTPlayerRowStrokeBrush" : "FSTCardStrokeBrush"];
         // Selected-row text follows the fill (HighlightText under a contrast theme); other rows inherit the button's.

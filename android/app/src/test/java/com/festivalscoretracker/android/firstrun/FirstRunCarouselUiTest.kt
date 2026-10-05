@@ -1,28 +1,57 @@
 package com.festivalscoretracker.android.firstrun
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.firstrun.FirstRunCatalog
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
 import com.festivalscoretracker.android.presentation.firstrun.FirstRunCarousel
+import com.festivalscoretracker.android.ui.firstrun.FirstRunCarouselBody
 import com.festivalscoretracker.android.ui.firstrun.FirstRunCarouselDialog
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
-import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Test
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
-/** First-run dialog footer: Done-only single slides, M3 Back-then-Next order (issue #25), 48 dp named buttons, viewed count. */
+/**
+ * First-run dialog: the page title header (issue #24/#147), Done-only single slides, M3
+ * Back-then-Next order (issue #25), 48 dp named buttons, viewed count, and a footer that keeps
+ * its place on every slide (issue #148).
+ */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp")
 class FirstRunCarouselUiTest {
@@ -95,5 +124,136 @@ class FirstRunCarouselUiTest {
         rule.onNodeWithTag("fst.first-run.next").performClick()
         rule.waitForIdle()
         check("fst.first-run.done", "Done")
+    }
+
+    /** Every slide of the longest guide (Songs, both copy variants), in page order. */
+    private val allSongs = (FirstRunCatalog.slides(FirstRunPageKey.Songs, true) + FirstRunCatalog.slides(FirstRunPageKey.Songs, false)).distinctBy { it.id }
+
+    /**
+     * Pages through every slide and asserts the footer keeps one frame, so a second tap on Next
+     * never lands on the slide (issue #148: slides with longer text grew the dialog and moved the
+     * footer up to 66 dp). The body is measured in the activity window at the dialog's width
+     * (window less 16 dp margins, at most 560 dp), because Robolectric caps dialog windows at
+     * about 576 dp, where every slide is already clamped.
+     */
+    private fun assertFooterStaysPutOnEverySlide() {
+        lateinit var pager: PagerState
+        lateinit var scope: CoroutineScope
+        rule.setContent {
+            FestivalTheme {
+                pager = rememberPagerState(pageCount = { allSongs.size })
+                scope = rememberCoroutineScope()
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val width = minOf(maxWidth - 32.dp, 560.dp)
+                    Column(Modifier.width(width).testTag("body")) {
+                        FirstRunCarouselBody(
+                            FirstRunCarousel(5, FirstRunPageKey.Songs, allSongs, isReplay = false),
+                            pager,
+                            remember { FocusRequester() },
+                            onBack = { scope.launch { pager.scrollToPage(pager.currentPage - 1) } },
+                            onNext = { scope.launch { pager.scrollToPage(pager.currentPage + 1) } },
+                        )
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        assertTrue(exists("fst.first-run.layout.stacked"))
+        val body = rule.onNodeWithTag("body").fetchSemanticsNode().boundsInRoot
+        val first = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
+        for (page in 1 until allSongs.size) {
+            rule.onNodeWithTag("fst.first-run.next").performClick()
+            rule.waitForIdle()
+            val action = rule.onNodeWithTag(if (page == allSongs.lastIndex) "fst.first-run.done" else "fst.first-run.next").fetchSemanticsNode().boundsInRoot
+            val back = rule.onNodeWithTag("fst.first-run.back").fetchSemanticsNode().boundsInRoot
+            assertEquals("body keeps its height on slide ${page + 1}", body.height, rule.onNodeWithTag("body").fetchSemanticsNode().boundsInRoot.height)
+            assertEquals("Next/Done keeps its top on slide ${page + 1}", first.top, action.top)
+            assertEquals("Next/Done keeps its trailing edge on slide ${page + 1}", first.right, action.right)
+            assertEquals("Back shares the footer row on slide ${page + 1}", action.top, back.top)
+        }
+    }
+
+    @Test
+    fun everyGuideIsTitledByItsPageLikeTheOtherModals() {
+        var page by mutableStateOf(FirstRunPageKey.Songs)
+        var titleLarge = TextUnit.Unspecified
+        rule.setContent {
+            FestivalTheme {
+                titleLarge = MaterialTheme.typography.titleLarge.fontSize
+                val carousel = FirstRunCarousel(5, page, FirstRunCatalog.slides(page, true), isReplay = true)
+                key(page) { FirstRunCarouselDialog(carousel) { } }
+            }
+        }
+        FirstRunPageKey.entries.forEach { pageKey ->
+            page = pageKey
+            rule.waitForIdle()
+            val title = rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true)
+            title.assertTextEquals(pageKey.label)
+            title.assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+            // Same Title Large header as What's New and Notifications (issue #147), not a small label.
+            assertEquals(pageKey.label, titleLarge, titleFontSize())
+            rule.onNodeWithTag("fst.first-run.dialog")
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Feature tour: ${pageKey.label}"))
+        }
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun footerKeepsItsPlaceOnEverySlide() = assertFooterStaysPutOnEverySlide()
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w411dp-h891dp", fontScale = 2f)
+    fun footerKeepsItsPlaceOnEverySlideAtDoubleFontSize() = assertFooterStaysPutOnEverySlide()
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w411dp-h891dp", fontScale = 1.3f)
+    fun footerKeepsItsPlaceOnEverySlideAtLargeFontSize() = assertFooterStaysPutOnEverySlide()
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w411dp-h891dp", fontScale = 1.5f)
+    fun footerKeepsItsPlaceOnEverySlideAtLargerFontSize() = assertFooterStaysPutOnEverySlide()
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w360dp-h792dp")
+    fun footerKeepsItsPlaceOnEverySlideOnANarrowPhone() = assertFooterStaysPutOnEverySlide()
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w800dp-h1280dp")
+    fun footerKeepsItsPlaceOnEverySlideOnATablet() = assertFooterStaysPutOnEverySlide()
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xxhdpi", fontScale = 2f)
+    fun titleKeepsCloseInPlaceAtFontScaleTwo() = titleSitsBesideClose(FirstRunPageKey.PlayerHistory)
+
+    @Test
+    @Config(qualifiers = "w891dp-h411dp-land-xxhdpi", fontScale = 2f)
+    fun titleKeepsCloseInPlaceInLandscapeAtFontScaleTwo() = titleSitsBesideClose(FirstRunPageKey.Shop)
+
+    /** The title takes the free width before Close, which stays a full 48 dp target inside the dialog. */
+    private fun titleSitsBesideClose(page: FirstRunPageKey) {
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(6, page, FirstRunCatalog.slides(page, true), isReplay = true)) { } } }
+        val minTarget = with(rule.density) { 48.dp.toPx() } - 1f
+        val dialog = rule.onNodeWithTag("fst.first-run.dialog").fetchSemanticsNode().boundsInRoot
+        val title = rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val close = rule.onNodeWithTag("fst.first-run.close").fetchSemanticsNode()
+        rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).assertTextEquals(page.label)
+        assertTrue("title ends before Close", title.right <= close.boundsInRoot.left)
+        assertTrue("Close stays inside the dialog", close.boundsInRoot.right <= dialog.right && close.boundsInRoot.top >= dialog.top)
+        assertTrue("Close keeps a 48 dp target", close.touchBoundsInRoot.width >= minTarget && close.touchBoundsInRoot.height >= minTarget)
+        assertTrue("title is not clipped to nothing", title.height > 0f && title.width > 0f)
+        assertTrue("the primary action stays visible", exists("fst.first-run.next"))
+        rule.onNodeWithTag("fst.first-run.next").assertIsDisplayed()
+    }
+
+    private fun titleFontSize(): TextUnit {
+        val results = mutableListOf<TextLayoutResult>()
+        rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.single().layoutInput.style.fontSize
     }
 }

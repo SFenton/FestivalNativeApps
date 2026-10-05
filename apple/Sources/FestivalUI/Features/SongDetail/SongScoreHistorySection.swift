@@ -30,6 +30,9 @@ struct SongScoreHistorySection: View {
     var viewportWidth: CGFloat = 0
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
+    /// Opens every score for an instrument in the trailing pane, where Song Detail can
+    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
+    var openFullHistory: ((Instrument) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
@@ -103,7 +106,16 @@ struct SongScoreHistorySection: View {
                                 .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                         }
                     }
-                    if rows.count > SongScoreHistoryModel.listLimit {
+                    if let openFullHistory, !rows.isEmpty {
+                        Button {
+                            openFullHistory(current)
+                        } label: {
+                            PurpleActionLabel(title: "View score history")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("View \(current.label) score history")
+                        .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    } else if rows.count > SongScoreHistoryModel.listLimit {
                         Button {
                             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
                                 expanded.toggle()
@@ -313,12 +325,18 @@ private struct ScoreHistoryChart: View {
                 }
             }
         }
+        .chartPlotFrameReporter()
         .frame(height: 220)
         .accessibilityLabel("\(instrument.label) score history chart")
         .accessibilityValue(
             "\(rows.count) scores, best \((rows.map(\.newScore).max() ?? 0).formatted())"
         )
         .accessibilityIdentifier("fst.song-detail.history.chart")
+        .chartAxisElements(ChartAxisLabels(
+            leading: "Score scale, 0 to \(top >= 1000 ? "\(Int((top / 1000).rounded()))k" : "\(Int(top))")",
+            trailing: "Accuracy scale, 0% to 100%",
+            bottom: "Dates, " + ChartAxisLabels.span(visible.first?.label, visible.last?.label)
+        ))
         .simultaneousGesture(
             DragGesture(minimumDistance: 20).onEnded { drag in
                 let dx = drag.translation.width
@@ -449,6 +467,9 @@ struct ScoreHistoryListRow: View {
     var seasonColumn = false
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
+    /// Opens every score for an instrument in the trailing pane, where Song Detail can
+    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
+    var openFullHistory: ((Instrument) -> Void)?
 
     private var season: Int? {
         guard seasonColumn, let season = entry.season, season > 0 else { return nil }
@@ -489,7 +510,13 @@ struct ScoreHistoryListRow: View {
                 Text("\(ScoreFormatting.accuracy(accuracy))%")
                     .font(fullCombo ? .body.bold().italic() : .body)
                     .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
-                    .frame(width: 76, height: 24)
+                    // A fixed 76 × 24 pt pill cut "95.5%" to "9…" at AX5 (iPad audit, Lane
+                    // A11Y3); accessibility sizes let it grow around the text.
+                    .lineLimit(1)
+                    .padding(.horizontal, stacked ? 8 : 0)
+                    .frame(width: stacked ? nil : 76, height: stacked ? nil : 24)
+                    .frame(minWidth: stacked ? 76 : nil, minHeight: stacked ? 24 : nil)
+                    .fixedSize(horizontal: stacked, vertical: stacked)
                     .background(fullCombo ? Color.clear : ScoreHistoryChart.accuracyColor(accuracy / 10_000).opacity(0.25),
                                 in: GoldSkewBadgeShape(skewed: fullCombo))
                     .overlay {

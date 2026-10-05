@@ -3,6 +3,7 @@
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -97,6 +98,11 @@ class MatrixTests(unittest.TestCase):
         self.assertIn(f"shot:{Path('/out') / 'settings-wide-text-200'}-footer.png", steps)
         self.assertFalse(any("{stem}" in s for s in steps))
 
+    def test_page_steps_repo_placeholder(self):
+        page = {"name": "feedback", "after_ready": ['setvalue:id=1148&class=Edit|"{repo}\\a.png"']}
+        steps = m.page_steps(page, "wide", Path("/out"), "", scan=False, tabs=0)
+        self.assertIn(f'setvalue:id=1148&class=Edit|"{m.REPO_ROOT}\\a.png"', steps)
+
     def test_page_env(self):
         anon = m.page_env({"name": "lab", "route": "/songs", "env": {"FST_DEBUG_CONTROL_LAB": "instrument-selector"}},
                           Path("/data"))
@@ -144,6 +150,56 @@ class MatrixTests(unittest.TestCase):
                  {"name": "songs-selected", "profile": "fixture-player-1:Demo Player"},
                  {"name": "real", "profile": "abc:Real Player"}]
         self.assertEqual([p["name"] for p in m.live_pages(pages)], ["shop", "real"])
+        scrolled = m.launch_args(None, {"name": "s", "args": ["--auto-scroll-span", "500"]}, Path("/s.json"))
+        self.assertEqual(scrolled[-2:], ["--auto-scroll-span", "500"])
+
+    def test_mode_pages(self):
+        pages = [{"name": "any"}, {"name": "normal-text", "skip_modes": ["text-200"]},
+                 {"name": "big-text", "modes": ["text-200"]}]
+        self.assertEqual([p["name"] for p in m.mode_pages(pages, "normal")], ["any", "normal-text"])
+        self.assertEqual([p["name"] for p in m.mode_pages(pages, "hc-desert+text-200")], ["any", "big-text"])
+        journey = json.loads((Path(m.__file__).parent / "journeys" / "quick-links-landing.json").read_text("utf-8"))
+        self.assertEqual([p["name"] for p in m.mode_pages(journey, "text-200") if p["name"].startswith("qll-song")],
+                         ["qll-song-menu-text-200"])
+
+    def test_songs_scroll_pages(self):
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "songs-scroll.json").read_text(encoding="utf-8"))}
+        # Issue #245 (#45 on Windows): wheel, UIA-pattern and auto-scroll ping-pong round trips near the top, fixture
+        # (large catalogue) and live variants; each fixture page ends back at the top with "#" pinned.
+        for name in ("songs-scroll", "songs-scroll-uia"):
+            self.assertEqual(pages[name]["fixture"], ["--large-catalogue"])
+            self.assertEqual(pages[name]["after_ready"][-3], "assertname:id=fst.songs.section-header|#")
+        self.assertEqual(sorted(p["name"] for p in m.live_pages(list(pages.values()))),
+                         ["songs-pingpong-frames-live", "songs-pingpong-live", "songs-scroll-live",
+                          "songs-scroll-resize-live", "songs-scroll-uia-live"])
+        resize = pages["songs-scroll-resize-live"]["after_ready"]
+        self.assertEqual([s for s in resize if s.startswith("resize:")],
+                         ["resize:compact", "resize:wide", "resize:maximized", "resize:snap-left", "resize:medium"])
+        self.assertEqual(resize[-2], "assertname:id=fst.songs.section-header|#")
+        self.assertIn("--auto-scroll-span", pages["songs-pingpong"]["args"])
+        for page in pages.values():
+            for step in m.page_steps(page, "medium", Path("out"), "", scan=False, tabs=0):
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step)
+
+    def test_pane_corner_pages(self):
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-pane-corners.json").read_text(encoding="utf-8"))}
+        # Issue #255 (#55 on Windows): every pane state whose corners meet the window's (closed/rail, light-dismiss
+        # overlay, inline expanded, collapsed to the rail), all anonymous so live evidence runs keep every page.
+        self.assertEqual(sorted(pages), ["pane-closed", "pane-collapsed", "pane-inline", "pane-overlay"])
+        self.assertEqual(m.live_pages(list(pages.values())), list(pages.values()))
+        overlay = pages["pane-overlay"]
+        self.assertEqual(overlay["after_ready"][:2], ["invoke:id=PART_PaneToggleButton", "waitfor:id=LightDismiss@5"])
+        self.assertEqual(overlay["teardown"][-1], "waitgone:id=LightDismiss@5")
+        self.assertIn("waitgone:id=LightDismiss@2", pages["pane-collapsed"]["after_ready"])
+        for page in pages.values():
+            for size in page.get("sizes", []):
+                self.assertIn(size, u.PRESETS, page["name"])
+            for step in m.page_steps(page, "compact", Path("out"), "", scan=True, tabs=4):
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step)
 
     def test_page_fixtures_exist(self):
         import json
@@ -152,6 +208,62 @@ class MatrixTests(unittest.TestCase):
                 if "fixture" in page:
                     script, _ = m.page_fixture(page)
                     self.assertTrue(script.is_file(), page["name"])
+
+    def test_page_steps_parse(self):
+        import json
+        for name in ("a11y.json", "a11y-keyboard.json"):
+            for page in json.loads((m.PAGES.parent / name).read_text(encoding="utf-8")):
+                for step in m.page_steps(page, "medium", Path("out"), "", scan=True, tabs=4):
+                    with self.subTest(file=name, page=page["name"], step=step):
+                        u.parse_step(step)
+
+    def test_first_run_later_states(self):
+        import json
+        pages = {p["name"]: p for p in json.loads(m.PAGES.read_text(encoding="utf-8"))}
+        self.assertIn("assertstate:id=SecondaryButton|enabled=true", pages["first-run-back"]["after_ready"])
+        done = pages["first-run-done"]["after_ready"]
+        self.assertEqual(done.count("invoke:id=PrimaryButton"), 5)
+        self.assertIn("assertstate:id=PrimaryButton|name=Done", done)
+        self.assertEqual(m.live_pages([pages["first-run-back"], pages["first-run-done"]]),
+                         [pages["first-run-back"], pages["first-run-done"]])
+
+    def test_search_state_pages(self):
+        import json
+        from tools.windows import uiwin as u
+        pages = json.loads((m.PAGES.parent / "a11y-search.json").read_text(encoding="utf-8"))
+        names = {page["name"] for page in pages}
+        # Every reachable Global Search state (issue #234): closed, open-hint, loading, results-all/-scoped, empty,
+        # error, bands-unavailable and navigated, plus the title-bar suggestion popup.
+        self.assertLessEqual({"search-closed", "search-suggestions", "search-open-hint", "search-loading",
+                              "search-results-all", "search-results-songs", "search-results-players", "search-empty",
+                              "search-error", "search-bands-unavailable", "search-navigated"}, names)
+        for page in pages:
+            for size in page.get("sizes", []):
+                self.assertIn(size, u.PRESETS, page["name"])
+            for step in [*page.get("ready", []), *page.get("after_ready", []), *page.get("teardown", [])]:
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step.replace("{stem}", "out"))
+
+    def test_titlebar_button_pages(self):
+        """Issue #253: bell and avatar stay separate, named, reachable buttons at every window size."""
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-titlebar-buttons.json").read_text(encoding="utf-8"))}
+        self.assertEqual(set(pages), {"tb-player", "tb-anonymous"})
+        for page in pages.values():
+            self.assertEqual(set(page["sizes"]), {"compact", "medium", "wide", "maximized", "snap-left"}, page["name"])
+            for size in page["sizes"]:
+                self.assertIn(size, u.PRESETS, page["name"])
+            for step in m.page_steps(page, "medium", Path("out"), "", scan=True, tabs=0):
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step)
+        player = pages["tb-player"]["after_ready"]
+        script, _ = m.page_fixture(pages["tb-player"])
+        self.assertTrue(script.is_file())
+        self.assertIn("assertlevel:id=fst.shell.notifications|id=fst.shell.profile", player)
+        self.assertLess(player.index("key:tab"), player.index("assertfocus:id=fst.shell.profile@3"))
+        self.assertIn("waitfor:id=fst.notifications.sheet@10", player)
+        self.assertIn("waitfor:id=fst.player.deselect@20", player)
+        self.assertIn("waitgone:id=fst.shell.notifications@2", pages["tb-anonymous"]["after_ready"])
 
     def test_page_fixture(self):
         self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))

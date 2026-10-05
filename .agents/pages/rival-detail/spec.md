@@ -1,6 +1,6 @@
 # rival-detail (`/rivals/:rivalId`) — spec stub
 
-> **What:** generated placeholder; this page has not been investigated. **Read when:** starting work on it — replace this stub with real web behavior first ([port-page skill](../../skills/port-page.md)).
+> **What:** generated placeholder; this page has not been investigated. **Read when:** starting work on it — replace this stub with real web behavior first ([port-page skill](../../skills/port-page/SKILL.md)).
 
 <!-- stub -->
 
