@@ -557,6 +557,9 @@ extension SongDetailScreen {
                 .transition(.opacity)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
+                // The bar caps its text size at accessibility sizes: a long press shows
+                // the title in the Large Content Viewer, as system bar titles do.
+                .accessibilityShowsLargeContentViewer()
                 .accessibilityIdentifier("fst.song-detail.pinned-title")
             }
         }

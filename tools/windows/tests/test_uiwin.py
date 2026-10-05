@@ -159,6 +159,18 @@ class StepTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             u.parse_step("keys:left nosuchkey")
 
+    def test_pin_and_assertpinned(self):
+        pin = u.parse_step("pin:id=fst.songs.sort@5")
+        self.assertEqual(pin["verb"], "pin")
+        self.assertEqual(pin["selector"], {"kind": "id", "value": "fst.songs.sort"})
+        self.assertEqual(pin["timeout"], 5.0)
+        check = u.parse_step("assertpinned:id=fst.songs.sort")
+        self.assertEqual(check["verb"], "assertpinned")
+        self.assertEqual(check["selector"], pin["selector"])
+        for bad in ("pin:10,20", "assertpinned:10,20", "pin:", "assertpinned:sort"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertinset(self):
         step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
         self.assertEqual(step["verb"], "assertinset")

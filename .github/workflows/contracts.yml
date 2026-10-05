@@ -33,4 +33,13 @@ jobs:
       - run: python3 tools/generate_tokens.py --check
       - run: python3 -m tools.contrast_gate
       - run: python3 .agents/_tools/check_docs.py
+      - name: Pattern registry and guards
+        run: python3 tools/pattern_guard.py
+      - name: Patterns touched by this PR (advisory)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 tools/pattern_guard.py changed --base "$BASE_SHA" --head "$HEAD_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
       - run: python3 -m unittest discover -s .agents/_tools

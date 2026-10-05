@@ -9,6 +9,10 @@ import XCTest
 /// pixel (surface), as a WCAG luminance ratio (``measure(luminances:)``). A
 /// contrast waiver (``IPadAuditWaivers``) only applies when this measurement passes.
 enum IPadAuditRenderedContrast {
+    /// The interface orientation when `XCUIDevice` does not know it: iPhone Duo's pose and
+    /// rotation come from Device Hub, so the audit sets this from the app window's aspect.
+    @MainActor static var interfaceIsLandscape: Bool?
+
     // MARK: - Capture
 
     /// A full-screen capture with the screen's size in points, in the current interface
@@ -39,7 +43,7 @@ enum IPadAuditRenderedContrast {
         static func screen() -> Capture? {
             let shot = XCUIScreen.main.screenshot().image
             guard let raw = shot.cgImage else { return nil }
-            let landscape = XCUIDevice.shared.orientation.isLandscape
+            let landscape = interfaceIsLandscape ?? XCUIDevice.shared.orientation.isLandscape
             guard let image = upright(raw, landscape: landscape),
                   let pixels = try? bitmapPixels(image) else { return nil }
             // Points from the bitmap itself: SpringBoard's frame (1194 pt) is shorter than
