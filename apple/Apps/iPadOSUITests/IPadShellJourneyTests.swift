@@ -298,6 +298,12 @@ final class IPadShellJourneyTests: XCTestCase {
         open.tap()
         let newScene = cards.matching(NSPredicate(format: "identifier != %@", first)).firstMatch
         XCTAssertTrue(newScene.waitForExistence(timeout: 15), "a second window opens")
+        // iPadOS reconnects every open window at the next launch: never leave this one
+        // behind, even when an assertion below fails (it broke the later journeys).
+        var secondWindowOpen = true
+        addTeardownBlock { @MainActor in
+            if secondWindowOpen { _ = WindowResize.closeFrontWindow(app) }
+        }
         XCTAssertTrue(app.navigationBars["Fixture Pulse"].waitForExistence(timeout: 20), "it shows the song")
         // The song is pushed (no flyout button on it): back to the Songs root first.
         app.typeKey("[", modifierFlags: .command)
@@ -305,6 +311,7 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertFalse(element(app, "fst.shell.drawer.suggestions").exists, "no player in the new window: shared session")
         element(app, "fst.shell.drawer.close").tap()
         XCTAssertTrue(WindowResize.closeFrontWindow(app), "close the second window")
+        secondWindowOpen = false
     }
 
     // MARK: - Helpers
