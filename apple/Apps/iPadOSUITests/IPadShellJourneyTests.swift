@@ -299,9 +299,11 @@ final class IPadShellJourneyTests: XCTestCase {
         let newScene = cards.matching(NSPredicate(format: "identifier != %@", first)).firstMatch
         XCTAssertTrue(newScene.waitForExistence(timeout: 15), "a second window opens")
         XCTAssertTrue(app.navigationBars["Fixture Pulse"].waitForExistence(timeout: 20), "it shows the song")
+        // The song is pushed (no flyout button on it): back to the Songs root first.
+        app.typeKey("[", modifierFlags: .command)
         openFlyout(app)
         XCTAssertFalse(element(app, "fst.shell.drawer.suggestions").exists, "no player in the new window: shared session")
-        app.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
+        element(app, "fst.shell.drawer.close").tap()
         XCTAssertTrue(WindowResize.closeFrontWindow(app), "close the second window")
     }
 
