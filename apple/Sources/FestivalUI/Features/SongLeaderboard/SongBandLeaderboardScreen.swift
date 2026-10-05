@@ -117,7 +117,7 @@ struct SongBandLeaderboardScreen: View {
                     .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
                     // Rows fade out above the pinned footer and pager and are not drawn
                     // beneath them, as on the Solo chart (issues #93, #293).
-                    .mask { bottomChromeFadeMask(chromeTop: chromeTop) }
+                    .bottomChromeEdgeFade(chromeTop: chromeTop, distance: bottomFadeDistance, in: Self.pageSpace)
                 }
             }
         }
@@ -222,36 +222,6 @@ struct SongBandLeaderboardScreen: View {
             hasFooter: footerEntry != nil,
             hasPager: chromePayload != nil && !layout.sectionChrome.isVerticalBar
         )
-    }
-
-    /// Alpha mask for the rows: opaque, then a fade ending at the pinned chrome's top
-    /// edge, clear beneath it (the Solo chart's `bottomChromeFadeMask`).
-    ///
-    /// - Parameter chromeTop: The chrome's measured top in ``pageSpace``; nil draws
-    ///   every row.
-    /// - Returns: The mask view.
-    private func bottomChromeFadeMask(chromeTop: CGFloat?) -> some View {
-        GeometryReader { proxy in
-            let frame = proxy.frame(in: .named(Self.pageSpace))
-            let stops = ScrollEdgeFade.bottom(
-                height: Double(frame.height),
-                obscured: chromeTop.map { Double(frame.maxY - $0) } ?? 0,
-                distance: bottomFadeDistance
-            )
-            if chromeTop == nil {
-                Color.black
-            } else {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: stops.fadeStart),
-                        .init(color: .clear, location: stops.fadeEnd),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
     }
 
     /// The selected player's band as one Solo-style footer row: rank, the members'

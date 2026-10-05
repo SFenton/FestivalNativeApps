@@ -2,7 +2,7 @@
 
 > **What:** how scrolling content meets anything pinned above or below it: page headers, sheet headers, pinned section titles and bottom chrome (pagers, footers). **Read when:** you touch a fade, mask, scrim, scroll-edge effect or sticky header on any platform, or a bug says content "shows under", "is faded under" or "is cut off at" a header.
 
-Status: **current**, 2026-10-05. Provenance: #10, #49, #93, #94, #286, #288, #297, #298, #301 (audit 2026-10-05: six parallel mechanisms grew up for this one behavior).
+Status: **current**, 2026-10-05. Provenance: #10, #49, #93, #94, #286, #288, #297, #298, #301, #306 (audit 2026-10-05: six parallel mechanisms grew up for this one behavior).
 
 ## Intent
 
@@ -36,7 +36,7 @@ The web has **no sticky section headers**. Native pinned section titles are a na
 | Page header | `FestivalUI/Common/Chrome/PageChrome.swift` `TopEdgeScrim` + system soft edge (R6 variant) | `ui/common/FestivalScreen.kt` pinned `TopAppBar` (opaque bar, content clipped at its edge) | `Festival.App` page header row (content clipped below it) |
 | Sheet header | `FestivalUI/Design/ModalTopEdgeFade.swift` `ModalTopEdgeFadeModifier`, applied by `FestivalModal` | `ui/common/FestivalModal.kt` (no ramp: hard edge) | `Festival.App/Controls/FestivalDialog.cs` (`ContentDialog`, no ramp) |
 | Pinned section title in a list | Songs: `FestivalUI/Features/Songs/SectionBarEdgeFade.swift` + `SongsScreen.swift` `SectionBarRowMask`; sheet lists: `FestivalUI/Design/ModalPinnedHeaderFade.swift` | `core/songs/SongHeaderEdgeFade.kt` + `ui/songs/PinnedHeaderEdgeFade.kt` (native `stickyHeader`) | `Festival.Core/Domain/SongHeaderEdgeFade.cs` + `Festival.App/Controls/TopEdgeFade.cs` |
-| Bottom chrome (pager, footer) | `FestivalCore/ScrollEdgeFade.swift` (36) | `core/rankings/BoardFooterEdgeFade.kt` | `Festival.Core/Domain/BoardFooterEdgeFade.cs` + `Festival.App/Controls/BoardFooterFade.cs` |
+| Bottom chrome (pager, footer) | `FestivalCore/ScrollEdgeFade.swift` (36) + `FestivalUI/Design/BottomChromeEdgeFade.swift` `.bottomChromeEdgeFade(chromeTop:distance:in:)` (Solo chart, Full Rankings, full band leaderboard) | `core/rankings/BoardFooterEdgeFade.kt` | `Festival.Core/Domain/BoardFooterEdgeFade.cs` + `Festival.App/Controls/BoardFooterFade.cs` |
 
 `TODO(orchestrator)`: confirm whether Android/Windows page and sheet headers need a web-style 40 ramp (R2/R3) or keep the platform's opaque bar with a hard edge as an approved variant (M3 top app bar and Fluent header both separate content from chrome).
 
@@ -47,7 +47,6 @@ The web has **no sticky section headers**. Native pinned section titles are a na
 | Apple `SectionBarEdgeFade.height = 28` (smoothstep, shortened near section starts by `SongsScrollChrome.rowFadeLimit`) | R3 | Consolidate with the next item into one pinned-header edge treatment with the shared ramp constant |
 | Apple `ModalPinnedHeaderFade` reuses Songs' 28-unit stops: a second implementation of R5 | R1, R3 | Same consolidation |
 | Android `SongHeaderEdgeFade.DEPTH_DP = 28`, Windows `SongHeaderEdgeFade` 28 epx | R3 | Move to 40 linear after the Apple consolidation lands |
-| Apple `FullRankingsScreen` / `SoloLeaderboardScreen` call `.mask { bottomChromeFadeMask … }` in the feature file | R1 | Move the mask into a shared `ScrollEdgeFade` modifier |
 
 ## Guards (`tools/pattern_guard.py`)
 

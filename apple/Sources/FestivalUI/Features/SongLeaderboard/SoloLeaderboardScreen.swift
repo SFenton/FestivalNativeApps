@@ -173,7 +173,7 @@ struct SoloLeaderboardScreen: View {
                     // that once required the band). The fade shrinks away as the last
                     // row arrives, so the list ends one row gap above the chrome with
                     // no reserved margin (issue #293).
-                    .mask { bottomChromeFadeMask }
+                    .bottomChromeEdgeFade(chromeTop: bottomChromeTop, distance: bottomFadeDistance, in: Self.pageSpace)
                 }
                 .task {
                     await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
@@ -306,34 +306,6 @@ struct SoloLeaderboardScreen: View {
             hasFooter: session.selectedPlayer != nil && selectedPlayerEntry() != nil,
             hasPager: shownPayload != nil && !layout.sectionChrome.isVerticalBar
         )
-    }
-
-    /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
-    /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
-    /// reaches its resting place, one row gap above the chrome (issue #293). Extends
-    /// into the top safe area so rows still scroll under the navigation bar.
-    private var bottomChromeFadeMask: some View {
-        GeometryReader { proxy in
-            let frame = proxy.frame(in: .named(Self.pageSpace))
-            let stops = ScrollEdgeFade.bottom(
-                height: Double(frame.height),
-                obscured: bottomChromeTop.map { Double(frame.maxY - $0) } ?? 0,
-                distance: bottomFadeDistance
-            )
-            if bottomChromeTop == nil {
-                Color.black
-            } else {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: stops.fadeStart),
-                        .init(color: .clear, location: stops.fadeEnd),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
     }
 
     // MARK: Selected-player spotlight
