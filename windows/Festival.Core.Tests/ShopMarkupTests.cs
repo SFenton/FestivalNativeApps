@@ -35,6 +35,16 @@ public class ShopMarkupTests
         Assert.Equal("WrapWholeWords", Attr(label, "TextWrapping"));
     }
 
+    [Fact]
+    public void FilterSwitches_AreNamedByLabelWithDescriptionAsHelpText()
+    {
+        var template = Page.Descendants().Single(e => e.Name.LocalName == "DataTemplate" && Attr(e, "Key") == "ShopFilterToggleTemplate");
+        var toggle = template.Descendants().Single(e => e.Name.LocalName == "ToggleSwitch");
+        Assert.Equal("{x:Bind Label}", Attr(toggle, "AutomationProperties.Name"));
+        Assert.Equal("{x:Bind Description}", Attr(toggle, "AutomationProperties.HelpText"));
+        Assert.Equal("{x:Bind AutomationId}", Attr(toggle, "AutomationProperties.AutomationId"));
+    }
+
     [Theory]
     [InlineData("fst.shop.empty")]
     [InlineData("fst.shop.filter.empty")]

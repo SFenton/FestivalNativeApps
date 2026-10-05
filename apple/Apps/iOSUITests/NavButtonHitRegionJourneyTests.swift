@@ -1,7 +1,8 @@
 import XCTest
 
 /// Issue #15: page buttons accept near-miss taps. Since issue #92 the page tools and
-/// the account group (Notifications, Profile) live in the tab-bar bottom accessory.
+/// Notifications live in the tab-bar bottom accessory; since issue #300 Profile is the
+/// navigation bar's trailing button.
 ///
 /// Each button is tapped 20 pt off-centre in every direction and 15 pt diagonally, all
 /// inside a 44 × 44 pt square centred on it (HIG Buttons: "the hit region is at least
@@ -67,15 +68,16 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Issue #92: Songs' page tools, then Notifications and Profile, sit left to right in
-    /// the tab-bar accessory (Profile last) with 44 pt hit regions on the standard iPhone
-    /// width; none of them is left in the navigation bar.
+    /// Issue #92: Songs' page tools, then Notifications, sit left to right in the tab-bar
+    /// accessory with 44 pt hit regions on the standard iPhone width; none of them is
+    /// left in the navigation bar. Issue #300: Notifications is pinned to the accessory's
+    /// trailing edge and Profile is the navigation bar's trailing-most button.
     @MainActor
     func testSongsAccessoryOrderAndHitRegions() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
-        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.shell.notifications", "fst.shell.profile"]
+        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.shell.notifications"]
         let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
         XCTAssertTrue(accessory.waitForExistence(timeout: 15), "Tab-bar accessory missing")
         let controls = ids.map { accessory.buttons[$0] }
@@ -94,9 +96,23 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
                 "\(ids[index]) is not before \(ids[index + 1])"
             )
         }
+        // The bell keeps its trailing slot whatever the page's tools are.
+        XCTAssertEqual(
+            controls[controls.count - 1].frame.maxX, accessory.frame.maxX, accuracy: 16,
+            "Notifications is not at the accessory's trailing edge"
+        )
+        let profile = app.navigationBars.buttons["fst.shell.profile"]
+        XCTAssertTrue(profile.exists, "Profile is not in the navigation bar")
+        XCTAssertFalse(accessory.buttons["fst.shell.profile"].exists, "Profile is still in the accessory")
+        XCTAssertTrue(profile.isHittable, "Profile not hittable")
+        let trailing = app.navigationBars.firstMatch.buttons.allElementsBoundByIndex
+            .filter { $0.frame.minY < app.navigationBars.firstMatch.frame.minY + 50 }
+            .map(\.frame.maxX).max() ?? 0
+        XCTAssertEqual(profile.frame.maxX, trailing, accuracy: 0.5, "Profile is not the rightmost header button")
     }
 
-    /// The drawer (navigation bar), bell and selected-profile monogram (tab-bar accessory).
+    /// The drawer and selected-profile monogram (navigation bar) and the bell (tab-bar
+    /// accessory).
     @MainActor
     func testHeaderButtonsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -116,7 +132,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Choose Profile (anonymous) and Suggestions' Filter in the tab-bar accessory.
+    /// Choose Profile (anonymous, navigation bar) and Suggestions' Filter in the tab-bar
+    /// accessory.
     @MainActor
     func testChooseProfileAndSuggestionsFilterAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -137,9 +154,11 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Issue #92: scrolling minimizes the tab bar and moves the accessory inline, where
-    /// Sort and Filter fold into one control; it and Quick Links still accept near-miss
-    /// taps and open their choices (as a sheet: iOS 26 does not open a `Menu` there).
+    /// Issue #92: scrolling minimizes the tab bar and moves the accessory inline. Issue
+    /// #300: it keeps the same items as when expanded (Sort, Filter, Quick Links |
+    /// Notifications), each a 44 pt slot without overlap, and they still accept
+    /// near-miss taps; Quick Links opens its choices as a sheet (iOS 26 does not open a
+    /// `Menu` there).
     @MainActor
     func testSongsToolsStayInTheInlineAccessoryWhileScrolled() throws {
         continueAfterFailure = false
@@ -151,7 +170,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let field = app.searchFields["Filter Songs"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         app.swipeUp()
-        let ids = ["fst.songs.tools", "fst.quick-links.open", "fst.shell.notifications", "fst.shell.profile"]
+        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open", "fst.shell.notifications"]
         for _ in 0..<100 {
             if ids.allSatisfy({ app.buttons[$0].exists && app.buttons[$0].isHittable }) { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -159,6 +178,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         guard ids.allSatisfy({ app.buttons[$0].exists }) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
+        XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "Sort and Filter folded while inline")
         XCTAssertTrue(field.exists, "Filter Songs field disappeared while scrolled")
         let frames = ids.map { app.buttons[$0].frame }
         for (id, frame) in zip(ids, frames) {
@@ -168,15 +188,41 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         for index in frames.indices.dropLast() {
             XCTAssertLessThanOrEqual(frames[index].maxX, frames[index + 1].minX, "\(ids[index]) overlaps its neighbour")
         }
-        let menuClose = app.buttons["fst.page-tools.menu.close"]
-        assertNearMissesOpen(app, "fst.songs.tools", opens: app.buttons["fst.songs.tools.filter"]) {
-            menuClose.tap()
+        assertNearMissesOpen(app, "fst.songs.filter", opens: app.buttons["fst.songs.filter.done"]) {
+            app.buttons["fst.songs.filter.done"].tap()
         }
         assertNearMissesOpen(app, "fst.quick-links.open", opens: quickLinksRow(in: app)) {
             Self.closeQuickLinks(in: app)
         }
-        // A choice runs once the sheet has closed: Filter… opens the Filter sheet.
-        app.buttons["fst.songs.tools"].tap()
+    }
+
+    /// Issue #300: at an accessibility text size Sort and Filter fold into one "Sort and
+    /// Filter" control both expanded and inline, so the item set never changes while the
+    /// accessory morphs. The folded control opens its choices as a sheet, and a choice
+    /// runs once the sheet has closed (Filter… opens the Filter sheet).
+    @MainActor
+    func testAccessibilityTextFoldIsTheSameExpandedAndInline() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(profile: true)
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
+        app.launch()
+        let folded = app.buttons["fst.songs.tools"]
+        XCTAssertTrue(folded.waitForExistence(timeout: 15), "Sort and Filter not folded at AX text size")
+        XCTAssertFalse(app.buttons["fst.songs.sort"].exists)
+        let field = app.searchFields["Filter Songs"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        app.swipeUp()
+        for _ in 0..<30 {
+            XCTAssertTrue(folded.exists, "Sort and Filter unfolded while the accessory moved")
+            XCTAssertFalse(app.buttons["fst.songs.sort"].exists, "Sort reappeared while the accessory moved")
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertGreaterThanOrEqual(folded.frame.width, 44)
+        let menuClose = app.buttons["fst.page-tools.menu.close"]
+        assertNearMissesOpen(app, "fst.songs.tools", opens: app.buttons["fst.songs.tools.filter"]) {
+            menuClose.tap()
+        }
+        folded.tap()
         XCTAssertTrue(app.buttons["fst.songs.tools.filter"].waitForExistence(timeout: 5))
         app.buttons["fst.songs.tools.filter"].tap()
         XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: 5))

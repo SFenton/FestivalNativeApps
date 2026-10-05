@@ -171,7 +171,8 @@ struct SongScorePreview: View {
     /// reaches the full chart; the spoken label names the instrument because nine
     /// otherwise identical actions share the page.
     private var viewFullLink: some View {
-        NavigationLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
+        // The full board opens in the trailing pane where Song Detail can split.
+        ListDetailLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
             PurpleActionLabel(title: "View full leaderboard")
         }
         .buttonStyle(.plain)
@@ -286,7 +287,9 @@ struct SongScorePreview: View {
         .modifier(RankingRowSurface(isSelected: highlighted))
         .contentShape(Rectangle())
         if let route {
-            NavigationLink(value: route) { content }
+            // The footer row's full board opens in the trailing pane where Song Detail
+            // can split; a player's profile always pushes.
+            ListDetailLink(value: route) { content }
                 .festivalRowButtonStyle()
                 .accessibilityHint(SongPreviewSpotlightPolicy.hint(for: route))
         } else {

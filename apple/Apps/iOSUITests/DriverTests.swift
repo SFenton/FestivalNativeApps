@@ -17,6 +17,9 @@ import UIKit
 /// - `tap:<identifier-or-label>` — tap the first element whose
 ///   accessibility identifier matches; falls back to an exact label match.
 /// - `tapText:<label>` — tap the first element with an exact label match.
+/// - `tapRail:<identifier>|<menu label>` — tap a bar item, or, when the bar overflowed it
+///   (iPhone Duo vertical bar), open the system `…` (More) menu and tap its entry.
+/// - `tapIfExists:<identifier-or-label>` — tap only if the element appears within 3 s.
 /// - `hold:<identifier-or-label>` — long-press (1.2 s) an element, e.g. to open its
 ///   context menu.
 /// - `tapXY:<x>,<y>` — tap a point. Both components `<= 1.0` are treated as
@@ -46,6 +49,9 @@ import UIKit
 ///   `window-controls`, then a window-controls menu item by label).
 /// - `systemHold:<identifier-prefix-or-label>` — long-press a SpringBoard element (e.g.
 ///   `Zoom-button` for the window tiling menu).
+/// - `systemDrag:<identifier-prefix-or-label>><x>,<y>` — long-press a SpringBoard element
+///   and drag it slowly to a normalized screen point, then hold before release (e.g. a
+///   Multitasking Dock icon to a screen edge for Split View on the iPhone Duo inner display).
 /// - `fill` — iPad windowed multitasking: make the window fill the screen again
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
 /// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
@@ -66,6 +72,8 @@ import UIKit
 enum DriverStep {
     case tap(String)
     case tapText(String)
+    case tapRail(String, String)
+    case tapIfExists(String)
     case hold(String)
     case tapXY(Double, Double)
     case swipe(Direction, identifier: String?)
@@ -84,6 +92,7 @@ enum DriverStep {
     case systemTree(String)
     case systemTap(String)
     case systemHold(String)
+    case systemDrag(String, CGVector)
     case tile(WindowResize.Tile)
     case windowFrame(String)
     case closeWindow
@@ -125,6 +134,13 @@ enum DriverStep {
         case "tap":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tap(arg)
+        case "tapRail":
+            let bits = arg.split(separator: "|", maxSplits: 1).map(String.init)
+            guard bits.count == 2, !bits[0].isEmpty, !bits[1].isEmpty else { throw ParseError.malformed(raw) }
+            return .tapRail(bits[0], bits[1])
+        case "tapIfExists":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .tapIfExists(arg)
         case "tapText":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tapText(arg)
@@ -174,6 +190,14 @@ enum DriverStep {
         case "systemTap":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTap(arg)
+        case "systemDrag":
+            guard let split = arg.range(of: ">", options: .backwards) else { throw ParseError.malformed(raw) }
+            let target = String(arg[..<split.lowerBound])
+            let values = arg[split.upperBound...].split(separator: ",").compactMap {
+                Double($0.trimmingCharacters(in: .whitespaces))
+            }
+            guard !target.isEmpty, values.count == 2 else { throw ParseError.malformed(raw) }
+            return .systemDrag(target, CGVector(dx: values[0], dy: values[1]))
         case "systemTree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTree(arg)
@@ -388,6 +412,24 @@ final class DriverTests: XCTestCase {
             } else {
                 candidate.tap()
             }
+        case let .tapRail(identifier, label):
+            let item = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+            if item.waitForExistence(timeout: 3), item.isHittable {
+                item.tap()
+            } else {
+                let more = app.buttons.matching(identifier: "BottomOverflowBarButtonItem").firstMatch
+                guard more.waitForExistence(timeout: 3) else { throw DriverError.elementNotFound(identifier) }
+                more.tap()
+                let entry = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@ OR identifier == %@", label, identifier)).firstMatch
+                guard entry.waitForExistence(timeout: 3) else { throw DriverError.elementNotFound(label) }
+                entry.tap()
+            }
+        case let .tapIfExists(target):
+            let candidate = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier == %@ OR label == %@", target, target)
+            ).firstMatch
+            if candidate.waitForExistence(timeout: 3) { candidate.tap() }
         case let .tapText(label):
             let candidate = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label)).firstMatch
@@ -459,6 +501,16 @@ final class DriverTests: XCTestCase {
                 ).firstMatch
             guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
             if case .systemHold = step { target.press(forDuration: 1.2) } else { target.tap() }
+        case let .systemDrag(identifier, destination):
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let target = springboard.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
+            ).firstMatch
+            guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
+            target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+                forDuration: 1.0,
+                thenDragTo: springboard.coordinate(withNormalizedOffset: destination),
+                withVelocity: .slow, thenHoldForDuration: 1.0)
         case let .systemTree(path):
             try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
                 .write(toFile: path, atomically: true, encoding: .utf8)

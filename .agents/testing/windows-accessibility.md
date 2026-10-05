@@ -42,7 +42,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Bands (Band not found, #211) | ✅✅✅ (+live) | 5/8/8 | ✅ | ✅ | ✅ (+200% C/M/W) |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
-| Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
+| Search | ✅✅✅ (+snap/max, live, #234) | 6–8/7–9/7–9 (#234) | ✅ (#234) | ✅ (#234 Desert) | ✅ (+200% C+M, display 100%/150%, #234) |
 | Settings | ✅✅✅ | 30/30/30 | ✅ | ✅ | ✅ |
 | Licenses | ✅✅✅ (+dialog, #215) | 21/23/23 (dialog 3) | ✅ (#215 journey) | ✅ | ✅ (+200% C/M/W, display 100%/150%, #215) |
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
@@ -74,6 +74,15 @@ Android learnings applied: every leaderboard row (and each score-history row) is
 ## Song Detail validation (issue #195, 2026-10)
 
 Scope: Song Detail only, fixture matrix plus the live public service (SFentonX on "Never Back Down": Leaving Tomorrow in the Shop, two Lead history bars, eight instrument cards, Duos/Trios/Quads). Results per configuration in [song-detail/windows.md](../pages/song-detail/windows.md#validation-issue-195). Axe 0 errors everywhere: compact, medium, wide, snap-left and maximized; light and dark system theme; Desert and Night sky; text 200%; display 100% and 150%; live and fixture. Keyboard journeys `kb-detail-back`, `kb-paths-dialog-esc` (all sizes) and `kb-detail-compact-previews` (compact: every card's row and View Full stop, arrows between rows, Shift+Tab back) pass. Fixed: Tab skipped virtualized cards at compact, Trios/Quads cards clipped (uniform grid), focus hidden under the pinned header (WCAG 2.4.11), High Contrast chart axes/selection and Item Shop surface, chart axis titles over the ticks at 200% text.
+
+## Leaderboard row columns validation (issue #242, 2026-10-04)
+
+Scope: the shared row-column fitter (issue #37) on every board, checked against the live public service with SFentonX. Results per configuration are in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#validation-issue-242-2026-10-04).
+- **Live matrix:** `a11y_matrix.py --live --scan --tabs 25` gave 0 Axe errors, no focus leaving the window and no repeated stops on six pages at compact, medium and wide: song board, Leaderboards, Full and Band Rankings, Song Detail and Score History.
+- **Modes (0 Axe errors):** Desert, Night sky, text 200%, display 100%/150%, text 200% + display 150% and the light system theme. UIA bounds show every row and the pinned row on shared columns at all sizes, maximized and both snaps.
+- **Fixed:**
+  - Switching a contrast theme with a board open left the rows' code-set brushes (translucent fill, purple pinned row, gold badge) and the pager's disabled-button aliases in the old theme, under system backplates.
+  - Under a contrast theme, the pinned row's FC badge drew WindowText on Highlight.
 
 ## Item Shop validation (issue #224, 2026-10-04)
 
@@ -328,16 +337,59 @@ Fixed:
 4. The XAML choice menus (Rank By, Instrument, Band Size, Jump, Sort) share the implicit presenter name "Options". The invoking button names the choice, but per-menu names would read better.
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
-7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Every other size, mode and scroll position scans clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip.
+7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Issue #236: Settings scrolled to the feedback rows at medium with 150% display scale leaves the CHOpt Path View description at the top edge (same zero-height `TextBlock`, 2 findings while the `filing`, `sent` and `error` dialogs are open); the dialog itself scans clean. Every other size, mode and scroll position scans clean.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip. Issue #234 saw it whenever the title-bar search box's suggestion popup is open (every mode).
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
+
+## Global Search validation (issue #234, 2026-10-04)
+
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/a11y-search.json --fixture tools/windows/profile_fixture.py --scan --tabs 30` covers all 11 state pages: closed, suggestions, open-hint, loading, results All/Songs/Players, empty, error, bands-unavailable and navigated. It ran at compact, medium, wide, maximized and snapped, then under Desert, light and dark theme, text 200%, and display 100% and 150%. The Search page scanned with 0 Axe errors throughout; the suggestion popup hits only item 8. The keyboard pages `kb-global-search` and `kb-titlebar-order(-compact)` pass, and live public-service screenshots were taken.
+
+Fixed: Ctrl+E is now reported as the UIA AcceleratorKey of the compact search button, the title-bar box and its inner TextBox, so Narrator announces the shortcut.
+
+Per configuration: [global-search/windows.md](../controls/global-search/windows.md#validation-issue-234-2026-10-04).
 
 ## Settings validation (issue #214, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan --tabs 60 --pages journeys/settings-states.json` (expanded states, a shot per section) at compact and wide under normal, light and dark theme, Desert, Night sky, text 200%, display 100% and 150%, plus snap-right and maximized: 0 Axe errors, 53/55 distinct Tab stops, none outside the window or repeated. `settings-keyboard` (Space/Enter/Esc with focus kept) and the `journeys/settings.py` journeys pass. Fixed: Settings ignored contrast themes in its reorder lists, First Run chips, link-row hover and progress bar, and kept stale brushes when a contrast theme was switched on while the page was open. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-issue-214-2026-10-03).
+
+## CHOpt Path Default View validation (issue #256, 2026-10-05)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-path-view.json` at compact, medium, wide, maximized and both snaps. It then ran at compact and wide under Desert, Night sky, light and dark theme, text 200%, display 100%/150% and text 200% with display 150%. Every run had 0 Axe errors. There is no disclosure: Narrator reads the group name "CHOpt Path Default View" and the selected Image or Text radio (SelectionItem). Arrow keys move focus and selection together. The `path-default-view` journey proves the choice persists and sets the view Paths opens in. No app change. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-chopt-path-default-view-issue-256-2026-10-05).
 
 ## App Navigation validation (issue #225, 2026-10-04)
 
 Evidence: `a11y_matrix.py --scan --tabs 30 --pages journeys/a11y-navigation.json` (anonymous, player, band page, Settings, pane open at compact) at compact, medium, wide, snap-left, snap-right and maximized, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%: 0 Axe errors except the open minimal pane (WinUI popup-host finding, open issue 8). `journeys/navigation.py` covers `songs`, `leaderboards`, `settings`, `player`, `band`, `reselect`, the compact pane and keyboard use (8/8 pass). Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#validation-issue-225-2026-10-04).
 
 Fixed: keyboard focus entering the pane from the title bar (Tab from profile) or the minimal pane opening from the toggle landed on Songs rather than the selected section; NavigationView only does this for a Tab that passes through itself.
+
+## Navigation pane corners validation (issue #255, 2026-10-05)
+
+Evidence: `a11y_matrix.py --scan --tabs 20 --pages journeys/a11y-pane-corners.json` (pane closed, overlay, inline, collapsed rail) ran with fixtures and live (`--live`). It covered compact, medium, wide, maximized and both snap halves, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%. Every state passes. Axe found 0 errors except on the open overlay (open issue 8), and Tab stops stay in the window without repeats. `navigation.py compact keyboard` passes. No app code changed. Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#pane-corners-validation-issue-255-2026-10-05).
+
+## Modal component validation (issue #239, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/modals.json` (all eight `FestivalDialog` callers: Settings Reset, Privacy Policy, Report an Issue, Suggest a Feature, What's New, Licenses, First Run, the Karaoke Paths notice, Paths, and both profile confirmations) with fixtures, plus live public-service runs (`--live`, no profile pages). Every run: Esc closes, focus returns to the invoker, Tab stays inside the dialog (2–7 stops) and Axe found 0 errors.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all 11 pages); maximized, snap-left, snap-right | Pass. Compact fixed: Feedback field hints were cut off |
+| Light and dark theme | Pass; identical by design (`FestivalDialog` is dark-only) |
+| Desert, Night sky | Pass after the fix below. Pixel-check captures: a run can start before the theme reaches the app; prefix `ready` with `wait:15` |
+| Text 200% (compact, wide) | Pass after the Feedback hint fix |
+| Display 100%, 150% (wide) | Pass |
+| Keyboard only | Pass: Enter opens, Tab cycles, Esc closes, focus restored |
+| Live service | Pass for every page except Feedback, which the service hides (`/api/features` `feedback:false`) |
+
+Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact width and 200% text; they now wrap. Under contrast themes WinUI drew a Window-coloured text backplate inside the Highlight fill of the default command (Next, Cancel, Submit, OK) and around the selected First Run pip; `DialogChrome.CommandLabelsWithoutBackplate` and `WithoutBackplate` turn it off. Deliberate deviations: the Karaoke notice is an alert (OK / Don't Show Again, no Close); a one-slide First Run shows only Done; Reset defaults to Cancel.
+
+## Feedback Form validation (issue #236, 2026-10-05)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-feedback.json --fixture tools/windows/feedback_fixture.py` (one page per state: `unavailable`, `editing-empty`, `invalid`, `editing-dirty`, `attachments`, `discard-confirm`, `sending`, `filing`, `sent`, `error`) at compact, medium, wide, maximized and both snaps, then Desert, Night sky, light and dark theme, text 200% and display 100%/150%: 0 Axe errors in the dialog. The only findings are 2 on Settings behind the dialog (open issue 7, medium at display 150%). `journeys/feedback.py` (`unavailable`, `validation`, `submit`, `error`) passes at every size preset. The live public service has `feedback:false`, so only `unavailable` is reachable there. Per configuration: [feedback-form/windows.md](../controls/feedback-form/windows.md#validation-issue-236-2026-10-05).
+
+Fixed (`Controls/FeedbackDialog.cs`):
+- Submit didn't say why it was disabled; a validation line (`fst.settings.feedback.validation`) now names the missing field.
+- The discard prompt and file picker left keyboard focus on the dialog root; focus now lands on Keep Editing and back on Attach Media.
+- Sending, filing, sent and error weren't announced to Narrator.
+- Attachment tiles used fixed colours under contrast themes; they now use theme brushes.
+- At compact or 200% text, field labels were cut off; they now wrap like the helper text (wrapped by issue #239).

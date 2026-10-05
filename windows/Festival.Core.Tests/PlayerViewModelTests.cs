@@ -79,6 +79,8 @@ public class PlayerProfileViewModelTests
         Assert.Equal("instrument:" + vm.Instruments[0].Instrument.ServiceId(), vm.QuickLinkSections[1].Id);
         Assert.Equal(vm.Instruments[0].QuickLinkId, vm.QuickLinkSections[1].Id);
         Assert.Equal("bands", vm.QuickLinkSections[^1].Id);
+        // The view leads a Bands jump in through the last instrument card (#246), so the ID must match its anchor.
+        Assert.Equal(PlayerProfileViewModel.BandsQuickLinkId, vm.QuickLinkSections[^1].Id);
         Assert.Equal(new AppRoute.PlayerBands(PlayerWire.Id), vm.BandsRoute);
         Assert.Equal("View Fixture One's Bands", vm.BandsLabel);
         Assert.Contains("Fixture One", vm.SwitchMessage);

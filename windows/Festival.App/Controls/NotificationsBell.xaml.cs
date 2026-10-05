@@ -30,6 +30,15 @@ public sealed partial class NotificationsBell : UserControl
     /// <summary>Navigation callback.</summary>
     private Action<NotificationDestination> Navigate { get; }
 
+    /// <summary>
+    /// Clears the contrast-theme text backplate from the badge's template parts. <see cref="UIElement.HighContrastAdjustment"/>
+    /// is per element, and the count's <see cref="TextBlock"/> only exists once the badge is first shown and measured, so
+    /// this runs on load and on every size change (first show, or the count gaining a digit).
+    /// </summary>
+    /// <param name="sender">Badge.</param>
+    /// <param name="e">Unused.</param>
+    private void OnBadgeLayout(object sender, RoutedEventArgs e) => DialogChrome.WithoutBackplate(UnreadBadge);
+
     /// <summary>Refreshes on open.</summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>

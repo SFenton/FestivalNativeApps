@@ -26,15 +26,15 @@ private func copyFixtureSong() throws -> Song {
     #expect(MacCopyPolicy.text(for: .leaderboards) == nil)
 }
 
-/// With two columns Copy uses the list's selection, even when the detail column has
-/// pushed pages; in one column it uses the page on top.
+/// With the trailing pane open Copy uses the open item, even when the pane has pushed
+/// pages; otherwise it uses the page on top.
 @Test func macCopyUsesSelectionInTwoColumnsAndTopPageInOne() throws {
     let song = try copyFixtureSong()
     let leaderboard = AppRoute.songLeaderboard(song, .lead, 1)
     let player = AppRoute.player(accountId: "a", displayName: "Top Player")
     #expect(MacCopyPolicy.selectedRoute(path: [.songDetail(song)], section: .songs, split: true) == .songDetail(song))
     #expect(MacCopyPolicy.selectedRoute(path: [.songDetail(song), leaderboard, player], section: .songs, split: true)
-        == .songDetail(song))
+        == leaderboard)
     #expect(MacCopyPolicy.selectedRoute(path: [.songDetail(song), leaderboard, player], section: .songs, split: false)
         == player)
     #expect(MacCopyPolicy.selectedRoute(path: [], section: .songs, split: false) == nil)

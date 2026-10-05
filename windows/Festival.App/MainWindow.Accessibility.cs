@@ -49,6 +49,7 @@ public sealed partial class MainWindow
         AutomationProperties.SetLandmarkType(FrameHost, AutomationLandmarkType.Main);
         AutomationProperties.SetName(FrameHost, "Page content");
         AutomationProperties.SetLandmarkType(GlobalSearchBox, AutomationLandmarkType.Search);
+        ExposeSearchAccelerator();
         ProfileButton.AccessKey = "P";
 
         // Alt+Left must go back from anywhere, but a focused TextBox handles Left in KeyDown before the window's
@@ -98,6 +99,23 @@ public sealed partial class MainWindow
             if (node is NavigationViewItemBase) return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Reports Ctrl+E as the UIA AcceleratorKey of both global-search entry points (the accelerator lives on
+    /// <c>RootGrid</c>, so WinUI exposes it on neither). The box's focus target is its inner <c>TextBox</c>, which only
+    /// exists once the template is applied, and the box starts collapsed at compact widths.
+    /// </summary>
+    private void ExposeSearchAccelerator()
+    {
+        const string ctrlE = "Control+E";
+        AutomationProperties.SetAcceleratorKey(GlobalSearchButton, ctrlE);
+        AutomationProperties.SetAcceleratorKey(GlobalSearchBox, ctrlE);
+        GlobalSearchBox.Loaded += (_, _) =>
+        {
+            GlobalSearchBox.ApplyTemplate();
+            if (FindTextBox(GlobalSearchBox) is { } text) AutomationProperties.SetAcceleratorKey(text, ctrlE);
+        };
     }
 
     /// <summary>Under a contrast theme the backdrop's brand base colour gives way to the theme's window colour.</summary>

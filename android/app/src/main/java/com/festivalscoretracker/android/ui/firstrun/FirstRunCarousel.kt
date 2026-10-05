@@ -70,8 +70,8 @@ import kotlin.math.roundToInt
 // region Carousel
 
 /**
- * First-run carousel: the shared [FestivalModalDialog] (page label header with the
- * standard Close button) holding a horizontal pager, white page dots and the footer actions,
+ * First-run carousel: the shared [FestivalModalDialog] (page label header in the shared
+ * Title Large modal style, with the standard Close button) holding a horizontal pager, white page dots and the footer actions,
  * ordered as Material 3 dialog actions (issue #25): **Back, then Next/Done** at the trailing
  * edge, so the confirming action is always last and never moves under the finger. Stacked slides
  * reserve the tallest slide's text height, so the dialog and its footer also keep one height
@@ -109,7 +109,8 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, onComplete: (viewedCount:
         // Half-open foldables: stay on one side of the hinge (M3 foldables guidance).
         avoidHinge = true,
         paneTitle = "Feature tour: ${carousel.page.label}",
-        titleStyle = MaterialTheme.typography.labelLarge,
+        // The shared Title Large header, like What's New and Notifications (issue #147).
+        titleTag = "fst.first-run.title",
         modifier = Modifier.testTag("fst.first-run.dialog"),
     ) {
         FirstRunCarouselBody(
