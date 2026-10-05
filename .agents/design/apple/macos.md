@@ -88,3 +88,4 @@ Evidence: hosted `MacShellHostedTests` (sidebar states, footer Deselect, minimum
 - Player Bands rows are opaque edge-to-edge list rows on the Mac (iPhone design), not glass cards.
 - Rivalry and Band Detail are not captured on the Mac (need live ids); the CHOpt path image shows mojibake in artist names (service-rendered PNG, not native text).
 - Real Liquid Glass appearance and VoiceOver/Full Keyboard Access on the Mac are unverified (Automation Mode needs operator authentication).
+- 2026-10-04: the always-on two-column list/detail and draggable divider are superseded by [split-view.md](split-view.md) (on-demand split fixed at the content-area midpoint; persistent sidebar stays).

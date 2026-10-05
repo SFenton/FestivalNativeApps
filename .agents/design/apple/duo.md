@@ -141,3 +141,4 @@ Exact edits, in order, to `App/FestivalRootView.swift` unless noted:
 | B8 | Tooling | `XCUIDevice` rotation is ignored, so the legacy `testDuoOuterFourRotations` cannot pass as written and should be replaced by Duo journeys. The driver `back` step failed (fixed: taps `BackButton`) |
 
 Working as intended: every tab and toolbar symbol moves into the vertical bar automatically. Back, Quick Links and Paths stack top-down on Song Detail. System bar buttons are 38 × 38 pt; that is a system metric, so do not restyle it.
+- 2026-10-04: list/detail and flyout layout is superseded by [split-view.md](split-view.md) (on-demand split aligned to the hinge in inner landscape only; inner portrait uses push navigation; overlay flyout). D1/J3/P4 are superseded.

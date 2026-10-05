@@ -93,7 +93,7 @@ Lanes run over SSH in non-interactive **session 0**, where no windows, UIA tree 
 
 | Command | Effect |
 |---|---|
-| `launch <exe> [--tab] [--route] [--extra K=V] [--arg=…] [--preset P] [--shot out.png]` | Start the app with the debug environment and wait for its top-level window. Records the pid as this worktree's default target |
+| `launch <exe> [--tab] [--route] [--extra K=V] [--arg=…] [--preset P] [--shot out.png] [--steps "…"]` | Start the app with the debug environment and wait for its top-level window. Records the pid as this worktree's default target. `--steps`/`--steps-file` run `drive` steps in the same desktop-lock hold, for timing-sensitive first checks |
 | `window` | Describe the window: bounds (px), size in epx, DPI scale, state, monitor and work area |
 | `resize <preset\|WxH>` | Apply a window preset (below) |
 | `shot <out.png> [--mode print\|screen]` | Window-only PNG plus a `.json` sidecar. `print` uses `PrintWindow(PW_RENDERFULLCONTENT)` and works when occluded; `screen` captures composited pixels after bringing the window to the foreground |

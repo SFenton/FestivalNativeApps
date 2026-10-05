@@ -56,6 +56,39 @@ class SettingsJourneyTests(unittest.TestCase):
             for step in [*page.get("ready", []), *page.get("after_ready", [])]:
                 u.parse_step(step.replace("{stem}", "out"))
 
+    def test_version_pages_parse(self):
+        pages = json.loads((_PATH.parent / "a11y-settings-version.json").read_text(encoding="utf-8"))
+        self.assertEqual([p["name"] for p in pages], ["settings-version", "kb-settings-version"])
+        for page in pages:
+            self.assertNotIn("fixture", page)  # live-safe: anonymous public reads only
+            for step in [*page.get("ready", []), *page.get("after_ready", [])]:
+                u.parse_step(step.replace("{stem}", "out"))
+
+    def test_version_journey_checks_text_and_order(self):
+        phase = next(j for j in s.JOURNEYS if j.name == "version").phases[0]
+
+        def tree(app_version: str, swap: bool = False) -> str:
+            rows = ['    Text "App Version" id= class=TextBlock rect=1,2,3,4',
+                    f'    Text "{app_version}" id=fst.settings.app-version class=TextBlock rect=1,2,3,4',
+                    '    Text "Build Configuration" id= class=TextBlock rect=1,2,3,4',
+                    '    Text "Debug" id= class=TextBlock rect=1,2,3,4',
+                    '    Text "Service Version" id= class=TextBlock rect=1,2,3,4',
+                    '    Text "1.0.202" id=fst.settings.service-version class=TextBlock rect=1,2,3,4']
+            if swap:
+                rows[0], rows[1] = rows[1], rows[0]
+            return "\n".join(rows)
+
+        self.assertEqual(s.check_tree(tree("0.1.0 · ab87472"), phase), [])
+        self.assertEqual(s.check_tree(tree("2610.04.01 · 0123abc"), phase), [])
+        self.assertEqual(len(s.check_tree(tree("0.1.0"), phase)), 1)  # unstamped local build
+        self.assertEqual(len(s.check_tree(tree("0.1.0 · AB87472"), phase)), 1)  # not normalised
+        self.assertEqual(len(s.check_tree(tree("0.1.0 · ab87472", swap=True), phase)), 1)  # value read before label
+
+    def test_order_requires_every_pattern(self):
+        phase = s.Phase([], order=[s._id("fst.settings.leeway"), s._id("fst.settings.reset")])
+        self.assertEqual(len(s.check_tree(TREE, phase)), 1)
+        self.assertEqual(s.check_tree(TREE, s.Phase([], order=[s._id("fst.settings.shop-highlights"), s._id("fst.settings.leeway")])), [])
+
     def test_check_saved(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "settings.json"

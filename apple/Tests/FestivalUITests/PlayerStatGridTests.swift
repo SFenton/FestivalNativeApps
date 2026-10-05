@@ -31,6 +31,16 @@ import FestivalDesign
 
 // MARK: - Rank history sizing
 
+/// Tile values wrap to a second line only at accessibility text sizes (AX5 truncated
+/// "2 (66.6%)" in an iPad tile).
+@MainActor
+@Test func statTileValuesWrapOnlyAtAccessibilitySizes() {
+    #expect(PlayerStatTileView.valueLineLimit(.large) == 1)
+    #expect(PlayerStatTileView.valueLineLimit(.xxxLarge) == 1)
+    #expect(PlayerStatTileView.valueLineLimit(.accessibility1) == 2)
+    #expect(PlayerStatTileView.valueLineLimit(.accessibility5) == 2)
+}
+
 @Test func rankHistoryChartWidthComesFromTheCardWidth() {
     #expect(RankHistoryCharts.chartWidth(forCardWidth: 0) == 0)
     #expect(RankHistoryCharts.chartWidth(forCardWidth: 40) == 0)

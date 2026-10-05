@@ -126,3 +126,4 @@ HIG keyboards.md: "Support Full Keyboard Access when possible"; "iPadOS navigate
 - Never fix row counts or hardcode device sizes: chips wrap (5 + 4 where the web tablet shows 9 in one row) as the detail width changes.
 - A Form in a centered sheet may need scrolling to expose Reset above a pinned footer.
 - Always exercise Hide Sidebar with a detail visible: badge padding once caused a main-thread layout loop there.
+- 2026-10-04: the three-column sidebar|list|detail layout and persistent sidebar are superseded by [split-view.md](split-view.md) (overlay flyout, on-demand split at the exact midpoint in landscape only).

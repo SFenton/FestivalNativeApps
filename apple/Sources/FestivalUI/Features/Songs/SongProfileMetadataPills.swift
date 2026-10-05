@@ -220,7 +220,10 @@ struct SongMetadataFieldView: View {
                 .foregroundStyle(
                     highlighted ? BrandTokens.gold : FestivalText.primary
                 )
-                .lineLimit(1)
+                // Wraps rather than truncating at accessibility sizes when its row is narrow.
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, horizontalInset)
                 .frame(minWidth: 80, minHeight: badgeHeight)
                 .background(

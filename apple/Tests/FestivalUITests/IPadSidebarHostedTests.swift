@@ -25,7 +25,8 @@ private func sidebarSession(player: Bool) throws -> FestivalSession {
 /// Render the sidebar column for a profile state and return its image and accessibility.
 @MainActor
 private func renderSidebar(
-    player: Bool, hideShop: Bool, selected: FestivalSection, filename: String
+    player: Bool, hideShop: Bool, selected: FestivalSection, filename: String,
+    dynamicTypeSize: DynamicTypeSize = .large
 ) async throws -> NativeHostedAccessibility {
     let session = try sidebarSession(player: player)
     let size = CGSize(width: 320, height: 760)
@@ -36,6 +37,7 @@ private func renderSidebar(
             selected: selected, onSelect: { _ in }, onOpenPlayer: { _ in }, onChooseProfile: {}
         )
     }
+    .environment(\.dynamicTypeSize, dynamicTypeSize)
     .frame(width: size.width, height: size.height)
     .preferredColorScheme(.dark)
     let host = nativeHostedView(view, size: size)
@@ -45,6 +47,19 @@ private func renderSidebar(
     let image = try await nativeHostedSettle(host, untilText: ["Songs", "Leaderboards", footer, "Settings"])
     _ = try nativeHostedPNG(image, filename: filename, environment: "FST_SHELL_RENDER_OUT")
     return nativeHostedAccessibility(host)
+}
+
+/// At accessibility sizes the footer scrolls as the list's last section and keeps its
+/// player, Deselect and Settings actions (pinned, it overlapped the rows at AX5).
+@MainActor
+@Test func iPadSidebarFooterJoinsTheListAtAccessibilitySizes() async throws {
+    let tree = try await renderSidebar(
+        player: true, hideShop: false, selected: .songs, filename: "ipad-sidebar-ax5.png",
+        dynamicTypeSize: .accessibility5
+    )
+    #expect(tree.identifiers.contains("fst.profile.sidebar"))
+    #expect(tree.identifiers.contains("fst.nav.sidebar.deselect-profile"))
+    #expect(tree.identifiers.contains("fst.nav.settings"))
 }
 
 /// Anonymous: Songs, Leaderboards, Item Shop, then Select Profile and Settings.

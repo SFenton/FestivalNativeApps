@@ -143,7 +143,8 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
         page: Page definition: ``ready`` steps, optional ``setup`` (before ready), ``after_ready``
             (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``. ``{stem}`` in any step is
             replaced by the output path stem for this page/size/mode, so extra shots such as
-            ``shot:{stem}-footer.png`` stay distinct per run.
+            ``shot:{stem}-footer.png`` stay distinct per run; ``{repo}`` becomes the repository root (e.g. app
+            assets to pick in a file dialog).
         size: Window preset.
         out: Output directory.
         suffix: File-name suffix for the mode (``""`` for normal).
@@ -163,7 +164,7 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     if count:
         steps.append(f"tabwalk:{count}")
     steps.extend(page.get("teardown", []))
-    return [s.replace("{stem}", str(out / stem)) for s in steps]
+    return [s.replace("{stem}", str(out / stem)).replace("{repo}", str(REPO_ROOT)) for s in steps]
 
 
 def launch_args(port: int | None, page: dict, settings: Path) -> list[str]:

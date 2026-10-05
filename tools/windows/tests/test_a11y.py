@@ -97,6 +97,11 @@ class MatrixTests(unittest.TestCase):
         self.assertIn(f"shot:{Path('/out') / 'settings-wide-text-200'}-footer.png", steps)
         self.assertFalse(any("{stem}" in s for s in steps))
 
+    def test_page_steps_repo_placeholder(self):
+        page = {"name": "feedback", "after_ready": ['setvalue:id=1148&class=Edit|"{repo}\\a.png"']}
+        steps = m.page_steps(page, "wide", Path("/out"), "", scan=False, tabs=0)
+        self.assertIn(f'setvalue:id=1148&class=Edit|"{m.REPO_ROOT}\\a.png"', steps)
+
     def test_page_env(self):
         anon = m.page_env({"name": "lab", "route": "/songs", "env": {"FST_DEBUG_CONTROL_LAB": "instrument-selector"}},
                           Path("/data"))
