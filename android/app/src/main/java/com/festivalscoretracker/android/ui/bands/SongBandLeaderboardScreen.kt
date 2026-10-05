@@ -1,19 +1,37 @@
 package com.festivalscoretracker.android.ui.bands
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import com.festivalscoretracker.android.core.bands.BandLayout
+import com.festivalscoretracker.android.core.model.LeaderboardEntry
+import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
+import com.festivalscoretracker.android.core.rankings.RankingNavigation
+import com.festivalscoretracker.android.core.rankings.SongBandSpotlight
+import com.festivalscoretracker.android.ui.leaderboards.AnchoredBoardList
+import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
+import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
+import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
+import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
+import com.festivalscoretracker.android.ui.songdetail.ScoreRow
+import com.festivalscoretracker.android.ui.songdetail.selectedRowHighlight
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.starsDescription
 import androidx.compose.foundation.background
@@ -65,7 +83,6 @@ import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.AppRoute
-import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
@@ -112,12 +129,27 @@ fun SongBandLeaderboardScreen(
     // A page or band-size change fades the rows out, shows the spinner and staggers the new
     // rows in (web PaginatedLeaderboard, issue #71).
     val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = type to page)
+    val accountId by viewModel.accountId.collectAsStateWithLifecycle()
+    val shown = (swap.shown as? LoadState.Loaded)?.value
+    // The selected player's band: highlighted in place on its page, pinned above the pager on
+    // every other page (web SongBandLeaderboardPage footer; the solo board's rule, issue #306).
+    val selectedBand = shown?.let { SongBandSpotlight.selected(it, accountId) }
+    val footer = shown?.let { SongBandSpotlight.footer(it, accountId) }
+    val footerColumns = rememberScoreColumns(listOfNotNull(footer))
+    // The pager keeps its place while the next page loads (issue #93).
+    val loadedPages = (board as? LoadState.Loaded)?.value?.pageCount(BandPaging.PAGE_SIZE)
+    val lastPages = remember(type) { mutableIntStateOf(1) }
+    if (loadedPages != null) SideEffect { lastPages.intValue = loadedPages }
+    val pageCount = loadedPages ?: lastPages.intValue
+    val listState = rememberLazyListState()
+    LaunchedEffect(type, page) { listState.scrollToItem(0) }
     FestivalScreen(title = "${type.label} Leaderboard", isRoot = false, modifier = Modifier.testTag("fst.song-band-leaderboard.screen")) { padding ->
         var contentLeft by remember { mutableFloatStateOf(0f) }
         BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
             SongBandLeaderboardLayout(
                 split = BandLayout.listSplit(rememberBandHinge(contentLeft, maxWidth)),
                 padding = padding,
+                listState = listState,
                 controls = {
                     SongHeader(song, swap.shown, type, artworkUrl, onNavigate)
                     BandSegmentedControl(
@@ -128,6 +160,20 @@ fun SongBandLeaderboardScreen(
                         onSelect = viewModel::selectBandType,
                         modifier = Modifier.padding(vertical = 4.dp).testTag("fst.song-band-leaderboard.band-type-menu"),
                     )
+                },
+                // The pinned band fades out with the page and staggers back in with its first row (issue #295).
+                footer = {
+                    val band = selectedBand
+                    if (footer != null && band != null) {
+                        AnchoredRowCard(with(swap) { Modifier.staggered(0) }) {
+                            LeaderboardSectionMember(footerColumns, "footer") {
+                                SelectedBandFooter(footer, SongBandSpotlight.route(band), onNavigate, footerColumns.plan)
+                            }
+                        }
+                    }
+                },
+                pager = {
+                    if (pageCount > 1 && board !is LoadState.Failed) RankingsPager(page, pageCount, "fst.song-band-leaderboard", viewModel::goTo)
                 },
             ) {
                 val state = swap.shown
@@ -157,10 +203,11 @@ fun SongBandLeaderboardScreen(
                         }
                         itemsIndexed(response.entries, key = { _, entry -> entry.key }) { index, entry ->
                             Box(with(swap) { Modifier.staggered(index) }) {
-                                BandScoreRow(entry, song) { onNavigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
+                                BandScoreRow(entry, song, selected = SongBandSpotlight.isSelected(entry, selectedBand)) {
+                                    onNavigate(SongBandSpotlight.route(entry))
+                                }
                             }
                         }
-                        item(key = "pager") { Box(swap.contentModifier) { BandPager(page, response.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) } }
                     }
                 }
             }
@@ -169,25 +216,56 @@ fun SongBandLeaderboardScreen(
 }
 
 /**
+ * The selected player's band pinned above the pager: the solo board's footer row (rank,
+ * joined member names scrolling inside their column, score, accuracy, stars), which opens the
+ * band (web `getBandProfileRoute`).
+ *
+ * @param entry Footer row from [SongBandSpotlight.footer].
+ * @param route The band's page.
+ * @param onNavigate Push a route.
+ * @param columns The footer's column plan.
+ */
+@Composable
+private fun SelectedBandFooter(entry: LeaderboardEntry, route: AppRoute, onNavigate: (AppRoute) -> Unit, columns: LeaderboardColumnPlan) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .selectedRowHighlight(true)
+            .clickable(role = Role.Button, onClickLabel = RankingNavigation.actionLabel(route)) { onNavigate(route) }
+            .testTag("fst.song-band-leaderboard.spotlight-footer"),
+    ) {
+        ScoreRow(entry, isSelected = true, navigable = true, columns = columns)
+    }
+}
+
+/**
  * The page's single column, or — across a separating vertical hinge (half-open book or
  * passport fold) — the song header and size switcher on the leading side and the score rows
  * and pager on the trailing side, so no card or segment straddles the fold. Reading order
- * stays header → sizes → rows → pager in both layouts.
+ * stays header → sizes → rows → pinned band → pager in both layouts. The selected player's
+ * band and the pager are anchored to the bottom of the rows' column, like the other paginated
+ * boards ([AnchoredBoardList], issue #306).
  *
  * @param split [BandLayout.listSplit] for the content box.
  * @param padding Shell padding.
+ * @param listState Rows' list state.
  * @param controls Song header and band-size switcher.
- * @param rows Board state items (spinner, failure, empty, rows, pager).
+ * @param footer Pinned selected-band row (may emit nothing).
+ * @param pager Pager (may emit nothing).
+ * @param rows Board state items (spinner, failure, empty, rows).
  */
 @Composable
 internal fun SongBandLeaderboardLayout(
     split: BandLayout.Panes,
     padding: PaddingValues,
+    listState: LazyListState = rememberLazyListState(),
     controls: @Composable () -> Unit,
+    footer: @Composable ColumnScope.() -> Unit = {},
+    pager: @Composable () -> Unit = {},
     rows: LazyListScope.() -> Unit,
 ) {
     val top = padding.calculateTopPadding()
-    val bottom = padding.calculateBottomPadding() + 24.dp
+    val bottom = padding.calculateBottomPadding()
     val leading = split.leadingWidth
     if (split.twoPane && leading != null) {
         Row(Modifier.fillMaxSize()) {
@@ -196,23 +274,34 @@ internal fun SongBandLeaderboardLayout(
                     .width(leading.dp)
                     .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom)
+                    .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom + 24.dp)
                     .testTag("fst.song-band-leaderboard.controls-pane"),
             ) { controls() }
             Spacer(Modifier.width(split.gap.dp))
-            LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 8.dp, bottom = bottom),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f).fillMaxHeight().testTag("fst.song-band-leaderboard.list"),
-                content = rows,
+            AnchoredBoardList(
+                listState = listState,
+                idPrefix = "fst.song-band-leaderboard",
+                contentTop = top + 8.dp,
+                bottomInset = bottom,
+                footer = footer,
+                pager = pager,
+                fadeAboveFooter = true,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                rowGap = 8.dp,
+                rows = rows,
             )
         }
     } else {
         BandReadableWidth {
-            LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top, bottom = bottom),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxSize().testTag("fst.song-band-leaderboard.list"),
+            AnchoredBoardList(
+                listState = listState,
+                idPrefix = "fst.song-band-leaderboard",
+                contentTop = top,
+                bottomInset = bottom,
+                footer = footer,
+                pager = pager,
+                fadeAboveFooter = true,
+                rowGap = 8.dp,
             ) {
                 item(key = "controls") { Column { controls() } }
                 rows()

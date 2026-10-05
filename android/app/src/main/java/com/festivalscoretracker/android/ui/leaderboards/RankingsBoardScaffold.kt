@@ -139,55 +139,97 @@ internal fun RankingsBoardLayout(
                 }
             }
         } else {
-            val density = LocalDensity.current
-            var anchoredHeight by remember { mutableIntStateOf(0) }
-            val anchoredDp = with(density) { anchoredHeight.toDp() }
-            val accessibility = LocalFestivalAccessibility.current
-            val fades = fadeAboveFooter && BoardFooterEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency)
-            val depth = with(density) { BoardFooterEdgeFade.DEPTH_DP.dp.toPx() }
-            // Read in the draw phase only, so scrolling never recomposes.
-            val edge: () -> FooterFade? = {
-                if (!fades) {
-                    null
-                } else {
-                    val info = listState.layoutInfo
-                    val last = info.visibleItemsInfo.lastOrNull()
-                    val remaining = BoardFooterEdgeFade.remainingScroll(
-                        totalItems = info.totalItemsCount,
-                        lastVisibleIndex = last?.index ?: -1,
-                        lastOffset = last?.offset ?: 0,
-                        lastSize = last?.size ?: 0,
-                        afterContentPadding = info.afterContentPadding,
-                        viewportEnd = info.viewportEndOffset,
-                    )
-                    BoardFooterEdgeFade.edge(info.viewportSize.height, anchoredHeight, remaining, depth)
-                }
-            }
-            Box(Modifier.fillMaxSize()) {
-                BoardList(
-                    listState,
-                    idPrefix,
-                    // The list ends one item gap above the footer, so the pinned row or pager follows
-                    // the last row like another item (issue #293).
-                    PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + ROW_GAP_DP.dp),
-                    Modifier
-                        .then(if (fades) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
-                        .footerEdgeFade(edge, depth),
-                ) {
-                    item(key = "controls") { Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = controls) }
-                    rows()
-                }
-                AnchoredFooter(
-                    idPrefix,
-                    footer,
-                    pager,
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .onSizeChanged { anchoredHeight = it.height }
-                        .padding(start = 16.dp, end = 16.dp, bottom = bottom + 12.dp),
-                )
+            AnchoredBoardList(
+                listState = listState,
+                idPrefix = idPrefix,
+                contentTop = 8.dp,
+                bottomInset = bottom,
+                footer = footer,
+                pager = pager,
+                fadeAboveFooter = fadeAboveFooter,
+            ) {
+                item(key = "controls") { Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = controls) }
+                rows()
             }
         }
+    }
+}
+
+/**
+ * A board's rows with the "your rank" row and floating pager anchored to the bottom of the
+ * list (the single-pane half of [RankingsBoardLayout], also the Song Band Leaderboard's rows
+ * pane, issue #306). The list ends one item gap above the footer, so the pinned row or pager
+ * follows the last row like another item (issue #293), and with [fadeAboveFooter] rows hide
+ * beneath the footer and fade out just above it.
+ *
+ * @param listState Row list state.
+ * @param idPrefix Test-tag prefix (`<prefix>.list`, `<prefix>.bottom-bar`).
+ * @param contentTop List top padding.
+ * @param bottomInset Shell bottom inset the footer sits above.
+ * @param footer Anchored "your rank" content (may emit nothing).
+ * @param pager Pager (may emit nothing).
+ * @param fadeAboveFooter Hide and fade rows beneath and above the footer ([BoardFooterEdgeFade]).
+ * @param modifier Modifier.
+ * @param rowGap Space between list items, also left above the footer.
+ * @param rows Row items.
+ */
+@Composable
+internal fun AnchoredBoardList(
+    listState: LazyListState,
+    idPrefix: String,
+    contentTop: Dp,
+    bottomInset: Dp,
+    footer: @Composable ColumnScope.() -> Unit,
+    pager: @Composable () -> Unit,
+    fadeAboveFooter: Boolean,
+    modifier: Modifier = Modifier,
+    rowGap: Dp = ROW_GAP_DP.dp,
+    rows: LazyListScope.() -> Unit,
+) {
+    val density = LocalDensity.current
+    var anchoredHeight by remember { mutableIntStateOf(0) }
+    val anchoredDp = with(density) { anchoredHeight.toDp() }
+    val accessibility = LocalFestivalAccessibility.current
+    val fades = fadeAboveFooter && BoardFooterEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency)
+    val depth = with(density) { BoardFooterEdgeFade.DEPTH_DP.dp.toPx() }
+    // Read in the draw phase only, so scrolling never recomposes.
+    val edge: () -> FooterFade? = {
+        if (!fades) {
+            null
+        } else {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            val remaining = BoardFooterEdgeFade.remainingScroll(
+                totalItems = info.totalItemsCount,
+                lastVisibleIndex = last?.index ?: -1,
+                lastOffset = last?.offset ?: 0,
+                lastSize = last?.size ?: 0,
+                afterContentPadding = info.afterContentPadding,
+                viewportEnd = info.viewportEndOffset,
+            )
+            BoardFooterEdgeFade.edge(info.viewportSize.height, anchoredHeight, remaining, depth)
+        }
+    }
+    Box(modifier.fillMaxSize()) {
+        BoardList(
+            listState,
+            idPrefix,
+            PaddingValues(start = 16.dp, end = 16.dp, top = contentTop, bottom = anchoredDp + rowGap),
+            Modifier
+                .then(if (fades) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
+                .footerEdgeFade(edge, depth),
+            rowGap,
+            rows,
+        )
+        AnchoredFooter(
+            idPrefix,
+            footer,
+            pager,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { anchoredHeight = it.height }
+                .padding(start = 16.dp, end = 16.dp, bottom = bottomInset + ROW_GAP_DP.dp),
+        )
     }
 }
 
@@ -259,12 +301,13 @@ private fun BoardList(
     idPrefix: String,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
+    rowGap: Dp = ROW_GAP_DP.dp,
     rows: LazyListScope.() -> Unit,
 ) {
     LazyColumn(
         state = listState,
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(ROW_GAP_DP.dp),
+        verticalArrangement = Arrangement.spacedBy(rowGap),
         modifier = modifier.fillMaxSize().testTag("$idPrefix.list"),
         content = rows,
     )

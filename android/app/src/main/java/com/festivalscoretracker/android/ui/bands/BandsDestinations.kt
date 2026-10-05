@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.bands
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -69,10 +70,12 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer) {
                 route.songId,
                 BandType.fromWireId(route.bandType) ?: BandType.Duets,
                 { api.catalog(it) },
-                api::songBandLeaderboard,
+                { songId, type, page, top, accountId -> api.songBandLeaderboard(songId, type, page, top, accountId) },
                 container.backoff,
+                shell.selectedPlayer?.accountId,
             )
         }
+        LaunchedEffect(board, shell.selectedPlayer?.accountId) { board.selectAccount(shell.selectedPlayer?.accountId) }
         SongBandLeaderboardScreen(board, api::artworkUrl, container.background, shell.navigate)
     }
 }

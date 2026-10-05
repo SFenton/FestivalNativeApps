@@ -8,10 +8,11 @@
 - Top bar `<Size> Leaderboard`; header 72 dp art, song title as a link to Song Detail, `artist · year`, `<Size> · N entries`. The shared backdrop shows the song's static cover while visible.
 - Band size switcher: Material 3 segmented buttons (Duos · Trios · Quads), switching in place and returning to page 1. A size or page change runs the shared load swap (issue #71; spinner `fst.song-band-leaderboard.loading`).
 - Rows (glass cards, lazy): rank, each distinct member's instrument icons (keys variants for keyboard songs) + name + per-song member score, team score, gold `FC` outline badge, accuracy, `★ stars`. A row opens `BandRoute(bandId, membersLabel, bandType, teamKey)`.
-- TalkBack: one merged `Button` per row with click label "Open band" and `bandScoreAnnouncement`: "Rank N, <member>, <instruments>, <score>, …, band score X, full combo, Y% accuracy, 5 gold stars | N stars" (gold reads as "5 gold stars", never "6 stars"; [star rating](../../controls/star-rating/android.md)). Order: title → search → profile → song link → artist/year → size/entries → size segments ("Selected. Duos. Radio button. 1 of 3") → rows → pager.
+- TalkBack: one merged `Button` per row with click label "Open band" and `bandScoreAnnouncement`: "Rank N, <member>, <instruments>, <score>, …, band score X, full combo, Y% accuracy, 5 gold stars | N stars" (gold reads as "5 gold stars", never "6 stars"; [star rating](../../controls/star-rating/android.md)). Order: title → search → profile → song link → artist/year → size/entries → size segments ("Selected. Duos. Radio button. 1 of 3") → rows → pinned band ("Open band") → pager.
 - Large text (font scale ≥ 1.3, `isLargeText`): a member's score wraps under the name (`BandMemberScoreLine` FlowRow) instead of breaking the name mid-word, and the footer (`BandScoreFooter` FlowRow) wraps accuracy + stars under the team score instead of clipping the stars.
 - Hinge: across a **separating** vertical hinge (half-open book/passport fold) `SongBandLeaderboardLayout` puts the song header and size segments on the leading side (`.controls-pane`, scrollable) and the rows and pager on the trailing side (`BandLayout.listSplit`), per the M3 foldables rule "Never place interactive content or critical information across the hinge area". Flat folds (book unfolded, tri-fold) keep one column. Unlike `rememberSingleColumn` pages, the split also applies under TalkBack/large text (band-page convention); verified at font 2.0.
 - Shared pager, empty state (`No Band Scores Found` / `No <Size> scores have been recorded for this song yet.`), failure `ServiceStatusView` (fixed height inside the list). Content is centered at ≤840 dp on wide windows.
+- Selected player's band (issue #306, web `SongBandLeaderboardPage` `FixedLeaderboardPlayerFooter`): with a selected player the page is read with `accountId=` (same pure read as Song Detail's previews; the view model follows `selectAccount` and re-reads in place, keeping size and page). `SongBandSpotlight` (core) applies the Solo board's rule: the band's row gets the purple selected treatment on its own page, and on every other page it is pinned above the pager (`.spotlight-footer`) as the Solo footer's `ScoreRow` in an `AnchoredRowCard` — rank, joined member names (`LeaderboardNameText` marquee, static under Reduce Motion), season, score, accuracy/FC, stars. It opens `BandRoute` ("Open band"). Nothing is pinned without a selected player, without a band score at that size, or for a response for another player/size. The footer and pager are the shared `AnchoredBoardList` (bottom-anchored, rows fade and leave touch/TalkBack beneath it); around a separating hinge they anchor in the rows pane.
 
 ## Validation (issue #103, live service)
 
@@ -31,8 +32,8 @@ Seven Nation Army (Duos 9,952 · Trios 9,970 · Quads 9,983) and Butter; capture
 
 ## IDs
 
-`fst.song-band-leaderboard.screen`, `.list`, `.song`, `.subtitle`, `.band-type-menu`, `.band-type.<bandType>`, `.row.<bandId>:<rank>`, `.empty`, `.error`, `.page-first|page-previous|page-info|page-next|page-last`.
+`fst.song-band-leaderboard.screen`, `.list`, `.bottom-bar`, `.spotlight-footer`, `.song`, `.subtitle`, `.band-type-menu`, `.band-type.<bandType>`, `.row.<bandId>:<rank>`, `.empty`, `.error`, `.pager`, `.page-first|page-previous|page-info|page-next|page-last`.
 
 ## Open
 
-- Entry point from Song Detail belongs to the Songs lane. No instrument-combo filter and no selected-player/band pinned row.
+- Entry point from Song Detail belongs to the Songs lane. No instrument-combo filter. The pinned band opens the band; web's newer "jump to your page" footer action (#307) is not adopted while Android's Solo footer keeps the open-profile rule.

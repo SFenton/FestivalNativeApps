@@ -827,6 +827,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "AnchoredBoardList"
           }
         ],
         "windows": [
@@ -900,6 +904,7 @@
         "pages": [
           "song-detail",
           "song-leaderboard",
+          "song-band-leaderboard",
           "leaderboards",
           "compete"
         ]
@@ -913,7 +918,8 @@
         292,
         293,
         294,
-        295
+        295,
+        306
       ]
     },
     {

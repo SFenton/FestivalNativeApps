@@ -1,8 +1,12 @@
 package com.festivalscoretracker.android.rankings
 
 import com.festivalscoretracker.android.testing.RankingsFixtures
+import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.bands.SongBandLeaderboardEntry
+import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
+import com.festivalscoretracker.android.core.rankings.SongBandSpotlight
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
@@ -239,6 +243,63 @@ class RankingsCoreTest {
         assertEquals("Open profile", RankingNavigation.actionLabel(PlayerRoute(RankingsFixtures.accountId(1), "Them")))
         assertEquals("Open your statistics", RankingNavigation.actionLabel(StatisticsRoute))
         assertEquals("Open your page of the full leaderboard", RankingNavigation.actionLabel(SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3)))
+        assertEquals("Open band", RankingNavigation.actionLabel(BandRoute("band-1", "A + B", "Band_Duets", "a:b")))
+    }
+
+    @Test
+    fun songBandFooterPinsTheSelectedPlayersBandOffThePage() {
+        val me = RankingsFixtures.SELECTED
+        val friend = RankingsFixtures.accountId(2)
+        val mine = SongBandLeaderboardEntry(
+            bandId = "band-mine",
+            bandType = "Band_Duets",
+            teamKey = "$me:$friend",
+            members = listOf(BandMember(me, "Me"), BandMember(friend, "Friend"), BandMember(me, "Me")),
+            score = 412_691,
+            rank = 510,
+            accuracy = 995_000.0,
+            isFullCombo = false,
+            stars = 6,
+            season = 4,
+        )
+        val other = mine.copy(bandId = "band-other", teamKey = "x:y", members = listOf(BandMember("x", "X")), rank = 1)
+        val offPage = SongBandLeaderboardResponse(songId = "s", bandType = "Band_Duets", entries = listOf(other), selectedPlayerEntry = mine)
+
+        val footer = SongBandSpotlight.footer(offPage, me)!!
+        assertEquals("band-mine", footer.accountId)
+        assertEquals("Me + Friend", footer.displayName)
+        assertEquals(412_691, footer.score)
+        assertEquals(510, footer.rank)
+        assertEquals(995_000.0, footer.accuracy!!, 0.0)
+        assertEquals(false, footer.isFullCombo)
+        assertEquals(6, footer.stars)
+        assertEquals(4, footer.season)
+        assertEquals(mine, SongBandSpotlight.selected(offPage, me.uppercase()))
+        assertFalse(SongBandSpotlight.isSelected(other, mine))
+        assertFalse(SongBandSpotlight.isSelected(mine, null))
+
+        // On its page the band is highlighted in place, not pinned.
+        val onPage = offPage.copy(entries = listOf(other, mine.copy()))
+        assertNull(SongBandSpotlight.footer(onPage, me))
+        assertTrue(SongBandSpotlight.isSelected(onPage.entries[1], SongBandSpotlight.selected(onPage, me)))
+
+        // Nothing selected, no band score, another player's or another size's response: no footer.
+        assertNull(SongBandSpotlight.footer(offPage, null))
+        assertNull(SongBandSpotlight.footer(offPage, " "))
+        assertNull(SongBandSpotlight.footer(offPage.copy(selectedPlayerEntry = null), me))
+        assertNull(SongBandSpotlight.footer(offPage, RankingsFixtures.accountId(3)))
+        assertNull(SongBandSpotlight.footer(offPage.copy(bandType = "Band_Trios"), me))
+
+        // Identity from the team key alone; empty band ID falls back to the team key; 0 accuracy/stars are unrecorded.
+        val bare = mine.copy(bandId = "", members = emptyList(), accuracy = 0.0, stars = 0, score = Long.MAX_VALUE)
+        val bareFooter = SongBandSpotlight.footer(offPage.copy(selectedPlayerEntry = bare), me)!!
+        assertEquals("$me:$friend", bareFooter.accountId)
+        assertEquals("Band", bareFooter.displayName)
+        assertNull(bareFooter.accuracy)
+        assertNull(bareFooter.stars)
+        assertEquals(Int.MAX_VALUE, bareFooter.score)
+        assertEquals(BandRoute("band-mine", "Me + Friend", "Band_Duets", "$me:$friend"), SongBandSpotlight.route(mine))
+        assertEquals("$me:$friend", SongBandSpotlight.route(bare).bandId)
     }
 
     @Test

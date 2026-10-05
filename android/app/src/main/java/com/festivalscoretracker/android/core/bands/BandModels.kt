@@ -278,6 +278,7 @@ data class SongBandLeaderboardEntry(
     val accuracy: Double? = null,
     val isFullCombo: Boolean? = null,
     val stars: Int? = null,
+    val season: Int? = null,
 ) {
     /** Stable row key. */
     val key: String get() = "${bandId.ifEmpty { teamKey }}:$rank"

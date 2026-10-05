@@ -32,7 +32,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 |---|---|---|---|
 | Section fit and height | `FestivalCore/LeaderboardRowColumns.swift` `LeaderboardRowColumns`; `FestivalUI/Design/LeaderboardRowMetrics.swift` `LeaderboardRowMetrics` | `core/rankings/LeaderboardColumnLayout.kt` `LeaderboardColumnLayout`; `ui/leaderboards/RankingsComponents.kt` `LEADERBOARD_ROW_MIN_HEIGHT` | `Festival.Core/Domain/LeaderboardColumnLayout.cs` `LeaderboardColumnLayout`; `Festival.Core/ViewModels/LeaderboardEntryRows.cs` `LeaderboardRowMetrics` |
 | Rows and name | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingRowLayout`, `LeaderboardNameText`; `Features/SongLeaderboard/SongLeaderboardEntryRow.swift` | `ui/leaderboards/RankingsComponents.kt` `LeaderboardNameText`; `ui/songdetail/SongDetailScreen.kt` `ScoreRow` | `Festival.App/Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow`; `Controls/MarqueeText.cs` `MarqueeText` |
-| Pager | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingsPagerView` | `ui/leaderboards/RankingsComponents.kt` `RankingsPager` | `Festival.App/Controls/LeaderboardsPager.xaml.cs` `LeaderboardsPager` |
+| Pager | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingsPagerView` | `ui/leaderboards/RankingsComponents.kt` `RankingsPager`; pinned row + pager anchored under the rows: `ui/leaderboards/RankingsBoardScaffold.kt` `AnchoredBoardList` (`AnchoredRowCard`; also the song band board, #306) | `Festival.App/Controls/LeaderboardsPager.xaml.cs` `LeaderboardsPager` |
 
 ## Known debt
 
