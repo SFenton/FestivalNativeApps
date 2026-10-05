@@ -47,6 +47,9 @@ BACKLOG = ROOT / "contracts/parity-backlog.json"
 
 #: Parent folders whose child topic folders are routed by the parent README.
 TOPIC_PARENTS = ("pages", "controls")
+#: Parent folders whose child folders are Copilot/agent skills (`<name>/SKILL.md`, YAML frontmatter).
+SKILL_PARENTS = ("skills",)
+FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 #: Per-platform file stems allowed inside a topic folder, in display order.
 PLATFORM_STEMS = ("ios", "ipados", "duo", "macos", "android", "windows")
 #: Folders never checked for routing.
@@ -236,7 +239,10 @@ def check_headers(report: Report) -> None:
         report: Findings sink.
     """
     for path in markdown_files():
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        text = path.read_text(encoding="utf-8")
+        if path.name == "SKILL.md":
+            text = FRONTMATTER.sub("", text, count=1)
+        lines = [line for line in text.splitlines() if line.strip()]
         if not lines or not lines[0].startswith("# "):
             report.error(path, "first line must be a `# Title` heading")
         elif len(lines) < 2 or not lines[1].startswith("> "):
@@ -320,7 +326,7 @@ def check_routers(report: Report) -> None:
         rel = folder.relative_to(AGENTS).parts
         if IGNORED_DIRS.intersection(rel):
             continue
-        if len(rel) == 2 and rel[0] in TOPIC_PARENTS:
+        if len(rel) == 2 and rel[0] in TOPIC_PARENTS + SKILL_PARENTS:
             continue
         readme = folder / "README.md"
         if not readme.is_file():
@@ -332,6 +338,8 @@ def check_routers(report: Report) -> None:
                 continue
             if child.is_dir() and len(rel) == 1 and rel[0] in TOPIC_PARENTS:
                 wanted = child / "spec.md"
+            elif child.is_dir() and len(rel) == 1 and rel[0] in SKILL_PARENTS:
+                wanted = child / "SKILL.md"
             elif child.is_dir():
                 wanted = child / "README.md"
             elif child.suffix == ".md":
@@ -340,6 +348,33 @@ def check_routers(report: Report) -> None:
                 continue
             if wanted.resolve() not in linked and child.resolve() not in linked:
                 report.error(readme, f"router does not link `{child.name}`")
+
+
+def check_skills(report: Report) -> None:
+    """Require `skills/<name>/SKILL.md` with `name` (= folder) and `description` frontmatter.
+
+    Args:
+        report: Findings sink.
+    """
+    for parent in SKILL_PARENTS:
+        base = AGENTS / parent
+        if not base.is_dir():
+            continue
+        for folder in sorted(p for p in base.iterdir() if p.is_dir() and p.name not in IGNORED_DIRS):
+            skill = folder / "SKILL.md"
+            if not skill.is_file():
+                report.error(folder, "skill folder needs a SKILL.md")
+                continue
+            match = FRONTMATTER.match(skill.read_text(encoding="utf-8"))
+            meta = dict(line.split(":", 1) for line in (match.group(1).splitlines() if match else [])
+                        if ":" in line)
+            if meta.get("name", "").strip() != folder.name:
+                report.error(skill, f"frontmatter `name` must be `{folder.name}`")
+            if not meta.get("description", "").strip():
+                report.error(skill, "frontmatter needs a `description` (when to use the skill)")
+        for stray in sorted(base.glob("*.md")):
+            if stray.name != "README.md":
+                report.error(stray, "skills live in `<name>/SKILL.md` folders so agents load them")
 
 
 def check_contracts(report: Report) -> None:
@@ -504,7 +539,7 @@ def scaffold_specs() -> list[Path]:
             f"# {page['id']} (`{page.get('path', '?')}`) — spec stub\n\n"
             f"> **What:** generated placeholder; this page has not been investigated. "
             f"**Read when:** starting work on it — replace this stub with real web behavior first "
-            f"([port-page skill](../../skills/port-page.md)).\n\n<!-- stub -->\n\n"
+            f"([port-page skill](../../skills/port-page/SKILL.md)).\n\n<!-- stub -->\n\n"
             f"- Guard: `{page.get('guard', '?')}` · Web source: {source}\n"
             f"- Backlog: route `{page['id']}` — Apple `{route.get('apple', '?')}`, epics "
             f"{', '.join(f'`{e}`' for e in route.get('epics', [])) or '—'}; gap text via "
@@ -551,6 +586,7 @@ def run(fix: bool = False) -> Report:
     check_links(report)
     check_platform_mixing(report)
     check_routers(report)
+    check_skills(report)
     check_contracts(report)
     return report
 
