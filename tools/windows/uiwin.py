@@ -106,13 +106,15 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
+    "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
+    "assertpinned": "selector",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
-#: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits).
+#: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
+#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
-              "name": None, "scroll": None}
+              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false")}
 
 # endregion
 
@@ -207,7 +209,9 @@ def parse_step(step: str) -> dict:
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``.
+    rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
+    ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
+    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls.
 
     Args:
         step: A step string.
@@ -272,7 +276,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll|type|invoke|focusable=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -281,7 +285,7 @@ def parse_step(step: str) -> dict:
         result["selector"] = parse_selector(selector)
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertstate needs an element selector, not coordinates")
-        result["key"], result["value"] = key, value if allowed is None else value.lower()
+        result["key"], result["value"] = key, value if allowed is None and key != "type" else value.lower()
         if wait:
             result["timeout"] = float(wait)
     elif shape == "selector":

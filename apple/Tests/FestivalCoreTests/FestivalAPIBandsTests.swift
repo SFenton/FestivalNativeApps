@@ -207,6 +207,25 @@ private let bandsPublicationJSON = Data("""
     #expect(request.url?.query == "top=25&offset=0")
 }
 
+@Test func songBandLeaderboardSendsTheSelectedPlayerOnlyAsAQueryParameter() async throws {
+    let transport = FixtureTransport([
+        HTTPResult(status: 200, data: bandsPublicationJSON),
+        HTTPResult(
+            status: 200, data: try bandsFixture("song-band-leaderboard-demo"),
+            headers: ["X-FST-Publication-Id": "7"]
+        ),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    _ = try await client.songBandLeaderboard(
+        songId: "fixture-pulse", bandType: .duets, page: 2, accountId: "fixture-player-1"
+    )
+    let request = try #require(await transport.recorded().last)
+    #expect(request.url?.query == "top=25&offset=25&accountId=fixture-player-1")
+    // Never a selected-profile header: those register activity on the service.
+    let headers = (request.allHTTPHeaderFields ?? [:]).keys.map { $0.lowercased() }
+    #expect(!headers.contains { $0.contains("account") || $0.contains("profile") || $0 == "x-api-key" })
+}
+
 @Test func songBandLeaderboardRejectsAnInvalidPageWithoutAnyNetworkCall() async throws {
     let client = try FestivalAPI(transport: FixtureTransport([]))
     await #expect(throws: FestivalAPIError.invalidResource) {

@@ -30,7 +30,7 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 - One controller per list: `rememberQuickLinks` keys only on the scroller, `pinnedHeaders` and density; `title` and `sections` are snapshot state set each composition. The shell's floating toolbar re-runs a page's `actions` only on state reads, so a controller recreated by a title change (Songs' "<Sort> Quick Links") left a stale entry with no sections and hid `fst.quick-links.open` (Linux CI flake in `SongsParityUiTest`). Covered by `QuickLinksControllerUiTest`.
 - Programmatic jumps do not reach the top bar's nested-scroll state, so pass `FestivalScreen(scrolled = listState.canScrollBackward)` or content shows through the transparent bar.
 - TalkBack: entry label includes the current section; items expose `selected` + "Current section" state; the sheet has a pane title. Test IDs `fst.quick-links.open`, `.sheet`, `.menu`, `.list`, `.item.<id>`.
-- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest`, and was re-validated on every AVD in #154.
+- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest` and `QuickLinksPageSweepUiTest` (see [Page-order guard](#page-order-guard-issues-50-158)).
 
 ## Adoption
 
@@ -39,7 +39,11 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 | Settings | Done: `app-settings`, `diagnostics` (debug), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows) |
 | Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
-| Song Detail, Band, Compete, Rivals, Rivalry, Rival Detail, Leaderboards | Owning lanes: follow the spec IDs/labels with the API above |
+| Song Detail (pushed page only) | Done: `intensity`, `score-history` (only when the page shows the card: one `showHistory` flag feeds `SongDetailLayout.items` and `.quickLinks`), `instrument-<wire>` per visible chart, `band-<wire>` per band size |
+| Compete | Done: `leaderboards`, `rivals` (staggered grid headers; none while a full-page issue shows) |
+| Leaderboards | Done: `rank-history` (selected player), `instrument:<wire>`, `band:<wire>` |
+| Band Detail (one pane) | Done: `members`, `summary`, `statistics`, `rank-history`, `songs` (`rememberScrollQuickLinks`; no Quick Links in two panes) |
+| Rivals, Rival Detail, Rivalry | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`), `rival-category:<key>`, `<songId>:<wire>:<index>` per song |
 
 ## Validation (issue #137)
 
@@ -74,6 +78,13 @@ Re-check of the #46 order on the live public service (Settings with 12 sections 
 - Tooling note: right after a cold boot, `uiautomator dump` sometimes failed and aborted `device.py drive`. A warm-up dump before launching fixes it, and FST_Tablet portrait at 2.0 passed on rerun. This is not an app fault.
 - Tests: `quicklinks/QuickLinksPageOrderUiTest` (Robolectric) reads the real Settings and profile pages. For both the sheet (411 dp) and the menu (1280 dp and phone landscape), it asserts that every section is listed once in the page's `IndexForKey` order, that the jump updates the entry label, and that exactly the jumped item is `selected` on reopen. Reversing `controller.sections` in the sheet or the menu fails all 6 tests. `QuickLinksDeviceTest` passes on FST_Phone and FST_Tablet.
 - M3 (material-3 skill): bottom sheet at compact width, menu for larger windows, 48 dp targets, menu small shape at level 2, modal sheet extra-large at level 1. Deliberate deviations are unchanged from #137.
+
+## Page-order guard (issues #50, #158)
+
+- **Rule:** on every Quick Links page, the sheet and the menu list sections in the page's rendered order: top to bottom, start to end within a row, parent before nested. Score History on Song Detail is listed exactly when the page shows its card (one `showHistory` flag). Songs lists the applied sort's buckets in list order, reversed when the sort is descending.
+- **Every Quick Links page needs an order test** that reads the *rendered* section anchors (not the Quick Links model) and compares them with every `fst.quick-links.item.*` from the open sheet (411 dp) and menu (1280 dp): `QuickLinksPageOrderUiTest` (Settings, profile) and `QuickLinksPageSweepUiTest` (Song Detail with and without Score History, Compete, Leaderboards, Band Detail, Rivals hub, Rival Detail, Rivalry, and Songs for every bucketed sort plus a descending sort). A new Quick Links page adds its case here.
+- **Test gotchas:** wide Compete opens through `CompeteRoute` (the permanent drawer has no Compete destination). Close Quick Links by choosing an item, not Back, because Back also pops a pushed page. Songs headers are sticky, so read new headers per scroll step in first-seen order.
+- **Device runs:** when other lanes switch AVDs, the first `uiautomator dump` after a cold boot often fails. Run two or three warm-up dumps before the first `waitfor`, and reinstall the APK in the same device-lock hold as each check (other lanes install their own builds of the package).
 
 ## Validation (issue #159)
 

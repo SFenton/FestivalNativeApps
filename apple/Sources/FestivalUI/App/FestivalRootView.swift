@@ -12,6 +12,9 @@ public struct FestivalRootView: View {
     /// One independent navigation path per root section (web per-tab route history).
     @State private var paths: [FestivalSection: [AppRoute]] = [:]
     @State private var drawerPresented = false
+    /// Gives assistive-technology focus back to the flyout button after the flyout is
+    /// dismissed without choosing a destination (`voiceover.md`).
+    @State private var drawerFocus: AccessibilityFocusRequest?
     @State private var songsSearchText = ""
     @State private var songsSettledSearch = ""
     @State private var songsInstrument: Instrument?
@@ -205,6 +208,10 @@ public struct FestivalRootView: View {
                 FestivalBackgroundHost(session: session)
                     .ignoresSafeArea()
                 shell(presentation)
+                    // The page behind the open drawer leaves the accessibility tree: the
+                    // panel's `isModal` hid it in the flyout shell but not behind the
+                    // phone drawer's tab shell (⅓ window audit: covered rows read 1:1).
+                    .accessibilityHidden(while: drawerPresented && usesDrawer)
                     .background { keyboardCommands(presentation, layout: layout) }
                     .modifier(ShellCommandsPublisher(commands: shellCommands(presentation)))
                     .modifier(FlyoutEdgeSwipe(
@@ -229,7 +236,7 @@ public struct FestivalRootView: View {
                         showsSearch: presentation.navigation == .flyout, searchActive: searchActive,
                         closesOnEscape: presentation.navigation == .flyout || layout.pose != .standard,
                         footerScrollsAtAccessibilitySizes: presentation.navigation == .flyout || layout.pose != .standard,
-                        onIntent: handleDrawer, onClose: closeDrawer
+                        onIntent: handleDrawer, onClose: dismissDrawer
                     )
                     .transition(reduceMotion || systemReduceMotion
                         ? .opacity : .move(edge: .leading).combined(with: .opacity))
@@ -238,6 +245,8 @@ public struct FestivalRootView: View {
             }
             .tint(moreContrast || systemContrast == .increased
                 ? BrandTokens.textPrimary : BrandTokens.accentBlue)
+            .accessibilityFocusMove(drawerFocus)
+            .overlay { AccessibilityFocusTraceView() }
             #if DEBUG && os(iOS)
             .overlay { DebugMotionReportView(report: motionReport) }
             .onAppear {
@@ -701,7 +710,7 @@ public struct FestivalRootView: View {
     /// trailing pane; nil when neither shows or a sheet covers the window.
     private var closeOverlayCommand: (@MainActor () -> Void)? {
         if rootProfilePresented || globalSearchPresented || notificationsPresented || whatsNewPresented { return nil }
-        if drawerPresented { return { closeDrawer() } }
+        if drawerPresented { return { dismissDrawer() } }
         guard !searchActive, openSplits.contains(selected) else { return nil }
         let section = selected
         return {
@@ -740,6 +749,16 @@ public struct FestivalRootView: View {
         withAnimation(reduceMotion || systemReduceMotion ? nil : .smooth(duration: 0.25)) {
             drawerPresented = false
         }
+    }
+
+    /// Close the flyout without choosing a destination (Close, scrim, Escape, the
+    /// VoiceOver escape gesture): focus returns to the flyout button that opened it.
+    private func dismissDrawer() {
+        closeDrawer()
+        drawerFocus = AccessibilityFocusRequest(
+            target: .identifier("fst.shell.drawer.open"), screenChanged: false,
+            token: (drawerFocus?.token ?? 0) + 1
+        )
     }
 
     /// Show the Songs tab with a player-page stat tile's filter preset: save the Songs

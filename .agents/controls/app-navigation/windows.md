@@ -58,6 +58,36 @@ Matrix: `a11y_matrix.py --pages tools/windows/journeys/a11y-navigation.json --sc
 
 The console was locked during this pass, so Narrator itself wasn't run and pointer input couldn't be tested. Reading order was checked from the UIA tree: title bar (pane toggle, Back when present, search, bell, profile) → pane items in order with `ListItem` role, selected state, accelerator and access key → Settings footer → `main` "Page content".
 
+## Pane corners validation (issue #255, 2026-10-05)
+
+This pass re-checked #55 (pane corners concentric with the window) and changed no app code. The pane keeps WinUI's own template: `RootSplitView` uses `OverlayCornerRadius` (8 epx) filtered to the free right corners, plus a 1 epx `NavigationViewItemSeparatorForeground` stroke. `Styles.xaml` zeroes only the content grid's radius. DWM rounds the window at 8 epx, and square when maximized or snapped. `winapp find-api` shows no corner member on `AppWindow`, `OverlappedPresenter`, `AppWindowTitleBar` or `Window`; the only match is `CornerRadiusHelper`. So no public API reports the resolved radius, and the WinUI default is the concentric choice. The design skill's guidance is "Built-in control + lightweight style overrides", and it lists a custom `ControlTemplate` for a standard control as an anti-pattern.
+
+Journey: `tools/windows/journeys/a11y-pane-corners.json` has four pages:
+- `pane-closed`: every size.
+- `pane-overlay`: compact, medium and the snap halves. The toggle opens the pane, `LightDismiss` appears and closes it again.
+- `pane-inline`: wide and maximized; no `LightDismiss`.
+- `pane-collapsed`: wide and maximized. The toggle collapses the Expanded pane to the rail.
+
+The journey is live-safe. It ran with fixtures at compact, medium, wide, maximized and both snap halves with `--scan --tabs 20`: all 14 states pass. Live runs (`--live`, anonymous, public HTTPS) covered the same sizes in the normal and light modes. Dark, Desert, Night sky, text 200% and display 100%/150% ran at compact, medium and wide: at display 100% and 150% the snap halves are wide enough for the Expanded pane, so the overlay page doesn't apply there. `navigation.py compact keyboard` passes 2/2.
+
+| Configuration | Result |
+|---|---|
+| Compact (LeftMinimal overlay) | Pass. Free right corners rounded 8 epx (24 px at 300%); left and bottom edges flush, with the bottom-left inside the DWM-clipped window corner. Selecting an item closes the overlay. |
+| Medium (rail, toggle opens overlay) | Pass. Same 8 epx free corners on the expanded overlay over the rail. |
+| Wide / maximized (Expanded inline) | Pass. The inline pane has no rounded corners (it's part of the window). The window is square when maximized. Collapsing to the rail keeps it square. |
+| Snapped left / right | Pass. 640 epx halves are LeftMinimal: overlay corners as at compact. The window is square when snapped, and the pane's free corners stay 8 epx (Fluent overlay radius). |
+| Light theme | Pass. The app stays dark (issue #195). |
+| Dark theme | Pass. |
+| High contrast (Desert, Night sky) | Pass. The pane uses system colours, with the stroke drawn in the system colour, and corners are unchanged. |
+| Text 200% | Pass. Labels fit the 240 epx overlay pane; corner radius doesn't scale with text. |
+| Display 100% / 150% | Pass. The radius stays 8 epx (effective pixels). |
+| Keyboard only | Pass. In the overlay, Tab cycles Songs ↔ Settings and Esc closes it. Tab stops: closed 8–9, inline 9, collapsed 15 (the rail leaves room for the split song pane). None leave the window or repeat. |
+| Axe | 0 errors, except 2 on the open overlay in the normal, light, dark and HC runs (none at text 200% or display 100%/150%): WinUI `InputSiteWindowClass` in `PopupHost`, [open issue 8](../../testing/windows-accessibility.md). |
+
+Notes:
+- The 1 epx stroke is translucent (Fluent default), so bright artwork behind it can show through faintly along the bottom window edge. This is the WinUI default; no change.
+- Narrator and screen recording weren't possible on the locked console. Reading order was checked from the UIA tree and Tab walks. The motion clip was built from PrintWindow frames.
+
 ## Validation (issue #253, 2026-10-05): bell and profile as separate title-bar buttons
 
 Check of #53/#14: the bell (`fst.shell.notifications`, player only) and the avatar (`fst.shell.profile`) are two sibling `Button`s in `TitleBar.RightHeader` (after search), not one container. `HitTargetMarkupTests.TitleBar_BellAndProfileAreSeparateNamedButtons` guards the markup. Pages: `tools/windows/journeys/a11y-titlebar-buttons.json`, run with `a11y_matrix.py --pages tools/windows/journeys/a11y-titlebar-buttons.json --scan` (fixture service with `notifications_fixture.py`, rich feed, 5 unread):

@@ -26,6 +26,16 @@ extension EnvironmentValues {
     @Entry var splitOpenReporter: SplitOpenReporter?
     /// The root `TabView`'s bar is hidden on every page (the iPad flyout shell).
     @Entry var hidesRootTabBar = false
+    /// The row to give assistive-technology focus back to after the trailing pane closed.
+    @Entry var listDetailFocusReturn: ListDetailFocusReturn?
+}
+
+/// Asks the leading pane's row for `route` to take assistive-technology focus: the
+/// trailing pane just closed (Close, Escape, Back), so focus goes back to the item the
+/// person opened rather than the top of the window. A new `token` asks again.
+struct ListDetailFocusReturn: Equatable, Sendable {
+    let route: AppRoute
+    let token: Int
 }
 
 extension View {
@@ -106,7 +116,8 @@ struct ListDetailSelectAction: Equatable {
 }
 
 /// What every page of a split's stack needs: its pane width (for its own width class),
-/// the open item and the select action (leading pane), and its menu-bar role.
+/// the open item and the select action (leading pane), its menu-bar role, and the
+/// split's shared chrome (one backdrop, one top-scrim height; `SplitPaneChrome`).
 struct SplitPaneContext: Equatable {
     /// The pane's width while the split is open, else nil (the window's layout applies).
     var paneWidth: CGFloat?
@@ -116,6 +127,15 @@ struct SplitPaneContext: Equatable {
     var selection: AppRoute?
     /// Opens a row's route in the trailing pane (leading pane only).
     var select: ListDetailSelectAction?
+    /// The split's shared top-scrim height (iOS), or nil.
+    var topScrim: SplitTopScrim?
+    /// The row to refocus after the trailing pane closed (leading pane only).
+    var focusReturn: ListDetailFocusReturn?
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.paneWidth == rhs.paneWidth && lhs.role == rhs.role && lhs.selection == rhs.selection
+            && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim && lhs.focusReturn == rhs.focusReturn
+    }
 }
 
 extension View {
@@ -149,7 +169,37 @@ private struct SplitPaneContextModifier: ViewModifier {
             .transformEnvironment(\.listDetailSelect) { select in
                 if let context { select = context.select }
             }
+            .transformEnvironment(\.listDetailFocusReturn) { focusReturn in
+                if let context { focusReturn = context.focusReturn }
+            }
+            // One backdrop behind both panes: the page draws none and its navigation
+            // container is clear (`SplitPaneChrome`).
+            .modifier(SplitNavigationContainerBackground(clear: sharesBackdrop))
+            .transformEnvironment(\.splitSharesBackdrop) { shares in
+                if context != nil { shares = sharesBackdrop }
+            }
+            .transformEnvironment(\.splitTopScrim) { scrim in
+                if let context { scrim = context.topScrim }
+            }
+            // The edge facing the divider is mid-window: a safe-area inset there belongs
+            // to the window's far edge (the iPhone Duo vertical bar gave the leading pane
+            // 84 pt of dead space beside the hinge), so the page lays out to the band.
+            .ignoresSafeArea(.container, edges: SplitPaneChrome.edgesFacingDivider(
+                role: context?.role, isOpen: context?.paneWidth != nil
+            ))
+            #if os(iOS)
+            // Full-page bar margins at the pane's mid-window edges.
+            .background {
+                if context != nil {
+                    SplitPaneBarMargins()
+                        .frame(width: 0, height: 0)
+                        .accessibilityHidden(true)
+                }
+            }
+            #endif
     }
+
+    private var sharesBackdrop: Bool { context != nil && SplitPaneChrome.sharesBackdrop }
 }
 
 // MARK: - Split layout
@@ -159,9 +209,17 @@ private struct SplitPaneContextModifier: ViewModifier {
 /// leading half while the trailing pane slides in from the trailing edge (Reduce
 /// Motion: a crossfade). A hairline divider sits at the exact midpoint, or the iPhone
 /// Duo hinge band. Shared by iPad, iPhone Duo and the Mac content area.
+///
+/// With a `backdrop` it draws the session's one backdrop behind both panes and the
+/// divider band (the pages inside draw none; `SplitPaneChrome`), whether or not an item
+/// is open, so opening and closing never change the image under the list.
 struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     /// Pane geometry while the trailing pane shows, else nil (leading fills the width).
     let geometry: OnDemandSplitPolicy.Geometry?
+    /// The shared backdrop to draw behind both panes, or nil (pages draw their own).
+    let backdrop: FestivalBackgroundCoordinator?
+    /// The leading page's top-scrim height, drawn across the divider band too.
+    let topScrimHeight: CGFloat?
     let leading: Leading
     let trailing: Trailing
 
@@ -172,13 +230,18 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     ///
     /// - Parameters:
     ///   - geometry: Pane geometry while an item is open, else nil.
+    ///   - backdrop: The shared backdrop to draw behind both panes, or nil.
+    ///   - topScrimHeight: The leading page's top-scrim height, or nil.
     ///   - leading: The list page's stack.
     ///   - trailing: The open item's stack (built only while `geometry` is set).
     init(
         geometry: OnDemandSplitPolicy.Geometry?,
+        backdrop: FestivalBackgroundCoordinator? = nil, topScrimHeight: CGFloat? = nil,
         @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing
     ) {
         self.geometry = geometry
+        self.backdrop = backdrop
+        self.topScrimHeight = topScrimHeight
         self.leading = leading()
         self.trailing = trailing()
     }
@@ -196,7 +259,7 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
                 .frame(width: geometry?.leadingWidth)
                 .frame(maxWidth: geometry == nil ? .infinity : nil)
             if let geometry {
-                SplitDivider(width: geometry.dividerWidth)
+                SplitDivider(width: geometry.dividerWidth, topScrimHeight: topScrimHeight)
                     .transition(.opacity)
                 trailing
                     .frame(width: geometry.trailingWidth)
@@ -208,13 +271,20 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
         // the container at the old width after the window narrows.
         // Not clipped: pages draw their bars and scroll content into the safe areas.
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .leading)
+        // One backdrop for both panes and the band, outside the animation so it never
+        // moves or fades while the panes resize.
+        .background {
+            if let backdrop { SplitBackdrop(coordinator: backdrop) }
+        }
         .animation(Self.animation(reduceMotion: reduceMotion), value: geometry)
     }
 }
 
-/// The band between the panes: a hairline at its centre (the hinge itself on iPhone Duo).
+/// The band between the panes: a hairline at its centre (the hinge itself on iPhone Duo),
+/// over the panes' top-edge gradient so the darkening runs unbroken across the band.
 private struct SplitDivider: View {
     let width: CGFloat
+    let topScrimHeight: CGFloat?
 
     var body: some View {
         Rectangle()
@@ -222,6 +292,11 @@ private struct SplitDivider: View {
             .frame(width: OnDemandSplitPolicy.midpointDividerWidth)
             .frame(width: width)
             .frame(maxHeight: .infinity)
+            .background(alignment: .top) {
+                if let topScrimHeight {
+                    TopEdgeScrim.gradient.frame(height: topScrimHeight)
+                }
+            }
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .accessibilityIdentifier("fst.split.divider")
@@ -252,6 +327,15 @@ struct OnDemandSplitStack<Root: View>: View {
     @Environment(\.splitOpenReporter) private var openReporter
     /// The container's frame in window coordinates (for the midpoint and the hinge).
     @State private var container: CGRect = .zero
+    /// The leading page's top-scrim height, shared with the trailing pane and the band.
+    @State private var topScrim = SplitTopScrim()
+    /// Assistive-technology focus moves: into the trailing pane when it opens, back to
+    /// the opened row when it closes (`voiceover.md`).
+    @State private var trailingFocus: AccessibilityFocusRequest?
+    @State private var focusReturn: ListDetailFocusReturn?
+    @State private var focusToken = 0
+    /// The item most recently open in the trailing pane (the row to refocus on close).
+    @State private var lastSelection: AppRoute?
 
     /// Create a section stack.
     ///
@@ -287,7 +371,14 @@ struct OnDemandSplitStack<Root: View>: View {
         let cut = cut
         let geometry = geometry
         let open = geometry != nil && cut?.selection != nil
-        OnDemandSplitLayout(geometry: open ? geometry : nil) {
+        // While a split is possible (open or not) the container draws the one backdrop,
+        // so opening and closing never change the image under the list.
+        let sharesBackdrop = geometry != nil && SplitPaneChrome.sharesBackdrop
+        OnDemandSplitLayout(
+            geometry: open ? geometry : nil,
+            backdrop: sharesBackdrop ? session.backgroundCoordinator : nil,
+            topScrimHeight: topScrim.height
+        ) {
             leadingStack(cut: geometry == nil ? nil : cut, paneWidth: open ? geometry?.leadingWidth : nil)
         } trailing: {
             if let cut, let selection = cut.selection, let geometry {
@@ -297,8 +388,19 @@ struct OnDemandSplitStack<Root: View>: View {
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
             if frame != container { container = frame }
         }
-        .onChange(of: open, initial: true) { _, open in
+        .onChange(of: open, initial: true) { wasOpen, open in
             if isVisible { openReporter?(section, isOpen: open) }
+            guard wasOpen != open else { return }
+            focusToken += 1
+            if open {
+                trailingFocus = AccessibilityFocusRequest(target: .topHeading, token: focusToken)
+            } else if geometry != nil, let lastSelection {
+                // Closed in place (not a rotation to a push): back to the opened row.
+                focusReturn = ListDetailFocusReturn(route: lastSelection, token: focusToken)
+            }
+        }
+        .onChange(of: cut?.selection, initial: true) { _, selection in
+            if let selection { lastSelection = selection }
         }
         .onChange(of: isVisible) { _, visible in
             if visible { openReporter?(section, isOpen: open) }
@@ -320,7 +422,9 @@ struct OnDemandSplitStack<Root: View>: View {
             SplitPaneContext(
                 paneWidth: paneWidth, role: .leading,
                 selection: cut.selection,
-                select: ListDetailSelectAction(section: section, page: cut.page) { route in open(route) }
+                select: ListDetailSelectAction(section: section, page: cut.page) { route in open(route) },
+                topScrim: topScrim,
+                focusReturn: focusReturn
             )
         }
         return FestivalTabStack(
@@ -362,10 +466,12 @@ struct OnDemandSplitStack<Root: View>: View {
     ///   - width: The trailing pane's width.
     /// - Returns: The trailing stack.
     private func trailingStack(cut: OnDemandSplitPolicy.Cut, selection: AppRoute, width: CGFloat) -> some View {
-        let context = SplitPaneContext(paneWidth: width, role: .trailing)
+        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim)
         return NavigationStack(path: detailTail) {
             destination(selection)
                 .id(selection)
+                // The same top-edge gradient as a full page, at the leading page's height.
+                .modifier(TopEdgeScrim())
                 .splitPaneContext(context)
                 .rootTabBarVisibility()
                 .menuBarColumn(isTop: isVisible && cut.detail.count == 1)
@@ -376,11 +482,15 @@ struct OnDemandSplitStack<Root: View>: View {
                 }
                 .navigationDestination(for: AppRoute.self) { route in
                     destination(route)
+                        .modifier(TopEdgeScrim())
                         .splitPaneContext(context)
                         .rootTabBarVisibility()
                         .menuBarColumn(isTop: isVisible && cut.detail.last == route)
                 }
         }
+        // Focus lands on the pane's title once it slides in (HIG VoiceOver: inform
+        // VoiceOver of layout changes).
+        .accessibilityFocusMove(trailingFocus)
         // A container, so the identifier names the pane without replacing its rows' own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.split.trailing")
@@ -446,6 +556,8 @@ extension View {
 private struct ListDetailSelectableRow: ViewModifier {
     let route: AppRoute
     @Environment(\.listDetailSelection) private var selection
+    @Environment(\.listDetailFocusReturn) private var focusReturn
+    @AccessibilityFocusState private var focused: Bool
     #if os(macOS)
     @Environment(\.macKeyboardNavigator) private var keyboard
     #endif
@@ -453,28 +565,41 @@ private struct ListDetailSelectableRow: ViewModifier {
     func body(content: Content) -> some View {
         let selected = selection == route
         content
-            // An overlay, not a background: Song rows are opaque material cards. The
-            // translucent fill keeps the row's own Shop highlight stroke readable.
+            #if os(macOS)
+            // An overlay: Mac Song rows are opaque material cards. Accent while the list
+            // has keyboard focus, gray otherwise (HIG Focus and selection, `NSTableView`).
             .overlay {
-                #if os(macOS)
-                // Accent while the list has keyboard focus, gray otherwise
-                // (HIG Focus and selection, `NSTableView`).
                 if selected {
                     MacSelectionHighlight(cornerRadius: 12, focused: keyboard?.hasFocus ?? true)
                 }
-                #else
+            }
+            #else
+            // Behind the row's text: drawn over it, the translucent fill washed the rivals
+            // pills down to 4.0–4.3:1 (iPad audit, Lane A11Y3). iOS split rows are clear
+            // (Songs, the opaque cards, never splits); the accent bar stays on top.
+            .background {
                 if selected {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(BrandTokens.accentBlue.opacity(0.22))
-                        .overlay(alignment: .leading) {
-                            Capsule().fill(BrandTokens.accentBlue).frame(width: 3).padding(.vertical, 8)
-                        }
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                #endif
             }
+            .overlay(alignment: .leading) {
+                if selected {
+                    Capsule().fill(BrandTokens.accentBlue).frame(width: 3).padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            #endif
             .accessibilityAddTraits(selected ? .isSelected : [])
+            .accessibilityFocused($focused)
+            .onChange(of: focusReturn) { _, request in
+                guard let request, request.route == route else { return }
+                focused = true
+                AccessibilityFocusTrace.shared.record("row: \(route.focusTraceName)")
+            }
     }
 }
 

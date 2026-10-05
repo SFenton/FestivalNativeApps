@@ -519,7 +519,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
-        foreach (var key in new[] { "focus", "scans", "aligned" })
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -640,6 +640,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertstate":
                 AssertState(window, step);
+                break;
+            case "pin":
+            case "assertpinned":
+                Pin(window, step, verb == "pin");
                 break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
@@ -801,6 +805,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "scroll" => element.Patterns.Scroll.PatternOrDefault is { } scroll
                         ? Math.Round(scroll.VerticalScrollPercent.ValueOrDefault).ToString(System.Globalization.CultureInfo.InvariantCulture)
                         : null,
+                    // Role checks, e.g. a leaderboard row without a destination is Text with no Invoke and no Tab stop.
+                    "type" => element.Properties.ControlType.ValueOrDefault.ToString().ToLowerInvariant(),
+                    "invoke" => element.Patterns.Invoke.IsSupported ? "true" : "false",
+                    "focusable" => element.Properties.IsKeyboardFocusable.ValueOrDefault ? "true" : "false",
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
@@ -979,6 +987,47 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"element {(string)step["arg"]!} is named {actual!}, expected {expected}");
             Thread.Sleep(200);
         }
+    }
+
+    /// <summary>Window-relative rectangles recorded by <c>pin</c> steps in this request, keyed by selector label.</summary>
+    private readonly Dictionary<string, System.Drawing.Rectangle> pins = [];
+
+    /// <summary>The element's bounding rectangle relative to the window's top-left corner (physical pixels).</summary>
+    private System.Drawing.Rectangle WindowRelative(Window window, JsonObject step)
+    {
+        var rect = Find(window, step).BoundingRectangle;
+        var origin = window.BoundingRectangle;
+        return new System.Drawing.Rectangle(rect.Left - origin.Left, rect.Top - origin.Top, rect.Width, rect.Height);
+    }
+
+    /// <summary>
+    /// <c>pin</c> records an element's window-relative rectangle; <c>assertpinned</c> fails unless the same selector's
+    /// element still has that rectangle within 1 px, e.g. a page toolbar that must not move while its list scrolls.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a <c>selector</c>.</param>
+    /// <param name="record">Whether to record (<c>pin</c>) rather than compare.</param>
+    /// <exception cref="InvalidOperationException">Nothing was pinned for the selector, or the rectangle moved.</exception>
+    private void Pin(Window window, JsonObject step, bool record)
+    {
+        var label = Condition(step).Label;
+        var now = WindowRelative(window, step);
+        if (record)
+        {
+            pins[label] = now;
+            return;
+        }
+        if (!pins.TryGetValue(label, out var then))
+            throw new InvalidOperationException($"assertpinned {label}: no earlier pin step for this selector");
+        var moved = Math.Max(Math.Max(Math.Abs(now.Left - then.Left), Math.Abs(now.Top - then.Top)),
+            Math.Max(Math.Abs(now.Width - then.Width), Math.Abs(now.Height - then.Height)));
+        if (moved > 1)
+            throw new InvalidOperationException($"{label} moved: pinned {then} now {now} (window-relative px)");
+        response["pinned"] ??= new JsonArray();
+        response["pinned"]!.AsArray().Add(new JsonObject
+        {
+            ["selector"] = label, ["left"] = now.Left, ["top"] = now.Top, ["width"] = now.Width, ["height"] = now.Height,
+        });
     }
 
     /// <summary>Fails unless two on-screen elements share a horizontal centre (a vertically aligned column) within 2 px.</summary>

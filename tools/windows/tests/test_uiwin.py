@@ -102,10 +102,15 @@ class StepTests(unittest.TestCase):
         self.assertEqual((top["key"], top["value"], top["timeout"]), ("scroll", "0", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|scroll=-1")["value"], "-1")
         self.assertEqual(u.parse_step("assertstate:id=x|scroll=100")["value"], "100")
+        role = u.parse_step("assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|type=Text@5")
+        self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
+        self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
-                    "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2"):
+                    "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",
+                    "assertstate:id=x|type=", "assertstate:id=x|invoke=yes", "assertstate:id=x|focusable=1"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
     def test_assertstatus(self):
@@ -130,6 +135,18 @@ class StepTests(unittest.TestCase):
         self.assertEqual(u.parse_step("assertgap:name=A|name=B|2.5")["epx"], 2.5)
         for bad in ("assertgap:id=a|id=b", "assertgap:id=a|id=b|x", "assertgap:id=a|4", "assertgap:1,2|id=b|4",
                     "assertgap:id=a|id=b|-4"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_pin_and_assertpinned(self):
+        pin = u.parse_step("pin:id=fst.songs.sort@5")
+        self.assertEqual(pin["verb"], "pin")
+        self.assertEqual(pin["selector"], {"kind": "id", "value": "fst.songs.sort"})
+        self.assertEqual(pin["timeout"], 5.0)
+        check = u.parse_step("assertpinned:id=fst.songs.sort")
+        self.assertEqual(check["verb"], "assertpinned")
+        self.assertEqual(check["selector"], pin["selector"])
+        for bad in ("pin:10,20", "assertpinned:10,20", "pin:", "assertpinned:sort"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

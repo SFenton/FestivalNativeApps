@@ -47,6 +47,35 @@ Ran with SFentonX selected (`FST_DEBUG_PROFILE`) on Everlong, using `device.py d
   - The bottom bar is icon-only at large text.
   - The top-bar notification badge slightly overlaps the avatar at 2.0 (shell chrome; noted here, not changed).
 
+## Validation (issue #168: load-only fade from #60, live public service, 2026-10)
+
+The #60 rule held everywhere, so nothing changed in the product. Song Detail loads every section behind `SongDetailGate`. Only what is visible when the gate opens fades in; a card scrolled into view later, or scrolled back to, appears at once.
+
+**Method.** SFentonX selected (`FST_DEBUG_PROFILE`), Cake By The Ocean (`song:009f0d51-…`), animator scales set to 1, still backdrop. Each run recorded three drags (five `MOVE`s each) and counted the frames that changed. A fade would add changed frames after each drag's last `MOVE` (400 ms ≈ 12 frames). Every configuration changed only on `MOVE` frames:
+
+| Configuration | Changed frames / `MOVE`s |
+|---|---|
+| FST_Phone portrait, landscape, font 2.0 + system light | 15/15 each |
+| FST_Tablet landscape, two-pane (auto-selected song) | 15/15 |
+| FST_Resizable phone / foldable / tablet | 15/15 each |
+| FST_Book_Fold folded / unfolded | 15/15 (+3 pre-touch frames from the breathing Item Shop pill) / 14/15 |
+| FST_Passport_Fold folded / unfolded | 15/15 each |
+| FST_TriFold folded / partial / unfolded | 16/15 (one 0.7% touch-down frame) / 15/15 / 15/15 |
+
+TriFold runs used `am start --display 0` (see [android.md](../../platforms/android.md); the AVD otherwise launches on display 2).
+
+- **Load reveal:** backdrop, then the spinner fades, then content staggers in (recorded on FST_Phone).
+- **Reduced motion:** with animator scale 0, content appears without any fade.
+- **Other pages (FST_Phone, live):** Leaderboards (the Bass card scrolled in without a fade) and Item Shop rows don't fade. Shop changes of 0.2–0.8% up to 150 ms after a drag are thumbnails decoding. Suggestions' existing cards don't re-fade.
+- **Code and Robolectric only:**
+  - Global Search fades only when results settle (`rememberRevealed(settled == signature)`). The emulator keyboard swallowed the drags.
+  - Player Profile and Player Bands use `/api/player/{id}/bands`, which isn't on the [service-safety](../../platforms/service-safety.md) allowlist. Covered by `FadeInWindowTest` and fixture journeys.
+- **Tests:**
+  - `SongDetailFadeUiTest`: a band card scrolled into view and the header scrolled back are fully drawn in their first frame.
+  - `SuggestionsBatchFadeUiTest`: shown cards stay drawn while a new batch fades in.
+  - Both fail when a fade is forced (mutation-checked).
+- **Material 3 deviation:** M3 suggests Emphasized Decelerate (400 ms) for elements entering the screen. The fade keeps the web `fadeInUp` instead (400 ms CSS ease-out, 12 dp rise) for cross-platform parity. Reduced motion (app setting or animator scale 0) shows content at once.
+
 ## Open
 
 Promoted (selected-band) band previews need a selected-band identity.

@@ -94,6 +94,30 @@ Live public service, debug APK stamped with `FST_GIT_SHA=d12dbe5b…` (expected 
 
 Material 3 (`material-3` skill, `references/component-catalog.md` § Lists): a read-only list item with a headline and supporting value, no touch target (not interactive), `onSurface`/`onSurfaceVariant` text roles. The " · " separator and 7-character commit match iOS. No user-visible change was needed (the row moved into `internal fun AppVersionRow` only so tests can render it with any text); the row never wraps mid-suffix in any configuration because `ValueRow` stacks the whole value under the title when it does not fit beside it.
 
+## Validation: CHOpt Path Default View (issue #164, 2026-10-05)
+
+Check of #56/#20: the setting is an inline M3 radio group (heading "CHOpt Path Default View", supporting text, then Image and Text rows), not an accordion and not a separate page. Live public service, debug APK, `device.py drive` with `FST_DEBUG_STILL_BACKGROUND=1`, animator scale 0. Each configuration scrolled to the group, measured both rows from the uiautomator tree, tapped Text, confirmed Settings stayed on screen with Text selected, then restored Image.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait, fs 1.0 / 2.0 | 48 dp rows, labels inside, heading above: pass |
+| FST_Phone landscape, fs 1.0 / 2.0 | Pass; at 2.0 the shell's short content viewport (#121) holds the group, which still renders whole |
+| FST_Phone system light theme | App stays dark (dark-only brand theme, deliberate): pass |
+| FST_Tablet landscape / portrait, fs 1.0 / 2.0 | 808 / 640 dp rows in the capped column: pass |
+| FST_Resizable compact / medium / expanded / desktop, fs 1.0 / 2.0 | Pass; the expanded and desktop rows measure 72 px / 48 px at the resized density (48 dp) |
+| FST_Book_Fold folded / unfolded, fs 1.0 / 2.0; half-open | Pass; half-open keeps the group in the leading half (266 dp), clear of the hinge |
+| FST_Passport_Fold folded / unfolded, fs 1.0 / 2.0; half-open | Pass; half-open 261 dp before the hinge |
+| FST_TriFold folded / partial / unfolded, fs 1.0 / 2.0 | Pass; folded 2.0 wraps the heading and description, rows stay 48 dp |
+| TalkBack (`talkback_walk.py`, FST_Phone) | "CHOpt Path Default View. Heading" → description → "Selected. Image. Radio button. 1 of 2. In list. 2 items" → "Not selected. Text. Radio button. 2 of 2" → next heading, "Out of list": pass |
+| Reduced motion | Animator scale 0 (tool default); the selection changes without animation dependence: pass |
+| Persistence | Text saved, survived tab switches, and the next Paths opening showed the text table (live song): pass after the fix below |
+
+Found and fixed: the Paths sheet's `SongPathsViewModel` is keyed per song and outlived the sheet, so reopening Paths on the same song kept the previous view and ignored a Settings default changed meanwhile. Each opening now calls `beginOpening` ([chopt-paths](../../controls/chopt-paths/android.md)).
+
+Tests: Robolectric `PathDefaultViewUiTest` (radio semantics, restored saved selection, font scale 2.0, expanded column, every Paths opening in the saved default) and `SongDetailAndShopTest#pathsNewOpeningResetsToTheSavedDefault`; connected `journeys.PathDefaultViewDeviceTest` (2 tests, FST_Book_Fold half-open and FST_Phone). In the Compose 2025.10.01 BOM the merged radio row reports class `android.view.View`, so the device test asserts checkable, checked and the "Selected"/"Not selected" state description; TalkBack still announces "Radio button".
+
+Material 3 (`material-3` skill, `references/component-catalog.md` § Radio button): "Radio buttons let people select one option from a set"; each row is a whole-row `selectable(role = RadioButton)` inside `selectableGroup()` with a 48 dp minimum target and the radio in `primary` (#2D82E6, 4.5:1+ on the card). Two mutually exclusive options need no disclosure, so there is no expanded/collapsed state to announce. Foldables: "Never place interactive content or critical information across the hinge area" holds in both half-open postures. Deliberate deviations: the dark-only brand theme and translucent glass cards (above).
+
 ## Open
 
-- Consumers still owed by other lanes: Songs (icons, metadata order/visibility, Shop hide/highlight, leeway on leaderboard reads), Paths (default view, column order, warning dismissal).
+- Consumers still owed by other lanes: Songs (icons, metadata order/visibility, Shop hide/highlight, leeway on leaderboard reads). Paths reads the default view (every opening since issue #164), column order and warning dismissal ([chopt-paths](../../controls/chopt-paths/android.md)).
