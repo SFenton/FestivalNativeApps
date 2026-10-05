@@ -17,7 +17,8 @@ description: End-to-end procedure for fixing a bug or building a feature from a 
 1. `python3 tools/pattern_guard.py index` lists the patterns. Read every pattern doc ([registry](../../patterns/README.md)) that owns the behavior, plus the triage JSON's `patterns`, `precedents` and `blast_radius`.
 2. `python3 tools/pattern_guard.py which <file>…` for the files you expect to touch.
 3. Run [consistency-sweep](../consistency-sweep/SKILL.md): where else does this behavior exist (other pages, other modals, other platforms, the web)? Which one is canonical, and which ones already solved this exact bug?
-4. Read the web source for the behavior ([web-parity-check](../web-parity-check/SKILL.md)) and your platform's design guidance (`apple-hig` / `material-3` / `winui-design`), keeping the recommendation strength (must, should, consider).
+4. No pattern matched? Don't stop at the native code: the web's shared components, hooks, styles and `packages/theme` tokens are the pattern ([consistency-sweep](../consistency-sweep/SKILL.md) step 2b).
+5. Read the web source for the behavior ([web-parity-check](../web-parity-check/SKILL.md)) and your platform's design guidance (`apple-hig` / `material-3` / `winui-design`), keeping the recommendation strength (must, should, consider).
 
 Classify the change:
 
@@ -26,7 +27,7 @@ Classify the change:
 | `aligns` | The pattern's rules already describe the fix | Fix it in the canonical component |
 | `extends_pattern` | Same rules, one more consumer or state | Extend the canonical component; add the consumer to the doc |
 | `diverges_from_pattern` | The ask conflicts with a pattern rule | **Stop**: [design-proposal](../design-proposal/SKILL.md) unless the owner already chose (issue comment or `/choose`) |
-| `new_pattern` | No pattern owns it and it will recur | Build it shared; propose a pattern entry in the PR |
+| `new_pattern` | No registered pattern owns it and it will recur | Find the web's shared component for it ([consistency-sweep](../consistency-sweep/SKILL.md) step 2b). If the web has one, mirror it as one shared native component and register the pattern (status `current`, web provenance) in the same PR. If the web has none and it touches navigation, chrome, layout or materials, **stop**: [design-proposal](../design-proposal/SKILL.md) |
 
 ## 3. Reproduce, then fix the pattern, not the instance
 
