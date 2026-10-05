@@ -14,9 +14,15 @@ struct SongBandLeaderboardScreen: View {
     let session: FestivalSession
     let song: Song
     @State private var bandType: BandType
-    @State private var page = 1
+    @State private var page: Int
     @State private var state: RankLoadState<SongBandLeaderboardPayload> = .loading
+    /// The band whose row is highlighted and brought into view: Song Detail's selected
+    /// band row opens this board at its page (issue #307, web `navToPlayer`).
+    @State private var focus: SongBandRowFocus?
+    /// The focused row still needs scrolling into view once its page loads.
+    @State private var focusPending: Bool
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
 
@@ -33,10 +39,38 @@ struct SongBandLeaderboardScreen: View {
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - song: Song whose band leaderboard to show.
     ///   - bandType: Band size key (`Band_Duets`, `Band_Trios`, `Band_Quad`).
-    init(session: FestivalSession, song: Song, bandType: String) {
+    ///   - initialPage: One-based page to open.
+    ///   - focus: Band row to highlight and bring into view on that page, if any.
+    init(
+        session: FestivalSession, song: Song, bandType: String,
+        initialPage: Int = 1, focus: SongBandRowFocus? = nil
+    ) {
         self.session = session
         self.song = song
         _bandType = State(initialValue: BandType(rawValue: bandType) ?? .duets)
+        _page = State(initialValue: max(1, initialPage))
+        _focus = State(initialValue: focus)
+        _focusPending = State(initialValue: focus != nil)
+    }
+
+    /// Whether a row is the focused band's (highlighted like the selected row).
+    ///
+    /// - Parameter entry: A page row.
+    /// - Returns: True for the band Song Detail opened this board for.
+    private func isFocused(_ entry: SongBandLeaderboardEntry) -> Bool {
+        focus?.matches(entry) == true
+    }
+
+    /// Open the page holding a band's row, then highlight it and bring it into view: the
+    /// selected-band footer's off-page action (``SongBandRowNavigation/footerAction(for:pageEntries:)``).
+    ///
+    /// - Parameters:
+    ///   - destination: One-based page containing the band's rank.
+    ///   - entry: The band's row.
+    private func jump(to destination: Int, focusing entry: SongBandLeaderboardEntry) {
+        focus = SongBandRowFocus(entry)
+        focusPending = true
+        page = max(1, destination)
     }
 
     var body: some View {
@@ -56,20 +90,34 @@ struct SongBandLeaderboardScreen: View {
                     // on both pages, issue #90), each row its own material card. A
                     // `ScrollView`, not a `List`: the cards are `NavigationLink`s, and a
                     // `List` would draw a second disclosure chevron outside each card.
-                    ScrollView {
-                        LazyVStack(spacing: 6) {
-                            if payload.leaderboard.entries.isEmpty {
-                                Text("No \(bandType.label.lowercased()) scores yet.")
-                                    .foregroundStyle(FestivalText.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 6) {
+                                if payload.leaderboard.entries.isEmpty {
+                                    Text("No \(bandType.label.lowercased()) scores yet.")
+                                        .foregroundStyle(FestivalText.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                ForEach(payload.leaderboard.entries) { entry in
+                                    SongBandPreviewRow(entry: entry, highlighted: isFocused(entry))
+                                        .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                                }
                             }
-                            ForEach(payload.leaderboard.entries) { entry in
-                                SongBandPreviewRow(entry: entry, highlighted: false)
-                                    .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                        }
+                        // Opened for one band's row: scroll it into view once (web
+                        // `navToPlayer`, issue #307).
+                        .task(id: focusPending) {
+                            guard focusPending,
+                                  let target = payload.leaderboard.entries.first(where: isFocused) else {
+                                focusPending = false
+                                return
+                            }
+                            if await SelectedRowReveal.reveal(target.id, proxy: proxy, reduceMotion: reduceMotion) {
+                                focusPending = false
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
                     }
                     .rankingsListRailClearance(layout)
                     RankingsPagerView(
@@ -103,7 +151,10 @@ struct SongBandLeaderboardScreen: View {
         .festivalPageTool(token: bandType, order: PageToolOrder.primary) {
             bandTypeMenu
         }
-        .onChange(of: bandType) { _, _ in page = 1 }
+        .onChange(of: bandType) { _, _ in
+            focusPending = false
+            page = 1
+        }
         .task(id: requestKey) { await load() }
     }
 

@@ -44,13 +44,15 @@ struct AppRouteDestination: View {
         case let .songDetail(song):
             SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
                 .firstRun(.songInfo, session: session)
-        case let .songLeaderboard(song, instrument, page):
+        case let .songLeaderboard(song, instrument, page, focusSelected):
             SoloLeaderboardScreen(
                 song: song, instrument: instrument, session: session,
-                initialPage: page, path: $path
+                initialPage: page, path: $path, focusSelected: focusSelected
             )
-        case let .songBandLeaderboard(song, bandType):
-            SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
+        case let .songBandLeaderboard(song, bandType, page, focus):
+            SongBandLeaderboardScreen(
+                session: session, song: song, bandType: bandType, initialPage: page, focus: focus
+            )
         case let .playerHistory(song, instrument):
             PlayerHistoryScreen(session: session, song: song, instrument: instrument)
                 .firstRun(.playerHistory, session: session)
