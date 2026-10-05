@@ -54,23 +54,45 @@ public class FirstRunDemoTests
         foreach (var empty in new[] { null, Array.Empty<Song>(), [S("x", "Epic Games", null), S("y", "Other", "")] })
         {
             var placeholders = FirstRunDemos.SongPool(empty);
-            Assert.Equal(FirstRunDemos.RowCount, placeholders.Count);
+            Assert.Equal(FirstRunDemos.MaxVisibleSongs, placeholders.Count);
             Assert.All(placeholders, p => Assert.True(p.IsPlaceholder && p.Row.Title == "" && p.Row.Detail == "" && p.Art is null));
         }
         // A short catalogue shows its real songs, padded with placeholders rather than invented rows.
         var few = FirstRunDemos.SongPool([S("b", "Other", "b.jpg")]);
-        Assert.Equal(["b", null, null], few.Select(p => p.SongId));
+        Assert.Equal(["b", null, null, null, null], few.Select(p => p.SongId));
         var many = new[] { S("c", "Epic Games", "c.jpg"), S("a", "Epic Games", "a.jpg", null), S("b", "Epic Games ft. X", "b.jpg"),
             S("d", "Epic Games", null), S("e", "Someone", "e.jpg") };
         var pool = FirstRunDemos.SongPool(many);
-        Assert.Equal(["Tc", "Ta", "Tb", "Te"], pool.Select(p => p.Row.Title));
-        Assert.All(pool, p => Assert.False(p.IsPlaceholder));
+        Assert.Equal(["Tc", "Ta", "Tb", "Te", ""], pool.Select(p => p.Row.Title));
+        Assert.All(pool.Take(4), p => Assert.False(p.IsPlaceholder));
+        Assert.True(pool[4].IsPlaceholder);
         Assert.Equal(("Epic Games", "a.jpg"), (pool[1].Row.Detail, pool[1].Art));
         Assert.Equal("Epic Games ft. X · 2024", pool[2].Row.Detail);
-        Assert.Equal(["e", "c", "a", "b"], FirstRunDemos.SongPool(many, ["e", "d", "missing", "e"]).Select(p => p.SongId));
+        Assert.Equal(["e", "c", "a", "b", null], FirstRunDemos.SongPool(many, ["e", "d", "missing", "e"]).Select(p => p.SongId));
         var lots = Enumerable.Range(0, 20).Select(i => S($"s{i:00}", "Epic Games", "x.jpg")).ToList();
         Assert.Equal(FirstRunDemos.PoolSize, FirstRunDemos.SongPool(lots).Count);
         Assert.Empty(FirstRunDemos.Pick(many, 0));
+    }
+
+    [Fact]
+    public void SongPool_ShortCatalogue_NeverRepeatsASongWithinTheVisibleRows()
+    {
+        // Issue #257: Statistics' top songs shows four rows, Rival detail four and the Suggestions card five; with a
+        // pool padded only to three rows, row four wrapped to the first song and showed it twice.
+        Assert.True(FirstRunDemos.MaxVisibleSongs >= FirstRunDemos.RowCount);
+        Assert.True(FirstRunDemos.PoolSize >= FirstRunDemos.MaxVisibleSongs);
+        for (var real = 0; real <= FirstRunDemos.MaxVisibleSongs; real++)
+        {
+            var catalog = Enumerable.Range(0, real).Select(i => new Song { SongId = $"s{i}", Title = $"T{i}", Artist = "A", AlbumArt = "x.jpg" }).ToList();
+            var pool = FirstRunDemos.SongPool(catalog);
+            Assert.True(pool.Count >= FirstRunDemos.MaxVisibleSongs);
+            for (var rows = 1; rows <= FirstRunDemos.MaxVisibleSongs; rows++)
+            {
+                var visible = Enumerable.Range(0, rows).Select(i => pool[i % pool.Count]).Where(s => !s.IsPlaceholder).Select(s => s.SongId).ToList();
+                Assert.Equal(visible.Distinct().Count(), visible.Count);
+                Assert.Equal(Math.Min(real, rows), visible.Count);
+            }
+        }
     }
 
     [Fact]

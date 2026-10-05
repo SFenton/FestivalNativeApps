@@ -212,7 +212,7 @@ public sealed partial class FirstRunDemo : UserControl
                     "near_fc_any" => instruments[i % instruments.Length],
                     _ => template.Instrument,
                 };
-                rows.Children.Add(new TextBlock { Text = $"{song.Row.Title} · {value}", FontSize = 12, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
+                rows.Children.Add(SongLine(song, $" · {value}"));
             }
         }
         Apply(0);
@@ -338,7 +338,7 @@ public sealed partial class FirstRunDemo : UserControl
             {
                 var data = category.Value[i];
                 var song = songs[(index + i) % songs.Count];
-                host.Children.Add(Text($"{song.Row.Title}: #{data.UserRank} vs #{data.RivalRank}", 12, false));
+                host.Children.Add(SongLine(song, $": #{data.UserRank} vs #{data.RivalRank}"));
             }
         }
         Apply(0);
@@ -877,6 +877,23 @@ public sealed partial class FirstRunDemo : UserControl
     /// <summary>Muted fill for placeholder art and text bars.</summary>
     /// <returns>Brush.</returns>
     private static SolidColorBrush Muted() => new(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+
+    /// <summary>
+    /// A one-line song mention inside a card (Suggestions, Rival detail): the title followed by <paramref name="suffix"/>,
+    /// or a redacted bar before it for a placeholder, so loading rows never read as an untitled song.
+    /// </summary>
+    /// <param name="song">Song or placeholder.</param>
+    /// <param name="suffix">Trailing text such as " · 98%".</param>
+    /// <returns>Line element.</returns>
+    private static FrameworkElement SongLine(FirstRunDemoSong song, string suffix)
+    {
+        if (!song.IsPlaceholder) return Text(song.Row.Title + suffix, 12, false);
+        var bar = RedactedBar(90, 9);
+        bar.Visibility = Visibility.Visible;
+        bar.VerticalAlignment = VerticalAlignment.Center;
+        bar.Margin = new Thickness(0, 3, 4, 3);
+        return new StackPanel { Orientation = Orientation.Horizontal, Children = { bar, Text(suffix, 12, false) } };
+    }
 
     /// <summary>A text row: title, detail and a trailing value.</summary>
     /// <param name="setter">Receives a row.</param>

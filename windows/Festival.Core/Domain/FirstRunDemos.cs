@@ -526,6 +526,12 @@ public static class FirstRunDemos
     /// <summary>Most songs a demo rotates through.</summary>
     public const int PoolSize = 12;
 
+    /// <summary>
+    /// Most song rows any demo shows at once (the Suggestions card lists five; Statistics' top songs and Rival detail
+    /// four). <see cref="SongPool"/> pads to this so a short catalogue shows placeholders, never a wrapped duplicate.
+    /// </summary>
+    public const int MaxVisibleSongs = 5;
+
     /// <summary>Whether a demo shows Item Shop songs, so it prefers the current Shop (web <c>useItemShopDemoSongs</c>).</summary>
     /// <param name="kind">Demo kind.</param>
     /// <returns><see langword="true"/> for the Shop pulse rows and Shop tiles.</returns>
@@ -696,17 +702,18 @@ public static class FirstRunDemos
 
     /// <summary>
     /// The songs a demo rotates through: real catalogue songs, padded with <see cref="FirstRunDemoSong.Placeholder"/>s to
-    /// <see cref="RowCount"/> (all placeholders while the catalogue loads or is unavailable). Never invents songs.
+    /// <see cref="MaxVisibleSongs"/> (all placeholders while the catalogue loads or is unavailable). Never invents songs,
+    /// and no visible row has to wrap around to repeat a song.
     /// </summary>
     /// <param name="catalog">Loaded catalogue songs, or <see langword="null"/>.</param>
     /// <param name="preferring">Song IDs to show first, or <see langword="null"/>.</param>
-    /// <returns>At least <see cref="RowCount"/> entries.</returns>
+    /// <returns>At least <see cref="MaxVisibleSongs"/> entries.</returns>
     public static IReadOnlyList<FirstRunDemoSong> SongPool(IEnumerable<Song>? catalog, IEnumerable<string>? preferring = null)
     {
         var pool = Pick(catalog, PoolSize, preferring)
             .Select(s => new FirstRunDemoSong(s.SongId, new FirstRunDemoRow(s.Title, s.Year is { } y ? $"{s.Artist} · {y}" : s.Artist), s.AlbumArt))
             .ToList();
-        while (pool.Count < RowCount) pool.Add(FirstRunDemoSong.Placeholder);
+        while (pool.Count < MaxVisibleSongs) pool.Add(FirstRunDemoSong.Placeholder);
         return pool;
     }
 
