@@ -773,7 +773,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, and one selected-row rule (jump off-page, open the profile on-page) for players and bands.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -782,7 +782,9 @@
         "columns",
         "marquee",
         "pager",
-        "pinned player"
+        "pinned player",
+        "selected row",
+        "band footer"
       ],
       "web": [
         {
@@ -819,6 +821,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
             "symbol": "RankingsPagerView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
+            "symbol": "SelectedScoreFooterRow"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
+            "symbol": "SelectedRowAction"
           }
         ],
         "android": [

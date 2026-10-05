@@ -230,8 +230,8 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
 
 private let songBandFooterID = "fst.song-band-leaderboard.spotlight-footer"
 
-/// A selected player with a Duos score here gets their band pinned above the pager,
-/// read as one element with rank, members and score (issue #306), at an iPhone width
+/// A selected player with a Duos score here gets their band pinned above the pager
+/// (issue #306), labelled with its rank and destination (issue #307), at an iPhone width
 /// and at a Mac window width where the footer adds season and stars.
 @MainActor
 @Test(arguments: [CGSize(width: 402, height: 900), CGSize(width: 1000, height: 760)])
@@ -256,7 +256,8 @@ func songBandLeaderboardScreenPinsTheSelectedPlayersBand(size: CGSize) async thr
     )
     let tree = nativeHostedAccessibility(host)
     #expect(tree.identifiers.contains(songBandFooterID))
-    #expect(tree.contains("Rank 14"))
+    // Rank 29 sits on page 2, so page 1's footer jumps to it (issue #307).
+    #expect(tree.contains("Your band's rank, 29th. Jump to your band's position."))
     #expect(tree.identifiers.contains("fst.song-band-leaderboard.page-info"))
 }
 
@@ -315,6 +316,35 @@ func songBandLeaderboardScreenPinsTheSelectedPlayersBand(size: CGSize) async thr
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-trios.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
+}
+
+/// The selected player's band is pinned above the pager like the Solo footer (issue
+/// #307): page 1 offers "Jump to your band's position"; page 2, where rank 29 is
+/// listed and highlighted, offers "Open band".
+@MainActor
+@Test func songBandLeaderboardFooterJumpsOffPageAndOpensBandOnPage() async throws {
+    nativeHostedEnableAccessibility()
+    let (session, storage, suite) = try await bandsFixtureSession(selected: "fixture-player-1")
+    defer { if let suite { storage?.removePersistentDomain(forName: suite) } }
+    let song = try await fixtureSong(session, songId: "fixture-pulse")
+    for (page, label, filename) in [
+        (1, "Your band's rank, 29th. Jump to your band's position.", "song-band-leaderboard-footer-jump.png"),
+        (2, "Your band's rank, 29th. Open band.", "song-band-leaderboard-footer-open.png"),
+    ] {
+        let host = nativeHostedView(
+            NavigationStack {
+                SongBandLeaderboardScreen(
+                    session: session, song: song, bandType: "Band_Duets", initialPage: page
+                )
+            }
+            .preferredColorScheme(.dark),
+            size: CGSize(width: 402, height: 900)
+        )
+        let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 900))
+        defer { window.orderOut(nil) }
+        let image = try await nativeHostedSettle(host, untilText: [label])
+        _ = try nativeHostedPNG(image, filename: filename, environment: "FST_BANDS_RENDER_OUT")
+    }
 }
 
 // MARK: - Song Detail band previews
@@ -400,7 +430,7 @@ private func renderSongBandPreviews(
         return
     }
     #expect(response.preview(for: .duets).entries.count == 2)
-    #expect(response.preview(for: .duets).footerEntry?.rank == 14)
+    #expect(response.preview(for: .duets).footerEntry?.rank == 29)
     #expect(response.preview(for: .trios).entries.isEmpty)
 }
 #endif
