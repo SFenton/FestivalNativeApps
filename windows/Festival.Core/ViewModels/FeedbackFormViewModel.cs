@@ -7,7 +7,7 @@ namespace Festival.Core.ViewModels;
 /// <summary>Where an open feedback form is.</summary>
 public enum FeedbackPhase
 {
-    /// <summary>Fields editable; Submit available.</summary>
+    /// <summary>Fields editable; Submit enabled once the form is valid.</summary>
     Editing,
     /// <summary>Upload in progress; fields locked.</summary>
     Submitting,
@@ -146,11 +146,19 @@ public sealed class FeedbackFormViewModel : ObservableObject
             OnPropertyChanged(nameof(SendingText));
             OnPropertyChanged(nameof(PrimaryText));
             OnPropertyChanged(nameof(CloseText));
+            OnPropertyChanged(nameof(CanSubmit));
+            OnPropertyChanged(nameof(ValidationMessage));
         }
     }
 
     /// <summary>Whether fields are editable.</summary>
     public bool IsEditing => phase == FeedbackPhase.Editing;
+
+    /// <summary>Whether Submit is enabled: editing a form with no blocking problem (spec: disabled while empty or invalid).</summary>
+    public bool CanSubmit => IsEditing && draft.Problem is null;
+
+    /// <summary>Inline reason Submit is disabled while editing, or <see langword="null"/> when the form can be sent.</summary>
+    public string? ValidationMessage => IsEditing ? draft.Problem?.Message() : null;
 
     /// <summary>Whether progress shows (uploading or waiting for the issue).</summary>
     public bool IsSubmitting => phase is FeedbackPhase.Submitting or FeedbackPhase.Filing;
@@ -223,6 +231,7 @@ public sealed class FeedbackFormViewModel : ObservableObject
         draft = draft with { Attachments = result.Attachments };
         Notice = result.Notice;
         OnPropertyChanged(nameof(HasAttachments));
+        RaiseValidity();
     }
 
     /// <summary>Removes one attachment.</summary>
@@ -237,6 +246,7 @@ public sealed class FeedbackFormViewModel : ObservableObject
         Notice = null;
         Error = null;
         OnPropertyChanged(nameof(HasAttachments));
+        RaiseValidity();
     }
 
     /// <summary>Cancel, Esc or an outside click: whether the dialog may close now; otherwise shows the confirmation.</summary>
@@ -361,6 +371,14 @@ public sealed class FeedbackFormViewModel : ObservableObject
         draft = next;
         Error = null;
         OnPropertyChanged(property);
+        RaiseValidity();
+    }
+
+    /// <summary>Raises <see cref="CanSubmit"/> and <see cref="ValidationMessage"/> after the draft changes.</summary>
+    private void RaiseValidity()
+    {
+        OnPropertyChanged(nameof(CanSubmit));
+        OnPropertyChanged(nameof(ValidationMessage));
     }
     #endregion
 }

@@ -66,8 +66,8 @@ struct RivalsChooseProfileState: View {
 // MARK: - Rival row content
 
 /// Flat row content for one rival, meant to sit inside a `FestivalGlassSection`
-/// card (per `.agents/design/apple/liquid-glass.md`: Rivals groups get one glass
-/// card per group, with flat rows inside — never per-row glass).
+/// card (per `.agents/design/apple/liquid-glass.md`: Rivals groups get one material
+/// card per group, with flat rows inside — never a card per row).
 ///
 /// Field placement mirrors the web's `RivalRow.tsx`, including its slightly
 /// surprising pairing: the "ahead" pill shows `behindCount` and the "behind"
@@ -115,7 +115,7 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .foregroundStyle(tint)
+            .foregroundStyle(RivalStatusText.readable(tint))
             .background(tint.opacity(0.16), in: Capsule())
             .overlay(Capsule().stroke(tint.opacity(0.4), lineWidth: 1))
     }
@@ -168,6 +168,13 @@ struct RivalSongRowContent: View {
     let rivalName: String
 
     private var instrument: Instrument? { Instrument(rawValue: song.instrument) }
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// Rank comparison layout: a row, or a column at accessibility sizes.
+    private var comparisonLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 4))
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -185,7 +192,9 @@ struct RivalSongRowContent: View {
                         .foregroundStyle(FestivalText.primary)
                         .lineLimit(1)
                 }
-                HStack(spacing: 4) {
+                // One line normally; at accessibility sizes each part gets its own
+                // wrapping line (the AX5 audit read "#12 Fixt… vs #13 u…").
+                comparisonLayout {
                     Text("#\(song.userRank) \(playerName)")
                     Text("vs")
                         .foregroundStyle(FestivalText.primary)
@@ -193,7 +202,7 @@ struct RivalSongRowContent: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(FestivalText.primary)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
             Spacer(minLength: 8)
             deltaBadge
@@ -217,7 +226,26 @@ struct RivalSongRowContent: View {
             Text("\(magnitude)")
                 .font(.caption2.weight(.semibold))
         }
-        .foregroundStyle(color)
+        .foregroundStyle(RivalStatusText.readable(color))
         .frame(minWidth: 28)
+    }
+}
+
+/// Text colours for the rivals status tints.
+///
+/// `BrandTokens.statusRed` (198, 40, 40) as caption text on the dark cards measured
+/// 2.6–3.0:1 rendered on iPad (the audit's "behind" pills and rank-drop deltas), below
+/// WCAG AA 4.5:1 for small text (HIG Accessibility). The red pill keeps its tinted fill
+/// and stroke; only its text uses a lighter red (≈ 6.5:1). Green already passes.
+enum RivalStatusText {
+    /// Lighter red for text on dark surfaces.
+    static let red = Color(.sRGB, red: 1.0, green: 0.45, blue: 0.45, opacity: 1)
+
+    /// The readable text colour for a status tint.
+    ///
+    /// - Parameter tint: A status tint (or any other colour, returned unchanged).
+    /// - Returns: ``red`` for `BrandTokens.statusRed`, else `tint`.
+    static func readable(_ tint: Color) -> Color {
+        tint == BrandTokens.statusRed ? red : tint
     }
 }

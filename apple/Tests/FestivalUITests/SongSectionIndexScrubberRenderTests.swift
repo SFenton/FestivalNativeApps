@@ -7,7 +7,7 @@ import Testing
 @testable import FestivalUI
 import FestivalDesign
 
-/// Force `festivalGlassCapsule` onto its deterministic, opaque fallback.
+/// Force `festivalCardCapsule` onto its deterministic, opaque fallback.
 ///
 /// Real Liquid Glass does not reliably reproduce through `NSHostingView.cacheDisplay`
 /// (see `SelectedSongRowRenderTests.deterministicGlassDefaults`); each `#Test` below uses

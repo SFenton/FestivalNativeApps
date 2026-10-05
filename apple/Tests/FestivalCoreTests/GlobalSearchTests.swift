@@ -71,28 +71,70 @@ func globalSearchEffectiveQuery(_ raw: String, _ expected: String?) {
 
 // MARK: - Empty state (issue #99)
 
-/// Each searched scope gets a title, the contract subtitle, and Retry
-/// wherever players were searched; Bands and short queries have none.
+/// Each searched scope gets a title and the contract subtitle, without Retry (issue
+/// #299); Bands and short queries have none.
 @Test func emptyStateCopyPerScope() throws {
     let players = try #require(GlobalSearch.emptyState(scope: .players, query: "  The "))
     #expect(players.title == "No Players Found")
     #expect(players.subtitle == "Check the spelling or try a different player name.")
-    #expect(players.offersRetry)
     #expect(players.accessibilityLabel
-            == "No Players Found. Check the spelling or try a different player name. Retry")
+            == "No Players Found. Check the spelling or try a different player name.")
 
     let songs = try #require(GlobalSearch.emptyState(scope: .songs, query: "zz"))
     #expect(songs.title == "No Songs Found")
     #expect(songs.subtitle == "Check the spelling or try a different song or artist.")
-    #expect(!songs.offersRetry)
     #expect(songs.accessibilityLabel == "No Songs Found. \(songs.subtitle)")
 
     let all = try #require(GlobalSearch.emptyState(scope: .all, query: "zz"))
     #expect(all.title == "No Results Found")
     #expect(all.subtitle == "Check the spelling or try a different song, artist or player.")
-    #expect(all.offersRetry)
-    #expect(all.accessibilityLabel.hasSuffix(" Retry"))
+    #expect(!all.accessibilityLabel.contains("Retry"))
 
     #expect(GlobalSearch.emptyState(scope: .bands, query: "zz") == nil)
     #expect(GlobalSearch.emptyState(scope: .players, query: " a ") == nil)
+}
+
+// MARK: - Issue #299
+
+/// The short-query hint names what each scope searches.
+@Test func enterQueryHintNamesTheScope() {
+    #expect(GlobalSearch.enterQueryHint(for: .all)
+            == "Enter at least two characters to search for songs, players, or bands.")
+    #expect(GlobalSearch.enterQueryHint(for: .songs) == "Enter at least two characters to search for songs.")
+    #expect(GlobalSearch.enterQueryHint(for: .players) == "Enter at least two characters to search for players.")
+    #expect(GlobalSearch.enterQueryHint(for: .bands) == "Enter at least two characters to search for bands.")
+    #expect(Set(GlobalSearchScope.allCases.map(GlobalSearch.enterQueryHint(for:))).count == 4)
+}
+
+/// A failed section without a heading names what failed.
+@Test func unavailableTitleNamesTheSection() {
+    #expect(GlobalSearch.unavailableTitle(for: .songs) == "Songs unavailable")
+    #expect(GlobalSearch.unavailableTitle(for: .players) == "Players unavailable")
+}
+
+/// One spinner: All waits for both sections, Songs never waits for Players, Players
+/// waits only for players, Bands never spins.
+@Test func isSearchingWaitsForEveryShownSection() {
+    typealias Outcome = GlobalSearch.SectionOutcome
+    #expect(GlobalSearch.isSearching(scope: .all, songs: .found(3), players: .pending))
+    #expect(GlobalSearch.isSearching(scope: .all, songs: .pending, players: .found(0)))
+    #expect(!GlobalSearch.isSearching(scope: .all, songs: .found(3), players: .failed))
+    #expect(!GlobalSearch.isSearching(scope: .songs, songs: .found(3), players: .pending))
+    #expect(GlobalSearch.isSearching(scope: .songs, songs: .pending, players: .found(1)))
+    #expect(GlobalSearch.isSearching(scope: .players, songs: .found(3), players: .pending))
+    #expect(!GlobalSearch.isSearching(scope: .players, songs: .pending, players: .found(0)))
+    #expect(!GlobalSearch.isSearching(scope: .bands, songs: Outcome.pending, players: .pending))
+}
+
+/// Keyboard Search re-runs only a shown failed section or an empty player search.
+@Test func submitRerunsFailedOrEmptySearches() {
+    #expect(GlobalSearch.submitReruns(scope: .players, songs: .found(2), players: .found(0)))
+    #expect(GlobalSearch.submitReruns(scope: .players, songs: .found(2), players: .failed))
+    #expect(!GlobalSearch.submitReruns(scope: .players, songs: .failed, players: .found(2)))
+    #expect(!GlobalSearch.submitReruns(scope: .players, songs: .found(0), players: .pending))
+    #expect(GlobalSearch.submitReruns(scope: .songs, songs: .failed, players: .found(2)))
+    #expect(!GlobalSearch.submitReruns(scope: .songs, songs: .found(0), players: .found(0)))
+    #expect(GlobalSearch.submitReruns(scope: .all, songs: .found(2), players: .found(0)))
+    #expect(!GlobalSearch.submitReruns(scope: .all, songs: .found(2), players: .found(1)))
+    #expect(!GlobalSearch.submitReruns(scope: .bands, songs: .failed, players: .failed))
 }

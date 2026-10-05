@@ -33,16 +33,16 @@ enum MacCopyPolicy {
         return text
     }
 
-    /// The route whose name Copy uses: the list/detail selection while two columns
-    /// show, else the page on top of the destination's path.
+    /// The route whose name Copy uses: the open item while the trailing pane shows it,
+    /// else the page on top of the destination's path.
     ///
     /// - Parameters:
     ///   - path: The selected destination's path.
-    ///   - section: Its shared section (list/detail rules), nil for Item Shop.
-    ///   - split: Whether it shows two columns.
+    ///   - section: Its shared section (split rules), nil for Item Shop.
+    ///   - split: Whether the trailing pane is open.
     /// - Returns: The route, or nil at a destination root.
     static func selectedRoute(path: [AppRoute], section: FestivalSection?, split: Bool) -> AppRoute? {
-        if split, let section, let selection = ListDetailPolicy.split(section: section, path: path)?.selection {
+        if split, let section, let selection = OnDemandSplitPolicy.cut(section: section, path: path)?.selection {
             return selection
         }
         return path.last

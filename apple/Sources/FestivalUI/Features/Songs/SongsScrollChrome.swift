@@ -33,12 +33,18 @@ final class SongsScrollChrome {
 
     /// Record whether the List has left its top.
     ///
+    /// Back at the top, every passed title is forgotten (issue #297): a long animated
+    /// scroll there (a status-bar tap) moves past titles that are never built on the way,
+    /// so they never report leaving the bar and the bar named a later section on the next
+    /// scroll. The titles still built re-assert their own answer when this flips.
+    ///
     /// - Parameter scrolled: The scroll-away decision (``ScrollAwayGate``).
     /// - Returns: True when the value changed.
     @discardableResult
     func setScrolled(_ scrolled: Bool) -> Bool {
         guard scrolled != listScrolled else { return false }
         listScrolled = scrolled
+        if !scrolled { resetHeaders() }
         return true
     }
 
@@ -69,38 +75,33 @@ final class SongsScrollChrome {
 
     // MARK: Landing line
 
-    /// Vertical padding above and below the floating section bar's title.
-    nonisolated static let barTitlePadding: CGFloat = 6
-    /// Padding above an in-list section title.
+    /// Padding above an in-list section title, and above the section bar's title.
     nonisolated static let inlineTitleTopPadding: CGFloat = 8
-    /// Padding below an in-list section title.
+    /// Padding below an in-list section title, and below the section bar's title.
     nonisolated static let inlineTitleBottomPadding: CGFloat = 2
+    /// Padding above the floating section bar's title: the in-list title's, so a pinned
+    /// title covers exactly its own row (issue #298).
+    nonisolated static let barTitleTopPadding: CGFloat = inlineTitleTopPadding
+    /// Padding below the floating section bar's title (see ``barTitleTopPadding``).
+    nonisolated static let barTitleBottomPadding: CGFloat = inlineTitleBottomPadding
 
     /// How far below the List's top inset a section's in-list title rests after a jump,
-    /// and where it hands its name to the section bar (issue #286).
+    /// and where it hands its name to the section bar: none, the title's pinned place
+    /// (issue #298).
     ///
-    /// Rows fade in over `fade` points below the bar (``SectionBarEdgeFade``). A title
-    /// landed flush with the bar left its first row inside that fade, so the section
-    /// looked half-faded, and scrolling it clear moved the title back below the bar,
-    /// which then named the previous section. Landing the title so that its bottom (the
-    /// first row's top) meets the end of the fade shows the first row fully opaque, and
-    /// using the same line for "passed" keeps the bar on the destination. The two titles
-    /// share a font, so only their paddings differ.
-    ///
-    /// - Parameter fade: The current row fade height (0 with Reduce Transparency or
-    ///   Increase Contrast).
-    /// - Returns: The landing line's distance below the top inset, in points.
-    nonisolated static func landingOffset(fade: CGFloat) -> CGFloat {
-        let bar = 2 * barTitlePadding
-        let inline = inlineTitleTopPadding + inlineTitleBottomPadding
-        return max(0, bar - inline + max(0, fade))
-    }
+    /// Issue #286 landed titles 30 pt lower, below the row fade under the bar, so the
+    /// first row showed fully opaque. That left a gap between the search field and the
+    /// title, and the title slid up into place on the next scroll. Now the title lands
+    /// where it pins and the fade shrinks out of the first row's way instead
+    /// (``fadeLimit(titleTop:barHeight:)``). The bar's title shares the in-list title's
+    /// font and paddings, so a landed title and the bar coincide.
+    nonisolated static let landingOffset: CGFloat = 0
 
     /// Whether a section title has scrolled up to the section bar's landing line
-    /// (issues #9, #286).
+    /// (issues #9, #286, #298).
     ///
     /// The bar sits at the List's top content inset, below the navigation bar, and a jump
-    /// lands a title `landingOffset` below it (``landingOffset(fade:)``). Titles are
+    /// lands a title ``landingOffset`` below it. Titles are
     /// measured in the scroll view's space, whose origin is the top of the screen under
     /// the bars, so comparing with 0 named a section only after its title had slid a
     /// further inset (116pt) behind the bars: the bar trailed by one section after every
@@ -112,26 +113,14 @@ final class SongsScrollChrome {
     ///   - landingOffset: The landing line below the inset (0: flush with the bar).
     /// - Returns: True once the title's top has reached the landing line.
     nonisolated static func headerPassed(
-        minY: CGFloat, topInset: CGFloat, landingOffset: CGFloat = 0
+        minY: CGFloat, topInset: CGFloat, landingOffset: CGFloat = SongsScrollChrome.landingOffset
     ) -> Bool {
         minY <= topInset + landingOffset + headerTolerance
     }
 
-    /// The landing line below the List's top inset (``landingOffset(fade:)``). Read by
-    /// the titles' geometry checks and the rail's jumps, so never observed.
-    let landingLine = TopInset()
-
-    /// Record the landing line for the current accessibility settings.
-    ///
-    /// - Parameter offset: ``landingOffset(fade:)``.
-    func setLandingLine(_ offset: CGFloat) {
-        guard offset.isFinite else { return }
-        landingLine.value = max(0, offset)
-    }
-
-    /// Moves the List onto the landing line after a `.top` jump: a `List` centres any
-    /// other scroll anchor (``ListScrollNudger``). The in-list titles locate its scroll
-    /// view.
+    /// Moves the List onto the landing line after a `.top` jump when the List placed a
+    /// far target from estimated row heights (``ListScrollNudger``). The in-list titles
+    /// locate its scroll view.
     @ObservationIgnored let listNudger = ListScrollNudger()
 
     /// The title a jump is settling, and its latest measured top (`.scrollView` space)
@@ -174,27 +163,28 @@ final class SongsScrollChrome {
     }
 
     /// After a `.top` jump, move the List until the target title rests on the landing
-    /// line (issue #286), unless a newer jump replaces this one.
+    /// line (issues #286, #298), unless a newer jump replaces this one.
     ///
-    /// A title reports its top only when it moves, so each round reads the newest report
-    /// and corrects by what remains; it stops once landed, when the List cannot move
-    /// further (content end) or after ``landingRounds`` rounds.
+    /// A `.top` jump already lands flush, so this only corrects a far target the List
+    /// placed from estimated row heights. A title reports its top only when it moves, so
+    /// each round reads the newest report and corrects by what remains; it stops once
+    /// landed, when the List cannot move further (content end) or after
+    /// ``landingRounds`` rounds.
     ///
     /// - Parameters:
     ///   - key: The target title's key, already passed to ``watchLanding(_:)``.
     ///   - generation: ``jumpGeneration`` when the jump started.
-    /// - Returns: The rounds waited before the settle ended (0 with no landing line).
+    /// - Returns: The rounds waited before the settle ended.
     @discardableResult
     func settleLanding(on key: String, generation: Int) async -> Int {
         defer { if jumpGeneration == generation { probeKey = nil } }
-        guard landingLine.value > 0 else { return 0 }
         for round in 1...Self.landingRounds {
             try? await Task.sleep(for: .milliseconds(32))
             guard jumpGeneration == generation, probeKey == key else { return round }
             guard let minY = probeMinY else { continue }
             probeMinY = nil
             guard let distance = Self.landingCorrection(
-                minY: minY, topInset: listTopInset.value, landingOffset: landingLine.value
+                minY: minY, topInset: listTopInset.value, landingOffset: Self.landingOffset
             ) else { return round }
             guard listNudger.moveContent(by: distance) else { return round }
         }
@@ -309,20 +299,21 @@ final class SongsScrollChrome {
     }
 
     /// How far the bar's title text sits above an in-list title's text when both frames
-    /// share a top: the two differ only in their top padding.
-    nonisolated static let titleAlignment: CGFloat = inlineTitleTopPadding - barTitlePadding
+    /// share a top: none, since they share paddings (issue #298).
+    nonisolated static let titleAlignment: CGFloat = inlineTitleTopPadding - barTitleTopPadding
 
     /// A title's top within the push band, where the section bar draws it itself.
     ///
     /// Below the band the title is an ordinary row. From the band's bottom
     /// (`landingOffset + barHeight` below the bar's top) it is drawn by the bar at the same
-    /// place and hidden in the List, so the row fade under the bar never dims it. That
-    /// line is below the end of the fade, so the hand-off shows no change. Titles far
+    /// place and hidden in the List, so the row fade under the bar never dims it. Above
+    /// the band the fade ends at the title's top (``fadeLimit(titleTop:barHeight:)``), so
+    /// the hand-off shows no change. Titles far
     /// above the bar are clamped, so they stop reporting once pinned.
     ///
     /// - Parameters:
     ///   - titleTop: The title's top minus the bar's top (global points).
-    ///   - landingOffset: ``landingOffset(fade:)``.
+    ///   - landingOffset: ``landingOffset``.
     ///   - barHeight: The bar's current title height (0 while unknown).
     /// - Returns: The clamped top, or nil below the band.
     nonisolated static func pushBandTop(
@@ -356,7 +347,7 @@ final class SongsScrollChrome {
     ///   - currentPassed: The current title has passed the landing line (a jump, or a
     ///     title that scrolled far above the bar).
     ///   - nextTop: The next section title's band top, nil outside the band.
-    ///   - landingOffset: ``landingOffset(fade:)``.
+    ///   - landingOffset: ``landingOffset``.
     ///   - barHeight: The bar's current title height.
     /// - Returns: Title positions in bar space.
     nonisolated static func sectionBarLayout(
@@ -370,6 +361,103 @@ final class SongsScrollChrome {
             current = pushed <= -barHeight ? nil : pushed
         }
         return SectionBarLayout(currentY: current, nextY: nextTop + titleAlignment)
+    }
+
+    // MARK: Row fade near section starts (issue #298)
+
+    /// How deep the row fade under the bar may reach (``SectionBarEdgeFade``), or nil for
+    /// its full height. Read only by the row mask.
+    private(set) var rowFadeLimit: CGFloat?
+    /// Each nearby in-list title's limit (``fadeLimit(titleTop:barHeight:)``).
+    @ObservationIgnored private var fadeLimits: [String: CGFloat] = [:]
+
+    /// The deepest the row fade may reach for one section title, so it never dims that
+    /// title while it is an ordinary row, nor its section's first row while the title is
+    /// at or below its pinned place (issue #298).
+    ///
+    /// A jump lands a title where it pins, with its first row right at the bar's bottom
+    /// edge, where the fade starts. A fixed-height fade dimmed that row, which is why
+    /// issue #286 landed titles lower, leaving a gap. Instead the fade follows the scroll,
+    /// like the system's scroll-edge effect, which appears only once content is under the
+    /// bar: none when the first row meets the bar, as deep as the rows have scrolled under
+    /// it, and shrinking ahead of an incoming title. Only the transparent title row lies
+    /// in the fade where the limit changes abruptly, at the band's bottom, so rows never
+    /// visibly jump.
+    ///
+    /// - Parameters:
+    ///   - titleTop: The title's top minus the bar's top (global points).
+    ///   - barHeight: The bar's current title height, which equals an in-list title's
+    ///     (0 while unknown).
+    /// - Returns: The limit in points, rounded down to half a point, or nil when it is
+    ///   at least the full fade height (``SectionBarEdgeFade/height``) or unknown.
+    nonisolated static func fadeLimit(titleTop: CGFloat, barHeight: CGFloat) -> CGFloat? {
+        guard titleTop.isFinite, barHeight.isFinite, barHeight > 0 else { return nil }
+        let pinned = landingOffset
+        let limit: CGFloat
+        if titleTop < pinned {
+            // Pinned: its first rows have scrolled this far under the bar.
+            limit = pinned - titleTop
+        } else if titleTop <= pinned + barHeight {
+            // Drawn by the bar: the fade ends at its first row's top.
+            limit = titleTop - pinned
+        } else {
+            // An ordinary row: the fade ends at its top.
+            limit = titleTop - pinned - barHeight
+        }
+        guard limit < SectionBarEdgeFade.height else { return nil }
+        return (max(0, limit) * 2).rounded(.down) / 2
+    }
+
+    /// Record one in-list title's fade limit, or that it no longer limits the fade.
+    ///
+    /// - Parameters:
+    ///   - key: The title's key.
+    ///   - limit: ``fadeLimit(titleTop:barHeight:)``, nil when unconstrained or gone.
+    /// - Returns: True when ``rowFadeLimit`` changed.
+    @discardableResult
+    func setFadeLimit(_ key: String, limit: CGFloat?) -> Bool {
+        if let limit, limit.isFinite {
+            fadeLimits[key] = limit
+        } else {
+            fadeLimits[key] = nil
+        }
+        let lowest = fadeLimits.values.min()
+        guard lowest != rowFadeLimit else { return false }
+        rowFadeLimit = lowest
+        return true
+    }
+
+    /// The row fade height under the bar: the fade for the current accessibility
+    /// settings, cut to ``rowFadeLimit``.
+    ///
+    /// - Parameter fade: ``SectionBarEdgeFade/height(reduceTransparency:increaseContrast:)``.
+    /// - Returns: The fade height to draw, in points.
+    func rowFadeHeight(fade: CGFloat) -> CGFloat {
+        max(0, min(fade, rowFadeLimit ?? fade))
+    }
+
+    // MARK: Previous title (issue #297)
+
+    /// Where the bar draws the title before the current one while the current title is
+    /// still pushing it out (issue #297), relative to the bar's top.
+    ///
+    /// Only the current title's own row can push the previous title, so without its band
+    /// top there is nothing left to draw: its row has scrolled far above the bar (and left
+    /// the List) or a jump put it there. Drawing the previous title pinned in that case put
+    /// it on top of the current one for the rest of the section ("F" over "G").
+    ///
+    /// - Parameters:
+    ///   - currentTop: The current section title's band top
+    ///     (``pushBandTop(titleTop:landingOffset:barHeight:)``), nil outside the band.
+    ///   - landingOffset: ``landingOffset``.
+    ///   - barHeight: The bar's current title height.
+    /// - Returns: The previous title's position in bar space, or nil once it is fully out.
+    nonisolated static func previousTitleY(
+        currentTop: CGFloat?, landingOffset: CGFloat, barHeight: CGFloat
+    ) -> CGFloat? {
+        guard let currentTop, currentTop.isFinite else { return nil }
+        let pushed = min(0, currentTop - landingOffset - barHeight)
+        return pushed <= -barHeight ? nil : pushed
     }
 }
 

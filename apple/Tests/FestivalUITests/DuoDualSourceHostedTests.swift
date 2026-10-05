@@ -60,7 +60,7 @@ private struct FixtureDualPage: View {
         } secondary: {
             DualSourcePane("Fixture Source", systemImage: "sparkles", identifier: "fixture") {
                 HorizontalCarousel("Fixture Carousel", items: [FixtureCard(id: "a"), FixtureCard(id: "b"), FixtureCard(id: "c")]) { card in
-                    Text("Fixture Card \(card.id)").padding(24).festivalGlass(.card)
+                    Text("Fixture Card \(card.id)").padding(24).festivalCard()
                 }
             }
         }

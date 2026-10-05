@@ -39,12 +39,6 @@ public sealed partial class LeaderboardsPage : Page
     /// <returns>Visibility.</returns>
     public static Visibility Collapsed(bool ready) => ready ? Visibility.Collapsed : Visibility.Visible;
 
-    /// <summary>Visible only while <paramref name="text"/> has content, so an idle countdown leaves no blank line
-    /// (or empty UIA text element) in a failed card.</summary>
-    /// <param name="text">Countdown text.</param>
-    /// <returns>Visibility.</returns>
-    public static Visibility VisibleWhenText(string? text) => string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
-
     /// <summary>Page model.</summary>
     public LeaderboardsViewModel ViewModel { get; }
 

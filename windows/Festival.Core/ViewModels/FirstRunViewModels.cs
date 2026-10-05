@@ -161,6 +161,19 @@ public sealed partial class FirstRunCarouselViewModel : ObservableObject
     /// </summary>
     public string CloseLabel => IsSingle ? "" : ModalCommands.Close;
 
+    /// <summary>
+    /// UI Automation ID of the dialog's Close button, shared with Apple and Android (issue #244), or
+    /// <see langword="null"/> for a one-slide guide, which has no Close.
+    /// </summary>
+    public string? CloseAutomationId => IsSingle ? null : "fst.first-run.close";
+
+    /// <summary>
+    /// Dialog Secondary (Back) button text: present on every slide of a multi-slide guide and only disabled on the first
+    /// (<see cref="PreviousCommand"/>), so ContentDialog never re-lays out its command columns under the pointer
+    /// (issue #241); a one-slide guide has no Back.
+    /// </summary>
+    public string BackLabel => IsSingle ? "" : "Back";
+
     /// <summary>Selects a slide, clamped to range.</summary>
     /// <param name="value">Requested index.</param>
     public void GoTo(int value) => Index = Math.Clamp(value, 0, Slides.Count - 1);

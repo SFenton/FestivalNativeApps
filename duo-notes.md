@@ -1,42 +1,41 @@
 # iPhone Duo redesign notes
-Journey: (1) Songs → Song Detail → Song Leaderboard + shell; (2) Leaderboards → Full Rankings → Player; (3) Statistics → Rivals → Rival Detail/Rivalry; (4) Item Shop, Suggestions, Compete, Settings, sheets/modals.
-Stack: SwiftUI (TabView + NavigationStack/NavigationSplitView, system toolbars); package iOS 17; Xcode 27.1 / iOS 27.1 SDK (App Store archive: 27.0 SDK, Duo APIs compiled out). Evidence: folded portrait live in the iOS 27.1 sim (SFentonX); Device Hub poses still blocked (no Accessibility grant, re-checked 2026-10-02), so inner/book/landscape poses are hosted renders and unit tests only.
-Stage: 5 (journeys 1–4; Stage 5 checks without poses done 2026-10-02)  Next: (a) real inner-display captures (flat, book, portrait half-open, fold/unfold continuity incl. D6 scroll restore), Split View on each side, a pinned PiP from another app, outer landscape/upside-down (O1 built) — all need the operator's Accessibility grant for Device Hub scripting; (b) verify O1 outer landscape/upside down (needs the same grant); (c) operator runs Xcode's App Resizability skill once (how: Stage 5 checks); (d) physical-device check (no camera features, so camera checks are N/A).
+Journey: (1) Songs → Song Detail → Song Leaderboard + shell; (2) Leaderboards → Full Rankings → Player; (3) Statistics → Rivals → Rival Detail/Rivalry; (4) Item Shop, Suggestions, Compete, Settings, sheets/modals; (5) sweep: Bands, Notifications, What's New, first run, Settings sub-pages, Paths.
+Stack: SwiftUI (TabView + NavigationStack/NavigationSplitView, system toolbars); package iOS 17; Xcode 27.1 / iOS 27.1 SDK (App Store archive: 27.0 SDK, Duo APIs compiled out). Evidence: live iOS 27.1 sim, SFentonX, every pose scripted through Device Hub (`ios_sim.py pose`, drive `host:` steps); shots `~/FestivalShowcase/native-duo/{poses,final}/`.
+Stage: 5 (journeys 1–5)  Next: operator/device only — the split redesign lane owns all list/detail layout; App Resizability skill in Xcode chat; hardware keyboard on a physical iPhone Duo; review the delegated decisions.
 
-## Decisions (all operator, 2026-10-02 unless noted)
-- Journey 1: D1 inner portrait = two populated columns, flat or half-open; D2 size classes (regular × regular) gate list/detail; D3 Search `.high` with Bell/Profile; D4 Song Detail Item Shop/Paths before Quick Links; D5 paged boards keep the tab bar, Next `.high`; D6 keep stack↔split swap, restore list scroll; D7 default bar for single-Close sheets; D8 no table pose; D9 system bar side. Standing (2026-09-28): dual-source shelved; modal Close in the sheet toolbar; rail keeps Bell + Profile.
-- Journey 2: J1 instrument/band size and Rank By are separate titled rail items; J2 narrow rows drop songs played/total; J3 Duo split columns get their own width class.
-- Observed exceptions: J1 target — system-defined control (rail 38×38, overflow row 42 pt); full-width `List` row frames under the rail are normal list behaviour (no `ScrollView` migration).
-- Journey 4: S1 Item Shop even grid columns on the inner display (4 landscape, 2 portrait); G1 Suggestions two-column card grid at regular width; M1 What's New drops its Dismiss bar beside the vertical bar, keeps Close (iPhone unchanged).
-- Journey 3: R1 Find Rival `.high` on the Rivals hub, global Search in `…`; R2 Rivals Rank By stays in content with a 44 pt target; R3 Statistics keeps 2 columns in inner portrait until an inner capture exists; R4 Find Rival keeps its inline field.
+## Decisions (operator, 2026-10-02 unless noted)
+- **Superseded by the operator's split redesign (2026-10-04):** D1 (inner-portrait two columns), J3 (split-column width class), P4 (narrow detail-column rows) and Split View; all list/detail and split layout moved to the redesign lane.
+- Journey 1: ~~D1 inner portrait = two populated columns~~ (superseded); D2 size classes (regular × regular) gate list/detail; D3 Search `.high` with Bell/Profile; D4 Song Detail Item Shop/Paths before Quick Links; D5 paged boards keep the tab bar, Next `.high`; D6 keep stack↔split swap, restore list scroll; D7 default bar for single-Close sheets; D8 no table pose; D9 system bar side. Standing (2026-09-28): dual-source shelved; modal Close in the sheet toolbar; rail keeps Bell + Profile.
+- Journey 2: J1 instrument/band size and Rank By are separate titled rail items; J2 narrow rows drop songs played/total; ~~J3 Duo split columns get their own width class~~ (superseded). Journey 3: R1 Find Rival `.high`; R2 Rivals Rank By in content, 44 pt; R4 inline Find Rival field. Journey 4: S1 even Shop columns inside (4 landscape, 2 portrait); G1 Suggestions two columns at regular width; M1 What's New drops Dismiss beside the vertical bar. O1 (b): hinged devices allow every orientation.
+- Observed exceptions: J1 target (system rail 38×38, overflow row 42 pt); full-width `List` row frames under the rail.
 
-## Done / verified
-- Journey 1: D1–D6 built; folded verified live; inner portrait via hosted renders; fold/unfold not run.
-- Journey 2: J1 — sim folded: no top bar; rail Back, `…`, Next; `…` has "Lead" with its artwork and "Total Score". J2 (section-wide #38 fit, `rowInset: 32`) — sim folded: names full, songs kept in VoiceOver. J3 — unit `duoSplitDetailColumnIsCompact` (349/561/book 394 pt), hosted `duoSplitColumnsSeeCompactWidth` (`hig2/duo-j3-split-*.png`). Row frames: measured {0, 466}; a padding fix failed (UIKit sizes the collection view); reverted, now an observed exception.
-- Journey 3: R1 — sim folded: rail Back, Find Rival, `…` (`hig2/j3-rivals-r1-folded`). R2 — sim folded: Rank By 98×44 pt. R4 — Find Rival sheet with keyboard keeps title and its rail Close. R3 no change. Inner Rivals split: hosted renders only (`list-detail-rivals-*`).
-- Not run: inner-display captures, Split View, outer rotations, physical device (see Stage 5 checks).
+## Delegated decisions for later review (orchestrator default, operator delegated 2026-10-04)
+- **P1** keep 2 Statistics columns in inner portrait (closes R3): ~300 pt tiles keep Rank History legible.
+- **P2** accept Shop cards scrolling under the fold in book pose (centre gutter ~42 pt left of the fold): scrolling content need not avoid the fold [T463/T466]; not realigned to the division region.
+- **P3** fix Songs in outer landscape by insetting the list in compact height: built as a measured top padding (`SongsDrawerOverlap`), not a search-placement change.
+- ~~P4~~ superseded by the split redesign (2026-10-04); stopped unbuilt (note: the shared row is already one line since #292).
+- **S5** Songs list-column title truncates to "S…" in inner portrait: handed to the split redesign lane (list-column chrome).
+- **S6** Bands capped at the readable width (680 pt) at regular width, like Settings and Licenses.
+- **S7** What's New opens as a centered sheet on the inner display (cover stays on iPhone, folded Duo, iPad) [T462/T466: inner sheets centered; don't stretch the iPhone page].
+- **S8** rail overflow of Bell/Profile on inner-landscape pushed pages (Bands: Back + `…`) accepted as system compression with six tabs.
+- **K1** hardware keyboard left pending (see checks); Split View superseded.
+- **S9** first-run slides scroll with a 120 pt demo in compact height (outer landscape hid the title and text under Next). Verified: no overlap, but the ~128 pt page shows the demo first and the text after a scroll; option kept: text above the demo in compact height.
+- **S10** Paths instrument name wraps only between words (folded "Lea/d").
 
-## Journey 4 (folded captured `hig2/j4-*`; inner via unit tests/hosted renders)
-- Compete, Suggestions, Settings, Item Shop rails and the `FestivalModal` sheets: Ready (Filter overflows behind Search per D3) [HIG, T462].
-- S1 built (`ShopGridPolicy`) — unit `shopGridUsesEvenColumnsOnTheDuoInnerDisplay` (835 pt → 4, book 4, 637 pt → 2; iPad/folded adaptive); sim folded unchanged (list layout, `hig2/j4-s1-shop-folded.png`).
-- G1 built (`SuggestionsLayout`) — unit `suggestionsUseTwoColumnsAtRegularWidth`; sim folded unchanged (one column, `hig2/j4-g1-suggestions-folded.png`).
-- M1 built — hosted `whatsNewSheetDropsDismissBesideTheVerticalBar` at 466×678 (`hig2/duo-m1-whats-new-folded.png`); sim folded (`FST_DEBUG_WHATS_NEW=force`): only the rail Close, no Dismiss bar (`hig2/j4-m1-whats-new-folded.png`); iPhone render test still sees Dismiss.
+## Done / verified (live unless noted)
+- J1–J4 built and pose-checked (2026-10-02/04); inner portrait two columns and fold crash fixed (2026-10-04).
+- P3 fixed (first row y 136 in both landscapes, scrolled and back; portrait unchanged). Paths instrument selector no longer splits "Lead" mid-word folded. Inner portrait page tools restored (the #92/#300 tab-bar accessory hid Item Shop/Paths/Sort/Filter there; now compact width only). Bands readable width (S6), What's New sheet inside (S7), first-run compact height (S9): see checks.
 
-## Stage 5 checks (Lane DUO3, 2026-10-02; folded outer display, live SFentonX, `~/FestivalShowcase/native-duo/checks/`)
-Device Hub poses: `ios_sim.py pose --set unfolded` still refused (no Accessibility grant), so every inner-display check is pending.
-
+## Stage 5 pose checks (`~/FestivalShowcase/native-duo/{poses,final}/`)
 | Check | Result | Evidence |
 |---|---|---|
-| Reduce Transparency | **observed** pass: the system gives the rail an opaque background; app glass, rows and sheets turn opaque (Songs, profile sheet, Full Rankings, Song Detail) | `reduce-*.png` (`shot --a11y reduce-transparency`) |
-| Increase Contrast | **observed** pass: opaque rail, bordered rows, legible sheet and headers | `increase-*.png` (`--a11y increase-contrast`) |
-| Right-to-left | **observed**, fixed: the rail stays on the hardware side (D9); content mirrors; numbers keep Western digits and their digit order. Fixed: row disclosure chevrons, pagers (rankings, Score History, instrument selector) and the rail Next pointed right in RTL → `chevron.forward/backward`; the difficulty meter filled left to right → flips. Swift Charts mirrors the Score History chart by itself (axis labels swap sides) | `rtl-*.png` (before) / `rtl-*-fixed.png`; tests `rankingsPagerSymbolsFollowReadingDirection`, `renderedDifficultyBarsFollowReadingDirection` |
-| Keyboard overflow (software) | **observed** pass: Songs filter (field moves to the top with Cancel), global Search and Find Rival sheets keep their field, hint and rail Close above the keyboard; the keyboard covers only the rail's lower tab items (system) | `kb-*.png` |
-| Keyboard overflow (hardware) | **not run**: Simulator's Connect Hardware Keyboard is a menu toggle (UI scripting). A hardware keyboard shows no software keyboard, so it covers less than the software case | — |
-| Larger Dynamic Type (AX5) | **observed**, fixed: rail and `…` items are system-sized (overflow menu text scales); the stacked rankings row overflowed its 350 pt column under the rail and off the leading edge, and the inline "Scores are updating" status hyphenated mid-word beside Retry — both fixed (row stacks songs/value, value scales; Retry moves below). Settings toggles wrap like system Settings | `ax5-*.png`, `ax5-*-fixed.png`; tests `rankingsRowsFitANarrowColumnAtAccessibilitySizes`, `inlineServiceStatusStacksRetryAtAccessibilitySizes` |
-| Picture in Picture | **N/A** for our own PiP (no video). **Pending**: a pinned PiP from another app resizes our window vertically in inner open portrait (T466), which needs poses | — |
-| Split View | **pending** (inner display only; needs poses) | — |
-| App Resizability skill | **Run by hand** (Xcode 27.1 ships it only as an Xcode Intelligence chat skill, `IDEIntelligenceChat.framework/…/app-resizability.idechatprompttemplate`; no CLI). Prerequisites: launch screen ✅ (`UILaunchScreen`), iPad all four orientations ✅, no `UIRequiresFullScreen` ✅. Detection: no `UIScreen.main`, `interfaceOrientation`, app-delegate lifecycle or layout guides; `UIDevice.current.userInterfaceIdiom` in `FestivalRootView.supportsSidebar` (capability gate, correct on Duo: `.phone` on both displays; the skill would read the idiom from the trait collection — iPad shell owner's call) and a Feedback platform tag. Operator run: Xcode ▸ Coding Assistant, ask "Get my app ready for iPhone Duo" with the `FestivalNativeApple` project open | — |
-
-### O1 Duo outer-display landscape — decided (operator, 2026-10-02): (b)
-- Built: `FestivalMobileAppDelegate.application(_:supportedInterfaceOrientationsFor:)` → `FestivalOrientationSupport.mask(for:)` (`App/Layout/OrientationPolicy.swift`). Every orientation once the device reports a hinge (`onHingeChange`, or the vertical bar when the hinge is unreported, as `DeviceLayout`'s pose does; never product names) and re-queries UIKit then; otherwise the Info.plist declaration for the idiom (iPhone portrait-only key unchanged, iPad all four). Tests: `OrientationPolicyTests` incl. the guard `iPhoneDeclarationStaysPortraitOnly`. Live (driver `rotate:landscapeLeft`): iPhone 17 Pro stays 402×874 portrait; iPad Pro 11 rotates to 1210×834.
-- Outer landscape / upside down: **pending** Device Hub poses. `XCUIDevice` rotation does not rotate the Duo outer display even with every orientation allowed (window stays 466×678; checked with a temporary all-orientations build, 2026-10-02), so the simulator needs Device Hub's rotate control.
+| Inner landscape flat/book, inner portrait, fold/unfold + D6, O1 outer landscape | pass (DUO4); P3 fixed | `poses/`, `final/p3-*` |
+| Sweep: Song Detail, Paths, Notifications | pass all four poses; Paths "Lea/d" fixed folded; inner sheets centered, horizontal bars | `final/sw-*-paths`, `sw-*-notifications` |
+| Sweep: Bands | pass four poses; S6 readable width (verified); S8 overflow | `final/sw-*-bands*` |
+| Sweep: What's New | pass four poses (M1 holds); S7 sheet inside (verified) | `final/sw-*-whatsnew*` |
+| Sweep: first run | folded, inner portrait/landscape pass; outer landscape hid title/text under Next → S9 fixed (verified) | `final/sw-*-firstrun*` |
+| Sweep: Licenses, Privacy Policy | not run: the inner-display drive cannot scroll (XCUITest swipes miss the inner panel; `scrollTo` fails), stopped at wrap-up | — |
+| Hardware keyboard | pending: Device Hub has no Connect Hardware Keyboard; its Toggle Software Keyboard reads disabled (AX state is stale until the menu opens in the active app; `host:control Capture Keyboard` first is the next try); phone shortcuts (⌘F/⌘K, ⌘1–9, ⌘[, ⌘R) exist in code, not verified | — |
+| Split View (both sides) | superseded by the split redesign (2026-10-04); `systemDrag` driver step added for the Multitasking Dock drag, not run | — |
+| PiP from another app | N/A: no PiP video app on the simulator; our app has no video | — |
+| Earlier (2026-10-02): Reduce Transparency, Increase Contrast, RTL, AX5, software keyboard | pass/fixed | `checks/` |

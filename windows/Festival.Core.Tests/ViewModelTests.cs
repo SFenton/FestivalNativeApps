@@ -133,6 +133,60 @@ public class ServiceStatusTests
         status.Clear();
         Assert.False(status.HasIssue);
     }
+
+    [Fact]
+    public async Task HasCountdown_OnlyWhileAScrapeFreezeCountsDown()
+    {
+        var time = new FakeTimeProvider();
+        var status = new ServiceStatusViewModel("s", "Songs unavailable", () => Task.CompletedTask, time);
+        var changed = new List<string?>();
+        status.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.False(status.HasCountdown);
+        foreach (var kind in new[] { ServiceIssueKind.Unavailable, ServiceIssueKind.Offline, ServiceIssueKind.Syncing,
+                                     ServiceIssueKind.NotFound, ServiceIssueKind.Other })
+        {
+            status.Report(new ServiceIssue(kind, 12));
+            Assert.False(status.HasCountdown);
+            Assert.Equal("Retry", status.RetryLabel);
+        }
+        status.Report(new ServiceIssue(ServiceIssueKind.ScrapeInProgress, 2));
+        Assert.True(status.HasCountdown);
+        Assert.Contains(nameof(ServiceStatusViewModel.HasCountdown), changed);
+        Assert.Equal("Retry Now", status.RetryLabel);
+        await status.RetryCommand.ExecuteAsync(null);
+        Assert.False(status.HasCountdown);
+        status.Report(new ServiceIssue(ServiceIssueKind.ScrapeInProgress, 2));
+        status.Clear();
+        Assert.False(status.HasCountdown);
+    }
+
+    [Fact]
+    public async Task ScrapeFreeze_ConsecutiveFailuresDoubleTheWait()
+    {
+        // scrape-freeze-retrying: each automatic reload that fails again waits twice as long (the cap is ServiceIssueTests').
+        var time = new FakeTimeProvider();
+        var waits = new List<int>();
+        ServiceStatusViewModel? status = null;
+        var freeze = new ServiceIssue(ServiceIssueKind.ScrapeInProgress, 3);
+        status = new ServiceStatusViewModel("s", "Songs unavailable", () =>
+        {
+            status!.Report(freeze);
+            waits.Add(status.SecondsRemaining);
+            return Task.CompletedTask;
+        }, time);
+        status.Report(freeze);
+        Assert.Equal(3, status.SecondsRemaining);
+        var expected = 0;
+        foreach (var wait in new[] { 3, 6, 12 })
+        {
+            await Async.Advance(time, TimeSpan.FromSeconds(wait));
+            expected++;
+            await Async.Until(() => waits.Count == expected);
+        }
+        Assert.Equal([6, 12, 24], waits);
+        Assert.Equal("0:24", status.CountdownText);
+        Assert.Equal("Trying again automatically in 24 seconds", status.CountdownAnnouncement);
+    }
 }
 
 public class SongsViewModelTests
@@ -373,6 +427,36 @@ public class ShellViewModelTests
         shell.ViewProfileCommand.Execute(null);
         shell.DeselectProfileCommand.Execute(null);
         Assert.Equal(4, shell.Sections.Count);
+    }
+
+    [Fact]
+    public void ProfileButton_ShowsSelectedPlayersStatistics_AndOpensPickerOnlyWhenAnonymous()
+    {
+        // Issue #290: select a player, go back to Songs, press the avatar: Statistics, never the search flyout.
+        var session = new FakeService().Session();
+        var shell = new ShellViewModel(session);
+        var changed = new List<string?>();
+        shell.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.Equal(ProfileButtonAction.OpenPicker, shell.ProfileButtonAction);
+        Assert.Equal("Opens profile selection.", shell.ProfileButtonHelp);
+        Assert.Equal("Select Player (Ctrl+Shift+P)", shell.ProfileButtonToolTip);
+
+        session.SelectPlayer(new PlayerSearchResult("acc", "Jane Doe"));
+        Assert.Equal(ProfileButtonAction.ShowStatistics, shell.ProfileButtonAction);
+        Assert.Contains(AppSection.Statistics, shell.Sections);
+        Assert.Contains(nameof(ShellViewModel.ProfileButtonAction), changed);
+        Assert.Contains(nameof(ShellViewModel.ProfileButtonHelp), changed);
+        Assert.Contains(nameof(ShellViewModel.ProfileButtonToolTip), changed);
+        Assert.StartsWith("Opens your statistics.", shell.ProfileButtonHelp);
+        Assert.Equal("Show Statistics for Jane Doe\nSwitch profile: Ctrl+Shift+P", shell.ProfileButtonToolTip);
+
+        session.SelectPlayer(new PlayerSearchResult("acc2", "John Roe"));
+        Assert.Equal(ProfileButtonAction.ShowStatistics, shell.ProfileButtonAction);
+        Assert.StartsWith("Show Statistics for John Roe", shell.ProfileButtonToolTip);
+
+        shell.DeselectProfileCommand.Execute(null);
+        Assert.Equal(ProfileButtonAction.OpenPicker, shell.ProfileButtonAction);
+        Assert.Equal("Opens profile selection.", shell.ProfileButtonHelp);
     }
 
     [Fact]

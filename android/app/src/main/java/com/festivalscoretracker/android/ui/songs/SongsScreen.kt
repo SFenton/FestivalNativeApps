@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui.songs
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -11,8 +13,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -25,11 +29,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -47,10 +53,11 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -63,22 +70,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -91,7 +93,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -100,10 +102,7 @@ import coil3.request.ImageRequest
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.shell.FloatingToolbarMinimizer
-import com.festivalscoretracker.android.core.songs.EdgeFade
-import com.festivalscoretracker.android.core.songs.EdgeFadeItem
 import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
-import com.festivalscoretracker.android.core.songs.SongHeaderEdgeFade
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongRowModel
@@ -130,8 +129,10 @@ import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
 import com.festivalscoretracker.android.ui.shell.RegisterPageFind
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
+import kotlin.math.roundToInt
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
@@ -141,7 +142,7 @@ import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 /**
  * The Songs catalogue: search, draft Sort/Filter sheets, pause notices,
  * sort-bucket headers with Quick Links (sheet on compact / menu elsewhere; hinge split per
- * form factor), a right-edge section index for Title/Artist/Year and glass rows
+ * form factor), a right-edge section index for Title/Artist and glass rows
  * with Shop pulses and selected-player chips or metadata.
  *
  * @param viewModel Songs logic.
@@ -427,34 +428,12 @@ private fun SongList(
     }
     val endPadding = if (showIndex) 28.dp else 16.dp
     val density = LocalDensity.current
-    val accessibility = LocalFestivalAccessibility.current
-    val fadeDepth = with(density) { SongHeaderEdgeFade.DEPTH_DP.dp.toPx() }
-    // Increase Contrast and Reduce Transparency keep a hard edge under the header (no band).
-    val bandDepth = if (SongHeaderEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency)) fadeDepth else 0f
+    // Rows fade out below the pinned bucket header, or meet it at a hard edge under the contrast,
+    // transparency and motion settings (rememberPinnedHeaderHardEdge). Bucket headers record their
+    // drawing into the edge's layers; the list redraws them over the cut and band (issues #91, #288).
     val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
-    val edgeFade by remember(listState, firstHeaderKey, bandDepth, density) {
-        val spacing = with(density) { LIST_SPACING.roundToPx() }
-        derivedStateOf {
-            if (firstHeaderKey == null) return@derivedStateOf null
-            val info = listState.layoutInfo
-            SongHeaderEdgeFade.edge(
-                info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
-                info.viewportStartOffset, firstHeaderKey, spacing, bandDepth,
-            )
-        }
-    }
-    // Each bucket header records its drawing here; the list redraws them over the cut and fade band (issues #91, #288).
-    val headerLayers = remember { HashMap<Any, GraphicsLayer>() }
+    val headerEdge = rememberPinnedHeaderEdge(listState, firstHeaderKey, LIST_SPACING, IS_HEADER_KEY)
     val headerStart = with(density) { 16.dp.toPx() }
-    val headersOverEdge: (Float) -> List<Pair<GraphicsLayer, Float>> = remember(listState, headerLayers, bandDepth) {
-        { top ->
-            val info = listState.layoutInfo
-            SongHeaderEdgeFade.headersOverEdge(
-                info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeaderKey(it.key)) },
-                info.viewportStartOffset, top, bandDepth,
-            ).mapNotNull { item -> headerLayers[item.key]?.let { it to (item.offset - info.viewportStartOffset).toFloat() } }
-        }
-    }
     // On wider windows the search field is pinned above the scrolling list (issue #52): it never
     // scrolls away, so nothing moves or animates between the top and scrolled states. Phones show
     // it in the floating toolbar instead (issue #84).
@@ -474,7 +453,7 @@ private fun SongList(
                 ),
                 verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
                 modifier = Modifier.fillMaxSize()
-                    .pinnedHeaderEdgeFade({ edgeFade }, bandDepth, headerStart, headersOverEdge)
+                    .pinnedHeaderEdgeFade(headerEdge, headerStart)
                     .testTag("fst.songs.list"),
             ) {
                 state.notices.forEachIndexed { index, notice ->
@@ -498,25 +477,28 @@ private fun SongList(
                     if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     state.headers.forEachIndexed { ordinal, header ->
                         val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
-                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header, headerLayers) }
+                        stickyHeader(key = headerKey(header), contentType = "header") { BucketHeader(header, headerEdge.layers) }
                         items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                     }
                 }
             }
             // Fully qualified: the ColumnScope overload would otherwise capture this call.
+            // Reduce Motion (in-app or Remove animations) shows and hides the rail at once.
+            val stillRail = LocalFestivalAccessibility.current.reduceMotion
             androidx.compose.animation.AnimatedVisibility(
                 visible = showIndex,
-                enter = fadeIn() + slideInHorizontally { it },
-                exit = fadeOut() + slideOutHorizontally { it },
+                enter = if (stillRail) EnterTransition.None else fadeIn() + slideInHorizontally { it },
+                exit = if (stillRail) ExitTransition.None else fadeOut() + slideOutHorizontally { it },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(top = 8.dp, bottom = padding.calculateBottomPadding() + 8.dp)
                     .fillMaxHeight(),
             ) {
+                val position = rememberSectionPosition(listState, state.sections, leading)
                 SectionIndexScrubber(
                     sections = state.sections,
-                    current = currentSection(listState, state.sections, leading),
-                    onJump = { section -> scope.launch { listState.scrollToItem(section.firstIndex + leading) } },
+                    current = position.current,
+                    onJump = { section -> scope.launch { position.jumpTo(section) } },
                 )
             }
         }
@@ -581,47 +563,72 @@ private const val SHOP_BREATHE_HALF_MS = 1_500
 private val STILL_BREATHE: () -> Float = { 1f }
 
 /**
- * Section containing the first visible row.
+ * The section-index position: the section containing the first visible row, except that a
+ * section the list could not bring to the top (one of the last, with the list at its end)
+ * stays current after a jump. Without that, TalkBack's Next section would stop at the
+ * section at the top of the last screen and never reach the final sections.
+ *
+ * @property listState List state.
+ * @property sections Sections.
+ * @property leading Non-row items before the first row.
+ */
+@Stable
+private class SectionPosition(private val listState: LazyListState, private val sections: List<SongSection>, private val leading: Int) {
+    /** Last jump target, until the list scrolls back from its end or the user drags it. */
+    private var jumped by mutableStateOf<SongSection?>(null)
+
+    /** Current section, or null. */
+    val current: SongSection? by derivedStateOf {
+        val top = sections.lastOrNull { it.firstIndex <= (listState.firstVisibleItemIndex - leading).coerceAtLeast(0) }
+        val target = jumped
+        if (target != null && !listState.canScrollForward && target.firstIndex > (top?.firstIndex ?: -1)) target else top
+    }
+
+    /**
+     * Scrolls [section]'s first row to the top, or as near as the list's end allows.
+     *
+     * @param section Section to show.
+     */
+    suspend fun jumpTo(section: SongSection) {
+        jumped = section
+        listState.scrollToItem(section.firstIndex + leading)
+    }
+
+    /** Forgets the jump target once the list leaves its end or the user drags it. */
+    suspend fun forgetJumpsOnMove() = coroutineScope {
+        launch { snapshotFlow { listState.canScrollForward }.collect { if (it) jumped = null } }
+        listState.interactionSource.interactions.collect { if (it is DragInteraction.Start) jumped = null }
+    }
+}
+
+/**
+ * Remembers the [SectionPosition] for [sections].
  *
  * @param listState List state.
  * @param sections Sections.
  * @param leading Non-row items before the first row.
- * @return Current section, or null.
+ * @return Section position.
  */
 @Composable
-private fun currentSection(listState: LazyListState, sections: List<SongSection>, leading: Int): SongSection? {
-    val current by remember(sections, leading) {
-        derivedStateOf {
-            val row = (listState.firstVisibleItemIndex - leading).coerceAtLeast(0)
-            sections.lastOrNull { it.firstIndex <= row }
-        }
-    }
-    return current
+private fun rememberSectionPosition(listState: LazyListState, sections: List<SongSection>, leading: Int): SectionPosition {
+    val position = remember(listState, sections, leading) { SectionPosition(listState, sections, leading) }
+    LaunchedEffect(position) { position.forgetJumpsOnMove() }
+    return position
 }
 
 /**
  * One bucket header: transparent like the rest of the list (issue #91). It records its own
  * drawing into a [GraphicsLayer] registered under its key in [layers], so the list can redraw it
- * above the cut that hides rows scrolling under it ([pinnedHeaderEdgeFade]).
+ * above the cut that hides rows scrolling under it ([rememberPinnedHeaderRecorder], [pinnedHeaderEdgeFade]).
  *
  * @param header Header.
  * @param layers Recorded header drawings by list key.
  */
 @Composable
 private fun BucketHeader(header: SongListHeader, layers: MutableMap<Any, GraphicsLayer>) {
-    val layer = rememberGraphicsLayer()
-    val key = headerKey(header)
-    DisposableEffect(key, layer) {
-        layers[key] = layer
-        onDispose { if (layers[key] === layer) layers.remove(key) }
-    }
     SectionHeader(
         header.label,
-        Modifier
-            .drawWithContent {
-                layer.record { this@drawWithContent.drawContent() }
-                drawLayer(layer)
-            }
+        rememberPinnedHeaderRecorder(headerKey(header), layers)
             .padding(horizontal = 4.dp)
             .testTag(header.testTag)
             .semantics { contentDescription = header.spoken },
@@ -635,57 +642,7 @@ private const val HEADER_KEY_PREFIX = "header:"
 
 private fun headerKey(header: SongListHeader): String = HEADER_KEY_PREFIX + header.id
 
-private fun isHeaderKey(key: Any): Boolean = key is String && key.startsWith(HEADER_KEY_PREFIX)
-
-/**
- * Hides rows under the pinned section header and fades them out over a short eased band just
- * below it ([SongHeaderEdgeFade]), so the header needs no backing (issue #91). On an offscreen
- * layer it clears everything above the header's resting bottom edge, masks the band with a
- * vertical gradient (`BlendMode.DstIn`), then redraws the recorded layers of the headers over the
- * cut and band whole ([SongHeaderEdgeFade.headersOverEdge]), so their text stays fully opaque,
- * the next header pushes the pinned one out without fading (issue #288) and no row ever shows
- * behind a header. Drawing only: hit testing, semantics and TalkBack order are unchanged.
- * Without an edge it draws nothing and skips the offscreen layer.
- *
- * @param edge Reads the current edge (draw phase only, so scrolling never recomposes).
- * @param depth Band depth in px; 0 keeps a hard edge.
- * @param headerStart Headers' start inset in px (the list's start content padding).
- * @param headers Header layers over a cut and its band, and their top offsets in px, for the cut's position.
- */
-private fun Modifier.pinnedHeaderEdgeFade(
-    edge: () -> EdgeFade?,
-    depth: Float,
-    headerStart: Float,
-    headers: (Float) -> List<Pair<GraphicsLayer, Float>>,
-): Modifier = this
-    .graphicsLayer { compositingStrategy = if (edge() != null) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
-    .drawWithContent {
-        drawContent()
-        val fade = edge() ?: return@drawWithContent
-        drawRect(Color.Transparent, size = Size(size.width, fade.top), blendMode = BlendMode.Clear)
-        if (depth > 0f) {
-            val stops = SongHeaderEdgeFade.STOPS
-                .map { (t, alpha) -> t to Color.Black.copy(alpha = SongHeaderEdgeFade.maskAlpha(alpha, fade.strength)) }
-                .toTypedArray()
-            drawRect(
-                Brush.verticalGradient(*stops, startY = fade.top, endY = fade.top + depth),
-                topLeft = Offset(0f, fade.top),
-                size = Size(size.width, depth),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-        // Headers are drawn whole and opaque over the cut and band, so the next header slides up and
-        // pushes the pinned one out instead of fading in the band (issue #288). Each header's own
-        // (partly faded) drawing is cleared first; list items never overlap a header there.
-        val placed = headers(fade.top).map { (layer, y) ->
-            val x = if (layoutDirection == LayoutDirection.Ltr) headerStart else size.width - headerStart - layer.size.width
-            Triple(layer, x, y)
-        }
-        for ((layer, x, y) in placed) {
-            drawRect(Color.Transparent, Offset(x, y), Size(layer.size.width.toFloat(), layer.size.height.toFloat()), blendMode = BlendMode.Clear)
-        }
-        for ((layer, x, y) in placed) translate(x, y) { drawLayer(layer) }
-    }
+private val IS_HEADER_KEY: (Any) -> Boolean = { key -> key is String && key.startsWith(HEADER_KEY_PREFIX) }
 
 @Composable
 private fun Notice(text: String, tag: String) {
@@ -733,9 +690,11 @@ private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusR
  * Contacts-style right-edge index: tap or drag to jump. Labels are sampled when
  * there are more sections than fit, each centred in an equal slot: a touch on a
  * drawn label opens that label's section, while positions between labels still
- * reach the skipped sections ([SongSectionIndex.sectionAt]). One accessibility
- * element whose state names the current section, with
- * next/previous actions equivalent to dragging one section.
+ * reach the skipped sections ([SongSectionIndex.sectionAt]). While a finger is down,
+ * a value indicator beside the touch names the section it opens (like Material's
+ * slider value label), so skipped sections are visible too. One accessibility
+ * element whose state names the current section, with next/previous actions
+ * (only where a section exists) equivalent to dragging one section.
  *
  * @param sections Sections in list order.
  * @param current Section at the top of the list.
@@ -744,25 +703,14 @@ private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusR
  */
 @Composable
 fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJump: (SongSection) -> Unit, modifier: Modifier = Modifier) {
-    var active by remember { mutableStateOf<String?>(null) }
+    var active by remember { mutableStateOf<SongSection?>(null) }
+    var touchY by remember { mutableFloatStateOf(0f) }
+    val accessibility = LocalFestivalAccessibility.current
+    val opaque = accessibility.increaseContrast || accessibility.reduceTransparency
     val position = current?.id ?: 0
-    BoxWithConstraints(
-        modifier
-            .width(24.dp)
-            .testTag("fst.songs.section-index")
-            .clearAndSetSemantics {
-                contentDescription = "Section index"
-                stateDescription = current?.label ?: sections.firstOrNull()?.label.orEmpty()
-                customActions = listOf(
-                    CustomAccessibilityAction("Next section") {
-                        sections.getOrNull(position + 1)?.let(onJump) != null
-                    },
-                    CustomAccessibilityAction("Previous section") {
-                        sections.getOrNull(position - 1)?.let(onJump) != null
-                    },
-                )
-            },
-    ) {
+    val idle = MaterialTheme.colorScheme.onSurfaceVariant
+    val highlight = MaterialTheme.colorScheme.tertiary
+    BoxWithConstraints(modifier.width(24.dp)) {
         // Each label is one 14 sp line plus breathing room; in sp so larger text samples more.
         val density = LocalDensity.current
         val labelStep = with(density) { SECTION_LABEL_STEP.toDp() }
@@ -773,19 +721,53 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
         // A touch within a drawn label's line opens exactly that label (issue #48).
         val labelHalf = with(density) { SECTION_LABEL_LINE.toPx() } / 2f / (heightPx / drawn.size.coerceAtLeast(1))
         fun jumpTo(y: Float) {
+            touchY = y.coerceIn(0f, heightPx)
             val index = SongSectionIndex.sectionAt(y / heightPx, sections.size, stride, labelHalf)
             val section = sections.getOrNull(index) ?: return
-            active = section.label
+            if (section == active) return
+            active = section
             onJump(section)
         }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
-                .background(if (active != null) BrandTokens.surfaceFrosted else Color.Transparent, RoundedCornerShape(12.dp))
-                .pointerInput(sections, stride, heightPx) { detectTapGestures(onPress = { jumpTo(it.y); tryAwaitRelease(); active = null }) }
+                .testTag("fst.songs.section-index")
+                .clearAndSetSemantics {
+                    contentDescription = "Section index"
+                    stateDescription = SongSectionIndex.spokenLabel(current?.label ?: sections.firstOrNull()?.label.orEmpty())
+                    customActions = listOfNotNull(
+                        sections.getOrNull(position + 1)?.let { next -> CustomAccessibilityAction("Next section") { onJump(next); true } },
+                        sections.getOrNull(position - 1)?.let { previous -> CustomAccessibilityAction("Previous section") { onJump(previous); true } },
+                    )
+                }
+                .background(
+                    when {
+                        active == null -> Color.Transparent
+                        opaque -> BrandTokens.cardBackground
+                        else -> BrandTokens.surfaceFrosted
+                    },
+                    CircleShape,
+                )
+                // One gesture for press and drag: the touch tracks from the first down (no slop),
+                // and the indicator stays up until that finger lifts or the gesture is cancelled.
                 .pointerInput(sections, stride, heightPx) {
-                    detectVerticalDragGestures(onDragEnd = { active = null }, onDragCancel = { active = null }) { change, _ -> jumpTo(change.position.y) }
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        try {
+                            jumpTo(down.position.y)
+                            while (true) {
+                                val change = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                if (change.positionChanged()) {
+                                    change.consume()
+                                    jumpTo(change.position.y)
+                                }
+                            }
+                        } finally {
+                            active = null
+                        }
+                    }
                 },
         ) {
             // Equal slots put label k's centre at (k + ½) / labels of the height, where sectionAt expects it.
@@ -796,16 +778,61 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
                         fontSize = if (section.label.length > 2) 8.sp else 11.sp,
                         lineHeight = SECTION_LABEL_LINE,
                         fontWeight = FontWeight.Bold,
-                        color = if (section.label == active) BrandTokens.gold else BrandTokens.textSecondary,
+                        color = if (section == active) highlight else idle,
                     )
                 }
             }
         }
+        active?.let { section -> SectionIndexIndicator(section.label, touchY, heightPx, opaque) }
+    }
+}
+
+/**
+ * The scrubbing value indicator: an opaque pill left of the rail at the touch height
+ * naming the section the touch opens. Decorative for TalkBack (the rail's state already
+ * names it); it grows with the font scale and stays within the rail's height.
+ *
+ * @param label Section label.
+ * @param touchY Touch height in rail pixels.
+ * @param railHeight Rail height in pixels.
+ * @param opaqueBorder Increased contrast or reduced transparency: 2 dp white border.
+ */
+@Composable
+private fun SectionIndexIndicator(label: String, touchY: Float, railHeight: Float, opaqueBorder: Boolean) {
+    val gap = with(LocalDensity.current) { SECTION_INDICATOR_GAP.roundToPx() }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .testTag("fst.songs.section-index.indicator")
+            .clearAndSetSemantics {}
+            .layout { measurable, _ ->
+                val placeable = measurable.measure(Constraints())
+                layout(0, 0) {
+                    val top = (touchY - placeable.height / 2f).roundToInt().coerceIn(0, (railHeight.roundToInt() - placeable.height).coerceAtLeast(0))
+                    placeable.place(-placeable.width - gap, top)
+                }
+            }
+            .sizeIn(minWidth = SECTION_INDICATOR_SIZE, minHeight = SECTION_INDICATOR_SIZE)
+            .background(MaterialTheme.colorScheme.surface, CircleShape)
+            .border(
+                if (opaqueBorder) 2.dp else 1.dp,
+                if (opaqueBorder) BrandTokens.textPrimary else BrandTokens.glassBorder,
+                CircleShape,
+            )
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
     }
 }
 
 /** Vertical space budgeted per section-index label (a 14 sp line plus spacing). */
 private val SECTION_LABEL_STEP = 20.sp
+
+/** Smallest value indicator: a 56 dp circle for one letter at the default font scale. */
+private val SECTION_INDICATOR_SIZE = 56.dp
+
+/** Space between the value indicator and the rail. */
+private val SECTION_INDICATOR_GAP = 8.dp
 
 /** One section-index label's line height. */
 private val SECTION_LABEL_LINE = 14.sp

@@ -71,7 +71,7 @@ struct SongBandPreviewSection: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .festivalGlass(.card, cornerRadius: 12)
+                .festivalCard(cornerRadius: 12)
             case let .loaded(response):
                 rows(response.preview(for: bandType))
             }
@@ -131,7 +131,7 @@ struct SongBandPreviewSection: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(14)
-            .festivalGlass(.card, cornerRadius: 12)
+            .festivalCard(cornerRadius: 12)
             .accessibilityIdentifier("fst.song-detail.band-empty.\(bandType.rawValue)")
             .festivalFadeInOnAppear()
         } else {

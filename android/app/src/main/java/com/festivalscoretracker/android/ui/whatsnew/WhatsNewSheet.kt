@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -101,7 +100,7 @@ fun WhatsNewSheet(title: String, blocks: List<WhatsNewBlock>, compact: Boolean, 
             onDismissRequest = onDismiss,
             modifier = Modifier.testTag("fst.whats-new.sheet"),
         ) {
-            WhatsNewContent(blocks, onDismiss, Modifier.fillMaxHeight())
+            WhatsNewContent(blocks, onDismiss, fillHeight = true)
         }
     } else {
         FestivalModalDialog(
@@ -112,18 +111,26 @@ fun WhatsNewSheet(title: String, blocks: List<WhatsNewBlock>, compact: Boolean, 
             maxHeight = 640.dp,
             modifier = Modifier.testTag("fst.whats-new.sheet"),
         ) {
-            WhatsNewContent(blocks, onDismiss, Modifier)
+            WhatsNewContent(blocks, onDismiss, fillHeight = false)
         }
     }
 }
 
+/**
+ * The scrolling notes above the Dismiss bar.
+ *
+ * @param blocks Displayable blocks.
+ * @param onClose Dismiss action.
+ * @param fillHeight Full-height sheet: the list takes the free height so the bar stays at the
+ *   bottom edge (issue #142); the dialog hugs its content instead.
+ */
 @Composable
-private fun ColumnScope.WhatsNewContent(blocks: List<WhatsNewBlock>, onClose: () -> Unit, modifier: Modifier) {
-    Column(modifier.weight(1f, fill = false).fillMaxWidth()) {
+private fun ColumnScope.WhatsNewContent(blocks: List<WhatsNewBlock>, onClose: () -> Unit, fillHeight: Boolean) {
+    Column(Modifier.weight(1f, fill = fillHeight).fillMaxWidth()) {
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            modifier = Modifier.weight(1f, fill = false).fillMaxWidth().testTag("fst.whats-new.list"),
+            modifier = Modifier.weight(1f, fill = fillHeight).fillMaxWidth().testTag("fst.whats-new.list"),
         ) {
             itemsIndexed(blocks, key = { index, block -> "$index-${block.title}" }) { index, block ->
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.testTag("fst.whats-new.section.$index")) {
@@ -158,7 +165,7 @@ private fun ColumnScope.WhatsNewContent(blocks: List<WhatsNewBlock>, onClose: ()
 @Composable
 private fun Bullet(text: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.semantics(mergeDescendants = true) {}) {
-        Text("•", color = BrandTokens.textPrimary, modifier = Modifier.clearAndSetSemantics { })
+        Text("•", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.clearAndSetSemantics { })
         Text(text, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
     }
 }

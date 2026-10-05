@@ -27,6 +27,9 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private readonly ScoreHistorySwapper historySwap;
     private Storyboard? historyRelease;
 
+    /// <summary>Pinned header's last laid-out height (0 until first shown); it reads 0 while collapsed.</summary>
+    private double pinnedHeaderHeight;
+
     /// <summary>Creates the page; its Quick Links menu shows on compact windows only.</summary>
     public SongDetailPage()
     {
@@ -38,6 +41,13 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
             : ViewModel?.BandPreviews.FindIndex(b => b.QuickLinkId == id) is >= 0 and var band
                 ? BandBoards.GetOrCreateElement(band) as FrameworkElement
                 : null;
+        // Sections land below the pinned compact header rather than under it (#251).
+        host.Binder.ObscuredTop = offset =>
+            SongDetailLayout.PinnedHeaderInset(offset, FullHeader.ActualHeight, pinnedHeaderHeight);
+        PinnedHeader.SizeChanged += (_, e) =>
+        {
+            if (e.NewSize.Height > 0) pinnedHeaderHeight = e.NewSize.Height;
+        };
         historySwap = new ScoreHistorySwapper(
             () => ViewModel?.History.Selected,
             chart => ViewModel?.History.SelectInstrument(chart),
@@ -272,7 +282,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
-        var pinned = Scroller.VerticalOffset > FullHeader.ActualHeight + 12;
+        var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
         if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
     }

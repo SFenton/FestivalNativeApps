@@ -80,7 +80,7 @@ struct SongScorePreview: View {
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .festivalGlass(.card, cornerRadius: 12)
+                    .festivalCard(cornerRadius: 12)
                 case let .loaded(payload):
                     previewRows(payload)
                 }
@@ -171,7 +171,8 @@ struct SongScorePreview: View {
     /// reaches the full chart; the spoken label names the instrument because nine
     /// otherwise identical actions share the page.
     private var viewFullLink: some View {
-        NavigationLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
+        // The full board opens in the trailing pane where Song Detail can split.
+        ListDetailLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
             PurpleActionLabel(title: "View full leaderboard")
         }
         .buttonStyle(.plain)
@@ -210,7 +211,7 @@ struct SongScorePreview: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(14)
-            .festivalGlass(.card, cornerRadius: 12)
+            .festivalCard(cornerRadius: 12)
             .festivalFadeInOnAppear()
         } else {
             VStack(alignment: .leading, spacing: 6) {
@@ -266,7 +267,7 @@ struct SongScorePreview: View {
             for: entry, selected: session.selectedPlayer,
             song: song, instrument: instrument, isFooter: isFooter
         )
-        // Web `InstrumentCard` `entryRow`: every row its own 48 pt glass card, the
+        // Web `InstrumentCard` `entryRow`: every row its own 48 pt material card, the
         // player's purple (the one leaderboard row design, operator batch 7.4), with
         // the drill-down chevron inside the card like the Solo chart.
         let content = HStack(spacing: 8) {
@@ -286,7 +287,9 @@ struct SongScorePreview: View {
         .modifier(RankingRowSurface(isSelected: highlighted))
         .contentShape(Rectangle())
         if let route {
-            NavigationLink(value: route) { content }
+            // The footer row's full board opens in the trailing pane where Song Detail
+            // can split; a player's profile always pushes.
+            ListDetailLink(value: route) { content }
                 .festivalRowButtonStyle()
                 .accessibilityHint(SongPreviewSpotlightPolicy.hint(for: route))
         } else {

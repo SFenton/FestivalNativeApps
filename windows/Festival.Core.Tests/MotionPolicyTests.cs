@@ -14,6 +14,9 @@ public sealed class MotionPolicyTests
         Assert.Equal(125, FadeInTiming.Interval.TotalMilliseconds);
         Assert.Equal(12f, FadeInTiming.OffsetY);
         Assert.Equal((0f, 0f, 0.58f, 1f), FadeInTiming.EaseOut);
+        // Exits (Songs Jump, issue #231) use WinUI's fast control duration, quicker than the entrance.
+        Assert.Equal(167, FadeInTiming.HideDuration.TotalMilliseconds);
+        Assert.True(FadeInTiming.HideDuration < FadeInTiming.Duration);
     }
 
     [Theory]
@@ -48,6 +51,24 @@ public sealed class MotionPolicyTests
         Assert.False(FadeInTiming.WithinWindow(FadeInTiming.ArmWindow));
         Assert.False(FadeInTiming.WithinWindow(TimeSpan.FromMilliseconds(-1)));
     }
+
+    [Fact]
+    public void PinnedRow_RevealsWithTheFirstRow()
+    {
+        Assert.Equal(FadeInTiming.StaggerDelay(0, 1), PinnedRowReveal.RevealDelay);
+        Assert.Equal(125, PinnedRowReveal.RevealDelay.TotalMilliseconds);
+    }
+
+    [Theory]
+    [InlineData(false, true, LoadSwapPhase.ContentIn, true)]
+    [InlineData(true, true, LoadSwapPhase.ContentIn, false)]
+    [InlineData(true, false, LoadSwapPhase.ContentIn, false)]
+    [InlineData(false, false, LoadSwapPhase.ContentIn, false)]
+    [InlineData(false, true, LoadSwapPhase.Loading, false)]
+    [InlineData(false, true, LoadSwapPhase.SpinnerOut, false)]
+    [InlineData(false, true, LoadSwapPhase.ContentOut, false)]
+    public void PinnedRow_FadesOnItsOwnOnlyWhenItArrivesOverAShownBoard(bool had, bool has, LoadSwapPhase phase, bool expected) =>
+        Assert.Equal(expected, PinnedRowReveal.FadesOnArrival(had, has, phase));
 
     [Theory]
     [InlineData(true, false, false, true)]
@@ -117,6 +138,18 @@ public sealed class SongDetailLayoutTests
         var (newTop, newHeight) = Festival.Core.ViewModels.SongDetailLayout.RevealBelowPinnedHeader(top, height, header);
         Assert.Equal(expectedTop, newTop);
         Assert.Equal(expectedHeight, newHeight);
+    }
+
+    [Theory]
+    [InlineData(100, 150, 57, 0)]
+    [InlineData(162, 150, 57, 0)]
+    [InlineData(163, 150, 57, 57)]
+    [InlineData(900, 150, 0, 64)]
+    [InlineData(900, 150, double.NaN, 64)]
+    public void PinnedHeaderInset_CoversOnlyOncePinned(double offset, double fullHeader, double pinned, double expected)
+    {
+        Assert.Equal(expected, Festival.Core.ViewModels.SongDetailLayout.PinnedHeaderInset(offset, fullHeader, pinned));
+        Assert.Equal(expected > 0, Festival.Core.ViewModels.SongDetailLayout.PinsHeader(offset, fullHeader));
     }
 
     [Fact]

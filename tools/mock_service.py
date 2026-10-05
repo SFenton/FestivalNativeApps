@@ -10,6 +10,7 @@ import math
 import re
 import struct
 import threading
+import time
 import zlib
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,6 +18,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+# Delay for the "slowpoke" account search, long enough for a UI test to see the
+# global-search spinner.
+SLOW_ACCOUNT_SEARCH_SECONDS = 4
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -1039,6 +1043,11 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 return
             if terms[0].strip().casefold() == "rate":
                 self._json(429, {"status": "account_search_rate_limited"})
+                return
+            if terms[0].strip().casefold() == "slowpoke":
+                # Holds the global-search spinner on screen for UI tests (issue #299).
+                time.sleep(SLOW_ACCOUNT_SEARCH_SECONDS)
+                self._json(200, {"results": []})
                 return
             term = terms[0].strip().casefold()
             candidates = (

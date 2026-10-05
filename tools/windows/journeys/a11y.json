@@ -127,6 +127,121 @@
     ]
   },
   {
+    "name": "shop-list",
+    "route": "/shop",
+    "settings": {
+      "shopViewMode": "List"
+    },
+    "sizes": [
+      "medium",
+      "wide",
+      "maximized"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.list@20",
+      "wait:2"
+    ]
+  },
+  {
+    "name": "shop-filter",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.count@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "expand:id=fst.shop.filter",
+      "waitfor:id=fst.shop.filter.reset@5"
+    ],
+    "teardown": [
+      "collapse:id=fst.shop.filter",
+      "waitgone:id=fst.shop.filter.reset@5"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "shop-filter-empty",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.count@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "expand:id=fst.shop.filter",
+      "waitfor:id=fst.shop.filter.available@5",
+      "toggle:id=fst.shop.filter.available",
+      "collapse:id=fst.shop.filter",
+      "waitfor:id=fst.shop.filter.empty-reset@5"
+    ]
+  },
+  {
+    "name": "shop-filter-applied",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.count@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.filter",
+      "key:enter",
+      "assertfocus:id=fst.shop.filter.new@5",
+      "key:tab",
+      "key:tab",
+      "assertfocus:id=fst.shop.filter.leaving@3",
+      "key:space",
+      "assertstate:id=fst.shop.filter.leaving|toggle=on@3",
+      "key:esc",
+      "waitgone:id=fst.shop.filter.reset@5",
+      "assertstatus:id=fst.shop.filter|Filters applied@5"
+    ]
+  },
+  {
+    "name": "shop-hidden",
+    "route": "/shop",
+    "settings": {
+      "hideShop": true
+    },
+    "ready": [
+      "waitfor:id=fst.shop.hidden@20"
+    ]
+  },
+  {
+    "name": "shop-empty",
+    "route": "/shop",
+    "fixture": [
+      "shop_fixture.py",
+      "--shop",
+      "empty"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.empty@20"
+    ]
+  },
+  {
+    "name": "shop-error",
+    "route": "/shop",
+    "fixture": [
+      "shop_fixture.py",
+      "--shop",
+      "error"
+    ],
+    "ready": [
+      "waitfor:id=fst.service-status.retry@30"
+    ]
+  },
+  {
+    "name": "shop-details-unavailable",
+    "route": "/shop",
+    "fixture": [
+      "shop_fixture.py",
+      "--songs-fail"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.song-details-error@30",
+      "wait:2"
+    ]
+  },
+  {
     "name": "suggestions",
     "route": "/suggestions",
     "profile": "fixture-player-1:Demo Player",
@@ -414,7 +529,7 @@
     "name": "search",
     "route": "/search?q=Fixture",
     "ready": [
-      "waitfor:id=fst.global-search.section.songs@20"
+      "waitfor:id=fst.global-search.result.song@20"
     ]
   },
   {
@@ -454,6 +569,47 @@
     "first_run": "force",
     "ready": [
       "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "assertstate:id=fst.first-run.close|name=Close"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "first-run-back",
+    "tab": "songs",
+    "first_run": "force",
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "invoke:id=PrimaryButton",
+      "wait:1",
+      "assertstate:id=SecondaryButton|enabled=true",
+      "assertstate:id=PrimaryButton|name=Next"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "first-run-done",
+    "tab": "songs",
+    "first_run": "force",
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:1",
+      "assertstate:id=PrimaryButton|name=Done",
+      "assertstate:id=SecondaryButton|enabled=true"
     ],
     "tabs": 12
   },

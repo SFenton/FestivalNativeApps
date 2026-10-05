@@ -6,7 +6,7 @@
     <!--
         The one leaderboard row (operator batch 7.7; web entryRow + LeaderboardEntry / RankingEntry): its own frosted
         48 epx row with a 12 epx radius, 4 epx apart in a list (no card around the rows). Columns, left to right:
-        rank · name · season or songs label · score or rating (+ Bayesian) · accuracy badge · stars · in-card chevron.
+        rank · name (scrolls when it doesn't fit) · season or songs label · score or rating (+ Bayesian) · accuracy badge · stars · in-card chevron.
         Which columns show and their widths come from one per-section plan (Festival.Core LeaderboardColumnLayout, issue
         #37), measured over every row of the section and its pinned row, so columns line up vertically like the web; a
         row without a value keeps the column's space. One UIA stop per row (Android one-stop learning): the Button's name reads
@@ -24,11 +24,26 @@
         <controls:LeaderboardRowButton x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                 VerticalAlignment="Stretch" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="0"
                 Background="Transparent" SizeChanged="OnSizeChanged">
+            <!-- Theme dictionaries rather than StaticResource aliases, so a contrast theme switched on while a board is open
+                 re-resolves the hover and press tints (issue #242). Values mirror FSTRowHoverBrush / FSTRowPressedBrush
+                 (Themes/Styles.xaml). -->
             <controls:LeaderboardRowButton.Resources>
-                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
-                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
-                <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
-                <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Default">
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#1AFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0FFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="HighContrast">
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                </ResourceDictionary>
             </controls:LeaderboardRowButton.Resources>
             <Grid x:Name="RowGrid" ColumnSpacing="12">
                 <!-- Extra lines only when large text in a narrow row moves columns under the name: a rankings songs label
@@ -49,8 +64,9 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="RankText" Grid.RowSpan="3" AutomationProperties.AccessibilityView="Raw" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
-                <!-- Names truncate, never marquee (web colName; operator batch 7.14). -->
-                <TextBlock x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                <!-- A name that doesn't fit scrolls inside its column (issue #292, reversing batch 7.14's truncation); it
+                     ellipsizes, with the full name as the row's tooltip, when motion is off or the window is hidden. -->
+                <controls:MarqueeText x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
                 <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">

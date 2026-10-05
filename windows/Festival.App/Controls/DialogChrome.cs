@@ -52,6 +52,50 @@ public static class DialogChrome
         if (Find(dialog, "CloseButton") is Button close) Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(close, automationId);
     };
 
+    /// <summary>
+    /// Keeps the dialog surface out of the window's caption band (issue #244). The window extends its content into the
+    /// title bar, so a tall dialog (large text, short window) otherwise grows to the full window height. Its top edge then
+    /// sits in the title bar's drag region under the window's own minimize/maximize/close buttons, whose small "×" reads as
+    /// the dialog's close but quits the app. Equal top and bottom margins keep short dialogs centred, and a taller body
+    /// scrolls in the template's own content scroller.
+    /// </summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    /// <param name="captionHeight">Title bar height in effective pixels.</param>
+    public static void ClearOfTitleBar(ContentDialog dialog, double captionHeight) => dialog.Loaded += (_, _) =>
+    {
+        if (captionHeight > 0 && Find(dialog, "BackgroundElement") is FrameworkElement surface)
+            surface.Margin = new Thickness(0, captionHeight, 0, captionHeight);
+    };
+
+    /// <summary>
+    /// Drops WinUI's automatic high-contrast text backplate from the command buttons' labels. The template already draws
+    /// them in system colour pairs (ButtonText on ButtonFace, HighlightText on Highlight for the default button), so the
+    /// adjustment only painted a Window-coloured box inside the default button's Highlight fill
+    /// (precedent: <c>LeaderboardEntryRow</c>, Shop badges, Songs Filter). Without a contrast theme the setting has no effect.
+    /// </summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    public static void CommandLabelsWithoutBackplate(ContentDialog dialog)
+    {
+        void Apply()
+        {
+            foreach (var name in CommandButtons)
+                if (Find(dialog, name) is Button button) WithoutBackplate(button);
+        }
+        dialog.Loaded += (_, _) => Apply();
+        dialog.Opened += (_, _) => Apply();
+    }
+
+    /// <summary>Template part names of the dialog's command buttons.</summary>
+    internal static readonly string[] CommandButtons = ["PrimaryButton", "SecondaryButton", "CloseButton"];
+
+    /// <summary>Sets <see cref="ElementHighContrastAdjustment.None"/> on an element and every descendant (not inherited).</summary>
+    /// <param name="element">Root element.</param>
+    internal static void WithoutBackplate(DependencyObject element)
+    {
+        if (element is UIElement ui) ui.HighContrastAdjustment = ElementHighContrastAdjustment.None;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++) WithoutBackplate(VisualTreeHelper.GetChild(element, i));
+    }
+
     /// <summary>Finds a named template part below the dialog.</summary>
     /// <param name="dialog">Dialog.</param>
     /// <param name="name">Part name.</param>

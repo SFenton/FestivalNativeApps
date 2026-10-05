@@ -10,7 +10,7 @@
   - Pulse (alpha 1 → 0.4, 1 s, reversing) only while retrying automatically and never under Reduce Motion: system animator scale 0 or the in-app toggle (`serviceStatusPulses`, `LocalFestivalAccessibility`).
   - Separating hinge (book or tabletop half-open; `rememberHingeSide` + pure `hingeSidePadding`): the page sits on the hinge's wider side (leading on a tie), or below a tabletop fold like `festivalSheetHingeSide`. Material 3: "Never place interactive content or critical information across the hinge area." Flat folds keep the centred page.
   - Short viewport (< 320 dp inside the shell padding, `isCompactStatusHeight`; phone landscape is ~220 dp): no icon and tighter spacing, so Retry stays above the bottom bar. Content still scrolls (200% type in landscape).
-- `ServiceStatusInline` (`fst.service-status.inline`, no live region, `TextButton` Retry ≥ 48 dp with an optional host tag): heading `labelLarge`, then the countdown or message `bodySmall`. The countdown speaks `countdownLabel` ("Trying again automatically in N seconds"). From 1.5× font scale (`inlineStacks`) Retry moves under the text, as on iPhone.
+- `ServiceStatusInline` (`fst.service-status.inline`, no live region, `TextButton` Retry ≥ 48 dp with an optional host tag): heading `labelLarge`, then the countdown or message `bodySmall`. The countdown speaks `countdownLabel` ("Trying again automatically in N seconds"). From 1.5× font scale (`inlineStacks`) Retry moves under the text, as on iPhone. `onRetry = null` hides Retry (Global Search players section, #299) at every scale.
 
 ## Validation (issue #140, 2026-10-04)
 
@@ -56,5 +56,5 @@ Live-service evidence: only `offline` is reachable without fixtures (network dis
 
 ## Tests
 
-- `ServiceStatusUiTest` (Robolectric): every state — `scrape-freeze-countdown` (clock, spoken label, Retry Now click, live region), `scrape-freeze-retrying` (backed-off 1:00), `unavailable` with and without `Retry-After`, `offline`, `syncing`, `not-found`, `other`, `inline` (silent, spoken label, manual state) — plus icons, tint, pulse rule, reduced motion, compact height, font 2.0 (full page fits, inline stacks) and hinge placement (`hingeSidePadding`, book and tabletop).
+- `ServiceStatusUiTest` (Robolectric): every state — `scrape-freeze-countdown` (clock, spoken label, Retry Now click, live region), `scrape-freeze-retrying` (backed-off 1:00), `unavailable` with and without `Retry-After`, `offline`, `syncing`, `not-found`, `other`, `inline` (silent, spoken label, manual state, no-Retry variant) — plus icons, tint, pulse rule, reduced motion, compact height, font 2.0 (full page fits, inline stacks) and hinge placement (`hingeSidePadding`, book and tabletop).
 - `ServiceStatusDeviceTest` (connected, ATF): every full-page state's reading order (heading → message → countdown label → Retry), live region present, 48 dp Retry; inline rows silent in order; font scale 2 keeps parts on screen and stacks inline Retry. Passed on FST_Phone, FST_Tablet, FST_Book_Fold (unfolded and `--posture half`), FST_Passport_Fold (`--posture half`) and FST_TriFold; the full-page test also asserts nothing straddles a separating fold.

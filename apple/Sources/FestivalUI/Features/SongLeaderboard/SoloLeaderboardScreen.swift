@@ -33,6 +33,14 @@ struct SoloLeaderboardScreen: View {
     @State private var shownPayload: LeaderboardPayload?
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
+    /// Height of the rows' bottom fade: full mid-list (and before iOS 18 / macOS 15),
+    /// shrinking to 0 as the list reaches its end (issue #293).
+    @State private var bottomFadeDistance = ScrollEdgeFade.distance
+
+    /// Row insets: two rows sit ``rowGap`` apart.
+    nonisolated private static let rowInset: CGFloat = 4
+    /// Space between two rows, also kept above the pinned chrome (issue #293).
+    nonisolated private static let rowGap: CGFloat = rowInset * 2
 
     /// Coordinate space shared by the rows' fade mask and the pinned chrome.
     nonisolated private static let pageSpace = "fst.song-leaderboard.page"
@@ -116,7 +124,7 @@ struct SoloLeaderboardScreen: View {
                         ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
                             let isSelectedRow = isSelectedAccount(entry.accountId)
                             // One design with every leaderboard (web `entryRow`): each row
-                            // its own glass card, the player's purple, with the chevron
+                            // its own material card, the player's purple, with the chevron
                             // inside the card. A button that pushes onto the tab's path
                             // rather than a NavigationLink, so the List draws no second
                             // disclosure indicator outside the card.
@@ -147,21 +155,24 @@ struct SoloLeaderboardScreen: View {
                                 "fst.song-leaderboard.row.\(entry.accountId)"
                             )
                             .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowInsets(EdgeInsets(
+                                top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
+                            ))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                         }
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
-                    // The last row comes to rest above the fade, not inside it.
-                    .contentMargins(.bottom, ScrollEdgeFade.distance, for: .scrollContent)
                     .rankingsListRailClearance(layout)
-                    // Rows fade out over 36 pt above the pinned footer and pager and are
-                    // not drawn beneath them (web `useScrollFade`, issue #93), so the
-                    // chrome floats over the page background with no opaque band, and
-                    // no row text sits under its text (the contrast audit that once
-                    // required the band).
+                    .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
+                    // Rows fade out over up to 36 pt above the pinned footer and pager
+                    // and are not drawn beneath them (web `useScrollFade`, issue #93),
+                    // so the chrome floats over the page background with no opaque
+                    // band, and no row text sits under its text (the contrast audit
+                    // that once required the band). The fade shrinks away as the last
+                    // row arrives, so the list ends one row gap above the chrome with
+                    // no reserved margin (issue #293).
                     .mask { bottomChromeFadeMask }
                 }
                 .task {
@@ -218,6 +229,8 @@ struct SoloLeaderboardScreen: View {
                         }
                     }
                     .frame(maxWidth: 240)
+                    // A bar title stays on one line at every text size.
+                    .environment(\.marqueeWrapsAtAccessibilitySizes, false)
                     .transition(.opacity)
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
@@ -263,12 +276,15 @@ struct SoloLeaderboardScreen: View {
     /// through while preserving control and navigation legibility"). Built from the
     /// last loaded page, so paging keeps both in place while only the rows reload.
     private var bottomChrome: some View {
-        VStack(spacing: 0) {
+        let spacing = chromeSpacing
+        return VStack(spacing: 0) {
             selectedPlayerFooter
+                .padding(.top, spacing.footerTop)
+                .padding(.bottom, spacing.footerBottom)
             if let shownPayload {
                 RankingsPagerView(
                     page: page, totalPages: shownPayload.leaderboard.pageCount,
-                    idPrefix: "fst.song-leaderboard"
+                    idPrefix: "fst.song-leaderboard", topPadding: spacing.pagerTop
                 ) { destination in
                     move(to: destination)
                 }
@@ -281,15 +297,28 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
-    /// Alpha mask for the rows: opaque, then a 36 pt fade ending at the pinned
-    /// chrome's top edge, clear beneath it. Extends into the top safe area so rows
-    /// still scroll under the navigation bar.
+    /// Padding that rests the last row one row gap above the footer, or above the
+    /// pager when there is no footer (no selected player or no score here), and the
+    /// footer one row gap above the pager (issue #293).
+    private var chromeSpacing: PinnedChromeSpacing {
+        PinnedChromeSpacing.resolve(
+            rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowInset), edgePadding: 8,
+            hasFooter: session.selectedPlayer != nil && selectedPlayerEntry() != nil,
+            hasPager: shownPayload != nil && !layout.sectionChrome.isVerticalBar
+        )
+    }
+
+    /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
+    /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
+    /// reaches its resting place, one row gap above the chrome (issue #293). Extends
+    /// into the top safe area so rows still scroll under the navigation bar.
     private var bottomChromeFadeMask: some View {
         GeometryReader { proxy in
             let frame = proxy.frame(in: .named(Self.pageSpace))
             let stops = ScrollEdgeFade.bottom(
                 height: Double(frame.height),
-                obscured: bottomChromeTop.map { Double(frame.maxY - $0) } ?? 0
+                obscured: bottomChromeTop.map { Double(frame.maxY - $0) } ?? 0,
+                distance: bottomFadeDistance
             )
             if bottomChromeTop == nil {
                 Color.black
@@ -358,7 +387,6 @@ struct SoloLeaderboardScreen: View {
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("fst.song-leaderboard.spotlight-footer")
         }
@@ -454,7 +482,7 @@ struct SoloLeaderboardScreen: View {
     /// Let the source-chart title and totals scroll above rows at large text sizes.
     ///
     /// - Parameter payload: Current chart, including its optional totals disclosure.
-    /// - Returns: A wrapping, opaque native song summary.
+    /// - Returns: A wrapping native song summary over the page backdrop.
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
         HStack(spacing: 12) {
             ArtworkTile(raw: song.albumArt, session: session, size: 80)
@@ -480,18 +508,9 @@ struct SoloLeaderboardScreen: View {
             Spacer()
         }
         .foregroundStyle(FestivalText.primary)
-        // No card behind the header (operator batch 7.2): only a soft dark fade behind
-        // the text, which keeps it readable over bright artwork (a shadow alone failed
-        // the contrast audit).
+        // No card or band behind the header, like Song Detail's (operator batch 7.2,
+        // issue #293): the shared dimmed song backdrop keeps the text legible.
         .padding(.vertical, 6)
-        .background(alignment: .leading) {
-            LinearGradient(
-                colors: [Color.black.opacity(0.6), Color.black.opacity(0.35), .clear],
-                startPoint: .leading, endPoint: .trailing
-            )
-            .padding(.horizontal, -16)
-            .accessibilityHidden(true)
-        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
         .onGeometryChange(for: Bool.self) { proxy in
@@ -544,4 +563,33 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
+}
+
+// MARK: - Bottom fade distance reader
+
+/// Reports the bottom fade height for how far a scroll view's rows still run below its
+/// pinned chrome (iOS 18 / macOS 15 and later; nothing before, which keeps the full
+/// fade). Read from the scroll view: a last-row frame reader did not update while the
+/// List scrolled, so the fade stayed on the resting last row (issue #293). The value
+/// is clamped before it reaches the screen, so only the last fade-height of scrolling
+/// re-renders it.
+struct BottomFadeDistanceReader: ViewModifier {
+    let changed: (Double) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.onScrollGeometryChange(for: Double.self) { geometry in
+                ScrollEdgeFade.bottomDistance(lastRowOverflow: ScrollEdgeFade.contentOverflow(
+                    contentHeight: Double(geometry.contentSize.height),
+                    offsetY: Double(geometry.contentOffset.y),
+                    containerHeight: Double(geometry.containerSize.height),
+                    bottomInset: Double(geometry.contentInsets.bottom)
+                )).rounded()
+            } action: { _, distance in
+                changed(distance)
+            }
+        } else {
+            content
+        }
+    }
 }

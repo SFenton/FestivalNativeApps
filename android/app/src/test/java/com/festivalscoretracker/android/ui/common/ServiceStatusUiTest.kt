@@ -337,6 +337,27 @@ class ServiceStatusUiTest {
         assertTrue("Retry sits beside the text", retry.left >= title.right)
     }
 
+    @Test
+    fun inlineWithoutRetryShowsOnlyStatusAtBothScales() {
+        var scale by mutableStateOf(1f)
+        rule.setContent {
+            FestivalTheme {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = scale)) {
+                    ServiceStatusInline(ServiceIssue.Offline, "Players unavailable", null, onRetry = null, retryTag = "row.retry")
+                }
+            }
+        }
+        for (value in listOf(1f, 2f)) {
+            scale = value
+            rule.waitForIdle()
+            rule.onNodeWithTag("fst.service-status.inline").assertIsDisplayed()
+            rule.onNodeWithText("You're offline").assertIsDisplayed()
+            rule.onNodeWithTag("row.retry").assertDoesNotExist()
+            rule.onNodeWithText("Retry").assertDoesNotExist()
+        }
+    }
+
     // endregion
 
     // region Helpers

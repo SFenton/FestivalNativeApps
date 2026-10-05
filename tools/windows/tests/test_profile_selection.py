@@ -98,8 +98,13 @@ class PagesTests(unittest.TestCase):
                 for p in json.loads((JOURNEYS / name).read_text(encoding="utf-8"))]
 
     def test_pages_parse(self):
+        # With a player the avatar opens Statistics (issue #290); its picker shortcut is a window accelerator that needs
+        # no pointer or focused element (posted on a locked console), so it is the one key step these pages may use.
+        allowed_keys = {"key:ctrl+shift+p"}
         for page in self.pages():
             for step in m.page_steps(page, "medium", Path("out"), "", True, 10):
+                if step in allowed_keys:
+                    continue
                 parsed = uiwin.parse_step(step)
                 self.assertNotIn(parsed["verb"], {"click", "rightclick", "hover", "scroll", "type", "key"},
                                  f"{page['name']}: {step}")

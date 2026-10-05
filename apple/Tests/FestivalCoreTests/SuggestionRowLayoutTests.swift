@@ -88,3 +88,16 @@ import Testing
     #expect(L.rivalDeltaAccessibilityLabel(delta: -4, rivalName: "") == "4 ranks behind")
     #expect(L.rivalDeltaAccessibilityLabel(delta: 0, rivalName: nil) == "Tied")
 }
+
+// MARK: - Stacking
+
+/// Accessibility sizes stack every row with metadata, at any width; otherwise only the
+/// wide layouts in compact width do.
+@Test func rowsStackMetadataAtAccessibilitySizes() {
+    #expect(SuggestionRowLayout.percentile.stacksMetadata(regularWidth: true, accessibilitySize: true, showsStars: false))
+    #expect(!SuggestionRowLayout.percentile.stacksMetadata(regularWidth: true, accessibilitySize: false, showsStars: false))
+    #expect(SuggestionRowLayout.percentile.stacksMetadata(regularWidth: false, accessibilitySize: false, showsStars: false))
+    #expect(!SuggestionRowLayout.season.stacksMetadata(regularWidth: false, accessibilitySize: false, showsStars: false))
+    #expect(SuggestionRowLayout.season.stacksMetadata(regularWidth: false, accessibilitySize: true, showsStars: false))
+    #expect(!SuggestionRowLayout.hidden.stacksMetadata(regularWidth: false, accessibilitySize: true, showsStars: false))
+}

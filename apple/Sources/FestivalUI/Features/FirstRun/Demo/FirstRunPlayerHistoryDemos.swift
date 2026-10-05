@@ -32,7 +32,7 @@ struct FirstRunPlayerHistoryScoreListDemo: View {
                     index == 0 ? BrandTokens.accentPurple.opacity(0.22) : .clear,
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                 )
-                .festivalGlass(.card, cornerRadius: 12)
+                .festivalCard(cornerRadius: 12)
                 .firstRunStagger(index)
             }
         }
@@ -71,7 +71,7 @@ struct FirstRunPlayerHistorySortDemo: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
         .accessibilityHidden(true)
     }
 }

@@ -209,6 +209,7 @@
   ],
   "testIds": {
     "fst.shell.*": "app-navigation",
+    "fst.page-tools.*": "app-navigation",
     "fst.history.*": "player-history",
     "fst.notifications.*": "notifications",
     "fst.quick-links.*": "quick-links",
@@ -249,6 +250,7 @@
     "fst.shell.artwork-background": "artwork-background",
     "fst.nav.*": "app-navigation",
     "fst.dual.*": "app-navigation",
+    "fst.split.*": "app-navigation",
     "fst.carousel.*": "app-navigation",
     "fst.profile.*": "profile-selection",
     "fst.songs.instrument-status.*": "songs-instrument-status-chips",

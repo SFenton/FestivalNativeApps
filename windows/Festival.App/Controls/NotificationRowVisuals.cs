@@ -51,11 +51,15 @@ public static class NotificationRowVisuals
     /// <param name="value">Files (<see cref="IEnumerable{T}"/> of <see cref="string"/>).</param>
     public static void SetIconFiles(DependencyObject element, object? value) => element.SetValue(IconFilesProperty, value);
 
-    /// <summary>Opaque flag pill brush (web <c>FLAG_COLORS</c>).</summary>
+    /// <summary>
+    /// Opaque flag pill brush (web <c>FLAG_COLORS</c>); under a Windows contrast theme the system pill fill
+    /// (<c>FSTNeutralPillFillBrush</c>), so the pill's ButtonText label never sits on a brand hue.
+    /// </summary>
     /// <param name="argb">Colour as <c>0xAARRGGBB</c>.</param>
     /// <returns>Brush.</returns>
-    public static Brush FlagBrush(uint argb) =>
-        new SolidColorBrush(Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
+    public static Brush FlagBrush(uint argb) => Services.ContrastTheme.IsOn
+        ? Services.ContrastTheme.Brush("FSTNeutralPillFillBrush")
+        : new SolidColorBrush(Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
 
     /// <summary>Rebuilds the text block's inlines; text scaling and the row's Narrator name are unaffected.</summary>
     /// <param name="d">Text block.</param>

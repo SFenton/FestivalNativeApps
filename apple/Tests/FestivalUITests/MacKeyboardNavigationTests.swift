@@ -135,6 +135,22 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
     #expect(MacRankByCommands.accountOptions.first?.label == RankingMetric.adjusted.label)
 }
 
+/// View › Instrument lists the page's charts in order, keyed by wire id, and keeps
+/// every chart (disabled) when no rankings page is in front.
+@Test func macInstrumentOptions() {
+    let options = MacInstrumentCommands.options(for: [.drums, .lead])
+    #expect(options.map(\.id) == ["Solo_Drums", "Solo_Guitar"])
+    #expect(options.map(\.label) == [Instrument.drums.label, Instrument.lead.label])
+    #expect(MacInstrumentCommands.allOptions.map(\.id) == Instrument.allCases.map(\.rawValue))
+    #expect(MacInstrumentCommands.options(for: []).isEmpty)
+}
+
+/// Full Rankings' header, pinned title and window title share one "<Instrument> Rankings" string.
+@Test func fullRankingsTitleNamesInstrument() {
+    #expect(FullRankingsScreen.title(for: .lead) == "Lead Rankings")
+    #expect(FullRankingsScreen.title(for: .drums) == "\(Instrument.drums.label) Rankings")
+}
+
 // MARK: - Animation gate
 
 /// Continuous decoration runs only in an active scene whose window can be seen.
@@ -207,8 +223,10 @@ private final class MacKeyPushRecorder {
 /// Three rows offering player routes, inside the column modifier.
 private struct MacKeyProbe: View {
     let recorder: MacKeyPushRecorder
-    /// Split mode: arrows select into the detail column instead of highlighting.
+    /// The list page can split: Return opens the trailing pane instead of pushing.
     var split = false
+    /// The open item (the trailing pane shows it): arrows then move the selection.
+    var selection: AppRoute?
     let ids = ["one", "two", "three"]
 
     var body: some View {
@@ -219,8 +237,8 @@ private struct MacKeyProbe: View {
         }
         .macKeyboardRows(ids.map { MacKeyRow(id: $0, action: .route(.player(accountId: $0, displayName: nil))) })
         .modifier(MacKeyboardNavigation(
-            selection: nil,
-            select: split ? ListDetailSelectAction(section: .leaderboards) { recorder.selected.append($0) } : nil,
+            selection: selection,
+            select: split ? ListDetailSelectAction(section: .leaderboards, page: .rankings) { recorder.selected.append($0) } : nil,
             push: { recorder.pushed.append($0) }, isTop: true
         ))
     }
@@ -266,11 +284,14 @@ private func sendKey(_ name: String, to window: NSWindow) {
     withExtendedLifetime(window) {}
 }
 
-/// In a split's list column every arrow selects (the detail follows) and nothing pushes.
+/// With an item open beside the list every arrow selects (the trailing pane follows)
+/// and nothing pushes.
 @MainActor
 @Test func macKeyboardArrowsSelectInSplit() async throws {
     let recorder = MacKeyPushRecorder()
-    let host = NSHostingView(rootView: MacKeyProbe(recorder: recorder, split: true))
+    let host = NSHostingView(rootView: MacKeyProbe(
+        recorder: recorder, split: true, selection: .player(accountId: "one", displayName: nil)
+    ))
     let window = NSWindow(
         contentRect: NSRect(x: -10_000, y: -10_000, width: 400, height: 240),
         styleMask: [.titled], backing: .buffered, defer: false
@@ -282,8 +303,30 @@ private func sendKey(_ name: String, to window: NSWindow) {
     sendKey("end", to: window)
     _ = try await nativeHostedSettle(host) { recorder.selected.count == 2 }
     #expect(recorder.selected == [
-        .player(accountId: "one", displayName: nil), .player(accountId: "three", displayName: nil),
+        .player(accountId: "two", displayName: nil), .player(accountId: "three", displayName: nil),
     ])
+    #expect(recorder.pushed.isEmpty)
+    withExtendedLifetime(window) {}
+}
+
+/// A list page that can split but has nothing open: arrows only highlight, Return opens
+/// the highlighted row in the trailing pane (on demand, never by moving).
+@MainActor
+@Test func macKeyboardReturnOpensTrailingPane() async throws {
+    let recorder = MacKeyPushRecorder()
+    let host = NSHostingView(rootView: MacKeyProbe(recorder: recorder, split: true))
+    let window = NSWindow(
+        contentRect: NSRect(x: -10_000, y: -10_000, width: 400, height: 240),
+        styleMask: [.titled], backing: .buffered, defer: false
+    )
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+    _ = try await nativeHostedSettle(host)
+    sendKey("down", to: window)
+    sendKey("down", to: window)
+    sendKey("return", to: window)
+    _ = try await nativeHostedSettle(host) { recorder.selected.count == 1 }
+    #expect(recorder.selected == [.player(accountId: "two", displayName: nil)])
     #expect(recorder.pushed.isEmpty)
     withExtendedLifetime(window) {}
 }

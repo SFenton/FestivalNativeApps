@@ -135,8 +135,30 @@ object GlobalSearchResults {
     /** Field accessible name. */
     const val FIELD_NAME = "Search songs and players"
 
-    /** Short-query hint (web `search.enterQuery`). */
-    const val ENTER_QUERY_HINT = "Enter at least two characters to search."
+    /** Short-query hint in All (issue #299: every scope names what it searches). */
+    const val ENTER_QUERY_HINT_ALL = "Enter at least two characters to search for songs, players, or bands."
+
+    /** Short-query hint in Songs. */
+    const val ENTER_QUERY_HINT_SONGS = "Enter at least two characters to search for songs."
+
+    /** Short-query hint in Players. */
+    const val ENTER_QUERY_HINT_PLAYERS = "Enter at least two characters to search for players."
+
+    /** Short-query hint in Bands. */
+    const val ENTER_QUERY_HINT_BANDS = "Enter at least two characters to search for bands."
+
+    /**
+     * Short-query hint for a scope (issue #299).
+     *
+     * @param scope Selected scope.
+     * @return The hint ending in what that scope searches.
+     */
+    fun enterQueryHint(scope: SearchScope): String = when (scope) {
+        SearchScope.All -> ENTER_QUERY_HINT_ALL
+        SearchScope.Songs -> ENTER_QUERY_HINT_SONGS
+        SearchScope.Players -> ENTER_QUERY_HINT_PLAYERS
+        SearchScope.Bands -> ENTER_QUERY_HINT_BANDS
+    }
 
     /** Spoken announcement when every scope is empty. */
     const val NO_RESULTS = "No results found."
@@ -153,7 +175,7 @@ object GlobalSearchResults {
     /** Songs-scope empty-state subtitle. */
     const val EMPTY_SONGS_SUBTITLE = "Check the spelling or try a different song or artist."
 
-    /** Players-scope empty-state title (an empty envelope may be a server timeout, so Retry is offered). */
+    /** Players-scope empty-state title. */
     const val EMPTY_PLAYERS_TITLE = "No players found"
 
     /** Players-scope empty-state subtitle. */
@@ -313,8 +335,8 @@ object GlobalSearchLayout {
     /**
      * Anchor for the expanded surface.
      *
-     * Full screen grows from the requester (the action icon), at the field's 56 dp height:
-     * Material measures the expanded input field at the collapsed height. Docked opens under the top
+     * Full screen grows from the requester (the action icon), at the field's height (56 dp, taller
+     * at large font scales): Material measures the expanded input field at the collapsed height. Docked opens under the top
      * bar, end-aligned to the requester, at most 720 dp wide and never across a separating
      * vertical hinge (clamped to the side that holds the requester). A separating horizontal (tabletop) hinge below the anchor caps the panel
      * height so no results sit under the fold.
@@ -326,6 +348,8 @@ object GlobalSearchLayout {
      * @param density Pixels per dp.
      * @param verticalHinge Separating vertical hinge bounds, if any.
      * @param horizontalHinge Separating horizontal hinge bounds, if any.
+     * @param fullScreenFieldHeight Full-screen field height in px for the current font scale
+     *   (see [fieldHeight]); never below the 56 dp minimum.
      * @return Anchor and optional height cap.
      */
     fun anchor(
@@ -336,14 +360,18 @@ object GlobalSearchLayout {
         density: Float,
         verticalHinge: PxRect? = null,
         horizontalHinge: PxRect? = null,
+        fullScreenFieldHeight: Int = 0,
     ): SearchAnchor {
         fun px(dp: Int) = (dp * density).toInt()
         val gap = px(EDGE_GAP_DP)
         val fieldHeight = px(FIELD_HEIGHT_DP)
         val anchor = when (presentation) {
             SearchPresentation.FullScreen -> {
-                val top = ((requester.top + requester.bottom - fieldHeight) / 2).coerceAtLeast(0)
-                PxRect(requester.left, top, requester.right, top + fieldHeight)
+                // Material measures the expanded full-screen field at exactly this height, so it
+                // grows with the font scale instead of clipping the typed text.
+                val height = fullScreenFieldHeight.coerceAtLeast(fieldHeight)
+                val top = ((requester.top + requester.bottom - height) / 2).coerceAtLeast(0)
+                PxRect(requester.left, top, requester.right, top + height)
             }
             SearchPresentation.Docked -> {
                 // The pane holding the requester: the whole window, or one side of a vertical hinge.
@@ -366,18 +394,46 @@ object GlobalSearchLayout {
         return SearchAnchor(anchor, cap ?: if (presentation == SearchPresentation.FullScreen) null else windowHeight * 2 / 3)
     }
 
+    /** Material text field vertical content padding (top plus bottom) around one line, in dp. */
+    const val FIELD_VERTICAL_PADDING_DP = 32
+
     /**
-     * How much of a fixed-height docked panel the keyboard covers, so its results can pad by
-     * exactly that and stay scrollable above the keyboard while the panel keeps its height.
+     * Search field height that fits one line of the field's text: Material's 56 dp minimum,
+     * or the scaled line height plus the text field's 16 dp top and bottom padding when larger
+     * (font scale 2.0).
      *
-     * @param panelTop Panel top in window px.
-     * @param panelHeight Panel height in px.
-     * @param windowHeight Window height in px.
-     * @param imeBottom Keyboard height in px (0 when hidden).
-     * @return Covered px, never negative.
+     * @param lineHeightPx Field text line height in px at the current font scale.
+     * @param density Pixels per dp.
+     * @return Field height in px.
      */
-    fun imeOverlap(panelTop: Int, panelHeight: Int, windowHeight: Int, imeBottom: Int): Int =
-        (panelTop + panelHeight - (windowHeight - imeBottom)).coerceIn(0, panelHeight)
+    fun fieldHeight(lineHeightPx: Float, density: Float): Int =
+        maxOf((FIELD_HEIGHT_DP * density).toInt(), kotlin.math.ceil(lineHeightPx + FIELD_VERTICAL_PADDING_DP * density).toInt())
+
+    /** Scope chip row side padding, each side. */
+    const val CHIP_ROW_PADDING_DP = 16
+
+    /** Gap between scope chips. */
+    const val CHIP_GAP_DP = 8
+
+    /** Filter chip label padding (8 dp each side) plus its 1 dp border on each side. */
+    const val CHIP_LABEL_CHROME_DP = 18
+
+    /**
+     * Whether every scope chip label fits an equal share of the row. When large text (font
+     * scale 2.0 on a narrow window) makes one label too wide, the row scrolls with
+     * natural-width chips instead of clipping the label.
+     *
+     * @param labelWidthsPx Measured label text widths in px.
+     * @param rowWidthPx Row width in px, before its side padding.
+     * @param density Pixels per dp.
+     * @return True for equal shares, false for a scrolling row.
+     */
+    fun scopeChipsFitEqually(labelWidthsPx: List<Float>, rowWidthPx: Int, density: Float): Boolean {
+        if (labelWidthsPx.isEmpty()) return true
+        val gaps = CHIP_GAP_DP * density * (labelWidthsPx.size - 1)
+        val share = (rowWidthPx - 2 * CHIP_ROW_PADDING_DP * density - gaps) / labelWidthsPx.size
+        return labelWidthsPx.all { it + CHIP_LABEL_CHROME_DP * density <= share }
+    }
 }
 
 // endregion

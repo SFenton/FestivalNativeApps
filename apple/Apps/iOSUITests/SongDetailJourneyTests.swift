@@ -963,8 +963,9 @@ final class SongDetailJourneyTests: XCTestCase {
     /// - Throws: An audit failure outside the fade band.
     @MainActor
     private func auditSoloPage(_ app: XCUIApplication, pagerTop: CGFloat) throws {
-        // Pager row: 8 pt vertical padding; fade: 36 pt above the chrome's top.
-        let fadeTop = pagerTop - 8 - 36
+        // Pager row: 4 pt top padding without a footer (issue #293); fade: up to
+        // 36 pt above the chrome's top.
+        let fadeTop = pagerTop - 4 - 36
         let rows = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "fst.song-leaderboard.row.")
         ).allElementsBoundByIndex

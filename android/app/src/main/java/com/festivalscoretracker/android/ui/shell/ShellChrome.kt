@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.shell
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -87,6 +88,9 @@ fun DrawerContent(
         is DrawerTarget.Section -> onSection(target.section)
         is DrawerTarget.Push -> onRoute(target.route)
     }
+    // The footer (player row, Deselect, Settings) sits at the bottom when everything fits; on a
+    // short window the whole sheet scrolls as one list (issue #162: pinning the footer left a
+    // 2.0× landscape phone less than one destination row, with "Songs" cut in half).
     Column(
         Modifier
             .fillMaxHeight()
@@ -94,13 +98,15 @@ fun DrawerContent(
             .testTag("fst.nav.drawer-sheet")
             // One TalkBack unit (like the rail): without it the permanent drawer's footer (player
             // row, Deselect, Settings) was read after the page content, by vertical position.
-            .semantics { isTraversalGroup = true },
+            .semantics { isTraversalGroup = true }
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.SpaceBetween,
     ) {
         // Header row the height of the top app bar, so the first entry lines up with the page's
         // first content row and with the rail's first destination (the drawer extends the rail).
         // Large text wraps the title, so the row grows (a fixed 64 dp let "Songs" overlap the
-        // title's second line at 2.0×, issue #132) and scrolls with the entries on short windows.
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+        // title's second line at 2.0×, issue #132).
+        Column {
             Box(Modifier.fillMaxWidth().heightIn(min = PAGE_CONTENT_TOP_DP.dp).testTag("fst.nav.drawer-header"), contentAlignment = Alignment.CenterStart) {
                 if (!permanent) {
                     Text(
@@ -119,41 +125,43 @@ fun DrawerContent(
                 }
             }
         }
-        HorizontalDivider(Modifier.padding(vertical = 8.dp), color = BrandTokens.glassBorder)
-        if (player != null) {
-            val profileItem = @Composable {
-                DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
-                    open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
+        Column {
+            HorizontalDivider(Modifier.padding(vertical = 8.dp), color = BrandTokens.glassBorder)
+            if (player != null) {
+                val profileItem = @Composable {
+                    DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
+                        open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
+                    }
                 }
-            }
-            val deselect = @Composable { modifier: Modifier ->
-                TextButton(
-                    onClick = onDeselect,
-                    modifier = modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect").semantics { contentDescription = "Deselect profile" },
-                ) { Text("Deselect", Modifier.clearAndSetSemantics { }) }
-            }
-            // Large text: the name keeps the row's width and Deselect drops below it (beside it,
-            // a 200% "SFentonX" broke a few letters per line, issue #101).
-            if (isLargeText()) {
-                Column {
-                    profileItem()
-                    deselect(Modifier.align(Alignment.End))
+                val deselect = @Composable { modifier: Modifier ->
+                    TextButton(
+                        onClick = onDeselect,
+                        modifier = modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect").semantics { contentDescription = "Deselect profile" },
+                    ) { Text("Deselect", Modifier.clearAndSetSemantics { }) }
+                }
+                // Large text: the name keeps the row's width and Deselect drops below it (beside it,
+                // a 200% "SFentonX" broke a few letters per line, issue #101).
+                if (isLargeText()) {
+                    Column {
+                        profileItem()
+                        deselect(Modifier.align(Alignment.End))
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { profileItem() }
+                        deselect(Modifier)
+                    }
                 }
             } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { profileItem() }
-                    deselect(Modifier)
-                }
+                DrawerItem("Select Profile", Icons.Outlined.PersonAdd, tag = "fst.nav.drawer.select-profile", onClick = onOpenProfile)
             }
-        } else {
-            DrawerItem("Select Profile", Icons.Outlined.PersonAdd, tag = "fst.nav.drawer.select-profile", onClick = onOpenProfile)
+            DrawerItem(
+                FestivalSection.Settings.title,
+                FestivalSection.Settings.icon(selected == FestivalSection.Settings),
+                selected = selected == FestivalSection.Settings,
+                tag = if (tabTags) "fst.nav.tab.settings" else "fst.nav.drawer.settings",
+            ) { onSection(FestivalSection.Settings) }
         }
-        DrawerItem(
-            FestivalSection.Settings.title,
-            FestivalSection.Settings.icon(selected == FestivalSection.Settings),
-            selected = selected == FestivalSection.Settings,
-            tag = if (tabTags) "fst.nav.tab.settings" else "fst.nav.drawer.settings",
-        ) { onSection(FestivalSection.Settings) }
     }
 }
 

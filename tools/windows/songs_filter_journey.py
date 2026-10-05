@@ -202,7 +202,7 @@ SCENARIOS: dict[str, Scenario] = {
          "toggle:id=fst.songs.filter.score.chart.prolead.missing-scores", f"waitgone:{PULSE}@10",
          "scrollinto:id=fst.songs.filter.double-bass@5", "expand:id=fst.songs.filter.double-bass",
          "toggle:id=fst.songs.filter.double-bass.unsupported", "collapse:id=fst.songs.filter",
-         "invoke:id=fst.shell.profile", "waitfor:id=fst.profile.deselect@5", "invoke:id=fst.profile.deselect",
+         "key:ctrl+shift+p", "waitfor:id=fst.profile.deselect@5", "invoke:id=fst.profile.deselect",
          "waitfor:id=PrimaryButton@10", "invoke:id=PrimaryButton", "waitgone:id=PrimaryButton@10",
          "{status:Filters applied}", "expand:id=fst.songs.filter", "waitfor:id=fst.songs.filter.reset@5",
          "waitgone:id=fst.songs.filter.score.global", "{shot:filter-deselected}", "collapse:id=fst.songs.filter",

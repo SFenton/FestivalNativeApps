@@ -53,7 +53,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="GlobalSearchButton" Visibility="Collapsed" Padding="8" Background="Transparent" BorderThickness="0"
                         MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
-                        VerticalAlignment="Center" ToolTipService.ToolTip="Search (Ctrl+E)"
+                        VerticalAlignment="Center" ToolTipService.ToolTip="Search songs and players (Ctrl+E)"
                         AutomationProperties.Name="Search songs and players"
                         AutomationProperties.AutomationId="fst.global-search.open">
                     <FontIcon Glyph="&#xE721;" FontSize="16" />
@@ -61,14 +61,19 @@
                 <!-- The bell only shows with a selected profile (operator 2026-09-28): notifications are player-scoped. -->
                 <ContentControl x:Name="NotificationsHost" VerticalAlignment="Center" IsTabStop="False"
                                 Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}" />
+                <!-- Issue #290 (web getProfileClickDestination): with a player the click shows Statistics; anonymous it opens
+                     the picker. The picker is an attached flyout so the click can choose; the context menu (right-click,
+                     Shift+F10) and Ctrl+Shift+P open it in both states. -->
                 <Button x:Name="ProfileButton" Padding="4" Margin="0,0,8,0" Background="Transparent" BorderThickness="0"
                         MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
+                        Click="OnProfileButtonClick" ContextRequested="OnProfileButtonContextRequested"
                         AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"
+                        AutomationProperties.HelpText="{x:Bind Shell.ProfileButtonHelp, Mode=OneWay}"
                         AutomationProperties.AutomationId="fst.shell.profile"
-                        ToolTipService.ToolTip="{x:Bind Shell.ProfileName, Mode=OneWay}">
+                        ToolTipService.ToolTip="{x:Bind Shell.ProfileButtonToolTip, Mode=OneWay}">
                     <PersonPicture Width="28" Height="28" DisplayName="{x:Bind Shell.ProfileDisplayName, Mode=OneWay}"
                                    AutomationProperties.AccessibilityView="Raw" />
-                    <Button.Flyout>
+                    <FlyoutBase.AttachedFlyout>
                         <Flyout x:Name="ProfileFlyout" Placement="BottomEdgeAlignedRight" Opened="OnProfileFlyoutOpened"
                                 Closed="OnProfileFlyoutClosed">
                             <!-- Profile selection (fst.profile.*): selected summary, Players/Bands target, search, results. -->
@@ -93,7 +98,9 @@
                                         <Button Content="Deselect" Click="OnDeselectProfile"
                                                 AutomationProperties.AutomationId="fst.profile.deselect" />
                                     </StackPanel>
-                                    <MenuFlyoutSeparator Margin="0,4,0,0" />
+                                    <!-- A plain divider: a MenuFlyoutSeparator outside a menu is a focusable Control with no
+                                         automation name, so Tab stopped on it silently (issue #254). -->
+                                    <Rectangle Height="1" Margin="-4,5,-4,1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                                 </StackPanel>
                                 <TextBlock Text="Find a Profile" Style="{StaticResource BodyStrongTextBlockStyle}"
                                            AutomationProperties.HeadingLevel="Level2" />
@@ -141,7 +148,7 @@
                                         AutomationProperties.AutomationId="fst.profile.retry" />
                             </StackPanel>
                         </Flyout>
-                    </Button.Flyout>
+                    </FlyoutBase.AttachedFlyout>
                 </Button>
                 </StackPanel>
             </TitleBar.RightHeader>

@@ -30,6 +30,9 @@ struct SongScoreHistorySection: View {
     var viewportWidth: CGFloat = 0
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
+    /// Opens every score for an instrument in the trailing pane, where Song Detail can
+    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
+    var openFullHistory: ((Instrument) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
@@ -89,7 +92,7 @@ struct SongScoreHistorySection: View {
                 }
                 .frame(minHeight: pinnedHeight, alignment: .top)
                 .padding(14)
-                .festivalGlass(.card, cornerRadius: 16)
+                .festivalCard(cornerRadius: 16)
                 Group {
                     VStack(spacing: 6) {
                         ForEach(Array(list.enumerated()), id: \.offset) { index, entry in
@@ -103,7 +106,16 @@ struct SongScoreHistorySection: View {
                                 .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                         }
                     }
-                    if rows.count > SongScoreHistoryModel.listLimit {
+                    if let openFullHistory, !rows.isEmpty {
+                        Button {
+                            openFullHistory(current)
+                        } label: {
+                            PurpleActionLabel(title: "View score history")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("View \(current.label) score history")
+                        .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    } else if rows.count > SongScoreHistoryModel.listLimit {
                         Button {
                             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
                                 expanded.toggle()
@@ -354,6 +366,9 @@ private struct ScoreHistoryChart: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Legend: bars show accuracy, the line shows score")
+        // Static text, not a control: inside the swipe-to-page chart the audit
+        // otherwise judged it an 18 pt-tall interactive element ("Hit area is too small").
+        .accessibilityAddTraits(.isStaticText)
     }
 
     private func swatch(_ style: AnyShapeStyle, _ title: String) -> some View {
@@ -446,6 +461,9 @@ struct ScoreHistoryListRow: View {
     var seasonColumn = false
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
+    /// Opens every score for an instrument in the trailing pane, where Song Detail can
+    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
+    var openFullHistory: ((Instrument) -> Void)?
 
     private var season: Int? {
         guard seasonColumn, let season = entry.season, season > 0 else { return nil }
@@ -502,7 +520,7 @@ struct ScoreHistoryListRow: View {
                 shape.fill(Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75))
                     .overlay(shape.stroke(BrandTokens.accentPurple.opacity(0.5), lineWidth: 1))
             } else {
-                Color.clear.festivalGlass(.card, cornerRadius: 12)
+                Color.clear.festivalCard(cornerRadius: 12)
             }
         }
         .accessibilityElement(children: .ignore)

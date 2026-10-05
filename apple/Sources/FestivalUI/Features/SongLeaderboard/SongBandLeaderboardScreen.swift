@@ -17,6 +17,8 @@ struct SongBandLeaderboardScreen: View {
     @State private var page = 1
     @State private var state: RankLoadState<SongBandLeaderboardPayload> = .loading
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     private struct RequestKey: Equatable {
         let bandType: BandType
@@ -51,7 +53,7 @@ struct SongBandLeaderboardScreen: View {
             case let .loaded(payload):
                 VStack(spacing: 0) {
                     // The same band card as the Song Detail previews (web `PlayerBandCard`
-                    // on both pages, issue #90), each row its own glass card. A
+                    // on both pages, issue #90), each row its own material card. A
                     // `ScrollView`, not a `List`: the cards are `NavigationLink`s, and a
                     // `List` would draw a second disclosure chevron outside each card.
                     ScrollView {
@@ -83,7 +85,9 @@ struct SongBandLeaderboardScreen: View {
         .festivalBackground(.carousel, session: session)
         .navigationTitle("\(bandType.label) Scores")
         .toolbar {
-            ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
+            if pageTools == nil {
+                ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
+            }
             #if os(iOS)
             if case let .loaded(payload) = state {
                 RankingsPagerToolbarContent(
@@ -95,22 +99,37 @@ struct SongBandLeaderboardScreen: View {
             }
             #endif
         }
+        // iPhone tab-bar accessory (issue #92): Band Size.
+        .festivalPageTool(token: bandType, order: PageToolOrder.primary) {
+            bandTypeMenu
+        }
         .onChange(of: bandType) { _, _ in page = 1 }
         .task(id: requestKey) { await load() }
     }
 
     private var bandTypeMenu: some View {
-        Menu {
+        PageToolMenu("Band Size", choices: bandTypeChoices) {
             Picker("Band Size", selection: $bandType) {
                 ForEach(BandType.allCases) { size in
                     Text(size.label).tag(size)
                 }
             }
         } label: {
-            Image(systemName: "person.3.fill")
+            // A label (icon-only in bars) so the accessory can fill its 44 pt slot.
+            Label("Band Size", systemImage: "person.3.fill")
         }
         .accessibilityIdentifier("fst.song-band-leaderboard.band-type-menu")
         .accessibilityLabel("Band size: \(bandType.label)")
+    }
+
+    /// The band sizes for the inline-accessory sheet (``PageToolMenu``).
+    private func bandTypeChoices() -> [PageToolMenuChoice] {
+        BandType.allCases.map { size in
+            PageToolMenuChoice(
+                id: "fst.song-band-leaderboard.band-type.\(size.rawValue)", label: AnyView(Text(size.label)),
+                isSelected: size == bandType, action: { bandType = size }
+            )
+        }
     }
 
     /// Load the current page, rejecting late responses from a previous selection.

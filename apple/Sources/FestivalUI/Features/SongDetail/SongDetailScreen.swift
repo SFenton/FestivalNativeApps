@@ -47,6 +47,11 @@ struct SongDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
     @Environment(\.deviceLayout) private var deviceLayout
+    /// Set while Song Detail can split: its full boards and score history open in the
+    /// trailing pane (`OnDemandSplitPolicy`).
+    @Environment(\.listDetailSelect) private var splitSelect
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// What the page's first-appearance reads depend on.
     private struct GateKey: Hashable {
@@ -70,6 +75,14 @@ struct SongDetailScreen: View {
     }
 
     private var previewInstruments: [Instrument] { charted.filter(visibleInstruments.contains) }
+
+    /// Opens an instrument's score history in the trailing pane while Song Detail can
+    /// split, else nil (the section expands in place).
+    private var openFullHistory: ((Instrument) -> Void)? {
+        guard let splitSelect, splitSelect.accepts(.playerHistory(song, .lead)) else { return nil }
+        let song = song
+        return { instrument in splitSelect(.playerHistory(song, instrument)) }
+    }
 
     /// Whether the Score History section is drawn (a selected player with rows).
     private var showsScoreHistory: Bool { session.selectedPlayer != nil && !historyEntries.isEmpty }
@@ -177,6 +190,18 @@ struct SongDetailScreen: View {
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar { detailToolbar }
+        // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
+        .festivalPageTool(
+            token: [shopOffer?.shopUrl.absoluteString ?? "", shopTone.map { "\($0)" } ?? ""],
+            order: PageToolOrder.primary, isEnabled: shopOffer != nil
+        ) {
+            if let offer = shopOffer { shopAction(offer, fillsSlot: true) }
+        }
+        .festivalPageTool(
+            token: "paths", order: PageToolOrder.secondary, isEnabled: !pathInstruments.isEmpty
+        ) {
+            pathsButton
+        }
         .macSongCommands(macSongCommands)
         #if os(macOS)
         #if DEBUG
@@ -241,24 +266,29 @@ struct SongDetailScreen: View {
             }
         }
         #endif
-        if let offer = shopOffer {
+        if pageTools == nil, let offer = shopOffer {
             ToolbarItem(placement: .festivalPageAction) {
                 shopAction(offer)
             }
             .songDetailPagePriority()
         }
-        if !pathInstruments.isEmpty {
+        if pageTools == nil, !pathInstruments.isEmpty {
             ToolbarItem(placement: .festivalPageAction) {
-                Button {
-                    pathsPresented = true
-                } label: {
-                    Label("Paths", systemImage: "map")
-                }
-                .accessibilityIdentifier("fst.song-detail.paths")
+                pathsButton
             }
             .songDetailPagePriority()
         }
         QuickLinksToolbarItem(quickLinks)
+    }
+
+    /// Opens the Paths sheet.
+    private var pathsButton: some View {
+        Button {
+            pathsPresented = true
+        } label: {
+            Label("Paths", systemImage: "map")
+        }
+        .accessibilityIdentifier("fst.song-detail.paths")
     }
 
     /// The loaded page: header, Intensity, Score History, then the chart cards, fading
@@ -290,6 +320,9 @@ struct SongDetailScreen: View {
                     .marqueeSync()
                 }
                 .accessibilityElement(children: .combine)
+                // The page's h1 (spec "Accessibility order"): the rotor's first heading.
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("fst.song-detail.hero-title")
                 .festivalFadeIn(isLoaded: true, index: 0)
 
                 if !hideShop, let error = session.shopError
@@ -321,7 +354,7 @@ struct SongDetailScreen: View {
                         }
                     }
                     .padding(14)
-                    .festivalGlass(.card, cornerRadius: 16)
+                    .festivalCard(cornerRadius: 16)
                 }
                 .accessibilityIdentifier("fst.song-detail.intensity")
                 .festivalFadeIn(isLoaded: true, index: 1)
@@ -332,7 +365,8 @@ struct SongDetailScreen: View {
                         entries: historyEntries, pool: previewInstruments,
                         keyboardIcon: song.usesKeyboardIcon,
                         instrument: $historyInstrument, expanded: $historyExpanded,
-                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason
+                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason,
+                        openFullHistory: openFullHistory
                     )
                     .festivalFadeIn(isLoaded: true, index: 2)
                     .id(SongScoreHistorySection.anchor)
@@ -464,10 +498,13 @@ extension SongDetailScreen {
     /// Official Item Shop action. While Shop highlighting is on, its circle breathes
     /// in the song's Shop status colour like the web's `shopBreathe*` button.
     ///
-    /// - Parameter offer: Validated Shop row for this song.
+    /// - Parameters:
+    ///   - offer: Validated Shop row for this song.
+    ///   - fillsSlot: In the tab-bar accessory: the breathing glyph's hit target fills
+    ///     its slot (at least 44×44 pt).
     /// - Returns: Toolbar link with a spoken status.
     @ViewBuilder
-    private func shopAction(_ offer: ShopSong) -> some View {
+    private func shopAction(_ offer: ShopSong, fillsSlot: Bool = false) -> some View {
         switch SongDetailShopActionStyle.resolve(tone: shopTone, chrome: deviceLayout.sectionChrome) {
         case let .breathing(tone):
             Link(destination: offer.shopUrl) {
@@ -476,6 +513,10 @@ extension SongDetailScreen {
                     .foregroundStyle(FestivalText.primary)
                     .frame(width: 34, height: 34)
                     .modifier(ShopStatusBreathe(tone: tone))
+                    // In the tab-bar accessory the whole slot is the hit target (44 pt+).
+                    .frame(maxWidth: fillsSlot ? .infinity : nil, maxHeight: fillsSlot ? .infinity : nil)
+                    .frame(minWidth: fillsSlot ? 44 : nil, minHeight: fillsSlot ? 44 : nil)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel("Item Shop, \(tone.spokenStatus)")
             .accessibilityIdentifier("fst.song-detail.shop")
@@ -521,6 +562,8 @@ extension SongDetailScreen {
         }
         .frame(maxWidth: 240)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
+        // A bar title stays on one line at every text size.
+        .environment(\.marqueeWrapsAtAccessibilitySizes, false)
     }
 }
 

@@ -16,6 +16,8 @@ struct BandRankingsScreen: View {
     /// across page loads (no pager/subtitle flicker); cleared on a size/metric change.
     @State private var board: BoardSummary?
     @Environment(\.deviceLayout) private var layout
+    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Count facts that survive a page change.
     private struct BoardSummary: Equatable {
@@ -70,7 +72,7 @@ struct BandRankingsScreen: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, glassSurface: true)
+                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, cardSurface: true)
                                 .macKeyboardRow(entry.teamKey)
                         }
                     }
@@ -107,7 +109,7 @@ struct BandRankingsScreen: View {
                     bandTypeMenu(showsTitle: false)
                     BandRankByMenu(selection: $rankBy)
                 }
-            } else {
+            } else if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) {
                     HStack(spacing: 4) {
                         BandRankByMenu(selection: $rankBy)
@@ -125,6 +127,10 @@ struct BandRankingsScreen: View {
             }
             #endif
         }
+        // iPhone tab-bar accessory (issue #92): Rank By.
+        .festivalPageTool(token: rankBy, order: PageToolOrder.primary) {
+            BandRankByMenu(selection: $rankBy)
+        }
         .onChange(of: bandType) { _, _ in
             page = 1
             board = nil
@@ -136,7 +142,7 @@ struct BandRankingsScreen: View {
         .task(id: requestKey) { await load() }
     }
 
-    /// Band-size switcher: a glass pill in the floating bar, or a titled toolbar
+    /// Band-size switcher: a material pill in the floating bar, or a titled toolbar
     /// item (`Label` with the band symbol) in the iPhone Duo rail (`/duo` J1).
     ///
     /// - Parameter showsTitle: Whether the pill shows the band size's name.

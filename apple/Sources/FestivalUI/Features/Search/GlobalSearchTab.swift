@@ -37,9 +37,12 @@ struct GlobalSearchTab: View {
                     text: $model.query, isPresented: $fieldPresented,
                     prompt: Text(GlobalSearch.prompt(for: model.scope))
                 )
+                // No Retry button (issue #299): Search re-runs a failed or empty search.
+                .onSubmit(of: .search) { model.submit() }
                 .modifier(KeepSearchTitleWhileSearching())
                 .task(id: model.runKey) { await model.search(session: session) }
                 .modifier(SearchPageChrome(session: session, enabled: !asTab))
+                .rootTabBarVisibility()
         }
         .onAppear { if asTab && isSelected { fieldPresented = true } }
         // Focus the field (and raise the keyboard) every time the tab is chosen; iOS 26
@@ -96,7 +99,9 @@ private struct SearchPageChrome: ViewModifier {
 /// - Choosing the Search tab activates its field (`.searchTabSelection`), so the keyboard
 ///   comes up at once (HIG Search fields).
 /// - The horizontal tab bar minimizes on scroll down, to the current tab and Search,
-///   with nothing riding on it (HIG Tab bars: "scrolling down can minimize the bar").
+///   and the page-tools accessory moves inline beside it (HIG Tab bars: "With an
+///   attached accessory such as Music's MiniPlayer, scrolling down can minimize the bar
+///   and move the accessory inline").
 struct RootTabBarBehavior: ViewModifier {
     @Environment(\.deviceLayout) private var layout
 

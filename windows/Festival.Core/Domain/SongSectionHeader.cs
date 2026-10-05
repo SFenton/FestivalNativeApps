@@ -18,6 +18,13 @@ public static class SongSectionHeader
     /// <summary>A row whose bottom edge is within this many pixels of the top edge counts as scrolled away.</summary>
     public const double Tolerance = 1;
 
+    /// <summary>
+    /// A title within this many epx below its pinned place counts as pinned: layout rounding leaves a jumped-to title a
+    /// fraction short of it, which otherwise kept the previous section named (issue #231: picking I left "H" as the
+    /// heading). Below one epx, so the push still hands off without a visible step.
+    /// </summary>
+    public const double PinSlack = 0.5;
+
     /// <summary>Returns the index of the section that holds <paramref name="row"/>.</summary>
     /// <param name="sectionStarts">Ascending first-row index of each section.</param>
     /// <param name="row">Flat row index.</param>
@@ -45,15 +52,29 @@ public static class SongSectionHeader
     /// <param name="realized">Realized rows with edges relative to the viewport top.</param>
     /// <param name="viewportHeight">Viewport height.</param>
     /// <returns>Index of the first visible row, clamped to the rows.</returns>
-    public static int FirstVisibleRow(int fallback, int count, IEnumerable<RealizedRow> realized, double viewportHeight)
+    public static int FirstVisibleRow(int fallback, int count, IEnumerable<RealizedRow> realized, double viewportHeight) =>
+        TryFirstVisibleRow(count, realized, viewportHeight, out var row) ? row : count <= 0 ? 0 : Math.Clamp(fallback, 0, count - 1);
+
+    /// <summary>
+    /// Finds the first row actually visible in the list viewport from the realized rows' geometry alone. Fails when no
+    /// realized row is in view: after a far scroll (scrollbar thumb, UI Automation or Narrator scroll, Home/End) the
+    /// final view change arrives before the panel realizes the destination rows, so the page must read the header again
+    /// once layout settles instead of trusting the stale first-visible index (issue #248: the bar kept "#" over S).
+    /// </summary>
+    /// <param name="count">Row count.</param>
+    /// <param name="realized">Realized rows with edges relative to the viewport top.</param>
+    /// <param name="viewportHeight">Viewport height.</param>
+    /// <param name="row">Index of the first visible row, or -1.</param>
+    /// <returns><see langword="true"/> when a realized row is in view.</returns>
+    public static bool TryFirstVisibleRow(int count, IEnumerable<RealizedRow> realized, double viewportHeight, out int row)
     {
-        if (count <= 0) return 0;
-        var first = -1;
-        foreach (var row in realized)
-            if (row.Index >= 0 && row.Index < count && row.Bottom > Tolerance && row.Top < viewportHeight
-                && (first < 0 || row.Index < first))
-                first = row.Index;
-        return first >= 0 ? first : Math.Clamp(fallback, 0, count - 1);
+        row = -1;
+        if (count <= 0) return false;
+        foreach (var candidate in realized)
+            if (candidate.Index >= 0 && candidate.Index < count && candidate.Bottom > Tolerance && candidate.Top < viewportHeight
+                && (row < 0 || candidate.Index < row))
+                row = candidate.Index;
+        return row >= 0;
     }
 
     /// <summary>Maps a first-visible row to its section label.</summary>
@@ -108,7 +129,7 @@ public static class SongSectionHeader
         if (rowSection < 0 || rowSection >= sectionCount) return PushState.Resting(-1);
         if (barHeight <= 0 || double.IsNaN(barHeight)) return PushState.Resting(rowSection);
         // The first visible row's own title has not pinned yet: the previous section is still current.
-        if (rowSection > 0 && rowSectionTitleTop is { } own && !double.IsNaN(own) && own > -barHeight)
+        if (rowSection > 0 && rowSectionTitleTop is { } own && !double.IsNaN(own) && own > -barHeight + PinSlack)
             return own <= band ? new(rowSection - 1, rowSection, own) : PushState.Resting(rowSection - 1);
         if (rowSection + 1 < sectionCount && nextTitleTop is { } next && !double.IsNaN(next) && next > -barHeight && next <= band)
             return new(rowSection, rowSection + 1, next);
@@ -137,6 +158,31 @@ public static class SongSectionHeader
     /// <returns>Extra scroll in epx, or 0 when the title is already pinned or out of view.</returns>
     public static double JumpPinDelta(double titleBottom, double viewportHeight) =>
         titleBottom > Tolerance && titleBottom < viewportHeight ? titleBottom : 0;
+
+    #endregion
+
+    #region Jump index cells (issue #231)
+
+    /// <summary>Horizontal space around a jump-index label: its 12-epx margin on each side.</summary>
+    public const double JumpLabelPadding = 24;
+
+    /// <summary>Narrowest jump-index cell: a 48-epx single letter plus its padding.</summary>
+    public const double JumpMinCell = 72;
+
+    /// <summary>
+    /// Width of every cell in the zoomed-out jump index. The wrap grid sizes all cells from its first item, so bucket
+    /// labels after a short first one ("In Shop", then "Leaving Tomorrow") were trimmed to "Leavi…"; sizing the cells
+    /// to the widest label keeps every label whole, and clamping to the grid keeps one cell per row at worst.
+    /// </summary>
+    /// <param name="labelWidths">Measured text widths of the labels (text scaling included).</param>
+    /// <param name="available">The grid's width, or a non-positive/NaN value when not laid out yet.</param>
+    /// <returns>Cell width in epx.</returns>
+    public static double JumpCellWidth(IEnumerable<double> labelWidths, double available)
+    {
+        var widest = labelWidths.Where(double.IsFinite).DefaultIfEmpty(0).Max();
+        var cell = Math.Max(JumpMinCell, Math.Ceiling(widest) + JumpLabelPadding);
+        return double.IsFinite(available) && available >= JumpMinCell ? Math.Min(cell, available) : cell;
+    }
 
     #endregion
 }

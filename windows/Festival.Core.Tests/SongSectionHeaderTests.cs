@@ -37,6 +37,33 @@ public class SongSectionHeaderTests
     }
 
     [Fact]
+    public void FarScroll_StaleRowsAboveTheViewport_ReportNoVisibleRow()
+    {
+        // Issue #248: a far scroll (thumb, UIA SetScrollPercent) ends before the panel realizes S; the old # rows now sit
+        // thousands of epx above the viewport, so geometry finds nothing and the page must re-read after layout.
+        var stale = Layout(0, 0, 12).Select(r => r with { Top = r.Top - 50_000, Bottom = r.Bottom - 50_000 }).ToList();
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(Count, stale, Viewport, out var row));
+        Assert.Equal(-1, row);
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(Count, [], Viewport, out _));
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(0, Layout(0, 0, 4), Viewport, out _));
+        // A row below the viewport or outside the list does not count either.
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(Count, [new(5, Viewport, Viewport + Row), new(Count, 0, Row)], Viewport, out _));
+    }
+
+    [Fact]
+    public void FarScroll_AfterLayout_NamesTheSectionAtTheTop()
+    {
+        // The post-layout re-read sees S realized under the top edge and names it, whatever the stale index says.
+        var s = Array.IndexOf(Labels, "S");
+        Assert.True(SongSectionHeader.TryFirstVisibleRow(Count, Layout(s, s * 4 - 3, s * 4 + 8), Viewport, out var row));
+        Assert.Equal(s * 4, row);
+        Assert.Equal("S", Label(0, Layout(s, s * 4 - 3, s * 4 + 8)));
+        // Scrolling back up to F after that behaves the same way.
+        var f = Array.IndexOf(Labels, "F");
+        Assert.Equal("F", Label(s * 4, Layout(f, f * 4 - 2, f * 4 + 9)));
+    }
+
+    [Fact]
     public void FarJump_HashToP_ShowsP()
     {
         // # → P: the panel may still report row 0 from before the jump; the realized rows put P on top.
@@ -158,6 +185,30 @@ public class SongSectionHeaderTests
         Assert.Equal(SongSectionHeader.PushState.Resting(1), Push(2, 300, null));
         // The last section has nothing after it to push it out.
         Assert.Equal(SongSectionHeader.PushState.Resting(26), Push(26, null, 0));
+    }
+
+    [Fact]
+    public void Push_AJumpedTitleAFractionShortOfItsPlace_CountsAsPinned()
+    {
+        // Issue #231: layout rounding left a jumped-to title 0.3 epx short of the bar, naming the previous section.
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), Push(2, -Bar + 0.3, null));
+        Assert.Equal(SongSectionHeader.PushState.Resting(2), Push(2, -Bar + SongSectionHeader.PinSlack, null));
+        Assert.Equal(new SongSectionHeader.PushState(1, 2, -Bar + 0.6), Push(2, -Bar + 0.6, null));
+    }
+
+    [Fact]
+    public void JumpCellWidth_FitsTheWidestLabelWithinTheGrid()
+    {
+        // Letters keep the 72-epx cell.
+        Assert.Equal(SongSectionHeader.JumpMinCell, SongSectionHeader.JumpCellWidth([11.2, 14.8], 900));
+        // "In Shop" first, "Leaving Tomorrow" later: every cell fits the widest label.
+        Assert.Equal(170 + SongSectionHeader.JumpLabelPadding, SongSectionHeader.JumpCellWidth([70, 169.3, 120], 900));
+        // Wider than the grid: one cell per row, trimmed.
+        Assert.Equal(300, SongSectionHeader.JumpCellWidth([500], 300));
+        // Not laid out yet, no labels or unmeasurable widths.
+        Assert.Equal(424, SongSectionHeader.JumpCellWidth([400], double.NaN));
+        Assert.Equal(SongSectionHeader.JumpMinCell, SongSectionHeader.JumpCellWidth([], 0));
+        Assert.Equal(SongSectionHeader.JumpMinCell, SongSectionHeader.JumpCellWidth([double.NaN, double.PositiveInfinity], 900));
     }
 
     [Fact]

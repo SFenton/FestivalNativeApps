@@ -29,7 +29,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop | ✅✅✅ | 6/10/10 | — | ✅ | ✅ |
+| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
 | Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
@@ -42,13 +42,14 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Bands (Band not found, #211) | ✅✅✅ (+live) | 5/8/8 | ✅ | ✅ | ✅ (+200% C/M/W) |
 | Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ (+live, #212) | 12/15/15 | ✅ | ✅ | ✅ (+200% C+M) |
-| Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
+| Search | ✅✅✅ (+snap/max, live, #234) | 6–8/7–9/7–9 (#234) | ✅ (#234) | ✅ (#234 Desert) | ✅ (+200% C+M, display 100%/150%, #234) |
 | Settings | ✅✅✅ | 30/30/30 | ✅ | ✅ | ✅ |
 | Licenses | ✅✅✅ (+dialog, #215) | 21/23/23 (dialog 3) | ✅ (#215 journey) | ✅ | ✅ (+200% C/M/W, display 100%/150%, #215) |
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
-| Notifications flyout | ✅✅✅ | 1 (list) | ✅ | ✅ | ✅ |
+| Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ (pane titles wrap, #230) |
 | First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
+| What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass
 
@@ -74,9 +75,35 @@ Android learnings applied: every leaderboard row (and each score-history row) is
 
 Scope: Song Detail only, fixture matrix plus the live public service (SFentonX on "Never Back Down": Leaving Tomorrow in the Shop, two Lead history bars, eight instrument cards, Duos/Trios/Quads). Results per configuration in [song-detail/windows.md](../pages/song-detail/windows.md#validation-issue-195). Axe 0 errors everywhere: compact, medium, wide, snap-left and maximized; light and dark system theme; Desert and Night sky; text 200%; display 100% and 150%; live and fixture. Keyboard journeys `kb-detail-back`, `kb-paths-dialog-esc` (all sizes) and `kb-detail-compact-previews` (compact: every card's row and View Full stop, arrows between rows, Shift+Tab back) pass. Fixed: Tab skipped virtualized cards at compact, Trios/Quads cards clipped (uniform grid), focus hidden under the pinned header (WCAG 2.4.11), High Contrast chart axes/selection and Item Shop surface, chart axis titles over the ticks at 200% text.
 
+## Leaderboard row columns validation (issue #242, 2026-10-04)
+
+Scope: the shared row-column fitter (issue #37) on every board, checked against the live public service with SFentonX. Results per configuration are in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#validation-issue-242-2026-10-04).
+- **Live matrix:** `a11y_matrix.py --live --scan --tabs 25` gave 0 Axe errors, no focus leaving the window and no repeated stops on six pages at compact, medium and wide: song board, Leaderboards, Full and Band Rankings, Song Detail and Score History.
+- **Modes (0 Axe errors):** Desert, Night sky, text 200%, display 100%/150%, text 200% + display 150% and the light system theme. UIA bounds show every row and the pinned row on shared columns at all sizes, maximized and both snaps.
+- **Fixed:**
+  - Switching a contrast theme with a board open left the rows' code-set brushes (translucent fill, purple pinned row, gold badge) and the pager's disabled-button aliases in the old theme, under system backplates.
+  - Under a contrast theme, the pinned row's FC badge drew WindowText on Highlight.
+
 ## Item Shop validation (issue #224, 2026-10-04)
 
 Scope: the Shop Offers control only. Results per configuration are in [shop-offers/windows.md](../controls/shop-offers/windows.md#validation-issue-224-2026-10-04). `a11y_matrix.py --scan --tabs 30 --only shop` gave 0 Axe errors at compact, medium and wide (6/10/10 Tab stops: compact has no List/Grid toggle). At medium it also gave 0 Axe errors under Desert, Night sky, light and dark system theme, text 200%, and display 100% and 150%. No run had focus leaving the window or repeated stops. The live public service (anonymous) was checked at compact, medium, wide, maximized and snap-left, and under Desert, text 200% and display 150%. Fixed: under a contrast theme, WinUI's automatic adjustment had repainted the badge text as WindowText on a backplate inside the Highlight pill (`HighContrastAdjustment=None` while it is on, as `LeaderboardEntryRow` does). The active ProgressRing reads "Busy Loading Item Shop" (WinUI prefix), so tests use `fst.shop.loading`.
+
+## What's New validation (issue #235, 2026-10-04)
+
+Scope: the What's New dialog only. Results per configuration are in [whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-235-2026-10-04). `a11y_matrix.py --scan --tabs 6 --pages journeys/a11y-whats-new.json` gave 0 Axe errors for the launch dialog and the Settings replay. That held at compact, medium, wide, maximized and snap-left, and at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. Text 200% also gave 0 at compact. Every run had 2 Tab stops (notes, Dismiss), no focus leaving the window and no repeated stops. The keyboard pages `kb-whats-new-dismiss` and `kb-whats-new-replay` pass at all three sizes. `ui_journey.py journeys/whats-new.json` drives every reachable state.
+
+Fixed: the notes scroller was not a tab stop, so the keyboard could not scroll long notes. It now opens focused and is named after the title. Dismiss and the headings gained automation IDs. Backdrop-click journeys need an unlocked console (`journeys/whats-new-pointer.json`).
+
+## Notifications validation (issue #229, 2026-10-04)
+
+Scope: the title-bar bell and flyout only. Results per configuration are in [notifications/windows.md](../controls/notifications/windows.md#validation-issue-229-2026-10-04). `a11y_matrix.py --scan --pages journeys/a11y-notifications.json --fixture notifications_fixture.py` gave 0 Axe errors for loaded, empty, not generated and failed at compact, medium and wide. Loaded also gave 0 at maximized and snap-left, and loaded and failed gave 0 at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. At text 200% the loaded and scrolled-to-end pages also gave 0 at compact. No run had focus leaving the window. The keyboard pages `kb-notifications-rows` and `kb-notifications-esc` pass at all three sizes, and `notifications_journey.py` drives every reachable state. Scanning after Esc (focus back on the bell, tooltip open) shows only open item 8.
+
+Fixed:
+- Each row read as an unnamed list item followed by a nested group, and the row IDs never reached UIA. The `ListViewItem` now carries the name and ID (`ContainerContentChanging`).
+- State IDs sat on panels, which have no UIA peer, so they now sit on text.
+- Under contrast themes the flag pills kept their web colours and the section headers stayed white.
+- With nothing focusable (loading, empty, not generated), focus rested on an unnamed "Popup" window, which is now named "Notifications".
+- At 200% text the unread `InfoBadge` count outgrew its 16 epx circle and covered the bell glyph. The badge now keeps a fixed text size (`IsTextScaleFactorEnabled="False"`), like the system's own badges.
 
 ## Song Band Leaderboard validation (issue #196, 2026-10-03)
 
@@ -88,6 +115,17 @@ Fixed:
 - `.empty` and `.error` sat on a panel and a UserControl, which have no UIA peer.
 
 Constraint: the lane host's console was locked for this pass, so SendInput Tab walks and keyboard journeys could not run. Keyboard order was checked through UIA focusability, and actions were driven through UIA patterns.
+
+## Item Shop validation (issue #206, 2026-10-03)
+
+Scope: the Item Shop only. Results per configuration in [shop/windows.md](../pages/shop/windows.md#validation-issue-206). `a11y_matrix.py --scan --tabs 30` on `shop`, `shop-list`, `shop-filter`, `shop-filter-empty`, `shop-hidden`, `shop-empty`, `shop-error` and `shop-details-unavailable` at compact/medium/wide; Desert and Night sky, light and dark system theme, display 100% and 150%, text 200% (C+M), snap-left and maximized; and `--live` against the public service. 0 Axe errors in every run, no focus outside the window, no repeated stops. `kb-shop-grid`, `kb-shop-grid-open` and `kb-shop-list` pass.
+
+Fixed:
+- The tile grid (`ItemsRepeater`, `TabFocusNavigation="Local"`) was one Tab stop per tile: 124 on the live Shop. It is now one stop with arrow keys inside (Fluent `GridView` model; [design/windows.md](../design/windows.md#accessibility) Collections rule updated).
+- The List/Grid View toggle stayed on the error, empty and hidden states.
+- The toggle was 32 epx next to the 40 epx Filter button.
+- The Leaving Tomorrow pill was clipped at 200% text in compact windows.
+- "Item Shop Is Hidden" was not a heading.
 
 ## Player Profile validation (issue #199, 2026-10-03)
 
@@ -162,7 +200,7 @@ Fixed:
 
 A run on this shared host left the Desert contrast theme on system-wide with no pending restore, so later modes rendered under it. Check `sysset` state before trusting light-theme/text/scale screenshots, and re-run them after restoring.
 
-Seen, out of scope: with live data (three Shop buckets) at the medium preset, the Songs **Jump** zoomed-out index truncates "Leaving Tomorrow" and "Not In Shop" to "Leavi…" and "Not I…". The Songs Jump index owns that layout, not Sort.
+Seen, out of scope: with live data (three Shop buckets) at the medium preset, the Songs **Jump** zoomed-out index truncates "Leaving Tomorrow" and "Not In Shop" to "Leavi…" and "Not I…". The Songs Jump index owns that layout, not Sort. Fixed by issue #231: cells are sized to the widest label ([songs-section-index/windows.md](../controls/songs-section-index/windows.md)).
 
 ## Artwork Background validation (issue #217, 2026-10-03)
 
@@ -282,6 +320,15 @@ Fixed (all in the wide pane, `Controls/QuickLinksPane.xaml`):
 
 Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mode` accepts `+`-joined modes. Gotcha: `shot:…@screen` shows the lock screen on a locked console, so open-menu screenshots need an unlocked session; UIA assertions and window `print` shots still work.
 
+## Song Score Metadata validation (issue #228, 2026-10-04)
+
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/song-score-metadata.json --fixture tools/windows/song_metadata_fixture.py --scan` (every reachable pill state asserted by UIA name and test ID, inline/wrapped placement with `assertlevel:`/`assertbelow:`, keyboard row order, resize) at compact, medium, wide (1340 epx), maximized and both snaps, plus split view (maximized at display 100% and 150%), then under Desert, Night sky, light and dark theme, app contrast, display 100% and 150%, and text 200%: 0 Axe errors. Live public-service screenshots for `SFentonX`. Per-configuration results: [song-score-metadata/windows.md](../controls/song-score-metadata/windows.md#validation-issue-228-2026-10-04).
+
+Fixed:
+- Songs list section groups were named `Festival.App.Pages.SongGroup` (the type name), so Axe reported focusable siblings with the same name on any catalogue with more than one section; groups now take their label.
+- Pills had no automation IDs and Narrator could reach their inner text separately; each pill is now one raw element with `fst.songs.metadata.<field>.<songId>` and its spoken name.
+- Pills had a fixed 22-epx height and clipped at 200% text; they now grow with the text.
+- Wide windows never put the pills inline (the 1100-epx threshold sat on the split-view breakpoint), and a resize out of split view kept a stale list width; placement is now measured per page and re-decided on list resize, text-scale and contrast changes.
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
@@ -290,16 +337,59 @@ Tooling: `uiwin` `assertstate:<sel>|selected=<true|false>`; `a11y_matrix.py --mo
 4. The XAML choice menus (Rank By, Instrument, Band Size, Jump, Sort) share the implicit presenter name "Options". The invoking button names the choice, but per-menu names would read better.
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
-7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Every other size, mode and scroll position scans clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes.
+7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Issue #236: Settings scrolled to the feedback rows at medium with 150% display scale leaves the CHOpt Path View description at the top edge (same zero-height `TextBlock`, 2 findings while the `filing`, `sent` and `error` dialogs are open); the dialog itself scans clean. Every other size, mode and scroll position scans clean.
+8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip. Issue #234 saw it whenever the title-bar search box's suggestion popup is open (every mode).
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
+
+## Global Search validation (issue #234, 2026-10-04)
+
+Evidence: `a11y_matrix.py --pages tools/windows/journeys/a11y-search.json --fixture tools/windows/profile_fixture.py --scan --tabs 30` covers all 11 state pages: closed, suggestions, open-hint, loading, results All/Songs/Players, empty, error, bands-unavailable and navigated. It ran at compact, medium, wide, maximized and snapped, then under Desert, light and dark theme, text 200%, and display 100% and 150%. The Search page scanned with 0 Axe errors throughout; the suggestion popup hits only item 8. The keyboard pages `kb-global-search` and `kb-titlebar-order(-compact)` pass, and live public-service screenshots were taken.
+
+Fixed: Ctrl+E is now reported as the UIA AcceleratorKey of the compact search button, the title-bar box and its inner TextBox, so Narrator announces the shortcut.
+
+Per configuration: [global-search/windows.md](../controls/global-search/windows.md#validation-issue-234-2026-10-04).
 
 ## Settings validation (issue #214, 2026-10-03)
 
 Evidence: `a11y_matrix.py --scan --tabs 60 --pages journeys/settings-states.json` (expanded states, a shot per section) at compact and wide under normal, light and dark theme, Desert, Night sky, text 200%, display 100% and 150%, plus snap-right and maximized: 0 Axe errors, 53/55 distinct Tab stops, none outside the window or repeated. `settings-keyboard` (Space/Enter/Esc with focus kept) and the `journeys/settings.py` journeys pass. Fixed: Settings ignored contrast themes in its reorder lists, First Run chips, link-row hover and progress bar, and kept stale brushes when a contrast theme was switched on while the page was open. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-issue-214-2026-10-03).
+
+## CHOpt Path Default View validation (issue #256, 2026-10-05)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-settings-path-view.json` at compact, medium, wide, maximized and both snaps. It then ran at compact and wide under Desert, Night sky, light and dark theme, text 200%, display 100%/150% and text 200% with display 150%. Every run had 0 Axe errors. There is no disclosure: Narrator reads the group name "CHOpt Path Default View" and the selected Image or Text radio (SelectionItem). Arrow keys move focus and selection together. The `path-default-view` journey proves the choice persists and sets the view Paths opens in. No app change. Per configuration: [settings/windows.md](../pages/settings/windows.md#validation-chopt-path-default-view-issue-256-2026-10-05).
 
 ## App Navigation validation (issue #225, 2026-10-04)
 
 Evidence: `a11y_matrix.py --scan --tabs 30 --pages journeys/a11y-navigation.json` (anonymous, player, band page, Settings, pane open at compact) at compact, medium, wide, snap-left, snap-right and maximized, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%: 0 Axe errors except the open minimal pane (WinUI popup-host finding, open issue 8). `journeys/navigation.py` covers `songs`, `leaderboards`, `settings`, `player`, `band`, `reselect`, the compact pane and keyboard use (8/8 pass). Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#validation-issue-225-2026-10-04).
 
 Fixed: keyboard focus entering the pane from the title bar (Tab from profile) or the minimal pane opening from the toggle landed on Songs rather than the selected section; NavigationView only does this for a Tab that passes through itself.
+
+## Navigation pane corners validation (issue #255, 2026-10-05)
+
+Evidence: `a11y_matrix.py --scan --tabs 20 --pages journeys/a11y-pane-corners.json` (pane closed, overlay, inline, collapsed rail) ran with fixtures and live (`--live`). It covered compact, medium, wide, maximized and both snap halves, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%. Every state passes. Axe found 0 errors except on the open overlay (open issue 8), and Tab stops stay in the window without repeats. `navigation.py compact keyboard` passes. No app code changed. Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#pane-corners-validation-issue-255-2026-10-05).
+
+## Modal component validation (issue #239, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/modals.json` (all eight `FestivalDialog` callers: Settings Reset, Privacy Policy, Report an Issue, Suggest a Feature, What's New, Licenses, First Run, the Karaoke Paths notice, Paths, and both profile confirmations) with fixtures, plus live public-service runs (`--live`, no profile pages). Every run: Esc closes, focus returns to the invoker, Tab stays inside the dialog (2–7 stops) and Axe found 0 errors.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all 11 pages); maximized, snap-left, snap-right | Pass. Compact fixed: Feedback field hints were cut off |
+| Light and dark theme | Pass; identical by design (`FestivalDialog` is dark-only) |
+| Desert, Night sky | Pass after the fix below. Pixel-check captures: a run can start before the theme reaches the app; prefix `ready` with `wait:15` |
+| Text 200% (compact, wide) | Pass after the Feedback hint fix |
+| Display 100%, 150% (wide) | Pass |
+| Keyboard only | Pass: Enter opens, Tab cycles, Esc closes, focus restored |
+| Live service | Pass for every page except Feedback, which the service hides (`/api/features` `feedback:false`) |
+
+Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact width and 200% text; they now wrap. Under contrast themes WinUI drew a Window-coloured text backplate inside the Highlight fill of the default command (Next, Cancel, Submit, OK) and around the selected First Run pip; `DialogChrome.CommandLabelsWithoutBackplate` and `WithoutBackplate` turn it off. Deliberate deviations: the Karaoke notice is an alert (OK / Don't Show Again, no Close); a one-slide First Run shows only Done; Reset defaults to Cancel.
+
+## Feedback Form validation (issue #236, 2026-10-05)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/a11y-feedback.json --fixture tools/windows/feedback_fixture.py` (one page per state: `unavailable`, `editing-empty`, `invalid`, `editing-dirty`, `attachments`, `discard-confirm`, `sending`, `filing`, `sent`, `error`) at compact, medium, wide, maximized and both snaps, then Desert, Night sky, light and dark theme, text 200% and display 100%/150%: 0 Axe errors in the dialog. The only findings are 2 on Settings behind the dialog (open issue 7, medium at display 150%). `journeys/feedback.py` (`unavailable`, `validation`, `submit`, `error`) passes at every size preset. The live public service has `feedback:false`, so only `unavailable` is reachable there. Per configuration: [feedback-form/windows.md](../controls/feedback-form/windows.md#validation-issue-236-2026-10-05).
+
+Fixed (`Controls/FeedbackDialog.cs`):
+- Submit didn't say why it was disabled; a validation line (`fst.settings.feedback.validation`) now names the missing field.
+- The discard prompt and file picker left keyboard focus on the dialog root; focus now lands on Keep Editing and back on Attach Media.
+- Sending, filing, sent and error weren't announced to Narrator.
+- Attachment tiles used fixed colours under contrast themes; they now use theme brushes.
+- At compact or 200% text, field labels were cut off; they now wrap like the helper text (wrapped by issue #239).

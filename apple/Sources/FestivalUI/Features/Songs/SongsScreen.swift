@@ -44,12 +44,15 @@ struct SongsScreen: View {
     @State private var scrollChrome = SongsScrollChrome()
     /// Far programmatic jumps teleport behind this fade (``ListJump``).
     @State private var jumpFade = ListJumpFade()
+    /// The navigation bar's bottom edge and the list's SwiftUI safe-area top (window
+    /// points), measured in compact height only (iPhone Duo outer landscape,
+    /// ``SongsDrawerOverlap``).
+    @State private var drawerBarBottom = CGFloat.nan
+    @State private var listSafeTop = CGFloat.nan
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
-    @Environment(\.listDetailScrollAnchor) private var listScrollAnchor
     /// The anchor this instance already scrolled to.
-    @State private var restoredScrollAnchor: AppRoute?
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage(SongGeneralFilter.storageKey) private var generalFilterData = Data()
@@ -72,11 +75,6 @@ struct SongsScreen: View {
     @AppStorage("fst.settings.metadataDifficulty") private var metadataDifficulty = true
     @AppStorage("fst.settings.metadataStars") private var metadataStars = true
     @AppStorage("fst.settings.metadataLastPlayed") private var metadataLastPlayed = true
-    // Row fade settings (``SectionBarEdgeFade``), which move a jump's landing line.
-    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
-    @Environment(\.colorSchemeContrast) private var systemContrast
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     enum LoadState {
         case loading
         case loaded(CatalogPayload)
@@ -460,13 +458,18 @@ struct SongsScreen: View {
             text: $searchText, placement: Self.filterFieldPlacement,
             prompt: Text("Filter Songs")
         )
-        // Sort, Filter and Quick Links, then the account group, in the navigation bar
-        // (issue #92); Sort and Filter fold into one menu where the bar is too narrow.
+        // Sort, Filter and Quick Links, then the account group: in the iPhone tab-bar
+        // accessory on iOS 26.1+, the navigation bar elsewhere (issue #92); Sort and
+        // Filter fold into one menu where there is too little room.
         .modifier(SongsPageTools(
             session: session, quickLinks: quickLinks,
             canPresentFilter: canPresentFilter,
             sortCustomized: !(sortMode == .title && sortAscending),
             filterActive: generalFilterActive || appliedPlayerScoreFilter?.isActive == true,
+            stateToken: [
+                sortMode.label, String(sortAscending), sortPausedMessage ?? "",
+                filterAccessibilityValue,
+            ],
             sortAction: sortAction, filterAction: filterAction,
             presentSort: { sortPresented = true },
             presentFilter: { filterPresented = true }
@@ -978,6 +981,29 @@ struct SongsScreen: View {
         max(0, scrubberTrailingReserve - songRowInsets.trailing)
     }
 
+    /// Top padding that clears the pinned Filter field where SwiftUI lays the list out
+    /// above the navigation bar's bottom (iPhone Duo outer landscape, `/duo` P3).
+    private var drawerOverlap: CGFloat {
+        SongsDrawerOverlap.padding(
+            barBottom: drawerBarBottom, safeTop: listSafeTop,
+            compactHeight: deviceLayout.heightClass == .compact
+        )
+    }
+
+    /// Measures the bar bottom and the list's safe-area top, in compact height only.
+    @ViewBuilder private var drawerOverlapReader: some View {
+        #if os(iOS)
+        if deviceLayout.heightClass == .compact {
+            SongsDrawerBarReader { barBottom in
+                if barBottom != drawerBarBottom { drawerBarBottom = barBottom }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
+                listSafeTop = top
+            }
+        }
+        #endif
+    }
+
     private func populatedList(
         payload: CatalogPayload, visible: [Song], effectiveMode: SongSortMode
     ) -> some View {
@@ -1026,12 +1052,10 @@ struct SongsScreen: View {
                         // for a header-less section.
                         ForEach(groups) { group in
                             inlineGroupHeader(group)
-                            ForEach(group.songs) { song in
-                                songLink(
-                                    for: song, catalogueObservation: payload.observedPublicationId,
-                                    fadeIndex: fadeOrder[song.songId]
-                                )
-                            }
+                            songRows(
+                                group.songs, catalogueObservation: payload.observedPublicationId,
+                                fadeOrder: fadeOrder
+                            )
                         }
                     } else if let groups {
                         // Before iOS 26: sticky section titles (operator, 2026-09-28) on an
@@ -1039,23 +1063,19 @@ struct SongsScreen: View {
                         // are the scrubber's and Quick Links' jump targets.
                         ForEach(groups) { group in
                             Section {
-                                ForEach(group.songs) { song in
-                                    songLink(
-                                        for: song, catalogueObservation: payload.observedPublicationId,
-                                        fadeIndex: fadeOrder[song.songId]
-                                    )
-                                }
+                                songRows(
+                                    group.songs, catalogueObservation: payload.observedPublicationId,
+                                    fadeOrder: fadeOrder
+                                )
                             } header: {
                                 groupHeader(group)
                             }
                         }
                     } else {
-                        ForEach(visible) { song in
-                            songLink(
-                                for: song, catalogueObservation: payload.observedPublicationId,
-                                fadeIndex: fadeOrder[song.songId]
-                            )
-                        }
+                        songRows(
+                            visible, catalogueObservation: payload.observedPublicationId,
+                            fadeOrder: fadeOrder
+                        )
                     }
                 }
                 .listStyle(.plain)
@@ -1092,6 +1112,8 @@ struct SongsScreen: View {
                     scrollChrome.setScrolled(scrolled)
                 })
                 .scrollContentBackground(.hidden)
+                // iPhone Duo outer landscape: start below the pinned Filter field (`/duo` P3).
+                .safeAreaPadding(.top, drawerOverlap)
                 // Reserve room for the trailing section-index scrubber so its glass
                 // capsule never overlaps a row's own trailing content (difficulty
                 // meter, Shop badge, instrument-status chips) — the scrubber is an
@@ -1104,7 +1126,7 @@ struct SongsScreen: View {
                 .quickLinks(
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
                     sections: showsIndex ? [] : (groups ?? []).compactMap(\.quickLink),
-                    activationOffset: Double(sectionLandingOffset),
+                    activationOffset: Double(SongsScrollChrome.landingOffset),
                     listNudger: scrollChrome.listNudger
                 )
                 .modifier(QuickLinksJumpHeaderSync(
@@ -1126,16 +1148,9 @@ struct SongsScreen: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
-            .onChange(of: sectionLandingOffset, initial: true) { _, offset in
-                scrollChrome.setLandingLine(offset)
-            }
+            .background { drawerOverlapReader }
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
-            // iPhone Duo fold/unfold rebuilt this list: scroll back to the song that was
-            // open (`/duo` D6). The anchor is nil on iPhone, so this never runs there.
-            .onAppear { restoreListScroll(visible, proxy: scrollProxy) }
-            .onChange(of: visible.count) { _, _ in restoreListScroll(visible, proxy: scrollProxy) }
-            .onChange(of: listScrollAnchor) { _, _ in restoreListScroll(visible, proxy: scrollProxy) }
             .onChange(of: reorderKey) { _, _ in
                 scrollChrome.resetHeaders()
                 let top: AnyHashable? = groups?.first?.id ?? visible.first.map { AnyHashable($0.id) }
@@ -1153,6 +1168,10 @@ struct SongsScreen: View {
                 let ids = groups.map(\.id)
                 let rows = SongsScrollStress.rowOffsets(sectionSizes: groups.map(\.songs.count))
                 try? await Task.sleep(for: .seconds(3))
+                // A list replaced while it waited (the Mac window measures its width
+                // and swaps one column for the split) must not open the measured window:
+                // its early start mark pulled launch work into the pass.
+                guard !Task.isCancelled else { return }
                 MainThreadStallMonitor.count(SongsScrollStress.startCounter)
                 var current = 0
                 for step in SongsScrollStress.plan(groupCount: ids.count) {
@@ -1175,33 +1194,14 @@ struct SongsScreen: View {
         }
     }
 
-    /// Scroll a rebuilt list back to the section's anchor song, once per anchor.
-    ///
-    /// - Parameters:
-    ///   - songs: Songs currently listed.
-    ///   - proxy: Reader proxy for the Songs List.
-    private func restoreListScroll(_ songs: [Song], proxy: ScrollViewProxy) {
-        guard let id = ListDetailScrollRestore.target(
-            anchor: listScrollAnchor, restored: restoredScrollAnchor,
-            rowIDs: Set(songs.map(\.id)),
-            rowID: { route in
-                if case let .songDetail(song) = route { return song.id }
-                return nil
-            }
-        ) else { return }
-        restoredScrollAnchor = listScrollAnchor
-        var instant = Transaction()
-        instant.disablesAnimations = true
-        withTransaction(instant) { proxy.scrollTo(id, anchor: .center) }
-    }
-
     /// Jump instantly to a section's title from the A–Z rail (like Contacts and the Quick
     /// Links jumps) and name it in the section bar at once.
     ///
-    /// The title lands on the section bar's landing line (issue #286), so the section's
-    /// first row is clear of the row fade under the bar. A `List` centres any anchor but
-    /// `.top`, so the jump lands flush and ``SongsScrollChrome/settleLanding(on:generation:)``
-    /// then moves the List down onto the line.
+    /// The title lands where it pins under the section bar (issue #298), its first row
+    /// right below it; the row fade under the bar stays out of that row
+    /// (``SongsScrollChrome/fadeLimit(titleTop:barHeight:)``). A `List` honours `.top`, and
+    /// ``SongsScrollChrome/settleLanding(on:generation:)`` corrects a far target placed from
+    /// estimated row heights.
     ///
     /// A far target's rows have never been laid out, so the first scroll places it from
     /// estimated row heights; once they exist a second scroll lands it exactly (as Quick
@@ -1328,17 +1328,6 @@ struct SongsScreen: View {
         return false
     }
 
-    /// How far below the List's top inset a jump lands a section title (issue #286):
-    /// with the section bar, far enough that the first row clears the row fade under it
-    /// (``SongsScrollChrome/landingOffset(fade:)``); flush above opaque pinned headers.
-    private var sectionLandingOffset: CGFloat {
-        guard Self.usesSectionBar else { return 0 }
-        return SongsScrollChrome.landingOffset(fade: SectionBarEdgeFade.height(
-            reduceTransparency: systemReduceTransparency || lessTransparency,
-            increaseContrast: moreContrast || systemContrast == .increased
-        ))
-    }
-
     /// Stable key for a group's in-list title, from the group's scroll target.
     static func headerKey(_ id: AnyHashable) -> String { "\(id)" }
 
@@ -1366,7 +1355,7 @@ struct SongsScreen: View {
     }
 
     /// A pinned section title: full-width, fully opaque backing (a flat surface with a
-    /// hairline, matching the glass cards' border) so scrolling rows never show through,
+    /// hairline, matching the cards' border) so scrolling rows never show through,
     /// and the jump target for the scrubber or Quick Links.
     @ViewBuilder private func groupHeader(_ group: SongListGroup) -> some View {
         let label = Text(group.label)
@@ -1393,8 +1382,95 @@ struct SongsScreen: View {
     ///   - song: Validated catalogue song to display.
     ///   - catalogueObservation: Observed generation of the retained catalogue.
     /// - Returns: One accessible Song Detail link with effective Shop highlighting.
+    // MARK: Rows and the landscape grid
+
+    /// Song cards per list row: two side by side under each section header in a
+    /// landscape regular window (iPad, iPhone Duo inner display; operator 2026-10-04,
+    /// `split-view.md`: Songs never splits, it uses the width instead), else one. The
+    /// Mac keeps one single-line row per song, like a table.
+    private var songColumns: Int {
+        #if os(macOS)
+        1
+        #else
+        SongGridPolicy.columns(layout: deviceLayout)
+        #endif
+    }
+
+    /// One section's songs as list rows: one card per row, or pairs in the landscape grid.
+    ///
+    /// - Parameters:
+    ///   - songs: The section's songs, in order.
+    ///   - catalogueObservation: Observed generation of the retained catalogue.
+    ///   - fadeOrder: Stagger index per song id for rows that just loaded.
+    /// - Returns: The rows.
+    @ViewBuilder
+    private func songRows(_ songs: [Song], catalogueObservation: Int, fadeOrder: [String: Int]) -> some View {
+        let columns = songColumns
+        if columns > 1 {
+            ForEach(SongGridPolicy.rows(songs, columns: columns), id: \.first!.id) { pair in
+                songGridRow(pair, columns: columns, catalogueObservation: catalogueObservation, fadeOrder: fadeOrder)
+            }
+        } else {
+            ForEach(songs) { song in
+                songLink(
+                    for: song, catalogueObservation: catalogueObservation,
+                    fadeIndex: fadeOrder[song.songId]
+                )
+            }
+        }
+    }
+
+    /// One grid row: up to `columns` cards of equal width (a short last row keeps its
+    /// card at column width), each its own accessible link.
+    private func songGridRow(
+        _ songs: [Song], columns: Int, catalogueObservation: Int, fadeOrder: [String: Int]
+    ) -> some View {
+        HStack(alignment: .top, spacing: SongGridPolicy.spacing) {
+            ForEach(songs) { song in
+                songCell(
+                    for: song, catalogueObservation: catalogueObservation,
+                    fadeIndex: fadeOrder[song.songId], windowMenu: false, gridCard: true
+                )
+                .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+                    .frame(maxWidth: .infinity)
+            }
+            ForEach(songs.count..<columns, id: \.self) { _ in
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+            }
+        }
+        // One menu for the row: a `List` row honours a single context menu.
+        .openInNewWindowMenu(songs.map { (title: $0.title, route: FestivalWindowRoute.song(songId: $0.songId)) })
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(songRowInsets)
+        .macKeyboardRow(songs[0].id)
+    }
+
+    /// One Songs list row (a single card).
     private func songLink(
         for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil
+    ) -> some View {
+        songCell(for: song, catalogueObservation: catalogueObservation, fadeIndex: fadeIndex)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(songRowInsets)
+            .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+            .macKeyboardRow(song.id)
+    }
+
+    /// A song card with its Song Detail link, context menu, fade and selected state.
+    ///
+    /// - Parameters:
+    ///   - song: Validated catalogue song to display.
+    ///   - catalogueObservation: Observed generation of the retained catalogue.
+    ///   - fadeIndex: Stagger index when the row just loaded, else nil.
+    ///   - windowMenu: Attach this card's own "Open in New Window" menu.
+    ///   - gridCard: The card shares its `List` row with another (landscape grid), so
+    ///     it opens through its own borderless button (``SongGridCardLink``).
+    /// - Returns: The decorated card.
+    private func songCell(
+        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil, windowMenu: Bool = true,
+        gridCard: Bool = false
     ) -> some View {
         let highlight = ShopPresentationPolicy.highlight(
             for: shopOffersForCurrentSongs?[song.songId],
@@ -1406,8 +1482,7 @@ struct SongsScreen: View {
         // trailing disclosure chevron. `NavigationLink` still owns the push (kept
         // invisible and stretched to the card's bounds) so the row remains one
         // accessible, combined VoiceOver stop with the standard Link action.
-        // `ListDetailLink` is that link, or a button filling the detail column in an
-        // iPhone Duo list/detail split.
+        // `ListDetailLink` is that link (Songs never splits, so it always pushes).
         let row = SongRowView(
             song: song, instrument: instrument,
             session: session, highContrast: highContrast,
@@ -1428,12 +1503,7 @@ struct SongsScreen: View {
         // focus ring would be invisible too).
         let link = ListDetailLink(value: AppRoute.songDetail(song)) { row }
         #else
-        let link = ZStack {
-            row
-            ListDetailLink(value: AppRoute.songDetail(song)) { EmptyView() }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(0)
-        }
+        let link = SongCardLink(route: AppRoute.songDetail(song), gridCard: gridCard) { row }
         #endif
         return link
         .contentShape(Rectangle())
@@ -1442,7 +1512,7 @@ struct SongsScreen: View {
             MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
         }
         #else
-        .openInNewWindowMenu(.song(songId: song.songId))
+        .modifier(SongCellWindowMenu(song: song, enabled: windowMenu))
         #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
@@ -1458,11 +1528,6 @@ struct SongsScreen: View {
         // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
         #endif
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .listRowInsets(songRowInsets)
-        .accessibilityIdentifier("fst.songs.row.\(song.songId)")
-        .macKeyboardRow(song.id)
     }
 
     /// Rows primed before the very first reveal, and how long priming may block it.
@@ -1713,7 +1778,7 @@ private struct SongsSectionBar: View {
         let keys = sections.map(\.key)
         guard let index = chrome.currentSectionIndex(in: keys) else { return nil }
         let tops = chrome.titleTops
-        let landing = chrome.landingLine.value
+        let landing = SongsScrollChrome.landingOffset
         let height = chrome.barHeight.value
         let next = index + 1 < keys.count ? tops[keys[index + 1]] : nil
         let layout = SongsScrollChrome.sectionBarLayout(
@@ -1721,12 +1786,12 @@ private struct SongsSectionBar: View {
             currentPassed: chrome.passedHeaders.contains(keys[index]),
             nextTop: next, landingOffset: landing, barHeight: height
         )
-        // The title before the current one, pinned until the current one pushed it out.
+        // The title before the current one, only while the current one is pushing it out
+        // (issue #297: never pinned under the current title).
         let previous = index > 0 && chrome.passedHeaders.contains(keys[index]) ?
-            SongsScrollChrome.sectionBarLayout(
-                currentTop: nil, currentPassed: true, nextTop: tops[keys[index]],
-                landingOffset: landing, barHeight: height
-            ).currentY : nil
+            SongsScrollChrome.previousTitleY(
+                currentTop: tops[keys[index]], landingOffset: landing, barHeight: height
+            ) : nil
         return (index, previous, layout.currentY, layout.nextY)
     }
 
@@ -1755,7 +1820,8 @@ private struct SongsSectionBarLabel: View {
             .font(.subheadline.bold())
             .foregroundStyle(FestivalText.primary)
             .padding(.horizontal, 20)
-            .padding(.vertical, SongsScrollChrome.barTitlePadding)
+            .padding(.top, SongsScrollChrome.barTitleTopPadding)
+            .padding(.bottom, SongsScrollChrome.barTitleBottomPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityLabel(spokenLabel)
             .accessibilityAddTraits(.isHeader)
@@ -1763,14 +1829,14 @@ private struct SongsSectionBarLabel: View {
 }
 
 /// A section's in-list title (iOS 26): reports when it reaches the section bar's landing
-/// line and blanks its text while the bar shows the same name (issue #286).
+/// line and blanks its text while the bar shows the same name (issues #286, #298).
 ///
-/// A landed title rests just below the bar, inside the row fade, so its text would read
-/// as a faded copy of the bar's. Clearing only the color keeps the row's size, its jump
-/// target and its VoiceOver header. Observes ``SongsScrollChrome/listScrolled`` itself, so
-/// only the title rows re-render when it changes (issue #8). It also reports its top to a
-/// settling jump and hosts the locator that finds the List's scroll view for
-/// ``ListScrollNudger``.
+/// A landed title rests exactly under the bar's copy of it. Clearing only the color
+/// keeps the row's size, its jump target and its VoiceOver header. Observes
+/// ``SongsScrollChrome/listScrolled`` itself, so only the title rows re-render when it
+/// changes (issue #8). It also reports its top to a settling jump and how far the row
+/// fade may reach near it (``SongsScrollChrome/fadeLimit(titleTop:barHeight:)``), and
+/// hosts the locator that finds the List's scroll view for ``ListScrollNudger``.
 private struct SongsInlineSectionTitle: View {
     let key: String
     let label: String
@@ -1784,7 +1850,7 @@ private struct SongsInlineSectionTitle: View {
 
     var body: some View {
         let topInset = chrome.listTopInset
-        let line = chrome.landingLine
+        let line = SongsScrollChrome.landingOffset
         let barTop = chrome.barTop
         let barHeight = chrome.barHeight
         let blank = (passed || inBand) && chrome.listScrolled
@@ -1801,11 +1867,16 @@ private struct SongsInlineSectionTitle: View {
             .onGeometryChange(for: Bool.self) { proxy in
                 SongsScrollChrome.headerPassed(
                     minY: proxy.frame(in: .scrollView).minY,
-                    topInset: topInset.value, landingOffset: line.value
+                    topInset: topInset.value, landingOffset: line
                 )
             } action: { passed in
                 self.passed = passed
                 chrome.setHeader(key, passed: passed)
+            }
+            // Returning to the top forgets every passed title (issue #297); a built title
+            // re-asserts its own answer, which its geometry repeats only when it changes.
+            .onChange(of: chrome.listScrolled) {
+                if passed { chrome.setHeader(key, passed: true) }
             }
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.frame(in: .scrollView).minY
@@ -1815,20 +1886,33 @@ private struct SongsInlineSectionTitle: View {
             .onGeometryChange(for: CGFloat?.self) { proxy in
                 SongsScrollChrome.pushBandTop(
                     titleTop: proxy.frame(in: .global).minY - barTop.value,
-                    landingOffset: line.value, barHeight: barHeight.value
+                    landingOffset: line, barHeight: barHeight.value
                 )
             } action: { top in
                 inBand = top != nil
                 chrome.setTitleTop(key, top: top)
             }
-            .onDisappear { chrome.setTitleTop(key, top: nil) }
+            .onGeometryChange(for: CGFloat?.self) { proxy in
+                SongsScrollChrome.fadeLimit(
+                    titleTop: proxy.frame(in: .global).minY - barTop.value,
+                    barHeight: barHeight.value
+                )
+            } action: { limit in
+                chrome.setFadeLimit(key, limit: limit)
+            }
+            .onDisappear {
+                chrome.setTitleTop(key, top: nil)
+                chrome.setFadeLimit(key, limit: nil)
+            }
             .background(ListScrollViewLocator(nudger: chrome.listNudger))
     }
 }
 
 /// Masks the List above the section bar's bottom edge while scrolled, so rows fade out
 /// under the bar (issue #10, ``SectionBarEdgeFade``). Inactive at the top, where no row
-/// is under the bar and the large title shows.
+/// is under the bar and the large title shows. Near a section's start the fade is only as
+/// deep as ``SongsScrollChrome/rowFadeLimit`` allows, so a landed section's first row and
+/// an incoming title are never dimmed (issue #298).
 ///
 /// The mask is a shape whose path may extend past its frame: inactive it covers far
 /// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
@@ -1850,10 +1934,10 @@ private struct SectionBarRowMask: ViewModifier {
 
     func body(content: Content) -> some View {
         let active = enabled && chrome.listScrolled
-        let fade = SectionBarEdgeFade.height(
+        let fade = chrome.rowFadeHeight(fade: SectionBarEdgeFade.height(
             reduceTransparency: systemReduceTransparency || lessTransparency,
             increaseContrast: moreContrast || systemContrast == .increased
-        )
+        ))
         let cut = max(0, chrome.sectionBarBottom - maskTop)
         content
             .environment(\.defaultMinListRowHeight, 0)
@@ -1889,13 +1973,17 @@ private struct RowMaskShape: Shape {
     }
 }
 
-/// Songs' page tools in the persistent top bar (issue #92): Sort, Filter and Quick Links
-/// in one Liquid Glass group, then the account group (``FestivalRootTrailingItems``).
+/// Songs' page tools (issue #92): Sort, Filter and Quick Links, then the account group.
 ///
-/// Where the bar is too narrow (``SongsToolbarFold``) Sort and Filter fold into one
-/// "Sort and Filter" menu, so Quick Links, Notifications and Profile stay visible
-/// (HIG Toolbars, iOS: "Put only essential actions in the main area; use More for the
-/// rest"). It measures its own width, so a width change re-renders only this toolbar.
+/// On iOS 26.1+ iPhone they sit in the tab-bar accessory (``PageToolsRegistry``); Sort
+/// and Filter fold into one "Sort and Filter" menu when the inline accessory for this
+/// window would be too narrow for every item, or at accessibility text sizes
+/// (``PageToolsAccessoryFit``). The decision never follows the accessory's own width, so
+/// the expanded and inline accessory show the same items (issue #300). Elsewhere they are
+/// navigation-bar items, folding by ``SongsToolbarFold``. Either way Quick Links,
+/// Notifications and Profile stay visible (HIG Toolbars, iOS: "Put only essential
+/// actions in the main area; use More for the rest"). It measures its own width, so a
+/// width change re-renders only this modifier.
 private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
     let session: FestivalSession
     let quickLinks: QuickLinksController
@@ -1904,12 +1992,16 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
     let sortCustomized: Bool
     /// A filter is applied (the folded menu is tinted gold, like Filter).
     let filterActive: Bool
+    /// Every value the Sort and Filter buttons display (accessibility values), so the
+    /// accessory re-registers them when one changes.
+    let stateToken: [String]
     let sortAction: SortAction
     let filterAction: FilterAction
     let presentSort: () -> Void
     let presentFilter: () -> Void
     @Environment(\.deviceLayout) private var layout
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.pageToolsRegistry) private var pageTools
     @State private var width: CGFloat = 0
 
     private var folds: Bool {
@@ -1918,23 +2010,59 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
         )
     }
 
+    /// Whether Sort and Filter fold into one menu in the tab-bar accessory.
+    private func foldsInAccessory(_ registry: PageToolsRegistry) -> Bool {
+        PageToolsAccessoryFit.folds(
+            windowWidth: registry.windowWidth,
+            pageTools: (canPresentFilter ? 2 : 1) + (quickLinks.isAvailable ? 1 : 0),
+            showsBell: session.selectedPlayer != nil,
+            dynamicTypeSize: dynamicTypeSize
+        )
+    }
+
     func body(content: Content) -> some View {
+        let accessoryFolds = pageTools.map(foldsInAccessory) ?? false
+        let highlighted = sortCustomized || filterActive
         content
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
+            .festivalPageTool(
+                token: ["fold", String(highlighted), String(canPresentFilter)],
+                order: PageToolOrder.primary, isEnabled: accessoryFolds
+            ) {
+                SongsSortFilterMenu(
+                    canPresentFilter: canPresentFilter, highlighted: highlighted,
+                    presentSort: presentSort, presentFilter: presentFilter
+                )
+            }
+            .festivalPageTool(
+                token: stateToken + [String(sortCustomized)],
+                order: PageToolOrder.primary, isEnabled: !accessoryFolds
+            ) {
+                sortAction
+            }
+            .festivalPageTool(
+                token: stateToken + [String(filterActive)],
+                order: PageToolOrder.secondary, isEnabled: !accessoryFolds && canPresentFilter
+            ) {
+                filterAction
+            }
             .toolbar {
-                if folds {
-                    ToolbarItem(placement: .festivalPageAction) {
-                        SongsSortFilterMenu(
-                            canPresentFilter: canPresentFilter,
-                            highlighted: sortCustomized || filterActive,
-                            presentSort: presentSort, presentFilter: presentFilter
-                        )
-                    }
-                } else {
-                    ToolbarItemGroup(placement: .festivalPageAction) {
-                        sortAction
-                        if canPresentFilter {
-                            filterAction
+                // With the tab-bar accessory, Sort and Filter are there instead.
+                if pageTools == nil {
+                    if folds {
+                        ToolbarItem(placement: .festivalPageAction) {
+                            SongsSortFilterMenu(
+                                canPresentFilter: canPresentFilter,
+                                highlighted: highlighted,
+                                presentSort: presentSort, presentFilter: presentFilter
+                            )
+                        }
+                    } else {
+                        ToolbarItemGroup(placement: .festivalPageAction) {
+                            sortAction
+                            if canPresentFilter {
+                                filterAction
+                            }
                         }
                     }
                 }
@@ -1957,7 +2085,7 @@ private struct SongsSortFilterMenu: View {
     let presentFilter: () -> Void
 
     var body: some View {
-        Menu {
+        PageToolMenu("Sort and Filter", choices: choices) {
             Button(action: presentSort) {
                 Label("Sort…", systemImage: "arrow.up.arrow.down")
             }
@@ -1975,6 +2103,24 @@ private struct SongsSortFilterMenu: View {
         .tint(highlighted ? BrandTokens.gold : BrandTokens.accentBlue)
         .accessibilityLabel("Sort and Filter")
         .accessibilityIdentifier("fst.songs.tools")
+    }
+
+    /// Sort and Filter for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        var choices = [
+            PageToolMenuChoice(
+                id: "fst.songs.tools.sort",
+                label: AnyView(Label("Sort…", systemImage: "arrow.up.arrow.down")), action: presentSort
+            )
+        ]
+        if canPresentFilter {
+            choices.append(PageToolMenuChoice(
+                id: "fst.songs.tools.filter",
+                label: AnyView(Label("Filter…", systemImage: "line.3.horizontal.decrease")),
+                action: presentFilter
+            ))
+        }
+        return choices
     }
 }
 
@@ -1994,3 +2140,136 @@ private struct PinnedHeaderBacking: ViewModifier {
     }
 }
 
+
+/// A Songs card's own Open in New Window menu (iPad), off inside a grid row, whose row
+/// carries one menu for both cards.
+#if !os(macOS)
+// MARK: - Card links (iOS/iPadOS)
+
+/// A Song card's Song Detail link on iOS/iPadOS.
+///
+/// A one-card row keeps the invisible ``ListDetailLink`` stretched over the card (the
+/// `List` row is the tap target). A landscape grid row holds two cards, and a `List`
+/// row fires every `NavigationLink` it contains on one tap, so both songs opened;
+/// grid cards use ``SongGridCardLink`` instead.
+private struct SongCardLink<Label: View>: View {
+    let route: AppRoute
+    let gridCard: Bool
+    let label: Label
+
+    /// Create a card link.
+    ///
+    /// - Parameters:
+    ///   - route: Song Detail route.
+    ///   - gridCard: The card shares its `List` row with another card.
+    ///   - label: The card.
+    init(route: AppRoute, gridCard: Bool, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.gridCard = gridCard
+        self.label = label()
+    }
+
+    var body: some View {
+        if gridCard {
+            SongGridCardLink(route: route) { label }
+        } else {
+            ZStack {
+                label
+                ListDetailLink(value: route) { EmptyView() }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(0)
+            }
+        }
+    }
+}
+
+/// One grid card's own Song Detail button: borderless, so the `List` row does not
+/// claim the tap and only the touched card opens (HIG Lists and tables: each item is
+/// its own target).
+///
+/// It routes like ``ListDetailLink``: the trailing pane when a split accepts the route,
+/// else a push on the section's stack (`\.pushRoute`); outside the root shell (hosted
+/// tests) a plain `NavigationLink`.
+private struct SongGridCardLink<Label: View>: View {
+    let route: AppRoute
+    let label: Label
+    @Environment(\.listDetailSelect) private var select
+    @Environment(\.pushRoute) private var pushRoute
+
+    /// Create a grid card link.
+    ///
+    /// - Parameters:
+    ///   - route: Song Detail route.
+    ///   - label: The card.
+    init(route: AppRoute, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.label = label()
+    }
+
+    /// The action opening `route`, or nil when only a `NavigationLink` can.
+    private var open: (@MainActor () -> Void)? {
+        if let select, select.accepts(route) { return { select(route) } }
+        if let pushRoute { return { pushRoute(route) } }
+        return nil
+    }
+
+    var body: some View {
+        Group {
+            if let open {
+                Button(action: open) { label }
+                    .buttonStyle(.plain)
+                    // VoiceOver's activate on the combined card runs this card's push.
+                    .accessibilityAction(.default, open)
+            } else {
+                NavigationLink(value: route) { label }
+                    .buttonStyle(.plain)
+            }
+        }
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .hoverEffect(.highlight)
+    }
+}
+#endif
+
+private struct SongCellWindowMenu: ViewModifier {
+    let song: Song
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.openInNewWindowMenu(.song(songId: song.songId))
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Landscape grid policy
+
+/// Pure rules for the Songs landscape grid (`.agents/design/apple/split-view.md`).
+enum SongGridPolicy {
+    /// Gap between the two cards of a grid row.
+    static let spacing: CGFloat = 12
+
+    /// Cards per row: two in a landscape window that is regular in both dimensions (iPad
+    /// landscape, iPhone Duo inner display in landscape), else one (iPhone, portrait,
+    /// compact Split View windows, folded Duo).
+    ///
+    /// - Parameter layout: The page's device layout.
+    /// - Returns: 1 or 2.
+    static func columns(layout: DeviceLayout) -> Int {
+        layout.orientation == .landscape && layout.windowWidthClass == .regular
+            && layout.heightClass == .regular ? 2 : 1
+    }
+
+    /// Chunk a section's songs into rows of `columns`, keeping order (row-major).
+    ///
+    /// - Parameters:
+    ///   - songs: The section's songs.
+    ///   - columns: Cards per row (at least 1).
+    /// - Returns: The rows; only the last may be short.
+    static func rows<Item>(_ songs: [Item], columns: Int) -> [[Item]] {
+        let size = max(1, columns)
+        return stride(from: 0, to: songs.count, by: size).map { Array(songs[$0..<min($0 + size, songs.count)]) }
+    }
+}

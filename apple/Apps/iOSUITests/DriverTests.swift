@@ -17,6 +17,9 @@ import UIKit
 /// - `tap:<identifier-or-label>` — tap the first element whose
 ///   accessibility identifier matches; falls back to an exact label match.
 /// - `tapText:<label>` — tap the first element with an exact label match.
+/// - `tapRail:<identifier>|<menu label>` — tap a bar item, or, when the bar overflowed it
+///   (iPhone Duo vertical bar), open the system `…` (More) menu and tap its entry.
+/// - `tapIfExists:<identifier-or-label>` — tap only if the element appears within 3 s.
 /// - `hold:<identifier-or-label>` — long-press (1.2 s) an element, e.g. to open its
 ///   context menu.
 /// - `tapXY:<x>,<y>` — tap a point. Both components `<= 1.0` are treated as
@@ -46,6 +49,9 @@ import UIKit
 ///   `window-controls`, then a window-controls menu item by label).
 /// - `systemHold:<identifier-prefix-or-label>` — long-press a SpringBoard element (e.g.
 ///   `Zoom-button` for the window tiling menu).
+/// - `systemDrag:<identifier-prefix-or-label>><x>,<y>` — long-press a SpringBoard element
+///   and drag it slowly to a normalized screen point, then hold before release (e.g. a
+///   Multitasking Dock icon to a screen edge for Split View on the iPhone Duo inner display).
 /// - `fill` — iPad windowed multitasking: make the window fill the screen again
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
 /// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
@@ -58,9 +64,16 @@ import UIKit
 /// - `windowFrame:<path>` — append the app window's frame (points) to a host file.
 /// - `key:<[cmd+][shift+][alt+][ctrl+]key>` — hardware-keyboard key press, e.g.
 ///   `key:cmd+2`, `key:tab`, `key:down`, `key:return`, `key:escape`, `key:space`.
+/// - `host:<command>` — have `ios_sim.py drive` run a host-side command while the app
+///   keeps running, and wait for it (see ``HostBridge``): `host:pose unfolded|folded|half|
+///   rotate-left|rotate-right` (iPhone Duo, Device Hub), `host:capture outer|inner|auto
+///   <path>` (one Duo panel via `simctl io`), `host:menu Device/Keyboard/Toggle Software
+///   Keyboard` (a Device Hub menu command for the device).
 enum DriverStep {
     case tap(String)
     case tapText(String)
+    case tapRail(String, String)
+    case tapIfExists(String)
     case hold(String)
     case tapXY(Double, Double)
     case swipe(Direction, identifier: String?)
@@ -79,6 +92,7 @@ enum DriverStep {
     case systemTree(String)
     case systemTap(String)
     case systemHold(String)
+    case systemDrag(String, CGVector)
     case tile(WindowResize.Tile)
     case windowFrame(String)
     case closeWindow
@@ -86,6 +100,7 @@ enum DriverStep {
     case appTree(String, String)
     case appTap(String, String)
     case key(String, XCUIElement.KeyModifierFlags)
+    case host(String)
 
     /// A cardinal swipe direction.
     enum Direction: String {
@@ -119,6 +134,13 @@ enum DriverStep {
         case "tap":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tap(arg)
+        case "tapRail":
+            let bits = arg.split(separator: "|", maxSplits: 1).map(String.init)
+            guard bits.count == 2, !bits[0].isEmpty, !bits[1].isEmpty else { throw ParseError.malformed(raw) }
+            return .tapRail(bits[0], bits[1])
+        case "tapIfExists":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .tapIfExists(arg)
         case "tapText":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .tapText(arg)
@@ -168,6 +190,14 @@ enum DriverStep {
         case "systemTap":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTap(arg)
+        case "systemDrag":
+            guard let split = arg.range(of: ">", options: .backwards) else { throw ParseError.malformed(raw) }
+            let target = String(arg[..<split.lowerBound])
+            let values = arg[split.upperBound...].split(separator: ",").compactMap {
+                Double($0.trimmingCharacters(in: .whitespaces))
+            }
+            guard !target.isEmpty, values.count == 2 else { throw ParseError.malformed(raw) }
+            return .systemDrag(target, CGVector(dx: values[0], dy: values[1]))
         case "systemTree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTree(arg)
@@ -197,6 +227,9 @@ enum DriverStep {
         case "key":
             guard let (key, flags) = keyPress(arg) else { throw ParseError.malformed(raw) }
             return .key(key, flags)
+        case "host":
+            guard !arg.trimmingCharacters(in: .whitespaces).isEmpty else { throw ParseError.malformed(raw) }
+            return .host(arg.trimmingCharacters(in: .whitespaces))
         default:
             throw ParseError.unknownVerb(verb)
         }
@@ -263,7 +296,7 @@ enum DriverStep {
 final class DriverTests: XCTestCase {
     /// Environment keys the driver itself consumes rather than forwarding to the app.
     private static let controlKeys: Set<String> = [
-        "FST_DRIVER_STEPS", "FST_DRIVER_STEPS_FILE", "FST_DRIVER_CONTENT_SIZE",
+        "FST_DRIVER_STEPS", "FST_DRIVER_STEPS_FILE", "FST_DRIVER_CONTENT_SIZE", "FST_DRIVER_HOST_DIR",
     ]
 
     /// A step script was neither inline nor found at the given file path.
@@ -379,6 +412,24 @@ final class DriverTests: XCTestCase {
             } else {
                 candidate.tap()
             }
+        case let .tapRail(identifier, label):
+            let item = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+            if item.waitForExistence(timeout: 3), item.isHittable {
+                item.tap()
+            } else {
+                let more = app.buttons.matching(identifier: "BottomOverflowBarButtonItem").firstMatch
+                guard more.waitForExistence(timeout: 3) else { throw DriverError.elementNotFound(identifier) }
+                more.tap()
+                let entry = app.descendants(matching: .any)
+                    .matching(NSPredicate(format: "label BEGINSWITH %@ OR identifier == %@", label, identifier)).firstMatch
+                guard entry.waitForExistence(timeout: 3) else { throw DriverError.elementNotFound(label) }
+                entry.tap()
+            }
+        case let .tapIfExists(target):
+            let candidate = app.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier == %@ OR label == %@", target, target)
+            ).firstMatch
+            if candidate.waitForExistence(timeout: 3) { candidate.tap() }
         case let .tapText(label):
             let candidate = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label)).firstMatch
@@ -450,6 +501,16 @@ final class DriverTests: XCTestCase {
                 ).firstMatch
             guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
             if case .systemHold = step { target.press(forDuration: 1.2) } else { target.tap() }
+        case let .systemDrag(identifier, destination):
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let target = springboard.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
+            ).firstMatch
+            guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
+            target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+                forDuration: 1.0,
+                thenDragTo: springboard.coordinate(withNormalizedOffset: destination),
+                withVelocity: .slow, thenHoldForDuration: 1.0)
         case let .systemTree(path):
             try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
                 .write(toFile: path, atomically: true, encoding: .utf8)
@@ -476,6 +537,8 @@ final class DriverTests: XCTestCase {
             }
         case let .key(key, flags):
             app.typeKey(key, modifierFlags: flags)
+        case let .host(command):
+            try HostBridge.run(command)
         case .closeWindow:
             guard WindowResize.closeFrontWindow(app) else { throw DriverError.elementNotFound("Close-button") }
         case let .appLaunch(bundle):
@@ -586,5 +649,61 @@ final class DriverTests: XCTestCase {
         let base = "/tmp/fst-driver-failure-\(stepIndex)"
         try? writeScreenshot(to: base + ".png")
         try? app.debugDescription.write(toFile: base + ".tree.txt", atomically: true, encoding: .utf8)
+    }
+}
+
+// MARK: - Host bridge
+
+/// Hands a `host:` step to `ios_sim.py drive` and waits for it to finish.
+///
+/// The simulator shares the host filesystem, so the handshake is two files in the
+/// directory named by `FST_DRIVER_HOST_DIR`: the test atomically writes
+/// `<n>.request` (the command), the host runs it and writes `<n>.done` (`ok` or
+/// `error: <message>`). Host commands change things XCUITest cannot reach, such as
+/// the iPhone Duo pose in Device Hub, while the app keeps its state.
+enum HostBridge {
+    /// A host command failed, timed out, or the driver gave no host directory.
+    enum Failure: Error, CustomStringConvertible {
+        case noHostDirectory
+        case timedOut(String)
+        case failed(String, String)
+
+        var description: String {
+            switch self {
+            case .noHostDirectory: return "FST_DRIVER_HOST_DIR is not set (run through ios_sim.py drive)"
+            case let .timedOut(command): return "host command '\(command)' did not finish in time"
+            case let .failed(command, message): return "host command '\(command)' failed: \(message)"
+            }
+        }
+    }
+
+    /// Requests issued by this test process (orders the request files).
+    nonisolated(unsafe) private static var sequence = 0
+
+    /// Run one host command and block until the host reports back.
+    ///
+    /// - Parameters:
+    ///   - command: The `host:` argument, e.g. `pose unfolded`.
+    ///   - timeout: Seconds to wait for the host (pose changes include Device Hub start-up).
+    /// - Throws: ``Failure`` when there is no host directory, the host reports an error,
+    ///   or nothing comes back in time.
+    static func run(_ command: String, timeout: TimeInterval = 240) throws {
+        guard let directory = ProcessInfo.processInfo.environment["FST_DRIVER_HOST_DIR"], !directory.isEmpty else {
+            throw Failure.noHostDirectory
+        }
+        sequence += 1
+        let base = URL(fileURLWithPath: directory).appendingPathComponent(String(format: "%04d", sequence))
+        try command.write(to: base.appendingPathExtension("request"), atomically: true, encoding: .utf8)
+        let done = base.appendingPathExtension("done")
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let reply = try? String(contentsOf: done, encoding: .utf8) {
+                let trimmed = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard trimmed == "ok" else { throw Failure.failed(command, trimmed) }
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        throw Failure.timedOut(command)
     }
 }

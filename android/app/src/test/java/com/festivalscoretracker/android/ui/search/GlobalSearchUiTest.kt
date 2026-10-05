@@ -23,10 +23,17 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.semantics.Role
@@ -113,15 +120,16 @@ class GlobalSearchUiTest {
         assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.sort.open") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.SURFACE)
-        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))
+        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT_ALL))
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("a")
         h.settle(600)
-        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))
+        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT_ALL))
         assertTrue(h.transport.sent("/api/account/search").isEmpty())
 
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextReplacement("synthetic")
         h.waitForTag(GlobalSearchTags.RESULT_PLAYER)
-        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        // Issue #299: the scope chips already name the scope, so no section titles are drawn.
+        assertEquals(0, rule.onAllNodesWithText("Players", ignoreCase = true).fetchSemanticsNodes().count { it.config.contains(SemanticsProperties.Heading) })
         // Counts are announced (polite live region) but never drawn as text (operator batch 6).
         rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("0 songs, 1 player")))
         rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion))
@@ -134,7 +142,7 @@ class GlobalSearchUiTest {
 
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextReplacement("alpha")
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
-        rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading) and hasAnyAncestor(hasTestTag(GlobalSearchTags.SURFACE))).fetchSemanticsNodes().size)
 
         // Scope pills: equal shares of the row (two 8 dp gaps), pill-shaped and at least 48 dp to touch.
         val row = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
@@ -148,7 +156,7 @@ class GlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).performClick()
         h.settle()
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
-        assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.section(SearchScope.Players)).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.RESULT_PLAYER).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).performClick()
         h.settle()
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsNotSelected()
@@ -180,7 +188,7 @@ class GlobalSearchUiTest {
         // The query was not kept (web parity: nothing remembered after navigating).
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.HINT)
-        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))
+        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT_ALL))
         // Close button collapses.
         rule.onNodeWithTag(GlobalSearchTags.CLOSE).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
@@ -202,7 +210,7 @@ class GlobalSearchUiTest {
     }
 
     @Test
-    fun emptyPlayersOfferRetryAndClearButtonClears() {
+    fun emptyResultsHaveNoRetrySearchKeyRunsAgainAndClearButtonClears() {
         h.transport.on("/api/account/search") { """{"results":[]}""" }
         h.launch()
         h.waitForTag("fst.songs.row.s-alpha")
@@ -211,15 +219,17 @@ class GlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("zzzz")
         rule.waitUntil(10_000) { h.settle(100); rule.onAllNodes(hasText(GlobalSearchResults.EMPTY_ALL_TITLE)).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_SUBTITLE).assertIsDisplayed()
-        rule.onNodeWithTag(GlobalSearchTags.RETRY).performClick()
+        // Issue #299: no Retry button; the keyboard Search action runs the same text again.
+        assertEquals(0, rule.onAllNodesWithText("Retry").fetchSemanticsNodes().size)
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performImeAction()
         rule.waitUntil(10_000) { h.settle(100); h.transport.sent("/api/account/search").size == 2 }
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Players)).performClick()
-        h.waitForTag(GlobalSearchTags.RETRY)
-        rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_TITLE).assertIsDisplayed()
+        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodesWithText(GlobalSearchResults.EMPTY_PLAYERS_TITLE).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(0, rule.onAllNodesWithText("Retry").fetchSemanticsNodes().size)
         rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE).assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.CLEAR).performClick()
         h.settle()
-        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))
+        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT_PLAYERS))
     }
 
     @Test
@@ -353,6 +363,29 @@ class GlobalSearchUiTest {
     }
 }
 
+/** Global search on a phone at font scale 2.0: the full-screen field grows instead of clipping. */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi", fontScale = 2.0f)
+class LargeFontGlobalSearchUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun fullScreenFieldFitsTheScaledLine() {
+        val h = SearchHarness(rule)
+        h.launch()
+        h.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
+        h.waitForTag(GlobalSearchTags.FIELD)
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("alpha")
+        h.waitForTag(GlobalSearchTags.RESULT_SONG)
+        val field = rule.onNodeWithTag(GlobalSearchTags.FIELD).fetchSemanticsNode().boundsInRoot.height
+        val needed = with(rule.density) { (24.sp.toPx() + 32.dp.toPx()) }
+        assertTrue("font scale ${rule.density.fontScale}", rule.density.fontScale > 1.5f)
+        assertTrue("field $field px < line + padding $needed px", field >= needed - 1f)
+    }
+}
+
 /** Global search on an expanded window: persistent bar → docked panel. */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
@@ -391,7 +424,7 @@ class ExpandedGlobalSearchUiTest {
         assertEquals(1, rule.onAllNodesWithTag(GlobalSearchTags.OPEN).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.SURFACE)
-        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))
+        rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT_ALL))
     }
 }
 
@@ -423,5 +456,28 @@ class MediumGlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.CLOSE).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
         assertTrue(h.bandSearches().isEmpty())
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test
+    fun dockedEscapeClearsFirstAndBackClosesThePanel() {
+        val h = SearchHarness(rule)
+        h.launch()
+        h.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
+        h.waitForTag(GlobalSearchTags.FIELD)
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("beta")
+        h.waitForTag(GlobalSearchTags.RESULT_SONG)
+        // The popup no longer swallows Escape: the field clears its text and the panel stays.
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performKeyInput { pressKey(Key.Escape) }
+        h.waitForTag(GlobalSearchTags.HINT)
+        rule.onNodeWithTag(GlobalSearchTags.SURFACE).assertIsDisplayed()
+        // Back reaching the panel (keyboard already down) closes it.
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("beta")
+        h.waitForTag(GlobalSearchTags.RESULT_SONG)
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performKeyInput { pressKey(Key.Back) }
+        h.waitForGone(GlobalSearchTags.SURFACE)
+        rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
+        h.waitForTag(GlobalSearchTags.HINT)
     }
 }

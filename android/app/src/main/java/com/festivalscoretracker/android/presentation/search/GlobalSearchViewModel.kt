@@ -41,13 +41,12 @@ enum class SectionPhase {
 }
 
 /**
- * A centred empty state: a title, a subtitle and an optional Retry.
+ * A centred empty state: a title and a subtitle (no Retry, issue #299: editing the query is the way on).
  *
  * @property title Bold title, e.g. "No players found".
  * @property subtitle What to try next.
- * @property canRetry Whether Retry is offered (an empty players envelope may be a server timeout).
  */
-data class SearchEmptyState(val title: String, val subtitle: String, val canRetry: Boolean)
+data class SearchEmptyState(val title: String, val subtitle: String)
 
 /**
  * Everything the search surface renders; derived flags keep the view logic-free.
@@ -94,36 +93,44 @@ data class GlobalSearchUiState(
         get() = showsResults && (scope == SearchScope.All || scope == SearchScope.Songs) &&
             (songs.isNotEmpty() || songsPhase == SectionPhase.Failed)
 
-    /** Whether the Players section is shown (progress, rows or failure). An empty envelope never shows a
-     *  section: in All it is hidden like the web (`shouldRenderGlobalSection`), in Players it is [emptyState]. */
+    /** Whether the Players section is shown (rows or failure). An empty envelope never shows a section: in
+     *  All it is hidden like the web (`shouldRenderGlobalSection`), in Players it is [emptyState]. While
+     *  players load, [isBusy] shows the one centred spinner instead. */
     val showPlayersSection: Boolean
         get() = showsResults && (scope == SearchScope.All || scope == SearchScope.Players) &&
             playersPhase != SectionPhase.Idle && playersPhase != SectionPhase.Empty
 
-    /** Centred short-query hint, else null. */
+    /** Centred short-query hint naming what the selected scope searches (issue #299), else null. */
     val hint: String?
-        get() = if (!isBandsScope && isShortQuery) GlobalSearchResults.ENTER_QUERY_HINT else null
+        get() = if (isShortQuery) GlobalSearchResults.enterQueryHint(scope) else null
 
     /**
      * Centred title-and-subtitle empty state (issue #99): every scope empty in All, Songs with no
-     * match, or Players with an empty envelope; else null. Retry is offered whenever the players
-     * envelope is part of it, because an empty envelope may be a server timeout.
+     * match, or Players with an empty envelope; else null. No Retry (issue #299).
      */
     val emptyState: SearchEmptyState?
         get() = when {
             !showsResults -> null
             scope == SearchScope.All && allEmpty ->
-                SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE, canRetry = true)
+                SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE)
             scope == SearchScope.Songs && songsPhase == SectionPhase.Empty ->
-                SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE, canRetry = false)
+                SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE)
             scope == SearchScope.Players && playersPhase == SectionPhase.Empty ->
-                SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE, canRetry = true)
+                SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE)
             else -> null
         }
 
-    /** Whether nothing is on screen yet because the debounce or the catalogue is pending. */
+    /**
+     * Whether the one centred spinner shows: the debounce is pending, or a scope the current view
+     * shows is still loading (issue #299: like the web, no inline per-section progress, so in All the
+     * rows appear together once songs and players both settle).
+     */
     val isBusy: Boolean
-        get() = !isShortQuery && !isBandsScope && (debouncing || settledQuery.isEmpty() || songsPhase == SectionPhase.Loading)
+        get() = !isShortQuery && !isBandsScope && (
+            debouncing || settledQuery.isEmpty() ||
+                (scope != SearchScope.Players && songsPhase == SectionPhase.Loading) ||
+                (scope != SearchScope.Songs && playersPhase == SectionPhase.Loading)
+            )
 }
 
 // endregion
@@ -132,8 +139,8 @@ data class GlobalSearchUiState(
 
 /**
  * The one global-search engine (global-search spec): trimmed query, two-character minimum,
- * 250 ms debounce, local song matches as soon as the debounce fires, players from the keyless
- * account search with their own progress, per-scope empty/error states, cancellation of
+ * 250 ms debounce, local song matches and the keyless account search behind one centred spinner,
+ * per-scope empty/error states, cancellation of
  * superseded queries (late results dropped) and one polite count announcement per settled query.
  * Bands are shown but never requested (the service's band search GET can write).
  *
@@ -222,18 +229,18 @@ class GlobalSearchViewModel(
         mutableState.update { it.copy(scope = next) }
     }
 
-    /** Run the current text now, skipping the debounce (IME Search action). */
+    /**
+     * Run the current text now, skipping the debounce (IME Search action). With no Retry button
+     * (issue #299), Search on a settled query whose songs or players failed, or whose players
+     * envelope came back empty (possibly a server timeout), runs it again.
+     */
     fun submit() {
-        val text = GlobalSearchResults.normalize(mutableState.value.query)
-        if (text.length >= GlobalSearchResults.MIN_QUERY && (mutableState.value.debouncing || mutableState.value.settledQuery != text)) {
-            start(text, debounce = false)
-        }
-    }
-
-    /** Run the current text again (players empty envelope, failure or "Retry Now" during a freeze). */
-    fun retry() {
-        val text = GlobalSearchResults.normalize(mutableState.value.query)
-        if (text.length >= GlobalSearchResults.MIN_QUERY) start(text, debounce = false)
+        val current = mutableState.value
+        val text = GlobalSearchResults.normalize(current.query)
+        if (text.length < GlobalSearchResults.MIN_QUERY) return
+        val rerunnable = current.songsPhase == SectionPhase.Failed ||
+            current.playersPhase == SectionPhase.Failed || current.playersPhase == SectionPhase.Empty
+        if (current.debouncing || current.settledQuery != text || rerunnable) start(text, debounce = false)
     }
 
     /** Clear the text (clear button, first Escape). */

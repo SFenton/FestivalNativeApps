@@ -41,6 +41,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.rankings.BoardFooterEdgeFade
 import com.festivalscoretracker.android.core.rankings.FooterFade
@@ -165,7 +167,9 @@ internal fun RankingsBoardLayout(
                 BoardList(
                     listState,
                     idPrefix,
-                    PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + 16.dp),
+                    // The list ends one item gap above the footer, so the pinned row or pager follows
+                    // the last row like another item (issue #293).
+                    PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + ROW_GAP_DP.dp),
                     Modifier
                         .then(if (fades) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
                         .footerEdgeFade(edge, depth),
@@ -200,11 +204,22 @@ private fun AnchoredFooter(idPrefix: String, footer: @Composable ColumnScope.() 
     Column(
         modifier.widthIn(max = MAX_FOOTER_WIDTH_DP.dp).fillMaxWidth().testTag("$idPrefix.bottom-bar"),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(Modifier.fillMaxWidth(), content = footer)
+        Column(Modifier.fillMaxWidth().gapBelowIfShown(FOOTER_PAGER_GAP_DP.dp), content = footer)
         pager()
     }
+}
+
+/**
+ * Adds [gap] below content that has height, and nothing below empty content, so a board
+ * without a "your rank" row keeps no empty slot above its pager (issue #293).
+ *
+ * @param gap Space below non-empty content.
+ */
+private fun Modifier.gapBelowIfShown(gap: Dp): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val extra = if (placeable.height > 0) gap.roundToPx() else 0
+    layout(placeable.width, constraints.constrainHeight(placeable.height + extra)) { placeable.place(0, 0) }
 }
 
 /**
@@ -232,6 +247,12 @@ fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnSc
 /** Widest the anchored footer grows on large windows (keeps the pager and row centred). */
 private const val MAX_FOOTER_WIDTH_DP = 720
 
+/** Space between list items, also left between the last item and the anchored footer. */
+private const val ROW_GAP_DP = 12
+
+/** Space between the "your rank" row and the pager. */
+private const val FOOTER_PAGER_GAP_DP = 8
+
 @Composable
 private fun BoardList(
     listState: LazyListState,
@@ -243,7 +264,7 @@ private fun BoardList(
     LazyColumn(
         state = listState,
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(ROW_GAP_DP.dp),
         modifier = modifier.fillMaxSize().testTag("$idPrefix.list"),
         content = rows,
     )

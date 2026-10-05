@@ -1,0 +1,339 @@
+[
+  {
+    "name": "songs-scroll",
+    "tab": "songs",
+    "fixture": [
+      "--large-catalogue"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-song-1@20",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "scroll:id=fst.songs.list,-30",
+      "wait:0.5",
+      "scroll:id=fst.songs.list,-30",
+      "wait:1",
+      "waitgone:id=fst.songs.row.fixture-song-1@5",
+      "waitfor:id=fst.songs.section-header",
+      "shot:{stem}-deep.png",
+      "scroll:id=fst.songs.list,40",
+      "scroll:id=fst.songs.list,40",
+      "wait:1.5",
+      "assertname:id=fst.songs.section-header|#",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-2",
+      "scroll:id=fst.songs.list,2",
+      "scroll:id=fst.songs.list,-2",
+      "scroll:id=fst.songs.list,2",
+      "scroll:id=fst.songs.list,-2",
+      "scroll:id=fst.songs.list,2",
+      "scroll:id=fst.songs.list,-10",
+      "scroll:id=fst.songs.list,10",
+      "scroll:id=fst.songs.list,-10",
+      "scroll:id=fst.songs.list,10",
+      "scroll:id=fst.songs.list,-10",
+      "scroll:id=fst.songs.list,10",
+      "scroll:id=fst.songs.list,20",
+      "wait:1.5",
+      "assertname:id=fst.songs.section-header|#",
+      "waitfor:id=fst.songs.row.fixture-song-1@5",
+      "waitfor:id=fst.songs.search"
+    ]
+  },
+  {
+    "name": "songs-scroll-uia",
+    "tab": "songs",
+    "fixture": [
+      "--large-catalogue"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-song-1@20",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.songs.list,60",
+      "wait:1",
+      "waitgone:id=fst.songs.row.fixture-song-1@5",
+      "scrollto:id=fst.songs.list,2",
+      "scrollto:id=fst.songs.list,0",
+      "scrollto:id=fst.songs.list,1",
+      "scrollto:id=fst.songs.list,0",
+      "scrollto:id=fst.songs.list,3",
+      "scrollto:id=fst.songs.list,0",
+      "scrollto:id=fst.songs.list,100",
+      "scrollto:id=fst.songs.list,0",
+      "wait:1",
+      "assertname:id=fst.songs.section-header|#",
+      "waitfor:id=fst.songs.row.fixture-song-1@5",
+      "waitfor:id=fst.songs.search"
+    ]
+  },
+  {
+    "name": "songs-scroll-live",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "wait:2",
+      "assertname:id=fst.songs.section-header@10|#"
+    ],
+    "after_ready": [
+      "scroll:id=fst.songs.list,-30",
+      "wait:0.5",
+      "scroll:id=fst.songs.list,-30",
+      "wait:1",
+      "shot:{stem}-deep.png",
+      "scroll:id=fst.songs.list,40",
+      "scroll:id=fst.songs.list,40",
+      "wait:1.5",
+      "assertname:id=fst.songs.section-header|#",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-1",
+      "scroll:id=fst.songs.list,1",
+      "scroll:id=fst.songs.list,-2",
+      "scroll:id=fst.songs.list,2",
+      "scroll:id=fst.songs.list,-2",
+      "scroll:id=fst.songs.list,2",
+      "scroll:id=fst.songs.list,-10",
+      "scroll:id=fst.songs.list,10",
+      "scroll:id=fst.songs.list,-10",
+      "scroll:id=fst.songs.list,10",
+      "scroll:id=fst.songs.list,20",
+      "wait:1.5",
+      "assertname:id=fst.songs.section-header|#",
+      "waitfor:id=fst.songs.search"
+    ]
+  },
+  {
+    "name": "songs-scroll-uia-live",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "wait:2",
+      "assertname:id=fst.songs.section-header@10|#"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.songs.list,60",
+      "wait:1",
+      "shot:{stem}-deep.png",
+      "scrollto:id=fst.songs.list,2",
+      "scrollto:id=fst.songs.list,0",
+      "scrollto:id=fst.songs.list,1",
+      "scrollto:id=fst.songs.list,0",
+      "scrollto:id=fst.songs.list,3",
+      "scrollto:id=fst.songs.list,0",
+      "scrollto:id=fst.songs.list,100",
+      "scrollto:id=fst.songs.list,0",
+      "wait:1",
+      "assertname:id=fst.songs.section-header|#",
+      "waitfor:id=fst.songs.search"
+    ]
+  },
+  {
+    "name": "songs-scroll-resize-live",
+    "tab": "songs",
+    "sizes": [
+      "medium"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "wait:2",
+      "assertname:id=fst.songs.section-header@10|#"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.songs.list,40",
+      "wait:1",
+      "resize:compact",
+      "wait:1",
+      "scrollto:id=fst.songs.list,1",
+      "scrollto:id=fst.songs.list,0",
+      "resize:wide",
+      "wait:1",
+      "scrollto:id=fst.songs.list,2",
+      "scrollto:id=fst.songs.list,0",
+      "resize:maximized",
+      "wait:1",
+      "scrollto:id=fst.songs.list,0",
+      "resize:snap-left",
+      "wait:1.5",
+      "assertname:id=fst.songs.section-header|#",
+      "shot:{stem}-snap.png",
+      "resize:medium",
+      "wait:1.5",
+      "assertname:id=fst.songs.section-header|#",
+      "waitfor:id=fst.songs.search"
+    ]
+  },
+  {
+    "name": "songs-pingpong",
+    "tab": "songs",
+    "fixture": [
+      "--large-catalogue"
+    ],
+    "args": [
+      "--auto-scroll-speed",
+      "1500",
+      "--auto-scroll-span",
+      "1500"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-song-1@20"
+    ],
+    "after_ready": [
+      "wait:6",
+      "waitfor:id=fst.songs.section-header",
+      "expand:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.mode@5",
+      "collapse:id=fst.songs.sort",
+      "waitgone:id=fst.songs.sort.mode@5",
+      "wait:6",
+      "waitfor:id=fst.songs.section-header",
+      "waitfor:id=fst.songs.search"
+    ]
+  },
+  {
+    "name": "songs-pingpong-live",
+    "tab": "songs",
+    "args": [
+      "--auto-scroll-speed",
+      "1500",
+      "--auto-scroll-span",
+      "1500"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.list@30"
+    ],
+    "after_ready": [
+      "wait:6",
+      "waitfor:id=fst.songs.section-header",
+      "expand:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.mode@5",
+      "collapse:id=fst.songs.sort",
+      "waitgone:id=fst.songs.sort.mode@5",
+      "wait:6",
+      "waitfor:id=fst.songs.section-header",
+      "waitfor:id=fst.songs.search"
+    ]
+  },
+  {
+    "name": "songs-pingpong-frames-live",
+    "tab": "songs",
+    "sizes": [
+      "medium"
+    ],
+    "args": [
+      "--auto-scroll-speed",
+      "900",
+      "--auto-scroll-span",
+      "1400"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "wait:3"
+    ],
+    "after_ready": [
+      "shot:{stem}-f000.png",
+      "shot:{stem}-f001.png",
+      "shot:{stem}-f002.png",
+      "shot:{stem}-f003.png",
+      "shot:{stem}-f004.png",
+      "shot:{stem}-f005.png",
+      "shot:{stem}-f006.png",
+      "shot:{stem}-f007.png",
+      "shot:{stem}-f008.png",
+      "shot:{stem}-f009.png",
+      "shot:{stem}-f010.png",
+      "shot:{stem}-f011.png",
+      "shot:{stem}-f012.png",
+      "shot:{stem}-f013.png",
+      "shot:{stem}-f014.png",
+      "shot:{stem}-f015.png",
+      "shot:{stem}-f016.png",
+      "shot:{stem}-f017.png",
+      "shot:{stem}-f018.png",
+      "shot:{stem}-f019.png",
+      "shot:{stem}-f020.png",
+      "shot:{stem}-f021.png",
+      "shot:{stem}-f022.png",
+      "shot:{stem}-f023.png",
+      "shot:{stem}-f024.png",
+      "shot:{stem}-f025.png",
+      "shot:{stem}-f026.png",
+      "shot:{stem}-f027.png",
+      "shot:{stem}-f028.png",
+      "shot:{stem}-f029.png",
+      "shot:{stem}-f030.png",
+      "shot:{stem}-f031.png",
+      "shot:{stem}-f032.png",
+      "shot:{stem}-f033.png",
+      "shot:{stem}-f034.png",
+      "shot:{stem}-f035.png",
+      "shot:{stem}-f036.png",
+      "shot:{stem}-f037.png",
+      "shot:{stem}-f038.png",
+      "shot:{stem}-f039.png",
+      "shot:{stem}-f040.png",
+      "shot:{stem}-f041.png",
+      "shot:{stem}-f042.png",
+      "shot:{stem}-f043.png",
+      "shot:{stem}-f044.png",
+      "shot:{stem}-f045.png",
+      "shot:{stem}-f046.png",
+      "shot:{stem}-f047.png",
+      "shot:{stem}-f048.png",
+      "shot:{stem}-f049.png",
+      "shot:{stem}-f050.png",
+      "shot:{stem}-f051.png",
+      "shot:{stem}-f052.png",
+      "shot:{stem}-f053.png",
+      "shot:{stem}-f054.png",
+      "shot:{stem}-f055.png",
+      "shot:{stem}-f056.png",
+      "shot:{stem}-f057.png",
+      "shot:{stem}-f058.png",
+      "shot:{stem}-f059.png",
+      "shot:{stem}-f060.png",
+      "shot:{stem}-f061.png",
+      "shot:{stem}-f062.png",
+      "shot:{stem}-f063.png",
+      "shot:{stem}-f064.png",
+      "shot:{stem}-f065.png",
+      "shot:{stem}-f066.png",
+      "shot:{stem}-f067.png",
+      "shot:{stem}-f068.png",
+      "shot:{stem}-f069.png",
+      "shot:{stem}-f070.png",
+      "shot:{stem}-f071.png",
+      "shot:{stem}-f072.png",
+      "shot:{stem}-f073.png",
+      "shot:{stem}-f074.png",
+      "shot:{stem}-f075.png",
+      "shot:{stem}-f076.png",
+      "shot:{stem}-f077.png",
+      "shot:{stem}-f078.png",
+      "shot:{stem}-f079.png",
+      "shot:{stem}-f080.png",
+      "shot:{stem}-f081.png",
+      "shot:{stem}-f082.png",
+      "shot:{stem}-f083.png",
+      "shot:{stem}-f084.png",
+      "shot:{stem}-f085.png",
+      "shot:{stem}-f086.png",
+      "shot:{stem}-f087.png",
+      "shot:{stem}-f088.png",
+      "shot:{stem}-f089.png"
+    ]
+  }
+]

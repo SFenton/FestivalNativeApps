@@ -101,6 +101,7 @@ struct SettingsScreen: View {
             .padding(.bottom, 32)
             .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
         }
+        .debugPageScrollStress()
         .scrollDisabled(reorderDragging)
         .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
         .modifier(SettingsQuickLinks(controller: quickLinks, isEnabled: pane == nil))
@@ -586,7 +587,8 @@ struct SettingsScreen: View {
     /// The web's standalone Licenses link: its section title and description with a
     /// trailing chevron, the whole row tappable, no card (`SettingsPage.tsx` "Licenses").
     private var licensesRow: some View {
-        NavigationLink(value: AppRoute.licenses) {
+        // Licenses opens in the trailing pane where Settings can split (iPad, Duo).
+        ListDetailLink(value: AppRoute.licenses) {
             HStack(alignment: .center, spacing: 16) {
                 FestivalSectionHeader("Licenses", subtitle: "Open source package license details.")
                     .frame(maxWidth: .infinity, alignment: .leading)

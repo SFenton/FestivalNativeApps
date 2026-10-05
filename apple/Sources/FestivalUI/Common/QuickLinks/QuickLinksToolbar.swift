@@ -12,6 +12,9 @@ import FestivalDesign
 public struct QuickLinksToolbarItem: ToolbarContent {
     private let controller: QuickLinksController
     private let placement: ToolbarItemPlacement
+    /// Set where Quick Links sits in the iPhone tab-bar accessory instead (registered by
+    /// the `.quickLinks` container, issue #92).
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Create the toolbar item.
     ///
@@ -27,6 +30,12 @@ public struct QuickLinksToolbarItem: ToolbarContent {
     public static var defaultPlacement: ToolbarItemPlacement { .festivalPageAction }
 
     public var body: some ToolbarContent {
+        if pageTools == nil {
+            item
+        }
+    }
+
+    @ToolbarContentBuilder private var item: some ToolbarContent {
         // Default priority in the iPhone Duo vertical bar: the bell and profile stay
         // visible first (issue #92, ``RootChromeRailItem``).
         #if os(iOS)
@@ -63,7 +72,7 @@ public struct QuickLinksMenu: View {
 
     public var body: some View {
         if controller.isAvailable {
-            Menu {
+            PageToolMenu(controller.title, choices: choices) {
                 Section(controller.title) {
                     Picker(controller.title, selection: selection) {
                         ForEach(controller.sections) { section in
@@ -91,6 +100,17 @@ public struct QuickLinksMenu: View {
 
     /// Reading returns the active section; writing requests a jump (re-selecting the
     /// active section jumps back to its start).
+    /// The sections for the inline-accessory sheet (``PageToolMenu``).
+    private func choices() -> [PageToolMenuChoice] {
+        let controller = controller
+        return controller.sections.map { section in
+            PageToolMenuChoice(
+                id: "fst.quick-links.item.\(section.id)", label: AnyView(QuickLinkLabel(section: section)),
+                isSelected: section.id == controller.activeID, action: { controller.jump(to: section.id) }
+            )
+        }
+    }
+
     private var selection: Binding<String?> {
         Binding(
             get: { controller.activeID },
@@ -102,8 +122,24 @@ public struct QuickLinksMenu: View {
 // MARK: - Row label
 
 /// One quick link's icon and title, indented by depth.
+///
+/// Instrument artwork is pre-sized to the adjacent SF Symbols (issue #303): menus and
+/// the iPhone accessory sheet draw a plain image at its 144 pt intrinsic size.
 struct QuickLinkLabel: View {
     let section: QuickLinkSection
+
+    /// Instrument icon side at the default text size: the 20 pt of an enclosed-circle SF
+    /// Symbol (`globe`, `star.circle`) beside 17 pt body text on iOS/iPadOS, 16 pt beside
+    /// macOS's 13 pt menu text (HIG Icons: "Keep all icons consistent in size").
+    #if os(macOS)
+    static let instrumentIconBaseSide: CGFloat = 16
+    #else
+    static let instrumentIconBaseSide: CGFloat = 20
+    #endif
+
+    /// Scales with Dynamic Type like the row text (HIG Typography: "Increase the size of
+    /// meaningful interface icons as font size increases").
+    @ScaledMetric(relativeTo: .body) private var instrumentIconSide = QuickLinkLabel.instrumentIconBaseSide
 
     var body: some View {
         Label {
@@ -113,8 +149,7 @@ struct QuickLinkLabel: View {
             case let .system(name):
                 Image(systemName: name)
             case let .instrument(instrument):
-                Image(InstrumentIcon.assetName(for: instrument, keyboard: false), bundle: .module)
-                    .renderingMode(.original)
+                InstrumentIcon.menuImage(for: instrument, keyboard: false, side: instrumentIconSide)
             case nil:
                 EmptyView()
             }

@@ -23,6 +23,10 @@ public sealed partial class PlayerProfileView : UserControl
         host.Binder.Resolve = id => ViewModel?.Instruments.FindIndex(i => i.QuickLinkId == id) is >= 0 and var index
             ? InstrumentsRepeater.GetOrCreateElement(index) as FrameworkElement
             : null;
+        // Bands sits below that repeater: land the last instrument card first so Bands measures exactly.
+        host.Binder.LeadIn = id => id == PlayerProfileViewModel.BandsQuickLinkId && ViewModel?.Instruments.Count is > 0 and var count
+            ? InstrumentsRepeater.GetOrCreateElement(count - 1) as FrameworkElement
+            : null;
         // Web PlayerPage: spinner until the profile is ready, then title, Overview and sections fade in, staggered.
         Scroller.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => StaggerIn());
         Scroller.Loaded += (_, _) => StaggerIn();

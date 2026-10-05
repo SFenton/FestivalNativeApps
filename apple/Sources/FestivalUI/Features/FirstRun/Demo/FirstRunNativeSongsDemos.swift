@@ -164,7 +164,7 @@ private struct FirstRunRowChrome<Detail: View, Trailing: View>: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .festivalGlass(.card, cornerRadius: 12)
+        .festivalCard(cornerRadius: 12)
         .overlay {
             if let outline {
                 RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(outline, lineWidth: 2)

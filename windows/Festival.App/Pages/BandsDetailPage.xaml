@@ -220,12 +220,8 @@
                                               Visibility="{x:Bind ViewModel.HistoryLoading, Mode=OneWay}" AutomationProperties.Name="Loading rank history" />
                                 <TextBlock Text="No band rank history yet." Style="{StaticResource FSTSecondaryTextStyle}"
                                            Visibility="{x:Bind ViewModel.HistoryEmpty, Mode=OneWay}" AutomationProperties.AutomationId="fst.band.history-empty" />
-                                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HistoryFailed, Mode=OneWay}"
-                                            AutomationProperties.AutomationId="fst.service-status.inline">
-                                    <TextBlock Text="{x:Bind ViewModel.HistoryStatus.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock Text="{x:Bind ViewModel.HistoryStatus.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                    <Button Content="{x:Bind ViewModel.HistoryStatus.RetryLabel, Mode=OneWay}" Command="{x:Bind ViewModel.HistoryStatus.RetryCommand}" />
-                                </StackPanel>
+                                <controls:ServiceStatusInline Visibility="{x:Bind ViewModel.HistoryFailed, Mode=OneWay}"
+                                                              Status="{x:Bind ViewModel.HistoryStatus}" />
                                 <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.ShowHistory, Mode=OneWay}">
                                     <!-- Web BandRankHistoryChart: metric bars coloured by rank + rank line, paged (RankHistoryGraph). -->
                                     <controls:RankHistoryGraph Model="{x:Bind ViewModel.HistoryChart, Mode=OneWay}"
@@ -266,14 +262,8 @@
                         <TextBlock Text="{x:Bind ViewModel.BestDescription, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
                         <ProgressRing IsActive="{x:Bind ViewModel.SongsLoading, Mode=OneWay}" Visibility="{x:Bind ViewModel.SongsLoading, Mode=OneWay}"
                                       HorizontalAlignment="Left" Width="32" Height="32" AutomationProperties.Name="Loading band songs" />
-                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}"
-                                AutomationProperties.AutomationId="fst.service-status.inline">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="{x:Bind ViewModel.SongsStatus.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <TextBlock Text="{x:Bind ViewModel.SongsStatus.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                <TextBlock Text="{x:Bind ViewModel.SongsStatus.CountdownText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <Button Content="{x:Bind ViewModel.SongsStatus.RetryLabel, Mode=OneWay}" Command="{x:Bind ViewModel.SongsStatus.RetryCommand}" />
-                            </StackPanel>
+                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}">
+                            <controls:ServiceStatusInline Status="{x:Bind ViewModel.SongsStatus}" />
                         </Border>
                         <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.ShowSongs, Mode=OneWay}">
                             <TextBlock Text="No ranked band songs yet." Style="{StaticResource FSTSecondaryTextStyle}"

@@ -114,6 +114,9 @@ class SongHeaderEdgeFadeTest {
         assertFalse(SongHeaderEdgeFade.isEnabled(increaseContrast = true, reduceTransparency = false))
         assertFalse(SongHeaderEdgeFade.isEnabled(increaseContrast = false, reduceTransparency = true))
         assertFalse(SongHeaderEdgeFade.isEnabled(increaseContrast = true, reduceTransparency = true))
+        // Issue #157: Remove animations / Reduce Motion is Android's stand-in for reduced transparency.
+        assertTrue(SongHeaderEdgeFade.isEnabled(increaseContrast = false, reduceTransparency = false, removeAnimations = false))
+        assertFalse(SongHeaderEdgeFade.isEnabled(increaseContrast = false, reduceTransparency = false, removeAnimations = true))
     }
 
     @Test

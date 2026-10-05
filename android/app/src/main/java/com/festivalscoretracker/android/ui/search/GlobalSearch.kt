@@ -1,25 +1,29 @@
 package com.festivalscoretracker.android.ui.search
 
+import android.os.Build
+import android.view.View
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -32,7 +36,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExpandedDockedSearchBar
 import androidx.compose.material3.ExpandedFullScreenSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -46,12 +49,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -62,13 +66,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -80,11 +85,12 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.search.GlobalPlayerResult
@@ -139,14 +145,8 @@ object GlobalSearchTags {
     /** Polite result-count status. */
     const val STATUS = "fst.global-search.status"
 
-    /** Whole-panel progress before the first rows. */
+    /** Whole-panel progress, centred in the results region under the scope chips. */
     const val LOADING = "fst.global-search.loading"
-
-    /** Players inline progress. */
-    const val PLAYERS_LOADING = "fst.global-search.players-loading"
-
-    /** Retry (players empty / all empty). */
-    const val RETRY = "fst.global-search.retry"
 
     /** Band explanation block. */
     const val BANDS_UNAVAILABLE = "fst.global-search.bands-unavailable"
@@ -171,13 +171,8 @@ object GlobalSearchTags {
     /** Scope pill row. */
     const val SCOPES = "fst.global-search.scopes"
 
-    /**
-     * Section heading tag.
-     *
-     * @param scope Section scope.
-     * @return Tag.
-     */
-    fun section(scope: SearchScope) = "fst.global-search.section.${scope.token}"
+    /** Players failure status (no Retry). */
+    const val PLAYERS_ERROR = "fst.global-search.players-error"
 }
 
 // endregion
@@ -245,11 +240,7 @@ fun GlobalSearchHost(
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    // Window height and keyboard height as the main window sees them: the docked panel is a
-    // popup of fixed height, so the keyboard can cover its bottom; its results pad by exactly
-    // that overlap instead of the panel resizing (operator batch 6, 6.21).
-    var windowHeightPx by remember { mutableIntStateOf(0) }
-    val imeBottomPx = WindowInsets.ime.getBottom(density)
+
 
     // The view model owns "open"; the Material state follows it, and a collapse the
     // Material bar makes on its own (back, scrim, Escape) closes the view model.
@@ -268,7 +259,7 @@ fun GlobalSearchHost(
         }
     }
 
-    Box(Modifier.fillMaxSize().onSizeChanged { windowHeightPx = it.height }) {
+    Box(Modifier.fillMaxSize()) {
         with(density) {
             Box(
                 Modifier
@@ -297,18 +288,12 @@ fun GlobalSearchHost(
         )
     }
     val dockedHeightPx = anchor.maxPanelHeight
-    val dockedImeOverlapPx = if (presentation == SearchPresentation.Docked && dockedHeightPx != null && windowHeightPx > 0) {
-        GlobalSearchLayout.imeOverlap(anchor.anchor.top, dockedHeightPx, windowHeightPx, imeBottomPx)
-    } else {
-        0
-    }
+
     val content: @Composable () -> Unit = {
         GlobalSearchContent(
             ui = ui,
-            bottomInset = with(density) { dockedImeOverlapPx.toDp() },
             artworkUrl = artworkUrl,
             onToggleScope = viewModel::toggleScope,
-            onRetry = viewModel::retry,
             onOpen = { destination -> collapseThen { onOpen(destination) } },
             onBandRankings = { collapseThen(onBandRankings) },
         )
@@ -327,13 +312,63 @@ fun GlobalSearchHost(
                 state = searchState,
                 inputField = inputField,
                 colors = colors,
+                // The popup's own Back/Escape handling is off: its overlay-priority Back callback
+                // closed the panel together with the keyboard, and it swallowed Escape before the
+                // field could clear the text. DockedPanelBack closes it once the keyboard is down.
+                properties = PopupProperties(focusable = true, clippingEnabled = false, dismissOnBackPress = false),
                 // A fixed height: the panel never shrinks or grows as results, progress and
-                // hints replace each other while typing.
+                // hints replace each other while typing. Material pads the surface by the part
+                // the keyboard covers (imePadding inside this modifier), so content needs no
+                // inset of its own; adding one clipped the empty state twice over.
                 modifier = surfaceModifier
                     .width(anchor.anchor.width.toDp())
-                    .then(dockedHeightPx?.let { Modifier.height(it.toDp()) } ?: Modifier),
-            ) { content() }
+                    .then(dockedHeightPx?.let { Modifier.height(it.toDp()) } ?: Modifier)
+                    // Before API 33 (and on hardware keys the system still delivers), Back arrives
+                    // as a key event once the keyboard has handled its own.
+                    .onKeyEvent { event ->
+                        if (event.key != Key.Back) return@onKeyEvent false
+                        if (event.type == KeyEventType.KeyUp) collapseThen {}
+                        true
+                    },
+            ) {
+                DockedPanelBack { collapseThen {} }
+                content()
+            }
         }
+    }
+}
+
+/**
+ * Back for the docked panel's popup window on API 33+, at default priority so the keyboard's
+ * own Back callback (registered when it shows, so newer) hides the keyboard first and the next
+ * Back closes the panel.
+ *
+ * @param onBack Close the panel.
+ */
+@Composable
+private fun DockedPanelBack(onBack: () -> Unit) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val view = LocalView.current
+    val latest by rememberUpdatedState(onBack)
+    DisposableEffect(view) {
+        val registration = DockedBackApi33.register(view) { latest() }
+        onDispose { registration?.invoke() }
+    }
+}
+
+/** API 33 window back-callback registration, kept apart for class verification on older releases. */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private object DockedBackApi33 {
+    /**
+     * Registers [onBack] on [view]'s window dispatcher at default priority.
+     *
+     * @return Unregister action, or null when the view has no window dispatcher yet.
+     */
+    fun register(view: View, onBack: () -> Unit): (() -> Unit)? {
+        val dispatcher = view.findOnBackInvokedDispatcher() ?: return null
+        val callback = OnBackInvokedCallback { onBack() }
+        dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+        return { dispatcher.unregisterOnBackInvokedCallback(callback) }
     }
 }
 
@@ -349,7 +384,8 @@ private fun SearchField(
     SearchBarDefaults.InputField(
         query = ui.query,
         onQueryChange = viewModel::onQueryChange,
-        // IME Search runs the text now and only closes the keyboard (web: Enter opens nothing).
+        // IME Search runs the text now and only closes the keyboard (web: Enter opens nothing); on a
+        // failed or empty players result it runs it again (issue #299: there is no Retry button).
         onSearch = { viewModel.submit() },
         expanded = expanded,
         onExpandedChange = { if (!it) onCollapse() },
@@ -388,13 +424,12 @@ private fun SearchField(
 // region Content
 
 /**
- * Chips, status, and grouped results for the expanded surface.
+ * Chips, status and results for the expanded surface. Results carry no section titles: the scope
+ * chips already name the scope (issue #299).
  *
  * @param ui Current state.
  * @param artworkUrl Artwork resolver.
- * @param bottomInset Space the keyboard covers at the bottom of the surface (docked panel).
  * @param onToggleScope Toggle a scope chip.
- * @param onRetry Retry the query.
  * @param onOpen Open a result.
  * @param onBandRankings Open Band Rankings.
  */
@@ -403,10 +438,8 @@ fun GlobalSearchContent(
     ui: GlobalSearchUiState,
     artworkUrl: (String?) -> String?,
     onToggleScope: (SearchScope) -> Unit,
-    onRetry: () -> Unit,
     onOpen: (SearchDestination) -> Unit,
     onBandRankings: () -> Unit,
-    bottomInset: Dp = 0.dp,
 ) {
     // Fills the surface: every state (hint, progress, results) shares one full-height region,
     // so nothing resizes while typing.
@@ -427,13 +460,16 @@ fun GlobalSearchContent(
         }
         Box(Modifier.fillMaxWidth().weight(1f)) {
             when {
-                ui.isBandsScope -> BandsUnavailable(onBandRankings)
                 ui.hint != null -> CenteredMessage(ui.hint!!)
-                ui.emptyState != null -> EmptyResults(ui.emptyState!!, onRetry, bottomInset)
-                ui.isBusy && !ui.showSongsSection && !ui.showPlayersSection -> Box(Modifier.fillMaxSize().padding(bottom = bottomInset), contentAlignment = Alignment.Center) {
+                ui.isBandsScope -> BandsUnavailable(onBandRankings)
+                ui.emptyState != null -> EmptyResults(ui.emptyState!!)
+                // The one spinner, centred in the region between the scope chips and the bottom
+                // edge (the docked surface already sits above the keyboard), like the web panel
+                // spinner (issue #299).
+                ui.isBusy -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     FestivalLoading("Searching", Modifier.testTag(GlobalSearchTags.LOADING), size = 36.dp)
                 }
-                else -> Results(ui, artworkUrl, onRetry, onOpen, bottomInset)
+                else -> Results(ui, artworkUrl, onOpen)
             }
         }
     }
@@ -442,116 +478,110 @@ fun GlobalSearchContent(
 /**
  * Songs / Players / Bands scope toggles as M3 filter chips with pill ends (web `aria-pressed`
  * pills). Tapping the selected chip returns to All, so at most one is selected; each chip is
- * an equal share of the row and at least 48 dp tall to touch.
+ * an equal share of the row and at least 48 dp tall to touch. When large text makes a label
+ * wider than its share, the row scrolls horizontally with natural-width chips instead of
+ * clipping the label ([GlobalSearchLayout.scopeChipsFitEqually]).
  *
  * @param selected Current scope.
  * @param onToggle Toggle a chip.
  */
 @Composable
 private fun ScopePills(selected: SearchScope, onToggle: (SearchScope) -> Unit) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).selectableGroup().testTag(GlobalSearchTags.SCOPES),
-    ) {
-        SearchScope.chips.forEach { chip ->
-            val isSelected = selected == chip
-            FilterChip(
-                selected = isSelected,
-                onClick = { onToggle(chip) },
-                label = { Text(chip.title, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                shape = CircleShape,
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = Color.Transparent,
-                    labelColor = BrandTokens.textSecondary,
-                    selectedContainerColor = BrandTokens.accentPurple.copy(alpha = 0.45f),
-                    selectedLabelColor = BrandTokens.textPrimary,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelLarge
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val rowWidthPx = constraints.maxWidth
+        val equal = remember(rowWidthPx, labelStyle, density) {
+            val widths = SearchScope.chips.map { measurer.measure(it.title, labelStyle, maxLines = 1).size.width.toFloat() }
+            GlobalSearchLayout.scopeChipsFitEqually(widths, rowWidthPx, density.density)
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(GlobalSearchLayout.CHIP_GAP_DP.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (equal) Modifier else Modifier.horizontalScroll(rememberScrollState()))
+                .padding(horizontal = GlobalSearchLayout.CHIP_ROW_PADDING_DP.dp, vertical = 4.dp)
+                .selectableGroup()
+                .testTag(GlobalSearchTags.SCOPES),
+        ) {
+            SearchScope.chips.forEach { chip ->
+                val isSelected = selected == chip
+                FilterChip(
                     selected = isSelected,
-                    borderColor = BrandTokens.glassBorder,
-                    selectedBorderColor = BrandTokens.accentPurple,
-                ),
-                modifier = Modifier.weight(1f).heightIn(min = 40.dp).testTag(GlobalSearchTags.scope(chip)),
-            )
+                    onClick = { onToggle(chip) },
+                    label = {
+                        Text(
+                            chip.title,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = if (equal) Modifier.fillMaxWidth() else Modifier,
+                        )
+                    },
+                    shape = CircleShape,
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color.Transparent,
+                        labelColor = BrandTokens.textSecondary,
+                        selectedContainerColor = BrandTokens.accentPurple.copy(alpha = 0.45f),
+                        selectedLabelColor = BrandTokens.textPrimary,
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = BrandTokens.glassBorder,
+                        selectedBorderColor = BrandTokens.accentPurple,
+                    ),
+                    modifier = (if (equal) Modifier.weight(1f) else Modifier)
+                        .heightIn(min = 40.dp)
+                        .testTag(GlobalSearchTags.scope(chip)),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onRetry: () -> Unit, onOpen: (SearchDestination) -> Unit, bottomInset: Dp) {
+private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onOpen: (SearchDestination) -> Unit) {
     // Web SearchModal restaggers once per content signature: hide for a frame when the result
     // set changes, then fade rows in (web fadeInUp, 125 ms stagger).
     val signature = remember(ui.songs, ui.players) { ui.songs.map { it.songId } to ui.players.map { it.accountId } }
     var settled by remember { mutableStateOf<Any?>(null) }
     LaunchedEffect(signature) { settled = signature }
     val revealed = rememberRevealed(settled == signature)
-    val playersOffset = if (ui.showSongsSection) ui.songs.size + 1 else 0
-    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), contentPadding = PaddingValues(bottom = bottomInset)) {
+    val playersOffset = if (ui.showSongsSection) ui.songs.size else 0
+    // A new scope or query starts at the top: a kept state would pin the previously first
+    // visible key (the first player after Players → All) and hide the songs above it.
+    val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
+    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), state = listState) {
         if (ui.showSongsSection) {
-            item(key = "h-songs") {
-                Box(Modifier.festivalFadeIn(revealed)) { SectionTitle("Songs", GlobalSearchTags.section(SearchScope.Songs)) }
-            }
             if (ui.songsPhase == SectionPhase.Failed) {
                 item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }
             }
             itemsIndexed(ui.songs, key = { _, song -> "s-${song.songId}" }) { index, song ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
                     SongResultRow(song, artworkUrl(song.albumArt)) { onOpen(song.destination) }
                 }
             }
         }
         if (ui.showPlayersSection) {
-            item(key = "h-players") {
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset))) { SectionTitle("Players", GlobalSearchTags.section(SearchScope.Players)) }
-            }
-            when (ui.playersPhase) {
-                SectionPhase.Loading -> item(key = "players-loading") {
-                    // The app's one progress ring (operator batch 6: a ring, not a line).
-                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        FestivalLoading(
-                            null,
-                            Modifier
-                                .testTag(GlobalSearchTags.PLAYERS_LOADING)
-                                .semantics { contentDescription = "Searching players"; liveRegion = LiveRegionMode.Polite },
-                            size = 24.dp,
-                        )
-                    }
-                }
-                SectionPhase.Failed -> item(key = "players-failed") {
+            if (ui.playersPhase == SectionPhase.Failed) {
+                item(key = "players-failed") {
                     ServiceStatusInline(
                         issue = ui.playersIssue ?: return@item,
                         fallbackTitle = GlobalSearchResults.PLAYERS_UNAVAILABLE,
                         countdown = ui.playersCountdown,
-                        onRetry = onRetry,
-                        modifier = Modifier.padding(horizontal = 16.dp).testTag("fst.global-search.players-error"),
+                        onRetry = null,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(GlobalSearchTags.PLAYERS_ERROR),
                     )
                 }
-                else -> Unit
             }
             itemsIndexed(ui.players, key = { _, player -> "p-${player.accountId}" }) { index, player ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index + 1))) {
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index))) {
                     PlayerResultRow(player) { onOpen(player.destination) }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun SectionTitle(title: String, tag: String) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = BrandTokens.textPrimary,
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(BrandTokens.cardBackground)
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .testTag(tag)
-            .semantics { heading() },
-    )
 }
 
 @Composable
@@ -631,28 +661,17 @@ private fun CenteredMessage(text: String) {
 
 /**
  * The app's shared title-and-subtitle empty state, centred horizontally and vertically in the
- * results area above the keyboard (issue #99), with Retry when an empty players envelope is
- * involved. It scrolls instead of clipping when large text outgrows a short window.
+ * results area above the keyboard (issue #99), with no Retry (issue #299). It scrolls instead of
+ * clipping when large text outgrows a short window.
  *
- * @param empty Title, subtitle and whether Retry is offered.
- * @param onRetry Retry the query.
- * @param bottomInset Space the keyboard covers at the bottom of the surface.
+ * @param empty Title and subtitle.
  */
 @Composable
-private fun EmptyResults(empty: SearchEmptyState, onRetry: () -> Unit, bottomInset: Dp) {
-    BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = bottomInset).testTag(GlobalSearchTags.EMPTY)) {
+private fun EmptyResults(empty: SearchEmptyState) {
+    BoxWithConstraints(Modifier.fillMaxSize().testTag(GlobalSearchTags.EMPTY)) {
         val viewport = maxHeight
         Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport), contentAlignment = Alignment.Center) {
-            FestivalEmptyState(
-                title = empty.title,
-                subtitle = empty.subtitle,
-                modifier = Modifier.fillMaxWidth(),
-                action = if (empty.canRetry) {
-                    { FilledTonalButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp).testTag(GlobalSearchTags.RETRY)) { Text("Retry") } }
-                } else {
-                    null
-                },
-            )
+            FestivalEmptyState(title = empty.title, subtitle = empty.subtitle, modifier = Modifier.fillMaxWidth())
         }
     }
 }

@@ -9,7 +9,7 @@ import FestivalDesign
 ///
 /// The title, description and (for single-instrument categories) the category's
 /// instrument icon sit **above** the card (operator rule, 2026-09-28: headers never
-/// inside containers); the song rows are flat inside one glass card
+/// inside containers); the song rows are flat inside one material card
 /// (`.agents/design/apple/liquid-glass.md`). Each row's right-hand metadata follows the
 /// web's per-category `getRowLayout` (`SuggestionRowLayout` in FestivalCore).
 struct SuggestionCategoryCardView: View {
@@ -51,7 +51,7 @@ struct SuggestionCategoryCardView: View {
 
 // MARK: - Song row
 
-/// One flat row inside a category's glass card (web `CategoryCard` `SongRow`): album art,
+/// One flat row inside a category's material card (web `CategoryCard` `SongRow`): album art,
 /// title and "artist · year" (web `SongInfo`), then the category's metadata. On a compact
 /// width the metadata wraps to a right-aligned second line unless it is only an icon or
 /// pill (web `twoRow` / `iconOnly`).
@@ -65,6 +65,7 @@ struct SuggestionSongRowView: View {
     var currentSeason: Int?
     var visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Web `CategoryCard.showStars`: star-progress categories only.
     ///
@@ -84,8 +85,12 @@ struct SuggestionSongRowView: View {
             .joined(separator: " \u{00B7} ")
     }
 
+    /// Metadata under the song instead of beside it (``SuggestionRowLayout/stacksMetadata(regularWidth:accessibilitySize:showsStars:)``).
     private var twoRow: Bool {
-        sizeClass != .regular && layout != .hidden && !layout.isCompact(showsStars: showsStars)
+        layout.stacksMetadata(
+            regularWidth: sizeClass == .regular, accessibilitySize: dynamicTypeSize.isAccessibilitySize,
+            showsStars: showsStars
+        )
     }
 
     var body: some View {
