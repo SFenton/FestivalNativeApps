@@ -19,7 +19,7 @@ Stage: 5 (journeys 1–5)  Next: operator/device only — the split redesign lan
 - **S7** What's New opens as a centered sheet on the inner display (cover stays on iPhone, folded Duo, iPad) [T462/T466: inner sheets centered; don't stretch the iPhone page].
 - **S8** rail overflow of Bell/Profile on inner-landscape pushed pages (Bands: Back + `…`) accepted as system compression with six tabs.
 - **K1** hardware keyboard left pending (see checks); Split View superseded.
-- **S9** first-run slides scroll with a 120 pt demo in compact height (outer landscape hid the title and text under Next).
+- **S9** first-run slides scroll with a 120 pt demo in compact height (outer landscape hid the title and text under Next). Verified: no overlap, but the ~128 pt page shows the demo first and the text after a scroll; option kept: text above the demo in compact height.
 - **S10** Paths instrument name wraps only between words (folded "Lea/d").
 
 ## Done / verified (live unless noted)
@@ -31,9 +31,9 @@ Stage: 5 (journeys 1–5)  Next: operator/device only — the split redesign lan
 |---|---|---|
 | Inner landscape flat/book, inner portrait, fold/unfold + D6, O1 outer landscape | pass (DUO4); P3 fixed | `poses/`, `final/p3-*` |
 | Sweep: Song Detail, Paths, Notifications | pass all four poses; Paths "Lea/d" fixed folded; inner sheets centered, horizontal bars | `final/sw-*-paths`, `sw-*-notifications` |
-| Sweep: Bands | pass four poses; S6 readable width; S8 overflow | `final/sw-*-bands*` |
-| Sweep: What's New | pass four poses (M1 holds); S7 sheet inside | `final/sw-*-whatsnew*` |
-| Sweep: first run | folded, inner portrait/landscape pass; outer landscape hid title/text under Next → S9 fix | `final/sw-*-firstrun*` |
+| Sweep: Bands | pass four poses; S6 readable width (verified); S8 overflow | `final/sw-*-bands*` |
+| Sweep: What's New | pass four poses (M1 holds); S7 sheet inside (verified) | `final/sw-*-whatsnew*` |
+| Sweep: first run | folded, inner portrait/landscape pass; outer landscape hid title/text under Next → S9 fixed (verified) | `final/sw-*-firstrun*` |
 | Sweep: Licenses, Privacy Policy | not run: the inner-display drive cannot scroll (XCUITest swipes miss the inner panel; `scrollTo` fails), stopped at wrap-up | — |
 | Hardware keyboard | pending: Device Hub has no Connect Hardware Keyboard; its Toggle Software Keyboard reads disabled (AX state is stale until the menu opens in the active app; `host:control Capture Keyboard` first is the next try); phone shortcuts (⌘F/⌘K, ⌘1–9, ⌘[, ⌘R) exist in code, not verified | — |
 | Split View (both sides) | superseded by the split redesign (2026-10-04); `systemDrag` driver step added for the Multitasking Dock drag, not run | — |
