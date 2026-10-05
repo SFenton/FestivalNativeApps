@@ -73,7 +73,7 @@ Raw audit issues per group (browse / rankings / profile) → issues left open af
 | Mode | Lane A11Y (before) | Lane A11Y2 raw | Open after waivers | Left open |
 |---|---|---|---|---|
 | Regular (portrait) | 70 / 64 / 281 | 62 / 104 / 228 | 0 / 0 / 2 | Statistics: 2 × "Potentially inaccessible text" without an element (below) |
-| Compact ⅓ | 51 / – / 241 | 52 / 82 / 94 | 1 / 1 / 1 + Rival Detail unreached | Song Detail "No scores recorded yet": not found again at AX5 (lazy card), no evidence; Player "2 (66.6%)" cut at AX5 (fixed after the run: `a6d31ec6`); Statistics "88,000,000" not measurable clear of the bars; Rival Detail's proof fixed after the run (`2841bc40`) |
+| Compact ⅓ | 51 / – / 241 | 52 / 82 / 94 | 1 / 1 / 1 + Rival Detail unreached | Song Detail "No scores recorded yet": not found again at AX5 (lazy card), no evidence; Player "2 (66.6%)" cut at AX5 (fixed after the run: `a8f12288`); Statistics "88,000,000" not measurable clear of the bars; Rival Detail's proof fixed after the run (`c102a5d5`) |
 | AX1 (new) | not run | 27 / 29 / 71 | 0 / 0 / 1 | Statistics: the same unattributed text |
 | AX5 | 8 / – / 65 | 20 / 28 / 36 | 0 / 0 / 0 | – |
 | ThreeColumn (landscape, now with contrast) | 27 / 31 / 124 (no contrast) | 90 / – / – | 0 / – / – | Rankings and profile not re-run: the split layout is being replaced |
