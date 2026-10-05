@@ -46,6 +46,9 @@ import UIKit
 ///   `window-controls`, then a window-controls menu item by label).
 /// - `systemHold:<identifier-prefix-or-label>` — long-press a SpringBoard element (e.g.
 ///   `Zoom-button` for the window tiling menu).
+/// - `systemDrag:<identifier-prefix-or-label>><x>,<y>` — long-press a SpringBoard element
+///   and drag it slowly to a normalized screen point, then hold before release (e.g. a
+///   Multitasking Dock icon to a screen edge for Split View on the iPhone Duo inner display).
 /// - `fill` — iPad windowed multitasking: make the window fill the screen again
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
 /// - `tile:<Left|Right|Arrange thirds|Left and Right>` — iPad: exact tiling from the
@@ -84,6 +87,7 @@ enum DriverStep {
     case systemTree(String)
     case systemTap(String)
     case systemHold(String)
+    case systemDrag(String, CGVector)
     case tile(WindowResize.Tile)
     case windowFrame(String)
     case closeWindow
@@ -174,6 +178,14 @@ enum DriverStep {
         case "systemTap":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTap(arg)
+        case "systemDrag":
+            guard let split = arg.range(of: ">", options: .backwards) else { throw ParseError.malformed(raw) }
+            let target = String(arg[..<split.lowerBound])
+            let values = arg[split.upperBound...].split(separator: ",").compactMap {
+                Double($0.trimmingCharacters(in: .whitespaces))
+            }
+            guard !target.isEmpty, values.count == 2 else { throw ParseError.malformed(raw) }
+            return .systemDrag(target, CGVector(dx: values[0], dy: values[1]))
         case "systemTree":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTree(arg)
@@ -459,6 +471,16 @@ final class DriverTests: XCTestCase {
                 ).firstMatch
             guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
             if case .systemHold = step { target.press(forDuration: 1.2) } else { target.tap() }
+        case let .systemDrag(identifier, destination):
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let target = springboard.descendants(matching: .any).matching(
+                NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
+            ).firstMatch
+            guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
+            target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(
+                forDuration: 1.0,
+                thenDragTo: springboard.coordinate(withNormalizedOffset: destination),
+                withVelocity: .slow, thenHoldForDuration: 1.0)
         case let .systemTree(path):
             try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
                 .write(toFile: path, atomically: true, encoding: .utf8)

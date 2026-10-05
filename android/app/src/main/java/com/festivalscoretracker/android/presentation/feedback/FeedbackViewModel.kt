@@ -52,7 +52,7 @@ sealed interface FeedbackPhase {
  *
  * @property draft Field values and attachments.
  * @property phase Editing, sending or sent.
- * @property error Readable failure (validation or send), shown above the actions.
+ * @property error Readable send or filing failure, shown above the fields.
  * @property notice Readable note about skipped attachments.
  * @property confirmingDiscard Whether the discard confirmation is showing.
  */
@@ -66,8 +66,11 @@ data class FeedbackFormState(
     /** Whether the fields and Attach Media accept input. */
     val editable: Boolean get() = phase == FeedbackPhase.Editing
 
-    /** Whether Submit is enabled (validation failures are reported on tap, not by disabling). */
-    val canSubmit: Boolean get() = phase == FeedbackPhase.Editing
+    /** Whether Submit is enabled: editing and valid (the spec's `invalid` state disables it). */
+    val canSubmit: Boolean get() = phase == FeedbackPhase.Editing && draft.problem == null
+
+    /** Inline reason Submit is disabled while editing an invalid draft, or null. */
+    val validationMessage: String? get() = if (phase == FeedbackPhase.Editing) draft.problem?.message else null
 
     /** Whether the send or filing progress shows. */
     val busy: Boolean get() = phase == FeedbackPhase.Submitting || phase is FeedbackPhase.Filing
@@ -206,14 +209,10 @@ class FeedbackViewModel(
         formFlow.update { it?.copy(confirmingDiscard = false) }
     }
 
-    /** Validate, send, then follow filing; failure keeps every field and shows a readable error. */
+    /** Send a valid draft, then follow filing; failure keeps every field and shows a readable error. No-op while invalid. */
     fun submit() {
         val state = formFlow.value ?: return
         if (!state.canSubmit) return
-        state.draft.problem?.let { problem ->
-            formFlow.value = state.copy(error = problem.message)
-            return
-        }
         val submission = state.draft.submission(platform, appVersion, clientInfo)
         formFlow.value = state.copy(phase = FeedbackPhase.Submitting, error = null)
         job = work.launch {

@@ -171,6 +171,23 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.live_pages([pages["first-run-back"], pages["first-run-done"]]),
                          [pages["first-run-back"], pages["first-run-done"]])
 
+    def test_search_state_pages(self):
+        import json
+        from tools.windows import uiwin as u
+        pages = json.loads((m.PAGES.parent / "a11y-search.json").read_text(encoding="utf-8"))
+        names = {page["name"] for page in pages}
+        # Every reachable Global Search state (issue #234): closed, open-hint, loading, results-all/-scoped, empty,
+        # error, bands-unavailable and navigated, plus the title-bar suggestion popup.
+        self.assertLessEqual({"search-closed", "search-suggestions", "search-open-hint", "search-loading",
+                              "search-results-all", "search-results-songs", "search-results-players", "search-empty",
+                              "search-error", "search-bands-unavailable", "search-navigated"}, names)
+        for page in pages:
+            for size in page.get("sizes", []):
+                self.assertIn(size, u.PRESETS, page["name"])
+            for step in [*page.get("ready", []), *page.get("after_ready", []), *page.get("teardown", [])]:
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step.replace("{stem}", "out"))
+
     def test_page_fixture(self):
         self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))
         self.assertEqual(m.page_fixture({"fixture": ["--band-rankings", "empty"]}),

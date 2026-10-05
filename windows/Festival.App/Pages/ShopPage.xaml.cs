@@ -46,6 +46,15 @@ public sealed partial class ShopPage : Page
             Header.Margin = DetailsNotice.Margin = ViewModel.IsCompact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
         };
         ViewModel.PropertyChanged += OnViewModelChanged;
+        // The tint is set from code (inline brushes don't follow {ThemeResource}), so a contrast-theme switch re-applies it;
+        // Loaded also reaches the DropDownButton chevron, which exists only once the template applies.
+        Loaded += (_, _) =>
+        {
+            UpdateFilterTint();
+            ContrastTheme.Changed -= OnColorsChanged;
+            ContrastTheme.Changed += OnColorsChanged;
+        };
+        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
             () => ViewModel.ShowEmpty ? "No Item Shop songs" : ViewModel.State == LoadState.Loaded ? $"Item Shop, {ViewModel.CountText}" : null,
             "Loading Item Shop");
@@ -75,12 +84,17 @@ public sealed partial class ShopPage : Page
         if (e.PropertyName is nameof(ShopViewModel.Offers) or nameof(ShopViewModel.State) && ViewModel.ShowOffers) _ = RevealAsync();
     }
 
-    /// <summary>Tints the Filter button gold while a switch is on, like the Songs Filter button.</summary>
-    private void UpdateFilterTint()
-    {
-        FilterButton.ClearValue(ForegroundProperty);
-        if (ViewModel.IsFilterActive) FilterButton.Foreground = Brush("FSTEmphasisBrush");
-    }
+    /// <summary>
+    /// Marks the Filter button while a switch is on, exactly like the Songs Filter button: gold text, the Highlight /
+    /// HighlightText pair under a contrast theme (gold resolves to WindowText there, so the tint alone vanished), and
+    /// "Filters applied" as its UIA item status (the tint alone was silent to Narrator).
+    /// </summary>
+    private void UpdateFilterTint() => AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
+
+    /// <summary>Re-resolves the code-set Filter tint on the UI thread after a system colour (contrast theme) change.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateFilterTint);
 
     /// <summary>Fits the filter flyout to the window and re-reads the switches.</summary>
     /// <param name="sender">Flyout.</param>

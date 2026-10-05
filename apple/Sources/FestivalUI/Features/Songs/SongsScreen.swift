@@ -44,6 +44,11 @@ struct SongsScreen: View {
     @State private var scrollChrome = SongsScrollChrome()
     /// Far programmatic jumps teleport behind this fade (``ListJump``).
     @State private var jumpFade = ListJumpFade()
+    /// The navigation bar's bottom edge and the list's SwiftUI safe-area top (window
+    /// points), measured in compact height only (iPhone Duo outer landscape,
+    /// ``SongsDrawerOverlap``).
+    @State private var drawerBarBottom = CGFloat.nan
+    @State private var listSafeTop = CGFloat.nan
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// Song to scroll back to after an iPhone Duo fold/unfold rebuilt this list (`/duo` D6).
@@ -978,6 +983,29 @@ struct SongsScreen: View {
         max(0, scrubberTrailingReserve - songRowInsets.trailing)
     }
 
+    /// Top padding that clears the pinned Filter field where SwiftUI lays the list out
+    /// above the navigation bar's bottom (iPhone Duo outer landscape, `/duo` P3).
+    private var drawerOverlap: CGFloat {
+        SongsDrawerOverlap.padding(
+            barBottom: drawerBarBottom, safeTop: listSafeTop,
+            compactHeight: deviceLayout.heightClass == .compact
+        )
+    }
+
+    /// Measures the bar bottom and the list's safe-area top, in compact height only.
+    @ViewBuilder private var drawerOverlapReader: some View {
+        #if os(iOS)
+        if deviceLayout.heightClass == .compact {
+            SongsDrawerBarReader { barBottom in
+                if barBottom != drawerBarBottom { drawerBarBottom = barBottom }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { top in
+                listSafeTop = top
+            }
+        }
+        #endif
+    }
+
     private func populatedList(
         payload: CatalogPayload, visible: [Song], effectiveMode: SongSortMode
     ) -> some View {
@@ -1092,6 +1120,8 @@ struct SongsScreen: View {
                     scrollChrome.setScrolled(scrolled)
                 })
                 .scrollContentBackground(.hidden)
+                // iPhone Duo outer landscape: start below the pinned Filter field (`/duo` P3).
+                .safeAreaPadding(.top, drawerOverlap)
                 // Reserve room for the trailing section-index scrubber so its glass
                 // capsule never overlaps a row's own trailing content (difficulty
                 // meter, Shop badge, instrument-status chips) — the scrubber is an
@@ -1126,6 +1156,7 @@ struct SongsScreen: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
+            .background { drawerOverlapReader }
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
             // iPhone Duo fold/unfold rebuilt this list: scroll back to the song that was
@@ -1902,13 +1933,14 @@ private struct RowMaskShape: Shape {
 /// Songs' page tools (issue #92): Sort, Filter and Quick Links, then the account group.
 ///
 /// On iOS 26.1+ iPhone they sit in the tab-bar accessory (``PageToolsRegistry``); Sort
-/// and Filter fold into one "Sort and Filter" menu when the accessory is too narrow for
-/// every item (``PageToolsAccessoryFit``: inline beside the minimized tab bar, small
-/// iPhones, accessibility text sizes). Elsewhere they are navigation-bar items, folding
-/// by ``SongsToolbarFold``. Either way Quick Links, Notifications and Profile stay
-/// visible (HIG Toolbars, iOS: "Put only essential actions in the main area; use More
-/// for the rest"). It measures its own width, so a width change re-renders only this
-/// modifier.
+/// and Filter fold into one "Sort and Filter" menu when the inline accessory for this
+/// window would be too narrow for every item, or at accessibility text sizes
+/// (``PageToolsAccessoryFit``). The decision never follows the accessory's own width, so
+/// the expanded and inline accessory show the same items (issue #300). Elsewhere they are
+/// navigation-bar items, folding by ``SongsToolbarFold``. Either way Quick Links,
+/// Notifications and Profile stay visible (HIG Toolbars, iOS: "Put only essential
+/// actions in the main area; use More for the rest"). It measures its own width, so a
+/// width change re-renders only this modifier.
 private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
     let session: FestivalSession
     let quickLinks: QuickLinksController
@@ -1938,9 +1970,9 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
     /// Whether Sort and Filter fold into one menu in the tab-bar accessory.
     private func foldsInAccessory(_ registry: PageToolsRegistry) -> Bool {
         PageToolsAccessoryFit.folds(
-            width: registry.accessoryWidth,
+            windowWidth: registry.windowWidth,
             pageTools: (canPresentFilter ? 2 : 1) + (quickLinks.isAvailable ? 1 : 0),
-            accountItems: session.selectedPlayer == nil ? 1 : 2,
+            showsBell: session.selectedPlayer != nil,
             dynamicTypeSize: dynamicTypeSize
         )
     }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -45,11 +46,11 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -57,7 +58,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,10 +69,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -106,7 +106,9 @@ import com.festivalscoretracker.android.presentation.feedback.FeedbackFormState
 import com.festivalscoretracker.android.presentation.feedback.FeedbackPhase
 import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
 import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalModalHeader
+import com.festivalscoretracker.android.ui.common.festivalSheetHingeSide
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -157,21 +159,23 @@ fun rememberFeedbackViewModel(api: FestivalApi): FeedbackViewModel {
 fun FeedbackDialogHost(viewModel: FeedbackViewModel) {
     val state by viewModel.form.collectAsStateWithLifecycle()
     val form = state ?: return
-    val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })
     Dialog(
         onDismissRequest = viewModel::requestClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false),
     ) {
         BackHandler(onBack = viewModel::requestClose)
-        Box(
+        // On a separating fold the form keeps to one side of the hinge, like the shared sheets (M3:
+        // "Never place interactive content or critical information across the hinge area").
+        BoxWithConstraints(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(if (compact) 0.dp else 24.dp),
+            modifier = Modifier.fillMaxSize().festivalSheetHingeSide().systemBarsPadding().imePadding(),
         ) {
+            val compact = !AdaptiveLayoutPolicy.isRegularWidth(maxWidth.value.toInt())
             Surface(
-                shape = if (compact) RoundedCornerShape(0.dp) else RoundedCornerShape(28.dp),
+                shape = if (compact) RectangleShape else MaterialTheme.shapes.extraLarge,
                 color = BrandTokens.cardBackground,
                 modifier = Modifier
-                    .then(if (compact) Modifier.fillMaxSize() else Modifier.widthIn(max = 640.dp).fillMaxWidth())
+                    .then(if (compact) Modifier.fillMaxSize() else Modifier.padding(24.dp).widthIn(max = 640.dp).fillMaxWidth())
                     .popupTestTags()
                     .testTag("fst.settings.feedback.dialog")
                     .semantics { paneTitle = form.draft.kind.formTitle },
@@ -220,15 +224,20 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
             }
         }
         if (form.busy) {
-            Column(
-                Modifier
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 48.dp)
                     .padding(horizontal = 24.dp, vertical = 4.dp)
                     .testTag("fst.settings.feedback.progress")
                     .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             ) {
-                LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(form.progressText, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp))
+                // The app's one loading indicator (design/android.md), not the theme's blue primary.
+                // The status text says what is in progress; one TalkBack stop, not a separate progress bar.
+                Box(Modifier.clearAndSetSemantics {}) { FestivalLoading(label = null, size = 24.dp) }
+                Text(form.progressText, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium)
             }
         }
         Column(
@@ -291,6 +300,20 @@ private fun EditingContent(form: FeedbackFormState, viewModel: FeedbackViewModel
         ) {
             Icon(Icons.Filled.Error, contentDescription = "Error", tint = BrandTokens.textPrimary)
             Text(message, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    // Submit stays disabled while invalid; say why next to it rather than only on a tap.
+    form.validationMessage?.let { reason ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("fst.settings.feedback.validation")
+                .semantics(mergeDescendants = true) {},
+        ) {
+            Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.size(20.dp))
+            Text(reason, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
         }
     }
     FeedbackField(

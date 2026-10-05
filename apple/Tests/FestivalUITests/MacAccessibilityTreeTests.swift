@@ -28,7 +28,8 @@ struct MacAXNode: CustomStringConvertible {
 
     var description: String {
         "\(String(repeating: " ", count: depth))\(role)\(subrole.isEmpty ? "" : "/\(subrole)")"
-            + " '\(spokenName)'" + (identifier.isEmpty ? "" : " #\(identifier)") + (selected ? " [selected]" : "")
+            + " '\(spokenName)'" + (!value.isEmpty && value != spokenName ? " = '\(value)'" : "")
+            + (identifier.isEmpty ? "" : " #\(identifier)") + (selected ? " [selected]" : "")
             + (isElement ? "" : " (not element)")
     }
 }
@@ -100,6 +101,10 @@ func macAccessibilityFindings(_ nodes: [MacAXNode]) -> [String] {
     for (index, node) in elements.enumerated() {
         if macNamedRoles.contains(node.role), node.spokenName.trimmingCharacters(in: .whitespaces).isEmpty {
             findings.append("unnamed \(node.role) #\(node.identifier)")
+        }
+        // Swift Charts names an unlabelled mark by its plotted range ("0 to 1").
+        if node.spokenName.range(of: #"^\d+(\.\d+)? to \d+(\.\d+)?$"#, options: .regularExpression) != nil {
+            findings.append("chart mark named by its plotted range '\(node.spokenName)' #\(node.identifier)")
         }
         if node.role == "AXImage", index + 1 < elements.count,
            !node.spokenName.isEmpty, elements[index + 1].spokenName == node.spokenName {
@@ -297,6 +302,9 @@ struct MacAccessibilityTreeTests {
         #expect(sidebar < (rows.first?.offset ?? .max), "sidebar before list")
         #expect((rows.last?.offset ?? .max) < detail, "list before detail")
         #expect(nodes[detail...].contains { $0.role == "AXHeading" }, "detail headings")
+        let title = try #require(nodes.first { $0.identifier == "fst.song-detail.hero-title" })
+        #expect(title.role == "AXHeading", "the song title is the detail's first heading: \(title)")
+        #expect(title.spokenName.hasPrefix("Fixture"), "\(title)")
     }
 }
 #endif
