@@ -50,6 +50,8 @@ struct PublicationRefreshBoundary<Content: View>: View {
     @AccessibilityFocusState private var focusedElement: PublicationRefreshFocus.Element?
     /// The page's last published title (kept across the rebuild and its own load).
     @State private var pageTitle: String?
+    /// The publication revision this boundary last announced (UI-test marker only).
+    @State private var announcedRevision: Int?
 
     /// - Parameters:
     ///   - session: Shared app session whose publication revision is watched.
@@ -93,6 +95,11 @@ struct PublicationRefreshBoundary<Content: View>: View {
         .overlay(alignment: .top) {
             if showsPageAnchor { pageAnchor }
         }
+        .overlay(alignment: .bottom) {
+            if Self.forcedFocusInPage == false, let announcedRevision {
+                announcementMarker(announcedRevision)
+            }
+        }
         .onAppear { onScreen = true }
         .onDisappear { onScreen = false }
         .onPreferenceChange(FestivalPageTitleKey.self) { title in
@@ -125,6 +132,7 @@ struct PublicationRefreshBoundary<Content: View>: View {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled, PublicationRefreshAnnouncer.gate.shouldPost(for: revision) else { return }
             AccessibilityNotification.Announcement(Self.loadingLabel).post()
+            announcedRevision = revision
         }
         .task(id: WaitID(phase: transition.phase, generation: transition.generation, wait: transition.pendingWait)) {
             guard let wait = transition.pendingWait else { return }
@@ -176,6 +184,22 @@ struct PublicationRefreshBoundary<Content: View>: View {
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("fst.publication.page-anchor")
             .accessibilityFocused($focusedElement, equals: .pageAnchor)
+    }
+
+    /// Debug UI-test marker (`FST_UI_TEST_PAGE_ANCHOR=outside` only): XCUITest cannot hear
+    /// announcements, so the boundary that posted one exposes it with the revision as its
+    /// value. It persists, unlike the ~1 s spinner a slow simulator query can miss.
+    ///
+    /// - Parameter revision: The announced publication revision.
+    /// - Returns: A 1-pt clear element.
+    private func announcementMarker(_ revision: Int) -> some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityLabel(Self.loadingLabel)
+            .accessibilityValue(String(revision))
+            .accessibilityIdentifier("fst.publication.announced")
     }
 
     // MARK: Motion

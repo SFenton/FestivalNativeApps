@@ -1565,7 +1565,8 @@ final class SongsJourneyTests: XCTestCase {
 
     /// A live publication refresh while VoiceOver focus is outside the page (tab bar,
     /// navigation bar) leaves focus alone (issue #304, load-transition R7): no page anchor
-    /// is added at any point, and the page still refreshes in place.
+    /// is added at any point, the update is announced (the Debug `fst.publication.announced`
+    /// marker) and the page still refreshes in place.
     ///
     /// `FST_UI_TEST_PAGE_ANCHOR=outside` simulates the focus location XCUITest cannot
     /// produce without VoiceOver; `PublicationRefreshFocusTests` covers how the location
@@ -1591,14 +1592,17 @@ final class SongsJourneyTests: XCTestCase {
 
         try await SongsUITestSupport.advanceFixturePublication(port: port)
 
-        let spinner = app.descendants(matching: .any)["fst.publication.refreshing"]
-        let refreshed = spinner.waitForExistence(timeout: 45)
+        // The announcement marker persists; the ~1 s spinner can fall between slow queries.
+        let announced = app.descendants(matching: .any)["fst.publication.announced"]
+        let refreshed = announced.waitForExistence(timeout: 45)
         if !refreshed {
-            SongsUITestSupport.record(app, name: "songs-live-rollover-outside-no-spinner")
+            SongsUITestSupport.record(app, name: "songs-live-rollover-outside-no-announcement")
         }
         XCTAssertTrue(refreshed, "The live loop refreshes the open page with no user action")
+        XCTAssertEqual(announced.label, "Loading new scores", "The update is announced instead")
         let anchor = app.descendants(matching: .any)["fst.publication.page-anchor"]
         XCTAssertFalse(anchor.exists, "Focus outside the page is not pulled to a page anchor")
+        let spinner = app.descendants(matching: .any)["fst.publication.refreshing"]
         XCTAssertTrue(spinner.waitForNonExistence(timeout: 15), "The refresh spinner fades out")
         XCTAssertTrue(detail.waitForExistence(timeout: 10), "Song Detail is rebuilt in place")
         XCTAssertFalse(anchor.exists, "No page anchor after the rebuild either")
