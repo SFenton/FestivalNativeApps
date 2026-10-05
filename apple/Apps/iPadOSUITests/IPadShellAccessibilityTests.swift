@@ -173,6 +173,8 @@ final class IPadShellAccessibilityTests: XCTestCase {
         /// First row whose identifier begins with this, or the exact identifier.
         let row: String
         var exact = false
+        /// Open this song from Songs first (Song Detail's split).
+        var song: String?
     }
 
     static let splitPages: [SplitPage] = [
@@ -181,8 +183,8 @@ final class IPadShellAccessibilityTests: XCTestCase {
         SplitPage(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], ready: "Rivals", row: "fst.rivals.row."),
         SplitPage(name: "leaderboards", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards",
                   row: "fst.rankings.row."),
-        SplitPage(name: "song-board", env: ["FST_DEBUG_SONG": "fixture-pulse"], ready: "fst.song-detail.intensity",
-                  row: "fst.song-detail.leaderboard.Solo_Guitar", exact: true),
+        SplitPage(name: "song-board", env: [:], profile: false, ready: "fst.songs.list",
+                  row: "fst.song-detail.leaderboard.Solo_Guitar", exact: true, song: "fixture-pulse"),
         SplitPage(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
                   row: "fst.settings.licenses", exact: true),
     ]
@@ -204,6 +206,9 @@ final class IPadShellAccessibilityTests: XCTestCase {
                 XCTFail("\(page.name): the window is not landscape (\(window)); no split to check")
                 app.terminate()
                 continue
+            }
+            if let song = page.song {
+                XCTAssertTrue(IPadAccessibilityAuditTests.openSong(app, song), "\(page.name): Song Detail opens")
             }
             XCTAssertFalse(element(app, "fst.split.trailing").exists, "\(page.name) starts full width")
             guard let opened = IPadAccessibilityAuditTests.openSplit(

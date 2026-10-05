@@ -199,14 +199,14 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             // The proof is a row inside the panel, so the panel is the "sheet" region.
             tapFirst(app, ["fst.shell.drawer.open"]) ? "fst.shell.drawer.songs" : nil
         }, sheet: true),
-        Page(name: "song-board-split", env: ["FST_DEBUG_SONG": "fixture-pulse"],
-             ready: "fst.song-detail.intensity", open: { app in
-                 openSplit(app, ids: ["fst.song-detail.leaderboard.Solo_Guitar"])
-             }, splitOnly: true),
-        Page(name: "song-history-split", env: ["FST_DEBUG_SONG": "fixture-pulse"], profile: true,
-             ready: "fst.song-detail.intensity", open: { app in
-                 openSplit(app, ids: ["fst.song-detail.history.view-all"])
-             }, splitOnly: true),
+        // Song Detail opened from its Songs row, as a person does: a page pushed by
+        // `FST_DEBUG_SONG` did not scroll under XCUITest drags or scroll-to-tap.
+        Page(name: "song-board-split", ready: "fst.songs.list", open: { app in
+            openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.leaderboard.Solo_Guitar"]) : nil
+        }, splitOnly: true),
+        Page(name: "song-history-split", profile: true, ready: "fst.songs.list", open: { app in
+            openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.history.view-all"]) : nil
+        }, splitOnly: true),
         Page(name: "rivals-split", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals",
              open: { app in openSplit(app, prefix: "fst.rivals.row.") }, splitOnly: true),
         Page(name: "leaderboards-split", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards",
@@ -546,6 +546,17 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             return known
         default: return false
         }
+    }
+
+    /// Open a song's detail page from its Songs row.
+    ///
+    /// - Returns: True once Song Detail shows.
+    @MainActor
+    static func openSong(_ app: XCUIApplication, _ songId: String) -> Bool {
+        let row = app.buttons["fst.songs.row.\(songId)"]
+        guard row.waitForExistence(timeout: 15) else { return false }
+        row.tap()
+        return anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 20)
     }
 
     /// A slow vertical drag between two screen points (no flick momentum).
