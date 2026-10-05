@@ -14,6 +14,10 @@ public extension View {
     /// background: the carousel never restarts, and opening a song animates the
     /// shared backdrop from the carousel to that song's cover.
     ///
+    /// Inside an on-demand split the container draws one backdrop for both panes, so
+    /// the page draws none, and a trailing-pane page never registers: its parent page
+    /// decides the split's background (`SplitPaneChrome`).
+    ///
     /// - Parameters:
     ///   - mode: `.carousel` for the shared animated album wall, `.song(art)` for a fixed album.
     ///   - session: Shared artwork cache and background coordinator owner.
@@ -36,14 +40,25 @@ struct FestivalBackgroundModifier: ViewModifier {
 
     @State private var token = UUID()
     @State private var appeared = false
+    /// The on-demand split pane this page is in, if any.
+    @Environment(\.splitPane) private var pane
+    /// Whether a split container draws the one backdrop behind this page.
+    @Environment(\.splitSharesBackdrop) private var sharedBySplit
+
+    /// Trailing-pane pages leave the backdrop to their parent page (`SplitPaneChrome`).
+    private var registers: Bool { SplitPaneChrome.registersBackground(pane: pane) }
 
     func body(content: Content) -> some View {
         let coordinator = session.backgroundCoordinator
         content
-            .background(FestivalBackdropView(coordinator: coordinator, appeared: appeared))
+            .background {
+                if SplitPaneChrome.drawsOwnBackdrop(sharedBySplit: sharedBySplit) {
+                    FestivalBackdropView(coordinator: coordinator, appeared: appeared)
+                }
+            }
             .onAppear {
                 appeared = true
-                coordinator.appear(token, mode: mode, visible: visible)
+                if registers { coordinator.appear(token, mode: mode, visible: visible) }
             }
             .onDisappear {
                 appeared = false
@@ -54,6 +69,13 @@ struct FestivalBackgroundModifier: ViewModifier {
             }
             .onChange(of: visible) { _, new in
                 coordinator.update(token, mode: mode, visible: new)
+            }
+            .onChange(of: registers) { _, registers in
+                if !registers {
+                    coordinator.disappear(token)
+                } else if appeared {
+                    coordinator.appear(token, mode: mode, visible: visible)
+                }
             }
     }
 }

@@ -1,6 +1,6 @@
 # Web reference captures (PWA)
 
-> **What:** how to capture the real web app with deterministic fixtures for layout/state comparison. **Read when:** comparing a native screen with the web at the same viewport. Procedure: [screenshot-compare](../skills/screenshot-compare.md).
+> **What:** how to capture the real web app with deterministic fixtures for layout/state comparison. **Read when:** comparing a native screen with the web at the same viewport. Procedure: [screenshot-compare](../skills/screenshot-compare/SKILL.md).
 
 - Harness: `tools/visual/pages.spec.ts` + `tools/visual/playwright.config.mjs`, run from the sibling web repo with its existing Playwright install:
   `cd <FortniteFestivalWeb> && FST_VISUAL_OUT=<evidence-dir> node_modules/.bin/playwright test --config <FestivalNativeApps>/tools/visual/playwright.config.mjs --project=webkit-mobile --workers=1`
