@@ -746,8 +746,9 @@ def cmd_launch(args: argparse.Namespace) -> int:
     request = {"command": "launch", "exe": str(exe), "args": args.arg or [], "env": env, "timeout": args.timeout}
     with _lock(args, f"launch {exe.name}") as lock:
         result = run_driver(request, lock)
+        pid = result["pid"]
         EXCHANGE_DIR.mkdir(parents=True, exist_ok=True)
-        _state_path().write_text(json.dumps({"pid": result["pid"], "exe": str(exe)}),
+        _state_path().write_text(json.dumps({"pid": pid, "exe": str(exe)}),
                                  encoding="utf-8")
         if args.preset:
             op = preset_op(args.preset)
@@ -759,6 +760,11 @@ def cmd_launch(args: argparse.Namespace) -> int:
             time.sleep(args.wait)
             result = run_driver({"command": "shot", "pid": result["pid"],
                                  "out": str(Path(native_path(args.shot)).resolve())}, lock)
+        if args.steps or args.steps_file:
+            # Same hold as the launch: timing-sensitive first checks can't queue behind another lane.
+            steps = [parse_step(s) for s in parse_steps(args.steps, args.steps_file)]
+            result = {**run_driver({"command": "drive", "pid": pid, "steps": steps}, lock, budget=lock.remaining()),
+                      "pid": pid}
     _report(result)
     return 0
 
@@ -985,6 +991,8 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for a window")
     launch.add_argument("--no-automation", action="store_true",
                         help="launch without FST_AUTOMATION (first-run and release defaults as a user sees them)")
+    launch.add_argument("--steps", help="drive steps run right after launch, in the same desktop-lock hold")
+    launch.add_argument("--steps-file", help="file of drive steps (one per line) run like --steps")
     launch.set_defaults(func=cmd_launch)
     sub.add_parser("window", parents=[target], help="describe window").set_defaults(func=cmd_window)
     resize = sub.add_parser("resize", parents=[target], help="apply a window preset")

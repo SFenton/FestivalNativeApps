@@ -81,6 +81,13 @@ public sealed partial class FirstRunDemo : UserControl
         };
     }
 
+    /// <summary>
+    /// Raw-view peer so UI tests can read the demo's <c>fst.first-run.demo.*</c> AutomationId and ItemStatus
+    /// (Narrator still skips it; its decorative children stay as they were).
+    /// </summary>
+    /// <returns>A framework element peer.</returns>
+    protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
+
     #region Fit
     private readonly ScaleTransform fit = new();
     private double fitScale = 1;
@@ -407,6 +414,8 @@ public sealed partial class FirstRunDemo : UserControl
         kind = FirstRunDemos.KindFor(SlideId);
         if (kind is not { } k) return;
         songs = SongPoolFor(k);
+        AutomationProperties.SetAutomationId(this, $"fst.first-run.demo.{SlideId}");
+        AutomationProperties.SetItemStatus(this, FirstRunDemos.DataStatus(songs));
         artLoads?.Cancel();
         artLoads = new CancellationTokenSource();
         if (FirstRunDemos.RotationKindFor(SlideId) is { } rotating)
@@ -932,7 +941,7 @@ public sealed partial class FirstRunDemo : UserControl
         return pill;
     }
 
-    /// <summary>White demo text.</summary>
+    /// <summary>White demo text (large text sizes are fitted to the frame by the demo's measure pass).</summary>
     /// <param name="text">Text.</param>
     /// <param name="size">Font size.</param>
     /// <param name="bold">Semibold.</param>
