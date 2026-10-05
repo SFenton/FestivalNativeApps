@@ -100,6 +100,34 @@ Check of #57: first-run song demos, including Statistics' highest/lowest-ranked 
 
 The placeholder time is the time to decode and validate the full catalogue: the public `/api/songs` download takes under a second, and the work runs on `Dispatchers.Default`. It shows on a cold debug start in the emulator, and it is the specified loading state (web shows the same skeleton). At font 2.0 on narrow windows the description scrolls under the fixed demo, as documented for #139; the demo itself is drawn at font 1.0 and hidden from TalkBack, so it never clips. Material 3 (`material-3` skill, Compose guidance): outlined card rows ("Surface fill, outline-variant border"), the "Centered dialog (max 560dp wide)", 48 dp targets on every control and 4.5:1 text contrast on the dark surface. The #139 deviations still apply. Test added: `firstrun/FirstRunDemoCatalogHostTest.kt` covers the host's catalogue wiring, which full-app tests cannot reach because the demo is hidden from semantics: placeholders while loading, then catalogue songs; a failed load keeps placeholders; the Shop is preferred only for a matching, visible Shop; a hidden Shop or a newer publication ignores the Shop feed.
 
+## Validation (issue #166, 2026-10-05): demo data swaps
+
+Check of #58: the rotating demos swap rows to new data with web's timing. **Finding: no defect.** The product code is unchanged. Live public service, debug build with `FST_DEBUG_FIRST_RUN=force` (Songs tour) plus Settings replays of every other rotating page. Animator scale is 0 (reduced motion) except for the motion recording. Rotation is proven by screenshot pairs taken 6 s apart, because the demo is hidden from UIAutomator and TalkBack.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait, font 1.0 / 2.0 | placeholders hold still until the catalogue arrives, then "Epic Games" rows swap every 5 s; at 2.0 the demo stays at 1.0 and is unclipped |
+| FST_Phone landscape, font 1.0 / 2.0 | side by side; rows swap |
+| FST_Phone Settings replays | all 12 rotating slides change between shots: song-list, icons, metadata, top-songs, bar-select (2.5 s), category-card, experimental-metrics (the selection jumps instantly like web), compete hub and rivals, rivals overview, instruments and detail |
+| FST_Tablet portrait / landscape, font 1.0 / 2.0 | portrait swaps; on a cold start in landscape the live catalogue was still loading, so placeholders held still as designed |
+| FST_Resizable phone / foldable / tablet / desktop, font 2.0 on desktop | foldable (medium) swaps; on a slow cold start at phone size, placeholders hold; stacked at every preset |
+| FST_Book_Fold folded / unfolded / half-open, font 2.0 unfolded | folded→unfolded keeps the stacked layout, so rotation continues without restarting; half-open moves the dialog beside the hinge and the demo restarts from its first rows |
+| FST_Passport_Fold folded / unfolded / half-open, font 2.0 unfolded | swaps in every posture, half-open included |
+| FST_TriFold folded / partial / unfolded, font 2.0 unfolded | unfolded swaps; folded on a cold start showed placeholders while loading |
+| FST_Phone, animations on | a recording shows 400 ms fade-out, swap, then fade-in, every 5 s |
+
+The app is dark-only, so system light theme looks the same. A remount restarts the demo from its first rows: a layout switch (stacked to side by side), a font-scale change (the activity is recreated) or the hinge dialog placement. That is acceptable for a decorative demo, and web remounts too.
+
+**Accessibility.** The demo stays out of TalkBack (`clearAndSetSemantics`), so swaps never announce. Reading order, 48 dp targets and contrast are unchanged from #139 and #152. With Remove animations on, swaps land instantly.
+
+**Material 3** (`material-3` skill, motion): "Medium 4 | 400ms" matches the fade duration. **Deliberate deviation:** the demos keep web's CSS `ease` curve rather than M3 emphasized easing, for parity with the web demos.
+
+**Tests added:** in `FirstRunRotatingDemoUiTest`:
+- `backgroundedAppHoldsStillUntilResumed`: the slide holds while STARTED and swaps after RESUMED.
+- `leavingMidFadeCompletesTheSwapThenHoldsStill`: leaving mid-fade still finishes the swap, then the slide holds still.
+
+The full unit suite passes, with coverage at 98.1% logic and 96.6% UI. The connected `FirstRunJourneyTest` passes on FST_Phone.
+
 ## Open
 
 - Pages owned by other lanes get first-run automatically through the host; no per-screen registration is needed. Songs list-detail on expanded widths shows the Songs carousel even when a song is open in the detail pane.
