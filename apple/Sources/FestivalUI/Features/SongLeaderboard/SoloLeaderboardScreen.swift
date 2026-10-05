@@ -33,6 +33,9 @@ struct SoloLeaderboardScreen: View {
     @State private var shownPayload: LeaderboardPayload?
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
+    /// Height of the rows' bottom fade: full mid-list (and before iOS 18 / macOS 15),
+    /// shrinking to 0 as the list reaches its end (issue #293).
+    @State private var bottomFadeDistance = ScrollEdgeFade.distance
 
     /// Row insets: two rows sit ``rowGap`` apart.
     nonisolated private static let rowInset: CGFloat = 4
@@ -98,6 +101,11 @@ struct SoloLeaderboardScreen: View {
     }
 
     var body: some View {
+        // Read here, not only inside the reload gate's content or the mask's lazy
+        // `GeometryReader`, so measuring the pinned chrome always rebuilds the mask:
+        // otherwise the first page kept an opaque mask, and rows showed behind the
+        // pager, until something else re-rendered the page (issues #294, #305).
+        let chromeTop = bottomChromeTop
         // Page changes fade the rows out, show the spinner and fade the new page in
         // (web LoadGate, issue #71).
         FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard") {
@@ -163,12 +171,16 @@ struct SoloLeaderboardScreen: View {
                     .scrollContentBackground(.hidden)
                     .rankingsListRailClearance(layout)
                     // Rows fade out over up to 36 pt above the pinned footer and pager
-                    // and are not drawn beneath them (the shared scroll-edge fade, web
-                    // `useScrollFade`; issues #93, #293, #308), so the chrome floats
-                    // over the page background with no opaque band, and no row text
-                    // sits under its text (the contrast audit that once required the
-                    // band).
-                    .scrollEdgeFade(bottomChromeTop: bottomChromeTop, in: Self.pageSpace)
+                    // and are not drawn beneath them (web `useScrollFade`, issue #93),
+                    // so the chrome floats over the page background with no opaque
+                    // band, and no row text sits under its text (the contrast audit
+                    // that once required the band). The fade shrinks away as the last
+                    // row arrives, so the list ends one row gap above the chrome with
+                    // no reserved margin (issue #293). Shared with every paginated
+                    // board, with or without a footer (issue #305).
+                    .bottomChromeFade(
+                        chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
+                    )
                 }
                 .task {
                     await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
@@ -285,11 +297,7 @@ struct SoloLeaderboardScreen: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat?.self) { proxy in
-            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
-        } action: { top in
-            bottomChromeTop = top
-        }
+        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the footer, or above the

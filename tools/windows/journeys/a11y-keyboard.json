@@ -261,6 +261,55 @@
     ]
   },
   {
+    "name": "kb-detail-row-opens-profile",
+    "route": "/songs/fixture-pulse",
+    "sizes": ["medium"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@10",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-1",
+      "key:down",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@3",
+      "key:enter",
+      "waitfor:id=fst.player.name@15",
+      "waitgone:id=fst.song-detail.title@5",
+      "key:alt+left",
+      "waitfor:id=fst.song-detail.title@15",
+      "waitgone:id=fst.player.name@5",
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2@10",
+      "focus:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2",
+      "key:space",
+      "waitfor:id=fst.player.name@15",
+      "focus:id=PART_BackButton",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@15",
+      "waitgone:id=fst.player.name@5"
+    ]
+  },
+  {
+    "name": "kb-detail-anonymous-row",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["--song-leaderboard", "anonymous"],
+    "sizes": ["compact"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4@10",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2",
+      "key:down",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4@3",
+      "key:up",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.view-all.Solo_Guitar@3"
+    ]
+  },
+  {
     "name": "kb-first-run-esc",
     "tab": "songs",
     "first_run": "force",

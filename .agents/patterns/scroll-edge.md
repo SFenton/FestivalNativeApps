@@ -2,7 +2,7 @@
 
 > **What:** how scrolling content meets anything pinned above or below it: page headers, sheet headers, pinned section titles and bottom chrome (pagers, footers). **Read when:** you touch a fade, mask, scrim, scroll-edge effect or sticky header on any platform, or a bug says content "shows under", "is faded under" or "is cut off at" a header.
 
-Status: **current**, 2026-10-05. Provenance: #10, #49, #93, #94, #286, #288, #297, #298, #301 (audit 2026-10-05: six parallel mechanisms grew up for this one behavior), #308 (Apple consolidated to one component per edge kind; its pinned-title fade reads the scroll position on every supported system).
+Status: **current**, 2026-10-05. Provenance: #10, #49, #93, #94, #286, #288, #297, #298, #301, #305, #306 (audit 2026-10-05: six parallel mechanisms grew up for this one behavior), #308 (Apple consolidated to one component per edge kind; its pinned-title fade reads the scroll position on every supported system).
 
 ## Intent
 
@@ -36,13 +36,13 @@ The web has **no sticky section headers**. Native pinned section titles are a na
 | Page header | `FestivalUI/Common/Chrome/PageChrome.swift` `TopEdgeScrim` + system soft edge (R6 variant) | `ui/common/FestivalScreen.kt` pinned `TopAppBar` (opaque bar, content clipped at its edge) | `Festival.App` page header row (content clipped below it) |
 | Sheet header | `FestivalUI/Design/ModalTopEdgeFade.swift` `ModalTopEdgeFadeModifier` (40), applied by `FestivalModal` | `ui/common/FestivalModal.kt` (no ramp: hard edge) | `Festival.App/Controls/FestivalDialog.cs` (`ContentDialog`, no ramp) |
 | Pinned section title in a list | `FestivalUI/Design/PinnedHeaderEdgeFade.swift` `PinnedHeaderEdgeFade` (40 linear, one mask `PinnedHeaderFadeMask`): Songs' floating bar via `pinnedHeaderEdgeFadeMask(edge:active:depthLimit:)`, native pinned headers in sheet lists (Notifications) via `pinnedHeaderEdgeFadeList` / `…Header` / `…Row`. Scroll position from `onScrollGeometryChange` (iOS 18 / macOS 15+) or `FestivalUI/Common/ListScrollOffsetObserver.swift` (iOS 17 / macOS 14) | `core/songs/SongHeaderEdgeFade.kt` + `ui/songs/PinnedHeaderEdgeFade.kt` (native `stickyHeader`) | `Festival.Core/Domain/SongHeaderEdgeFade.cs` + `Festival.App/Controls/TopEdgeFade.cs` |
-| Bottom chrome (pager, footer) | `FestivalUI/Design/ScrollEdgeFadeModifiers.swift` `scrollEdgeFade(bottomChromeTop:in:)` (36, `FestivalCore/ScrollEdgeFade.swift` stops) | `core/rankings/BoardFooterEdgeFade.kt` | `Festival.Core/Domain/BoardFooterEdgeFade.cs` + `Festival.App/Controls/BoardFooterFade.cs` |
+| Bottom chrome (pager, footer) | `FestivalUI/Design/BottomChromeFade.swift` `bottomChromeFade` / `reportsBottomChromeTop` (36, `FestivalCore/ScrollEdgeFade.swift` stops), used by every paginated board with or without a player footer (#305; the full band leaderboard's selected-band footer, #306). Tests: `ScrollEdgeFadeTests`, `BottomChromeFadeTests`, hosted `BottomChromeFadeHostedTests` (Song Band and Band Rankings without a footer: mid-scroll fade, readable last row, each R7 mode) | `core/rankings/BoardFooterEdgeFade.kt` | `Festival.Core/Domain/BoardFooterEdgeFade.cs` + `Festival.App/Controls/BoardFooterFade.cs` |
 
 Apple's sheet-list fade must grow its ramp on every supported system: where `onScrollGeometryChange` is missing (iOS 17, macOS 14), the rows' `ListScrollViewLocator` hands the List's `UIScrollView` / `NSScrollView` to `ListScrollOffsetObserver`, which reports the same inset and offset. Never fall back to a permanent hard cut (#308 review). `PinnedHeaderLegacyScrollRenderTests` runs both paths; `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1` (Debug) forces the legacy path on a newer simulator.
 
 **Approved variant (Apple Songs before iOS 26 / macOS 26):** Songs keeps native pinned List headers on an opaque backing with a hairline and no row ramp. The owner chose "sticky section titles … pinned at the top on a fully opaque backing, so no row shows through beneath them" ([songs spec](../pages/songs/spec.md), 2026-09-28); the floating section bar and its ramp need iOS 26's scroll-edge chrome.
 
-Apple ramp constants live only in `FestivalCore/ScrollEdgeFade.swift` (`topDistance` 40, `distance` 36), and `Design/ScrollEdgeFadeModifiers.swift` `ScrollEdgeHardEdge` is the one R7 switch (system Reduce Transparency or Increase Contrast, or the in-app Less Transparency or Increase Contrast) read by every Apple edge component. Apple Search shows no section titles (#299), so it has no pinned-title fade.
+Apple ramp constants live only in `FestivalCore/ScrollEdgeFade.swift` (`topDistance` 40, `distance` 36, applied through `ScrollEdgeFade.ramp`), and `Design/ScrollEdgeFadeModifiers.swift` `ScrollEdgeHardEdge` is the one R7 switch (system Reduce Transparency or Increase Contrast, or the in-app Less Transparency or Increase Contrast) read by every Apple edge component, `bottomChromeFade` included. Apple Search shows no section titles (#299), so it has no pinned-title fade.
 
 `TODO(orchestrator)`: confirm whether Android/Windows page and sheet headers need a web-style 40 ramp (R2/R3) or keep the platform's opaque bar with a hard edge as an approved variant (M3 top app bar and Fluent header both separate content from chrome).
 
@@ -52,7 +52,7 @@ Apple ramp constants live only in `FestivalCore/ScrollEdgeFade.swift` (`topDista
 |---|---|---|
 | Android `SongHeaderEdgeFade.DEPTH_DP = 28`, Windows `SongHeaderEdgeFade.Depth = 28` (smoothstep pinned-title fades) | R3 | Move to 40 linear and sweep Songs and the sheet lists. Android and Windows lanes (#308: the Apple worker may not edit `android/` or `windows/`; Apple landed) |
 | Android `BoardFooterEdgeFade.DEPTH_DP = 40`, Windows `BoardFooterEdgeFade.Depth = 40` (bottom chrome) | R3 | Move to 36 (web `useScrollFade`) and sweep the rankings footers. Android and Windows lanes (#308) |
-| Apple iOS 17 / macOS 14: `ModalTopEdgeFadeModifier` (sheet header) has no scroll offset there, so it keeps a hard edge; `scrollEdgeFade(bottomChromeTop:in:)` keeps the full 36 pt ramp at the end of the list | R3, R4 | Feed both from `ListScrollOffsetObserver` like the pinned-title fade. They wrap arbitrary scroll content, so they need a locator inside it first |
+| Apple iOS 17 / macOS 14: `ModalTopEdgeFadeModifier` (sheet header) has no scroll offset there, so it keeps a hard edge; `bottomChromeFade` keeps the full 36 pt ramp at the end of the list | R3, R4 | Feed both from `ListScrollOffsetObserver` like the pinned-title fade. They wrap arbitrary scroll content, so they need a locator inside it first |
 
 ## Guards (`tools/pattern_guard.py`)
 

@@ -12,6 +12,14 @@ enum FestivalDebugLaunch {
         let value = ProcessInfo.processInfo.environment["FST_DEBUG_SONG"]
         return (value?.isEmpty ?? true) ? nil : value
     }
+
+    /// `FST_DEBUG_SONG_BAND=<bandType>` (e.g. `Band_Duets`) with `FST_DEBUG_SONG`
+    /// pushes that song's full band leaderboard instead of its Detail page, so
+    /// screenshots of every device and pose reach it without scrolling (issue #306).
+    static var songBandType: String? {
+        let value = ProcessInfo.processInfo.environment["FST_DEBUG_SONG_BAND"]
+        return (value?.isEmpty ?? true) ? nil : value
+    }
 }
 #endif
 
@@ -511,8 +519,13 @@ struct SongsScreen: View {
         #if DEBUG
         .navigationDestination(item: $debugPushedSong) { song in
             // Same pushed-page chrome (Search + avatar) as `FestivalTabStack` destinations.
-            SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
-                .pageTrailingItems()
+            if let bandType = FestivalDebugLaunch.songBandType {
+                SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
+                    .pageTrailingItems()
+            } else {
+                SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
+                    .pageTrailingItems()
+            }
         }
         .task(id: FestivalDebugLaunch.songTitleOrId) {
             guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId

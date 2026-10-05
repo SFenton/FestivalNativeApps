@@ -39,6 +39,9 @@ struct FullRankingsScreen: View {
     @State private var titleHidden = false
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
+    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
+    /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
+    @State private var bottomFadeDistance = ScrollEdgeFade.distance
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -121,10 +124,10 @@ struct FullRankingsScreen: View {
     }
 
     var body: some View {
-        // Read here, not only inside the mask's lazy `GeometryReader`, so measuring the
-        // pinned chrome always rebuilds the mask: otherwise the first page kept an
-        // opaque mask, and rows showed behind the pager, until something else
-        // re-rendered the page (issue #294).
+        // Read here, not only inside the reload gate's content or the mask's lazy
+        // `GeometryReader`, so measuring the pinned chrome always rebuilds the mask:
+        // otherwise the first page kept an opaque mask, and rows showed behind the
+        // pager, until something else re-rendered the page (issues #294, #305).
         let chromeTop = bottomChromeTop
         // Instrument, metric and page changes fade the board out, show the spinner and
         // fade the new page in (web LoadGate, issue #71).
@@ -176,8 +179,12 @@ struct FullRankingsScreen: View {
                 }
                 // Rows fade out over up to 36 pt above the pinned footer and pager and
                 // are not drawn beneath them, exactly like Song Leaderboard (issue #294;
-                // the shared scroll-edge fade, issues #93, #293, #308).
-                .scrollEdgeFade(bottomChromeTop: chromeTop, in: Self.pageSpace)
+                // web `useScrollFade`, issue #93). The fade shrinks away as the last row
+                // arrives, so the list ends one row gap above the chrome with no
+                // reserved margin (issue #293).
+                .bottomChromeFade(
+                    chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -310,11 +317,7 @@ struct FullRankingsScreen: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat?.self) { proxy in
-            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
-        } action: { top in
-            bottomChromeTop = top
-        }
+        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the player's footer, or

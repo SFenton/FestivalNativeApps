@@ -802,6 +802,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "scroll" => element.Patterns.Scroll.PatternOrDefault is { } scroll
                         ? Math.Round(scroll.VerticalScrollPercent.ValueOrDefault).ToString(System.Globalization.CultureInfo.InvariantCulture)
                         : null,
+                    // Role checks, e.g. a leaderboard row without a destination is Text with no Invoke and no Tab stop.
+                    "type" => element.Properties.ControlType.ValueOrDefault.ToString().ToLowerInvariant(),
+                    "invoke" => element.Patterns.Invoke.IsSupported ? "true" : "false",
+                    "focusable" => element.Properties.IsKeyboardFocusable.ValueOrDefault ? "true" : "false",
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
