@@ -82,6 +82,13 @@ internal object SuggestionTokens {
     val leaderboardRival = Color(0xFFFBBC04)
 
     /**
+     * Song-rival badge text (issue #167). `songRival` stays the badge's 20% tint, but as 11 sp
+     * text on that tint it measured 3.6–4.0:1 on FST_Phone, below WCAG AA 4.5:1; this lighter
+     * blue of the same hue keeps ≥ 5:1 over any backdrop.
+     */
+    val songRivalText = Color(0xFFA8C7FA)
+
+    /**
      * "Behind" rank-delta text (issue #167). `BrandTokens.statusRed` is a fill colour: as 12 sp
      * text on the card it measured 3.0:1 on FST_Phone, below WCAG AA 4.5:1. This is the Rivals
      * page's readable red (`RivalColors.loseText`, ≈ 7:1); the green "ahead" delta already passes.
@@ -256,7 +263,7 @@ private fun RivalBadge(name: String, fromSong: Boolean) {
     Text(
         name,
         style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
-        color = color,
+        color = if (fromSong) SuggestionTokens.songRivalText else color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier

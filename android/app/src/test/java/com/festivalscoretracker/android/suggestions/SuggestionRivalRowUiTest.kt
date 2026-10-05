@@ -119,12 +119,13 @@ class SuggestionRivalRowUiTest {
             settle()
             val where = "width $width, narrow $narrow, font $scale"
             val behindRow = capture(rowTag(behind))
+            assertFalse("song-rival badge on a Spotlight row ($where)", hasColour(behindRow, SuggestionTokens.songRivalText))
             assertFalse("song-rival badge on a Spotlight row ($where)", hasColour(behindRow, SuggestionTokens.songRival))
             assertFalse("leaderboard-rival badge on a Spotlight row ($where)", hasColour(behindRow, SuggestionTokens.leaderboardRival))
             assertTrue("readable behind delta missing or clipped ($where)", hasColour(behindRow, SuggestionTokens.rivalBehindText))
             assertFalse("behind delta still uses the statusRed fill ($where)", hasColour(behindRow, BrandTokens.statusRed))
             val aheadRow = capture(rowTag(ahead))
-            assertFalse("song-rival badge on a Spotlight row ($where)", hasColour(aheadRow, SuggestionTokens.songRival))
+            assertFalse("song-rival badge on a Spotlight row ($where)", hasColour(aheadRow, SuggestionTokens.songRivalText))
             assertTrue("ahead delta missing or clipped ($where)", hasColour(aheadRow, BrandTokens.statusGreen))
             listOf(behind, ahead).forEach { rule.onNodeWithTag(rowTag(it)).assertHeightIsAtLeast(48.dp) }
         }
@@ -140,7 +141,8 @@ class SuggestionRivalRowUiTest {
             settle()
             val row = capture(rowTag(mixed))
             val where = "width $width, narrow $narrow, font $scale"
-            assertTrue("mixed-rival badge missing ($where)", hasColour(row, SuggestionTokens.songRival))
+            assertTrue("mixed-rival badge text missing ($where)", hasColour(row, SuggestionTokens.songRivalText))
+            assertFalse("badge text still uses the low-contrast tint blue ($where)", hasColour(row, SuggestionTokens.songRival))
             assertTrue("behind delta missing ($where)", hasColour(row, SuggestionTokens.rivalBehindText))
         }
         rule.onNodeWithContentDescription("Rival Track c, Rival Artist · 2001, Drums, rival TempoTide, behind by 1 rank").assertExists()
@@ -158,6 +160,14 @@ class SuggestionRivalRowUiTest {
         }
         // The #167 finding: the statusRed fill as text fails AA on the card.
         assertTrue(surfaces.all { contrast(BrandTokens.statusRed, it) < 4.5 })
+        // Mixed-rival badges: text over the badge's own 20% tint of the same colour.
+        for (surface in surfaces) {
+            val songTint = SuggestionTokens.songRival.copy(alpha = 0.2f).compositeOver(surface)
+            val boardTint = SuggestionTokens.leaderboardRival.copy(alpha = 0.2f).compositeOver(surface)
+            assertTrue(contrast(SuggestionTokens.songRivalText, songTint) >= 4.5)
+            assertTrue(contrast(SuggestionTokens.leaderboardRival, boardTint) >= 4.5)
+            assertTrue(contrast(SuggestionTokens.songRival, songTint) < 4.5)
+        }
     }
 
     // endregion
