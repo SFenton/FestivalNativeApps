@@ -81,11 +81,15 @@ Tooling:
 
 Per configuration:
 - **Widths:** fixture `rival-rows` passed at compact, medium and wide; `resize` passed at compact, wide, maximized, snap-left, snap-right and medium. Live SFentonX screenshots were taken at wide and compact.
+- **Live widths (retry, 2026-10-05):** the live public service (SFentonX, default keyless origin, no fixture) at medium, maximized, snap-left and snap-right. The "Rival Spotlight: Aapelikaapeli." card shows only "-1"/"+1" and the instrument icon on every row, and the UIA tree has no pill text between subtitle and delta. Its row names are identical at all four sizes, e.g. "Rocket Man, Elton John · 1972, Bass, 1 rank behind Aapelikaapeli." and "Centuries, Fall Out Boy · 2014, Lead, 1 rank ahead of Aapelikaapeli.". The mixed "FC These to Beat Taco Plz!" card keeps its "Taco Plz" pill. Axe found 0 errors at each size.
 - **Themes:** in light and dark the app stays dark (documented deviation). In Desert and Night sky the delta is WindowText; the sign still reads without colour.
 - **Text and display scale:** at text 200% the delta and icon stay beside the title block without clipping. Display scale 100% and 150% both pass.
 - **Keyboard:** `keyboard` passed, and the Tab walks reached 20 in-app stops with no stops outside the app and no traps.
 - **Axe:** `a11y_matrix.py --only suggestions` scanned 0 errors in normal, Desert, Night sky, light, dark, scale-100, scale-150 and text-200, at compact, medium and wide.
-- **Axe, rival rows:** the new seeded `suggestions-rivals` matrix page (`journeys/a11y.json`: Spotlight card in view) scanned 0 errors in normal, Desert, Night sky and text-200 at compact, medium and wide. The one exception is scale-150 medium, which reported 2 `BoundingRectangleSizeReasonable` findings. They are on one subtitle clipped to zero height at the list's viewport edge, which is WinUI clipping ([windows-accessibility](../../testing/windows-accessibility.md) item 3).
+- **Axe, rival rows:** the new seeded `suggestions-rivals` matrix page (`journeys/a11y.json`: Spotlight card in view) scanned 0 errors in 26 runs: normal and display 150% at compact, medium, wide, maximized, snap-left and snap-right; display 100%, text 200%, Desert and Night sky at compact, medium and wide; light and dark theme at medium.
+  - The first pass reported 2 `BoundingRectangleSizeReasonable` findings at 150% medium, on a row subtitle ("Artist N · 1975") clipped to zero height at the list's top edge.
+  - Cause: `scrollinto` leaves the list wherever the card first comes on screen, so some size and scale combination puts a text line exactly on the edge. This is setup, not app layout.
+  - Fix: the page now pins the Spotlight card 8 epx below the list top with the new driver step `scrollinset`, so the top edge crosses the 16-epx gap between cards. The rule is in [testing/windows](../../testing/windows.md).
 - **Journeys:** the full `suggestions_journey.py` run passed.
 - **Loading:** `loading` (an 8 s state) kept expiring while it waited behind other sessions on the shared desktop lock (`LOCK_BOUND`). A later retry passed at medium. It doesn't touch rival rows, and it passed at every width in the #205 run.
 

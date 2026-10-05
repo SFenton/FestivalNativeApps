@@ -259,6 +259,7 @@
       "waitfor:id=fst.suggestions.list@25",
       "scrollinto:id=fst.suggestions.category.song_rival_pct_push@30",
       "scrollinto:id=fst.suggestions.category.song_rival_spotlight_rival-below-1@30",
+      "scrollinset:id=fst.suggestions.category.song_rival_spotlight_rival-below-1|id=fst.suggestions.list|8",
       "waitfor:name=Track 41, Artist B · 1968, Pro Lead, 2 ranks behind Rival B1@10"
     ]
   },
