@@ -638,9 +638,19 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     public string BadgeAutomationId => $"fst.score.accuracy.preview.{InstrumentId}." +
                                        (string.IsNullOrEmpty(Entry.AccountId) ? "rank-" + Entry.Rank : Entry.AccountId);
 
-    /// <summary>Screen-reader summary.</summary>
-    public string Announcement => $"Rank {Entry.Rank}, {Name}, {Score} points" +
+    /// <summary>Screen-reader summary while the season column is hidden (rows under 520 epx).</summary>
+    public string Announcement => Announce(false);
+
+    /// <summary>Screen-reader summary with the season, read while the row shows it (issue #262).</summary>
+    public string SeasonShownAnnouncement => Announce(true);
+
+    /// <summary>Builds the screen-reader summary.</summary>
+    /// <param name="season">Whether to read the season.</param>
+    /// <returns>Rank, name, score, accuracy, full combo, season, then "you" on the selected player's row.</returns>
+    private string Announce(bool season) => $"Rank {Entry.Rank}, {Name}, {Score} points" +
                                   (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") +
-                                  (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") + (IsSelectedPlayer ? ", you" : "");
+                                  (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
+                                  (season && Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $", season {s}") : "") +
+                                  (IsSelectedPlayer ? ", you" : "");
 }
 #endregion
