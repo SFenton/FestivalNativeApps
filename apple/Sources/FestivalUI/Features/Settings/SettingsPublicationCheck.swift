@@ -100,6 +100,8 @@ struct SettingsFixtureToolsSection: View {
                     Task { status = await SettingsPublicationCheck.run(session: session) ?? status }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // The accent tint rendered 3.6:1 as text on the card (iPad audit).
+                .tint(AccentText.blue)
                 if let status {
                     Text(status)
                         .font(.subheadline)

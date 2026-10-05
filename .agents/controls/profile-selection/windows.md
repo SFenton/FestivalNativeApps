@@ -41,7 +41,7 @@ Switching and deselecting stay reachable with a player: the context menu and Ctr
 | `band-blocked`, `publication-changed`, `reload` | same file | Bands target; `/player/fixture-rollover` reports a newer publication, then Back and View Profile reload the selected player |
 | `unpinned-profile` | `journeys/profile-selection-unpinned.json` | `FST_PROFILE_FIXTURE_UNPINNED=1` drops the publication headers |
 | `large-text` | any page with `--mode text-200` | Windows text scaling 200% |
-| keyboard | `journeys/profile-selection-keyboard.json` | Enter opens the first result, arrows move in results, Bands target, Esc cancels Deselect |
+| keyboard | `journeys/profile-selection-keyboard.json` | Enter opens the first result, arrows move in results, Bands target, Esc cancels Deselect; `kb-profile-selected-tab-order` tabs Deselect → Players and back with no stop between them |
 
 ## Validation (issue #226, 2026-10-04)
 
@@ -59,6 +59,24 @@ The checks used the winui-design and winui-code-review skills (no findings on th
 | Live service | Searching `SFentonX` lists SFentonX and LucasFentonio; viewing and selecting work at compact, medium, wide, maximized, snap-left, text 200% and display 150%; Bands shows the blocked explanation. A capture on the locked lane console did not apply the contrast theme, so contrast evidence is from the fixture runs |
 
 Fixed: Narrator did not announce settled search results; a newer publication observed elsewhere left a stale **Select** on an open player page; result rows read the record type name in UIA.
+
+## Selected-player caption check (issue #254, 2026-10-05)
+
+#54 asked for no "Selected Player" caption on a navigation row. Windows has no player row: the `NavigationView` pane lists only the sections and Settings in every size, and the player appears only as the title-bar avatar ("Profile: <name>"). The flyout's **Selected Profile** text is a section heading (Level 2, like **Find a Profile**), not a caption on a row, so it stays.
+
+**Defect found and fixed:** with a player selected, Tab went Deselect → an unnamed `Pane` (`InputSiteWindowClass`) → Players. The cause was the `MenuFlyoutSeparator` between the summary and **Find a Profile**: outside a menu, it is a focusable `Control` with no automation name. It is now a 1 epx `Rectangle` filled with `DividerStrokeColorDefaultBrush` (winui-design: "Horizontal / vertical separator lines"; the same system colour as the menu separator in contrast themes), with the separator's own −4/1 epx padding so the layout doesn't move. `FlyoutMarkupTests` keeps `MenuFlyoutSeparator` inside menus, and `kb-profile-selected-tab-order` checks the Tab order.
+
+Live public service (SFentonX, no profile headers), `a11y_matrix.py --live --scan --tabs 20`:
+
+| Configuration | Result |
+|---|---|
+| Compact, medium, wide, maximized, snap-left, snap-right | Pass, Axe 0; pane has no player row; flyout Tab stops 5 → 4 after the fix (View Profile, Deselect, Players, Find Player) |
+| Pane open (compact) | Pass; Axe 2 = framework `PopupHost` item 8 in [windows-accessibility](../../testing/windows-accessibility.md#open-issues) |
+| Light, dark | Pass, Axe 0; identical renders (dark-only app) |
+| Desert, Night sky | Pass, Axe 0; heading, name and divider repaint from system colours |
+| Text 200% (compact, medium, wide) | Pass, Axe 0; the name wraps inside the 340 epx flyout |
+| Display 100%, 150% | Pass, Axe 0 |
+| Keyboard only | Ctrl+Shift+P opens the flyout; Tab/Shift+Tab move View Profile ↔ Deselect ↔ Players ↔ Find Player; Esc returns focus to the avatar |
 
 ## Session
 

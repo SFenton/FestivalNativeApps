@@ -57,7 +57,7 @@ struct RivalsChooseProfileState: View {
             Text("Choose a profile to see your rivals.")
         } actions: {
             Button("Choose Profile", action: action)
-                .buttonStyle(.borderedProminent)
+                .festivalProminentButton()
         }
         .accessibilityIdentifier("fst.rivals.chooseProfile")
     }

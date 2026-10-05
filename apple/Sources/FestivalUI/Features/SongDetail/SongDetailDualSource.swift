@@ -53,7 +53,7 @@ struct SongHistoryCarouselPane: View {
                     message: "Select a player to see their score history for this song."
                 ) {
                     Button("Choose Profile") { openProfile() }
-                        .buttonStyle(.borderedProminent)
+                        .festivalProminentButton()
                         .accessibilityIdentifier("fst.dual.song.history.choose-profile")
                 }
             } else if session.playerLoadState == .syncing {

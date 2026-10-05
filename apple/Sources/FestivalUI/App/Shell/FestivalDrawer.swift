@@ -318,6 +318,8 @@ struct FestivalDrawer: View {
 
     @State private var dragOffset: CGFloat = 0
     @State private var deselectPending = false
+    /// Moves assistive-technology focus to the panel's title once it slid in.
+    @State private var openFocus: AccessibilityFocusRequest?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.deviceLayout) private var layout
@@ -356,6 +358,7 @@ struct FestivalDrawer: View {
                     // Never dim or intercept taps on the system vertical bar (iPhone Duo).
                     .padding(placement.scrimInsets)
                 panel(topInset: placement.contentTop, bottomInset: placement.contentBottom)
+                    .accessibilityFocusMove(openFocus)
                     .frame(width: width)
                     .frame(maxHeight: .infinity)
                     .drawerPanelShape(.glass)
@@ -384,6 +387,7 @@ struct FestivalDrawer: View {
             .ignoresSafeArea()
         }
         .preferredColorScheme(.dark)
+        .onAppear { openFocus = AccessibilityFocusRequest(target: .topHeading, token: 1) }
         .confirmationDialog(
             "Deselect \(session.selectedPlayer?.displayName ?? "Profile")?",
             isPresented: $deselectPending, titleVisibility: .visible

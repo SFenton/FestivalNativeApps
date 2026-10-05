@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui
 
+import android.view.RoundedCorner
+import android.view.View
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DrawerDefaults
 import androidx.compose.ui.geometry.Size
@@ -10,6 +12,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.shell.DisplayCorner
 import com.festivalscoretracker.android.core.shell.DisplayCorners
@@ -17,8 +20,11 @@ import com.festivalscoretracker.android.core.shell.WindowRect
 import com.festivalscoretracker.android.ui.shell.ConcentricDrawerShape
 import com.festivalscoretracker.android.ui.shell.WindowCorners
 import com.festivalscoretracker.android.ui.shell.concentricDrawerShape
+import com.festivalscoretracker.android.ui.shell.readWindowCorners
 import com.festivalscoretracker.android.ui.shell.rememberConcentricDrawerShape
+import com.festivalscoretracker.android.ui.shell.windowCorners
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -78,5 +84,44 @@ class DrawerShapeTest {
         rule.waitForIdle()
         assertTrue(resolved !is ConcentricDrawerShape)
         assertEquals(expected, resolved)
+    }
+
+    // Not WindowInsets.Builder: on this SDK its setRoundedCorner mutates the shared
+    // RoundedCorners.NO_ROUNDED_CORNERS, which leaks the corners into every later window in the JVM.
+    private fun insets(radius: Int, centers: Map<Int, Pair<Int, Int>>): (Int) -> RoundedCorner? {
+        val corners = centers.mapValues { (position, center) -> RoundedCorner(position, radius, center.first, center.second) }
+        return { position -> corners[position] }
+    }
+
+    @Test
+    fun reportedDisplayCornersMapToTheConcentricShape() {
+        // FST_Phone (Pixel 9) as `dumpsys window` reports it (issue #163 validation).
+        val reported = insets(
+            132,
+            mapOf(
+                RoundedCorner.POSITION_TOP_LEFT to (132 to 132),
+                RoundedCorner.POSITION_TOP_RIGHT to (948 to 132),
+                RoundedCorner.POSITION_BOTTOM_RIGHT to (948 to 2292),
+                RoundedCorner.POSITION_BOTTOM_LEFT to (132 to 2292),
+            ),
+        )
+        val window = windowCorners(reported, phone.container)
+        assertEquals(phone, window)
+        assertEquals(listOf(132f, 42f, 42f, 132f), radii(concentricDrawerShape(window, material), LayoutDirection.Ltr))
+    }
+
+    @Test
+    fun zeroRadiusCornersAreSquareSoTheSheetKeepsMaterialShape() {
+        // FST_Tablet (Pixel Tablet) reports every corner as radius 0 at (0, 0); a missing corner is null.
+        val tablet = windowCorners(insets(0, mapOf(RoundedCorner.POSITION_TOP_LEFT to (0 to 0), RoundedCorner.POSITION_BOTTOM_LEFT to (0 to 0))), phone.container)
+        assertTrue(tablet.corners.isEmpty)
+        assertSame(material, concentricDrawerShape(tablet, material))
+        val unset = windowCorners(insets(40, mapOf(RoundedCorner.POSITION_TOP_LEFT to (0 to 40))), phone.container)
+        assertNull(unset.corners.topLeft)
+    }
+
+    @Test
+    fun aViewWithoutWindowInsetsReportsNoCorners() {
+        assertNull(readWindowCorners(View(ApplicationProvider.getApplicationContext())))
     }
 }

@@ -49,7 +49,7 @@ struct LeaderboardsRankHistoryPane: View {
                     message: "Select a player to follow their rank on every leaderboard here."
                 ) {
                     Button("Choose Profile") { openProfile() }
-                        .buttonStyle(.borderedProminent)
+                        .festivalProminentButton()
                         .accessibilityIdentifier("fst.dual.leaderboards.choose-profile")
                 }
             }
