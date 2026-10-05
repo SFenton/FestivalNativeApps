@@ -205,5 +205,33 @@
       "waitgone:id=fst.song-detail.band-selected.Band_Duets@3",
       "shot:{stem}-duos.png"
     ]
+  },
+  {
+    "name": "bp-live-flow",
+    "route": "/songs/0b65324a-0912-4da2-af1b-122cf706be73",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "sizes": ["medium"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@30",
+      "scrollinto:id=fst.song-detail.band-view-all.Band_Duets@30",
+      "assertname:id=fst.song-detail.band-view-all.Band_Duets|View Full Leaderboard, Duos",
+      "shot:{stem}-1-section.png"
+    ],
+    "after_ready": [
+      "invoke:id=fst.song-detail.band-view-all.Band_Duets",
+      "waitfor:id=fst.song-band-leaderboard.list@30",
+      "wait:2",
+      "shot:{stem}-2-board.png",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.song-detail.title@15",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Duets@30",
+      "invoke:id=fst.song-detail.band-selected.Band_Duets",
+      "waitfor:id=fst.band.title@30",
+      "wait:2",
+      "shot:{stem}-3-band.png",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.song-detail.title@15"
+    ]
   }
 ]
