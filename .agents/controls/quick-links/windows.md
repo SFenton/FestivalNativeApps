@@ -14,7 +14,7 @@ The breakpoint is page-area width (`QuickLinks.UsesPane`), not window width, so 
 ## API
 
 - Core: `Domain/QuickLinks.cs` (port of Apple `QuickLinks`/`QuickLinkTracker`: ≥2 sections, natural active line, jump ownership, near-end lock) and `ViewModels/QuickLinksViewModel.cs` (`SetSections`, `Jump`, `ReportLayout`, `EntryName` "Quick Links, current section …").
-- App: mark anchors with `controls:QuickLinkAnchor.Id="<web id>"` (x:Bind works in item templates: `controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}"`), put `controls:QuickLinksMenuButton x:Name="QuickLinksMenu"` in the header and `controls:QuickLinksPane x:Name="Pane"` in an `Auto` column beside the scroller, then one line in the constructor: `new QuickLinksHost(Root, Scroller, model, QuickLinksMenu, Pane)`. The host wraps `QuickLinksBinder` (measures anchors only in `ViewChanged`/`SizeChanged` — nothing per frame while idle; jumps with `ChangeView(disableAnimation: true)` — always instant, a "teleport" (operator batch 7.15)), swaps menu (`IsSuppressed`) and pane at `QuickLinks.UsesPane` of the root's width, and re-reads anchors after the section list changes. Pages whose web links are **mobile-only** pass `pane: null, menuMaxWidth: 640`: the menu shows only on compact pages. Virtualized cards (a `UniformGridLayout` repeater) set `host.Binder.Resolve = id => repeater.GetOrCreateElement(index)` so a jump can realize a card that is off screen.
+- App: mark anchors with `controls:QuickLinkAnchor.Id="<web id>"` (x:Bind works in item templates: `controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}"`), put `controls:QuickLinksMenuButton x:Name="QuickLinksMenu"` in the header and `controls:QuickLinksPane x:Name="Pane"` in an `Auto` column beside the scroller, then one line in the constructor: `new QuickLinksHost(Root, Scroller, model, QuickLinksMenu, Pane)`. The host wraps `QuickLinksBinder` (measures anchors only in `ViewChanged`/`SizeChanged` — nothing per frame while idle; jumps with `ChangeView(disableAnimation: true)` — always instant, a "teleport" (operator batch 7.15)), swaps menu (`IsSuppressed`) and pane at `QuickLinks.UsesPane` of the root's width, and re-reads anchors after the section list changes. Pages whose web links are **mobile-only** pass `pane: null, menuMaxWidth: 640`: the menu shows only on compact pages. Virtualized cards (a `UniformGridLayout` repeater) set `host.Binder.Resolve = id => repeater.GetOrCreateElement(index)` so a jump can realize a card that is off screen. A section laid out *after* a virtualizing repeater sets `host.Binder.LeadIn` to return the repeater's last element (#246, below).
 - Landing (#51, iOS #12): a jump puts the anchor's top **32 epx below the scroller's top** (`QuickLinks.LandingOffset`, the web's default offset; both the `ChangeView` path via `QuickLinks.JumpOffset`/`LandingTarget`, including each #46 re-aim, and the repeater `StartBringIntoView` path), and `DefaultActivationOffset` is the same 32 so the landed section is the checked/selected one. Anchors that start with `FSTSectionHeaderStyle` show the title 8 epx lower (the style's top margin).
 - Page models expose `QuickLinkSections` (or own a `QuickLinksViewModel`) so section lists are unit-tested in Core; pages whose model is replaced per navigation (Player/Statistics, Rival Detail, Song Detail) keep one view-owned `QuickLinksViewModel` and mirror the model's sections.
 - IDs: `fst.quick-links.open`, `fst.quick-links.pane`, `fst.quick-links.list`, `fst.quick-links.item.<id>` (set on the ListViewItem container / menu item).
@@ -65,6 +65,27 @@ State pages: `tools/windows/journeys/quick-links.json` (Settings on the fixture 
 UI Automation (Narrator reads these): button `fst.quick-links.open` is a `Button` (WinUI `DropDownButton`) with ExpandCollapse, name "Quick Links, current section X"; the menu is `Menu` "Quick Links" with `MenuItem`s exposing Toggle (On = current, name suffix ", current section"); the pane is a `Navigation` landmark with a level-2 "Quick Links" heading and a `List` of `ListItem`s with Invoke and SelectionItem (selected = current). Focus order: header button → page content; the pane follows the page content in tab order.
 
 Deliberate deviations: the menu button sits in the scrolling page header (web parity) and scrolls away after a jump; a jump moves keyboard focus to the first focusable element of the target section, so keyboard and Narrator users land where they asked and Shift+Tab/Home returns. Menu items use `RadioMenuFlyoutItem` (one current destination) rather than a plain `MenuFlyoutItem` with a trailing glyph.
+
+## Validation (issue #246, 2026-10-05)
+
+#46 asked that Quick Links list sections in on-page order on Settings and on a player profile, from every entry point, and that jumps land and stay marked. Order journeys in `journeys/quick-links.json`:
+
+- `ql-menu-order` / `ql-pane-order` (Settings, compact, medium, snap-left and maximized / wide and maximized) chain `assertbelow:` through every item in the menu and pane and jump to Version.
+- `ql-profile-menu-order` / `ql-profile-pane-order` do the same on the Statistics profile, jumping to Drums and then Bands; `ql-profile-route-menu-order` uses the `/player/<id>` route.
+- `ql-profile-bands-direct` jumps straight to Bands (run it with `--mode text-200` to stress estimation).
+
+`QuickLinksOrderMarkupTests` checks that the XAML anchor order equals the declared section order on both pages.
+
+| Configuration | Result |
+|---|---|
+| Compact, medium, snapped left, maximized (300% host) | Pass: menu order matches the page on Settings and profile; jumps land and stay checked; Axe 0 |
+| Wide and maximized at display 150% and 100% | Pass: pane order matches; jumps select the landed row; Axe 0 |
+| Light, dark system theme | Pass (dark-only app, documented deviation) |
+| Desert, Night sky | Pass: order, jumps, Axe 0 |
+| Text 200% | **Fixed**: in a compact window, a profile Bands jump sometimes stopped on Pro Lead or near the top (see below). Settings menu/pane and the medium profile passed. A wide profile pane scan reported only the viewport-edge `BoundingRectangleSizeReasonable` artifact on a clipped empty-state text ([open item 3](../../testing/windows-accessibility.md#open-issues)) |
+| Keyboard only | Pass: `kb-quick-links-menu` (compact, medium), `kb-quick-links-pane` (wide at 150%) |
+
+**Bands after a virtualizing repeater (#246).** Bands is laid out *below* the instruments `ItemsRepeater`, so its position depends on the repeater's estimated card heights. At 200% text these swing widely: the same profile was estimated at 11,875, 5,067 and 2,812 epx before realizing at 4,651. The #46 re-aim loop then failed in two ways. It either cycled with period 4 (1988 → 1286 → 3387 → 817 …) and never converged, even with 12 corrections, or it settled at the end clamp of an underestimated extent; when the cards realized, the view sat on Pro Lead. `QuickLinksBinder.LeadIn` now lets a page name an element to bring into view first. The profile returns the last instrument card (`GetOrCreateElement(count - 1)`), whose `StartBringIntoView` realizes it at an exact position, and `CheckLanding` aims at Bands from there. Traced runs now land on the first check (offset = scrollable end, extent 4,651).
 
 ## Open
 
