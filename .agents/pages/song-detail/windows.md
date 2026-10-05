@@ -54,6 +54,23 @@ Checked 2026-10 against the #61 criteria with the winui-design and winui-code-re
 
 Deliberate deviations from the winui-design "Implicit Transitions" pattern (`OpacityTransition`): the fade is a composition `ScalarKeyFrameAnimation` because the swap needs a completion and cancellation point to change the data at opacity 0. After a swap the card eases to the new chart's natural height (for example when the selected bar's detail row goes away), as Android does; it never jumps during the switch. The top-five rows and View All sit outside the card and fade with it, then show the new chart's rows.
 
+## Validation (issue #263: top-10 rows open the player)
+
+Rechecked #63 on the live public service ("Through the Fire and Flames", anonymous and SFentonX selected), with the winui-design skill and `a11y_matrix.py --live --scan`. No app change was needed; Axe.Windows found 0 errors in every row. Each run checks the following: rank 1 and rank 2 Lead rows are UIA `Button` with Invoke and focusable; Down moves focus between rows; Enter opens the player and Alt+Left returns; Space on a Drums row opens the player and the title-bar Back returns.
+
+| Configuration | Finding |
+|---|---|
+| Compact, medium, wide, maximized, snap-left | Passes. The focus ring is visible on the row, and each card is one Tab stop. |
+| High Contrast (Night sky) | Passes; rows and the focus ring use system colours. |
+| Light / dark system theme | Passes; the app stays dark (deliberate deviation, see above). |
+| Text 200% | Passes; the score and badge wrap under the name, and the row stays one button. |
+| Display 100% / 150% | Passes. One compact 100% run reported 2 `BoundingRectangleSizeReasonable` findings on a row clipped to zero height at the viewport bottom: the known WinUI edge-clip artifact ([windows-accessibility](../../testing/windows-accessibility.md) item 3). The rerun scanned 0. |
+| Row without an account (fixture only; live boards have none) | UIA `Text`, no Invoke, not focusable, no chevron; arrow keys skip it and Tab leaves the card. |
+
+Automated coverage (UIA): `journeys/boards-ui.json` → `song-detail-preview-row-roles` and `song-detail-preview-row-anonymous` (`rivals_fixture.py --song-leaderboard anonymous`), and `journeys/a11y-keyboard.json` → `kb-detail-row-opens-profile` and `kb-detail-anonymous-row` (with Axe scans).
+
+Observed, not changed: Song Detail isn't a cached page, so Back rebuilds it at the top with focus on the title-bar Back button rather than on the row that was opened. #63 only requires returning to the Song page. Restoring scroll and focus on pushed pages is a navigation-wide behaviour (`CachedPageScroll` covers section roots only) and needs its own decision.
+
 ## Open
 
 Promoted selected-band section (no selected-band identity yet, as iOS); FC/stars styling of preview rows; scrolling to the initial instrument (`?instrument=`); chart page-change animation (bars redraw without the web's Recharts tween); Recharts `monotone` curve (straight segments here). `tools/mock_service.py` has no `/all` route (the fallback covers it). TODO(orchestrator): delete `PlayerHistoryPage`/`PlayerHistoryViewModel` once its tests move (shared `PlayerViewModelTests.cs`).

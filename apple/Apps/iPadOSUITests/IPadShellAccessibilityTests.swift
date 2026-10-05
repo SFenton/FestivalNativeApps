@@ -129,6 +129,33 @@ final class IPadShellAccessibilityTests: XCTestCase {
         }
     }
 
+    /// In a ⅓ window (phone tabs and drawer) the page behind the open drawer leaves the
+    /// accessibility tree too: there the panel's `isModal` alone left the Songs rows in it
+    /// (the ⅓ audit measured the covered rows at 1:1).
+    @MainActor
+    func testCompactDrawerIsModal() throws {
+        try XCTSkipIf(IPadAccessibilityAuditTests.runningOnDuo, "the Duo outer display is covered by the folded audits")
+        XCUIDevice.shared.orientation = .portrait
+        let app = makeApp()
+        launch(app)
+        guard WindowResize.tile(app, .thirds), app.tabBars.firstMatch.waitForExistence(timeout: 10) else {
+            throw XCTSkip("window-controls tiling unavailable")
+        }
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 25))
+        let open = element(app, "fst.shell.drawer.open")
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        XCTAssertTrue(element(app, "fst.shell.drawer.songs").waitForExistence(timeout: 5))
+        let ids = try order(app).map(\.identifier)
+        XCTAssertFalse(ids.contains { $0.hasPrefix("fst.songs.row.") || $0 == "fst.songs.list" },
+                       "the page behind the drawer is out of the accessibility tree")
+        element(app, "fst.shell.drawer.close").tap()
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5))
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 5), "back in the tree after closing")
+        let closed = waitForTrace(app) { $0.hasPrefix("fst.shell.drawer.open") }
+        XCTAssertEqual(closed, "fst.shell.drawer.open: Open Navigation", "focus returns to the drawer button")
+    }
+
     /// At AX5 the flyout's footer (profile, Deselect, Settings) scrolls with the rows and
     /// every footer action can be brought fully on screen, portrait and landscape.
     @MainActor
