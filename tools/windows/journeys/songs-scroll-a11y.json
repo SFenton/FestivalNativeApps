@@ -18,6 +18,8 @@
     "after_ready": [
       "scrollto:id=fst.songs.list,50",
       "wait:1",
+      "scrollto:id=fst.songs.list,50",
+      "wait:1",
       "assertstate:id=fst.songs.list|scroll=50@10"
     ]
   },

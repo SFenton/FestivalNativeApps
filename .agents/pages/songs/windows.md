@@ -77,6 +77,22 @@ Checked against the live public service (keyless default origin, public player S
 
 Deliberate deviations from the `winui-design` skill: Dark-only (`RequestedTheme="Dark"`, web parity over album-art backgrounds; contrast themes still map to system colours); the loading state is an accessible-named `ProgressRing` without visible text (repo-wide convention, brief load); Jump uses `SemanticZoom` instead of the web scrubber; the filter's full-width red Reset and the Shop pulse ring follow the web. The `InfoBar` notices have no Title, so their UIA name is empty; Narrator reads the message child and the open notification, and Axe reports no error.
 
+## Validation (issue #247, 2026-10-05): scroll stress
+
+Cross-check of iOS #8/#22 (crash, hang or rebuild/re-sort when scrolling fast near the top or flinging back to the top). Same host as #194: 3840×2160 display at 150%, locked console (UIA patterns, posted keys, PrintWindow captures). Fixture runs use `--large-catalogue` (110 songs); live runs use the keyless public origin with 731 songs, anonymous and with the public player SFentonX.
+
+| Configuration | Result |
+|---|---|
+| Fixture stress, compact/medium/wide × 2 rounds (fixed Release) | Pass 12/12: 0 rebuilds; near-top max 47–83 ms; flings max 132–221 ms; header and clean-exit checks pass |
+| Live stress SFentonX, compact/medium/wide/maximized/snap-left/snap-right | 11/12 phases pass: 0 rebuilds, all back at the top, clean exit; near-top max ≤ 108 ms. One maximized fling phase showed a single 796 ms frame gap in its first seconds; it did not recur in 8 repeat maximized/snap-left fling phases, with or without `--no-art` (max 141–196 ms) |
+| Live stress anonymous, medium | Pass: near-top max 52 ms, flings max 60 ms |
+| Sticky header after non-animated jumps (25/50/75/100/0%) | Failed before the fix ('#' over L, 'F' over L, 'L' over S, 'S' over Y); passes at every size after it (first gotcha below) |
+| Close during `--auto-scroll` | Crashed 3/3 (0xc000027b) before the fix, 0/3 after; the stress tool now fails on a non-zero exit code |
+| Axe.Windows + tab walk, `songs-scroll-a11y.json` (anonymous and SFentonX), live | Normal mode at all six sizes: Axe 0. The SFentonX bottom page read 99% after one jump at snapped widths (virtualized extent re-estimate); a second jump reaches 100%, and the journey now does that. The mid page likewise read 51% at display scale 100%, so it now jumps to 50% twice. Light, dark, high contrast Night sky/Desert, text 200%, display scale 100%/150% on subsets: Axe 0, and the extent re-checks pass on the fixed Release build |
+| Keyboard | `kb-songs-order`, `kb-songs-sort-esc`, `kb-songs-sort-groups`, `kb-songs-filter`, `kb-section-accelerators` pass at compact/medium/wide (fixed Release) |
+
+Scrolling never touches `SongsViewModel`: the only per-scroll work is `UpdateStickyHeader` (`SongSectionHeader.FirstVisibleRow`/`Push` over realized containers), so no scroll path can rebuild or re-sort. Rare single long frame gaps appear only in UIA-driven live fling phases with selected-player rows (3 of about 30 live fling phases in total, all in the first seconds of Scroll-pattern traffic). None came in in-app timer scrolling (near-top) or fixture runs, and the app stayed responsive and returned to the top every time.
+
 ## Gotchas
 
 - `SongsViewModel` re-reads the catalogue, Shop and scores on `FestivalSession.PublicationAdvanced`; until the catalogue is re-read, Shop accents and scores stay paused (`ShopOffersForCatalog` is null on mismatch).
