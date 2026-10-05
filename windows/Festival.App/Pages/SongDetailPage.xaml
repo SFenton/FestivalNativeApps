@@ -290,7 +290,7 @@
                                             </StackPanel>
                                         </Border>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" VerticalCacheLength="20"
-                                                       Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       Visibility="{x:Bind ShowRows, Mode=OneWay}" controls:BandScoreFooterPanel.IsSection="True"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="96">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout Spacing="4" />

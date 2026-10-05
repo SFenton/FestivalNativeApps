@@ -66,31 +66,32 @@
                 </ItemsRepeater>
                 <FontIcon x:Name="Chevron" Grid.Column="2" Grid.RowSpan="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                           AutomationProperties.AccessibilityView="Raw" />
-                <!-- Web SongBandScoreFooter: team score, FC, accuracy, stars under the members (fits any width). -->
-                <Grid x:Name="Footer" Grid.Row="1" Grid.Column="1" ColumnSpacing="6" Padding="0,6,0,0" BorderThickness="0,1,0,0"
-                      BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock x:Name="ScoreText" Text="{x:Bind Row.Score, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                               VerticalAlignment="Center" TextWrapping="NoWrap" AutomationProperties.AccessibilityView="Raw" />
-                    <Border x:Name="FcBadge" Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
-                            Visibility="{x:Bind Row.IsFullCombo, Mode=OneWay}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                        <TextBlock x:Name="FcText" Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
-                    </Border>
-                    <!-- As the Song Band Leaderboard row: contrast themes get a ButtonFace fill with ButtonText text and outline. -->
-                    <Border Grid.Column="2" CornerRadius="4" Padding="6,1" BorderThickness="1"
-                            Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
-                            Visibility="{x:Bind Row.HasAccuracy, Mode=OneWay}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                        <TextBlock Text="{x:Bind Row.Accuracy, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
-                                   AutomationProperties.AccessibilityView="Raw" />
-                    </Border>
-                    <controls:StarRow Grid.Column="3" Stars="{x:Bind Row.StarCount, Mode=OneWay}" StarSize="14"
-                                      AutomationProperties.AccessibilityView="Raw" />
-                </Grid>
+                <!--
+                    Web SongBandScoreFooter: team score, FC, accuracy, stars under the members. The score never truncates: the
+                    badges move under it when they don't fit (half-width cards, 200% text; BandScoreFooterPanel, issue #264).
+                -->
+                <Border x:Name="Footer" Grid.Row="1" Grid.Column="1" Padding="0,6,0,0" BorderThickness="0,1,0,0"
+                        BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                    <controls:BandScoreFooterPanel Spacing="6">
+                        <TextBlock x:Name="ScoreText" Text="{x:Bind Row.Score, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                   TextWrapping="NoWrap" AutomationProperties.AccessibilityView="Raw" />
+                        <StackPanel Orientation="Horizontal" Spacing="6" AutomationProperties.AccessibilityView="Raw">
+                            <Border x:Name="FcBadge" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
+                                    Visibility="{x:Bind Row.IsFullCombo, Mode=OneWay}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <TextBlock x:Name="FcText" Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
+                            </Border>
+                            <!-- As the Song Band Leaderboard row: contrast themes get a ButtonFace fill with ButtonText text and outline. -->
+                            <Border CornerRadius="4" Padding="6,1" BorderThickness="1"
+                                    Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
+                                    Visibility="{x:Bind Row.HasAccuracy, Mode=OneWay}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <TextBlock Text="{x:Bind Row.Accuracy, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                                           AutomationProperties.AccessibilityView="Raw" />
+                            </Border>
+                            <controls:StarRow Stars="{x:Bind Row.StarCount, Mode=OneWay}" StarSize="14" VerticalAlignment="Center"
+                                              AutomationProperties.AccessibilityView="Raw" />
+                        </StackPanel>
+                    </controls:BandScoreFooterPanel>
+                </Border>
             </Grid>
         </Button>
     </Grid>
