@@ -140,7 +140,7 @@ class FirstRunDemoSongsSource(
  * @return Demo songs.
  */
 @Composable
-private fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideShop: Boolean): FirstRunDemoCatalog {
+internal fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideShop: Boolean): FirstRunDemoCatalog {
     val catalog by produceState<CatalogPayload?>(null, source) {
         value = try {
             source.loadCatalog()

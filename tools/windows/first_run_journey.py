@@ -10,10 +10,15 @@ Every reachable ``first-run`` contract state (``contracts/product.json``) runs a
 * ``gated``: anonymous, selected-player, Shop-hidden and single-slide pages show only their gate-passing slides.
 * ``waiting-not-ready``: a page reached while the window is minimized waits, then shows once it is restored.
 * ``replay-all``: Settings "Show" plays every slide, ignoring gates and seen-state.
+* ``titles``: in a compact window, every page's Settings replay opens a dialog announced with the page's title
+  (issue #240) and keeps its Next/Back/Close commands and pips.
+* ``late-catalogue``: with ``/api/songs`` delayed (``--songs-delay``), the guide opens over placeholder demo rows and
+  its visible demo fills with catalogue songs once they arrive (issue #240).
 * ``dismissed``: Close, Esc and Done close the carousel and record only the slides actually viewed.
 
-Each phase is one ``drive`` call; the UIA tree dumped after it is checked with regular expressions (pips are named
-"Page N", so the slide count is asserted through them) and ``first-run.json`` with predicates. Steps are UIA patterns
+Each phase is one ``drive`` call (a launching phase runs inside the ``launch`` call's desktop-lock hold) and the UIA
+tree dumped after it is checked with regular expressions (pips are named "Page N", so the slide count is asserted
+through them) and ``first-run.json`` with predicates. Steps are UIA patterns
 (``invoke``/``select``/``waitfor``/``waitgone``) except the ``keyboard`` scenario, which needs an unlocked console.
 
 Usage (from the repository root, after ``tools/windows/build.ps1``)::
@@ -80,6 +85,7 @@ class Scenario:
         settings: Settings written before the first launch.
         profile: ``FST_DEBUG_PROFILE`` (``id:Name``) for a selected player, else anonymous.
         preset: Window preset.
+        fixture: Extra fixture-service flags; scenarios sharing flags share one fixture service.
     """
 
     name: str
@@ -89,9 +95,12 @@ class Scenario:
     settings: dict[str, Any] = field(default_factory=dict)
     profile: str | None = None
     preset: str = "medium"
+    fixture: tuple[str, ...] = ()
 
 
 DIALOG = "id=fst.first-run.dialog"
+# The dialog's native Close command, tagged with the cross-platform test ID (issue #244; Apple/Android share it).
+CLOSE = "fst.first-run.close"
 OPEN = f"waitfor:{DIALOG}@30"
 CLOSED = f"waitgone:{DIALOG}@10"
 SONGS_READY = "waitfor:id=fst.songs.sort@30"
@@ -124,6 +133,15 @@ def _slide(title: str) -> str:
     return rf'ListItem "{re.escape(title)}" id= class=FlipViewItem .*selected'
 
 
+def _demo(slide_id: str, status: str, seconds: float = 0) -> str:
+    """``assertstatus`` step for a slide's live demo (raw UIA view): ``placeholder`` rows or ``catalogue`` songs."""
+    return f"assertstatus:id=fst.first-run.demo.{slide_id}|{status}" + (f"@{seconds:g}" if seconds else "")
+
+
+#: Seconds the ``late-catalogue`` fixture holds ``/api/songs``: long enough for the guide to open first.
+SONGS_DELAY = 12
+
+
 def _older(slide_id: str) -> Callable[[Seen], Seen]:
     """Seen-state rewrite that records ``slide_id`` at version 0, as if the slide's replay version was bumped."""
     def rewrite(seen: Seen) -> Seen:
@@ -133,7 +151,34 @@ def _older(slide_id: str) -> Callable[[Seen], Seen]:
 
 
 SINGLE = [_button("PrimaryButton", "Done")]
-NO_PAGING = [r"id=SecondaryButton ", r"id=CloseButton ", r"id=fst\.first-run\.pips "]
+# The dialog's Close, tagged or not; the window title bar's own Close (id=Close) is always in the tree.
+NO_PAGING = [r"id=SecondaryButton ", r'Button "Close" id=(CloseButton|fst\.first-run\.close) ', r"id=fst\.first-run\.pips "]
+
+# Settings "First Run Guides" rows (web pageKey → dialog title, the page's nav label; FirstRunPages.Label).
+PAGE_TITLES = {
+    "songs": "Songs", "songinfo": "Song Info", "playerhistory": "Player History", "statistics": "Statistics",
+    "suggestions": "Suggestions", "leaderboards": "Leaderboards", "compete": "Compete", "rivals": "Rivals",
+    "shop": "Item Shop",
+}
+
+
+def _title_phases() -> list[Phase]:
+    """One Settings replay per page (issue #240): the dialog is announced with the page's title and keeps every command.
+
+    Each phase opens a page's guide from its Settings row, asserts the UIA window name (what Narrator reads on open)
+    beside the Next/Back/Close commands and pips, then closes it with the standard Close command.
+    """
+    phases = []
+    for index, (key, title) in enumerate(PAGE_TITLES.items()):
+        row = f"id=fst.settings.first-run.{key}"
+        steps = [SETTINGS_READY, "scrollinto:id=fst.settings.licenses", "wait:0.5"] if index == 0 else []
+        phases.append(Phase(
+            [*steps, f"scrollinto:{row}", f"invoke:{row}", OPEN, "wait:1"],
+            expect=[_dialog(title), _button("PrimaryButton", "Next"), _button("SecondaryButton", "Back", enabled=False),
+                    _button(CLOSE, "Close"), r"id=fst\.first-run\.pips "],
+        ))
+        phases.append(Phase([f"invoke:id={CLOSE}", CLOSED, "wait:0.5"], forbid=[DIALOG]))
+    return phases
 
 SCENARIOS = [
     Scenario(
@@ -143,12 +188,12 @@ SCENARIOS = [
             # Fresh anonymous Songs: six gate-passing slides; Back is present but disabled on slide 1.
             Phase([OPEN, "wait:1"],
                   expect=[_dialog("Songs"), *_pips(6), _slide("Song List"), _button("PrimaryButton", "Next"),
-                          _button("SecondaryButton", "Back", enabled=False), _button("CloseButton", "Close")],
+                          _button("SecondaryButton", "Back", enabled=False), _button(CLOSE, "Close")],
                   forbid=[_no_pip(7)]),
             Phase(["invoke:id=PrimaryButton", "wait:1"],
                   expect=[_button("SecondaryButton", "Back"), _button("PrimaryButton", "Next")]),
             # dismissed: Close records only the two slides viewed.
-            Phase(["invoke:id=CloseButton", CLOSED, "wait:1"],
+            Phase([f"invoke:id={CLOSE}", CLOSED, "wait:1"],
                   forbid=[DIALOG],
                   seen={"only the two viewed slides are seen": lambda s: len(s) == 2 and "songs-song-list" in s}),
             # new-slides-only: the four unviewed slides return alone on the next launch.
@@ -218,6 +263,26 @@ SCENARIOS = [
             Phase(["select:id=fst.nav.songs", "wait:4"], forbid=[DIALOG]),
             Phase(["select:id=fst.nav.songs", OPEN, "wait:1"], relaunch=True,
                   expect=[_dialog("Songs"), *_pips(4)], forbid=[_no_pip(5)]),
+        ],
+    ),
+    Scenario(
+        name="titles",
+        state="replay-all (every page title)",
+        tab="settings",
+        preset="compact",
+        phases=_title_phases(),
+    ),
+    Scenario(
+        name="late-catalogue",
+        state="visible (catalogue arrives after the guide opens)",
+        fixture=("--songs-delay", str(SONGS_DELAY)),
+        phases=[
+            # The guide opens before the catalogue: the visible demo shows redacted placeholder rows...
+            Phase([OPEN, "wait:1", _demo("songs-song-list", "placeholder")], expect=[_dialog("Songs"), _slide("Song List")]),
+            # ...and swaps in catalogue songs once it arrives. WinUI's stale Unloaded used to detach the visible demo
+            # from the catalogue so it stayed blank (issue #240).
+            Phase([_demo("songs-song-list", "catalogue", SONGS_DELAY + 20)], expect=[_slide("Song List")]),
+            Phase(["invoke:id=PrimaryButton", "wait:1", _demo("songs-sort", "catalogue", 5)], expect=[_slide("Sort Songs")]),
         ],
     ),
     Scenario(
@@ -300,14 +365,26 @@ def _uiwin(*args: str) -> str:
     return result.stdout
 
 
-def launch(exe: Path, port: int, scenario: Scenario, settings: Path, data: Path) -> int:
-    """Launches the app for a scenario and returns its pid."""
+def _close_last() -> None:
+    """Closes the app this worktree launched last (best effort; nothing may be running)."""
+    try:
+        _uiwin("close")
+    except RuntimeError:
+        pass
+
+
+def launch(exe: Path, port: int, scenario: Scenario, settings: Path, data: Path, steps: list[str]) -> int:
+    """Launches the app for a scenario, runs a phase's steps in the same desktop-lock hold and returns its pid.
+
+    Running the launching phase's steps in the launch's hold keeps timing-sensitive first checks (such as the
+    ``late-catalogue`` placeholder rows) from queueing behind another lane's lock use.
+    """
     extra = ["--extra", f"FST_DEBUG_DATA_DIR={data}"]
     if scenario.profile:
         extra += ["--extra", f"FST_DEBUG_PROFILE={scenario.profile}"]
     out = _uiwin("launch", str(exe), "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/", "--arg=--settings-path",
                  f"--arg={settings}", "--arg=--first-run=on", "--arg=--tab", f"--arg={scenario.tab}",
-                 "--preset", scenario.preset, *extra)
+                 "--preset", scenario.preset, *extra, "--steps", "; ".join(steps))
     match = re.search(r'"pid":\s*(\d+)', out)
     if not match:
         raise RuntimeError(f"no pid in launch output: {out}")
@@ -331,14 +408,20 @@ def run(scenario: Scenario, exe: Path, port: int, shots: Path | None) -> list[st
                 pid = None
             if phase.mutate is not None:
                 seen_file.write_text(json.dumps(phase.mutate(load_seen(seen_file))), encoding="utf-8")
-            if pid is None:
-                pid = launch(exe, port, scenario, settings, data)
             tree = work / f"tree-{index}.txt"
             steps = [*phase.steps, f"tree:{tree}"]
             if shots is not None:
                 steps.append(f"shot:{shots / f'first-run-{scenario.name}-{index}.png'}")
             try:
-                _uiwin("drive", "--pid", str(pid), "--steps", "; ".join(steps))
+                if pid is None:
+                    try:
+                        pid = launch(exe, port, scenario, settings, data, steps)
+                    except RuntimeError:
+                        # The launch may have succeeded before a step failed: close the worktree's last launch.
+                        _close_last()
+                        raise
+                else:
+                    _uiwin("drive", "--pid", str(pid), "--steps", "; ".join(steps))
             except RuntimeError as error:
                 failures.append(f"phase {index}: {error}")
                 break
@@ -377,17 +460,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.shots:
         args.shots.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="fst-first-run-fixture-"))
-    fixture, port = a11y_matrix.start_fixture(work / "fixture.log")
     failed = 0
-    try:
-        for scenario in selected:
-            failures = run(scenario, args.exe.resolve(), port, args.shots.resolve() if args.shots else None)
-            print(f"{'PASS' if not failures else 'FAIL'} {scenario.name} ({scenario.state})", flush=True)
-            for failure in failures:
-                print(f"  - {failure}", flush=True)
-            failed += bool(failures)
-    finally:
-        fixture.kill()
+    for group, flags in enumerate(dict.fromkeys(s.fixture for s in selected)):
+        fixture, port = a11y_matrix.start_fixture(work / f"fixture-{group}.log", flags)
+        try:
+            for scenario in (s for s in selected if s.fixture == flags):
+                failures = run(scenario, args.exe.resolve(), port, args.shots.resolve() if args.shots else None)
+                print(f"{'PASS' if not failures else 'FAIL'} {scenario.name} ({scenario.state})", flush=True)
+                for failure in failures:
+                    print(f"  - {failure}", flush=True)
+                failed += bool(failures)
+        finally:
+            fixture.kill()
     print(f"{len(selected) - failed}/{len(selected)} scenarios passed")
     return 1 if failed else 0
 

@@ -104,12 +104,12 @@ import Testing
     #expect(!registry.canRefresh)
 }
 
-// MARK: - Column layouts
+// MARK: - Pane layouts
 
-/// iPad sidebar-shell columns get a width class from their own width (two-column
-/// dashboards only from 600 pt) and never split again; so do iPhone Duo split
-/// columns (`/duo` J3). Without a column width the layout is unchanged.
-@Test func sidebarColumnsReclassifyWidth() {
+/// On-demand split panes get a width class from their own width (two-column
+/// dashboards only from 600 pt) and never split again; without a width the layout is
+/// unchanged. Sheets opened from a pane still size from the window.
+@Test func splitPanesReclassifyWidth() {
     let iPad = DeviceLayout.resolve(LayoutSignals(
         size: CGSize(width: 1194, height: 834), widthClass: .regular, usesSidebarShell: true
     ))
@@ -118,64 +118,17 @@ import Testing
     #expect(iPad.column(width: 600).widthClass == .regular)
     #expect(iPad.column(width: 874).contentArrangement == .stack)
     #expect(iPad.column(width: 874).sectionChrome == .sidebar)
-    #expect(ListDetailStack<EmptyView>.columnLayout(iPad, width: 320).widthClass == .compact)
-    #expect(ListDetailStack<EmptyView>.columnLayout(iPad, width: nil) == iPad)
     let duo = DeviceLayout.resolve(LayoutSignals(
         size: CGSize(width: 951, height: 669), widthClass: .regular,
         verticalBarEdge: .trailing, hinge: .fullyOpen
     ))
-    #expect(ListDetailStack<EmptyView>.columnLayout(duo, width: nil) == duo)
-    let duoColumn = ListDetailStack<EmptyView>.columnLayout(duo, width: 300)
-    #expect(duoColumn.widthClass == .compact)
-    #expect(duoColumn.contentArrangement == .stack)
-    #expect(duoColumn.sectionChrome == .verticalBar(.trailing))
-    // Sheets opened from a column still size from the window (form sheet).
-    #expect(duoColumn.windowWidthClass == .regular)
+    let pane = duo.column(width: 475)
+    #expect(pane.widthClass == .compact)
+    #expect(pane.sectionChrome == .verticalBar(.trailing))
+    #expect(pane.windowWidthClass == .regular)
+    // The hinge survives re-classification, so a pane's pages could still see it.
+    #expect(pane.splitHinge == duo.splitHinge)
     #expect(iPad.column(width: 320).windowWidthClass == .regular)
-    #expect(duo.windowWidthClass == .regular)
-}
-
-/// `/duo` J3: the Duo inner display's detail column is about 350 pt in portrait and
-/// under 600 pt in landscape (flat or book), so detail pages get compact layouts;
-/// folded Duo and iPhone have no split width.
-@Test func duoSplitDetailColumnIsCompact() {
-    let portrait = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 669, height: 951), widthClass: .regular, heightClass: .regular,
-        hinge: .fullyOpen
-    ))
-    let portraitWidth = ListDetailPolicy.detailColumnWidth(layout: portrait, containerWidth: nil)
-    #expect(portraitWidth == 349)
-    #expect(portrait.column(width: portraitWidth ?? 0).widthClass == .compact)
-
-    let landscape = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 951, height: 669), widthClass: .regular, heightClass: .regular,
-        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 70),
-        verticalBarEdge: .trailing, hinge: .fullyOpen
-    ))
-    let landscapeWidth = ListDetailPolicy.detailColumnWidth(layout: landscape, containerWidth: nil)
-    #expect(landscapeWidth == 561)
-    #expect(landscape.column(width: landscapeWidth ?? 0).widthClass == .compact)
-
-    // Book pose: the system equalises the columns at the vertical fold.
-    let book = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 951, height: 669), widthClass: .regular, heightClass: .regular,
-        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 70),
-        verticalBarEdge: .trailing, hinge: .partiallyOpen,
-        divisions: [CGRect(x: 463, y: 0, width: 24, height: 669)]
-    ))
-    #expect(ListDetailPolicy.detailColumnWidth(layout: book, containerWidth: nil) == 394)
-
-    let folded = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 466, height: 678), widthClass: .compact, verticalBarEdge: .trailing, hinge: .closed
-    ))
-    #expect(ListDetailPolicy.detailColumnWidth(layout: folded, containerWidth: nil) == nil)
-    #expect(ListDetailPolicy.detailColumnWidth(layout: .standardPhone, containerWidth: nil) == nil)
-
-    let iPad = DeviceLayout.resolve(LayoutSignals(
-        size: CGSize(width: 1194, height: 834), widthClass: .regular, usesSidebarShell: true
-    ))
-    #expect(ListDetailPolicy.detailColumnWidth(layout: iPad, containerWidth: 874) == 554)
-    #expect(ListDetailPolicy.detailColumnWidth(layout: iPad, containerWidth: nil) == nil)
 }
 
 

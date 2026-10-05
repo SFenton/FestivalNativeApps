@@ -21,7 +21,7 @@
 | Show Instruments | `instrument.<serviceId>` | Last visible chart cannot be turned off |
 | Show Instrument Metadata | `metadata.<field>` (`last-played`) | Anonymous: only Intensity enabled (as on iPhone); all may be off |
 | Accessibility (native) | `reduce-motion`, `disable-artwork-animation`, `more-contrast`, `less-transparency`, `save-data` | Additive only. Increase Contrast whitens secondary text and strengthens card strokes; Reduce Transparency makes cards opaque (`MainWindow.Settings.cs`, `ApplyTransparency`) |
-| Version | `app-version`, `service-version` | App Version is `AppVersionInfo.SettingsText`: the display version (the stamped `YYMM.DD.NN` `InformationalVersion` from the `windows/v*` tag; `0.1.0` for local builds) plus ` · <sha7>` from `AssemblyMetadata("FstGitSha")`, which `Festival.App.csproj` stamps from `-p:FstGitSha=`, else SourceLink's `SourceRevisionId`, else `git rev-parse HEAD` (the SDK reader finds no commit in a worktree whose branch ref is only packed; issue #21); omitted when missing, empty, `dev` or non-hex (issue #43). What's New and the User-Agent keep the plain `Display` version. Service Version reads `/api/version` once per page load ("Loading" → value, "Unavailable" on failure, retried next visit) |
+| Version | `app-version`, `service-version` | App Version is `AppVersionInfo.SettingsText`: the display version (the stamped `YYMM.DD.NN` `InformationalVersion` from the `windows/v*` tag; `0.1.0` for local builds) plus ` · <sha7>` from `AssemblyMetadata("FstGitSha")`, which `Festival.App.csproj` stamps from `-p:FstGitSha=`, else SourceLink's `SourceRevisionId`, else `git rev-parse HEAD` (the SDK reader finds no commit in a worktree whose branch ref is only packed; issue #21); omitted when missing, empty, `dev` or non-hex (issue #43). What's New and the User-Agent keep the plain `Display` version. The card body is `Controls/SettingValueGrid` (issue #243): values share a right column while every label + 12 epx + value fits at natural width, else every value stacks 4 epx under its label (`SettingValueLayout.ShouldStack`; Fluent "reposition side details below main", Android `ValueRow` #121). Before, a release-length `2610.04.01 · <sha7>` at 200% text in a compact window clipped `Build Configurati`. Labels and values wrap; UIA order stays label → value. Validated live (#243): compact/medium/wide/maximized/snap-left, light/dark/HC Night sky/HC Desert, text 200%, display 100/150%, keyboard, 0 Axe errors (`tools/windows/journeys/a11y-settings-version.json`, journey `version`). Service Version reads `/api/version` once per page load ("Loading" → value, "Unavailable" on failure, retried next visit) |
 | Service Info | `service-info`, `.state`, `.process`, `.phase`, `.attempt`, `.last-published` | Web `SettingsServiceProgressCard`: `SettingsServiceInfoViewModel` polls `/api/service-info` every 5 s while the page is loaded (30 s while the window is hidden, 3 s timeout), reduced by `Domain/ServiceProgress.cs` (port of the web/Apple monotonic reducer and label tables). Unknown totals show the empty track instead of a looping shimmer. Web rows only (issue #81, port of iOS #22): title, bar and the registered-band discovery attempt line (`attemptProgress`, schema 1, validated and monotonic within a phase attempt) at the web's 4 px gap; percent, units and attempts are the phase row's Narrator name, not printed captions; the native freeze row was dropped; Last Successful Publication hides while loading or failed ("Failed to load data", web); at Windows text size ≥ 150% (`ServiceInfoText.StacksStateRow`, applied in `SettingsPage.xaml.cs`, live on `TextScaleFactorChanged`) the process state stacks under the label. The web has no publication check, so **Check Publication was removed** (batch 6.15) |
 | First Run Guides | `first-run.<pageKey>` (no slide counts; blue web `btnPrimary` Show buttons via card-scoped lightweight styling, `Themes/FirstRunButtonResources.xaml`) | Replay: [first-run/windows.md](../../controls/first-run/windows.md) |
 | Licenses | `licenses` | Web navigation row: the section header is the link, chevron trailing, no card. Pushes `/settings/licenses` on the Settings stack |
@@ -61,3 +61,32 @@ Fixture matrix (`a11y_matrix.py --scan --tabs 60` with `journeys/settings-states
 Journeys (`tools/windows/journeys/settings.py`): visual order persists across relaunch, Filter Invalid Scores reveals Leeway, Hide Shop disables Shop highlighting, the last visible chart cannot be hidden, telemetry needs diagnostics, Reset Cancel keeps and Reset restores app settings (Songs sort kept), Licenses/Back, Privacy Policy, What's New, Feedback cancel and First Run replay. `SettingsContrastMarkupTests` guards the markup.
 
 Deliberate deviations from `winui-design`: dark-only theme (web parity; light/dark system setting does not change it); hand-built Settings-card rows instead of the Community Toolkit `SettingsCard` (no extra package; one card per web section); reorder lists keep web grip/row look with Fluent `ListView` drag and Move buttons.
+
+## Validation: CHOpt Path Default View (issue #256, 2026-10-05)
+
+No app change needed. `path-default-view` is an inline Fluent `RadioButtons` group with Image and Text options. `winui-design` maps "pick one of 2–3 options" to `RadioButtons` (WinUI Gallery `gallery-radiobutton-2`). `winapp find-api` confirmed `Header`, `SelectedIndex` and `MaxColumns` on the app's references. There is no expander, so there is no expanded/collapsed state to announce. UIA reports:
+
+- a level-3 heading "CHOpt Path Default View" and the description;
+- a Group named "CHOpt Path Default View" (`RadioButtons`);
+- Image and Text `RadioButton`s with the SelectionItem pattern, so Narrator reads the name and the selected option;
+- then the Column Order heading.
+
+Fixture matrix: `a11y_matrix.py --scan --pages journeys/a11y-settings-path-view.json` runs Image selected, Text seeded and the keyboard page `kb-settings-path-view`. Axe found 0 errors in every configuration below.
+
+| Configuration | Result |
+|---|---|
+| Compact, medium, wide, maximized, snap-left, snap-right | Pass: the group stays under its description in one column at every width |
+| Light and dark system theme | Pass, unchanged (dark-only app) |
+| Desert, Night sky | Pass: selected dot and focus rectangle use contrast colours |
+| Text 200% | Pass: title, description and options wrap with nothing clipped. The stock radio glyph stays top-aligned to the taller label |
+| Display 100%, 150%, 150% + text 200% | Pass |
+| Keyboard | Pass: Tab from Visual Order lands on the selected option. Down/Up move focus and selection together. Tab leaves the group and Shift+Tab returns to the selected option |
+| Live public service | Pass: Settings and Song Detail Paths open in the saved view for a real song (`/api/songs`, `/api/paths` only) |
+
+Journey `path-default-view` (`journeys/settings.py`, `Journey.relaunch_to`):
+
+1. Select Text: Settings stays open and saves `"pathDefaultView": "Text"`.
+2. Relaunch: Text is still selected.
+3. Relaunch to a song: Paths opens the table.
+4. Close Paths, return to Settings and select Image: saves `"Image"`.
+5. Paths now opens the image.

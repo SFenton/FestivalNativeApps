@@ -28,9 +28,9 @@ struct MacSongRowMenu: View {
         }
     }
 
-    /// Show a route: into the detail column when two columns show, else pushed.
+    /// Show a route: in the trailing pane when the list page can split, else pushed.
     private func open(_ route: AppRoute) {
-        if case .songDetail = route, let select {
+        if let select, select.accepts(route) {
             select(route)
         } else {
             push?(route)
@@ -48,7 +48,7 @@ struct MacPlayerRowMenu: View {
     var body: some View {
         Button("View Profile") {
             let route = AppRoute.player(accountId: accountId, displayName: displayName)
-            if let select { select(route) } else { push?(route) }
+            if let select, select.accepts(route) { select(route) } else { push?(route) }
         }
         Button("View Bands") { push?(.playerBands(accountId: accountId, displayName: displayName)) }
         if let displayName, !displayName.isEmpty {

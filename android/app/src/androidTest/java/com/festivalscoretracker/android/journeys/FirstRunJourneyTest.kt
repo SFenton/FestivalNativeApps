@@ -1,10 +1,12 @@
 package com.festivalscoretracker.android.journeys
 
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.firstrun.FirstRunCatalog
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
@@ -25,7 +27,8 @@ import org.junit.runner.RunWith
  * First Run on a real device window (issue #139): the tour through the whole shell on whichever
  * FST AVD runs it, with ATF on every state, nothing across a separating hinge and the layout the
  * window calls for (`fst.first-run.layout.side-by-side` on short wide windows, otherwise stacked).
- * States: `new-slides-only` (a fresh store), `dismissed`, `hidden-all-seen` and `replay-all`
+ * States: `new-slides-only` (a fresh store), `dismissed` (with Close, system Back and Esc, each
+ * marking only the displayed slides seen), `hidden-all-seen` and `replay-all`
  * (`device.py test com.festivalscoretracker.android.journeys.FirstRunJourneyTest --avd …`).
  * `gated` and `waiting-not-ready` need controlled settings and timing, so they are covered by
  * the Robolectric `FirstRunStatesUiTest`.
@@ -58,6 +61,18 @@ class FirstRunJourneyTest {
         h.assertNothingStraddles("fst.first-run.dialog")
     }
 
+    /** The page title heads the dialog beside Close and names the pane (issues #24, #147). */
+    private fun assertTitled(page: FirstRunPageKey) {
+        val title = rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals(listOf(page.label), title.config[SemanticsProperties.Text].map { it.text })
+        assertTrue("the title is a heading", SemanticsProperties.Heading in title.config)
+        val dialog = rule.onNodeWithTag("fst.first-run.dialog").fetchSemanticsNode()
+        assertEquals("Feature tour: ${page.label}", dialog.config[SemanticsProperties.PaneTitle])
+        val close = rule.onNodeWithTag("fst.first-run.close").fetchSemanticsNode().boundsInRoot
+        assertTrue("the title ends before Close", title.boundsInRoot.right <= close.left)
+        assertTrue("Close stays inside the dialog", close.right <= dialog.boundsInRoot.right && close.top >= dialog.boundsInRoot.top)
+    }
+
     /** `new-slides-only` from a fresh store, then `dismissed` with Close. */
     @Test
     fun newSlidesShowOnFirstVisitAndCloseDismisses() {
@@ -65,6 +80,7 @@ class FirstRunJourneyTest {
         h.launch(DebugLaunch(firstRun = "on", stillBackground = true), transport)
         h.waitForTag("fst.first-run.dialog")
         assertTrue(position().startsWith("Slide 1 of "))
+        assertTitled(FirstRunPageKey.Songs)
         assertLayoutFitsTheWindow()
         h.readingOrder("first-run-journey")
         h.tap("fst.first-run.next")
@@ -74,6 +90,36 @@ class FirstRunJourneyTest {
         h.tap("fst.first-run.close")
         h.waitGone("fst.first-run.dialog")
         h.assertAccessible()
+    }
+
+    /** `dismissed` with system Back on slide 2: only the tour closes and the two displayed slides are seen (issue #152). */
+    @Test
+    fun systemBackDismissesAndMarksTheDisplayedSlidesSeen() = dismissWithKey(KeyEvent.KEYCODE_BACK, slides = 2)
+
+    /** `dismissed` with Esc (hardware keyboard) on slide 3, like Back (issue #152). */
+    @Test
+    fun escapeDismissesAndMarksTheDisplayedSlidesSeen() = dismissWithKey(KeyEvent.KEYCODE_ESCAPE, slides = 3)
+
+    /**
+     * Opens the first-visit Songs tour, pages to [slides], dismisses it with [keyCode] and checks
+     * the tour is gone, the page underneath stays, and exactly the displayed slides are seen.
+     */
+    private fun dismissWithKey(keyCode: Int, slides: Int) {
+        val debug = DebugLaunch(firstRun = "on", stillBackground = true)
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = MemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+        h.waitForTag("fst.first-run.dialog")
+        val displayed = container.firstRun.active.value!!.slides.take(slides).map { it.id }.toSet()
+        repeat(slides - 1) { page ->
+            h.tap("fst.first-run.next")
+            rule.waitUntil(5_000) { position().startsWith("Slide ${page + 2} of ") }
+        }
+        InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
+        h.waitGone("fst.first-run.dialog")
+        rule.waitUntil(5_000) { container.firstRun.active.value == null }
+        assertTrue("the key closed only the tour", h.exists("fst.songs.list"))
+        val seen = runBlocking { container.firstRun.store.load().keys }
+        assertEquals(displayed, seen)
     }
 
     /** `hidden-all-seen` on launch, then `replay-all` from Settings' replay entry point. */
@@ -92,6 +138,7 @@ class FirstRunJourneyTest {
         assertTrue("replay claims the slot", replay != null)
         h.waitForTag("fst.first-run.dialog")
         assertEquals("Slide 1 of ${replay!!.slides.size}", position())
+        assertTitled(FirstRunPageKey.Songs)
         assertLayoutFitsTheWindow()
         h.assertAccessible()
     }

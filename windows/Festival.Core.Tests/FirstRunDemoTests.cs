@@ -27,6 +27,26 @@ public class FirstRunDemoTests
         Assert.Equal(TimeSpan.FromMilliseconds(125), FirstRunDemoTiming.Stagger);
     }
 
+    [Theory]
+    [InlineData(180, 210, 1)]
+    [InlineData(210, 210, 1)]
+    [InlineData(420, 210, 0.5)]
+    [InlineData(300, double.PositiveInfinity, 1)]
+    [InlineData(300, 0, 1)]
+    [InlineData(double.NaN, 210, 1)]
+    public void Fit_ShrinksOnlyADemoTallerThanItsFrame(double natural, double available, double expected) =>
+        Assert.Equal(expected, FirstRunDemoFit.Scale(natural, available), 6);
+
+    [Fact]
+    public void DataStatus_ReportsCatalogueOnlyForRealSongs()
+    {
+        Assert.Equal(FirstRunDemos.PlaceholderStatus, FirstRunDemos.DataStatus(FirstRunDemos.SongPool(null)));
+        Assert.Equal(FirstRunDemos.PlaceholderStatus, FirstRunDemos.DataStatus([]));
+        var pool = FirstRunDemos.SongPool([new Song { SongId = "a", Title = "A", Artist = "X", AlbumArt = "a.jpg" }]);
+        Assert.Equal("catalogue", FirstRunDemos.DataStatus(pool));
+        Assert.Equal("placeholder", FirstRunDemos.PlaceholderStatus);
+    }
+
     [Fact]
     public void SongPool_UsesCatalogueSongsWithArt_EpicGamesFirst_ElsePlaceholders()
     {

@@ -159,16 +159,18 @@ fun rememberFeedbackViewModel(api: FestivalApi): FeedbackViewModel {
 fun FeedbackDialogHost(viewModel: FeedbackViewModel) {
     val state by viewModel.form.collectAsStateWithLifecycle()
     val form = state ?: return
+    // On a separating fold the form keeps to one side of the hinge, like the shared sheets (M3:
+    // "Never place interactive content or critical information across the hinge area"). Read it
+    // from the activity window: inside the new dialog window the root width is still 0 (issue #146).
+    val hingeSide = Modifier.festivalSheetHingeSide()
     Dialog(
         onDismissRequest = viewModel::requestClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false),
     ) {
         BackHandler(onBack = viewModel::requestClose)
-        // On a separating fold the form keeps to one side of the hinge, like the shared sheets (M3:
-        // "Never place interactive content or critical information across the hinge area").
         BoxWithConstraints(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize().festivalSheetHingeSide().systemBarsPadding().imePadding(),
+            modifier = Modifier.fillMaxSize().then(hingeSide).systemBarsPadding().imePadding(),
         ) {
             val compact = !AdaptiveLayoutPolicy.isRegularWidth(maxWidth.value.toInt())
             Surface(

@@ -17,7 +17,7 @@
 Checked 2026-10-04 with the winui-design and winui-code-review skills (`winapp find-ui "data table"` returns only ListView samples; `winapp find-api UISettings.TextScaleFactor`).
 - The text view stays a stack of cards, not a `ListView` grid: each activation is one Narrator item, and the web's card rows are the reference. The skill's "hard-coded color literals → `{ThemeResource}` brushes by semantic name" and "only `SystemColor*Brush` resources inside an HC dictionary" drove the `FSTPath*` brushes. The fret hues stay web data colours outside contrast themes; the open note is also a label, so colour is never the only cue.
 - The app is dark-only by design ([design/windows.md](../../design/windows.md)): a light system theme renders the same dark dialog.
-- The accent **Close** is the shared `FestivalDialog` button; under Desert its label sits on a white box. It's app-wide, so it isn't changed here.
+- The accent **Close** is the shared `FestivalDialog` button. Under Desert its label used to sit on a white box; since issue #239 it's HighlightText on Highlight in every dialog (`DialogChrome.CommandLabelsWithoutBackplate`).
 - Live text-size changes apply on the next opening, like every page (`TextScaleLayout.Factor` is read once per launch).
 
 ## States and reachability

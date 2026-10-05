@@ -129,6 +129,27 @@ public static class FirstRunDemoTiming
 }
 #endregion
 
+#region Fit
+/// <summary>Fits a decorative demo into its fixed illustration frame (issue #241).</summary>
+public static class FirstRunDemoFit
+{
+    /// <summary>
+    /// Uniform scale that fits a demo laid out at <paramref name="naturalHeight"/> into <paramref name="availableHeight"/>:
+    /// 1 when it already fits or the frame is unbounded, otherwise the shrink factor. Large text sizes grow the demo's
+    /// sample rows past the 210 epx frame; shrinking the decorative picture keeps every row whole while the slide's
+    /// title and description keep the full text scale.
+    /// </summary>
+    /// <param name="naturalHeight">Demo height at the frame's width.</param>
+    /// <param name="availableHeight">Frame height.</param>
+    /// <returns>Scale in (0, 1].</returns>
+    public static double Scale(double naturalHeight, double availableHeight)
+    {
+        if (!double.IsFinite(availableHeight) || availableHeight <= 0 || !double.IsFinite(naturalHeight)) return 1;
+        return naturalHeight > availableHeight ? availableHeight / naturalHeight : 1;
+    }
+}
+#endregion
+
 #region Swap selection
 /// <summary>Deterministic native equivalent of the web demo row-selection rules.</summary>
 public static class FirstRunDemoRotation
@@ -688,6 +709,21 @@ public static class FirstRunDemos
         while (pool.Count < RowCount) pool.Add(FirstRunDemoSong.Placeholder);
         return pool;
     }
+
+    /// <summary>UIA ItemStatus of a demo showing catalogue songs (issue #240).</summary>
+    public const string CatalogueStatus = "catalogue";
+
+    /// <summary>UIA ItemStatus of a demo still showing redacted placeholder rows.</summary>
+    public const string PlaceholderStatus = "placeholder";
+
+    /// <summary>
+    /// The decorative demo's UIA ItemStatus (read by UI tests only; the demo is Raw, so Narrator never reads it):
+    /// whether its rows come from the catalogue or are still placeholders.
+    /// </summary>
+    /// <param name="pool">Pool from <see cref="SongPool"/>.</param>
+    /// <returns><see cref="CatalogueStatus"/> when the first row is a real song, else <see cref="PlaceholderStatus"/>.</returns>
+    public static string DataStatus(IReadOnlyList<FirstRunDemoSong> pool) =>
+        pool.Count > 0 && !pool[0].IsPlaceholder ? CatalogueStatus : PlaceholderStatus;
 
     /// <summary>
     /// Shop song IDs Shop demos may prefer: the already-loaded feed's order, only when it shares the catalogue's observed

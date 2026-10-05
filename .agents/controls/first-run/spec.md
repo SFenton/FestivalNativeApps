@@ -72,7 +72,10 @@ per-page `pages/<page>/firstRun/**`, `pages/settings/SettingsPage.tsx` (replay U
   Android orders its footer as Material 3 dialog actions. Microsoft (Fluent dialogs): the
   "do it" primary leftmost, the safe/dismiss action rightmost, Back as a secondary command.
   Each platform file ([ios.md](ios.md), [android.md](android.md), [windows.md](windows.md))
-  records its exact layout.
+  records its exact layout. Deliberate Windows deviation (validated for issue #241): Back is shown
+  **disabled** on page one rather than hidden, because `ContentDialog` gives each visible command
+  its own column and hiding Back would widen and shift Next and Close when it appears on page two
+  (the mis-tap Android fixed in #25); Close is the Windows Skip.
 
 ## States
 
