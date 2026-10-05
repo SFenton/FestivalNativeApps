@@ -185,3 +185,58 @@ func pinnedHeaderAccessibilitySettingsKeepAHardEdge(reduceTransparency: Bool, in
     state.testSet(pinLine: 52, headerHeight: nil, showsHeaders: true, firstHeaderTop: 53, firstRowTop: 77)
     #expect(state.headerLayout.gap == 19)
 }
+
+// MARK: - Scroll readings on every system (issue #308 review)
+
+/// The state grows the fade from its own scroll readings, whichever path supplies them,
+/// and a hard edge (fade 0) drops it at once, then restores it from the last offset.
+@MainActor @Test func pinnedHeaderStateDepthFollowsScrollReadings() {
+    let state = PinnedHeaderEdgeFadeState(legacyScrollTracking: true)
+    #expect(state.legacyScrollTracking)
+    state.testSet(pinLine: 52, headerHeight: 14, showsHeaders: true, fade: PinnedHeaderEdgeFade.height)
+    // No reading yet: nothing is dimmed.
+    #expect(state.depth == 0)
+    state.testSet(pinLine: 52, headerHeight: nil, showsHeaders: true, scrollOffset: 12)
+    #expect(state.depth == 12)
+    state.testSet(pinLine: 52, headerHeight: nil, showsHeaders: true, scrollOffset: 300)
+    #expect(state.depth == 40)
+    state.testSet(pinLine: 52, headerHeight: nil, showsHeaders: true, fade: 0)
+    #expect(state.depth == 0)
+    state.testSet(pinLine: 52, headerHeight: nil, showsHeaders: true, fade: PinnedHeaderEdgeFade.height)
+    #expect(state.depth == 40)
+    state.testSet(pinLine: 52, headerHeight: nil, showsHeaders: true, scrollOffset: -30)
+    #expect(state.depth == 0)
+}
+
+/// UIKit readings match `ScrollGeometry`: offset 0 at the resting top (content offset
+/// `-inset`), negative while pulled down.
+@Test func listScrollOffsetReadingFromAUIScrollViewOffset() {
+    #expect(ListScrollOffsetObserver.reading(contentOffsetY: -64, topInset: 64)
+        == .init(inset: 64, offset: 0))
+    #expect(ListScrollOffsetObserver.reading(contentOffsetY: -24, topInset: 64)
+        == .init(inset: 64, offset: 40))
+    #expect(ListScrollOffsetObserver.reading(contentOffsetY: -90, topInset: 64)
+        == .init(inset: 64, offset: -26))
+}
+
+/// AppKit readings match `ScrollGeometry` for flipped (table) and unflipped documents.
+@Test func listScrollOffsetReadingFromAClipView() {
+    // Flipped: the visible rect starts `inset` above the document's top at rest.
+    #expect(ListScrollOffsetObserver.reading(
+        visible: CGRect(x: 0, y: -52, width: 400, height: 600), documentHeight: 2000,
+        topInset: 52, flipped: true
+    ) == .init(inset: 52, offset: 0))
+    #expect(ListScrollOffsetObserver.reading(
+        visible: CGRect(x: 0, y: 100, width: 400, height: 600), documentHeight: 2000,
+        topInset: 52, flipped: true
+    ) == .init(inset: 52, offset: 152))
+    // Unflipped: the document's top is its maxY.
+    #expect(ListScrollOffsetObserver.reading(
+        visible: CGRect(x: 0, y: 1452, width: 400, height: 600), documentHeight: 2000,
+        topInset: 52, flipped: false
+    ) == .init(inset: 52, offset: 0))
+    #expect(ListScrollOffsetObserver.reading(
+        visible: CGRect(x: 0, y: 1412, width: 400, height: 600), documentHeight: 2000,
+        topInset: 52, flipped: false
+    ) == .init(inset: 52, offset: 40))
+}

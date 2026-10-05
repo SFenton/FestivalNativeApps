@@ -5,6 +5,16 @@ import UIKit
 import AppKit
 #endif
 
+// MARK: - Platform scroll view
+
+#if os(iOS)
+/// The platform scroll view hosting a SwiftUI `List` (its collection view).
+typealias ListPlatformScrollView = UIScrollView
+#elseif os(macOS)
+/// The platform scroll view hosting a SwiftUI `List` (its table view's).
+typealias ListPlatformScrollView = NSScrollView
+#endif
+
 // MARK: - List scroll nudger
 
 /// Moves a SwiftUI `List` by a few points, so a jump can land a row below the top edge
@@ -20,11 +30,7 @@ import AppKit
 /// the jump stays flush with the top.
 @MainActor
 public final class ListScrollNudger {
-    #if os(iOS)
-    typealias PlatformScrollView = UIScrollView
-    #elseif os(macOS)
-    typealias PlatformScrollView = NSScrollView
-    #endif
+    typealias PlatformScrollView = ListPlatformScrollView
 
     /// The scroll view hosting the List, once a locator has found it.
     weak var scrollView: PlatformScrollView?
@@ -88,29 +94,41 @@ public final class ListScrollNudger {
 // MARK: - Locator
 
 /// An invisible view in a `List` row that hands the List's platform scroll view to a
-/// ``ListScrollNudger`` once it is in a window. Not hit-testable and hidden from
-/// accessibility.
+/// ``ListScrollNudger`` or a ``ListScrollOffsetObserver`` once it is in a window. Not
+/// hit-testable and hidden from accessibility.
 #if os(iOS)
 struct ListScrollViewLocator: UIViewRepresentable {
-    let nudger: ListScrollNudger
+    let found: @MainActor (ListPlatformScrollView) -> Void
+
+    /// A locator that reports the scroll view to `found` whenever it attaches.
+    init(found: @escaping @MainActor (ListPlatformScrollView) -> Void) {
+        self.found = found
+    }
+
+    /// A locator that hands the scroll view to `nudger`.
+    init(nudger: ListScrollNudger) {
+        self.init { [weak nudger] scrollView in
+            if let nudger, nudger.scrollView !== scrollView { nudger.scrollView = scrollView }
+        }
+    }
 
     func makeUIView(context: Context) -> LocatorView {
         let view = LocatorView()
         view.isUserInteractionEnabled = false
         view.isAccessibilityElement = false
         view.accessibilityElementsHidden = true
-        view.nudger = nudger
+        view.found = found
         return view
     }
 
     func updateUIView(_ view: LocatorView, context: Context) {
-        view.nudger = nudger
+        view.found = found
         view.attach()
     }
 
     /// Walks up to the nearest scroll view: the List's collection view.
     final class LocatorView: UIView {
-        weak var nudger: ListScrollNudger?
+        var found: (@MainActor (ListPlatformScrollView) -> Void)?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
@@ -118,11 +136,11 @@ struct ListScrollViewLocator: UIViewRepresentable {
         }
 
         func attach() {
-            guard window != nil, let nudger else { return }
+            guard window != nil, let found else { return }
             var view = superview
             while let current = view {
                 if let scrollView = current as? UIScrollView {
-                    if nudger.scrollView !== scrollView { nudger.scrollView = scrollView }
+                    found(scrollView)
                     return
                 }
                 view = current.superview
@@ -132,23 +150,35 @@ struct ListScrollViewLocator: UIViewRepresentable {
 }
 #elseif os(macOS)
 struct ListScrollViewLocator: NSViewRepresentable {
-    let nudger: ListScrollNudger
+    let found: @MainActor (ListPlatformScrollView) -> Void
+
+    /// A locator that reports the scroll view to `found` whenever it attaches.
+    init(found: @escaping @MainActor (ListPlatformScrollView) -> Void) {
+        self.found = found
+    }
+
+    /// A locator that hands the scroll view to `nudger`.
+    init(nudger: ListScrollNudger) {
+        self.init { [weak nudger] scrollView in
+            if let nudger, nudger.scrollView !== scrollView { nudger.scrollView = scrollView }
+        }
+    }
 
     func makeNSView(context: Context) -> LocatorView {
         let view = LocatorView()
         view.setAccessibilityElement(false)
-        view.nudger = nudger
+        view.found = found
         return view
     }
 
     func updateNSView(_ view: LocatorView, context: Context) {
-        view.nudger = nudger
+        view.found = found
         view.attach()
     }
 
     /// Finds the nearest enclosing scroll view: the List's table view's.
     final class LocatorView: NSView {
-        weak var nudger: ListScrollNudger?
+        var found: (@MainActor (ListPlatformScrollView) -> Void)?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -158,8 +188,8 @@ struct ListScrollViewLocator: NSViewRepresentable {
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
         func attach() {
-            guard window != nil, let nudger, let scrollView = enclosingScrollView else { return }
-            if nudger.scrollView !== scrollView { nudger.scrollView = scrollView }
+            guard window != nil, let found, let scrollView = enclosingScrollView else { return }
+            found(scrollView)
         }
     }
 }

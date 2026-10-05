@@ -49,4 +49,15 @@ enum DebugAnimationOverride {
         false
         #endif
     }()
+
+    /// True when `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1` (Debug only): sheet lists with
+    /// pinned headers read their scroll position the iOS 17 / macOS 14 way
+    /// (``ListScrollOffsetObserver``), so a newer simulator can show that path (#308).
+    static let legacyScrollGeometry: Bool = {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FST_DEBUG_LEGACY_SCROLL_GEOMETRY"] == "1"
+        #else
+        false
+        #endif
+    }()
 }

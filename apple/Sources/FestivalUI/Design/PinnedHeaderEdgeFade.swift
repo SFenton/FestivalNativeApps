@@ -30,11 +30,24 @@ import SwiftUI
 /// from the start while the empty gap scrolls away; the List's layout is unchanged.
 ///
 /// Sheet-list positions are measured from the top of the List's scroll view, which
-/// reaches up under the sheet header by the pin line (its top content inset).
+/// reaches up under the sheet header by the pin line (its top content inset). The pin
+/// line and scroll offset come from `onScrollGeometryChange` on iOS 18 / macOS 15 and
+/// later, and from the List's platform scroll view (``ListScrollOffsetObserver``) on
+/// iOS 17 / macOS 14, so every supported system grows the same 40 pt ramp.
 enum PinnedHeaderEdgeFade {
     /// Distance below the pinned title's bottom edge over which rows fade in, in points:
     /// ``ScrollEdgeFade/topDistance`` (web `useScrollMask`, 40 px).
     static let height = CGFloat(ScrollEdgeFade.topDistance)
+
+    /// Whether sheet lists read their scroll position from the platform scroll view
+    /// (``ListScrollOffsetObserver``) because `onScrollGeometryChange` is missing: iOS 17
+    /// and macOS 14, or `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1` in Debug builds, which
+    /// exercises that path on a newer simulator.
+    static var usesLegacyScrollTracking: Bool {
+        if DebugAnimationOverride.legacyScrollGeometry { return true }
+        if #available(iOS 18.0, macOS 15.0, *) { return false }
+        return true
+    }
 
     /// The fade height for the current accessibility settings.
     ///
@@ -174,6 +187,10 @@ enum PinnedHeaderEdgeFade {
 /// measurement re-renders those small modifiers, never the rows themselves.
 @MainActor @Observable
 final class PinnedHeaderEdgeFadeState {
+    /// Whether the scroll position comes from the List's platform scroll view
+    /// (``PinnedHeaderEdgeFade/usesLegacyScrollTracking``) instead of
+    /// `onScrollGeometryChange`.
+    let legacyScrollTracking: Bool
     /// The scroll view's top content inset, where headers pin.
     fileprivate(set) var pinLine: CGFloat = 0
     /// The List's top edge in global coordinates. SwiftUI lays the List out inside the
@@ -199,9 +216,21 @@ final class PinnedHeaderEdgeFadeState {
     /// Whether ``headerLayout`` has been read, and whether with a first row.
     @ObservationIgnored private var layoutMeasured = false
     @ObservationIgnored private var layoutMeasuredWithRow = false
+    /// Full fade height for the current accessibility settings.
+    @ObservationIgnored private var fade = PinnedHeaderEdgeFade.height
+    /// Follows the List's platform scroll view when ``legacyScrollTracking`` is on.
+    @ObservationIgnored private var legacyObserver: ListScrollOffsetObserver?
     /// Rows report their top only above this global line (the edge plus the full fade and
     /// some slack), so rows far below the header never update while scrolling.
     let rowLimit = TopInset()
+
+    /// Shared readings for one List.
+    ///
+    /// - Parameter legacyScrollTracking: Read the scroll position from the List's platform
+    ///   scroll view; tests set it to cover the iOS 17 / macOS 14 path on newer systems.
+    init(legacyScrollTracking: Bool = PinnedHeaderEdgeFade.usesLegacyScrollTracking) {
+        self.legacyScrollTracking = legacyScrollTracking
+    }
 
     /// The scroll view's top edge in global coordinates: positions in
     /// ``PinnedHeaderEdgeFade`` are measured from here.
@@ -227,10 +256,39 @@ final class PinnedHeaderEdgeFadeState {
     fileprivate func setScrollOffset(_ value: CGFloat) {
         scrollOffset = value
         updateLayout()
+        applyDepth()
     }
 
-    fileprivate func setDepth(_ value: CGFloat) {
+    /// Apply one scroll reading: the pin line and the distance scrolled from the top.
+    fileprivate func setScroll(inset: CGFloat, offset: CGFloat) {
+        setPinLine(inset)
+        setScrollOffset(offset)
+    }
+
+    /// Use the top safe-area inset as the pin line until the scroll position is known.
+    fileprivate func setFallbackPinLine(_ value: CGFloat) {
+        guard scrollOffset == nil else { return }
+        setPinLine(value)
+    }
+
+    fileprivate func setFade(_ value: CGFloat) {
+        fade = value
+        applyDepth()
+    }
+
+    private func applyDepth() {
+        let value = PinnedHeaderEdgeFade.depth(scrollOffset: scrollOffset ?? 0, fade: fade)
         if value != depth { depth = value }
+    }
+
+    /// Follow the List's platform scroll view (``legacyScrollTracking`` only).
+    fileprivate func attachLegacyScrollView(_ scrollView: ListPlatformScrollView) {
+        guard legacyScrollTracking else { return }
+        let observer = legacyObserver ?? ListScrollOffsetObserver { [weak self] reading in
+            self?.setScroll(inset: reading.inset, offset: reading.offset)
+        }
+        legacyObserver = observer
+        observer.attach(scrollView)
     }
 
     fileprivate func setHeaderHeight(_ value: CGFloat) {
@@ -263,10 +321,13 @@ final class PinnedHeaderEdgeFadeState {
     ///   - scrollOffset: Scroll offset from the resting top, or nil for no reading.
     ///   - firstHeaderTop: The first header content's laid-out top, or nil for no reading.
     ///   - firstRowTop: The first row cell's top, or nil for no reading.
+    ///   - fade: The full fade height, or nil to keep the current one.
     func testSet(
         pinLine: CGFloat, headerHeight: CGFloat?, showsHeaders: Bool, listTop: CGFloat? = nil,
-        scrollOffset: CGFloat? = nil, firstHeaderTop: CGFloat? = nil, firstRowTop: CGFloat? = nil
+        scrollOffset: CGFloat? = nil, firstHeaderTop: CGFloat? = nil, firstRowTop: CGFloat? = nil,
+        fade: CGFloat? = nil
     ) {
+        if let fade { setFade(fade) }
         if let listTop { setListTop(listTop) }
         setPinLine(pinLine)
         if let headerHeight { setHeaderHeight(headerHeight) }
@@ -379,7 +440,10 @@ private struct PinnedHeaderListModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .modifier(PinnedHeaderScrollReader(state: state, fade: fade))
+            .modifier(PinnedHeaderScrollReader(state: state))
+            .onChange(of: fade, initial: true) { _, fade in
+                state.setFade(fade)
+            }
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
                 state.setListTop($0)
             }
@@ -390,33 +454,28 @@ private struct PinnedHeaderListModifier: ViewModifier {
     }
 }
 
-/// Reads the pin line and scroll offset: from the scroll geometry on iOS 18 / macOS 15
-/// and later, else the top safe-area inset with no fade (a hard edge, like the modal's
-/// own fallback).
+/// Reads the pin line and scroll offset from the scroll geometry on iOS 18 / macOS 15
+/// and later. Otherwise (``PinnedHeaderEdgeFadeState/legacyScrollTracking``) the rows'
+/// locators hand the List's platform scroll view to the state, which follows it; until
+/// then the top safe-area inset stands in for the pin line.
 private struct PinnedHeaderScrollReader: ViewModifier {
     let state: PinnedHeaderEdgeFadeState
-    let fade: CGFloat
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
+        if #available(iOS 18.0, macOS 15.0, *), !state.legacyScrollTracking {
             content.onScrollGeometryChange(for: ScrollReading.self) { geometry in
                 ScrollReading(
                     inset: geometry.contentInsets.top,
                     offset: geometry.contentOffset.y + geometry.contentInsets.top
                 )
             } action: { _, reading in
-                state.setPinLine(reading.inset)
-                state.setScrollOffset(reading.offset)
-                state.setDepth(PinnedHeaderEdgeFade.depth(scrollOffset: reading.offset, fade: fade))
-            }
-            .onChange(of: fade) { _, fade in
-                state.setDepth(min(state.depth, fade))
+                state.setScroll(inset: reading.inset, offset: reading.offset)
             }
         } else {
             content.background {
                 Color.clear
                     .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: {
-                        state.setPinLine($0)
+                        state.setFallbackPinLine($0)
                     }
                     .accessibilityHidden(true)
             }
@@ -491,6 +550,12 @@ private struct PinnedHeaderRowMask: ViewModifier {
                 rowTop = top
             }
             .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
+            .background {
+                if state.legacyScrollTracking {
+                    ListScrollViewLocator { state.attachLegacyScrollView($0) }
+                        .accessibilityHidden(true)
+                }
+            }
     }
 }
 
