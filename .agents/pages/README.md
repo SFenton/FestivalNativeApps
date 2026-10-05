@@ -2,7 +2,7 @@
 
 > **What:** one row per web route with its platform-neutral spec and per-platform notes. **Read when:** working on any screen. Open the `spec` first, then only your platform's file.
 
-Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog.json) (`python3 tools/parity_backlog.py --list` prints every gap, epic and dependency). No route is certified on any platform. "(stub)" = not yet investigated; follow [port-page](../skills/port-page.md).
+Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog.json) (`python3 tools/parity_backlog.py --list` prints every gap, epic and dependency). No route is certified on any platform. "(stub)" = not yet investigated; follow [port-page](../skills/port-page/SKILL.md).
 
 <!-- BEGIN GENERATED: check_docs.py --fix -->
 | Page | Route | Guard | Apple (backlog) | Spec | Platform files |

@@ -38,4 +38,15 @@ enum DebugAnimationOverride {
         false
         #endif
     }()
+
+    /// True when `FST_DEBUG_FLAT_BACKDROP=1` (Debug only): the backdrop is a flat
+    /// mid-gray field, dimmed like artwork, so window captures can compare the darkening
+    /// layered over it (scrims, materials) region by region, e.g. both panes of a split.
+    static let flatBackdrop: Bool = {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FST_DEBUG_FLAT_BACKDROP"] == "1"
+        #else
+        false
+        #endif
+    }()
 }

@@ -6,10 +6,13 @@
 
 | Task | Read |
 |---|---|
-| Port or change a page | [pages/README.md](pages/README.md) → `pages/<id>/spec.md` + your platform file; procedure: [skills/port-page.md](skills/port-page.md) |
-| Port or change a control | [controls/README.md](controls/README.md) → `controls/<id>/spec.md` + your platform file; procedure: [skills/add-control.md](skills/add-control.md) |
+| **Fix a tracker bug or build a tracker feature** (start here) | [skills/fix-reported-issue/SKILL.md](skills/fix-reported-issue/SKILL.md) → the owning [patterns](patterns/README.md) (`python3 tools/pattern_guard.py index`) → page/control spec + your platform file |
+| Touch any shared behavior (fades, materials, chrome, modals, rows, loading, empty states, Quick Links, section headers) | [patterns/README.md](patterns/README.md): canonical component per platform, numbered rules, known debt |
+| A design choice the owner hasn't made | [skills/design-proposal/SKILL.md](skills/design-proposal/SKILL.md) (Needs Decision) |
+| Port or change a page | [pages/README.md](pages/README.md) → `pages/<id>/spec.md` + your platform file; procedure: [skills/port-page/SKILL.md](skills/port-page/SKILL.md) |
+| Port or change a control | [controls/README.md](controls/README.md) → `controls/<id>/spec.md` + your platform file; procedure: [skills/add-control/SKILL.md](skills/add-control/SKILL.md) |
 | Call a service endpoint | [platforms/service-safety.md](platforms/service-safety.md) (blocked endpoints, headers, keys) |
-| Visual check vs the web app | [skills/screenshot-compare.md](skills/screenshot-compare.md) |
+| Visual check vs the web app | [skills/screenshot-compare/SKILL.md](skills/screenshot-compare/SKILL.md) |
 | Decide what tests to write now | [testing/strategy.md](testing/strategy.md) (phases) |
 | Lane ownership, integrate, simulator | [workflow/lanes.md](workflow/lanes.md) |
 | CI, App Store Connect builds/submission, release credentials | [workflow/release-machine.md](workflow/release-machine.md) |
@@ -39,5 +42,6 @@ Cross-platform: [design/fluent.md](design/fluent.md) (tokens), [testing/fixtures
 | [pages/](pages/README.md) | One folder per web route: `spec.md` + per-platform notes |
 | [controls/](controls/README.md) | One folder per control: `spec.md` + per-platform notes |
 | [testing/](testing/README.md) | Test phases, fixtures, per-platform test tooling |
+| [patterns/](patterns/README.md) | Cross-page, cross-platform behavior patterns: canonical components, rules, debt, guards |
 | [skills/](skills/README.md) | Repeatable step-by-step procedures |
 | [_tools/](_tools/README.md) | `check_docs.py`: enforces this structure |

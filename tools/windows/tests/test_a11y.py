@@ -183,6 +183,24 @@ class MatrixTests(unittest.TestCase):
                 with self.subTest(page=page["name"], step=step):
                     u.parse_step(step)
 
+    def test_pane_corner_pages(self):
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-pane-corners.json").read_text(encoding="utf-8"))}
+        # Issue #255 (#55 on Windows): every pane state whose corners meet the window's (closed/rail, light-dismiss
+        # overlay, inline expanded, collapsed to the rail), all anonymous so live evidence runs keep every page.
+        self.assertEqual(sorted(pages), ["pane-closed", "pane-collapsed", "pane-inline", "pane-overlay"])
+        self.assertEqual(m.live_pages(list(pages.values())), list(pages.values()))
+        overlay = pages["pane-overlay"]
+        self.assertEqual(overlay["after_ready"][:2], ["invoke:id=PART_PaneToggleButton", "waitfor:id=LightDismiss@5"])
+        self.assertEqual(overlay["teardown"][-1], "waitgone:id=LightDismiss@5")
+        self.assertIn("waitgone:id=LightDismiss@2", pages["pane-collapsed"]["after_ready"])
+        for page in pages.values():
+            for size in page.get("sizes", []):
+                self.assertIn(size, u.PRESETS, page["name"])
+            for step in m.page_steps(page, "compact", Path("out"), "", scan=True, tabs=4):
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step)
+
     def test_page_fixtures_exist(self):
         import json
         for name in ("a11y.json", "a11y-keyboard.json"):

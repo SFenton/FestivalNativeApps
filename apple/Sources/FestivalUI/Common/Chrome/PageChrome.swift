@@ -24,6 +24,16 @@ struct TopEdgeScrim: ViewModifier {
 
     /// The page's top safe-area inset (status bar plus navigation bar), once measured.
     @State private var topInset: CGFloat?
+    /// The split pane this page is in, if any.
+    @Environment(\.splitPane) private var pane
+    /// The split's shared height: the leading page writes it, the trailing pane reads it.
+    @Environment(\.splitTopScrim) private var sharedScrim
+
+    /// The black-to-clear gradient (also drawn across a split's divider band).
+    static let gradient = LinearGradient(
+        colors: [Color.black.opacity(0.55), Color.black.opacity(0)],
+        startPoint: .top, endPoint: .bottom
+    )
 
     /// The scrim's height for a page's top safe-area inset.
     ///
@@ -44,13 +54,16 @@ struct TopEdgeScrim: ViewModifier {
                 proxy.safeAreaInsets.top.rounded()
             } action: { inset in
                 topInset = inset
+                if pane == .leading, let sharedScrim {
+                    let height = Self.height(topInset: inset)
+                    if sharedScrim.height != height { sharedScrim.height = height }
+                }
             }
             .overlay(alignment: .top) {
-                LinearGradient(
-                    colors: [Color.black.opacity(0.55), Color.black.opacity(0)],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .frame(height: Self.height(topInset: topInset))
+                Self.gradient
+                .frame(height: SplitPaneChrome.topScrimHeight(
+                    pane: pane, own: Self.height(topInset: topInset), leading: sharedScrim?.height
+                ))
                 .ignoresSafeArea(edges: .top)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)

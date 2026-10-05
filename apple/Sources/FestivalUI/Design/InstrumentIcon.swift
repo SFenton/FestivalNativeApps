@@ -58,63 +58,79 @@ public struct InstrumentIcon: View {
 
     @MainActor private static var menuImages: [String: Image] = [:]
 
+    /// A menu icon side snapped to whole points (at least 1), so a Dynamic Type–scaled
+    /// side keeps the redrawn-image cache to one entry per text size.
+    ///
+    /// - Parameter side: Requested side in points.
+    /// - Returns: The side the image is drawn at.
+    static func menuSide(_ side: CGFloat) -> CGFloat {
+        max(1, side.rounded())
+    }
+
     /// The instrument artwork pre-sized for a native menu item or pop-up button.
     ///
     /// Menus render a label's image at its intrinsic size, ignoring `resizable()` and
-    /// `frame`, and the bundled artwork is 144 pt; this redraws it once at
-    /// ``menuIconSide`` (original colours) and reuses it.
+    /// `frame`, and the bundled artwork is 144 pt; this redraws it once per side
+    /// (original colours) and reuses it.
     ///
     /// - Parameters:
     ///   - instrument: Chart whose icon to show.
     ///   - keyboard: Use the keys variant for Lead/Pro Lead when the song `sig` is `Keyboard`.
-    /// - Returns: An original-colour image ``menuIconSide`` points square.
+    ///   - side: Point width and height, snapped by ``menuSide(_:)``; defaults to ``menuIconSide``.
+    /// - Returns: An original-colour square image `side` points wide.
     @MainActor
-    static func menuImage(for instrument: Instrument, keyboard: Bool) -> Image {
+    static func menuImage(for instrument: Instrument, keyboard: Bool, side: CGFloat = menuIconSide) -> Image {
         let name = assetName(for: instrument, keyboard: keyboard)
-        if let cached = menuImages[name] { return cached }
+        let side = menuSide(side)
+        let key = "\(name)@\(side)"
+        if let cached = menuImages[key] { return cached }
         let image: Image
         #if canImport(UIKit)
-        image = menuPlatformImage(for: instrument, keyboard: keyboard).map(Image.init(uiImage:))
+        image = menuPlatformImage(for: instrument, keyboard: keyboard, side: side).map(Image.init(uiImage:))
             ?? Image(name, bundle: .module)
         #elseif canImport(AppKit)
-        image = menuPlatformImage(for: instrument, keyboard: keyboard).map(Image.init(nsImage:))
+        image = menuPlatformImage(for: instrument, keyboard: keyboard, side: side).map(Image.init(nsImage:))
             ?? Image(name, bundle: .module)
         #else
         image = Image(name, bundle: .module)
         #endif
-        menuImages[name] = image
+        menuImages[key] = image
         return image
     }
 
     #if canImport(UIKit)
-    /// The bundled artwork redrawn at ``menuIconSide`` points in original colours.
+    /// The bundled artwork redrawn at `side` points in original colours.
     ///
     /// - Parameters:
     ///   - instrument: Chart whose icon to draw.
     ///   - keyboard: Use the keys variant for Lead/Pro Lead.
+    ///   - side: Point width and height, snapped by ``menuSide(_:)``; defaults to ``menuIconSide``.
     /// - Returns: The resized image, or nil if the asset is missing.
-    static func menuPlatformImage(for instrument: Instrument, keyboard: Bool) -> UIImage? {
+    static func menuPlatformImage(for instrument: Instrument, keyboard: Bool, side: CGFloat = menuIconSide) -> UIImage? {
         guard let source = UIImage(
             named: assetName(for: instrument, keyboard: keyboard), in: .module, compatibleWith: nil
         ) else { return nil }
-        let size = CGSize(width: menuIconSide, height: menuIconSide)
+        let side = menuSide(side)
+        let size = CGSize(width: side, height: side)
         return UIGraphicsImageRenderer(size: size).image { _ in
             source.draw(in: CGRect(origin: .zero, size: size))
         }
         .withRenderingMode(.alwaysOriginal)
     }
     #elseif canImport(AppKit)
-    /// The bundled artwork sized to ``menuIconSide`` points (a copy; the asset is shared).
+    /// The bundled artwork sized to `side` points (a copy; the asset is shared).
     ///
     /// - Parameters:
     ///   - instrument: Chart whose icon to draw.
     ///   - keyboard: Use the keys variant for Lead/Pro Lead.
+    ///   - side: Point width and height, snapped by ``menuSide(_:)``; defaults to ``menuIconSide``.
     /// - Returns: The resized image, or nil if the asset is missing.
-    static func menuPlatformImage(for instrument: Instrument, keyboard: Bool) -> NSImage? {
+    static func menuPlatformImage(for instrument: Instrument, keyboard: Bool, side: CGFloat = menuIconSide) -> NSImage? {
         guard let source = Bundle.module.image(
             forResource: assetName(for: instrument, keyboard: keyboard)
         )?.copy() as? NSImage else { return nil }
-        source.size = NSSize(width: menuIconSide, height: menuIconSide)
+        let side = menuSide(side)
+        source.size = NSSize(width: side, height: side)
         return source
     }
     #endif
