@@ -93,6 +93,42 @@
     ]
   },
   {
+    "name": "song-detail-preview-row-roles",
+    "route": "/songs/fixture-pulse",
+    "preset": "compact",
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2@10",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|type=button@5",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|invoke=true",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|focusable=true",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-3|type=button",
+      "invoke:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2",
+      "waitfor:id=fst.player.name@15",
+      "waitgone:id=fst.song-detail.title@5",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.song-detail.title@15",
+      "waitgone:id=fst.player.name@5"
+    ]
+  },
+  {
+    "name": "song-detail-preview-row-anonymous",
+    "route": "/songs/fixture-pulse",
+    "preset": "medium",
+    "fixture": ["--song-leaderboard", "anonymous"],
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.rank-3@10",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|type=text@5",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|invoke=false",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|focusable=false",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|name=Rank 3, Unknown player, 99,700 points",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|type=button",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|type=button",
+      "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|invoke=true"
+    ]
+  },
+  {
     "name": "player-bands-shared-pager",
     "route": "/bands/player/fixture-player-1",
     "preset": "compact",
