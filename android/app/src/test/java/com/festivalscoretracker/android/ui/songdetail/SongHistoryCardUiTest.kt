@@ -244,6 +244,50 @@ class SongHistoryCardUiTest {
         rule.mainClock.autoAdvance = true
     }
 
+    private fun topHeight() = rule.onNodeWithTag("fst.song-detail.history.top").getBoundsInRoot().height
+
+    @Test
+    fun theBestScoresListEasesToItsNewHeightSoContentBelowDoesNotSnap() {
+        // Issue #169: Lead (five rows + View All) → Bass (two rows) moved the cards below at once.
+        show(mixed)
+        rule.waitForIdle()
+        val lead = topHeight()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
+        untilSelected("Solo_Bass")
+        // Fading out: the old list keeps its height.
+        rule.mainClock.advanceTimeBy(80)
+        assertEquals(lead, topHeight())
+        // Swapped and fading in: the list is on its way to the shorter height, not there yet.
+        rule.mainClock.advanceTimeBy(200)
+        val easing = topHeight()
+        assertFalse(exists("fst.song-detail.history.view-all"))
+        rule.mainClock.advanceTimeBy(1_000)
+        val bass = topHeight()
+        assertTrue("easing $easing between $bass and $lead", easing < lead && easing > bass)
+        rule.mainClock.autoAdvance = true
+    }
+
+    @Test
+    fun reducedMotionResizesTheBestScoresListAtOnce() {
+        rule.setContent {
+            FestivalTheme(appReduceMotion = true) {
+                SongHistoryCard(mixed, visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
+            }
+        }
+        rule.waitForIdle()
+        val lead = topHeight()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
+        untilSelected("Solo_Bass")
+        rule.mainClock.advanceTimeBy(50)
+        val swapped = topHeight()
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue(swapped < lead)
+        assertEquals(swapped, topHeight())
+        rule.mainClock.autoAdvance = true
+    }
+
     @Test
     fun hiddenWithoutVisibleHistory() {
         rule.setContent {

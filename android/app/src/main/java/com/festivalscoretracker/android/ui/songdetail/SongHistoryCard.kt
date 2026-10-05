@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.songdetail
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -107,7 +108,8 @@ import kotlin.math.max
  * are more than five. Switching chart fades the graph and best scores out and the new
  * chart's back in ([SongHistorySwap]; instant with reduced motion) while the card keeps
  * its height: the pager row stays reserved when any chart pages and the height is held
- * during the swap.
+ * during the swap. The best scores and View All below the card ease to their new height
+ * during the fade-in, so the page content under them glides rather than jumps (issue #169).
  *
  * @param entries This song's history rows (every chart, invalid scores already dropped).
  * @param visible Settings-visible charted instruments.
@@ -192,27 +194,37 @@ fun SongHistoryCard(
             }
         }
         val top = remember(points) { SongHistoryChart.top(points) }
-        // Issue #62: the list shows seasons only when its rows are at least 520 dp wide (web QUERY_SHOW_SEASON).
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp).graphicsLayer { alpha = fade.value }) {
-            val width = maxWidth.value
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                top.forEachIndexed { index, point ->
-                    HistoryRow(
-                        point,
-                        best = index == 0,
-                        tag = "fst.song-detail.history.top.$index",
-                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
-                    )
+        // Issue #169: a chart with fewer best scores (or no View All) eases the content below into
+        // place during the fade-in instead of snapping it; instant with reduced motion.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .testTag("fst.song-detail.history.top")
+                .then(if (reduceMotion) Modifier else Modifier.animateContentSize(tween(SongHistorySwap.FADE_IN_MILLIS, easing = FastOutSlowInEasing)))
+                .graphicsLayer { alpha = fade.value },
+        ) {
+            // Issue #62: the list shows seasons only when its rows are at least 520 dp wide (web QUERY_SHOW_SEASON).
+            BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                val width = maxWidth.value
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    top.forEachIndexed { index, point ->
+                        HistoryRow(
+                            point,
+                            best = index == 0,
+                            tag = "fst.song-detail.history.top.$index",
+                            showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
+                        )
+                    }
                 }
             }
-        }
-        if (points.size > SongHistoryChart.TOP_COUNT) {
-            ViewFullLeaderboardButton(
-                onClick = { onViewAll(chart) },
-                label = "View All Scores",
-                testTag = "fst.song-detail.history.view-all",
-                modifier = Modifier.padding(top = 8.dp).graphicsLayer { alpha = fade.value },
-            )
+            if (points.size > SongHistoryChart.TOP_COUNT) {
+                ViewFullLeaderboardButton(
+                    onClick = { onViewAll(chart) },
+                    label = "View All Scores",
+                    testTag = "fst.song-detail.history.view-all",
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
         }
     }
 }
