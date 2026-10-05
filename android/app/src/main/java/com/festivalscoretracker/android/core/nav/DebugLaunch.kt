@@ -38,6 +38,8 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * @property firstRun `FST_DEBUG_FIRST_RUN=off|on|force` (debug default off so automation is never blocked).
  * @property whatsNew `FST_DEBUG_WHATS_NEW=off|on|fresh|force` (debug default off, like [firstRun]).
  * @property distribution `FST_DEBUG_DISTRIBUTION=store|tester`: which What's New notes to show (default: by installer).
+ * @property chromePrototype `FST_DEBUG_CHROME_PROTO=A|B|C|D`: issue #309 design prototype of compact
+ *   page-tool/search placement ([com.festivalscoretracker.android.core.shell.ChromePrototype]); unset is A.
  */
 data class DebugLaunch(
     val section: FestivalSection? = null,
@@ -58,6 +60,7 @@ data class DebugLaunch(
     val firstRun: String? = null,
     val whatsNew: String? = null,
     val distribution: String? = null,
+    val chromePrototype: String? = null,
 ) {
     companion object {
         /** An empty launch (release builds, or no extras). */
@@ -95,6 +98,7 @@ data class DebugLaunch(
                 firstRun = extras["FST_DEBUG_FIRST_RUN"],
                 whatsNew = extras["FST_DEBUG_WHATS_NEW"],
                 distribution = extras["FST_DEBUG_DISTRIBUTION"],
+                chromePrototype = extras["FST_DEBUG_CHROME_PROTO"],
             )
         }
 

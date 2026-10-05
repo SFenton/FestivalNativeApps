@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -126,6 +127,7 @@ import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.shell.ChromePrototype
 import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.core.shell.FloatingToolbarLift
 import com.festivalscoretracker.android.core.shell.ListDetailLayout
@@ -400,6 +402,7 @@ private fun FestivalShell(
         if (rect != null) requester = rect
         searchViewModel.open()
     }
+    val searchExpanded = searchViewModel.state.collectAsStateWithLifecycle().value.expanded
     val pageFind = remember { PageFindRegistry() }
     val latestOpen by rememberUpdatedState(openSearch)
     DisposableEffect(shortcuts, pageFind) {
@@ -429,7 +432,10 @@ private fun FestivalShell(
     // Compact windows float screen actions + search over the bottom bar (M3 Expressive
     // floating toolbar, web bottom dock); wider windows keep them in the top app bar.
     val floatingToolbar = remember { FloatingToolbarHost() }
-    val usesFloatingToolbar = !AdaptiveLayoutPolicy.isRegularWidth(widthDp)
+    // Issue #309 prototype (debug launches only): compact placement option; A is the shipped one.
+    val chromePrototype = remember(launch) { ChromePrototype.parse(launch.chromePrototype) }
+    val compactChrome = if (!AdaptiveLayoutPolicy.isRegularWidth(widthDp)) chromePrototype else null
+    val usesFloatingToolbar = compactChrome?.floatingToolbar == true
     // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
     // when it scrolls back; never hidden under TalkBack or on pages that pin it (Songs and
     // Suggestions keep Sort/Filter/Quick Links reachable while scrolled, issue #52); shown
@@ -478,6 +484,7 @@ private fun FestivalShell(
         // Web: the bell only exists while a profile is selected (operator 2026-09-28).
         notifications = if (settings.selectedPlayer != null) ({ NotificationsBell(notificationsViewModel) { showNotifications = true } }) else null,
         floatingToolbar = if (usesFloatingToolbar) floatingToolbar else null,
+        compactChrome = compactChrome,
     )
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
@@ -556,7 +563,8 @@ private fun FestivalShell(
                         // Large text: five labels cannot fit a phone's bar (they cut to "Sugg",
                         // "Stati"), so the bar shows icons only and each icon carries its name.
                         val iconOnly = isLargeText()
-                        sections.forEach { section ->
+                        val barSections = if (layout == NavigationLayout.BottomBar && compactChrome != null) compactChrome.barSections(sections) else sections
+                        barSections.forEach { section ->
                             NavigationSuiteItem(
                                 selected = section == selected,
                                 onClick = { navController.selectSection(section, selected) },
@@ -564,6 +572,18 @@ private fun FestivalShell(
                                 label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
                                 navigationSuiteType = navigationType,
                                 modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
+                            )
+                        }
+                        if (layout == NavigationLayout.BottomBar && compactChrome?.searchTab == true) {
+                            // Issue #309 prototype B/D: trailing Search destination (Apple's Search tab);
+                            // it opens the full-screen search view and the section underneath stays.
+                            NavigationSuiteItem(
+                                selected = searchExpanded,
+                                onClick = { openSearch(null) },
+                                icon = { Icon(Icons.Filled.Search, contentDescription = if (iconOnly) "Search" else null) },
+                                label = if (iconOnly) null else ({ Text("Search", maxLines = 1) }),
+                                navigationSuiteType = navigationType,
+                                modifier = Modifier.testTag("fst.nav.tab.search"),
                             )
                         }
                     }

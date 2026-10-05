@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fitInside
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +65,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchPresentation
+import com.festivalscoretracker.android.core.shell.ChromePrototype
 import com.festivalscoretracker.android.ui.search.GlobalSearchEntry
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -83,6 +86,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property notifications Bell slot between search and the avatar, when notifications exist.
  * @property floatingToolbar Compact windows: the floating toolbar that takes screen actions and
  *   search ([FloatingToolbar]); null when actions belong in the top app bar.
+ * @property compactChrome Compact windows only: the issue #309 placement prototype (debug); null
+ *   on medium and wider windows, which keep the shipped placement.
  */
 @Immutable
 data class ShellActions(
@@ -96,6 +101,7 @@ data class ShellActions(
     val search: SearchChrome = SearchChrome(),
     val notifications: (@Composable () -> Unit)? = null,
     val floatingToolbar: FloatingToolbarHost? = null,
+    val compactChrome: ChromePrototype? = null,
 )
 
 /**
@@ -175,8 +181,13 @@ fun FestivalScreen(
     // Compact windows: page actions float over the bottom bar (web bottom dock); global search
     // stays in the top app bar on every window size (operator 2026-09-28).
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
+    val chrome = shell.compactChrome
+    val bellInToolbar = shell.floatingToolbar != null && chrome?.bellInToolbar == true
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, aboveKeyboard = actionsAboveKeyboard, readFirst = actionsReadFirst) { actions() }
+        FloatingToolbarContent(pinned = pinActions || bellInToolbar, aboveKeyboard = actionsAboveKeyboard, readFirst = actionsReadFirst) {
+            actions()
+            if (bellInToolbar) shell.notifications?.let { bell -> ToolbarBellGroup(bell) }
+        }
     }
     Scaffold(
         modifier = modifier
@@ -227,8 +238,8 @@ fun FestivalScreen(
                 },
                 actions = {
                     val global: @Composable RowScope.() -> Unit = {
-                        GlobalSearchEntry(shell.search)
-                        shell.notifications?.invoke()
+                        if (chrome?.searchInTopBar != false) GlobalSearchEntry(shell.search)
+                        if (!bellInToolbar) shell.notifications?.invoke()
                         // Every page, pushed pages included (operator batch 7.12).
                         ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
                     }
@@ -276,6 +287,18 @@ fun FestivalScreen(
             )
         }
     }
+}
+
+/**
+ * Issue #309 prototype B: the bell trailing the page tools in the floating toolbar, after a
+ * divider hidden from TalkBack (Apple's accessory: page tools | Notifications).
+ *
+ * @param bell The shell's notifications bell.
+ */
+@Composable
+private fun RowScope.ToolbarBellGroup(bell: @Composable () -> Unit) {
+    VerticalDivider(Modifier.height(24.dp).padding(horizontal = 4.dp), color = BrandTokens.glassBorder)
+    bell()
 }
 
 /**

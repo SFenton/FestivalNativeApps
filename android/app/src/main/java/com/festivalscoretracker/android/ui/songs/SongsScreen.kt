@@ -190,7 +190,9 @@ fun SongsScreen(
     // Phones (floating toolbar): search joins Sort/Filter/Quick Links in the bottom toolbar and
     // minimizes to an icon while the list scrolls down (issue #84); wider windows keep the field
     // pinned above the list and their actions in the top app bar.
-    val searchInToolbar = LocalShellActions.current.floatingToolbar != null
+    val searchInToolbar = LocalShellActions.current.floatingToolbar != null && LocalShellActions.current.compactChrome?.songsFilterInToolbar != false
+    // Issue #309 prototypes B–D: Apple's pinned inline "Filter Songs" field on phones too.
+    val filterPrompt = if (LocalShellActions.current.compactChrome.let { it != null && !it.songsFilterInToolbar }) "Filter Songs" else SONGS_SEARCH_PLACEHOLDER
     var searchOpenRequested by remember { mutableStateOf(false) }
     val searchOpen = searchInToolbar && searchOpenRequested
     LaunchedEffect(searchInToolbar) { if (!searchInToolbar) searchOpenRequested = false }
@@ -252,6 +254,7 @@ fun SongsScreen(
                                         state, listState, search, viewModel::onSearchChange, artworkUrl, onSongClick, selectedSongId, padding,
                                         searchInToolbar = searchInToolbar,
                                         onOpenToolbarSearch = { searchOpenRequested = true },
+                                        filterPrompt = filterPrompt,
                                     ) { warning = it }
                                 }
                             }
@@ -399,6 +402,7 @@ private fun SongList(
     padding: PaddingValues,
     searchInToolbar: Boolean,
     onOpenToolbarSearch: () -> Unit,
+    filterPrompt: String = SONGS_SEARCH_PLACEHOLDER,
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -440,7 +444,7 @@ private fun SongList(
     Column(Modifier.fillMaxSize()) {
         if (!searchInToolbar) {
             Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
-                SearchField(search, onSearchChange, findFocus)
+                SearchField(search, onSearchChange, findFocus, filterPrompt)
             }
         }
         Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -655,14 +659,14 @@ private fun Notice(text: String, tag: String) {
 }
 
 @Composable
-private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusRequester) {
+private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusRequester, prompt: String = SONGS_SEARCH_PLACEHOLDER) {
     TextField(
         value = value,
         onValueChange = onChange,
         singleLine = true,
         // One line like the toolbar field: a wrapped placeholder doubled the pinned field's
         // height in a medium-width list pane (issue #101).
-        placeholder = { Text(SONGS_SEARCH_PLACEHOLDER, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        placeholder = { Text(prompt, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
         trailingIcon = {
             if (value.isNotEmpty()) {
