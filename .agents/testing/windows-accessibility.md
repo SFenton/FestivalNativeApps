@@ -75,6 +75,15 @@ Android learnings applied: every leaderboard row (and each score-history row) is
 
 Scope: Song Detail only, fixture matrix plus the live public service (SFentonX on "Never Back Down": Leaving Tomorrow in the Shop, two Lead history bars, eight instrument cards, Duos/Trios/Quads). Results per configuration in [song-detail/windows.md](../pages/song-detail/windows.md#validation-issue-195). Axe 0 errors everywhere: compact, medium, wide, snap-left and maximized; light and dark system theme; Desert and Night sky; text 200%; display 100% and 150%; live and fixture. Keyboard journeys `kb-detail-back`, `kb-paths-dialog-esc` (all sizes) and `kb-detail-compact-previews` (compact: every card's row and View Full stop, arrows between rows, Shift+Tab back) pass. Fixed: Tab skipped virtualized cards at compact, Trios/Quads cards clipped (uniform grid), focus hidden under the pinned header (WCAG 2.4.11), High Contrast chart axes/selection and Item Shop surface, chart axis titles over the ticks at 200% text.
 
+## Leaderboard row columns validation (issue #242, 2026-10-04)
+
+Scope: the shared row-column fitter (issue #37) on every board, checked against the live public service with SFentonX. Results per configuration are in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#validation-issue-242-2026-10-04).
+- **Live matrix:** `a11y_matrix.py --live --scan --tabs 25` gave 0 Axe errors, no focus leaving the window and no repeated stops on six pages at compact, medium and wide: song board, Leaderboards, Full and Band Rankings, Song Detail and Score History.
+- **Modes (0 Axe errors):** Desert, Night sky, text 200%, display 100%/150%, text 200% + display 150% and the light system theme. UIA bounds show every row and the pinned row on shared columns at all sizes, maximized and both snaps.
+- **Fixed:**
+  - Switching a contrast theme with a board open left the rows' code-set brushes (translucent fill, purple pinned row, gold badge) and the pager's disabled-button aliases in the old theme, under system backplates.
+  - Under a contrast theme, the pinned row's FC badge drew WindowText on Highlight.
+
 ## Item Shop validation (issue #224, 2026-10-04)
 
 Scope: the Shop Offers control only. Results per configuration are in [shop-offers/windows.md](../controls/shop-offers/windows.md#validation-issue-224-2026-10-04). `a11y_matrix.py --scan --tabs 30 --only shop` gave 0 Axe errors at compact, medium and wide (6/10/10 Tab stops: compact has no List/Grid toggle). At medium it also gave 0 Axe errors under Desert, Night sky, light and dark system theme, text 200%, and display 100% and 150%. No run had focus leaving the window or repeated stops. The live public service (anonymous) was checked at compact, medium, wide, maximized and snap-left, and under Desert, text 200% and display 150%. Fixed: under a contrast theme, WinUI's automatic adjustment had repainted the badge text as WindowText on a backplate inside the Highlight pill (`HighContrastAdjustment=None` while it is on, as `LeaderboardEntryRow` does). The active ProgressRing reads "Busy Loading Item Shop" (WinUI prefix), so tests use `fst.shop.loading`.
