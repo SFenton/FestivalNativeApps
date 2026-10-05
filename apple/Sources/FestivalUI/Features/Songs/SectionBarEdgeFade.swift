@@ -10,6 +10,8 @@ import SwiftUI
 /// used to end at the title's bottom edge with a hard cut. Now the row mask ramps from
 /// transparent at that edge to opaque ``height`` points below it, so rows fade out under
 /// the title as they do under the bar. Rows never show behind the title text itself.
+/// Near a section's start the fade is shorter (``SongsScrollChrome/rowFadeLimit``,
+/// issue #298), so a section a jump has just shown keeps its first row unfaded.
 ///
 /// Reduce Transparency, and the app's Less Transparency and Increase Contrast settings
 /// (or the system's Increase Contrast), keep the hard cut. That matches the app's glass

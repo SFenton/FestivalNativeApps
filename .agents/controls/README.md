@@ -22,9 +22,9 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | song-score-metadata | `fst.songs.metadata.*` | 32 | pending | [spec](song-score-metadata/spec.md) | [ios](song-score-metadata/ios.md) · [ipados](song-score-metadata/ipados.md) · [android](song-score-metadata/android.md) · [windows](song-score-metadata/windows.md) |
 | notifications | `fst.notifications.*` | 8 | pending | [spec](notifications/spec.md) | [ios](notifications/ios.md) · [android](notifications/android.md) · [windows](notifications/windows.md) |
 | quick-links | `fst.quick-links.*` | 5 | pending | [spec](quick-links/spec.md) | [ios](quick-links/ios.md) · [android](quick-links/android.md) · [windows](quick-links/windows.md) |
-| songs-section-index | `fst.songs.section-index.*` | 5 | pending | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) · [android](songs-section-index/android.md) |
+| songs-section-index | `fst.songs.section-index.*` | 5 | pending | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) · [android](songs-section-index/android.md) · [windows](songs-section-index/windows.md) |
 | first-run | `fst.first-run.*` | 6 | pending | [spec](first-run/spec.md) | [ios](first-run/ios.md) · [android](first-run/android.md) · [windows](first-run/windows.md) |
-| service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) |
+| service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) · [windows](service-status/windows.md) |
 | global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [ios](global-search/ios.md) · [ipados](global-search/ipados.md) · [macos](global-search/macos.md) · [android](global-search/android.md) · [windows](global-search/windows.md) |
 | whats-new | `fst.whats-new.*` | 5 | pending | [spec](whats-new/spec.md) | [ios](whats-new/ios.md) · [android](whats-new/android.md) · [windows](whats-new/windows.md) |
 | feedback-form | `fst.settings.feedback.*` | 10 | pending | [spec](feedback-form/spec.md) | [ios](feedback-form/ios.md) · [ipados](feedback-form/ipados.md) · [duo](feedback-form/duo.md) · [macos](feedback-form/macos.md) · [android](feedback-form/android.md) · [windows](feedback-form/windows.md) |
@@ -53,7 +53,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | song-score-metadata | `fst.songs.metadata.*` | 32 | pending | [spec](song-score-metadata/spec.md) | [ios](song-score-metadata/ios.md) · [ipados](song-score-metadata/ipados.md) |
 | notifications | `fst.notifications.*` | 8 | pending | [spec](notifications/spec.md) | [ios](notifications/ios.md) |
 | quick-links | `fst.quick-links.*` | 5 | pending | [spec](quick-links/spec.md) | [ios](quick-links/ios.md) |
-| songs-section-index | `fst.songs.section-index.*` | 5 | pending | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) |
+| songs-section-index | `fst.songs.section-index.*` | 5 | pending | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) · [windows](songs-section-index/windows.md) |
 | first-run | `fst.first-run.*` | 6 | pending | [spec](first-run/spec.md) | [ios](first-run/ios.md) |
 | service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) |
 <!-- END GENERATED -->

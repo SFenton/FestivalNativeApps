@@ -27,6 +27,7 @@ public sealed partial class ControlLabWindow : Window
         AutomationProperties.SetAutomationId(motion, "fst.control-lab.motion");
         sections.Children.Add(motion);
         if (lab == "instrument-selector") AddInstrumentSelectorSections(sections);
+        else if (lab == "service-status") AddServiceStatusSections(sections);
         var root = new ScrollViewer
         {
             Content = sections,
@@ -129,5 +130,80 @@ public sealed partial class ControlLabWindow : Window
     /// <param name="selected">Selection.</param>
     /// <returns>"Selected: Lead" or "Selected: none".</returns>
     private static string ValueText(Instrument? selected) => "Selected: " + (selected?.Label() ?? "none");
+
+    /// <summary>
+    /// Adds one Service Status per reachable state (spec <c>.agents/controls/service-status</c>): every reload re-reports the
+    /// same issue, so a scrape freeze keeps counting down with the doubled backoff and the readout records it.
+    /// </summary>
+    /// <param name="sections">Lab stack.</param>
+    private static void AddServiceStatusSections(StackPanel sections)
+    {
+        const string root = "fst.service-status";
+        AddStatus(sections, "Scrape freeze, counting down", root + ".scrape-freeze-countdown", "Songs unavailable",
+            new ServiceIssue(ServiceIssueKind.ScrapeInProgress, 120), inline: false);
+        AddStatus(sections, "Scrape freeze, retrying with backoff", root + ".scrape-freeze-retrying", "Songs unavailable",
+            new ServiceIssue(ServiceIssueKind.ScrapeInProgress, 2), inline: false);
+        AddStatus(sections, "Unavailable", root + ".unavailable", "Songs unavailable",
+            new ServiceIssue(ServiceIssueKind.Unavailable, 12), inline: false);
+        AddStatus(sections, "Offline", root + ".offline", "Songs unavailable", new ServiceIssue(ServiceIssueKind.Offline), inline: false);
+        AddStatus(sections, "Syncing", root + ".syncing", "Player unavailable", new ServiceIssue(ServiceIssueKind.Syncing), inline: false);
+        AddStatus(sections, "Not found", root + ".not-found", "Song unavailable", new ServiceIssue(ServiceIssueKind.NotFound), inline: false);
+        AddStatus(sections, "Other error", root + ".other", "Songs unavailable",
+            new ServiceIssue(ServiceIssueKind.Other, null, "The service returned data we could not read. Try again."), inline: false);
+        AddStatus(sections, "Inline section, scrape freeze", root + ".inline", "Leaderboard unavailable",
+            new ServiceIssue(ServiceIssueKind.ScrapeInProgress, 240), inline: true);
+        AddStatus(sections, "Inline section, offline", root + ".inline-offline", "Rivals unavailable",
+            new ServiceIssue(ServiceIssueKind.Offline), inline: true);
+    }
+
+    /// <summary>Adds a headed section with a full-page or inline status and a reload readout (<c>&lt;prefix&gt;.value</c>).</summary>
+    /// <param name="sections">Lab stack.</param>
+    /// <param name="title">Section heading.</param>
+    /// <param name="prefix">Status automation ID root.</param>
+    /// <param name="fallbackTitle">Screen title used when the issue has none.</param>
+    /// <param name="issue">Issue reported on load and after every reload.</param>
+    /// <param name="inline">Whether to show the compact inline row inside a card instead of the full-page view.</param>
+    private static void AddStatus(StackPanel sections, string title, string prefix, string fallbackTitle, ServiceIssue issue, bool inline)
+    {
+        var heading = new TextBlock { Text = title, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] };
+        AutomationProperties.SetHeadingLevel(heading, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
+        var value = new TextBlock();
+        AutomationProperties.SetAutomationId(value, prefix + ".value");
+        var reloads = 0;
+        ServiceStatusViewModel? status = null;
+        status = new ServiceStatusViewModel(prefix, fallbackTitle, () =>
+        {
+            reloads++;
+            status!.Report(issue);
+            value.Text = StatusValueText(reloads, status);
+            return Task.CompletedTask;
+        }, TimeProvider.System);
+        status.Report(issue);
+        value.Text = StatusValueText(reloads, status);
+        var section = new StackPanel { Spacing = 8 };
+        section.Children.Add(heading);
+        section.Children.Add(inline
+            ? new Border
+            {
+                Style = (Style)Application.Current.Resources["FSTCardStyle"],
+                MaxWidth = 480,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Child = new ServiceStatusInline { Status = status, IdPrefix = prefix },
+            }
+            : new ServiceStatusView { Status = status, IdPrefix = prefix, HorizontalAlignment = HorizontalAlignment.Left });
+        section.Children.Add(value);
+        // A page shows one full-page status; the lab shows several, so name each section to keep its Retry unambiguous.
+        var group = new AccessibleGroup { Content = section };
+        AutomationProperties.SetName(group, title);
+        sections.Children.Add(group);
+    }
+
+    /// <summary>Reload readout text.</summary>
+    /// <param name="reloads">Reloads so far (Retry and automatic).</param>
+    /// <param name="status">Status after the latest report.</param>
+    /// <returns>"Reloads: 1, next wait: 60 s" or "Reloads: 0, no automatic retry".</returns>
+    private static string StatusValueText(int reloads, ServiceStatusViewModel status) => status.HasCountdown
+        ? $"Reloads: {reloads}, next wait: {status.SecondsRemaining} s"
+        : $"Reloads: {reloads}, no automatic retry";
 }
 #endregion

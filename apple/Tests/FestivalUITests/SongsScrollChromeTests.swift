@@ -120,8 +120,8 @@ struct SongsScrollChromeTests {
 
     // MARK: - Section push (issue #288)
 
-    /// Normal landing line (2 + 28 pt fade) and bar title height.
-    private let landing: CGFloat = 30
+    /// The landing line (flush with the bar since issue #298) and bar title height.
+    private let landing = SongsScrollChrome.landingOffset
     private let bar: CGFloat = 32
 
     @Test func pushBandStartsBelowTheLandingLineByOneBarHeight() {
@@ -133,7 +133,9 @@ struct SongsScrollChromeTests {
         let floor = -(SongsScrollChrome.titleAlignment + 1)
         #expect(SongsScrollChrome.pushBandTop(titleTop: -400, landingOffset: landing, barHeight: bar) == floor)
         #expect(SongsScrollChrome.pushBandTop(titleTop: .nan, landingOffset: landing, barHeight: bar) == nil)
-        #expect(SongsScrollChrome.pushBandTop(titleTop: 20, landingOffset: landing, barHeight: -5) == 20)
+        // A negative bar height counts as none: the band ends at the landing line.
+        #expect(SongsScrollChrome.pushBandTop(titleTop: landing + 0.5, landingOffset: landing, barHeight: -5) == nil)
+        #expect(SongsScrollChrome.pushBandTop(titleTop: landing - 0.5, landingOffset: landing, barHeight: -5) == landing - 0.5)
     }
 
     private func layout(
@@ -328,13 +330,17 @@ struct SongsSectionJumpTests {
         #expect(SongsScrollChrome.headerPassed(minY: 228, topInset: 232))
     }
 
-    /// Issue #286: a jump lands the title under the bar's label and the first row below
-    /// the 28 pt soft edge (iOS 26.5: bar label 30 pt tall, in-list title 8 + 2 pt pads).
-    @Test func landingLineClearsTheBarAndItsFade() {
-        #expect(SongsScrollChrome.landingOffset(fade: 28) == 30)
-        // Reduce Transparency / Less Transparency / Increase Contrast: a hard edge.
-        #expect(SongsScrollChrome.landingOffset(fade: 0) == 2)
-        #expect(SongsScrollChrome.landingOffset(fade: -10) == 2)
+    /// Issue #298: a jump lands the title where it pins, under the bar's identical copy,
+    /// so there is no gap above it and it does not slide up on the next scroll.
+    @Test func landingLineIsThePinnedPlace() {
+        #expect(SongsScrollChrome.landingOffset == 0)
+        #expect(SongsScrollChrome.titleAlignment == 0)
+        #expect(SongsScrollChrome.barTitleTopPadding == SongsScrollChrome.inlineTitleTopPadding)
+        #expect(SongsScrollChrome.barTitleBottomPadding == SongsScrollChrome.inlineTitleBottomPadding)
+        // A landed title (flush with the inset) has reached the bar.
+        #expect(SongsScrollChrome.headerPassed(minY: 176, topInset: 176))
+        #expect(SongsScrollChrome.landingCorrection(
+            minY: 176, topInset: 176, landingOffset: SongsScrollChrome.landingOffset) == nil)
     }
 
     /// The bar names a section once its title reaches the landing line, so a landed
@@ -361,46 +367,110 @@ struct SongsSectionJumpTests {
             minY: 206.4, topInset: 176, landingOffset: 30) == nil)
     }
 
-    @Test func landingLineIgnoresNonFiniteAndNegativeOffsets() {
-        let chrome = SongsScrollChrome()
-        chrome.setLandingLine(30)
-        #expect(chrome.landingLine.value == 30)
-        chrome.setLandingLine(.nan)
-        #expect(chrome.landingLine.value == 30)
-        chrome.setLandingLine(-4)
-        #expect(chrome.landingLine.value == 0)
-    }
-
-    /// Without a located scroll view (or with no landing line) a settle gives up at
-    /// once instead of retrying for every round.
+    /// Without a located scroll view a settle gives up at once instead of retrying for
+    /// every round; a title already flush ends it too.
     @Test func settleStopsWhenTheListCannotMove() async {
         let chrome = SongsScrollChrome()
-        chrome.setLandingLine(30)
         chrome.setListTopInset(176)
         let keys = ["A", "B", "C"]
         chrome.jump(to: "B", in: keys)
         chrome.watchLanding("B")
         chrome.recordTitleTop("A", minY: 900)
-        chrome.recordTitleTop("B", minY: 176)
+        // A far target placed from estimated heights: needs a move the List cannot make.
+        chrome.recordTitleTop("B", minY: 450)
         // Rounds, not wall-clock time: parallel suites can hold the main actor.
         #expect(await chrome.settleLanding(on: "B", generation: chrome.jumpGeneration) == 1)
         #expect(!chrome.listNudger.moveContent(by: 30))
 
-        chrome.setLandingLine(0)
+        chrome.jump(to: "C", in: keys)
         chrome.watchLanding("C")
-        #expect(await chrome.settleLanding(on: "C", generation: chrome.jumpGeneration) == 0)
+        chrome.recordTitleTop("C", minY: 176.4)
+        #expect(await chrome.settleLanding(on: "C", generation: chrome.jumpGeneration) == 1)
     }
 
     /// A newer jump ends an older settle.
     @Test func newerJumpEndsAnOlderSettle() async {
         let chrome = SongsScrollChrome()
-        chrome.setLandingLine(30)
         let keys = ["A", "B", "C"]
         chrome.jump(to: "B", in: keys)
         chrome.watchLanding("B")
         let generation = chrome.jumpGeneration
         chrome.jump(to: "C", in: keys)
         #expect(await chrome.settleLanding(on: "B", generation: generation) == 1)
+    }
+
+    // MARK: - Row fade near section starts (issue #298)
+
+    /// A bar title height (iOS 26.5).
+    private let bar: CGFloat = 32
+
+    /// A landed title's first row meets the bar's bottom edge, so the fade there is none;
+    /// it deepens 1:1 as rows scroll under the bar, up to its full height.
+    @Test func fadeLeavesALandedSectionsFirstRowClear() {
+        #expect(SongsScrollChrome.fadeLimit(titleTop: 0, barHeight: bar) == 0)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: -10, barHeight: bar) == 10)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: -27.7, barHeight: bar) == 27.5)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: -28, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: -400, barHeight: bar) == nil)
+    }
+
+    /// While the bar draws an incoming title, the fade ends at its first row; below the
+    /// band it ends at the title's own top, so a visible title is never dimmed.
+    @Test func fadeStopsAboveAnIncomingTitle() {
+        #expect(SongsScrollChrome.fadeLimit(titleTop: 12, barHeight: bar) == 12)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: bar, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 0.5, barHeight: bar) == 0.5)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 20, barHeight: bar) == 20)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 28, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: 900, barHeight: bar) == nil)
+    }
+
+    @Test func fadeLimitIsUnknownWithoutABarOrAFiniteTop() {
+        #expect(SongsScrollChrome.fadeLimit(titleTop: 10, barHeight: 0) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: .nan, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: 10, barHeight: .infinity) == nil)
+    }
+
+    /// Rows never jump as the limit switches: wherever it changes abruptly, only the
+    /// blank title row lies in the fade, and the limit never fades past an in-list
+    /// title's top or a landed section's first row.
+    @Test func fadeNeverReachesAVisibleTitleOrALandedFirstRow() {
+        for step in stride(from: -40, through: 120, by: 0.5) {
+            let top = CGFloat(step)
+            let limit = SongsScrollChrome.fadeLimit(titleTop: top, barHeight: bar)
+                ?? SectionBarEdgeFade.height
+            if top > bar { #expect(limit <= top - bar) }
+            if top >= 0, top <= bar { #expect(limit <= top) }
+        }
+    }
+
+    @Test func rowFadeTakesTheLowestLimitAndWritesOnlyOnChange() {
+        let chrome = SongsScrollChrome()
+        #expect(chrome.rowFadeLimit == nil)
+        #expect(chrome.rowFadeHeight(fade: 28) == 28)
+        #expect(chrome.setFadeLimit("S", limit: 4))
+        #expect(!chrome.setFadeLimit("S", limit: 4))
+        #expect(!chrome.setFadeLimit("T", limit: 20))
+        #expect(chrome.rowFadeLimit == 4)
+        #expect(chrome.rowFadeHeight(fade: 28) == 4)
+        // Reduce Transparency's hard edge stays hard.
+        #expect(chrome.rowFadeHeight(fade: 0) == 0)
+        #expect(chrome.setFadeLimit("S", limit: nil))
+        #expect(chrome.rowFadeLimit == 20)
+        #expect(!chrome.setFadeLimit("U", limit: .nan))
+        #expect(chrome.setFadeLimit("T", limit: nil))
+        #expect(chrome.rowFadeLimit == nil)
+    }
+
+    @Test func fadeLimitChangesNotifyOnlyWhenTheLowestMoves() {
+        let chrome = SongsScrollChrome()
+        chrome.setFadeLimit("S", limit: 4)
+        let fired = JumpFlag()
+        withObservationTracking { _ = chrome.rowFadeLimit } onChange: { fired.value = true }
+        chrome.setFadeLimit("T", limit: 12)
+        #expect(!fired.value)
+        chrome.setFadeLimit("S", limit: 6)
+        #expect(fired.value)
     }
 
     @Test func topInsetIgnoresNonFiniteValuesAndNotifiesNoOne() {

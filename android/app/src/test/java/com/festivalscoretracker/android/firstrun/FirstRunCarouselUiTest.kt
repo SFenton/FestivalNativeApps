@@ -1,10 +1,20 @@
 package com.festivalscoretracker.android.firstrun
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -22,7 +32,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** First-run dialog footer: Done-only single slides, M3 Back-then-Next order (issue #25), 48 dp named buttons, viewed count. */
+/**
+ * First-run dialog: the page title header (issue #24/#147), Done-only single slides, M3
+ * Back-then-Next order (issue #25), 48 dp named buttons, viewed count.
+ */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp")
 class FirstRunCarouselUiTest {
@@ -36,7 +49,7 @@ class FirstRunCarouselUiTest {
     @Test
     fun oneSlideGuideShowsOnlyDone() {
         var viewed = -1
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(1, FirstRunPageKey.Songs, songs.take(1), isReplay = false), compact = true) { viewed = it } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(1, FirstRunPageKey.Songs, songs.take(1), isReplay = false)) { viewed = it } } }
         assertTrue(exists("fst.first-run.done"))
         assertTrue(!exists("fst.first-run.skip") && !exists("fst.first-run.back") && !exists("fst.first-run.next"))
         rule.onNodeWithTag("fst.first-run.done").performClick()
@@ -47,7 +60,7 @@ class FirstRunCarouselUiTest {
     @Test
     fun backSitsBeforeNextAndClosingReportsTheSlidesSeen() {
         var viewed = -1
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(2, FirstRunPageKey.Songs, songs.take(3), isReplay = false), compact = true) { viewed = it } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(2, FirstRunPageKey.Songs, songs.take(3), isReplay = false)) { viewed = it } } }
         assertTrue(!exists("fst.first-run.skip") && !exists("fst.first-run.back"))
         val firstNext = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
         rule.onNodeWithTag("fst.first-run.next").performClick()
@@ -67,7 +80,7 @@ class FirstRunCarouselUiTest {
 
     @Test
     fun doneOnTheLastSlideStaysWhereNextWas() {
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(3, FirstRunPageKey.Songs, songs.take(2), isReplay = false), compact = true) { } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(3, FirstRunPageKey.Songs, songs.take(2), isReplay = false)) { } } }
         val next = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
         rule.onNodeWithTag("fst.first-run.next").performClick()
         rule.waitForIdle()
@@ -77,7 +90,7 @@ class FirstRunCarouselUiTest {
 
     @Test
     fun everyControlIsANamedButtonWithA48dpTarget() {
-        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(4, FirstRunPageKey.Songs, songs.take(3), isReplay = false), compact = true) { } } }
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(4, FirstRunPageKey.Songs, songs.take(3), isReplay = false)) { } } }
         val minTarget = with(rule.density) { 48.dp.toPx() } - 1f
         fun check(tag: String, name: String) {
             rule.onNodeWithTag(tag).assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
@@ -95,5 +108,60 @@ class FirstRunCarouselUiTest {
         rule.onNodeWithTag("fst.first-run.next").performClick()
         rule.waitForIdle()
         check("fst.first-run.done", "Done")
+    }
+
+    @Test
+    fun everyGuideIsTitledByItsPageLikeTheOtherModals() {
+        var page by mutableStateOf(FirstRunPageKey.Songs)
+        var titleLarge = TextUnit.Unspecified
+        rule.setContent {
+            FestivalTheme {
+                titleLarge = MaterialTheme.typography.titleLarge.fontSize
+                val carousel = FirstRunCarousel(5, page, FirstRunCatalog.slides(page, true), isReplay = true)
+                key(page) { FirstRunCarouselDialog(carousel) { } }
+            }
+        }
+        FirstRunPageKey.entries.forEach { pageKey ->
+            page = pageKey
+            rule.waitForIdle()
+            val title = rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true)
+            title.assertTextEquals(pageKey.label)
+            title.assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+            // Same Title Large header as What's New and Notifications (issue #147), not a small label.
+            assertEquals(pageKey.label, titleLarge, titleFontSize())
+            rule.onNodeWithTag("fst.first-run.dialog")
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Feature tour: ${pageKey.label}"))
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xxhdpi", fontScale = 2f)
+    fun titleKeepsCloseInPlaceAtFontScaleTwo() = titleSitsBesideClose(FirstRunPageKey.PlayerHistory)
+
+    @Test
+    @Config(qualifiers = "w891dp-h411dp-land-xxhdpi", fontScale = 2f)
+    fun titleKeepsCloseInPlaceInLandscapeAtFontScaleTwo() = titleSitsBesideClose(FirstRunPageKey.Shop)
+
+    /** The title takes the free width before Close, which stays a full 48 dp target inside the dialog. */
+    private fun titleSitsBesideClose(page: FirstRunPageKey) {
+        rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(6, page, FirstRunCatalog.slides(page, true), isReplay = true)) { } } }
+        val minTarget = with(rule.density) { 48.dp.toPx() } - 1f
+        val dialog = rule.onNodeWithTag("fst.first-run.dialog").fetchSemanticsNode().boundsInRoot
+        val title = rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val close = rule.onNodeWithTag("fst.first-run.close").fetchSemanticsNode()
+        rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).assertTextEquals(page.label)
+        assertTrue("title ends before Close", title.right <= close.boundsInRoot.left)
+        assertTrue("Close stays inside the dialog", close.boundsInRoot.right <= dialog.right && close.boundsInRoot.top >= dialog.top)
+        assertTrue("Close keeps a 48 dp target", close.touchBoundsInRoot.width >= minTarget && close.touchBoundsInRoot.height >= minTarget)
+        assertTrue("title is not clipped to nothing", title.height > 0f && title.width > 0f)
+        assertTrue("the primary action stays visible", exists("fst.first-run.next"))
+        rule.onNodeWithTag("fst.first-run.next").assertIsDisplayed()
+    }
+
+    private fun titleFontSize(): TextUnit {
+        val results = mutableListOf<TextLayoutResult>()
+        rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).fetchSemanticsNode()
+            .config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+        return results.single().layoutInput.style.fontSize
     }
 }

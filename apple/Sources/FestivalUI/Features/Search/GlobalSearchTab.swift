@@ -37,6 +37,8 @@ struct GlobalSearchTab: View {
                     text: $model.query, isPresented: $fieldPresented,
                     prompt: Text(GlobalSearch.prompt(for: model.scope))
                 )
+                // No Retry button (issue #299): Search re-runs a failed or empty search.
+                .onSubmit(of: .search) { model.submit() }
                 .modifier(KeepSearchTitleWhileSearching())
                 .task(id: model.runKey) { await model.search(session: session) }
                 .modifier(SearchPageChrome(session: session, enabled: !asTab))

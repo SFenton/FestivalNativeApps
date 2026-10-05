@@ -88,13 +88,28 @@ public sealed partial class MainWindow
         try
         {
             // Dismiss spans the command row, centred like the web's full-width button (operator batch 6.14).
+            var title = WhatsNewGate.Title(AppVersion);
+            var notes = WhatsNewContent(Changelog.DisplayBlocks(whatsNewChannel), title);
             var dialog = Controls.FestivalDialog.Create(
                 RootGrid.XamlRoot,
-                WhatsNewGate.Title(AppVersion),
-                WhatsNewContent(Changelog.DisplayBlocks(whatsNewChannel)),
+                title,
+                notes,
                 "fst.whats-new.dialog",
-                closeText: "Dismiss");
-            await Controls.FestivalDialog.ShowAsync(dialog);
+                closeText: "Dismiss",
+                closeAutomationId: "fst.whats-new.dismiss");
+            dialog.Opened += (_, _) => notes.Focus(FocusState.Programmatic);
+            // Refit while open: a window resized across breakpoints would otherwise clip long notes (FeedbackDialog).
+            var root = RootGrid.XamlRoot;
+            void Refit(XamlRoot sender, XamlRootChangedEventArgs args) => notes.MaxHeight = WhatsNewNotesHeight(sender.Size.Height);
+            root.Changed += Refit;
+            try
+            {
+                await Controls.FestivalDialog.ShowAsync(dialog);
+            }
+            finally
+            {
+                root.Changed -= Refit;
+            }
             whatsNewStore?.MarkSeen(AppVersion, Changelog.CurrentHash);
         }
         catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException)
@@ -109,26 +124,32 @@ public sealed partial class MainWindow
 
     /// <summary>
     /// Version headings (level 2), each with its notes under category headings (level 3, web changelog order, "Other"
-    /// last; none when nothing is categorized), in a scroller capped to the window.
+    /// last; none when nothing is categorized), in a named, focusable scroller capped to the window.
     /// </summary>
     /// <param name="blocks">Displayable blocks.</param>
+    /// <param name="title">Dialog title, also the scroller's UI Automation name.</param>
     /// <returns>Dialog content.</returns>
-    private ScrollViewer WhatsNewContent(IReadOnlyList<WhatsNewBlock> blocks)
+    private ScrollViewer WhatsNewContent(IReadOnlyList<WhatsNewBlock> blocks, string title)
     {
-        var panel = new StackPanel { Spacing = 24, Padding = new Thickness(0, 0, 16, 0) };
-        foreach (var entry in blocks)
+        // Inset so the scroller's focus rectangle and scrollbar don't cover the first and last glyphs.
+        var panel = new StackPanel { Spacing = 24, Padding = new Thickness(8, 4, 16, 4) };
+        for (var b = 0; b < blocks.Count; b++)
         {
+            var entry = blocks[b];
             var block = new StackPanel { Spacing = 12 };
             var heading = new TextBlock { Text = entry.Title, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], TextWrapping = TextWrapping.Wrap };
             AutomationProperties.SetHeadingLevel(heading, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
+            AutomationProperties.SetAutomationId(heading, $"fst.whats-new.section.{b}");
             block.Children.Add(heading);
-            foreach (var group in entry.Groups)
+            for (var g = 0; g < entry.Groups.Count; g++)
             {
+                var group = entry.Groups[g];
                 var section = new StackPanel { Spacing = 8 };
                 if (entry.Headed)
                 {
                     var category = new TextBlock { Text = group.DisplayTitle, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextWrapping = TextWrapping.Wrap };
                     AutomationProperties.SetHeadingLevel(category, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level3);
+                    AutomationProperties.SetAutomationId(category, $"fst.whats-new.group.{b}.{g}");
                     section.Children.Add(category);
                 }
                 foreach (var item in group.Items)
@@ -148,9 +169,17 @@ public sealed partial class MainWindow
             }
             panel.Children.Add(block);
         }
-        var scroller = new ScrollViewer { Content = panel, MaxHeight = Math.Max(200, RootGrid.ActualHeight - 240) };
+        // A tab stop that opens focused, so arrow and Page keys scroll long notes (ContentDialog's own scroller is
+        // vertically disabled and the notes hold no other focusable element; Licenses and Privacy Policy do the same).
+        var scroller = new ScrollViewer { Content = panel, IsTabStop = true, MaxHeight = WhatsNewNotesHeight(RootGrid.ActualHeight) };
         AutomationProperties.SetAutomationId(scroller, "fst.whats-new.list");
+        AutomationProperties.SetName(scroller, title);
         return scroller;
     }
+
+    /// <summary>Notes scroller height for a window: its height less the dialog's title and command rows, at least 200.</summary>
+    /// <param name="windowHeight">Window content height in epx.</param>
+    /// <returns>Maximum height in epx.</returns>
+    private static double WhatsNewNotesHeight(double windowHeight) => Math.Max(200, windowHeight - 240);
 }
 #endregion

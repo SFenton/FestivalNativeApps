@@ -72,7 +72,7 @@ struct BandRankingsScreen: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, glassSurface: true)
+                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, cardSurface: true)
                                 .macKeyboardRow(entry.teamKey)
                         }
                     }
@@ -142,7 +142,7 @@ struct BandRankingsScreen: View {
         .task(id: requestKey) { await load() }
     }
 
-    /// Band-size switcher: a glass pill in the floating bar, or a titled toolbar
+    /// Band-size switcher: a material pill in the floating bar, or a titled toolbar
     /// item (`Label` with the band symbol) in the iPhone Duo rail (`/duo` J1).
     ///
     /// - Parameter showsTitle: Whether the pill shows the band size's name.

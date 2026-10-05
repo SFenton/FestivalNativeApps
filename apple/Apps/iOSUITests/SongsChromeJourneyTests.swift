@@ -127,9 +127,10 @@ final class SongsChromeJourneyTests: XCTestCase {
     }
 
     /// Issue #92: Sort and Filter sit in the tab-bar accessory, not the navigation bar,
-    /// and stay reachable while the Songs list scrolls (folded into "Sort and Filter"
-    /// when the inline accessory is too narrow); the pinned Filter Songs field remains
-    /// present for local filtering.
+    /// and stay reachable while the Songs list scrolls; the pinned Filter Songs field
+    /// remains present for local filtering. Issue #300: the inline accessory shows the
+    /// same items as the expanded one (no fold mid-morph), and Profile stays the
+    /// navigation bar's trailing button.
     ///
     /// Needs a catalogue that scrolls (`TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`, as for
     /// ``testScrollingBackToTopNearTheTopStaysResponsive``); skips on the two-song fixture.
@@ -171,7 +172,12 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(accessory.waitForExistence(timeout: 5), "\(who): tab-bar accessory missing")
         func assertInAccessory(_ ids: [String], _ state: String) {
             let bar = app.navigationBars.firstMatch.frame
-            for id in ids + ["fst.shell.profile"] {
+            XCTAssertTrue(
+                app.navigationBars.buttons["fst.shell.profile"].exists, "\(who): Profile left the header \(state)"
+            )
+            XCTAssertFalse(accessory.buttons["fst.shell.profile"].exists, "\(who): Profile in the accessory \(state)")
+            XCTAssertFalse(accessory.buttons["fst.songs.tools"].exists, "\(who): Sort and Filter folded \(state)")
+            for id in ids {
                 let tool = accessory.buttons[id]
                 XCTAssertTrue(tool.exists, "\(who): \(id) missing from the accessory \(state)")
                 XCTAssertTrue(tool.isHittable, "\(who): \(id) not hittable \(state)")
@@ -182,16 +188,12 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
         assertInAccessory(tools, "at the top")
         app.swipeUp()
-        // Inline beside the minimized tab bar, Sort and Filter may fold into one control.
-        let folded = ["fst.songs.tools"]
+        // Inline beside the minimized tab bar the same items stay (issue #300).
         for _ in 0..<100 {
-            if (tools + ["fst.shell.profile"]).allSatisfy({ accessory.buttons[$0].isHittable })
-                || accessory.buttons["fst.songs.tools"].exists {
-                break
-            }
+            if tools.allSatisfy({ accessory.buttons[$0].isHittable }) { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        assertInAccessory(accessory.buttons["fst.songs.tools"].exists ? folded : tools, "while scrolled")
+        assertInAccessory(tools, "while scrolled")
         XCTAssertTrue(field.exists, "\(who): Filter Songs hid while scrolled")
         SongsUITestSupport.record(app, name: "songs-tools-accessory-\(who)")
     }
@@ -290,8 +292,11 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// Every tap must land the letter's title on the landing line under the navigation
     /// bar and the bar must name it at once: far down, back up, a re-tap after a manual
     /// scroll, and the last letter, which cannot reach the top, leaving the section above
-    /// it named. Issue #286: on iOS 26 the line is 30 pt below the bar (under the section
-    /// bar's label), so the first row starts below the 28 pt soft edge, not faded under it.
+    /// it named. Issue #298: on iOS 26 the title lands where it pins, exactly under the
+    /// section bar's copy of it, with no gap above it (issue #286 had landed it 30 pt
+    /// lower), its first row right below the bar, and a small scroll leaves the bar's
+    /// title where it is. The row fade ends at that first row (unit-tested in
+    /// `SongsScrollChromeTests`).
     ///
     /// Needs the large fixture like the tests above (skips otherwise). With a profile,
     /// as reported: the page tools remain in the navigation bar during the first jump.
@@ -321,15 +326,17 @@ final class SongsChromeJourneyTests: XCTestCase {
             app.staticTexts["fst.songs.section.\(letters.firstIndex(of: letter)!)"]
         }
         func top() -> CGFloat { app.navigationBars.firstMatch.frame.maxY }
-        // iOS 26: the title row lands `SongsScrollChrome.landingOffset(fade:)` (30 pt)
-        // below the bar and its text is 8 pt inside the row (`inlineTitleTopPadding`).
-        let rowOffset: CGFloat, textInset: CGFloat, fade: CGFloat
+        func list() -> XCUIElement { app.descendants(matching: .any)["fst.songs.list"] }
+        // iOS 26: the title row lands flush with the bar (`SongsScrollChrome.landingOffset`)
+        // and its text is 8 pt inside the row (`inlineTitleTopPadding`).
+        let textInset: CGFloat
+        let sectionBarShown: Bool
         if #available(iOS 26.0, *) {
-            (rowOffset, textInset, fade) = (30, 8, 28)
+            (textInset, sectionBarShown) = (8, true)
         } else {
-            (rowOffset, textInset, fade) = (0, 0, 0)
+            (textInset, sectionBarShown) = (0, false)
         }
-        func line() -> CGFloat { top() + rowOffset + textInset }
+        func line() -> CGFloat { top() + textInset }
         func tap(_ letter: String) {
             rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch.tap()
         }
@@ -344,8 +351,7 @@ final class SongsChromeJourneyTests: XCTestCase {
             waitUntil("\(letter) title not on the line: \(target.frame), line \(line())") {
                 target.exists && abs(target.frame.minY - line()) <= 3
             }
-            // The section's first row starts below the soft edge: a title flush with the
-            // bar (the old landing) leaves it 28 pt higher, faded under the edge.
+            // The section's first row follows the title at once: no dead space.
             func rowFrames(_ node: XCUIElementSnapshot) -> [CGRect] {
                 (node.identifier.hasPrefix("fst.songs.row.") ? [node.frame] : [])
                     + node.children.flatMap(rowFrames)
@@ -354,12 +360,19 @@ final class SongsChromeJourneyTests: XCTestCase {
             let titleBottom = target.frame.maxY
             let firstRow = ((try? list.snapshot()).map(rowFrames) ?? [])
                 .filter { $0.minY >= titleBottom - 1 }.min { $0.minY < $1.minY }
-            XCTAssertGreaterThanOrEqual(
-                firstRow?.minY ?? -1, top() + rowOffset + fade - 1,
-                "\(letter) first row under the fade: \(String(describing: firstRow))"
+            XCTAssertLessThanOrEqual(
+                (firstRow?.minY ?? .infinity) - titleBottom, 8,
+                "\(letter) first row not right below its title: \(String(describing: firstRow))"
             )
             waitUntil("Section bar reads \(sectionBar.label), not \(letter)") {
                 sectionBar.exists && sectionBar.label == target.label
+            }
+            if sectionBarShown {
+                // The bar's title sits exactly on the landed title: it has nowhere to slide.
+                XCTAssertEqual(
+                    sectionBar.frame.minY, target.frame.minY, accuracy: 1,
+                    "\(letter) bar title \(sectionBar.frame) off its row \(target.frame)"
+                )
             }
             XCTAssertEqual(rail.value as? String, letter, "Rail selection")
         }
@@ -367,6 +380,15 @@ final class SongsChromeJourneyTests: XCTestCase {
         tap("#")
         tap("P")
         assertLanded(on: "P")
+        if sectionBarShown {
+            // A small scroll after the jump leaves the bar's title pinned (issue #298).
+            // P's row leaves the accessibility tree once under the bar: read it first.
+            let (pinned, name) = (sectionBar.frame.minY, title("P").label)
+            let start = list().coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -40)))
+            XCTAssertEqual(sectionBar.label, name, "Small scroll left P")
+            XCTAssertEqual(sectionBar.frame.minY, pinned, accuracy: 1, "Bar title moved")
+        }
         tap("V")
         assertLanded(on: "V")
         tap("A")

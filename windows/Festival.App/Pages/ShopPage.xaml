@@ -19,9 +19,12 @@
                     <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap"
                                Visibility="{x:Bind HasDescription}" />
                 </StackPanel>
+                <!-- Named by the label like the Songs rows; the description is the switch's HelpText, so Narrator also reads
+                     what "Available" means (neither New nor Leaving Tomorrow). -->
                 <ToggleSwitch Grid.Column="1" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
                               OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center"
-                              AutomationProperties.Name="{x:Bind Label}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                              AutomationProperties.Name="{x:Bind Label}" AutomationProperties.HelpText="{x:Bind Description}"
+                              AutomationProperties.AutomationId="{x:Bind AutomationId}" />
             </Grid>
         </DataTemplate>
     </Page.Resources>

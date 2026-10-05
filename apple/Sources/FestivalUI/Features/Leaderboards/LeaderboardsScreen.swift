@@ -178,6 +178,7 @@ struct LeaderboardsScreen: View {
             .festivalFadeInScope()
             .macKeyboardRows(keyboardRows)
         }
+        .debugPageScrollStress()
         .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
         .festivalRefreshable { await loadAll() }
     }
@@ -215,7 +216,7 @@ struct LeaderboardsScreen: View {
 
     // MARK: Instrument cards
 
-    /// One instrument's top ten: an icon header, then compact glass rows and the
+    /// One instrument's top ten: an icon header, then compact card rows and the
     /// "View all rankings (N)" row — the web's `RankingCard.tsx` layout, where the
     /// rows themselves are the frosted cards and the section has no outer card.
     @ViewBuilder
@@ -226,7 +227,7 @@ struct LeaderboardsScreen: View {
             }
             switch instrumentStates[instrument] ?? .loading {
             case .loading:
-                RankingsSkeletonRows(count: 5, glassRows: true)
+                RankingsSkeletonRows(count: 5, cardRows: true)
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "leaderboards.\(instrument.rawValue)") {
                     Task { await loadInstrument(instrument, rankBy: rankBy) }
@@ -240,7 +241,7 @@ struct LeaderboardsScreen: View {
                         ForEach(payload.rankings.entries) { entry in
                             AccountRankingRow(
                                 entry: entry, metric: rankBy,
-                                isSelected: isSelectedAccount(entry.accountId), glassSurface: true
+                                isSelected: isSelectedAccount(entry.accountId), cardSurface: true
                             )
                             .macKeyboardRow("\(instrument.rawValue)|\(entry.id)")
                         }
@@ -374,7 +375,7 @@ struct LeaderboardsScreen: View {
                     .modifier(CardMessageSurface())
                     .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight.unranked")
             case let .footer(entry):
-                AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, glassSurface: true)
+                AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, cardSurface: true)
                     .festivalFadeInOnAppear()
                     .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight")
             }
@@ -392,7 +393,7 @@ struct LeaderboardsScreen: View {
             }
             switch bandStates[bandType] ?? .loading {
             case .loading:
-                RankingsSkeletonRows(count: 5, glassRows: true)
+                RankingsSkeletonRows(count: 5, cardRows: true)
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "leaderboards.\(bandType.rawValue)") {
                     Task { await loadBand(bandType, rankBy: metric) }
@@ -404,7 +405,7 @@ struct LeaderboardsScreen: View {
                 } else {
                     VStack(spacing: 6) {
                         ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: metric, bandType: bandType, glassSurface: true)
+                            BandRankingRow(entry: entry, metric: metric, bandType: bandType, cardSurface: true)
                                 .macKeyboardRow("\(bandType.rawValue)|\(entry.teamKey)")
                         }
                     }
@@ -439,14 +440,14 @@ struct LeaderboardsScreen: View {
     }
 
     /// The card's last row, "View all rankings (868,901)" (web `viewAllButton`), as a
-    /// purple glass button below the top ten (and below the selected player's
+    /// purple button below the top ten (and below the selected player's
     /// spotlight row when they are outside it).
     ///
     /// - Parameters:
     ///   - route: Full board to push.
     ///   - title: Label including the ranked count when known.
     ///   - id: Existing per-card `…view-all` identifier.
-    /// - Returns: A full-width glass navigation row.
+    /// - Returns: A full-width purple navigation row.
     private func viewAllLink(_ route: AppRoute, title: String, id: String) -> some View {
         NavigationLink(value: route) {
             PurpleActionLabel(title: title)
@@ -551,7 +552,7 @@ struct LeaderboardsScreen: View {
 
 // MARK: - Card message surface
 
-/// Glass row for a card's non-row states (failure, empty, unranked), so they sit on
+/// Card row for a card's non-row states (failure, empty, unranked), so they sit on
 /// the same surface as the rows they replace.
 private struct CardMessageSurface: ViewModifier {
     func body(content: Content) -> some View {
@@ -559,7 +560,7 @@ private struct CardMessageSurface: ViewModifier {
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .festivalGlass(.card, cornerRadius: 12)
+            .festivalCard(cornerRadius: 12)
     }
 }
 

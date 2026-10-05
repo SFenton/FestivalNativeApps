@@ -109,7 +109,7 @@ private func hostedCard(
         ForEach(entries) { entry in
             AccountRankingRow(
                 entry: entry, metric: .totalscore,
-                isSelected: entry.accountId == selectedAccount, glassSurface: true
+                isSelected: entry.accountId == selectedAccount, cardSurface: true
             )
         }
     }

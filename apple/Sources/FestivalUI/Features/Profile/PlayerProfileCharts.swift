@@ -14,7 +14,7 @@ import FestivalDesign
 // - Percentiles: the web's percentile table (`PlayerPercentileTable.swift`); the Duo
 //   carousel alone draws the same "Top N%" bands as a bar chart.
 //
-// Both are glass cards following the instrument's own stats card (never nested
+// Both are material cards following the instrument's own stats card (never nested
 // glass), each registers a depth-1 Quick Link under its instrument, exposes an
 // `AXChartDescriptor`, and animates only when Reduce Motion (system or the app's
 // own override) is off. Data comes only from pure reads: the compact profile
@@ -380,6 +380,11 @@ struct RankHistoryCharts: View {
             )
             .foregroundStyle(Self.barColor(point).opacity(0.8))
             .cornerRadius(4)
+            // One VoiceOver element per snapshot: without these, Swift Charts names each
+            // bar by its plotted index range ("0 to 1") and reads the line and point marks
+            // again (measured in the Mac accessibility tree, Lane A11Y2).
+            .accessibilityLabel(point.label)
+            .accessibilityValue(Self.accessibilityValue(point))
             LineMark(
                 x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank)),
@@ -388,12 +393,14 @@ struct RankHistoryCharts: View {
             .foregroundStyle(Self.rankLineColor)
             .lineStyle(StrokeStyle(lineWidth: 2))
             .interpolationMethod(.monotone)
+            .accessibilityHidden(true)
             PointMark(
                 x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank))
             )
             .foregroundStyle(Self.rankLineColor)
             .symbolSize(30)
+            .accessibilityHidden(true)
         }
         .chartYScale(domain: 0 ... scale.valueTop)
         .chartXScale(domain: Double(range.lowerBound) - 0.5 ... Double(max(range.lowerBound + 1, range.upperBound)) - 0.5)
@@ -558,6 +565,15 @@ struct RankHistoryCharts: View {
         .disabled(!enabled)
         .accessibilityLabel(label)
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).\(id)")
+    }
+
+    /// VoiceOver value for one snapshot's bar: its rank (of N) and Total Score.
+    ///
+    /// - Parameter point: One plotted snapshot.
+    /// - Returns: For example "Rank 4 of 506, total score 89,400,000".
+    static func accessibilityValue(_ point: Point) -> String {
+        let field = point.rankedAccountCount.map { " of \($0.formatted())" } ?? ""
+        return "Rank \(point.rank.formatted())\(field), total score \(Int(point.value).formatted())"
     }
 
     /// Show the window whose oldest visible snapshot is `index`.

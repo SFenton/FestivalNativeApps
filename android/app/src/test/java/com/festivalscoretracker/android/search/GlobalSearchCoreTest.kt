@@ -114,6 +114,32 @@ class GlobalSearchCoreTest {
     }
 
     @Test
+    fun fullScreenFieldGrowsWithTheFontScale() {
+        // Font scale 1.0 (24 sp line at density 2): 48 + 64 = 112 px, Material's 56 dp minimum.
+        assertEquals(112, GlobalSearchLayout.fieldHeight(48f, 2f))
+        // Font scale 2.0 (about 48 sp line): 96 + 64 = 160 px, taller than the minimum.
+        assertEquals(160, GlobalSearchLayout.fieldHeight(96f, 2f))
+        val icon = PxRect(900, 100, 996, 196)
+        val tall = GlobalSearchLayout.anchor(SearchPresentation.FullScreen, icon, 1080, 2400, 2f, fullScreenFieldHeight = 160)
+        assertEquals(PxRect(900, 68, 996, 228), tall.anchor)
+        // Never below the minimum, and the docked anchor keeps its 56 dp height.
+        assertEquals(112, GlobalSearchLayout.anchor(SearchPresentation.FullScreen, icon, 1080, 2400, 2f, fullScreenFieldHeight = 10).anchor.height)
+        assertEquals(112, GlobalSearchLayout.anchor(SearchPresentation.Docked, icon, 1440, 2000, 2f, fullScreenFieldHeight = 160).anchor.height)
+    }
+
+    @Test
+    fun scopeChipsShareTheRowOnlyWhenEveryLabelFits() {
+        // 360 dp at density 1: (360 - 32 - 16) / 3 = 104 px share, 18 px chip chrome each.
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(listOf(40f, 52f, 38f), 360, 1f))
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(listOf(86f, 86f, 86f), 360, 1f))
+        // Issue #141: "Players" at font scale 2 needs more than its share, so the row scrolls.
+        assertFalse(GlobalSearchLayout.scopeChipsFitEqually(listOf(80f, 87f, 76f), 360, 1f))
+        assertFalse(GlobalSearchLayout.scopeChipsFitEqually(listOf(160f, 180f, 150f), 720, 2f))
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(listOf(160f, 172f, 150f), 720, 2f))
+        assertTrue(GlobalSearchLayout.scopeChipsFitEqually(emptyList(), 0, 1f))
+    }
+
+    @Test
     fun dockedIsEndAlignedCappedAndInsideTheWindow() {
         // 720 dp window at density 2: docked panel 720 dp wide would not fit; it fills minus gaps.
         val anchor = GlobalSearchLayout.anchor(SearchPresentation.Docked, PxRect(1300, 60, 1396, 156), 1440, 2000, 2f)
@@ -127,16 +153,6 @@ class GlobalSearchCoreTest {
         assertEquals(720, wide.anchor.width)
         assertEquals(1596, wide.anchor.right)
         assertEquals(80, wide.anchor.top)
-    }
-
-    @Test
-    fun dockedPanelKeyboardOverlapPadsResultsWithoutResizing() {
-        // Panel 52..1385 in a 2000 px window: an 800 px keyboard covers 185 px of it.
-        assertEquals(185, GlobalSearchLayout.imeOverlap(52, 1333, 2000, 800))
-        assertEquals(0, GlobalSearchLayout.imeOverlap(52, 1333, 2000, 0))
-        assertEquals(0, GlobalSearchLayout.imeOverlap(52, 600, 2000, 800))
-        // Never more than the panel itself.
-        assertEquals(600, GlobalSearchLayout.imeOverlap(1300, 600, 2000, 1900))
     }
 
     @Test

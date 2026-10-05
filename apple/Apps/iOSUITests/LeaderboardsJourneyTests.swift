@@ -149,10 +149,10 @@ final class LeaderboardsJourneyTests: XCTestCase {
     }
 
     /// Gap #9/#10 (Lane PB): the Lead card's footer carries the ranked total, and it
-    /// opens Full Rankings with the floating glass pager (single fixture page, so
-    /// every step is disabled) and the instrument pill, whose menu switches boards.
+    /// opens Full Rankings with the shared pinned pager (single fixture page, so
+    /// every step is disabled) and the toolbar instrument menu, which switches boards.
     @MainActor
-    func testViewAllCountOpensFloatingPagerAndInstrumentSwitch() throws {
+    func testViewAllCountOpensSharedPagerAndInstrumentSwitch() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()

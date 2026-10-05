@@ -7,7 +7,8 @@ namespace Festival.App.Controls;
 #region Carousel dialog
 /// <summary>
 /// First-run carousel presented in the shared <see cref="FestivalDialog"/> (a modal onboarding sequence; TeachingTip is
-/// for single anchored tips). Primary = Next/Done before Secondary = Back, then the standard Close (issue #23); a
+/// for single anchored tips). Primary = Next/Done before Secondary = Back, then the standard Close (issue #23); Back is
+/// disabled, not hidden, on slide 1 so ContentDialog's command columns never shift under the pointer (issue #241); a
 /// one-slide guide shows only a full-width Done (operator batch 6.7: no Skip, no disabled Back). Done, Close, Esc and a
 /// click outside the dialog all close it and mark only
 /// the slides actually viewed as seen. The FlipView's hover arrows are hidden (the buttons and pips page it).
@@ -27,13 +28,72 @@ public sealed partial class FirstRunCarousel : UserControl
         };
         Loaded += (_, _) =>
         {
+            carousel.PropertyChanged -= announce;
             carousel.PropertyChanged += announce;
             HideFlipViewArrows();
+            FitSlidesHeight();
             // Containers realize after load; activate the first slide's demo once they exist.
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateActiveDemo);
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                UpdateActiveDemo();
+                // The pips already use system colour pairs under a contrast theme (issue #232); WinUI's automatic text
+                // backplate otherwise boxes the selected glyph inside its Highlight fill (issue #239).
+                DialogChrome.WithoutBackplate(Pips);
+            });
         };
-        Unloaded += (_, _) => carousel.PropertyChanged -= announce;
+        // WinUI can raise a late Unloaded while the content is still in the live tree; keep slide announcements then.
+        Unloaded += (_, _) =>
+        {
+            if (!IsLoaded) carousel.PropertyChanged -= announce;
+        };
     }
+
+    #region Text-scale fit
+    /// <summary>Design height of the slide pane at 100% text (illustration, spacing, title and description).</summary>
+    private const double DesignSlidesHeight = 370;
+
+    /// <summary>Height of the demo/illustration area in the item template.</summary>
+    private const double IllustrationHeight = 210;
+
+    /// <summary>Item template StackPanel spacing.</summary>
+    private const double ItemSpacing = 12;
+
+    /// <summary>Item text width: the 440 content width less the template's 4 + 4 horizontal padding.</summary>
+    private const double TextWidth = 432;
+
+    /// <summary>
+    /// Grows the FlipView (a fixed-height control: it cannot size to its items) to the tallest slide's title and
+    /// description at the current text scale, so text scaling up to 200% never clips copy (issue #232). Sized once for
+    /// the whole set so the dialog does not jump while paging; the ContentDialog's own scroller covers short windows.
+    /// </summary>
+    private void FitSlidesHeight()
+    {
+        var subtitle = (Style)Application.Current.Resources["SubtitleTextBlockStyle"];
+        var tallest = 0d;
+        foreach (var slide in Carousel.Slides)
+        {
+            var text = Measure(new TextBlock { Text = slide.Title, Style = subtitle, TextWrapping = TextWrapping.Wrap })
+                + ItemSpacing
+                + Measure(new TextBlock { Text = slide.Description, TextWrapping = TextWrapping.Wrap });
+            tallest = Math.Max(tallest, text);
+        }
+        Slides.Height = SlidesHeight(tallest);
+    }
+
+    /// <summary>FlipView height for the tallest slide text.</summary>
+    /// <param name="tallestText">Tallest measured title + spacing + description height.</param>
+    /// <returns>At least <see cref="DesignSlidesHeight"/>.</returns>
+    internal static double SlidesHeight(double tallestText) => Math.Max(DesignSlidesHeight, Math.Ceiling(IllustrationHeight + ItemSpacing + tallestText));
+
+    /// <summary>Desired height of an off-tree text block at the item text width.</summary>
+    /// <param name="block">Text block.</param>
+    /// <returns>Height in effective pixels.</returns>
+    private static double Measure(TextBlock block)
+    {
+        block.Measure(new Windows.Foundation.Size(TextWidth, double.PositiveInfinity));
+        return block.DesiredSize.Height;
+    }
+    #endregion
 
     /// <summary>
     /// Hides the FlipView's previous/next hover arrows (operator batch 6.7): FlipView toggles their visibility from code on
@@ -101,7 +161,7 @@ public sealed partial class FirstRunCarousel : UserControl
             "fst.first-run.dialog",
             closeText: carousel.CloseLabel,
             primaryText: carousel.NextLabel,
-            secondaryText: carousel.IsSingle ? "" : "Back",
+            secondaryText: carousel.BackLabel,
             defaultButton: ContentDialogButton.Primary);
         dialog.IsSecondaryButtonEnabled = !carousel.IsFirst;
         PropertyChangedEventHandler sync = (_, e) =>

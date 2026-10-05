@@ -134,7 +134,8 @@
     },
     "sizes": [
       "medium",
-      "wide"
+      "wide",
+      "maximized"
     ],
     "ready": [
       "waitfor:id=fst.shop.list@20",
@@ -171,6 +172,27 @@
       "toggle:id=fst.shop.filter.available",
       "collapse:id=fst.shop.filter",
       "waitfor:id=fst.shop.filter.empty-reset@5"
+    ]
+  },
+  {
+    "name": "shop-filter-applied",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.count@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.filter",
+      "key:enter",
+      "assertfocus:id=fst.shop.filter.new@5",
+      "key:tab",
+      "key:tab",
+      "assertfocus:id=fst.shop.filter.leaving@3",
+      "key:space",
+      "assertstate:id=fst.shop.filter.leaving|toggle=on@3",
+      "key:esc",
+      "waitgone:id=fst.shop.filter.reset@5",
+      "assertstatus:id=fst.shop.filter|Filters applied@5"
     ]
   },
   {
@@ -547,6 +569,44 @@
     "first_run": "force",
     "ready": [
       "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "first-run-back",
+    "tab": "songs",
+    "first_run": "force",
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "invoke:id=PrimaryButton",
+      "wait:1",
+      "assertstate:id=SecondaryButton|enabled=true",
+      "assertstate:id=PrimaryButton|name=Next"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "first-run-done",
+    "tab": "songs",
+    "first_run": "force",
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:1",
+      "assertstate:id=PrimaryButton|name=Done",
+      "assertstate:id=SecondaryButton|enabled=true"
     ],
     "tabs": 12
   },

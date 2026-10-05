@@ -20,13 +20,10 @@
         <Grid Visibility="{x:Bind Spotlight.ShowFailed, Mode=OneWay, FallbackValue=Collapsed}">
             <Border x:Name="FailedBackplate" CornerRadius="12" IsHitTestVisible="False" Visibility="Collapsed"
                     Background="{ThemeResource FSTFloatingBackplateBrush}" />
-            <StackPanel Spacing="6" Padding="12,8" CornerRadius="12" BorderThickness="1"
-                        Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-                        AutomationProperties.AutomationId="fst.service-status.inline">
-                <TextBlock Text="{x:Bind Spotlight.Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <TextBlock Text="{x:Bind Spotlight.Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                <Button x:Name="Retry" Content="{x:Bind Spotlight.Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Spotlight.Status.RetryCommand, Mode=OneWay}" />
-            </StackPanel>
+            <Border Padding="12,8" CornerRadius="12" BorderThickness="1"
+                    Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                <controls:ServiceStatusInline x:Name="Failed" Status="{x:Bind Spotlight.Status, Mode=OneWay}" />
+            </Border>
         </Grid>
         <!-- Board rows are separate frosted rows (operator batch 7.7), so the unranked note sits on the same surface. -->
         <Grid Visibility="{x:Bind Spotlight.ShowUnranked, Mode=OneWay, FallbackValue=Collapsed}">

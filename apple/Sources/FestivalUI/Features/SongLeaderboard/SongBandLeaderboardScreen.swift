@@ -53,7 +53,7 @@ struct SongBandLeaderboardScreen: View {
             case let .loaded(payload):
                 VStack(spacing: 0) {
                     // The same band card as the Song Detail previews (web `PlayerBandCard`
-                    // on both pages, issue #90), each row its own glass card. A
+                    // on both pages, issue #90), each row its own material card. A
                     // `ScrollView`, not a `List`: the cards are `NavigationLink`s, and a
                     // `List` would draw a second disclosure chevron outside each card.
                     ScrollView {

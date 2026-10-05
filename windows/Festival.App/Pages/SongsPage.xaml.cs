@@ -80,6 +80,15 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
     private int pendingPin = -1;
 
+    /// <summary>Section the pinned bar names while the list is shown; the open index focuses its letter.</summary>
+    private int stickySection;
+
+    /// <summary>How the open index focuses its letter: with a focus rectangle unless a pointer opened it.</summary>
+    private FocusState letterFocus = FocusState.Keyboard;
+
+    /// <summary>A <see cref="GridViewItem"/>'s default right margin, which each index slot includes.</summary>
+    private const double JumpItemGap = 4;
+
     /// <summary>Creates the page.</summary>
     public SongsPage()
     {
@@ -100,8 +109,10 @@ public sealed partial class SongsPage : Page, IPageBack
         SizeChanged += OnSizeChanged;
         SongList.SelectionChanged += OnSongSelectionChanged;
         SongList.SizeChanged += OnListSizeChanged;
-        Zoom.PreviewKeyDown += OnZoomKeyDown;
+        // Page-wide, so Escape also closes the index while focus is back on the Jump button or the toolbar (issue #231).
+        PreviewKeyDown += OnZoomKeyDown;
         Zoom.ViewChangeCompleted += OnZoomViewChangeCompleted;
+        Zoom.ViewChangeStarted += (_, _) => SizeJumpCells();
         edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
         Loaded += (_, _) => AttachEdgeFadeSettings();
         Unloaded += (_, _) => DetachEdgeFadeSettings();
@@ -194,6 +205,7 @@ public sealed partial class SongsPage : Page, IPageBack
         var next = TitleAt(section + 1);
         var push = SongSectionHeader.Push(section, stickyLabels.Length, own?.Top, next?.Top, StickyBar.ActualHeight,
             SongHeaderEdgeFade.Depth);
+        if (Zoom.IsZoomedInViewActive) stickySection = push.Current;
         var incoming = push.Incoming < 0 ? null : push.Incoming == section ? own : next;
         ShowStickyHeader(push.Current >= 0 ? stickyLabels[push.Current] : "", incoming);
     }
@@ -393,7 +405,11 @@ public sealed partial class SongsPage : Page, IPageBack
             ShowStickyHeader(group.Label);
             if (GroupedSongs.Source is IList<SongGroup> groups) pendingPin = groups.IndexOf(group);
         }
-        else UpdateStickyHeader();
+        else
+        {
+            UpdateStickyHeader();
+            if (!Zoom.IsZoomedInViewActive) FocusCurrentLetter();
+        }
         void Settle(object? _, object __)
         {
             SongList.LayoutUpdated -= Settle;
@@ -746,7 +762,7 @@ public sealed partial class SongsPage : Page, IPageBack
         ViewModel.SubmitSearchCommand.Execute(null);
 
     /// <summary>Escape closes the jump index back to the list (gap 5b), like the web's Quick Links sheet.</summary>
-    /// <param name="sender">Semantic zoom.</param>
+    /// <param name="sender">Page.</param>
     /// <param name="e">Key.</param>
     private void OnZoomKeyDown(object sender, KeyRoutedEventArgs e)
     {
@@ -788,7 +804,48 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="e">Unused.</param>
     private void OnJumpClick(object sender, RoutedEventArgs e)
     {
+        letterFocus = JumpButton.FocusState == FocusState.Pointer ? FocusState.Programmatic : FocusState.Keyboard;
         if (Zoom.CanChangeViews) Zoom.IsZoomedInViewActive = false;
+    }
+
+    /// <summary>
+    /// Moves focus from the Jump button into the open index, onto the letter of the section at the top of the list, so
+    /// Narrator announces where the list is and arrows/Enter work at once (issue #231; the index's value names the
+    /// topmost section when idle, per the control spec).
+    /// </summary>
+    private void FocusCurrentLetter()
+    {
+        var count = JumpIndex.Items.Count;
+        if (count == 0) return;
+        var index = Math.Clamp(stickySection, 0, count - 1);
+        JumpIndex.ScrollIntoView(JumpIndex.Items[index]);
+        JumpIndex.UpdateLayout();
+        if (JumpIndex.ContainerFromIndex(index) is Control letter) letter.Focus(letterFocus);
+        letterFocus = FocusState.Keyboard;
+    }
+
+    /// <summary>Sizes the index's cells once its panel exists (the zoomed-out view loads on first open).</summary>
+    /// <param name="sender">Wrap grid.</param>
+    /// <param name="e">Unused.</param>
+    private void OnJumpPanelLoaded(object sender, RoutedEventArgs e) => SizeJumpCells();
+
+    /// <summary>
+    /// Gives every index cell the widest label's width (<see cref="SongSectionHeader.JumpCellWidth"/>), so bucket labels
+    /// such as "Leaving Tomorrow" are not trimmed to the first label's width (issue #231). Labels are measured with the
+    /// item style, so text scaling is included.
+    /// </summary>
+    private void SizeJumpCells()
+    {
+        if (JumpIndex.ItemsPanelRoot is not ItemsWrapGrid panel) return;
+        var style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"];
+        var widths = stickyLabels.Select(label =>
+        {
+            var probe = new TextBlock { Style = style, Text = label };
+            probe.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            return probe.DesiredSize.Width;
+        });
+        var available = (Zoom.ActualWidth > 0 ? Zoom.ActualWidth : ActualWidth) - JumpItemGap;
+        panel.ItemWidth = SongSectionHeader.JumpCellWidth(widths, available) + JumpItemGap;
     }
     #endregion
 
@@ -837,63 +894,8 @@ public sealed partial class SongsPage : Page, IPageBack
     /// </summary>
     private void UpdateButtonTints()
     {
-        MarkApplied(SortButton, ViewModel.IsSortChanged);
-        MarkApplied(FilterButton, ViewModel.IsFilterActive);
-        AutomationProperties.SetItemStatus(FilterButton, ViewModel.FilterStatus);
-    }
-
-    /// <summary>
-    /// Gold text by default. Under a contrast theme gold resolves to WindowText (invisible), so an applied button takes
-    /// the system Highlight / HighlightText pair, like a checked toggle, and its icon/label drop the automatic
-    /// Window-colored text backplate that would otherwise cover the Highlight fill.
-    /// </summary>
-    /// <param name="button">Sort or Filter button.</param>
-    /// <param name="applied">Whether a non-default choice is applied.</param>
-    private static void MarkApplied(ContentControl button, bool applied)
-    {
-        button.ClearValue(ForegroundProperty);
-        button.ClearValue(BackgroundProperty);
-        var highlighted = applied && ContrastTheme.IsOn;
-        if (button.Content is Panel content)
-        {
-            foreach (var child in content.Children)
-                child.HighContrastAdjustment = highlighted ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
-        }
-        if (FindNamed(button, "ChevronIcon") is IconElement chevron)
-        {
-            chevron.ClearValue(IconElement.ForegroundProperty);
-            if (highlighted) chevron.Foreground = Brush("SystemColorHighlightTextColorBrush");
-        }
-        if (!applied) return;
-        if (highlighted)
-        {
-            button.Background = Brush("SystemColorHighlightColorBrush");
-            button.Foreground = Brush("SystemColorHighlightTextColorBrush");
-        }
-        else
-        {
-            button.Foreground = Brush("FSTEmphasisBrush");
-        }
-    }
-
-    /// <summary>Looks up an app brush.</summary>
-    /// <param name="key">Resource key.</param>
-    /// <returns>Brush.</returns>
-    private static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
-
-    /// <summary>Finds a named template part (e.g. the DropDownButton <c>ChevronIcon</c>) below an element.</summary>
-    /// <param name="root">Element whose visual tree is searched.</param>
-    /// <param name="name">Template part name.</param>
-    /// <returns>The part, or <see langword="null"/> before the template applies.</returns>
-    private static FrameworkElement? FindNamed(DependencyObject root, string name)
-    {
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is FrameworkElement { Name: var childName } element && childName == name) return element;
-            if (FindNamed(child, name) is { } found) return found;
-        }
-        return null;
+        AppliedButtonState.Apply(SortButton, ViewModel.IsSortChanged);
+        AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
     }
     #endregion
 

@@ -194,6 +194,6 @@ private struct FirstRunRivalsDetailCard: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .festivalGlass(.card, cornerRadius: 12)
+        .festivalCard(cornerRadius: 12)
     }
 }

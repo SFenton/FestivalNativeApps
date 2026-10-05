@@ -131,7 +131,7 @@ struct FirstRunStatsPercentilesDemo: View {
                 Divider().overlay(BrandTokens.borderSubtle)
             }
         }
-        .festivalGlass(.card, cornerRadius: 12)
+        .festivalCard(cornerRadius: 12)
         .accessibilityHidden(true)
     }
 }
@@ -165,7 +165,7 @@ struct FirstRunStatsTopSongsDemo: View {
                             .foregroundStyle(BrandTokens.gold)
                     }
                     .padding(10)
-                    .festivalGlass(.card, cornerRadius: 12)
+                    .festivalCard(cornerRadius: 12)
                     .firstRunStagger(index)
                     .firstRunSwapRow(index, key: song.id)
                 }

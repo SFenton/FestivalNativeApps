@@ -309,6 +309,9 @@ struct SongDetailScreen: View {
                     .marqueeSync()
                 }
                 .accessibilityElement(children: .combine)
+                // The page's h1 (spec "Accessibility order"): the rotor's first heading.
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("fst.song-detail.hero-title")
                 .festivalFadeIn(isLoaded: true, index: 0)
 
                 if !hideShop, let error = session.shopError
@@ -340,7 +343,7 @@ struct SongDetailScreen: View {
                         }
                     }
                     .padding(14)
-                    .festivalGlass(.card, cornerRadius: 16)
+                    .festivalCard(cornerRadius: 16)
                 }
                 .accessibilityIdentifier("fst.song-detail.intensity")
                 .festivalFadeIn(isLoaded: true, index: 1)

@@ -7,7 +7,7 @@ import FestivalDesign
 /// `/suggestions` — score-driven song suggestions for the selected player, ported from the
 /// web `SuggestionsPage` (solo mode only; band suggestions are out of scope for this wave).
 ///
-/// One glass card per generated category (`SuggestionCategoryCardView`), loaded a page at a
+/// One material card per generated category (`SuggestionCategoryCardView`), loaded a page at a
 /// time as the player scrolls near the bottom (web "virtualized incremental loads"), with a
 /// toolbar filter sheet for instrument/category toggles.
 struct SuggestionsScreen: View {

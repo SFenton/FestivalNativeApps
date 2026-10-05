@@ -163,7 +163,7 @@ struct CompeteInstrumentLeaderboardSection: View {
     }
 
     /// The one leaderboard design (operator batch 7.4): no card around the rows; each
-    /// row its own glass card (the player's purple), then the shared purple "View Full
+    /// row its own material card (the player's purple), then the shared purple "View Full
     /// Leaderboard" button (batch 7.6).
     private var card: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -176,24 +176,24 @@ struct CompeteInstrumentLeaderboardSection: View {
                 FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) leaderboard")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 26)
-                    .festivalGlass(.card, cornerRadius: 12)
+                    .festivalCard(cornerRadius: 12)
                     .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).loading")
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "compete.\(instrument.rawValue)") { Task { await load() } }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .festivalGlass(.card, cornerRadius: 12)
+                    .festivalCard(cornerRadius: 12)
             case let .loaded(payload) where payload.rankings.entries.isEmpty:
                 FestivalFootnote("No ranked \(instrument.label) players yet.")
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .festivalGlass(.card, cornerRadius: 12)
+                    .festivalCard(cornerRadius: 12)
             case let .loaded(payload):
                 VStack(spacing: 6) {
                     ForEach(payload.rankings.entries) { entry in
                         AccountRankingRow(
                             entry: entry, metric: .totalscore,
-                            isSelected: isSelected(entry.accountId), glassSurface: true
+                            isSelected: isSelected(entry.accountId), cardSurface: true
                         )
                     }
                 }

@@ -2,42 +2,47 @@ import Foundation
 import SwiftUI
 import FestivalDesign
 
-// MARK: - Song row card
+// MARK: - Material card
 
-/// The Song row's card surface: a standard material tuned to look like the tinted
-/// Liquid Glass card it replaced, at a fraction of the main-thread cost.
+/// The shared card surface: a standard material tuned to look like the tinted Liquid
+/// Glass card it replaced, at a fraction of the main-thread cost.
 ///
-/// Every Songs row built while scrolling paid for a live `glassEffect` (glass
-/// container resolution, shape metrics and material state per row): about 30% of a
-/// row's main-thread build time on iPad and iPhone. HIG Materials: "Don't use Liquid
-/// Glass in the content layer. Use standard materials for content-layer elements",
-/// and a Song row is content. The card is `ultraThinMaterial` (one backdrop blur per
-/// row, composited by the render server) under a flat tint and a 1 pt rim, all as
-/// plain `background(_:in:)`/`overlay` modifiers: the same layers in a nested
-/// `ViewBuilder` background cost nearly as much as the glass did. The tint and rim
-/// per platform were fitted against captures of the old glass card over the same
-/// backdrops (`.agents/design/apple/liquid-glass.md` § Song row card).
+/// Every content card (Song rows, section cards, Song Detail and Leaderboards cards,
+/// First Run demos) and every non-system floating control (A–Z scrubber, rankings
+/// pager and switcher pill, Paths pickers) draws on it (issue #291). Every Songs row
+/// built while scrolling paid for a live `glassEffect` (glass container resolution,
+/// shape metrics and material state per row): about 30% of a row's main-thread build
+/// time on iPad and iPhone. HIG Materials: "Don't use Liquid Glass in the content
+/// layer. Use standard materials for content-layer elements", and "Use Liquid Glass
+/// effects sparingly on custom controls". The card is `ultraThinMaterial` (one
+/// backdrop blur per card, composited by the render server) under a flat tint and a
+/// 1 pt rim, all as plain `background(_:in:)`/`overlay` modifiers: the same layers in
+/// a nested `ViewBuilder` background cost nearly as much as the glass did. The tint
+/// and rim per platform were fitted against captures of the old glass card over the
+/// same backdrops (`.agents/design/apple/liquid-glass.md` § Material card).
 ///
 /// Accessibility overrides are unchanged from ``FestivalGlassRole/card``: system
 /// Reduce Transparency and the in-app Reduce Transparency and Increase Contrast
 /// toggles draw the opaque `cardBackground` + `borderSubtle` card. Before iOS/macOS
-/// 26 the row keeps the frosted fallback every glass card uses.
-struct FestivalRowCardModifier: ViewModifier {
-    let cornerRadius: CGFloat
+/// 26 the card keeps the frosted fallback every glass card used.
+struct FestivalCardModifier<S: InsettableShape>: ViewModifier {
+    let shape: S
+    /// The Liquid Glass role the Debug A/B switch draws instead (``RowCardComparison``).
+    let comparisonRole: FestivalGlassRole
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
 
-    /// Draw the opaque, material or frosted card behind the row content.
+    /// Draw the opaque, material or frosted card behind the content.
     ///
-    /// - Parameter content: Row content, already padded.
-    /// - Returns: Content on the card surface, shaped as a continuous rounded rectangle.
+    /// - Parameter content: Card content, already padded.
+    /// - Returns: Content on the card surface, clipped to `shape`.
     @ViewBuilder
     func body(content: Content) -> some View {
         #if DEBUG
         if RowCardComparison.enabled && RowCardComparison.shared.showsGlass {
-            content.festivalGlass(.card, cornerRadius: cornerRadius)
+            content.modifier(FestivalGlassModifier(role: comparisonRole, shape: shape, interactive: false))
         } else {
             surface(content)
         }
@@ -48,11 +53,10 @@ struct FestivalRowCardModifier: ViewModifier {
 
     /// The shipping surface for the current accessibility settings and OS.
     ///
-    /// - Parameter content: Row content.
+    /// - Parameter content: Card content.
     /// - Returns: Content on the opaque, material or pre-26 frosted card.
     @ViewBuilder
     private func surface(_ content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if reduceTransparency || lessTransparency || moreContrast {
             content.background(BrandTokens.cardBackground, in: shape)
                 .overlay(shape.stroke(BrandTokens.borderSubtle, lineWidth: 1))
@@ -72,7 +76,7 @@ struct FestivalRowCardModifier: ViewModifier {
 
 // MARK: - Tuned colours
 
-/// Tint and rim of the material row card, fitted per platform to the Liquid Glass
+/// Tint and rim of the material card, fitted per platform to the Liquid Glass
 /// card (`Glass.regular.tint(cardBackground.opacity(0.35))`) it replaced.
 enum RowCardStyle {
     #if os(macOS)
@@ -108,34 +112,58 @@ enum RowCardStyle {
 }
 
 extension View {
-    /// Render this view on the shared Song row card (Songs and the Item Shop list).
+    /// Render this view on the shared material card (every content card).
+    ///
+    /// - Parameter cornerRadius: Continuous corner radius of the card.
+    /// - Returns: The decorated view.
+    func festivalCard(cornerRadius: CGFloat = 16) -> some View {
+        modifier(FestivalCardModifier(
+            shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+            comparisonRole: .card
+        ))
+    }
+
+    /// Render this view on a capsule of the shared material card: custom floating
+    /// controls and pills (scrubber, pager, switcher pill, pickers).
+    ///
+    /// The surface does not react to touch: wrap the control in a `Button`/`Menu`
+    /// whose style shows the pressed state (e.g. `.plain`, ``HighContrastPagerStyle``).
+    ///
+    /// - Returns: The decorated view.
+    func festivalCardCapsule() -> some View {
+        modifier(FestivalCardModifier(shape: Capsule(), comparisonRole: .control))
+    }
+
+    /// Render this view on the shared Song row card (Songs and the Item Shop list):
+    /// ``festivalCard(cornerRadius:)`` with the row's 12 pt default.
     ///
     /// - Parameter cornerRadius: Continuous corner radius of the card.
     /// - Returns: The decorated view.
     func festivalRowCard(cornerRadius: CGFloat = 12) -> some View {
-        modifier(FestivalRowCardModifier(cornerRadius: cornerRadius))
+        festivalCard(cornerRadius: cornerRadius)
     }
 }
 
 // MARK: - Debug A/B
 
 #if DEBUG
-/// Debug-only A/B switch for tuning the row card against the Liquid Glass card
-/// over an identical backdrop.
+/// Debug-only A/B switch for tuning and measuring the material card against the
+/// Liquid Glass card over an identical backdrop.
 ///
-/// With `FST_DEBUG_ROW_CARD_AB=<path>`, rows draw the old glass card while that
-/// file contains `glass` and the shipping card otherwise; the file is polled every
+/// With `FST_DEBUG_ROW_CARD_AB=<path>`, every ``FestivalCardModifier`` surface draws
+/// the old glass card (``FestivalGlassRole/card`` for cards, ``FestivalGlassRole/control``
+/// for capsules) while that file contains `glass` and the shipping card otherwise; the file is polled every
 /// 0.3 s, so a capture script can flip it between two window captures
 /// (`FST_DEBUG_STILL_BACKGROUND=1` keeps the backdrop still).
 @MainActor @Observable
 final class RowCardComparison {
     /// The switch file, when the override is set.
     nonisolated static let path = ProcessInfo.processInfo.environment["FST_DEBUG_ROW_CARD_AB"]
-    /// Whether any comparison is active (rows never touch ``shared`` otherwise).
+    /// Whether any comparison is active (cards never touch ``shared`` otherwise).
     nonisolated static let enabled = path != nil
     /// The process-wide switch.
     static let shared = RowCardComparison()
-    /// Whether rows currently draw the Liquid Glass card.
+    /// Whether cards currently draw the Liquid Glass card.
     private(set) var showsGlass = false
 
     private init() {

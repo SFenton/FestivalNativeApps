@@ -399,6 +399,30 @@ public class ShopViewModelTests
     }
 
     [Fact]
+    public async Task Filter_ReportsAppliedStatusForNarrator()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service, () => SongsWire.Shop(SongsWire.Offer("a", "Alpha", isNew: true), SongsWire.Offer("b", "Bravo")));
+        var vm = new ShopViewModel(service.Session());
+        await vm.LoadAsync();
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.Equal("", vm.FilterStatus);
+
+        vm.FilterRows[0].IsOn = true;
+        Assert.Equal("Filters applied", vm.FilterStatus);
+        Assert.Contains(nameof(ShopViewModel.FilterStatus), changed);
+
+        // Re-setting the same filter is a no-op (no extra notifications); Reset clears the status.
+        changed.Clear();
+        vm.FilterRows[0].IsOn = true;
+        Assert.DoesNotContain(nameof(ShopViewModel.FilterStatus), changed);
+        vm.ResetFilterCommand.Execute(null);
+        Assert.Equal("", vm.FilterStatus);
+        Assert.Contains(nameof(ShopViewModel.FilterStatus), changed);
+    }
+
+    [Fact]
     public void ShopOfferFilter_MatchesAnySelectedGroup()
     {
         ShopSong Offer(bool isNew, bool leaving) => new() { SongId = "x", IsNew = isNew, LeavingTomorrow = leaving };

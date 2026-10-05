@@ -1,9 +1,9 @@
 import SwiftUI
 import FestivalDesign
 
-// MARK: - Glass section
+// MARK: - Section card
 
-/// A titled group of rows on one Festival glass card — the native form of the web's
+/// A titled group of rows on one Festival material card (``View/festivalCard(cornerRadius:)``) — the native form of the web's
 /// `SectionHeader` + `FrostedCard` pair (Settings, Profile, Statistics cards).
 ///
 /// The header sits **outside** the card (white, Title Case) like the web; rows inside
@@ -20,7 +20,7 @@ public struct FestivalGlassSection<Content: View>: View {
     private let subtitle: String?
     private let content: Content
 
-    /// Create a glass section.
+    /// Create a section card.
     ///
     /// - Parameters:
     ///   - title: Title Case header, or nil for an untitled card.
@@ -42,7 +42,7 @@ public struct FestivalGlassSection<Content: View>: View {
             }
             rows
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .festivalGlass(.card, cornerRadius: 22)
+                .festivalCard(cornerRadius: 22)
         }
     }
 
@@ -72,7 +72,7 @@ public struct FestivalGlassSection<Content: View>: View {
     }
 }
 
-/// Standard row insets and minimum hit height inside a glass section: 44 pt on touch
+/// Standard row insets and minimum hit height inside a section card: 44 pt on touch
 /// platforms, the Mac's 28 pt default control size (HIG Accessibility › Mobility) so
 /// pointer-driven forms stay dense.
 struct FestivalRowPadding: ViewModifier {
@@ -92,7 +92,7 @@ struct FestivalRowPadding: ViewModifier {
 
 // MARK: - Supporting text
 
-/// Muted footnote row used for explanations inside a glass section.
+/// Muted footnote row used for explanations inside a section card.
 public struct FestivalFootnote: View {
     private let text: String
 

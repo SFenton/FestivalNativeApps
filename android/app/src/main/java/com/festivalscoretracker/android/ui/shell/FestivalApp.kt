@@ -381,7 +381,10 @@ private fun FestivalShell(
     // Live bounds of the one search entry in the window. Structural equality means an
     // unchanged layout report is a no-op; a fold, rotation or resize re-anchors an open surface.
     var requester by remember { mutableStateOf<PxRect?>(null) }
-    val anchor = remember(presentation, requester, windowSize, verticalHinge, horizontalHinge, fallbackRequester) {
+    // The field's bodyLarge line at the current font scale (Material's InputField text style).
+    val fieldLineHeight = MaterialTheme.typography.bodyLarge.lineHeight
+    val fullScreenFieldHeight = with(density) { GlobalSearchLayout.fieldHeight(fieldLineHeight.toPx(), this.density) }
+    val anchor = remember(presentation, requester, windowSize, verticalHinge, horizontalHinge, fallbackRequester, fullScreenFieldHeight) {
         GlobalSearchLayout.anchor(
             presentation = presentation,
             requester = requester ?: fallbackRequester,
@@ -390,6 +393,7 @@ private fun FestivalShell(
             density = density.density,
             verticalHinge = verticalHinge?.pxRect(),
             horizontalHinge = horizontalHinge?.pxRect(),
+            fullScreenFieldHeight = fullScreenFieldHeight,
         )
     }
     val openSearch: (PxRect?) -> Unit = { rect ->
@@ -683,6 +687,7 @@ private fun FestivalShell(
         )
     }
     val firstRunActive by container.firstRun.active.collectAsStateWithLifecycle()
+    val firstRunSettled by container.firstRun.launchSettled.collectAsStateWithLifecycle()
     val whatsNewShown by container.whatsNew.shown.collectAsStateWithLifecycle()
     val firstRunDemoSongs = remember(container) {
         FirstRunDemoSongsSource({ container.api.catalog() }, container.shop.state, container.api.publicationChanges, container.api::artworkUrl)
@@ -693,13 +698,15 @@ private fun FestivalShell(
         settings = settings,
         compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
         blocked = showProfile || showNotifications || whatsNewShown != null,
+        destinationResolved = stack.lastOrNull() != null,
         demoSongs = firstRunDemoSongs,
     )
-    // After the launch page's carousel (web order); Settings replays it.
+    // After the launch page's carousel (web order), never on a timer race with it; Settings replays it.
+    // A separating hinge leaves compact panels: the sheet keeps to one side, a centred dialog would cross it.
     WhatsNewHost(
         controller = container.whatsNew,
-        blocked = showProfile || showNotifications || firstRunActive != null,
-        compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
+        blocked = showProfile || showNotifications || firstRunActive != null || !firstRunSettled,
+        compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp) || verticalHinge != null || horizontalHinge != null,
     )
 }
 

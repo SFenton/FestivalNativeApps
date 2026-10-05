@@ -476,6 +476,7 @@ public class FirstRunTests
         Assert.Equal("Done", carousel.NextLabel);
         Assert.Equal("Slide 2 of 2", carousel.PositionText);
         Assert.True(carousel.PreviousCommand.CanExecute(null));
+        Assert.Equal("Back", carousel.BackLabel);
         Assert.Contains(nameof(FirstRunCarouselViewModel.PositionText), changes);
         Assert.Contains(nameof(FirstRunCarouselViewModel.PositionAnnouncement), changes);
         Assert.Equal($"{carousel.Current.Title}, slide 2 of 2", carousel.PositionAnnouncement);
@@ -502,7 +503,8 @@ public class FirstRunTests
         Assert.True(single.IsSingle);
         // Done is the lone full-width button; no separate Close (issue #23).
         Assert.Equal("", single.CloseLabel);
-        Assert.True(ModalCommands.SpansFullWidth(single.NextLabel, "", single.CloseLabel));
+        Assert.Equal("", single.BackLabel);
+        Assert.True(ModalCommands.SpansFullWidth(single.NextLabel, single.BackLabel, single.CloseLabel));
         Assert.True(single.IsLast);
         Assert.True(single.Next());
         Assert.Single(center.Store.Load());
@@ -510,7 +512,10 @@ public class FirstRunTests
         // Closing (Close, Esc or a click outside) on the first of two slides marks only that slide.
         var replay = center.BeginReplay(FirstRunPageKey.PlayerHistory)!;
         Assert.Equal(ModalCommands.Close, replay.CloseLabel);
-        Assert.Equal(3, ModalCommands.Count(replay.NextLabel, "Back", replay.CloseLabel));
+        // Back stays in its column, disabled, on slide one (issue #241): the three commands never re-lay out.
+        Assert.Equal("Back", replay.BackLabel);
+        Assert.False(replay.PreviousCommand.CanExecute(null));
+        Assert.Equal(3, ModalCommands.Count(replay.NextLabel, replay.BackLabel, replay.CloseLabel));
         replay.Complete();
         Assert.True(center.Store.Load().ContainsKey("playerhistory-score-list"));
         Assert.False(center.Store.Load().ContainsKey(replay.Slides[1].Id));

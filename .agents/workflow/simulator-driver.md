@@ -55,17 +55,23 @@ Defined in `apple/Apps/iOSUITests/DriverTests.swift` (`DriverStep.parse`):
 | `hold:<id-or-label>` | Long-press an app element 1.2 s (context menus, e.g. **Open in New Window**) |
 | `closeWindow` | iPad: close the front app window (controls › Close; resizes a full-width window first so the controls show). iPadOS reconnects every open window at the next launch, so close any window a script opened; closing the last visible window ends the app process |
 | `key:<[cmd+][shift+][alt+][ctrl+]key>` | Hardware-keyboard press: `key:cmd+2`, `key:shift+cmd+p`, `key:tab`, `key:down`, `key:return`, `key:escape`, `key:space` |
+| `host:<command>` | The host (`ios_sim.py`) runs a command while the app keeps running, and the step waits for it: `host:pose folded\|unfolded\|half\|rotate-left\|rotate-right` (Duo, Device Hub), `host:capture outer\|inner\|auto <abs path>` (one Duo panel via `simctl io`), `host:menu Device/Keyboard/Toggle Software Keyboard` (a Device Hub menu command), `host:control Capture Keyboard` (a Device Hub window control by exact description; Toggle Software Keyboard is disabled until Capture Keyboard is on). Handshake: `<n>.request`/`<n>.done` files in `FST_DRIVER_HOST_DIR` (`HostBridge` in `DriverTests.swift` and `ios_sim.py`). Use for fold/unfold continuity: the app is never relaunched |
 
 A `tree:` dump early in a script is the standard way to find an unknown identifier: run `drive` with just `wait:1; tree:/tmp/x.txt`, `grep` the file for `identifier:`, then script the real steps.
 
 ## Duo poses and panels
 
-Xcode 27.1 has no `simctl`/XCTest fold or rotation for iPhone Duo (`rotate:` leaves the outer window portrait). The only controls are Device Hub's on-screen pose buttons, which `ios_sim.py` drives by **UI scripting** (operator decision, 2026-09-28): `osascript -l JavaScript` + System Events presses the button, then the lit-panel check verifies the result ([platforms/apple/duo.md](../platforms/apple/duo.md#simulator-alias-duo)).
+Xcode 27.1 has no `simctl`/XCTest fold or rotation for iPhone Duo (`rotate:` leaves the outer window portrait). The only controls are Device Hub's on-screen pose buttons (Xcode 27.1: **Rotate Right**, **Closed**, **Book**, **Open** under the device; no Rotate Left), which `ios_sim.py` drives by **UI scripting** (operator decision, 2026-09-28): the Accessibility API presses the button, then the lit-panel check verifies the result ([platforms/apple/duo.md](../platforms/apple/duo.md#simulator-alias-duo)). System Events cannot do it on macOS 27 (it reports every DeviceHub process with unix id 0 and no windows), so the presses go through `tools/device_hub_ax.swift`, compiled on first use to `apple/DerivedData/sim-tool/device_hub_ax` and addressed by pid.
+
+**Opening Device Hub.** Every pose/menu command first looks for a Device Hub window titled `iPhone Duo (FST) – …` that shows the pose buttons (visible standard windows first; a minimized one is restored). Without one it launches Xcode if needed, chooses **Xcode › Open Developer Tool › Device Hub**, waits for the window, and otherwise opens **File › New Window** in the frontmost DeviceHub process and selects the device's sidebar row (`TableRow.Device.<UDID>`). Windows showing other projects' devices (`iPhone Duo (HASS)`, HA probes) are never reused or closed, and Xcode documents are never touched. Each wait times out after 45 s with a message naming the step (exit 5).
 
 ```
 python3 tools/ios_sim.py pose                               # prints folded | unfolded | unknown (lit panel)
 python3 tools/ios_sim.py pose --set unfolded                # folded | unfolded | half | rotate-left | rotate-right
-python3 tools/ios_sim.py pose --list-controls               # Device Hub accessibility tree (calibration)
+python3 tools/ios_sim.py pose --list-controls               # device window controls + Device Hub menus (calibration)
+python3 tools/ios_sim.py pose --menu "Device/Keyboard/Toggle Software Keyboard"
+python3 tools/ios_sim.py drive --device duo --pose folded --set-pose --timeout 400 \
+    --steps "wait:5; host:pose unfolded; wait:3; host:capture inner /tmp/inner.png; host:pose folded"
 python3 tools/ios_sim.py shot --device duo --pose half --set-pose --display auto --out /tmp/half.png
 python3 tools/ios_sim.py shot --device duo --pose folded --set-pose --rotate right --out /tmp/rot.png
 python3 tools/ios_sim.py drive --device duo --pose unfolded --steps "wait:3; shot:/tmp/inner.png"
@@ -74,21 +80,23 @@ python3 tools/ios_sim.py shutdown --device duo              # leave the Duo off 
 ```
 
 - `--pose folded|unfolded|half` (`shot`, `drive`): checked right after boot inside the lock. `half` (partially open) runs on the inner panel, so it verifies like `unfolded`. A mismatch exits **3** with instructions; `--set-pose` presses the Device Hub control first (same lock hold, so another lane's shutdown cannot reset the pose in between).
-- `--rotate left|right` (`shot`, repeatable): rotates through Device Hub after the pose check; verified by an unchanged pose plus a changed lit-panel image.
-- `pose --set …`: same actions standalone. Exit codes: 3 pose not reached, 4 no permission, 5 no matching Device Hub control (run `--list-controls` and adjust `_POSE_KEYWORDS` in `tools/ios_sim.py`; the keywords are uncalibrated guesses until the first run with permission).
+- `--rotate left|right` (`shot`, repeatable): rotates through Device Hub after the pose check (left = three Rotate Right presses); each press waits for an unchanged pose plus a changed lit-panel image, and only warns when the panel never changes (an orientation the app or system does not use, such as upside down).
+- `pose --set …`: same actions standalone. Exit codes: 3 pose not reached, 4 no permission, 5 no matching Device Hub control or a Device Hub step timed out (run `--list-controls` and adjust `_POSE_KEYWORDS` in `tools/ios_sim.py`; calibrated 2026-10-04).
+- Tab buttons on Duo: tap them by symbol identifier, which differs by bar: the vertical bar (folded, inner landscape) reports `trophy.fill`, `chart.bar.fill`, `person.2.fill`; the inner-portrait horizontal bar reports `trophy`, `chart.bar`, `person.2`. `tapText:<title>` can hit a zero-size duplicate and fail. `FST_DEBUG_TAB` cannot open a regular-set tab (Leaderboards, Rivals, Statistics): the launch resolves against the compact set before the first layout.
+- Give `drive` a longer `--timeout` (e.g. 400) when it has `host:pose` steps: each pose change takes 5–15 s.
 - `--display outer|inner|auto` (`shot`; `drive` with `--record`): which panel is captured or recorded (`primary` / `primary-1`); `auto` is the lit one (`shot` only).
 - `--record <file.mp4>` (`shot`, `drive`): `simctl io recordVideo` for the run. `shot:` steps run only after XCUITest sees the app idle, so they never show push/pop or toolbar transitions; a recording does.
 - Every command boots through `boot_exclusive`, which shuts down other FST devices first. A pose does not survive the Duo being shut down (it boots closed), so set it in the same command as the capture.
 
 ### Accessibility permission (UI scripting)
 
-The scripting needs the macOS **Accessibility** permission for the *responsible* process (the app that started the agent or terminal, not `python3`/`osascript`), plus a one-time **Automation → System Events** approval. Without it every scripting command exits **4** before taking the simulator lock and prints the exact app, found with `responsibility_get_pid_responsible_for_pid`:
+The scripting needs the macOS **Accessibility** permission for the *responsible* process (the app that started the agent or terminal, not `python3` or the helper; granted to the Claude Code helper 2026-10-04). The helper uses the Accessibility API directly, so no Automation → System Events approval is needed. Without it every scripting command exits **4** before taking the simulator lock and prints the exact app, found with `responsibility_get_pid_responsible_for_pid`:
 
 ```
 System Settings > Privacy & Security > Accessibility > "+" > <that .app> > switch on
 ```
 
-Quit and reopen that app, then re-run and click OK on the "wants to control System Events" prompt. For Claude Code sessions launched by the Claude desktop app the responsible app is `~/Library/Application Support/Claude/claude-code/<version>/claude.app`. **Agents never change privacy settings**: no `tccutil`, no TCC database edits, no clicking the prompt for the operator.
+Quit and reopen that app, then re-run. For Claude Code sessions launched by the Claude desktop app the responsible app is `~/Library/Application Support/Claude/claude-code/<version>/claude.app`. **Agents never change privacy settings**: no `tccutil`, no TCC database edits, no clicking the prompt for the operator.
 
 ## Examples
 
