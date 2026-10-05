@@ -170,6 +170,14 @@ class SongDetailAndShopTest {
         assertFalse(ShopOfferFilter(available = true).matches(both))
     }
 
+    @Test
+    fun shopOfferFilterDescribesItsStateForTalkBack() {
+        assertEquals("No filters", ShopOfferFilter().stateDescription)
+        assertEquals("Filters on: Leaving Tomorrow", ShopOfferFilter(leavingTomorrow = true).stateDescription)
+        assertEquals("Filters on: New, Available", ShopOfferFilter(new = true, available = true).stateDescription)
+        assertEquals("Filters on: New, Available, Leaving Tomorrow", ShopOfferFilter(true, true, true).stateDescription)
+    }
+
     // endregion
 
     // region Paths
