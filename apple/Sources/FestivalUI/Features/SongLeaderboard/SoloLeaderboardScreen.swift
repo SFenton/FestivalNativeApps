@@ -26,8 +26,6 @@ struct SoloLeaderboardScreen: View {
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
     /// The last loaded page: keeps the pager's page count and the footer's columns
     /// while the next page loads, so neither disappears (issue #93).
     @State private var shownPayload: LeaderboardPayload?
@@ -393,22 +391,21 @@ struct SoloLeaderboardScreen: View {
             // Same row design and columns as the list rows (operator batch 7.3). Off
             // this page, tapping jumps to the player's page; on it, opens Statistics.
             Group {
-                switch SelectedRowAction.footer(rank: rank, isVisible: isVisible, pageSize: 25) {
+                let action = SelectedRowAction.footer(rank: rank, isVisible: isVisible, pageSize: 25)
+                switch action {
                 case .openProfile:
                     NavigationLink(value: AppRoute.statistics) {
                         footerRow(entry)
                     }
-                    .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)).")
-                    .accessibilityHint("Opens your statistics")
+                    .accessibilityLabel(action.footerLabel(for: .player, rank: rank))
+                    .accessibilityIdentifier("fst.song-leaderboard.spotlight-open")
                 case let .jump(destination):
                     Button {
                         move(to: destination, focusSelected: true)
                     } label: {
                         footerRow(entry)
                     }
-                    .accessibilityLabel(
-                        "Your rank, \(RankingFormatting.ordinal(rank)). Jump to your position."
-                    )
+                    .accessibilityLabel(action.footerLabel(for: .player, rank: rank))
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
@@ -445,29 +442,10 @@ struct SoloLeaderboardScreen: View {
         )
     }
 
-    /// The player's footer row, drawn exactly like a list row.
+    /// The player's footer row, drawn exactly like a list row (shared with the band
+    /// board's footer, ``SelectedScoreFooterRow``).
     private func footerRow(_ entry: LeaderboardEntry) -> some View {
-        HStack(spacing: 8) {
-            SongLeaderboardEntryRow(
-                entry: entry, isPlayer: true, currentSeason: session.catalogCurrentSeason
-            )
-            Image(systemName: "chevron.forward")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(FestivalText.deemphasized)
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, 14)
-        .frame(minHeight: LeaderboardRowMetrics.minHeight)
-        .modifier(RankingRowSurface(isSelected: true))
-        // The footer floats over artwork with no band behind it (issue #93): with
-        // Reduce Transparency or Increase Contrast its translucent purple gets an
-        // opaque backing, as the pager's plates already have.
-        .background {
-            if reduceTransparency || contrast == .increased {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(BrandTokens.appBackground)
-            }
-        }
+        SelectedScoreFooterRow(entry: entry, currentSeason: session.catalogCurrentSeason)
     }
 
     /// Send a row to the shared Statistics tab when it is the selected player,

@@ -328,17 +328,6 @@ enum SongBandRowNavigation {
             rank: entry.rank, isVisible: pageEntries.contains(where: focus.matches), pageSize: pageSize
         )
     }
-
-    /// Spoken hint for the full board's selected-band footer.
-    ///
-    /// - Parameter action: The footer's action.
-    /// - Returns: The destination the footer names.
-    static func footerHint(for action: SelectedRowAction) -> String {
-        switch action {
-        case .jump: "Jumps to your band's position"
-        case .openProfile: "Opens band"
-        }
-    }
 }
 
 // MARK: - Accuracy badge

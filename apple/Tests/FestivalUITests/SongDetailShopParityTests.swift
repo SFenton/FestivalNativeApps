@@ -313,10 +313,11 @@ private func playerScore(rank: Int?, score: Int = 500) throws -> PlayerScore {
     // open the band once its row is on screen.
     let offPage = SongBandRowNavigation.footerAction(for: mine, pageEntries: [other])
     #expect(offPage == .jump(page: 3))
-    #expect(SongBandRowNavigation.footerHint(for: offPage) == "Jumps to your band's position")
+    #expect(offPage.footerLabel(for: .band, rank: 57)
+        == "Your band's rank, 57th. Jump to your band's position.")
     let onPage = SongBandRowNavigation.footerAction(for: mine, pageEntries: [other, mine])
     #expect(onPage == .openProfile)
-    #expect(SongBandRowNavigation.footerHint(for: onPage) == "Opens band")
+    #expect(onPage.footerLabel(for: .band, rank: 57) == "Your band's rank, 57th. Open band.")
     // Without a usable rank the appended row falls back to the Band page.
     #expect(SongBandRowNavigation.previewRoute(
         for: try band("mine", rank: 0), song: song, bandType: .duets, isAppended: true
