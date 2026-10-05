@@ -177,7 +177,7 @@ struct PlayerStatTileView: View {
                     Text(tile.value)
                         .font(.title3.bold())
                         .monospacedDigit()
-                        .foregroundStyle(tile.tint ?? BrandTokens.accentBlue)
+                        .foregroundStyle(tile.tint ?? AccentText.blue)
                         // One line, shrinking to fit; at accessibility sizes the value may
                         // also wrap ("2 (66.6%)" truncated to "2 (66…" in an iPad tile at
                         // AX5: HIG Typography "Keep text truncation to a minimum").
