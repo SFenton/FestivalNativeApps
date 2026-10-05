@@ -549,6 +549,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let known = frame.width > frame.height && frame.width >= 800
             duoSplitPossible = known
             IPadAuditRenderedContrast.interfaceIsLandscape = frame.width > frame.height
+            IPadAuditRenderedContrast.windowSize = frame.size
             return known
         default: return false
         }
