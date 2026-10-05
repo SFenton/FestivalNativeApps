@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.festivalscoretracker.android.core.nav.DialogHinge
+import com.festivalscoretracker.android.core.nav.HingeSide
 import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -296,7 +297,7 @@ fun FestivalModalDialog(
  * @return The [DialogHinge] area, or null.
  */
 @Composable
-private fun dialogHingeArea(): DialogHinge.Area? {
+private fun dialogHingeArea(): HingeSide.Rect? {
     val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return null
     val root = LocalView.current.rootView
@@ -306,7 +307,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
     val x = origin[0].toFloat()
     val y = origin[1].toFloat()
     val safe = WindowInsets.safeDrawing
-    val safeArea = DialogHinge.Area(
+    val safeArea = HingeSide.Rect(
         left = x + safe.getLeft(density, direction),
         top = y + safe.getTop(density),
         right = x + root.width - safe.getRight(density, direction),
@@ -315,7 +316,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
     val bounds = hinge.bounds
     return DialogHinge.area(
         safe = safeArea,
-        hinge = DialogHinge.Area(x + bounds.left, y + bounds.top, x + bounds.right, y + bounds.bottom),
+        hinge = HingeSide.Rect(x + bounds.left, y + bounds.top, x + bounds.right, y + bounds.bottom),
         vertical = hinge.isVertical,
         separating = true,
         rtl = direction == LayoutDirection.Rtl,
@@ -332,7 +333,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
  */
 @Composable
 private fun HingeSideDialogLayout(
-    area: DialogHinge.Area,
+    area: HingeSide.Rect,
     onDismissRequest: () -> Unit,
     surface: @Composable (Modifier) -> Unit,
 ) {
@@ -347,7 +348,7 @@ private fun HingeSideDialogLayout(
                 detectTapGestures { if (!surfaceBounds.contains(it)) onDismissRequest() }
             },
     ) { measurables, constraints ->
-        val local = DialogHinge.Area(area.left - origin.x, area.top - origin.y, area.right - origin.x, area.bottom - origin.y)
+        val local = HingeSide.Rect(area.left - origin.x, area.top - origin.y, area.right - origin.x, area.bottom - origin.y)
         val placeable = measurables.single().measure(
             Constraints(
                 maxWidth = local.width.roundToInt().coerceIn(0, constraints.maxWidth),

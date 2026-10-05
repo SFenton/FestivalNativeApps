@@ -35,6 +35,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.nav.HingeSide
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
@@ -103,45 +104,29 @@ class ServiceStatusUiTest {
     }
 
     @Test
-    fun hingePaddingKeepsThePageOnTheWiderSide() {
-        assertEquals(0f to 0f, hingeSidePadding(1000f, 1100f, 1120f, preferEnd = false))
-        assertEquals(0f to 0f, hingeSidePadding(1000f, -40f, -10f, preferEnd = false))
-        assertEquals(0f to 0f, hingeSidePadding(0f, 0f, 10f, preferEnd = false))
-        // Hinge right of centre: content stays left of it.
-        assertEquals(0f to 400f, hingeSidePadding(1000f, 600f, 620f, preferEnd = false))
-        // Hinge left of centre: content starts after it.
-        assertEquals(420f to 0f, hingeSidePadding(1000f, 400f, 420f, preferEnd = false))
-        // A centred hinge follows the tie-break.
-        assertEquals(0f to 510f, hingeSidePadding(1000f, 490f, 510f, preferEnd = false))
-        assertEquals(510f to 0f, hingeSidePadding(1000f, 490f, 510f, preferEnd = true))
-        // A hinge overlapping the page's start edge.
-        assertEquals(20f to 0f, hingeSidePadding(1000f, -10f, 20f, preferEnd = false))
-    }
-
-    @Test
     fun tabletopHingeAlwaysKeepsThePageBelowIt() {
         fun side(top: Float, bottom: Float) = serviceStatusHingeSide(800f, 1000f, 0f, top, 800f, bottom, vertical = false, rtl = false)
-        // Centred, larger upper half and larger lower half: always below the hinge (SheetHinge.insets).
-        assertEquals(HingeSide(top = 510f), side(490f, 510f))
-        assertEquals(HingeSide(top = 720f), side(700f, 720f))
-        assertEquals(HingeSide(top = 320f), side(300f, 320f))
+        // Centred, larger upper half and larger lower half: always below the hinge (shared HingeSide rule).
+        assertEquals(HingeSide.Padding(top = 510f), side(490f, 510f))
+        assertEquals(HingeSide.Padding(top = 720f), side(700f, 720f))
+        assertEquals(HingeSide.Padding(top = 320f), side(300f, 320f))
         // A hinge overlapping the page's top edge still pads through its bottom.
-        assertEquals(HingeSide(top = 20f), side(-10f, 20f))
+        assertEquals(HingeSide.Padding(top = 20f), side(-10f, 20f))
         // The page ends inside the hinge: no lower half here, keep the part above.
-        assertEquals(HingeSide(bottom = 20f), side(980f, 1010f))
+        assertEquals(HingeSide.Padding(bottom = 20f), side(980f, 1010f))
         // The hinge misses the page.
-        assertEquals(HingeSide(), side(1000f, 1020f))
-        assertEquals(HingeSide(), side(-40f, 0f))
-        assertEquals(HingeSide(), serviceStatusHingeSide(800f, 0f, 0f, 0f, 800f, 10f, vertical = false, rtl = false))
+        assertEquals(HingeSide.Padding.NONE, side(1000f, 1020f))
+        assertEquals(HingeSide.Padding.NONE, side(-40f, 0f))
+        assertEquals(HingeSide.Padding.NONE, serviceStatusHingeSide(800f, 0f, 0f, 0f, 800f, 10f, vertical = false, rtl = false))
     }
 
     @Test
     fun bookHingeKeepsTheWiderOrLeadingSide() {
         fun side(left: Float, right: Float, rtl: Boolean = false) = serviceStatusHingeSide(1000f, 800f, left, 0f, right, 800f, vertical = true, rtl = rtl)
-        assertEquals(HingeSide(right = 400f), side(600f, 620f))
-        assertEquals(HingeSide(left = 420f), side(400f, 420f))
-        assertEquals(HingeSide(right = 510f), side(490f, 510f))
-        assertEquals(HingeSide(left = 510f), side(490f, 510f, rtl = true))
+        assertEquals(HingeSide.Padding(right = 400f), side(600f, 620f))
+        assertEquals(HingeSide.Padding(left = 420f), side(400f, 420f))
+        assertEquals(HingeSide.Padding(right = 510f), side(490f, 510f))
+        assertEquals(HingeSide.Padding(left = 510f), side(490f, 510f, rtl = true))
     }
 
     // endregion
