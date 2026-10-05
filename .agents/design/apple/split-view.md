@@ -19,13 +19,14 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | Rivals hub, All Rivals | rivals list → Rival Detail (Rivalry pushes inside the trailing pane) |
 | Leaderboards overview | cards → selected player's profile; "View all rankings" pushes Full Rankings full width |
 | Full Rankings, Band Rankings | rankings → player profile / band detail |
-| Song Leaderboard (full instrument board) | rows → player profile |
+| Song Detail | song page → full instrument **Song Leaderboard** or **score history** (operator 2026-10-04) |
 | Settings (iPad/Duo) | settings list → sub-page (Licenses, First Run Guides, Service Info, …); Mac keeps its Settings window panes |
 
 | Never split (full width, push navigation) | Landscape treatment |
 |---|---|
 | Songs | full width; **two-column grid of rows under each section header** in landscape |
-| Song Detail (incl. score history, Paths) | full page; internal multi-column cards where width allows |
+| Song Leaderboard (full instrument board) | full width; tapping a player navigates **directly** to the profile (push, no split; operator 2026-10-04) |
+| Paths | **always a modal sheet** on every platform (self-contained task; operator 2026-10-04) |
 | Item Shop, Suggestions, Statistics/Player profile, Compete, Band Detail, Player Bands, Rivalry | full width; existing adaptive grids |
 | Search, Notifications, What's New, first run, sheets | modal/sheet presentations, unchanged |
 
