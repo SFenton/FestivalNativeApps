@@ -107,8 +107,9 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertFalse(element(app, "fst.shell.drawer.compete").exists, "Compete is the phone slot")
     }
 
-    /// The flyout overlays the content (never resizes it) and closes on Escape and on the
-    /// scrim; a leading-edge swipe opens it.
+    /// The flyout overlays the content (never resizes it) and closes from its Close
+    /// button and the scrim; a leading-edge swipe opens it. (Escape, View › Close, is not
+    /// deliverable to the app from XCUITest on this simulator: split-view.md.)
     @MainActor
     func testFlyoutOverlaysAndDismisses() throws {
         let app = fixtureApp(profile: false)
@@ -118,8 +119,8 @@ final class IPadShellJourneyTests: XCTestCase {
         let before = list.frame
         openFlyout(app)
         XCTAssertEqual(list.frame, before, "the flyout slides over the content without resizing it")
-        app.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
-        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "Escape closes")
+        element(app, "fst.shell.drawer.close").tap()
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "Close closes")
         openFlyout(app)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "the scrim closes")
@@ -166,7 +167,8 @@ final class IPadShellJourneyTests: XCTestCase {
     }
 
     /// Full Rankings starts full width; a row opens the player in the trailing half and
-    /// stays selected; portrait pushes it; landscape lifts it back; Escape closes it.
+    /// stays selected; portrait pushes it; landscape lifts it back; Close returns to full
+    /// width.
     @MainActor
     func testFullRankingsSplitsOnDemand() throws {
         let app = fixtureApp(profile: false)
@@ -189,8 +191,9 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(playerTitle.waitForExistence(timeout: 10), "the chosen player stays open, pushed")
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(trailing.waitForExistence(timeout: 10), "landscape splits again")
-        app.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
-        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Escape closes the trailing half")
+        element(app, "fst.split.close").tap()
+        XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "Close returns to full width")
+        XCTAssertTrue(rows.firstMatch.isHittable, "the list is full width again")
     }
 
     /// Narrowing the window (an exact ½ or ⅓ tile) falls back to the phone tab bar and
@@ -273,13 +276,21 @@ final class IPadShellJourneyTests: XCTestCase {
         let deselect = element(app, "fst.shell.drawer.deselect-profile")
         XCTAssertTrue(deselect.waitForExistence(timeout: 5))
         deselect.tap()
-        let confirm = app.buttons.matching(NSPredicate(format: "label == 'Deselect Profile'")).firstMatch
+        // The dialog's button, not the flyout's own "Deselect Profile" button.
+        let confirm = app.buttons.matching(NSPredicate(
+            format: "label == 'Deselect Profile' AND identifier != 'fst.shell.drawer.deselect-profile'"
+        )).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "confirmation")
         confirm.tap()
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.shell.drawer"), timeout: 5), "the flyout closes")
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 20))
         row.press(forDuration: 1.2)
-        let open = app.buttons["Open in New Window"]
+        // Landscape grid rows carry one menu naming each card ("Open “Fixture Pulse” in
+        // New Window"); a single-card row reads "Open in New Window".
+        let open = app.buttons.matching(NSPredicate(
+            format: "label == 'Open in New Window' OR (label CONTAINS 'New Window' AND label CONTAINS 'Fixture Pulse')"
+        )).firstMatch
         XCTAssertTrue(open.waitForExistence(timeout: 5), "the row offers Open in New Window")
         let cards = XCUIApplication(bundleIdentifier: "com.apple.springboard").descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'card:com.sfenton.festivalscoretracker.native:sceneID:'"))
@@ -287,11 +298,20 @@ final class IPadShellJourneyTests: XCTestCase {
         open.tap()
         let newScene = cards.matching(NSPredicate(format: "identifier != %@", first)).firstMatch
         XCTAssertTrue(newScene.waitForExistence(timeout: 15), "a second window opens")
+        // iPadOS reconnects every open window at the next launch: never leave this one
+        // behind, even when an assertion below fails (it broke the later journeys).
+        var secondWindowOpen = true
+        addTeardownBlock { @MainActor in
+            if secondWindowOpen { _ = WindowResize.closeFrontWindow(app) }
+        }
         XCTAssertTrue(app.navigationBars["Fixture Pulse"].waitForExistence(timeout: 20), "it shows the song")
+        // The song is pushed (no flyout button on it): back to the Songs root first.
+        app.typeKey("[", modifierFlags: .command)
         openFlyout(app)
         XCTAssertFalse(element(app, "fst.shell.drawer.suggestions").exists, "no player in the new window: shared session")
-        app.typeKey(XCUIKeyboardKey.escape.rawValue, modifierFlags: [])
+        element(app, "fst.shell.drawer.close").tap()
         XCTAssertTrue(WindowResize.closeFrontWindow(app), "close the second window")
+        secondWindowOpen = false
     }
 
     // MARK: - Helpers

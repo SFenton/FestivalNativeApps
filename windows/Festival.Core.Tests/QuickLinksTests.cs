@@ -92,6 +92,33 @@ public class QuickLinksTests
         Assert.Equal(492d, QuickLinks.LandingTarget(500, 2000, 8));
         // The binder's re-aiming jump (#46) lands on the same 32 epx line by default.
         Assert.Equal(1268d, QuickLinks.JumpOffset(300, 1000, 5000));
+        // Repeater-realized targets land through BringIntoView on the same line, below (not above) the viewport top (#251).
+        Assert.Equal(QuickLinks.LandingOffset, QuickLinks.BringIntoViewOffset);
+        Assert.True(QuickLinks.BringIntoViewOffset > 0);
+    }
+
+    [Fact]
+    public void LandingTargetClearsChromePinnedAtTheTarget()
+    {
+        // A 55 epx header pins past offset 200: deep sections land 32 epx below it, shallow ones on the plain line.
+        double Pinned(double offset) => offset > 200 ? 55 : 0;
+        Assert.Equal(913d, QuickLinks.LandingTarget(1000, 5000, Pinned));
+        Assert.Equal(118d, QuickLinks.LandingTarget(150, 5000, Pinned));
+        // Lowered under the pin threshold, the section stays lower rather than under the header.
+        Assert.Equal(153d, QuickLinks.LandingTarget(240, 5000, Pinned));
+        Assert.Equal(900d, QuickLinks.LandingTarget(1000, 900, Pinned));
+        Assert.Equal(968d, QuickLinks.LandingTarget(1000, 5000, _ => double.NaN));
+        Assert.Equal(968d, QuickLinks.LandingTarget(1000, 5000, _ => -10));
+    }
+
+    [Fact]
+    public void ObscuredHeightIgnoresMissingAndInvalidChrome()
+    {
+        Assert.Equal(0d, QuickLinks.ObscuredHeight(null, 100));
+        Assert.Equal(0d, QuickLinks.ObscuredHeight(_ => double.PositiveInfinity, 100));
+        Assert.Equal(0d, QuickLinks.ObscuredHeight(_ => -1, 100));
+        Assert.Equal(55d, QuickLinks.ObscuredHeight(o => o > 50 ? 55 : 0, 100));
+        Assert.Equal(0d, QuickLinks.ObscuredHeight(o => o > 50 ? 55 : 0, 10));
     }
 
     [Fact]

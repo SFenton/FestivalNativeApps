@@ -102,6 +102,13 @@ public sealed class QuickLinksBinder
     public Func<string, FrameworkElement?>? Resolve { get; set; }
 
     /// <summary>
+    /// Height of page chrome overlaying the scroller's top at a given scroll offset (Song Detail's pinned song header),
+    /// or <see langword="null"/> for none. Jumps land sections <see cref="QuickLinks.LandingOffset"/> below it and the
+    /// activation line moves down with it, so the highlighted section is the one visible under the chrome (#251).
+    /// </summary>
+    public Func<double, double>? ObscuredTop { get; set; }
+
+    /// <summary>
     /// For a section laid out after a virtualizing repeater, returns the repeater's realized last element to bring into
     /// view first (e.g. the last instrument card before Bands), or <see langword="null"/>. Such a section's position
     /// depends on the repeater's estimated heights, which can swing with text scaling so re-aims chase it in a cycle or
@@ -135,13 +142,14 @@ public sealed class QuickLinksBinder
     {
         if (anchors.Count == 0 || stale) Collect();
         var frames = new Dictionary<string, QuickLinkFrame>();
+        var inset = QuickLinks.ObscuredHeight(ObscuredTop, scroller.VerticalOffset);
         foreach (var (id, element) in anchors)
         {
             if (QuickLinkAnchor.GetId(element) != id || element.Visibility != Visibility.Visible || element.ActualHeight <= 0) continue;
-            var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
+            var top = element.TransformToVisual(scroller).TransformPoint(default).Y - inset;
             frames[id] = new QuickLinkFrame(top, top + element.ActualHeight);
         }
-        model.ReportLayout(frames, scroller.ViewportHeight, isFinal);
+        model.ReportLayout(frames, Math.Max(0, scroller.ViewportHeight - inset), isFinal);
     }
 
     /// <summary>Scrolls a section's top to <see cref="QuickLinks.LandingOffset"/> below the viewport top.</summary>
@@ -160,7 +168,9 @@ public sealed class QuickLinksBinder
             realized.StartBringIntoView(new BringIntoViewOptions
             {
                 VerticalAlignmentRatio = 0,
-                VerticalOffset = -QuickLinks.LandingOffset,
+                // Repeater sections sit deep in the page, below any chrome that pins on scroll; the landing check
+                // re-aims on the exact offset.
+                VerticalOffset = QuickLinks.BringIntoViewOffset + QuickLinks.ObscuredHeight(ObscuredTop, double.MaxValue),
                 // Operator batch 7.15: Quick Links teleport rather than animate the scroll.
                 AnimationDesired = false,
             });
@@ -192,7 +202,10 @@ public sealed class QuickLinksBinder
     private bool Aim(FrameworkElement element)
     {
         var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
-        var target = QuickLinks.JumpOffset(scroller.VerticalOffset, top, scroller.ScrollableHeight, QuickLinks.LandingOffset);
+        var contentTop = scroller.VerticalOffset + top;
+        var target = ObscuredTop is { } obscured
+            ? QuickLinks.LandingTarget(contentTop, scroller.ScrollableHeight, obscured)
+            : QuickLinks.LandingTarget(contentTop, scroller.ScrollableHeight);
         if (QuickLinks.IsLanded(scroller.VerticalOffset, target)) return false;
         return scroller.ChangeView(null, target, null, disableAnimation: true);
     }
