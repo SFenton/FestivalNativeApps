@@ -41,10 +41,16 @@ struct FestivalShellCommands: Equatable {
     var whatsNew: @MainActor () -> Void
     /// Push Licenses on the current destination.
     var licenses: @MainActor () -> Void
+    /// Open the navigation flyout (iPad regular width; nil where none is shown).
+    var showNavigation: (@MainActor () -> Void)? = nil
+    /// Close the open flyout, else the open trailing pane (Escape); nil when neither shows.
+    var closeOverlay: (@MainActor () -> Void)? = nil
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.destinations == rhs.destinations && lhs.visible == rhs.visible && lhs.selected == rhs.selected
             && lhs.canGoBack == rhs.canGoBack && lhs.sheetOpen == rhs.sheetOpen && lhs.hasPlayer == rhs.hasPlayer
+            && (lhs.showNavigation == nil) == (rhs.showNavigation == nil)
+            && (lhs.closeOverlay == nil) == (rhs.closeOverlay == nil)
     }
 
     /// The Go menu's destinations for a shell: the sidebar's full set (web sidebar
@@ -91,7 +97,7 @@ extension FocusedValues {
 /// ``MacCommands`` over the focused window's ``FestivalShellCommands`` and the page
 /// values the Mac already publishes: Edit › Search Festival (⌘F); View › Refresh (⌘R),
 /// Sort…, Filter…, Rank By ▸, Instrument ▸, sidebar; Go › Back (⌘[), destinations (⌘1…⌘9), Search
-/// (⌘K), Quick Links ▸, Next/Previous Section (⌥⌘↓/↑); Song › Paths…, Open in Item
+/// (⌘K), Next/Previous Section (⌥⌘↓/↑); Song › Paths…, Open in Item
 /// Shop; Profile › Select/Switch (⇧⌘P), Deselect, Find Rival…, Notifications; Help.
 /// Unavailable items are disabled, never hidden (HIG The menu bar). iPhone has no menu
 /// bar: nothing is added there, so its own hidden shortcut buttons stay in charge.
@@ -112,7 +118,19 @@ public struct FestivalCommands: Commands {
 
     public var body: some Commands {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            SidebarCommands()
+            // No persistent sidebar on iPad (`split-view.md`): View › Show Navigation
+            // opens the overlay flyout instead of the system sidebar toggle.
+            CommandGroup(before: .toolbar) {
+                Button("Show Navigation") { shell?.showNavigation?() }
+                    .keyboardShortcut("s", modifiers: [.control, .command])
+                    .disabled(blocked || shell?.showNavigation == nil)
+                // Escape closes the flyout or the open trailing pane (split-view.md).
+                // In-view Escape shortcuts never fired on iPad with the menu bar
+                // (live, 2026-10-04), so the window's command carries it.
+                Button("Close") { shell?.closeOverlay?() }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .disabled(shell?.closeOverlay == nil)
+            }
             // HIG The menu bar › iPadOS: "Reserve Settings for opening your app's page in
             // iPadOS Settings; put internal-preferences ... beneath it, in the same group."
             CommandGroup(after: .appSettings) {
@@ -220,32 +238,35 @@ public struct FestivalCommands: Commands {
         }
     }
 
-    /// Go › Quick Links (the front page's sections; the detail column's page wins) and
-    /// Next / Previous Section.
+    /// Go › Next / Previous Section over the front page's Quick Links (the detail page wins).
     @ViewBuilder private var quickLinksCommands: some View {
         let controller = (pageQuickLinks ?? listQuickLinks)?.controller
         let sections = controller?.isAvailable == true ? controller?.sections ?? [] : []
-        let ids = sections.map(\.id)
-        let next = MacQuickLinksCommand.neighbor(of: controller?.activeID, in: ids, offset: 1)
-        let previous = MacQuickLinksCommand.neighbor(of: controller?.activeID, in: ids, offset: -1)
-        Menu("Quick Links") {
-            if sections.isEmpty {
-                Button("No Sections") {}.disabled(true)
-            } else {
-                ForEach(sections) { section in
-                    Toggle(section.title, isOn: Binding(
-                        get: { controller?.activeID == section.id },
-                        set: { _ in controller?.jump(to: section.id) }
-                    ))
-                }
-            }
-        }
-        Button("Next Section") { if let next { controller?.jump(to: next) } }
+        // No per-section submenu: listing the front page's sections (Leaderboards, Song
+        // Detail) left the whole iPadOS menu bar unresponsive in the flyout shell, with
+        // static items or live toggles alike (live A/B, 2026-10-05: ⌘-digits ignored
+        // with the list, fine without). The page's toolbar Quick Links menu lists them;
+        // Next/Previous Section keep keyboard access and resolve the active section
+        // when chosen.
+        Button("Next Section") { jumpQuickLink(controller, offset: 1) }
             .keyboardShortcut(.downArrow, modifiers: [.option, .command])
-            .disabled(next == nil || blocked)
-        Button("Previous Section") { if let previous { controller?.jump(to: previous) } }
+            .disabled(sections.isEmpty || blocked)
+        Button("Previous Section") { jumpQuickLink(controller, offset: -1) }
             .keyboardShortcut(.upArrow, modifiers: [.option, .command])
-            .disabled(previous == nil || blocked)
+            .disabled(sections.isEmpty || blocked)
+    }
+
+    /// Jump to the section before or after the active one (nothing at either end).
+    ///
+    /// - Parameters:
+    ///   - controller: The front page's Quick Links.
+    ///   - offset: +1 for next, −1 for previous.
+    private func jumpQuickLink(_ controller: QuickLinksController?, offset: Int) {
+        guard let controller else { return }
+        let ids = controller.sections.map(\.id)
+        if let target = MacQuickLinksCommand.neighbor(of: controller.activeID, in: ids, offset: offset) {
+            controller.jump(to: target)
+        }
     }
 
     /// A Go-menu destination, ⌘n for the n-th visible one (HIG The menu bar › iPadOS:

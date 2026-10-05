@@ -45,7 +45,7 @@ struct DeviceLayoutPublisher: ViewModifier {
         let widthClass: WidthClass = sizeClass == .regular ? .regular : .compact
         let heightClass: WidthClass = verticalSizeClass == .compact ? .compact : .regular
         #else
-        // macOS has no size classes: each Mac column derives one from its width.
+        // macOS has no size classes: each Mac pane derives one from its width.
         let widthClass: WidthClass = MacLayoutPolicy.widthClass(forWidth: geometry.size.width)
         let heightClass: WidthClass = .regular
         #endif
@@ -54,6 +54,7 @@ struct DeviceLayoutPublisher: ViewModifier {
             safeAreaInsets: geometry.safeAreaInsets,
             verticalBarEdge: verticalBarEdge, hinge: hinge,
             occlusions: geometry.occlusions, divisions: geometry.divisions,
+            hinges: geometry.hinges,
             usesSidebarShell: usesSidebarShell
         )
         #if DEBUG
@@ -91,6 +92,8 @@ struct WindowGeometry: Sendable, Equatable {
     var safeAreaInsets = EdgeInsets()
     var occlusions: [CGRect] = []
     var divisions: [CGRect] = []
+    /// Every division, active or not: the hinge even while the inner display is flat.
+    var hinges: [CGRect] = []
 
     init() {}
 
@@ -105,6 +108,7 @@ struct WindowGeometry: Sendable, Equatable {
         if #available(iOS 27.1, *) {
             occlusions = proxy.reservedRegions(kind: .occlusion).filter(\.isActive).map(\.frame)
             divisions = proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
+            hinges = proxy.reservedRegions(kind: .division, options: [.includeInactive]).map(\.frame)
         }
         #endif
     }

@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FeatureEndpointTest {
@@ -39,7 +40,7 @@ class FeatureEndpointTest {
         assertEquals(7, publication)
         assertEquals(Echo(3), api.decode(Echo.serializer(), body))
         val (bad, _) = api.readPinned(ServiceEndpoint.Feature(listOf("feature", "bad")))
-        assertThrows(FestivalApiException.InvalidResponse::class.java) { api.decode(Echo.serializer(), bad) }
+        assertTrue(runCatching { api.decode(Echo.serializer(), bad) }.exceptionOrNull() is FestivalApiException.InvalidResponse)
         transport.requests.forEach { RequestGate.validateKeyless(it) }
     }
 }

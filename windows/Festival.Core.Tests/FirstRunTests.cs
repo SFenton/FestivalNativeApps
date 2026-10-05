@@ -504,6 +504,7 @@ public class FirstRunTests
         // Done is the lone full-width button; no separate Close (issue #23).
         Assert.Equal("", single.CloseLabel);
         Assert.Equal("", single.BackLabel);
+        Assert.Null(single.CloseAutomationId);
         Assert.True(ModalCommands.SpansFullWidth(single.NextLabel, single.BackLabel, single.CloseLabel));
         Assert.True(single.IsLast);
         Assert.True(single.Next());
@@ -512,6 +513,8 @@ public class FirstRunTests
         // Closing (Close, Esc or a click outside) on the first of two slides marks only that slide.
         var replay = center.BeginReplay(FirstRunPageKey.PlayerHistory)!;
         Assert.Equal(ModalCommands.Close, replay.CloseLabel);
+        // The native Close carries the cross-platform test ID (issue #244).
+        Assert.Equal("fst.first-run.close", replay.CloseAutomationId);
         // Back stays in its column, disabled, on slide one (issue #241): the three commands never re-lay out.
         Assert.Equal("Back", replay.BackLabel);
         Assert.False(replay.PreviousCommand.CanExecute(null));

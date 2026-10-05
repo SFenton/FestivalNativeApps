@@ -157,6 +157,13 @@ struct PlayerStatTileView: View {
     /// - Returns: The value's line limit.
     static func valueLineLimit(_ size: DynamicTypeSize) -> Int { size.isAccessibilitySize ? 2 : 1 }
 
+    /// How far a tile value may shrink to fit: further at accessibility sizes, where a
+    /// two-column grid in a 375 pt window still cut "(66.6%)" at AX5 after wrapping.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: The minimum scale factor.
+    static func valueMinimumScale(_ size: DynamicTypeSize) -> CGFloat { size.isAccessibilitySize ? 0.5 : 0.6 }
+
     private var spokenValue: String {
         if tile.isPlaceholder { return "Loading" }
         return tile.goldStars ? "5 gold stars" : tile.value
@@ -177,13 +184,13 @@ struct PlayerStatTileView: View {
                     Text(tile.value)
                         .font(.title3.bold())
                         .monospacedDigit()
-                        .foregroundStyle(tile.tint ?? BrandTokens.accentBlue)
+                        .foregroundStyle(tile.tint ?? AccentText.blue)
                         // One line, shrinking to fit; at accessibility sizes the value may
                         // also wrap ("2 (66.6%)" truncated to "2 (66…" in an iPad tile at
                         // AX5: HIG Typography "Keep text truncation to a minimum").
                         .lineLimit(Self.valueLineLimit(dynamicTypeSize))
                         .multilineTextAlignment(.center)
-                        .minimumScaleFactor(0.6)
+                        .minimumScaleFactor(Self.valueMinimumScale(dynamicTypeSize))
                         .redacted(reason: tile.isPlaceholder ? .placeholder : [])
                 }
             }

@@ -99,6 +99,42 @@ Phone portrait also checked Leaderboards (`rank-history`, then instruments) and 
 - Tests: `quicklinks/QuickLinksPageSweepUiTest` (Robolectric, 15 cases) scrolls each real page through the fixture service, records its section anchors top to bottom, and asserts that the open menu lists the same ids in the same order. It covers the compact sheet (411 dp) and the menu (1280 dp). Pages: Song Detail with history (`score-history` second), without a player, and with a player but no history for the song (no `score-history`); Compete; Leaderboards; Band Detail; the Rivals hub (song and leaderboard tabs); Rival Detail; Rivalry. Together with `QuickLinksPageOrderUiTest` (Settings, profile) this covers every Quick Links page. Inverting `showHistory` in `SongDetailLayout.quickLinks` fails all 4 Song Detail cases, and reversing `RivalQuickLinks.compete()` fails both Compete cases. Wide Compete opens through `CompeteRoute`, because the permanent drawer has no Compete destination. Close the menu by tapping an item, not Back: Back also pops a pushed page. `QuickLinksDeviceTest` (ATF checks, TalkBack order, animator scale 0, 2.0 targets) passes on FST_Phone and FST_Tablet.
 - M3 (material-3 skill: `layout-and-responsive`, `component-catalog`, `typography-and-shape`): a modal bottom sheet at compact width and an anchored menu for medium and expanded windows, 48 dp rows, menu items with leading icons. There are no new deviations; the #137 list stands.
 
+## Validation (issue #159)
+
+Re-check of the #51 landing fix on the live public service (player `SFentonX`). Each configuration jumped on Settings, Leaderboards, Compete and Statistics. Each landing was measured from the `uiautomator` tree as the section's top relative to `fst.nav.content`, then the entry label was read. **Every section lands fully visible below the bar, and the entry names the landed section, so no app change was needed.**
+
+| Configuration | Pages | Finding |
+|---|---|---|
+| FST_Phone portrait, dark 1.0 / light 2.0 | Settings, Leaderboards, Compete, Statistics | All land at 32 dp. At 2.0 titles wrap without clipping |
+| FST_Phone landscape, dark 1.0 / light 2.0 | Settings, Leaderboards, Statistics | 32 dp. Band and Top Songs targets need a scroll inside the menu first |
+| FST_Tablet landscape dark 1.0, portrait light 2.0 | All four / Settings, Statistics | 32 dp |
+| FST_Resizable phone / tablet / desktop | Settings, Leaderboards | 32 dp. On desktop the Duos card is in the last grid row, so the list stops at its end (324 dp); Duos is still the current entry |
+| FST_Book_Fold folded / half-open / unfolded | Settings, Statistics | 32 dp. Half-open keeps the page in the start pane |
+| FST_Passport_Fold folded / unfolded (dark 1.0, light 2.0) | Settings, Leaderboards | 32 dp |
+| FST_TriFold folded / partial / unfolded | Settings, Compete | 32 dp |
+
+- **Measured offsets:** a title's text node sits below its section top by the heading's own padding:
+
+  | Title | Measured position | Reason |
+  |---|---|---|
+  | `SectionHeader` titles (Top Songs) | 48 dp | 16 dp top padding |
+  | Compete Rivals | 40 dp | 8 dp top padding |
+  | Band Statistics | 40 dp | 8 dp row inset |
+  | Leaderboards Drums | about 38 dp | Centered beside a 32 dp icon |
+  | Duos card | about 34 dp | Inside the card |
+
+  The first section (App Settings, Compete Leaderboards) returns to the page top.
+- **Tests:** `quicklinks/QuickLinksLandingUiTest` (Robolectric) jumps on the real pages and asserts the 32 dp landing:
+  - Settings, profile, Leaderboards, Compete and Band at 411 dp.
+  - Settings and profile at font 2.0.
+  - Settings and Leaderboards in phone landscape.
+  - Settings, profile and Compete at 1280 dp.
+
+  It also asserts that a section scrolled 20 dp below the bar is current and one at 44 dp is not.
+- **Mutations:** setting `LANDING_OFFSET_DP` to 0 (the #51 bug) fails all 12 landing tests, and a zero activation line fails the 3 activation tests. `QuickLinksDeviceTest` passes on FST_Phone.
+- **M3 (material-3 skill):** 64 dp small top app bar, 24–48 dp section spacing, no content across the hinge. Deliberate deviations are unchanged from #137.
+- **Capture note:** Duos member names use `MarqueeText`, so a still can catch them mid-scroll with their starts cut off. That is the marquee, not clipping.
+
 ## Open
 
 - Pages built on non-lazy `Column`s need a lazy list or grid (or another `QuickLinkScroller` that reports item offsets) to use the tracker.

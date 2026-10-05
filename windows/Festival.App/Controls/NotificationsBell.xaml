@@ -60,9 +60,12 @@
         <Grid MinWidth="36" Height="32">
             <FontIcon Glyph="&#xEA8F;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
                       AutomationProperties.AccessibilityView="Raw" />
-            <!-- A fixed 16 epx indicator: scaled text would spill out of it and hide the bell (the count is in the bell's UIA name). -->
-            <InfoBadge Value="{x:Bind Model.UnreadCount, Mode=OneWay}" Visibility="{x:Bind Model.HasUnread, Mode=OneWay}"
+            <!-- A fixed 16 epx indicator: scaled text would spill out of it and hide the bell (the count is in the bell's UIA name).
+                 Its count opts out of the contrast-theme text backplate (OnBadgeLayout): InfoBadge already pairs
+                 HighlightText with Highlight there, and the backplate drew a clipped dark box inside the circle (issue #253). -->
+            <InfoBadge x:Name="UnreadBadge" Value="{x:Bind Model.UnreadCount, Mode=OneWay}" Visibility="{x:Bind Model.HasUnread, Mode=OneWay}"
                        HorizontalAlignment="Right" VerticalAlignment="Top" MaxHeight="16" IsTextScaleFactorEnabled="False"
+                       HighContrastAdjustment="None" Loaded="OnBadgeLayout" SizeChanged="OnBadgeLayout"
                        AutomationProperties.AccessibilityView="Raw" />
         </Grid>
         <Button.Flyout>

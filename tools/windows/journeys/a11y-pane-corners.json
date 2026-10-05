@@ -1,0 +1,32 @@
+[
+  {
+    "name": "pane-closed",
+    "tab": "songs",
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=PART_PaneToggleButton@10", "waitgone:id=LightDismiss@2"]
+  },
+  {
+    "name": "pane-overlay",
+    "tab": "songs",
+    "sizes": ["compact", "medium", "snap-left", "snap-right"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=PART_PaneToggleButton@10", "waitgone:id=LightDismiss@2"],
+    "after_ready": ["invoke:id=PART_PaneToggleButton", "waitfor:id=LightDismiss@5", "waitfor:id=fst.nav.leaderboards@5",
+                    "waitfor:id=fst.nav.settings@5", "assertstate:id=fst.nav.songs|selected=true", "wait:0.5"],
+    "teardown": ["invoke:id=LightDismiss", "waitgone:id=LightDismiss@5"]
+  },
+  {
+    "name": "pane-inline",
+    "tab": "songs",
+    "sizes": ["wide", "maximized"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.nav.leaderboards@10", "waitgone:id=LightDismiss@2"],
+    "after_ready": ["assertstate:id=fst.nav.songs|selected=true"]
+  },
+  {
+    "name": "pane-collapsed",
+    "tab": "songs",
+    "sizes": ["wide", "maximized"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.nav.leaderboards@10"],
+    "after_ready": ["invoke:id=PART_PaneToggleButton", "wait:0.8", "waitgone:id=LightDismiss@2",
+                    "waitfor:id=fst.nav.leaderboards@5", "assertstate:id=fst.nav.songs|selected=true"],
+    "teardown": ["invoke:id=PART_PaneToggleButton", "wait:0.5"]
+  }
+]

@@ -39,7 +39,7 @@ Checked 2026-10 with the winui-design and winui-code-review skills, `leaderboard
 | Keyboard only | Shell → Rank By → Quick Links → for each card, its row group (one Tab stop; arrows move between rows) → View All, in reading order. 20–21 stops at medium with no repeats and nothing off-window. Focus stays visible on every stop. |
 | High Contrast (Desert, Night sky) | System colours: the selected-player row uses Highlight, and text sits on backplates; correct. |
 | Light and dark system theme | Same rendering. This is a deliberate deviation: the app is dark only ([design/windows.md](../../design/windows.md#content-branded-fluent-tokens)). |
-| Text 200% | **Fixed:** at compact, names collapsed to "…"; at medium they disappeared. Columns now scale with the text size, and rows stack (see Layout). The shell's notification badge overflows at 200%; that is a shell issue, out of scope. |
+| Text 200% | **Fixed:** at compact, names collapsed to "…"; at medium they disappeared. Columns now scale with the text size, and rows stack (see Layout). The shell's notification badge no longer overflows at 200% (fixed in #229, rechecked in #253). |
 | Display 100% / 150% | Correct. |
 | Narrator / UIA | Headings per card, and rows named with state ("Your rank, 1st. …", "Rank #1, …"). **Fixed:** View All was named "View All Lead Rankings" while showing "View All Rankings (3)" (WCAG 2.5.3). It is now the visible label then the board ("View All Rankings (3), Lead"). **Fixed:** failed cards exposed an empty countdown text element. |
 | Motion | Rank By swaps the cards through the loading state and back without a layout jump (live frame sequence). |
