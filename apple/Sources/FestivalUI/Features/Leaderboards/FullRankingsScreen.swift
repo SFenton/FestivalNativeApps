@@ -124,10 +124,10 @@ struct FullRankingsScreen: View {
     }
 
     var body: some View {
-        // Read here, not only inside the mask's lazy `GeometryReader`, so measuring the
-        // pinned chrome always rebuilds the mask: otherwise the first page kept an
-        // opaque mask, and rows showed behind the pager, until something else
-        // re-rendered the page (issue #294).
+        // Read here, not only inside the reload gate's content or the mask's lazy
+        // `GeometryReader`, so measuring the pinned chrome always rebuilds the mask:
+        // otherwise the first page kept an opaque mask, and rows showed behind the
+        // pager, until something else re-rendered the page (issues #294, #305).
         let chromeTop = bottomChromeTop
         // Instrument, metric and page changes fade the board out, show the spinner and
         // fade the new page in (web LoadGate, issue #71).
@@ -177,13 +177,14 @@ struct FullRankingsScreen: View {
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
-                .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
                 // Rows fade out over up to 36 pt above the pinned footer and pager and
                 // are not drawn beneath them, exactly like Song Leaderboard (issue #294;
                 // web `useScrollFade`, issue #93). The fade shrinks away as the last row
                 // arrives, so the list ends one row gap above the chrome with no
                 // reserved margin (issue #293).
-                .bottomChromeEdgeFade(chromeTop: chromeTop, distance: bottomFadeDistance, in: Self.pageSpace)
+                .bottomChromeFade(
+                    chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -316,11 +317,7 @@ struct FullRankingsScreen: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat?.self) { proxy in
-            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
-        } action: { top in
-            bottomChromeTop = top
-        }
+        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the player's footer, or

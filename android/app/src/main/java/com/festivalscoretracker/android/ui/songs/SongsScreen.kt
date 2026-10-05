@@ -220,6 +220,9 @@ fun SongsScreen(
             // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
             pinActions = true,
             actionsAboveKeyboard = searchOpen,
+            // TalkBack swipes reach Search, Quick Links, Sort and Filter before the ~700 rows,
+            // not after them (issue #160, as Suggestions #112).
+            actionsReadFirst = true,
             actions = {
                 // Read the state object here, not the captured Boolean: the toolbar re-runs this
                 // lambda only for state reads inside it.

@@ -53,8 +53,8 @@
             "symbol": "ScrollEdgeFade"
           },
           {
-            "path": "apple/Sources/FestivalUI/Design/BottomChromeEdgeFade.swift",
-            "symbol": "BottomChromeEdgeFadeMask"
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "bottomChromeFade"
           }
         ],
         "android": [
@@ -161,7 +161,8 @@
         288,
         297,
         298,
-        301
+        301,
+        305
       ]
     },
     {
@@ -568,6 +569,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
             "symbol": "GlobalSearchEntry"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/TopBarActions.kt",
+            "symbol": "AdaptiveTopBarActions"
           }
         ],
         "windows": [
@@ -623,14 +628,17 @@
         "pages": [
           "songs",
           "shop",
-          "leaderboards"
+          "leaderboards",
+          "suggestions"
         ]
       },
       "supersedes": [],
       "supersededBy": null,
       "issues": [
+        52,
         84,
         92,
+        160,
         300
       ]
     },

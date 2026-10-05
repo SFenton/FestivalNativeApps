@@ -36,10 +36,9 @@ struct SongBandLeaderboardScreen: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
-    /// Space between two band cards.
+    /// Space between two band cards, between the last card and the footer or pager,
+    /// and below the last card in the list (issues #293, #305).
     nonisolated private static let rowGap: CGFloat = 6
-    /// The list's own bottom padding below the last card.
-    nonisolated private static let listBottomPadding: CGFloat = 8
     /// Coordinate space shared by the rows' fade mask and the pinned chrome.
     nonisolated private static let pageSpace = "fst.song-band-leaderboard.page"
 
@@ -73,9 +72,10 @@ struct SongBandLeaderboardScreen: View {
     }
 
     var body: some View {
-        // Read here, not only inside the mask's lazy `GeometryReader`, so measuring the
-        // pinned chrome always rebuilds the mask; otherwise rows stayed drawn behind
-        // the footer and pager (the Full Rankings fix, issue #294).
+        // Read here, not only inside the reload gate's content or the mask's lazy
+        // `GeometryReader`, so measuring the pinned chrome always rebuilds the mask:
+        // otherwise the first page kept an opaque mask, and rows showed behind the
+        // pager, until something else re-rendered the page (issues #294, #305).
         let chromeTop = bottomChromeTop
         // Band size and page changes fade the rows out, show the spinner and fade the
         // new page in (web usePageTransition, issue #71).
@@ -88,37 +88,37 @@ struct SongBandLeaderboardScreen: View {
                     Task { await load() }
                 }
             case let .loaded(payload):
-                VStack(spacing: 0) {
-                    // The same band card as the Song Detail previews (web `PlayerBandCard`
-                    // on both pages, issue #90), each row its own material card. A
-                    // `ScrollView`, not a `List`: the cards are `NavigationLink`s, and a
-                    // `List` would draw a second disclosure chevron outside each card.
-                    ScrollView {
-                        LazyVStack(spacing: Self.rowGap) {
-                            if payload.leaderboard.entries.isEmpty {
-                                Text("No \(bandType.label.lowercased()) scores yet.")
-                                    .foregroundStyle(FestivalText.primary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            ForEach(payload.leaderboard.entries) { entry in
-                                // The selected player's band gets the purple highlight
-                                // (web `isSelected`).
-                                SongBandPreviewRow(
-                                    entry: entry, highlighted: payload.leaderboard.isSelected(entry)
-                                )
-                                .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
-                            }
+                // The same band card as the Song Detail previews (web `PlayerBandCard`
+                // on both pages, issue #90), each row its own material card. A
+                // `ScrollView`, not a `List`: the cards are `NavigationLink`s, and a
+                // `List` would draw a second disclosure chevron outside each card.
+                ScrollView {
+                    LazyVStack(spacing: Self.rowGap) {
+                        if payload.leaderboard.entries.isEmpty {
+                            Text("No \(bandType.label.lowercased()) scores yet.")
+                                .foregroundStyle(FestivalText.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .padding(.bottom, Self.listBottomPadding)
+                        ForEach(payload.leaderboard.entries) { entry in
+                            // The selected player's band gets the purple highlight
+                            // (web `isSelected`).
+                            SongBandPreviewRow(
+                                entry: entry, highlighted: payload.leaderboard.isSelected(entry)
+                            )
+                            .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
+                        }
                     }
-                    .rankingsListRailClearance(layout)
-                    .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
-                    // Rows fade out above the pinned footer and pager and are not drawn
-                    // beneath them, as on the Solo chart (issues #93, #293).
-                    .bottomChromeEdgeFade(chromeTop: chromeTop, distance: bottomFadeDistance, in: Self.pageSpace)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, Self.rowGap)
                 }
+                .rankingsListRailClearance(layout)
+                // Cards fade out above the pinned footer and pager like the solo
+                // board's rows (issues #305, #306): a sibling pager under the scroll
+                // view cut them off with a hard edge.
+                .bottomChromeFade(
+                    chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -154,7 +154,9 @@ struct SongBandLeaderboardScreen: View {
         .festivalPageTool(token: bandType, order: PageToolOrder.primary) {
             bandTypeMenu
         }
-        .onChange(of: bandType) { _, _ in page = 1 }
+        .onChange(of: bandType) { _, _ in
+            page = 1
+        }
         .task(id: requestKey) { await load() }
     }
 
@@ -207,18 +209,14 @@ struct SongBandLeaderboardScreen: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat?.self) { proxy in
-            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
-        } action: { top in
-            bottomChromeTop = top
-        }
+        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last card one gap above the footer (or the pager without
     /// one) and the footer one gap above the pager (issue #293).
     private var chromeSpacing: PinnedChromeSpacing {
         PinnedChromeSpacing.resolve(
-            rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.listBottomPadding), edgePadding: 8,
+            rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
             hasFooter: footerEntry != nil,
             hasPager: chromePayload != nil && !layout.sectionChrome.isVerticalBar
         )

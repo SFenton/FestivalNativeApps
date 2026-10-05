@@ -105,7 +105,7 @@ struct SuggestionsCarouselPane: View {
                     : "Select a player to see personalized suggestions here."
             ) {
                 Button("Choose Profile") { openProfile() }
-                    .buttonStyle(.borderedProminent)
+                    .festivalProminentButton()
                     .accessibilityIdentifier("fst.dual.suggestions.choose-profile")
             }
         } else if source == .itemShop, hideShop {
@@ -200,7 +200,7 @@ struct SuggestionsCarouselPane: View {
                 viewModel.startNewMix()
                 Task { await viewModel.loadMore() }
             }
-            .buttonStyle(.borderedProminent)
+            .festivalProminentButton()
             .accessibilityIdentifier("fst.dual.suggestions.start-new-mix")
         }
         .padding(24)
