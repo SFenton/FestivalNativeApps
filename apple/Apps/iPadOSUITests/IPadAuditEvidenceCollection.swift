@@ -10,8 +10,8 @@ extension IPadAccessibilityAuditTests {
     /// contrast issues on visible elements are measured (``IPadAuditPageEvidence/reading(for:lines:capture:)``);
     /// for issues without an element the page evidence is measured; every element still
     /// to find again is located. Then elements the bars or the screen edge cut are
-    /// scrolled clear and measured. Last, the page is launched at the other end of the
-    /// size range (AX5, or the default size for AX modes) for growth and AX5 read-back.
+    /// scrolled clear and measured. Last, the page is launched again at AX5 (or at the
+    /// default size when the audit ran at AX5) for growth and AX5 read-back.
     ///
     /// - Parameters:
     ///   - findings: The page's findings (updated in place).
@@ -43,7 +43,8 @@ extension IPadAccessibilityAuditTests {
             containers[IPadAuditWaivers.keyboardContainer] = frame
         }
         let content = IPadAuditPageEvidence.contentRect(app)
-        let auditedIsLarge = mode.contentSize?.isAccessibilityCategory ?? false
+        // The comparison launch is AX5 (the claims are about larger sizes), or the default
+        // size when the audit itself ran at AX5.
         let auditedIsAX5 = mode.contentSize == .accessibilityExtraExtraExtraLarge
         let isContrast = { (index: Int) in types[index] == .contrast }
         let isDynamicType = { (index: Int) in types[index] == .dynamicType }
@@ -145,22 +146,33 @@ extension IPadAccessibilityAuditTests {
 
         // 4. The other end of the size range.
         if !heuristic.isEmpty || pageDynamicType || (pageClipped && !auditedIsAX5) {
-            let comparisonSize: UIContentSizeCategory? = auditedIsLarge ? nil : .accessibilityExtraExtraExtraLarge
+            let comparisonSize: UIContentSizeCategory? = auditedIsAX5 ? nil : .accessibilityExtraExtraExtraLarge
             if let other = try reach(page, mode: mode, contentSize: comparisonSize) {
                 defer { other.terminate() }
                 let otherContent = IPadAuditPageEvidence.contentRect(other)
                 let otherShot = IPadAuditRenderedContrast.Capture.screen()
                 write(otherShot, tree: other, name: "\(name)-compare")
                 let growth = { (audited: CGFloat, compared: CGFloat) -> Double in
-                    ((auditedIsLarge ? audited / compared : compared / audited) * 100).rounded() / 100
+                    ((auditedIsAX5 ? audited / compared : compared / audited) * 100).rounded() / 100
+                }
+                // Glyph heights from both captures when the label's words are recognized in
+                // both; otherwise frame heights (never one of each).
+                let otherLines = otherShot.map(IPadAuditPageEvidence.recognizedLines(in:)) ?? []
+                let sizeRatio = { (audited: CGRect, compared: CGRect, label: String) -> Double? in
+                    if let a = IPadAuditPageEvidence.textHeight(in: audited, label: label, lines: lines),
+                       let c = IPadAuditPageEvidence.textHeight(in: compared, label: label, lines: otherLines), a > 0 {
+                        return growth(a, c)
+                    }
+                    guard audited.height > 0, compared.height > 0 else { return nil }
+                    return growth(audited.height, compared.height)
                 }
                 // Page-level: every visible text, compared without scrolling.
                 if pageDynamicType, let texts = visible?.texts {
-                    for (locator, height) in texts {
+                    for (locator, frame) in texts {
                         let found = locator.matches(in: other)
                         visible?.evidence.growthChecked += 1
-                        guard locator.ordinal < found.count, height > 0,
-                              growth(height, found[locator.ordinal].frame.height) >= 1.35 else {
+                        guard locator.ordinal < found.count,
+                              let ratio = sizeRatio(frame, found[locator.ordinal].frame, locator.label), ratio >= 1.35 else {
                             visible?.evidence.notGrowing.append(String(locator.label.prefix(40)))
                             continue
                         }
@@ -176,9 +188,8 @@ extension IPadAccessibilityAuditTests {
                 for index in heuristic {
                     guard let locator = locators[index] else { continue }
                     let found = locator.matches(in: other)
-                    let audited = frames[index].height
-                    guard locator.ordinal < found.count, audited > 0, found[locator.ordinal].frame.height > 0 else { continue }
-                    findings[index].text?.growth = growth(audited, found[locator.ordinal].frame.height)
+                    guard locator.ordinal < found.count else { continue }
+                    findings[index].text?.growth = sizeRatio(frames[index], found[locator.ordinal].frame, locator.label)
                 }
                 for index in heuristic where findings[index].text?.growth == nil
                     || (comparisonSize == .accessibilityExtraExtraExtraLarge && isClipped(index)) {

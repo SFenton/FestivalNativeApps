@@ -62,8 +62,8 @@ enum IPadAuditPageEvidence {
         var evidence: Evidence
         /// Texts partly hidden by the bars or the screen edge (scroll them clear).
         var obscured: [IPadAuditTextEvidence.Locator]
-        /// Visible static texts with their heights at the audited size.
-        var texts: [(locator: IPadAuditTextEvidence.Locator, height: CGFloat)]
+        /// Visible static texts with their frames at the audited size.
+        var texts: [(locator: IPadAuditTextEvidence.Locator, frame: CGRect)]
     }
 
     // MARK: - Measuring
@@ -107,7 +107,7 @@ enum IPadAuditPageEvidence {
                 visible.obscured.append(locator)
                 continue
             }
-            visible.texts.append((locator, frame.height))
+            visible.texts.append((locator, frame))
             guard let measurement = reading(for: frame, label: node.label, lines: lines, capture: capture),
                   measurement.glyphPixels >= 40 else { continue }
             visible.evidence.add(label: node.label, ratio: measurement.ratio)
@@ -248,6 +248,24 @@ enum IPadAuditPageEvidence {
         return IPadAuditRenderedContrast.Measurement(
             ratio: weakest.ratio, glyphPixels: readings.reduce(0) { $0 + $1.glyphPixels }
         )
+    }
+
+    /// Height of the drawn text inside `frame`: the tallest recognized word of the label.
+    ///
+    /// Growth measured on glyphs, not frames: a 44 pt minimum row height kept a sidebar
+    /// row's frame the same at AX1 while its text grew 1.65×.
+    ///
+    /// - Returns: The height in points, or nil when no word of the label is recognized.
+    static func textHeight(in frame: CGRect, label: String, lines: [Line]) -> CGFloat? {
+        let bounds = frame.insetBy(dx: -2, dy: -2)
+        let wanted = IPadAuditTextEvidence.normalized(label)
+        let words = lines.flatMap(\.words).filter { word in
+            guard bounds.contains(CGPoint(x: word.frame.midX, y: word.frame.midY)) else { return false }
+            let seen = IPadAuditTextEvidence.normalized(word.text)
+            return seen.count >= 2
+                && IPadAuditTextEvidence.approximateSubstringDistance(seen, in: wanted) <= max(1, seen.count / 4)
+        }
+        return words.map(\.frame.height).max()
     }
 
     /// Recognized text lines (and their words) with frames in screen points.
