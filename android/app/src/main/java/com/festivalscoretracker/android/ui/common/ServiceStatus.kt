@@ -171,6 +171,34 @@ fun hingeSidePadding(size: Float, hingeStart: Float, hingeEnd: Float, preferEnd:
     return if (useEnd) hingeEnd.coerceAtMost(size) to 0f else 0f to (size - before)
 }
 
+/**
+ * Padding (px) that keeps a full page of [width] × [height] off a separating hinge given in page
+ * coordinates. A vertical hinge (book posture) keeps the wider side, the leading side on a tie
+ * ([hingeSidePadding]). A horizontal hinge (tabletop) always keeps the lower half, through the
+ * hinge's bottom edge, whatever the halves' sizes, as `SheetHinge.insets` and `DialogHinge.area`
+ * do: that is where the device rests and Retry is in reach. Only when the page ends inside the
+ * hinge (no lower half on this page) does it keep the part above. The page's own 16/24 dp inner
+ * padding is the gap below the hinge.
+ *
+ * @param width Page width.
+ * @param height Page height.
+ * @param left Hinge left edge.
+ * @param top Hinge top edge.
+ * @param right Hinge right edge.
+ * @param bottom Hinge bottom edge.
+ * @param vertical The hinge runs top to bottom.
+ * @param rtl Right-to-left layout (leading side is on the right).
+ * @return Side padding; [HingeSide] zeros when the hinge misses the page.
+ */
+fun serviceStatusHingeSide(width: Float, height: Float, left: Float, top: Float, right: Float, bottom: Float, vertical: Boolean, rtl: Boolean): HingeSide {
+    if (vertical) {
+        val (before, after) = hingeSidePadding(width, left, right, preferEnd = rtl)
+        return HingeSide(left = before, right = after)
+    }
+    if (height <= 0f || bottom <= 0f || top >= height) return HingeSide()
+    return if (bottom < height) HingeSide(top = bottom) else HingeSide(bottom = height - top.coerceAtLeast(0f))
+}
+
 // endregion
 
 // region Full page
@@ -215,8 +243,8 @@ fun ServiceStatusView(
 /**
  * Padding (px) that keeps the full page on one side of the window's separating hinge, if it
  * crosses this page: Material 3 "Never place interactive content or critical information across
- * the hinge area". Book posture uses the wider side (leading on a tie), tabletop the lower half,
- * matching [festivalSheetHingeSide].
+ * the hinge area". Book posture uses the wider side (leading on a tie), tabletop always the lower
+ * half, matching [festivalSheetHingeSide] ([serviceStatusHingeSide]).
  *
  * @param origin Page's top-left in the window, or unspecified before the first layout.
  * @param width Page width (px).
@@ -228,14 +256,17 @@ private fun rememberHingeSide(origin: Offset, width: Float, height: Float): Hing
     if (!origin.isSpecified) return HingeSide()
     val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return HingeSide()
-    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    return if (hinge.isVertical) {
-        val (before, after) = hingeSidePadding(width, hinge.bounds.left - origin.x, hinge.bounds.right - origin.x, preferEnd = rtl)
-        HingeSide(left = before, right = after)
-    } else {
-        val (before, after) = hingeSidePadding(height, hinge.bounds.top - origin.y, hinge.bounds.bottom - origin.y, preferEnd = true)
-        HingeSide(top = before, bottom = after)
-    }
+    val b = hinge.bounds
+    return serviceStatusHingeSide(
+        width = width,
+        height = height,
+        left = b.left - origin.x,
+        top = b.top - origin.y,
+        right = b.right - origin.x,
+        bottom = b.bottom - origin.y,
+        vertical = hinge.isVertical,
+        rtl = LocalLayoutDirection.current == LayoutDirection.Rtl,
+    )
 }
 
 /**

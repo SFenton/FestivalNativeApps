@@ -118,6 +118,32 @@ class ServiceStatusUiTest {
         assertEquals(20f to 0f, hingeSidePadding(1000f, -10f, 20f, preferEnd = false))
     }
 
+    @Test
+    fun tabletopHingeAlwaysKeepsThePageBelowIt() {
+        fun side(top: Float, bottom: Float) = serviceStatusHingeSide(800f, 1000f, 0f, top, 800f, bottom, vertical = false, rtl = false)
+        // Centred, larger upper half and larger lower half: always below the hinge (SheetHinge.insets).
+        assertEquals(HingeSide(top = 510f), side(490f, 510f))
+        assertEquals(HingeSide(top = 720f), side(700f, 720f))
+        assertEquals(HingeSide(top = 320f), side(300f, 320f))
+        // A hinge overlapping the page's top edge still pads through its bottom.
+        assertEquals(HingeSide(top = 20f), side(-10f, 20f))
+        // The page ends inside the hinge: no lower half here, keep the part above.
+        assertEquals(HingeSide(bottom = 20f), side(980f, 1010f))
+        // The hinge misses the page.
+        assertEquals(HingeSide(), side(1000f, 1020f))
+        assertEquals(HingeSide(), side(-40f, 0f))
+        assertEquals(HingeSide(), serviceStatusHingeSide(800f, 0f, 0f, 0f, 800f, 10f, vertical = false, rtl = false))
+    }
+
+    @Test
+    fun bookHingeKeepsTheWiderOrLeadingSide() {
+        fun side(left: Float, right: Float, rtl: Boolean = false) = serviceStatusHingeSide(1000f, 800f, left, 0f, right, 800f, vertical = true, rtl = rtl)
+        assertEquals(HingeSide(right = 400f), side(600f, 620f))
+        assertEquals(HingeSide(left = 420f), side(400f, 420f))
+        assertEquals(HingeSide(right = 510f), side(490f, 510f))
+        assertEquals(HingeSide(left = 510f), side(490f, 510f, rtl = true))
+    }
+
     // endregion
 
     // region Full page
@@ -141,19 +167,34 @@ class ServiceStatusUiTest {
     }
 
     @Test
-    fun tabletopHingeKeepsThePageBelowTheFold() {
+    fun tabletopHingeKeepsThePageBelowTheFold() = assertBelowTabletopHinge(0.48f)
+
+    @Test
+    fun asymmetricTabletopHingeStillKeepsThePageBelowTheFold() = assertBelowTabletopHinge(0.62f)
+
+    /**
+     * Shows the offline page under a separating horizontal hinge whose top is at [fraction] of the
+     * window height and asserts its heading and Retry sit below it. At 0.62 the larger half is
+     * above the hinge, where the old larger-side rule put the page.
+     *
+     * @param fraction Hinge top as a fraction of the window height.
+     */
+    private fun assertBelowTabletopHinge(fraction: Float) {
         var foldBottom = 0f
         rule.setContent {
             val height = LocalView.current.rootView.height.toFloat()
-            foldBottom = height * 0.5f
-            val hinge = HingeInfo(Rect(0f, height * 0.48f, 5000f, foldBottom), isFlat = false, isVertical = false, isSeparating = true, isOccluding = true)
+            foldBottom = height * (fraction + 0.02f)
+            val hinge = HingeInfo(Rect(0f, height * fraction, 5000f, foldBottom), isFlat = false, isVertical = false, isSeparating = true, isOccluding = true)
             CompositionLocalProvider(LocalShellPosture provides Posture(isTabletop = true, hingeList = listOf(hinge))) {
                 FestivalTheme { ServiceStatusView(ServiceIssue.Offline, "Leaderboards unavailable", null, onRetry = {}) }
             }
         }
         rule.waitForIdle()
-        val title = rule.onNodeWithTag("fst.service-status.title").fetchSemanticsNode().boundsInWindow
-        assertTrue("Title is below the fold", title.top >= foldBottom - 1f)
+        assertTrue("window measured", foldBottom > 0f)
+        for (tag in listOf("fst.service-status.title", "fst.service-status.retry")) {
+            val bounds = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInWindow
+            assertTrue("$tag is below the fold at $fraction (${bounds.top} < $foldBottom)", bounds.top >= foldBottom - 1f)
+        }
     }
 
     @Test
