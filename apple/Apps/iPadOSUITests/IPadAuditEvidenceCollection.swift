@@ -86,7 +86,7 @@ extension IPadAccessibilityAuditTests {
             var evidence = IPadAuditTextEvidence.Evidence()
             if let capture, content.contains(frames[index]) {
                 let seen = IPadAuditTextEvidence.recognizedText(in: frames[index], capture: capture)
-                evidence.wholeAtAuditedSize = IPadAuditTextEvidence.showsWhole(findings[index].label, in: seen)
+                evidence.wholeAtAuditedSize = IPadAuditTextEvidence.readsUntruncated(findings[index].label, in: seen)
                 if auditedIsAX5 {
                     evidence.wholeAtLargest = evidence.wholeAtAuditedSize
                     evidence.recognizedAtLargest = seen.map { String($0.prefix(80)) }
@@ -114,7 +114,7 @@ extension IPadAccessibilityAuditTests {
                 )
             } else {
                 let seen = IPadAuditTextEvidence.recognizedText(in: element.frame, capture: shot)
-                let whole = IPadAuditTextEvidence.showsWhole(locator.label, in: seen)
+                let whole = IPadAuditTextEvidence.readsUntruncated(locator.label, in: seen)
                 findings[index].text?.wholeAtAuditedSize = whole
                 if auditedIsAX5 {
                     findings[index].text?.wholeAtLargest = whole
@@ -193,7 +193,7 @@ extension IPadAccessibilityAuditTests {
                         Thread.sleep(forTimeInterval: 0.6)
                         if let large = IPadAuditRenderedContrast.Capture.screen() {
                             let seen = IPadAuditTextEvidence.recognizedText(in: element.frame, capture: large)
-                            findings[index].text?.wholeAtLargest = IPadAuditTextEvidence.showsWhole(locator.label, in: seen)
+                            findings[index].text?.wholeAtLargest = IPadAuditTextEvidence.readsUntruncated(locator.label, in: seen)
                             findings[index].text?.recognizedAtLargest = seen.map { String($0.prefix(80)) }
                         }
                     }

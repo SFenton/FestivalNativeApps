@@ -143,15 +143,21 @@ enum IPadAuditPageEvidence {
         var failing: [String] = []
         // Leaf texts only: a combined element's label also carries text that is spoken but
         // not drawn (a Songs row's per-instrument status), so its children are read instead.
-        for node in flatten(root) where node.elementType == .staticText && !node.label.isEmpty
-            && content.contains(node.frame) && node.frame.height >= 8
-            && !node.children.contains(where: { $0.elementType == .staticText }) {
-            checked += 1
-            let seen = IPadAuditTextEvidence.recognizedText(in: node.frame, capture: capture)
-            if !IPadAuditTextEvidence.showsWhole(node.label, in: seen) {
-                failing.append("\(node.label.prefix(40)) → \((seen ?? "").prefix(40))")
+        // Navigation-bar titles are UIKit's (a large title truncates by design) and are
+        // reported apart.
+        func walk(_ node: XCUIElementSnapshot, inBar: Bool) {
+            let bar = inBar || node.elementType == .navigationBar
+            if node.elementType == .staticText, !node.label.isEmpty, content.contains(node.frame),
+               node.frame.height >= 8, !node.children.contains(where: { $0.elementType == .staticText }) {
+                checked += 1
+                let seen = IPadAuditTextEvidence.recognizedText(in: node.frame, capture: capture)
+                if !IPadAuditTextEvidence.readsUntruncated(node.label, in: seen) {
+                    failing.append((bar ? "[system bar] " : "") + "\(node.label.prefix(40)) → \((seen ?? "").prefix(40))")
+                }
             }
+            node.children.forEach { walk($0, inBar: bar) }
         }
+        walk(root, inBar: false)
         return (checked, failing)
     }
 
