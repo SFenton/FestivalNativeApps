@@ -216,6 +216,27 @@ class MatrixTests(unittest.TestCase):
                 with self.subTest(page=page["name"], step=step):
                     u.parse_step(step.replace("{stem}", "out"))
 
+    def test_titlebar_button_pages(self):
+        """Issue #253: bell and avatar stay separate, named, reachable buttons at every window size."""
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-titlebar-buttons.json").read_text(encoding="utf-8"))}
+        self.assertEqual(set(pages), {"tb-player", "tb-anonymous"})
+        for page in pages.values():
+            self.assertEqual(set(page["sizes"]), {"compact", "medium", "wide", "maximized", "snap-left"}, page["name"])
+            for size in page["sizes"]:
+                self.assertIn(size, u.PRESETS, page["name"])
+            for step in m.page_steps(page, "medium", Path("out"), "", scan=True, tabs=0):
+                with self.subTest(page=page["name"], step=step):
+                    u.parse_step(step)
+        player = pages["tb-player"]["after_ready"]
+        script, _ = m.page_fixture(pages["tb-player"])
+        self.assertTrue(script.is_file())
+        self.assertIn("assertlevel:id=fst.shell.notifications|id=fst.shell.profile", player)
+        self.assertLess(player.index("key:tab"), player.index("assertfocus:id=fst.shell.profile@3"))
+        self.assertIn("waitfor:id=fst.notifications.sheet@10", player)
+        self.assertIn("waitfor:id=fst.player.deselect@20", player)
+        self.assertIn("waitgone:id=fst.shell.notifications@2", pages["tb-anonymous"]["after_ready"])
+
     def test_page_fixture(self):
         self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))
         self.assertEqual(m.page_fixture({"fixture": ["--band-rankings", "empty"]}),
