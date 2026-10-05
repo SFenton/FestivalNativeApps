@@ -2,7 +2,7 @@
 
 > **What:** shared score and ranking row geometry, columns, name overflow, pager and selected-player behavior. **Read when:** adding or changing any leaderboard, score preview, ranking card, spotlight or board footer.
 
-Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #292, #293, #294, #295.
+Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #292, #293, #294, #295, #307.
 
 ## Intent
 
@@ -24,6 +24,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 - **R3. Keep names inside their column.** Overflowing normal-size names marquee through the shared text component; Reduce Motion, inactive/off-screen rows and motion-disabled systems tail-truncate, while accessibility text wraps and assistive technology receives the full name. HIG Motion: "When Reduce Motion is on, reduce automatic and repetitive animation."
 - **R4. Decide Compete songs once per card.** Hide songs played/total on every row only when the longest drawn name cannot fit; keep it in the accessibility value. Other ranking sections keep their shared songs column.
 - **R5. Reuse the board pager.** Full, band and song boards share one pager layout and button semantics; the selected player's pinned row is immediately above it and shares its columns.
+- **R7. One selected-row rule for players and bands (#307).** Solo and band song boards pin the selected profile's row with the same row component. A selected row shown apart from its page (Song Detail's appended row, a footer while the row is on another page) jumps to the page containing its rank and reveals the highlighted row (instant under Reduce Motion); once the row is on screen it opens the profile (Statistics for a player, the Band page for a band). Other rows open their player or band. Labels name the destination ("Jump to your band's position" / "Open band"). HIG Lists and tables: "Provide appropriate selection feedback."
 - **R6. Maintain platform-approved variants.** Android and Windows use their native shared pager and row surface; their title/header behavior is not an Apple collapsing-title requirement. MD3 transitions and Fluent theme brushes are approved native variants (#294).
 
 ## Canonical implementation
@@ -32,6 +33,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 |---|---|---|---|
 | Section fit and height | `FestivalCore/LeaderboardRowColumns.swift` `LeaderboardRowColumns`; `FestivalUI/Design/LeaderboardRowMetrics.swift` `LeaderboardRowMetrics` | `core/rankings/LeaderboardColumnLayout.kt` `LeaderboardColumnLayout`; `ui/leaderboards/RankingsComponents.kt` `LEADERBOARD_ROW_MIN_HEIGHT` | `Festival.Core/Domain/LeaderboardColumnLayout.cs` `LeaderboardColumnLayout`; `Festival.Core/ViewModels/LeaderboardEntryRows.cs` `LeaderboardRowMetrics` |
 | Rows and name | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingRowLayout`, `LeaderboardNameText`; `Features/SongLeaderboard/SongLeaderboardEntryRow.swift` | `ui/leaderboards/RankingsComponents.kt` `LeaderboardNameText`; `ui/songdetail/SongDetailScreen.kt` `ScoreRow` | `Festival.App/Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow`; `Controls/MarqueeText.cs` `MarqueeText` |
+| Selected pinned row and its action (R5, R7) | `FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift` `SelectedScoreFooterRow`; `FestivalCore/SelectedRowNavigation.swift` `SelectedRowAction` | Not yet audited (#307 verify lane) | `Festival.Core/Domain/SelectedRowNavigation.cs` `SelectedRowAction`; `Festival.App/Controls/LeaderboardEntryRow.xaml.cs` `LeaderboardEntryRow` (`Command`) |
 | Pager | `FestivalUI/Features/Leaderboards/RankingsSupport.swift` `RankingsPagerView` | `ui/leaderboards/RankingsComponents.kt` `RankingsPager` | `Festival.App/Controls/LeaderboardsPager.xaml.cs` `LeaderboardsPager` |
 
 ## Known debt
@@ -46,3 +48,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 - `leaderboard-row/android-row-metrics`
 - `leaderboard-row/windows-row-metrics`
 - `leaderboard-row/windows-pager-owner`
+
+## Agent decisions
+
+- **Windows: the pinned row is the jump control; the separate "Your Page" button is gone (#307; agent decision, the owner may override with `/choose`).** Options weighed: A) the pinned row itself jumps or opens per R7 (chosen); B) keep **Your Page** on the solo board and add one to the band board; C) both. A follows the web (PR #168) and Apple, and Fluent ListView guidance gives each item one invoke action, so a second button that did the row's job added a Tab stop without adding a destination. Full Rankings keeps its **Your Page** (a ranking, not a song board; outside R7).
