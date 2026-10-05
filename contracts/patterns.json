@@ -41,12 +41,12 @@
             "symbol": "ModalTopEdgeFadeModifier"
           },
           {
-            "path": "apple/Sources/FestivalUI/Design/ModalPinnedHeaderFade.swift",
-            "symbol": "ModalPinnedHeaderFade"
+            "path": "apple/Sources/FestivalUI/Design/PinnedHeaderEdgeFade.swift",
+            "symbol": "PinnedHeaderEdgeFade"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/Songs/SectionBarEdgeFade.swift",
-            "symbol": "SectionBarEdgeFade"
+            "path": "apple/Sources/FestivalUI/Design/ScrollEdgeFadeModifiers.swift",
+            "symbol": "ScrollEdgeHardEdge"
           },
           {
             "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
@@ -91,11 +91,6 @@
             "apple/Sources/FestivalUI/Design/**",
             "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
-          ],
-          "debt": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
-            "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
-            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
         },
@@ -159,7 +154,8 @@
         288,
         297,
         298,
-        301
+        301,
+        308
       ]
     },
     {
