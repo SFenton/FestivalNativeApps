@@ -222,7 +222,8 @@ public sealed class FeedbackDialog
         var box = new TextBox
         {
             Header = header,
-            Description = help,
+            // A string Description renders as a single unwrapped line and clips in narrow windows or at large text sizes.
+            Description = new TextBlock { Text = help, TextWrapping = TextWrapping.WrapWholeWords },
             Text = text,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             AcceptsReturn = multiline,
