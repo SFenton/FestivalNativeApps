@@ -56,6 +56,26 @@ Live public service, SFentonX selected, dark scheme, animator scale 0 unless not
 
 Deliberate deviations kept: dark scheme only; bar and rail icon-only at ≥ 1.3×; one pane at large text unless width ÷ fontScale ≥ 840 dp; bottom bar at compact height and in tabletop; width-capped `ModalBottomSheet` instead of a side sheet on expanded windows; 280 dp drawer at default text (web sidebar width); pinned toolbar on phone landscape at 200% leaves little list room (issue #52).
 
+## Scroll stress (issue #155, 2026-10-05)
+
+This validates #47 (iOS #8/#22): no crash, hang or scroll-driven rebuild/re-sort near the top of the list. Live public service, SFentonX selected (`FST_DEBUG_PROFILE`), `benchmark` build. Each configuration: cold launch → 5× fast up/down swipes near the top → 4 flings down (mid-stress screenshot) → 6 flings back to the top, the last becoming a pull-to-refresh. Then the process, the crash buffer, `ANR in`, `FATAL EXCEPTION`, `Skipped N frames` and `Davey!` are checked. Animations on (scale 1) unless "reduced motion" (scale 0).
+
+| Configuration | Found | Result |
+|---|---|---|
+| Scroll-only recomposition (Robolectric counters, 150 scored songs, near-top swipes + bottom/top jumps) | 0 `SongsScreen`/`SongList` recompositions, 0 pipeline runs | Pass: scroll state stays in `LazyListState`/toolbar minimizer reads |
+| FST_Phone portrait/landscape, fs 1.0/2.0, reduced motion, light system theme | Perfetto: a fling at the top edge triggered pull-to-refresh, and `/api/songs` (~4.6 MB) decoded on the **main thread**: 676 ms without a frame, a touch delivered 630 ms late | **Fixed**: `FestivalApi.decode` moves bodies ≥ 64 KiB onto `Dispatchers.Default`, and an unchanged refresh body reuses the decoded catalogue ([platform](../../platforms/android.md#service-access)). After: no main-thread burst, no crash/ANR in any config |
+| FST_Tablet landscape/portrait, fs 1.0/2.0, reduced motion | One `Skipped 33 frames` during one landscape pass; not repeated under a Perfetto trace of the same stress. The longest frames there were the main thread asleep in `postAndWait` (SwiftShader), plus one 218 ms frame composing rows (150 ms running, CPU-starved by RenderThread). The closing pull-to-refresh decoded on `DefaultDispatcher` | Pass (permanent drawer; rail in portrait) |
+| FST_Resizable phone/foldable/tablet, fs 1.0/2.0, reduced motion | — | Pass (list-detail at foldable, drawer at tablet) |
+| FST_Book_Fold folded/half/unfolded, fs 1.0/2.0 | — | Pass (two panes unfolded; one pane at 200%) |
+| FST_Passport_Fold folded/unfolded, portrait/landscape, fs 2.0 | — | Pass |
+| FST_TriFold folded/partial/unfolded, fs 2.0 | — | Pass |
+| TalkBack (FST_Phone, live) | Search, Notifications (10 unread), Profile: SFentonX, then one stop per row with Shop state and per-instrument full combo/scored/no score; "In list, 731 items" | Coherent order, states match the chips |
+| Connected tests | `journeys` package on FST_Phone (40), `songs` package (9) and `SongsAccessibilityJourneyTest` (7) on FST_Tablet | All pass, 0 ATF errors |
+
+Harness note: on a loaded emulator, `input swipe` can deliver only the down and up events. A short near-top swipe that starts and ends inside one ~370 px row then registers as a tap and opens Song Detail. Use swipes longer than a row (≥ 600 px) for stress scripts.
+
+The first config after a cold boot logs one 735–1150 ms `Davey!` (process start + first composition); none during stress afterwards. The few ~290 ms emulator frames left in traces are RenderThread SwiftShader `shader_compile`, with the main thread asleep ([performance](../../platforms/android.md#performance)). Regression tests: `FestivalApiTest.refreshOfUnchangedBodyReusesDecodedCatalogButRedecodesChangedBody`, `largeBodiesDecodeAndValidateOnDecodeDispatcherNotCaller`. Material 3: no component changes. The top app bar "elevates on scroll" and the floating toolbar's search minimize stays the documented #84 behavior.
+
 ## Open
 
 Band rows and band sort modes (no native selected-band identity). The web's anonymous Has FC (title order only) and Primary Instrument Order (no consumer) are not ported.
