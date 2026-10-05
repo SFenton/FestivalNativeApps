@@ -153,6 +153,24 @@ class MatrixTests(unittest.TestCase):
                     script, _ = m.page_fixture(page)
                     self.assertTrue(script.is_file(), page["name"])
 
+    def test_page_steps_parse(self):
+        import json
+        for name in ("a11y.json", "a11y-keyboard.json"):
+            for page in json.loads((m.PAGES.parent / name).read_text(encoding="utf-8")):
+                for step in m.page_steps(page, "medium", Path("out"), "", scan=True, tabs=4):
+                    with self.subTest(file=name, page=page["name"], step=step):
+                        u.parse_step(step)
+
+    def test_first_run_later_states(self):
+        import json
+        pages = {p["name"]: p for p in json.loads(m.PAGES.read_text(encoding="utf-8"))}
+        self.assertIn("assertstate:id=SecondaryButton|enabled=true", pages["first-run-back"]["after_ready"])
+        done = pages["first-run-done"]["after_ready"]
+        self.assertEqual(done.count("invoke:id=PrimaryButton"), 5)
+        self.assertIn("assertstate:id=PrimaryButton|name=Done", done)
+        self.assertEqual(m.live_pages([pages["first-run-back"], pages["first-run-done"]]),
+                         [pages["first-run-back"], pages["first-run-done"]])
+
     def test_page_fixture(self):
         self.assertEqual(m.page_fixture({"name": "shop"}), (m.FIXTURE, ()))
         self.assertEqual(m.page_fixture({"fixture": ["--band-rankings", "empty"]}),
