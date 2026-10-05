@@ -555,6 +555,14 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static func openSong(_ app: XCUIApplication, _ songId: String) -> Bool {
         let row = app.buttons["fst.songs.row.\(songId)"]
         guard row.waitForExistence(timeout: 15) else { return false }
+        // At AX5 the row can sit below the fold: bring it on screen with slow drags.
+        let window = app.windows.firstMatch.frame
+        for _ in 0..<8 where !(row.isHittable && window.insetBy(dx: 0, dy: 60).contains(
+            CGPoint(x: row.frame.midX, y: row.frame.midY))) {
+            // The middle: Songs' trailing edge holds the section index scrubber.
+            slowDrag(app, x: window.midX, fromY: window.minY + window.height * 0.75,
+                     toY: window.minY + window.height * 0.35)
+        }
         row.tap()
         return anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 20)
     }
