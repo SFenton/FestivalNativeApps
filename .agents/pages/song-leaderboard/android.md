@@ -32,7 +32,7 @@ Live public service, SFentonX selected, *Through the Fire and Flames* Lead (rank
 | Configuration | Result |
 | --- | --- |
 | FST_Phone portrait/landscape, font 1.0/2.0, dark/light | Paging, pinned #27 footer on page 1, in-place highlight on page 2, instrument menu. Font 2.0: rows stack, title wraps, nothing clips. Landscape: header and instrument fill the short viewport, rows scroll under the pager. |
-| FST_Tablet landscape/portrait, font 2.0 | Drawer/rail, stars from 600 dp, footer capped at 720 dp and centred (shared scaffold). |
+| FST_Tablet landscape/portrait, font 2.0 | Drawer/rail, stars from 600 dp, footer capped at 720 dp and centred (shared scaffold; since issue #149 it spans the rows). |
 | FST_Book_Fold / FST_Passport_Fold folded, half, unfolded | Half: rows in one pane, header, footer and pager in the other; nothing crosses the hinge. Folded/unfolded: single pane. |
 | FST_TriFold folded, partial, unfolded | Folded (narrow) pager drops first/last; names ellipsized then (since issue #292 they scroll in their column); no clipping. |
 | FST_Resizable phone, foldable, tablet, desktop | Compact → bottom bar, medium → rail, expanded → drawer; columns follow row width. |
@@ -43,3 +43,22 @@ Fixed: the instrument switcher was a ~32 dp target with no role and a disabled s
 Fixed (TalkBack walk, FST_Phone): rows the fade hides beneath the footer stayed in the accessibility tree and touch, because Compose only drops a node that another node covers completely. TalkBack skipped the row wholly behind the pinned card (#8, #18) and focused invisible rows in the gaps around and below the pager instead of scrolling. With `fadeAboveFooter`, the list now reports a height that ends at the footer's top and clips there (`clipAboveFooter`; its viewport, padding and fade are unchanged), so TalkBack reads #1–#25 in order, scrolling as it goes. Test: `BoardFooterFadeDrawUiTest.rowsHiddenBeneathTheFooterLeaveTalkBack`. Band Rankings opted in with issue #116. Full Rankings and the Increase Contrast/Reduce Transparency hard edge still let rows pass visibly under the footer (open: the same skip applies to a row wholly behind the opaque card there).
 
 Observation (shared shell, not changed here): compact windows reserve the floating-toolbar band (`FLOATING_TOOLBAR_HEIGHT_DP + 2 × margin`) below content even on pages without page actions, so ~96 dp of backdrop shows between this pager and the bottom bar.
+
+## Validation (issue #149, column alignment from issue #37, 2026-10)
+
+Live public service, SFentonX selected, *Through the Fire and Flames* Lead (rank #28, so pinned on page 1). Checked that every row of the board, and the pinned row, shows the same columns at the same x positions (`LeaderboardSectionColumns`, `core/rankings/LeaderboardColumnLayout`).
+
+| Configuration | Result |
+| --- | --- |
+| FST_Phone portrait/landscape, font 1.0/2.0 | Aligned: rank, name, score and accuracy columns (season from a 520 dp row, stars from 700 dp) match between the rows and the pinned row. At 2.0 rows stack. The pinned card and pager then take most of a portrait viewport; the list still scrolls. Song Detail's top-score card at 2.0: before the fix, `#9`'s name sat about 6.5 dp left of `#10` and the pinned `#28`. After it, all three share the 48 dp rank slot (14 sp measured at the non-linear 2.0 scale, 26 dp). |
+| FST_Tablet landscape/portrait, font 1.0/2.0 | **Fixed:** the pinned row was capped at 720 dp and centred while the rows spanned the pane, so its rank, name, score and stars sat inward of every row above. It now spans the rows. At 2.0 (stacked), a bold `#28` widened its own rank slot and shifted the name about 6 dp; fixed. |
+| FST_Resizable phone, foldable, tablet, desktop (1.0, desktop 2.0) | Compact/medium/expanded all aligned after the fix. Desktop (1920 dp wide at 160 dpi) rows and the pinned row share edges and columns. |
+| FST_Book_Fold folded, half, unfolded | Folded is phone-like; unfolded as tablet. Half: the rows keep the leading pane (names about 72 dp, `MIN_NAME_WIDTH`, long names scroll per issue #292), and the pinned row and pager sit in the other pane with the same column set. At large text the hinge split is skipped by design (`rememberSingleColumn`), so it is one stacked pane. |
+| FST_Passport_Fold folded, half, unfolded | As the book fold. Unfolded 1.0 and 2.0 aligned. |
+| FST_TriFold folded, partial, unfolded | Before the fix, unfolded (1080 dp) showed the pinned row narrower than the rows. After: aligned in all three postures, 1.0 and 2.0. |
+| Reduced motion (animator scale 0) | Load swap and pinned-row reveal appear at once. |
+| TalkBack (FST_Phone, `talkback_walk.py`) | Notifications, Profile, heading, "Lead. Drop down list", rows #1–#25 ("#N. name. score. Full combo, accuracy 100%. Button"), "#28. SFentonX … Button", the pager (First/Previous disabled, "Page 1 of 402", Next, Last), then the tabs. Every row is one 48 dp+ stop and the column change adds no stops. |
+
+Material 3 ([layout and responsive](https://m3.material.io/foundations/layout/understanding-layout/overview)): a pane is "a layout container within the window" and a column "a vertical content block within a pane". The rows and the pinned row are one column of one pane, so they share edges. The pager keeps its natural width, centred, like the web `Paginator`. Deliberate deviations: 16 dp page margins on medium and wider windows (M3 suggests 24 dp; the app keeps 16 dp on every width, an existing cross-page choice), and the dark-only theme.
+
+Tests: `LeaderboardsExpandedUiTest.expandedSongLeaderboardPinnedRowLinesUpWithTheRows` (w1280dp: row and pinned row share edges and `fst.score` right edges; the pager is narrower and centred), `ScoreAccuracyUiTest.largeTextNamesLineUpWhateverTheRankWidth` (font 2.0, ranks 9, 10 and a pinned 28). Both fail without the fix.

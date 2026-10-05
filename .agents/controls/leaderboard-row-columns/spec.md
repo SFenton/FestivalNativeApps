@@ -1,6 +1,6 @@
 # Leaderboard row columns — spec
 
-> **What:** the web's per-section rules for which leaderboard row columns fit and how wide the shared columns are, so rows line up vertically. **Read when:** drawing any leaderboard/rankings section (Song Detail cards, song leaderboards, Leaderboards cards, Full/Band Rankings, Compete) on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md) · [macos.md](macos.md).
+> **What:** the web's per-section rules for which leaderboard row columns fit and how wide the shared columns are, so rows line up vertically. **Read when:** drawing any leaderboard/rankings section (Song Detail cards, song leaderboards, Leaderboards cards, Full/Band Rankings, Compete) on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md) · [macos.md](macos.md) · [android.md](android.md).
 
 Source: `FortniteFestivalWeb/src/pages/songinfo/components/topScoresLayout.ts` (`resolveTopScoresColumns`), `packages/theme/src/breakpoints.ts` (420 / 520 / 768), `FortniteFestivalWeb/src/pages/leaderboards/helpers/rankingHelpers.ts` (`computeRankWidth`), `FortniteFestivalWeb/src/pages/leaderboard/global/LeaderboardPage.tsx` (`rankWidth`, `scoreWidth` = `${maxLen}ch`), `FortniteFestivalWeb/src/pages/leaderboards/components/RankingCard.tsx`, `.../components/RankingEntry.tsx` (`colRating` min width). Issue #37 (split from #7).
 
