@@ -169,9 +169,18 @@ struct SongPathsSheet: View {
                     InstrumentIcon(
                         instrument, keyboard: usesKeyboardIcon(instrument), size: InstrumentIcon.menuIconSide
                     )
-                    Text(instrument.label)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
+                    // Wrap only between words: the hidden longest word sets the name's
+                    // minimum width, so a narrow row (iPhone Duo's folded Paths sheet, ~107 pt
+                    // per selector beside the vertical bar) no longer splits "Lead" as "Lea/d".
+                    ZStack(alignment: .leading) {
+                        Text(Self.longestWord(in: instrument.label))
+                            .fixedSize()
+                            .hidden()
+                            .accessibilityHidden(true)
+                        Text(instrument.label)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
                 }
             }
             .accessibilityIdentifier("fst.paths.instrument")
@@ -193,6 +202,15 @@ struct SongPathsSheet: View {
             .accessibilityIdentifier("fst.paths.display")
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// The longest whitespace-separated word of a label (its narrowest unbroken width).
+    ///
+    /// - Parameter label: Instrument name, e.g. "Pro Drums + Cymbals".
+    /// - Returns: The word with the most characters ("Cymbals"), or the label itself.
+    nonisolated static func longestWord(in label: String) -> String {
+        let words = label.split(separator: " ").map(String.init)
+        return words.max { $0.count < $1.count } ?? label
     }
 
     /// Whether this chart shows the keys artwork (Lead/Pro Lead on a keyboard song).
