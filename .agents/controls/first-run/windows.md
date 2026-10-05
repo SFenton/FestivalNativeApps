@@ -96,6 +96,38 @@ This pass checked #44's question: is the guide dismissed through the native Flue
 
 All 7 `first_run_journey.py` scenarios pass, and `dismissed` covers Close, Esc and Done. Fluent alignment (`winui-design`; `winapp find-ui` → Gallery ContentDialog samples; `winapp find-api` confirmed `CloseButtonText`/`DefaultButton`/`IsSecondaryButtonEnabled`/`CloseButtonStyle` on `ContentDialog`): dismissal is the platform's text Close command plus Esc. ContentDialog has no title-bar close button, so the #241 deviations remain (Back disabled on slide 1, standard 32 epx buttons). No screen recording was possible because the host console is locked, so the live screenshots come from PrintWindow. The `winui-code-review` analyzer package isn't referenced, so its checklist was applied by hand.
 
+## Validation (issue #258, 2026-10-05)
+
+This pass rechecked #58's data-swap rotation against the `winui-design` skill. It used a Debug build on the **live public service** (`a11y_matrix.py --live --scan --tabs 12`, anonymous, `--first-run=force`), a 3840×2160 display at 300% host scale and the fixture `first_run_journey.py`. The timing already matched the web (`packages/theme/src/animation.ts`: `FADE_DURATION` 400, `DEMO_SWAP_INTERVAL_MS` 5000), and so did the set of 12 rotating slides, so the app's behaviour is unchanged. What was missing was automated proof of each rotation state.
+
+- **Rotation status (test-only):** a rotating demo's raw-view ItemStatus appends `rotation=running|inactive|not-visible swaps=N swap=none|fade|instant` after the data token (`FirstRunDemoRotationStatus`, e.g. `catalogue rotation=running swaps=2 swap=fade`). The gate is `FirstRunDemoRotationStatus.State(rotates, active, loaded, hidden)` in Core. Static demos still report only `placeholder`/`catalogue`. `swaps` counts rows actually redrawn, not timer ticks.
+- **Fixture pool limit:** the default mock catalogue (`songs-demo.json`) has too few songs to rotate three rows (`FirstRunRowRotation.CanRotate`). Its clock ticks but no row changes. Before the drawn-swap count, that made the status report a false `swap=instant`. The rotation journeys therefore run on `--large-catalogue`.
+- **Off-screen slides leave the UIA tree:** FlipView keeps neighbours realized, but UIA doesn't expose their content, so `rotation=inactive` can't be read directly. The `rotation` journey proves the pause instead. After the first tick (`swaps=1`) it pages away for 12 s, pages back and still reads `swaps=1`. A demo that kept running would show 3 or more.
+- `uiwin` `assertstatus` accepts `~<regex>` ([windows.md](../../platforms/windows.md)).
+
+| Configuration | Result |
+|---|---|
+| compact, medium, wide, maximized, snap-left, snap-right | Pass (24 runs: `first-run`/`-back`/`-done` and `fr-rotation-fade`). Axe 0. Slide 1 Tab order is `Page 1 → Next → Close → Song List`, with nothing outside the dialog. The live Song List demo swaps with the fade within 15 s at every size |
+| Light, Dark theme | Pass: identical (the dialog is forced dark), with the fade swap |
+| HC Desert, HC Aquatic (compact, medium) | Pass: Axe 0. Rows draw on system colours and the swap still fades. The demo palette stays decorative and Raw |
+| text 200% (and 200% + display 150%) | Pass: Axe 0. Swapped rows stay inside the 210 epx frame (`FirstRunDemoFit`), and the dialog body scrolls (issue #244) |
+| display 100%, 150% | Pass: Axe 0, fade swap |
+| Windows Animation effects off (`no-animations`) | Pass (`fr-rotation-instant`, compact and wide): rows keep rotating to new songs with `swap=instant`, with no fade or nudge |
+| Reduce Motion (in-app) | Pass: `rotation-reduced` journey, `swap=instant` |
+| minimized / hidden | Pass: the `rotation` journey minimizes before Song Metadata's first tick. It stays at `rotation=not-visible swaps=0` for 7 s, then resumes with the fade once restored |
+| keyboard | Pass: `kb-first-run-esc` (live; compact, medium, wide). The demo is never a Tab stop |
+| Narrator / UIA | Unchanged: demos are `AccessibilityView.Raw`, so the new status is invisible to Narrator. Slide names, PositionInSet/SizeOfSet and the slide-change notification are as in #232 |
+
+All 11 `first_run_journey.py` scenarios pass, including the new `rotation` and `rotation-reduced`. Live pages are in `tools/windows/journeys/a11y-first-run-rotation.json`: run `fr-rotation-fade` normally and `fr-rotation-instant` with `--mode no-animations`. xUnit passed 1856 tests, with coverage 98.94% logic / 98.16% UX.
+
+Fluent alignment (`winui-design`):
+
+- `winapp find-ui "FlipView with PipsPager"` points to Gallery `gallery-pipspager-1`, the carousel's pattern.
+- `winapp find-api` confirmed `UISettings.AnimationsEnabled`, which drives `Motion.Allowed`, and `FlipView.SelectedIndex`.
+- One deliberate deviation remains: the skill's "Hard-coded color literals" anti-pattern applies to the demo's web palette. The demo is a decorative Raw illustration that mirrors the web, and every interactive part of the dialog uses theme brushes.
+
+The console was locked, so the live motion recording was built from PrintWindow frames (about 3.5 fps, real-time spacing).
+
 ## Debug
 
 `FST_DEBUG_FIRST_RUN` (Debug/automation env) or `--first-run off|on|force`: Debug and [automation](../../platforms/windows.md) launches default **off** (automation is never blocked), Release default normal. `force` shows every gate-passing slide on each evaluation. Settings replay works in every mode.
@@ -103,4 +135,4 @@ All 7 `first_run_journey.py` scenarios pass, and `dismissed` covers Close, Esc a
 ## Open
 
 - Demos approximate the web's per-slide `render()` rather than copying each 1:1; the issue #58 rotation core now uses the web pools and timings for the 12 rotating demos.
-- IDs: `fst.first-run.dialog`, `.carousel`, `.slides`, `.pips`, `.close` (the template's Close button, issue #244; absent on one-slide guides), raw-view `fst.first-run.demo.<slideId>`; replay rows `fst.settings.first-run.<pageKey>`. Screenshot: `windows/reports/screenshots/first-run-replay-wide.png`.
+- IDs: `fst.first-run.dialog`, `.carousel`, `.slides`, `.pips`, `.close` (the template's Close button, issue #244; absent on one-slide guides), raw-view `fst.first-run.demo.<slideId>` (ItemStatus `placeholder`/`catalogue`, plus the rotation token on rotating slides since issue #258); replay rows `fst.settings.first-run.<pageKey>`. Screenshot: `windows/reports/screenshots/first-run-replay-wide.png`.
