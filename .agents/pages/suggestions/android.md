@@ -108,8 +108,9 @@ Live public service, SFentonX selected, dark scheme, animator scale 0. Each conf
 | FST_Tablet, FST_Resizable (all four), FST_Book_Fold, FST_Passport_Fold, FST_TriFold (every posture) | — | Pass: Filter and global search fixed in the top app bar |
 | Reduced motion | — | Nothing animates: both controls never move |
 | TalkBack | — | Top bar → Filter → cards (issue #112) |
+| Connected scroll journey | — | `journeys/PinnedPageControlsDeviceTest`: scrolls the feed three times, Filter and global search keep their bounds and open while scrolled, restore at the top, ATF plus traversal top bar (−2) → toolbar (−1) → list (0) on compact. Pass on FST_Phone (floating toolbar), FST_Book_Fold half-open and FST_Tablet (top bar) |
 
-Tests: `ui/PinnedPageControlsUiTest` (phone, medium, expanded Suggestions cases).
+Tests: `ui/PinnedPageControlsUiTest` (phone, medium, expanded Suggestions cases) and the connected `journeys/PinnedPageControlsDeviceTest`.
 
 ## Open
 
