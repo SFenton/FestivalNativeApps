@@ -68,7 +68,7 @@ TEST_RUNNER_FST_AUDIT_OUT=/tmp/audit python3 tools/ios_sim.py uitest --device ip
 
 ### Results (pre-redesign, 2026-10-05)
 
-Raw audit issues per group (browse / rankings / profile) → issues left open after the waivers. **Pre-redesign:** the split-view layouts and the iPad sidebar are being replaced (overlay flyout), so these counts describe the current shell and the final re-audit follows the redesign. Lane A11Y's last counts are the "before"; its runs had no waivers, no landscape contrast and no Dynamic Type comparison.
+Raw audit issues per group (browse / rankings / profile) → issues left open after the waivers. **Pre-redesign:** measured on the always-on split layouts and pinned iPad sidebar that Lane SPLIT then replaced (on-demand split, overlay flyout); the final re-audit runs on the new shell (journeys that open the three-column split or the sidebar need updating first). Lane A11Y's last counts are the "before"; its runs had no waivers, no landscape contrast and no Dynamic Type comparison.
 
 | Mode | Lane A11Y (before) | Lane A11Y2 raw | Open after waivers | Left open |
 |---|---|---|---|---|
