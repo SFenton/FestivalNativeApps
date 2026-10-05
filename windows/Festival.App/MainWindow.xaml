@@ -98,7 +98,9 @@
                                         <Button Content="Deselect" Click="OnDeselectProfile"
                                                 AutomationProperties.AutomationId="fst.profile.deselect" />
                                     </StackPanel>
-                                    <MenuFlyoutSeparator Margin="0,4,0,0" />
+                                    <!-- A plain divider: a MenuFlyoutSeparator outside a menu is a focusable Control with no
+                                         automation name, so Tab stopped on it silently (issue #254). -->
+                                    <Rectangle Height="1" Margin="-4,5,-4,1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                                 </StackPanel>
                                 <TextBlock Text="Find a Profile" Style="{StaticResource BodyStrongTextBlockStyle}"
                                            AutomationProperties.HeadingLevel="Level2" />
