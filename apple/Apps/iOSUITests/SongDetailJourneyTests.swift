@@ -692,8 +692,8 @@ final class SongDetailJourneyTests: XCTestCase {
             "Rank 1, Band 1 Member A + Band 1 Member B, score 94,500, 5 stars, full combo, accuracy 96.5%"
         )
         let selected = app.buttons["fst.song-detail.band-selected.Band_Duets"]
-        XCTAssertTrue(selected.exists, "The selected player's rank-14 band was not appended")
-        XCTAssertTrue(selected.label.hasPrefix("Your band, Rank 14, "), selected.label)
+        XCTAssertTrue(selected.exists, "The selected player's rank-29 band was not appended")
+        XCTAssertTrue(selected.label.hasPrefix("Your band, Rank 29, "), selected.label)
         let viewFull = app.buttons["fst.song-detail.band-leaderboard.Band_Duets"]
         for _ in 0..<4 where !viewFull.isHittable { app.swipeUp() }
         XCTAssertEqual(viewFull.label, "View full Duos leaderboard")
@@ -740,30 +740,103 @@ final class SongDetailJourneyTests: XCTestCase {
         )
         app.buttons["BackButton"].tap()
 
-        // The appended selected band row jumps to its place in the full board, like the
-        // solo spotlight row (issue #307): rank 14's page, scrolled into view.
-        XCTAssertTrue(selected.waitForExistence(timeout: 10))
-        for _ in 0..<4 where !selected.isHittable { app.swipeUp() }
-        selected.tap()
-        let focused = app.buttons["fst.song-band-leaderboard.row.fixture-band-fixture-player-1:14"]
-        XCTAssertTrue(
-            focused.waitForExistence(timeout: 15),
-            "The selected band row did not open the full board on its page"
-        )
-        let revealed = NSPredicate(format: "isHittable == true")
-        expectation(for: revealed, evaluatedWith: focused)
-        waitForExpectations(timeout: 5)
-        XCTAssertTrue(
-            any("fst.song-band-leaderboard.band-type-menu").exists,
-            "The selected band row did not stay on the full band board"
-        )
-        SongsUITestSupport.record(app, name: "song-band-leaderboard-focused")
-        app.buttons["BackButton"].tap()
-
         let quads = any("fst.song-detail.band-empty.Band_Quad")
         for _ in 0..<8 where !(quads.exists && quads.isHittable) { app.swipeUp() }
         XCTAssertTrue(quads.exists, "Quads has no rows and must show its empty state")
         XCTAssertFalse(app.buttons["fst.song-detail.band-leaderboard.Band_Quad"].exists)
+    }
+
+    /// Selected-row rule (issue #307): the selected player's band appended after the
+    /// Duos preview jumps to its page of the full band board (rank 29 → page 2) with
+    /// the row highlighted and scrolled into view, like the solo spotlight row. The
+    /// board's pinned band footer then follows the Solo footer: "Open band" while the
+    /// row is on screen, "Jump to your band's position" from another page.
+    ///
+    /// Reaches the Duos section through Quick Links rather than swiping, so the
+    /// journey never drags Song Detail (repeated drags there can trip the known
+    /// main-thread render loop). Needs `python3 tools/mock_service.py --port 18934`.
+    ///
+    /// - Throws: A missing row, footer, label or destination.
+    @MainActor
+    func testSelectedBandRowAndFooterJumpOrOpenLikeTheSoloSpotlight() throws {
+        continueAfterFailure = false
+        let origin = "http://127.0.0.1:18934"
+        let probe = expectation(description: "band fixture probe")
+        var reachable = false
+        let board = "\(origin)/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=25&accountId=fixture-player-1"
+        URLSession.shared.dataTask(with: URL(string: board)!) { data, response, _ in
+            // A listener from an older revision has no rank-29 selected band.
+            reachable = (response as? HTTPURLResponse)?.statusCode == 200
+                && data.map { String(decoding: $0, as: UTF8.self).contains("\"selectedPlayerEntry\":{") } == true
+            probe.fulfill()
+        }.resume()
+        wait(for: [probe], timeout: 5)
+        try XCTSkipUnless(reachable, "Start `mock_service.py --port 18934` from this revision")
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_API_BASE_URL": origin,
+        ])
+        app.launch()
+        func any(_ identifier: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        }
+        func waitHittable(_ element: XCUIElement, _ message: String) {
+            expectation(for: NSPredicate(format: "exists == true AND isHittable == true"), evaluatedWith: element)
+            waitForExpectations(timeout: 15) { error in
+                if error != nil { XCTFail(message) }
+            }
+        }
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        XCTAssertTrue(any("fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let quickLinks = app.buttons["fst.quick-links.open"]
+        XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
+        quickLinks.tap()
+        let duos = app.buttons["fst.quick-links.item.band-Band_Duets"]
+        XCTAssertTrue(duos.waitForExistence(timeout: 10), "Quick Links has no Duos section")
+        duos.tap()
+
+        // Song Detail: the appended selected band names its destination.
+        let selected = app.buttons["fst.song-detail.band-selected.Band_Duets"]
+        waitHittable(selected, "Quick Links did not bring the appended Duos band into view")
+        XCTAssertTrue(selected.label.hasPrefix("Your band, Rank 29, "), selected.label)
+        selected.tap()
+
+        // Full board, page 2: the band's row is revealed and highlighted ("Your band").
+        let focused = app.buttons["fst.song-band-leaderboard.row.fixture-band-fixture-player-1:29"]
+        waitHittable(focused, "The selected band row did not open the full board on its row")
+        XCTAssertTrue(any("fst.song-band-leaderboard.band-type-menu").exists)
+        XCTAssertTrue(focused.label.hasPrefix("Your band, Rank 29, "), focused.label)
+        SongsUITestSupport.record(app, name: "song-band-leaderboard-focused")
+
+        // The row is on screen, so the pinned footer opens the band.
+        let open = app.buttons["fst.song-band-leaderboard.spotlight-open"]
+        waitHittable(open, "The band footer does not offer Open band while its row is visible")
+        XCTAssertEqual(open.label, "Your band's rank, 29th. Open band.")
+
+        // From page 1 the same footer jumps back to the band's page and row.
+        let firstPage = app.buttons["fst.song-band-leaderboard.page-first"]
+        waitHittable(firstPage, "No first-page pager button")
+        firstPage.tap()
+        let jump = app.buttons["fst.song-band-leaderboard.spotlight-jump"]
+        waitHittable(jump, "The band footer does not offer a jump from page 1")
+        XCTAssertEqual(jump.label, "Your band's rank, 29th. Jump to your band's position.")
+        XCTAssertFalse(focused.exists, "Page 1 must not list rank 29")
+        SongsUITestSupport.record(app, name: "song-band-leaderboard-footer-jump")
+        jump.tap()
+        waitHittable(focused, "The band footer did not jump to its row")
+        waitHittable(open, "After the jump the footer must open the band")
+
+        // Open band leaves the board for Band Detail.
+        open.tap()
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: open)
+        waitForExpectations(timeout: 15) { error in
+            if error != nil { XCTFail("Open band did not leave the full band board") }
+        }
+        XCTAssertTrue(app.buttons["BackButton"].waitForExistence(timeout: 10))
     }
 
     /// Score history lives on the song page (operator batch 6.39): with a selected
