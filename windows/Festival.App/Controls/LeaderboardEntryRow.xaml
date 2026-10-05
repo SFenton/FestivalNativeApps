@@ -24,11 +24,26 @@
         <controls:LeaderboardRowButton x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                 VerticalAlignment="Stretch" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="0"
                 Background="Transparent" SizeChanged="OnSizeChanged">
+            <!-- Theme dictionaries rather than StaticResource aliases, so a contrast theme switched on while a board is open
+                 re-resolves the hover and press tints (issue #242). Values mirror FSTRowHoverBrush / FSTRowPressedBrush
+                 (Themes/Styles.xaml). -->
             <controls:LeaderboardRowButton.Resources>
-                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
-                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
-                <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
-                <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Default">
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#1AFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0FFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="HighContrast">
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                </ResourceDictionary>
             </controls:LeaderboardRowButton.Resources>
             <Grid x:Name="RowGrid" ColumnSpacing="12">
                 <!-- Extra lines only when large text in a narrow row moves columns under the name: a rankings songs label

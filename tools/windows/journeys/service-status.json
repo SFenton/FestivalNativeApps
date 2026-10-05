@@ -1,0 +1,83 @@
+[
+  {
+    "name": "service-status-states",
+    "route": "/songs",
+    "preset": "wide",
+    "extra": {
+      "FST_DEBUG_CONTROL_LAB": "service-status"
+    },
+    "steps": [
+      "scrollinto:id=fst.service-status.scrape-freeze-countdown.title@20",
+      "assertstate:id=fst.service-status.scrape-freeze-countdown.title|name=Scores are updating",
+      "waitfor:name=New scores are being published. This page will try again automatically.@2",
+      "scrollinto:id=fst.service-status.scrape-freeze-countdown.countdown@2",
+      "assertstate:id=fst.service-status.scrape-freeze-countdown.retry|name=Retry Now",
+      "assertstate:id=fst.service-status.scrape-freeze-countdown.value|name=Reloads: 0, next wait: 120 s",
+      "shot:{shots}/service-status-countdown.png",
+      "invoke:id=fst.service-status.scrape-freeze-countdown.retry",
+      "assertstate:id=fst.service-status.scrape-freeze-countdown.value|name=Reloads: 1, next wait: 240 s",
+      "scrollinto:id=fst.service-status.scrape-freeze-retrying.value@5",
+      "assertstate:id=fst.service-status.scrape-freeze-retrying.title|name=Scores are updating",
+      "assertstate:id=fst.service-status.scrape-freeze-retrying.value|name=Reloads: 4, next wait: 32 s@40",
+      "assertstate:id=fst.service-status.scrape-freeze-retrying.value|name=Reloads: 5, next wait: 64 s@40",
+      "scrollinto:id=fst.service-status.unavailable.retry@5",
+      "assertstate:id=fst.service-status.unavailable.title|name=Songs unavailable",
+      "waitfor:name=The service is temporarily unavailable. Try again in 12 seconds.@2",
+      "assertstate:id=fst.service-status.unavailable.retry|name=Retry",
+      "waitgone:id=fst.service-status.unavailable.countdown@2",
+      "invoke:id=fst.service-status.unavailable.retry",
+      "assertstate:id=fst.service-status.unavailable.value|name=Reloads: 1, no automatic retry",
+      "scrollinto:id=fst.service-status.offline.retry@5",
+      "assertstate:id=fst.service-status.offline.title|name=You're offline",
+      "waitfor:name=Check your connection and try again.@2",
+      "waitgone:id=fst.service-status.offline.countdown@2",
+      "assertstate:id=fst.service-status.offline.retry|name=Retry",
+      "shot:{shots}/service-status-unavailable-offline.png",
+      "scrollinto:id=fst.service-status.syncing.retry@5",
+      "assertstate:id=fst.service-status.syncing.title|name=Still syncing",
+      "waitfor:name=This data is still being prepared. Try again shortly.@2",
+      "waitgone:id=fst.service-status.syncing.countdown@2",
+      "invoke:id=fst.service-status.syncing.retry",
+      "assertstate:id=fst.service-status.syncing.value|name=Reloads: 1, no automatic retry",
+      "scrollinto:id=fst.service-status.not-found.retry@5",
+      "assertstate:id=fst.service-status.not-found.title|name=Song unavailable",
+      "waitfor:name=This content is no longer available.@2",
+      "waitgone:id=fst.service-status.not-found.countdown@2",
+      "scrollinto:id=fst.service-status.other.retry@5",
+      "assertstate:id=fst.service-status.other.title|name=Songs unavailable",
+      "waitfor:name=The service returned data we could not read. Try again.@2",
+      "waitgone:id=fst.service-status.other.countdown@2",
+      "assertstate:id=fst.service-status.other.retry|name=Retry",
+      "shot:{shots}/service-status-syncing-not-found-other.png",
+      "scrollinto:id=fst.service-status.inline.retry@5",
+      "assertstate:id=fst.service-status.inline|name=Leaderboard unavailable",
+      "assertstate:id=fst.service-status.inline.title|name=Scores are updating",
+      "waitfor:id=fst.service-status.inline.countdown@2",
+      "assertstate:id=fst.service-status.inline.retry|name=Retry Now",
+      "invoke:id=fst.service-status.inline.retry",
+      "assertstate:id=fst.service-status.inline.value|name=Reloads: 1, next wait: 300 s",
+      "scrollinto:id=fst.service-status.inline-offline.retry@5",
+      "assertstate:id=fst.service-status.inline-offline|name=Rivals unavailable",
+      "assertstate:id=fst.service-status.inline-offline.title|name=You're offline",
+      "waitgone:id=fst.service-status.inline-offline.countdown@2",
+      "assertstate:id=fst.service-status.inline-offline.retry|name=Retry",
+      "shot:{shots}/service-status-inline.png"
+    ]
+  },
+  {
+    "name": "service-status-compact",
+    "route": "/songs",
+    "preset": "compact",
+    "extra": {
+      "FST_DEBUG_CONTROL_LAB": "service-status"
+    },
+    "steps": [
+      "scrollinto:id=fst.service-status.scrape-freeze-countdown.retry@20",
+      "assertstate:id=fst.service-status.scrape-freeze-countdown.retry|name=Retry Now",
+      "shot:{shots}/service-status-compact-countdown.png",
+      "scrollinto:id=fst.service-status.inline.retry@5",
+      "assertstate:id=fst.service-status.inline.retry|name=Retry Now",
+      "shot:{shots}/service-status-compact-inline.png"
+    ]
+  }
+]

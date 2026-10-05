@@ -576,6 +576,50 @@ public class FeedbackTests
     }
 
     [Fact]
+    public async Task Form_SubmitDisabledWithInlineReasonUntilValid()
+    {
+        var gate = new TaskCompletionSource<FeedbackJob>();
+        var form = Form(FeedbackKind.Bug, (_, _) => gate.Task);
+        var raised = new List<string?>();
+        form.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        Assert.False(form.CanSubmit);
+        Assert.Equal("Add a title after the prefix.", form.ValidationMessage);
+
+        form.Title = "[Bug] Crash";
+        Assert.Contains(nameof(FeedbackFormViewModel.CanSubmit), raised);
+        Assert.Contains(nameof(FeedbackFormViewModel.ValidationMessage), raised);
+        Assert.False(form.CanSubmit);
+        Assert.Equal("Add a description.", form.ValidationMessage);
+
+        form.Description = "Boom";
+        Assert.True(form.CanSubmit);
+        Assert.Null(form.ValidationMessage);
+
+        form.Description = new string('x', FeedbackLimits.MaxTextLength + 1);
+        Assert.False(form.CanSubmit);
+        Assert.Equal("Shorten the text and try again.", form.ValidationMessage);
+        form.Description = "Boom";
+
+        raised.Clear();
+        form.AddAttachments([Media("a")]);
+        Assert.Contains(nameof(FeedbackFormViewModel.CanSubmit), raised);
+        raised.Clear();
+        form.RemoveAttachment("a");
+        Assert.Contains(nameof(FeedbackFormViewModel.ValidationMessage), raised);
+        Assert.True(form.CanSubmit);
+
+        var submitting = form.SubmitAsync();
+        Assert.True(form.IsSubmitting);
+        Assert.False(form.CanSubmit);
+        Assert.Null(form.ValidationMessage);
+        gate.SetResult(new FeedbackJob(JobId, FeedbackJobState.Submitted, 7));
+        await submitting;
+        Assert.True(form.IsSent);
+        Assert.False(form.CanSubmit);
+        Assert.Null(form.ValidationMessage);
+    }
+
+    [Fact]
     public async Task Form_DirtyCloseAsksThenKeepEditingOrDiscard()
     {
         var form = Form(FeedbackKind.Bug, (_, _) => Accepted());

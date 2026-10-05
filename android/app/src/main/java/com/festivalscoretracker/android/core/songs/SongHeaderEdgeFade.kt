@@ -45,15 +45,19 @@ object SongHeaderEdgeFade {
     val STOPS: List<Pair<Float, Float>> = listOf(0f, 0.25f, 0.5f, 0.75f, 1f).map { it to smoothstep(it) }
 
     /**
-     * Whether the fade band is drawn. Increase Contrast (system high-contrast text or the app
-     * toggle) and the app's Reduce Transparency keep a hard edge (depth 0), as on iOS: rows are
-     * still hidden under the header, but never half see-through beside it.
+     * Whether the fade band is drawn. Increase Contrast (system contrast level or high-contrast
+     * text, or the app toggle), the app's Reduce Transparency and Remove animations (the app's
+     * Reduce Motion or the system switch; Android has no system reduce-transparency setting, so
+     * issue #157 treats it as the stand-in) keep a hard edge (depth 0), as on iOS: rows are still
+     * hidden under the header, but never half see-through beside it.
      *
-     * @param increaseContrast Increase Contrast is on.
+     * @param increaseContrast Increase Contrast or system high-contrast text is on.
      * @param reduceTransparency Reduce Transparency is on.
+     * @param removeAnimations Reduce Motion / Remove animations is on.
      * @return Whether to fade.
      */
-    fun isEnabled(increaseContrast: Boolean, reduceTransparency: Boolean): Boolean = !increaseContrast && !reduceTransparency
+    fun isEnabled(increaseContrast: Boolean, reduceTransparency: Boolean, removeAnimations: Boolean = false): Boolean =
+        !increaseContrast && !reduceTransparency && !removeAnimations
 
     /**
      * The fade under the header pinned at the viewport start, if any.

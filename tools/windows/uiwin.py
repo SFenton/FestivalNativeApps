@@ -106,12 +106,14 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertstatus": "status", "assertstate": "state",
+    "assertinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
+    "assertpinned": "selector",
 }
 
-#: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
+#: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
+#: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
-              "name": None}
+              "name": None, "scroll": None}
 
 # endregion
 
@@ -123,13 +125,16 @@ def parse_selector(text: str) -> dict:
 
     Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>``, ``raw=<AutomationId>`` (searches the
     raw view, for parts a control marks ``AccessibilityView=Raw`` such as a score row's badge text) or
-    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only).
+    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only). An ``id=``/``name=``
+    selector may end with ``&class=<ClassName>`` to also match the class, e.g. ``id=1&class=Button`` for a
+    system file picker's Open button, which shares AutomationId ``1`` with the picker's first folder.
 
     Args:
         text: Selector text.
 
     Returns:
-        ``{"kind": "id"|"name"|"class"|"raw", "value": ...}`` or ``{"kind": "xy", "x", "y"}``.
+        ``{"kind": "id"|"name"|"class"|"raw", "value": ...}`` (plus ``"class"`` when qualified) or
+        ``{"kind": "xy", "x", "y"}``.
 
     Raises:
         ValueError: Unrecognized selector.
@@ -139,6 +144,9 @@ def parse_selector(text: str) -> dict:
         return {"kind": "xy", "x": int(match.group(1)), "y": int(match.group(2))}
     kind, sep, value = text.partition("=")
     kind = kind.strip().lower()
+    qualified = re.fullmatch(r"(.+)&class=([^&]+)", value) if kind in ("id", "name") else None
+    if sep and qualified:
+        return {"kind": kind, "value": qualified.group(1), "class": qualified.group(2)}
     if sep and kind in ("id", "name", "class", "raw") and value:
         return {"kind": kind, "value": value}
     raise ValueError(f"bad selector {text!r}; use id=, name=, class=, raw= or x,y")
@@ -189,12 +197,17 @@ def parse_step(step: str) -> dict:
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
-    edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer.
+    edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
+    ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
+    pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top.
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
-    ``IsSelected``: ``true``/``false``, e.g. a list's current item) or ``name`` equals ``<value>``.
+    ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
+    rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
+    ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
+    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls.
 
     Args:
         step: A step string.
@@ -257,10 +270,12 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
+        if key == "scroll" and not (re.fullmatch(r"\d+", value) and int(value) <= 100 or value == "-1"):
+            raise ValueError(f"assertstate scroll must be a whole percent 0-100 or -1, not {value!r}")
         result["selector"] = parse_selector(selector)
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertstate needs an element selector, not coordinates")
@@ -740,8 +755,9 @@ def cmd_launch(args: argparse.Namespace) -> int:
     request = {"command": "launch", "exe": str(exe), "args": args.arg or [], "env": env, "timeout": args.timeout}
     with _lock(args, f"launch {exe.name}") as lock:
         result = run_driver(request, lock)
+        pid = result["pid"]
         EXCHANGE_DIR.mkdir(parents=True, exist_ok=True)
-        _state_path().write_text(json.dumps({"pid": result["pid"], "exe": str(exe)}),
+        _state_path().write_text(json.dumps({"pid": pid, "exe": str(exe)}),
                                  encoding="utf-8")
         if args.preset:
             op = preset_op(args.preset)
@@ -753,6 +769,11 @@ def cmd_launch(args: argparse.Namespace) -> int:
             time.sleep(args.wait)
             result = run_driver({"command": "shot", "pid": result["pid"],
                                  "out": str(Path(native_path(args.shot)).resolve())}, lock)
+        if args.steps or args.steps_file:
+            # Same hold as the launch: timing-sensitive first checks can't queue behind another lane.
+            steps = [parse_step(s) for s in parse_steps(args.steps, args.steps_file)]
+            result = {**run_driver({"command": "drive", "pid": pid, "steps": steps}, lock, budget=lock.remaining()),
+                      "pid": pid}
     _report(result)
     return 0
 
@@ -979,6 +1000,8 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for a window")
     launch.add_argument("--no-automation", action="store_true",
                         help="launch without FST_AUTOMATION (first-run and release defaults as a user sees them)")
+    launch.add_argument("--steps", help="drive steps run right after launch, in the same desktop-lock hold")
+    launch.add_argument("--steps-file", help="file of drive steps (one per line) run like --steps")
     launch.set_defaults(func=cmd_launch)
     sub.add_parser("window", parents=[target], help="describe window").set_defaults(func=cmd_window)
     resize = sub.add_parser("resize", parents=[target], help="apply a window preset")

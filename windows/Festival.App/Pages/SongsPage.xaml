@@ -486,8 +486,9 @@
                 </SemanticZoom.ZoomedOutView>
             </SemanticZoom>
             </Grid>
-            <!-- Paints ListFadeSource with its top edge faded while the fade is on (TopEdgeFade); never hit-testable. -->
-            <Border x:Name="ListFadeHost" Grid.Row="1" IsHitTestVisible="False" />
+            <!-- Paints ListFadeSource with its top edge faded while the fade is on (TopEdgeFade); never hit-testable. Raw-view
+                 ItemStatus names the edge state for UI tests (hidden, hard-edge, top, fading). -->
+            <controls:EdgeFadeLayer x:Name="ListFadeHost" Grid.Row="1" AutomationProperties.AutomationId="fst.songs.edge-fade" />
             <!-- Issue #288: the next section's title, drawn here from the edge fade's depth up to the bar, where it pushes
                  StickyHeader out (the in-list heading turns transparent meanwhile but stays the UIA heading, so this copy
                  is Raw). Positions follow the scroll on the compositor; nothing animates on its own. -->

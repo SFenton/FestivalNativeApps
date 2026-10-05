@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.ui.songdetail
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -78,7 +79,11 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
         song?.let { songDetailExtras(it, settings, shop, profile, catalogPublication, publication ?: catalogPublication) } ?: SongDetailExtras(settings.visibleInstruments)
     }
     var pathsFor by rememberSaveable { mutableStateOf<String?>(null) }
-    SongDetailScreen(viewModel, extras, api::artworkUrl, container.background, embedded, focus = instrument) { pathsFor = it.songId }
+    var pathsOpening by rememberSaveable { mutableIntStateOf(0) }
+    SongDetailScreen(viewModel, extras, api::artworkUrl, container.background, embedded, focus = instrument) {
+        pathsFor = it.songId
+        pathsOpening++
+    }
     val scope = rememberCoroutineScope()
     if (song != null && pathsFor == song.songId && extras.pathInstruments.isNotEmpty()) {
         val pathsViewModel: SongPathsViewModel = viewModel(key = "paths:${song.songId}:${extras.pathInstruments}") {
@@ -90,6 +95,8 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
                 decodeImage = { image -> withContext(Dispatchers.Default) { decodePathImage(image.bytes, image.width, image.height) } },
             )
         }
+        // Before the sheet reads its state, so a reopened sheet never shows the last opening's chart.
+        remember(pathsViewModel, pathsOpening) { pathsViewModel.beginOpening(pathsOpening, settings.pathDefaultView) }
         SongPathsSheet(
             viewModel = pathsViewModel,
             songTitle = song.title,

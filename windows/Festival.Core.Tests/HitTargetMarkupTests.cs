@@ -104,4 +104,68 @@ public class HitTargetMarkupTests
         var title = template.Descendants().Single(e => e.Name.LocalName == "TextBlock" && Attr(e, "Text") == "{x:Bind Title}");
         Assert.Equal("Wrap", Attr(title, "TextWrapping"));
     }
+
+    [Theory]
+    [InlineData("Controls/ServiceStatusView.xaml")]
+    [InlineData("Controls/ServiceStatusInline.xaml")]
+    public void ServiceStatus_RetryUsesMinTargetAndCountdownCollapses(string file)
+    {
+        // Issue #233: Retry was 36 epx tall, and the always-present countdown left a blank line above it outside a freeze.
+        var doc = Load(file);
+        var named = doc.Descendants().Where(e => Attr(e, "Name") is not null).ToDictionary(e => Attr(e, "Name")!);
+        Assert.Equal(Resource, Attr(named["RetryButton"], "MinHeight"));
+        Assert.StartsWith("{x:Bind Status.HasCountdown", Attr(named["CountdownBlock"], "Visibility"));
+        Assert.Equal("{x:Bind Status.CountdownAnnouncement, Mode=OneWay}", Attr(named["CountdownBlock"], "AutomationProperties.Name"));
+        if (Attr(named["RetryButton"], "Style") == "{StaticResource AccentButtonStyle}")
+        {
+            // Under a contrast theme the accent button is already HighlightText on Highlight; the automatic backplate boxed the label.
+            Assert.Equal("None", Attr(named["RetryButton"], "HighContrastAdjustment"));
+        }
+    }
+
+    [Fact]
+    public void TitleBar_BellAndProfileAreSeparateNamedButtons()
+    {
+        // Issue #253 (#53/#14): two independent title-bar buttons, each with its own action and UIA name, never one container.
+        var header = Load("MainWindow.xaml").Descendants().Single(e => e.Name.LocalName == "TitleBar.RightHeader");
+        var children = header.Elements().Single().Elements().Select(e => Attr(e, "Name")).ToList();
+        Assert.Equal(["GlobalSearchButton", "NotificationsHost", "ProfileButton"], children);
+        var profile = Assert.Single(ById(Load("MainWindow.xaml"), "fst.shell.profile"));
+        Assert.Equal("{x:Bind Shell.ProfileButtonName, Mode=OneWay}", Attr(profile, "AutomationProperties.Name"));
+        Assert.Equal("OnProfileButtonClick", Attr(profile, "Click"));
+        var bell = Assert.Single(ById(Load(Path.Combine("Controls", "NotificationsBell.xaml")), "fst.shell.notifications"));
+        Assert.Equal("{x:Bind Model.BellName, Mode=OneWay}", Attr(bell, "AutomationProperties.Name"));
+        Assert.Contains(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
+    }
+
+    [Fact]
+    public void NotificationsBadge_HasNoContrastBackplate()
+    {
+        // Issue #253: under a contrast theme the count drew WindowText on a clipped dark backplate inside the Highlight
+        // circle. InfoBadge already pairs HighlightText with Highlight, so the badge and its template parts opt out.
+        var badge = Load(Path.Combine("Controls", "NotificationsBell.xaml")).Descendants().Single(e => e.Name.LocalName == "InfoBadge");
+        Assert.Equal("None", Attr(badge, "HighContrastAdjustment"));
+        Assert.Equal("OnBadgeLayout", Attr(badge, "Loaded"));
+        Assert.Equal("OnBadgeLayout", Attr(badge, "SizeChanged"));
+        Assert.Equal("Raw", Attr(badge, "AutomationProperties.AccessibilityView"));
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "NotificationsBell.xaml.cs"));
+        Assert.Contains("DialogChrome.WithoutBackplate(UnreadBadge)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ServiceStatus_PagesUseTheSharedControls()
+    {
+        // Issue #233: nine hand-copied inline rows had drifted (missing countdowns, live regions, IDs on panels UIA skips).
+        var shared = new[] { "ServiceStatusView.xaml", "ServiceStatusInline.xaml" };
+        var offenders = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !shared.Contains(Path.GetFileName(path)) && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .Where(path => File.ReadAllText(path).Contains("fst.service-status", StringComparison.Ordinal)
+                           || File.ReadAllText(path).Contains("Status.CountdownText", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ToList();
+        Assert.Empty(offenders);
+        var inline = Load(Path.Combine("Pages", "SongDetailPage.xaml")).Descendants()
+            .Where(e => e.Name.LocalName == "ServiceStatusInline").ToList();
+        Assert.Contains(inline, e => Attr(e, "TitleAutomationId") == "fst.history.error" && Attr(e, "RetryAutomationId") == "fst.history.retry");
+    }
 }

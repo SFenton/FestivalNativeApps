@@ -15,6 +15,7 @@ import FestivalDesign
 /// the selected player's own bands and links into the public Band Rankings boards.
 struct BandsScreen: View {
     let session: FestivalSession
+    @Environment(\.deviceLayout) private var layout
 
     /// Create the screen.
     ///
@@ -81,6 +82,9 @@ struct BandsScreen: View {
                 .padding(.horizontal, 4)
                 .festivalFadeIn(isLoaded: true, index: 2)
             }
+            // Label-and-chevron rows and a footnote: cap the line length at regular width
+            // like Settings and Licenses (iPhone Duo inner display: ~850 pt rows before).
+            .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
             .padding(16)
         }
         .festivalBackground(.carousel, session: session)

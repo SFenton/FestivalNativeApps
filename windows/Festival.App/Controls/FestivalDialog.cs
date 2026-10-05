@@ -51,6 +51,7 @@ public static class FestivalDialog
         AutomationProperties.SetAutomationId(dialog, automationId);
         if (ModalCommands.SpansFullWidth(primaryText, secondaryText, closeText)) DialogChrome.FullWidthSingleButton(dialog);
         if (closeAutomationId is not null) DialogChrome.CloseButtonAutomationId(dialog, closeAutomationId);
+        DialogChrome.CommandLabelsWithoutBackplate(dialog);
         return dialog;
     }
 

@@ -112,6 +112,9 @@ struct FestivalTabStack<Root: View>: View {
     let visibleInstruments: Set<Instrument>
     @Binding var path: [AppRoute]
     let isVisible: Bool
+    /// The leading pane's context while the window allows an on-demand split
+    /// (`OnDemandSplitStack`), applied to every page; nil on iPhone and in portrait.
+    let paneContext: SplitPaneContext?
     let root: Root
 
     /// Create a tab stack.
@@ -121,17 +124,23 @@ struct FestivalTabStack<Root: View>: View {
     ///   - visibleInstruments: Settings-visible charts.
     ///   - path: This tab's navigation path.
     ///   - isVisible: Whether this tab is currently selected.
+    ///   - paneContext: Split pane context for every page, or nil.
     ///   - root: Tab root screen.
     init(
         session: FestivalSession, visibleInstruments: Set<Instrument>,
-        path: Binding<[AppRoute]>, isVisible: Bool, @ViewBuilder root: () -> Root
+        path: Binding<[AppRoute]>, isVisible: Bool, paneContext: SplitPaneContext? = nil,
+        @ViewBuilder root: () -> Root
     ) {
         self.session = session
         self.visibleInstruments = visibleInstruments
         _path = path
         self.isVisible = isVisible
+        self.paneContext = paneContext
         self.root = root()
     }
+
+    /// Whether the trailing pane is open beside this stack (its top page is a list).
+    private var isListPane: Bool { paneContext?.paneWidth != nil }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -140,7 +149,9 @@ struct FestivalTabStack<Root: View>: View {
                 // is the front page (issue #92).
                 .pageToolsScope()
                 .modifier(TopEdgeScrim())
-                .menuBarColumn(isTop: isVisible && path.isEmpty)
+                .menuBarColumn(isTop: isVisible && path.isEmpty, isList: isListPane)
+                .splitPaneContext(paneContext)
+                .rootTabBarVisibility()
                 .navigationDestination(for: AppRoute.self) { route in
                 AppRouteDestination(
                     route: route, session: session, visibleInstruments: visibleInstruments,
@@ -150,7 +161,9 @@ struct FestivalTabStack<Root: View>: View {
                 .pageTrailingItems()
                 .pageToolsScope()
                 .modifier(TopEdgeScrim())
-                .menuBarColumn(isTop: isVisible && path.last == route)
+                .menuBarColumn(isTop: isVisible && path.last == route, isList: isListPane)
+                .splitPaneContext(paneContext)
+                .rootTabBarVisibility()
             }
         }
     }
@@ -162,11 +175,11 @@ extension View {
     /// Tell an iOS page whether it is the top page of its column and whether that column
     /// is a split's list column, so only the front pages publish menu-bar commands
     /// (`MenuBarTopPagePublisher`; iOS navigation keeps covered pages and unselected
-    /// tabs alive). The Mac sets the same values in `MacListDetailStack`.
+    /// tabs alive). The Mac sets the same values in `MacStack`.
     ///
     /// - Parameters:
     ///   - isTop: The page is visible and nothing is pushed over it.
-    ///   - isList: The page is in a split's list column.
+    ///   - isList: The page is the list beside an open trailing pane.
     /// - Returns: The page with its menu-bar context.
     @ViewBuilder
     func menuBarColumn(isTop: Bool, isList: Bool = false) -> some View {

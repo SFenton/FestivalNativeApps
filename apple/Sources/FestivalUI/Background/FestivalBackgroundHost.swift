@@ -211,6 +211,8 @@ struct FestivalBackdropView: View {
     var body: some View {
         if DebugAnimationOverride.noBackdrop {
             BrandTokens.appBackground.ignoresSafeArea()
+        } else if DebugAnimationOverride.flatBackdrop {
+            ArtworkBackdropCanvas.gray(0.5 * (1 - dimming)).ignoresSafeArea()
         } else {
             canvas
         }
@@ -225,8 +227,11 @@ struct FestivalBackdropView: View {
             animate: appeared,
             showsArt: !(lessTransparency || systemReduceTransparency
                 || ArtworkNetworkStatus.shared.isConstrained),
-            dimming: moreContrast || systemContrast == .increased ? 0.82 : 0.7
+            dimming: dimming
         )
         .ignoresSafeArea()
     }
+
+    /// Black-overlay equivalent (0.7, or 0.82 with increased contrast).
+    private var dimming: Double { moreContrast || systemContrast == .increased ? 0.82 : 0.7 }
 }

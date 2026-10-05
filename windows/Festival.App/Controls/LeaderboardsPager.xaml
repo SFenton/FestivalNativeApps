@@ -24,10 +24,23 @@
     </UserControl.Resources>
     <StackPanel x:Name="Root" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" PreviewKeyDown="OnPreviewKeyDown">
         <StackPanel.Resources>
-            <!-- Disabled buttons keep their frosted surface and dim as a whole (web Opacity.dimmed) instead of Fluent's gray. -->
-            <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="FSTPagerButtonBrush" />
-            <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="FSTCardStrokeBrush" />
-            <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="FSTPagerGlyphBrush" />
+            <!-- Disabled buttons keep their frosted surface and dim as a whole (web Opacity.dimmed) instead of Fluent's gray.
+                 Theme dictionaries (values mirror FSTPagerButtonBrush, FSTCardStrokeBrush and FSTPagerGlyphBrush) rather
+                 than StaticResource aliases, which keep the old theme's brush across a live contrast switch (issue #242). -->
+            <ResourceDictionary>
+                <ResourceDictionary.ThemeDictionaries>
+                    <ResourceDictionary x:Key="Default">
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FF121826" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="#14FFFFFF" />
+                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#FFD7DEE8" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="HighContrast">
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{ThemeResource SystemColorButtonFaceColor}" />
+                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="{ThemeResource SystemColorWindowTextColor}" />
+                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{ThemeResource SystemColorButtonTextColor}" />
+                    </ResourceDictionary>
+                </ResourceDictionary.ThemeDictionaries>
+            </ResourceDictionary>
         </StackPanel.Resources>
         <Button x:Name="First" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="First page"
                 AutomationProperties.Name="First page">

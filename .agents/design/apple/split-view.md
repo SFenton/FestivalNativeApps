@@ -1,0 +1,73 @@
+# Split view and flyout redesign (iPad, iPhone Duo, macOS)
+
+> **What:** the operator's 2026-10-04 redesign of list/detail ("split view") layouts and the iPad/Duo navigation flyout; supersedes earlier always-on two/three-column layouts. **Read when:** changing any list/detail, split, sidebar or flyout layout on iPad, Duo or Mac.
+
+Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac look bad — the split is not aligned with the Duo's fold or the screen's midpoint, and screens like Songs should never be split. Replace them with an **on-demand split** used only on pages where it helps, aligned to the **exact vertical midpoint** (Duo: the fold). Every implementation decision still goes through the `apple-hig` skill (split views, sidebars, layout, iPhone Duo).
+
+## On-demand split (the only split pattern)
+
+- **Starts full width.** The page uses the whole content width with no empty detail pane.
+- **Selecting an item splits:** the page animates to the leading half and the "navigated-to" content appears in the trailing half. Selecting another item replaces the trailing half. Closing it (close button in the trailing pane's toolbar, Escape, ⌘[, or Back) animates back to full width.
+- **Geometry:** the divider sits at the **exact vertical midpoint** of the content area — 50/50, never content-sized. On iPhone Duo's inner display it aligns to the **hinge**: leading pane ends at the hinge's leading edge, trailing pane starts at its trailing edge (the rail/vertical bar is accounted for inside the panes, never by shifting the divider). On Mac the content area is the window minus the persistent sidebar; the divider is fixed at that area's midpoint.
+- **When it applies:** landscape / wide regular width only, and only when each half is at least ~360 pt. Portrait (iPad portrait, Duo inner portrait, narrow Mac windows) and compact width use ordinary push navigation (full-screen detail with Back). This supersedes Duo D1/J3 (inner-portrait two columns) and the iPad three-column sidebar|list|detail layout.
+- **Motion:** spring resize of the leading pane with the trailing pane sliding in from the trailing edge; Reduce Motion → crossfade. Keep the selected row highlighted while its detail is open.
+
+## One background, full-page insets (operator 2026-10-05)
+
+- **One background per split.** Both panes and the divider band share **one** backdrop image (static or animated per the user's setting) spanning the whole split. The **parent page** (leading pane) decides it: its artwork and its darkening. The trailing pane draws no background layer, no second scrim and no other artwork; opening or closing the split never jumps or crossfades the image. Darkening is equal across both panes and under the divider (the top-edge gradient included). HIG layout.md "Extend full-screen backgrounds beneath sidebars, toolbars, and tab bars to window/screen edges"; materials.md "Use standard materials for content-layer elements such as app backgrounds".
+- **Full-page insets in each pane.** Each pane's title/header and content use the same leading/trailing margins and safe-area handling as a full page at that width, measured from the divider band (Duo: the hinge edge) as a full page measures from a window edge. HIG layout.md "Respect system safe areas, margins, and guides"; designing-for-iphone-duo.md "use margins/safe-area insets".
+
+## Page classification
+
+| Split on demand (landscape/wide) | Leading half → trailing half |
+|---|---|
+| Rivals hub, All Rivals | rivals list → Rival Detail (Rivalry pushes inside the trailing pane) |
+| Leaderboards overview | cards → selected player's profile; "View all rankings" pushes Full Rankings full width |
+| Full Rankings, Band Rankings | rankings → player profile / band detail |
+| Song Detail | song page → full instrument **Song Leaderboard** or **score history** (operator 2026-10-04) |
+| Settings (iPad/Duo) | settings list → sub-page (Licenses, First Run Guides, Service Info, …); Mac keeps its Settings window panes |
+
+| Never split (full width, push navigation) | Landscape treatment |
+|---|---|
+| Songs | full width; **two-column grid of rows under each section header** in landscape |
+| Song Leaderboard (full instrument board) | full width; tapping a player navigates **directly** to the profile (push, no split; operator 2026-10-04) |
+| Paths | **always a modal sheet** on every platform (self-contained task; operator 2026-10-04) |
+| Item Shop, Suggestions, Statistics/Player profile, Compete, Band Detail, Player Bands, Rivalry | full width; existing adaptive grids |
+| Search, Notifications, What's New, first run, sheets | modal/sheet presentations, unchanged |
+
+## Navigation flyout (iPad, iPhone Duo)
+
+- The side panel is an **overlay flyout like iPhone's drawer**: it slides **over** the content with a scrim, from the leading edge, opened by the toolbar/sidebar button or edge swipe, closed by tapping the scrim, Escape or selecting a destination. It never pushes or resizes content, and there is no persistent sidebar column.
+- macOS keeps its persistent sidebar (Mac convention, [macos.md](macos.md)); the Mac split rules above apply to its content area.
+
+## Implementation (Lane SPLIT, 2026-10-04)
+
+| Piece | Where | Rule |
+|---|---|---|
+| Policy | `App/Layout/OnDemandSplitPolicy.swift` | List pages and their detail routes (table below); the section path cut at its first detail route (`list` → leading pane, `detail` → trailing); geometry: divider band = the vertical hinge if one crosses the container, else 1 pt centred on the container's midpoint; each pane runs from a container edge to the band; applies only when landscape, regular in both dimensions (iOS) and both panes ≥ 360 pt. Unit tests: `OnDemandSplitPolicyTests` |
+| Layout | `OnDemandSplitLayout` (`OnDemandSplit.swift`) | Leading pane springs from full width to its half, the trailing pane slides in from the trailing edge (Reduce Motion: crossfade); a 1 pt hairline at the band's centre. Reports exactly its proposed size (`frame(minWidth: 0, maxWidth: .infinity)`), never the panes' sum |
+| iOS stack | `OnDemandSplitStack` (Songs, every tab stack) | Leading `FestivalTabStack` keeps its identity open or closed (list scroll kept); trailing `NavigationStack` with **Close** (`fst.split.close`, Escape) on its root, pushes inside it; trailing container `fst.split.trailing` |
+| Mac | `MacListDetailStack` | Same policy in the content area right of the sidebar (no hinge, no landscape rule); both panes draw their top route as root while a list page is on top (macos.md gotcha); Close or Back in the window toolbar; Back on a pushed list page (`fst.split.list-back`) |
+| Shared chrome | `App/Layout/SplitPaneChrome.swift` | While a split is possible (open or not) `OnDemandSplitLayout` draws the one backdrop (`SplitBackdrop`, a `FestivalBackdropView` over the whole container) behind both panes; `splitPaneContext` clears each page's navigation container (`containerBackground(_:for: .navigation)`, iOS 18; a Mac stack has no fill) and sets `splitSharesBackdrop`, so `festivalBackground` draws nothing. Trailing pages never register with the coordinator (`registersBackground`), so the parent's mode stays. The trailing pane gets the same `TopEdgeScrim` at the leading page's height (`SplitTopScrim`, Duo's trailing bar is a vertical bar with a shorter inset) and the band carries the gradient. Insets: UIKit reports a **zero** system minimum margin at a mid-window edge, so the trailing large title sat flush on the divider; `SplitPaneBarMargins` raises each pane bar's margins to the window root's (20 pt iPad). UIKit gives every stack the Duo vertical bar's trailing safe area (84 pt), so the leading pane ignores the safe area at the edge facing the divider (`edgesFacingDivider`). Debug `FST_DEBUG_FLAT_BACKDROP=1` draws a flat dimmed gray backdrop for per-region darkening checks. Tests: `SplitPaneChromeTests`, `splitPanesShareTheParentsBackground` |
+| Test IDs | `contracts/product.json` | `fst.split.*` (`trailing`, `divider`, `close`, `back`, `list-back`) is registered to `app-navigation`; a new split ID needs no registry edit, a new prefix does (issue #302) |
+| Rows | `ListDetailLink` | A button opening the trailing pane when the list page on top accepts the route (`ListDetailSelectAction.accepts`), else a plain `NavigationLink`; the open row keeps the accent highlight and `isSelected` |
+| Hinge | `DeviceLayout.splitHinge` | Active fold, else the inactive division (`reservedRegions(kind: .division, options: [.includeInactive])`), else the inner display's middle line |
+| Flyout | `FestivalDrawer` in `ShellPresentation.Navigation.flyout` | iPad regular width runs the root `TabView` with its tab bar hidden on every page (`rootTabBarVisibility()`): a plain view switch lost the first responder on each section change and the iPadOS menu bar stopped answering (⌘3 after ⌘2, live A/B). The drawer adds a Search row and selects Item Shop; Escape (View › Close, menu bar; in-view Escape shortcuts never fired on iPad) and a leading-edge swipe at a section root (`FlyoutEdgeSwipe`) on iPad and Duo; View › Show Navigation (⌃⌘S) replaces the sidebar toggle; at accessibility sizes the footer scrolls with the rows (A11Y2's AX5 sidebar rule). Duo keeps its tab rail; the drawer was already an overlay there |
+
+| Split page (as built) | Detail routes |
+|---|---|
+| Rivals root, `.rivals`, `.allRivals` | `.rivalDetail` |
+| Leaderboards root, `.leaderboards` | `.player`, `.band` |
+| `.fullRankings` / `.bandRankings` | `.player` / `.band` |
+| `.songDetail` | `.songLeaderboard` ("View full leaderboard", the footer row), `.playerHistory` ("View score history" in the history card, shown as `SongScoreHistoryPage` in the trailing pane) |
+| Settings root | `.licenses` (the only Settings sub-page that is a route; First Run Guides and Service Info are inline sections) |
+
+Songs: full width; two cards per row under each section header in a landscape regular window (`SongGridPolicy`, iPad and Duo; the Mac keeps single-line table rows). Each grid card opens through its own borderless button (`SongGridCardLink`): a `List` row fires every `NavigationLink` it holds on one tap, so both songs of the row were pushed (`IPadShellJourneyTests.testSongsGridCardOpensOnlyItsSong`, 2026-10-05). Every other page pushes full width.
+
+HIG basis and deviations (operator wins): split-views.md "Persistently highlight the current selection" (kept), "Prefer the 1 pt thin divider" (kept); iOS "Prefer split views in a regular environment" (kept: landscape regular only). **Deviations:** sidebars.md "do not hide it by default" (iPad sidebar replaced by the overlay flyout); split-views.md macOS "draggable dividers resize them" (fixed midpoint); designing-for-iphone-duo.md "Split views expand to multiple panes inner" / Notes example (inner portrait pushes; landscape splits only on demand). designing-for-iphone-duo.md "split columns adjust width/margins for inner-display symmetry" is met by aligning the divider to the hinge; motion.md "let people cancel animations" (a second tap replaces the item mid-spring).
+
+**Measured (2026-10-05, live SFentonX; `~/FestivalShowcase/split-redesign/{before,after}/`, note `ALIGNMENT.md`).** iPad Pro 11" landscape (1210 pt): hairline at 604.5–605.5 pt, the exact midpoint; panes 604.5 / 604.5. Mac 1280 × 820: hairline at 749.5–750.5 pt = sidebar 220 + 530, the content area's midpoint; 800 pt (sidebar shown, content 580 pt) pushes. iPhone Duo inner landscape: the system reports the hinge (inactive division) at 455–495 pt; the panes end at its edges and the 1 pt hairline sits at 475.0–475.3 pt (display middle 475.5); the trailing pane's bar (Close) moves into the vertical bar while the leading pane keeps its horizontal title (HIG Duo "controls stay with the area they affect"). Inner portrait and folded push the same item.
+
+**Shared background and insets, last measured (2026-10-05, live SFentonX, `FST_DEBUG_FLAT_BACKDROP=1`; `~/FestivalShowcase/split-redesign/bg-fix/`, note `MEASUREMENTS.md`).** Mean luminance of matching strips either side of the divider: iPad top strip 19.42 / 38.00 before (trailing pane had no top scrim) → 19.42 / 19.41 after on Rivals, All Rivals, Leaderboards, Full Rankings and Settings › Licenses (body 38.00 / 38.00); Duo hinge band 0.00 before (no backdrop under it) → panes and band 38.00 / 38.00 / 38.00, top 19.40 / 19.41; Mac toolbar strip 46.70 / 49.42 → 46.15 / 46.16. Trailing large title inset 0 pt → 20 pt (iPad; leading 20); Duo leading-pane content 100 pt → 16 pt from the hinge, trailing 20 pt from it.
+
+Open: Escape is not verifiable with XCUITest on the iPad simulator (no key path reached the app); XCUITest coordinate gestures (`tapXY`, `drag`, swipes) do not land on the Duo inner display, so the Duo edge swipe is unverified (identifier taps work).

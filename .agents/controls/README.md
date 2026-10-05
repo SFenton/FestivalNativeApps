@@ -24,12 +24,12 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | quick-links | `fst.quick-links.*` | 5 | pending | [spec](quick-links/spec.md) | [ios](quick-links/ios.md) · [android](quick-links/android.md) · [windows](quick-links/windows.md) |
 | songs-section-index | `fst.songs.section-index.*` | 5 | pending | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) · [android](songs-section-index/android.md) · [windows](songs-section-index/windows.md) |
 | first-run | `fst.first-run.*` | 6 | pending | [spec](first-run/spec.md) | [ios](first-run/ios.md) · [android](first-run/android.md) · [windows](first-run/windows.md) |
-| service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) |
+| service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) · [windows](service-status/windows.md) |
 | global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [ios](global-search/ios.md) · [ipados](global-search/ipados.md) · [macos](global-search/macos.md) · [android](global-search/android.md) · [windows](global-search/windows.md) |
 | whats-new | `fst.whats-new.*` | 5 | pending | [spec](whats-new/spec.md) | [ios](whats-new/ios.md) · [android](whats-new/android.md) · [windows](whats-new/windows.md) |
 | feedback-form | `fst.settings.feedback.*` | 10 | pending | [spec](feedback-form/spec.md) | [ios](feedback-form/ios.md) · [ipados](feedback-form/ipados.md) · [duo](feedback-form/duo.md) · [macos](feedback-form/macos.md) · [android](feedback-form/android.md) · [windows](feedback-form/windows.md) |
 | privacy-policy | `fst.privacy-policy.*` | 5 | pending | [spec](privacy-policy/spec.md) | [ios](privacy-policy/ios.md) · [ipados](privacy-policy/ipados.md) · [duo](privacy-policy/duo.md) · [macos](privacy-policy/macos.md) · [android](privacy-policy/android.md) · [windows](privacy-policy/windows.md) |
-| leaderboard-row-columns | ? | ? | not in contract | [spec](leaderboard-row-columns/spec.md) | [ios](leaderboard-row-columns/ios.md) · [ipados](leaderboard-row-columns/ipados.md) · [macos](leaderboard-row-columns/macos.md) |
+| leaderboard-row-columns | ? | ? | not in contract | [spec](leaderboard-row-columns/spec.md) | [ios](leaderboard-row-columns/ios.md) · [ipados](leaderboard-row-columns/ipados.md) · [macos](leaderboard-row-columns/macos.md) · [windows](leaderboard-row-columns/windows.md) |
 <!-- END GENERATED -->
 # Controls router
 

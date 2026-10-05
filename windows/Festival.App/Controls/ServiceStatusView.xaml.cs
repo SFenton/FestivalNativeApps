@@ -3,6 +3,7 @@ using Festival.App.Services;
 using Festival.Core.ViewModels;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Festival.App.Controls;
@@ -19,12 +20,20 @@ public sealed partial class ServiceStatusView : UserControl
     public static readonly DependencyProperty ShowsRetryProperty = DependencyProperty.Register(
         nameof(ShowsRetry), typeof(bool), typeof(ServiceStatusView), new PropertyMetadata(true));
 
+    /// <summary>Default automation ID root (spec test IDs <c>fst.service-status.title|countdown|retry</c>).</summary>
+    public const string DefaultIdPrefix = "fst.service-status";
+
+    /// <summary>Automation ID root.</summary>
+    public static readonly DependencyProperty IdPrefixProperty = DependencyProperty.Register(
+        nameof(IdPrefix), typeof(string), typeof(ServiceStatusView), new PropertyMetadata(DefaultIdPrefix, OnIdPrefixChanged));
+
     private string? lastAnnouncement;
 
     /// <summary>Creates the view.</summary>
     public ServiceStatusView()
     {
         InitializeComponent();
+        ApplyIds();
         Loaded += (_, _) => QueueAnnouncement();
         // Shown later by a collapsed ancestor becoming visible: announce once it has a size.
         SizeChanged += (_, e) =>
@@ -47,12 +56,26 @@ public sealed partial class ServiceStatusView : UserControl
         set => SetValue(ShowsRetryProperty, value);
     }
 
-    /// <summary>Countdown line visibility: without Retry an idle (empty) countdown would leave a blank line in the card.</summary>
-    /// <param name="showsRetry">Whether the Retry button is shown.</param>
-    /// <param name="seconds">Seconds left before the automatic retry.</param>
-    /// <returns>Visible while counting down or alongside Retry (unchanged layout for other pages).</returns>
-    public Visibility CountdownVisibility(bool showsRetry, int seconds) =>
-        showsRetry || seconds > 0 ? Visibility.Visible : Visibility.Collapsed;
+    /// <summary>
+    /// Automation ID root: <c>&lt;IdPrefix&gt;.title</c>, <c>.countdown</c> and <c>.retry</c>. Only the control lab, which
+    /// shows several instances at once, changes it; pages keep the spec IDs.
+    /// </summary>
+    public string IdPrefix
+    {
+        get => (string)GetValue(IdPrefixProperty);
+        set => SetValue(IdPrefixProperty, value);
+    }
+
+    private static void OnIdPrefixChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) => ((ServiceStatusView)d).ApplyIds();
+
+    /// <summary>Applies the heading, countdown and Retry automation IDs.</summary>
+    private void ApplyIds()
+    {
+        var prefix = string.IsNullOrEmpty(IdPrefix) ? DefaultIdPrefix : IdPrefix;
+        AutomationProperties.SetAutomationId(TitleBlock, prefix + ".title");
+        AutomationProperties.SetAutomationId(CountdownBlock, prefix + ".countdown");
+        AutomationProperties.SetAutomationId(RetryButton, prefix + ".retry");
+    }
 
     private static void OnStatusChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {

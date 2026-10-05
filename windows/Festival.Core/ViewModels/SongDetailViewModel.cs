@@ -319,6 +319,29 @@ public static class SongDetailLayout
     /// <summary>Smallest space kept above a focused element, so the pinned header never covers it before it is measured.</summary>
     public const double MinFocusTopInset = 64;
 
+    /// <summary>Scroll past the full header's bottom (epx) at which the compact header pins.</summary>
+    public const double PinThreshold = 12;
+
+    /// <summary>Whether the compact song header is pinned over the scroller at an offset.</summary>
+    /// <param name="verticalOffset">Scroll offset.</param>
+    /// <param name="fullHeaderHeight">Full header's height.</param>
+    /// <returns><see langword="true"/> once the full header has scrolled away.</returns>
+    public static bool PinsHeader(double verticalOffset, double fullHeaderHeight) =>
+        verticalOffset > fullHeaderHeight + PinThreshold;
+
+    /// <summary>
+    /// Height the pinned header covers at the viewport top for a scroll offset, so a Quick Links jump lands its section
+    /// below it (#251). Before the header was first shown its height is unknown, so <see cref="MinFocusTopInset"/> stands
+    /// in until the binder's landing check re-aims on the measured header.
+    /// </summary>
+    /// <param name="verticalOffset">Scroll offset.</param>
+    /// <param name="fullHeaderHeight">Full header's height.</param>
+    /// <param name="pinnedHeaderHeight">Pinned header's last measured height (0 when never shown).</param>
+    /// <returns>Covered height in epx.</returns>
+    public static double PinnedHeaderInset(double verticalOffset, double fullHeaderHeight, double pinnedHeaderHeight) =>
+        !PinsHeader(verticalOffset, fullHeaderHeight) ? 0
+            : double.IsFinite(pinnedHeaderHeight) && pinnedHeaderHeight > 0 ? pinnedHeaderHeight : MinFocusTopInset;
+
     /// <summary>
     /// Grows a bring-into-view target upwards by the pinned header's height (WCAG 2.4.11, focus not obscured): the
     /// header overlays the scroller, so an element scrolled to the top edge would sit under it.

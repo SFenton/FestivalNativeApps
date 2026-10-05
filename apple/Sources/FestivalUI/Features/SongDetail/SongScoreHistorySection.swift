@@ -30,6 +30,9 @@ struct SongScoreHistorySection: View {
     var viewportWidth: CGFloat = 0
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
+    /// Opens every score for an instrument in the trailing pane, where Song Detail can
+    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
+    var openFullHistory: ((Instrument) -> Void)?
 
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
@@ -103,7 +106,16 @@ struct SongScoreHistorySection: View {
                                 .accessibilityIdentifier("fst.song-detail.history.row.\(index)")
                         }
                     }
-                    if rows.count > SongScoreHistoryModel.listLimit {
+                    if let openFullHistory, !rows.isEmpty {
+                        Button {
+                            openFullHistory(current)
+                        } label: {
+                            PurpleActionLabel(title: "View score history")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("View \(current.label) score history")
+                        .accessibilityIdentifier("fst.song-detail.history.view-all")
+                    } else if rows.count > SongScoreHistoryModel.listLimit {
                         Button {
                             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
                                 expanded.toggle()
@@ -449,6 +461,9 @@ struct ScoreHistoryListRow: View {
     var seasonColumn = false
     /// The catalogue's current season, whose pill is inverted.
     var currentSeason: Int?
+    /// Opens every score for an instrument in the trailing pane, where Song Detail can
+    /// split (`split-view.md`, operator 2026-10-04); nil expands the list in place.
+    var openFullHistory: ((Instrument) -> Void)?
 
     private var season: Int? {
         guard seasonColumn, let season = entry.season, season > 0 else { return nil }

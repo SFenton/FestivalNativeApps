@@ -59,8 +59,11 @@ public sealed partial class ServiceStatusViewModel : ObservableObject
 
     /// <summary>Seconds left before an automatic retry, or 0.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CountdownText), nameof(CountdownAnnouncement))]
+    [NotifyPropertyChangedFor(nameof(CountdownText), nameof(CountdownAnnouncement), nameof(HasCountdown))]
     private int secondsRemaining;
+
+    /// <summary>Whether an automatic-retry countdown is running (the countdown line is shown only then).</summary>
+    public bool HasCountdown => SecondsRemaining > 0;
 
     /// <summary>Whether an issue is shown.</summary>
     public bool HasIssue => Issue is not null;

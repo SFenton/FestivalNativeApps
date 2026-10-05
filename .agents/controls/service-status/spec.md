@@ -1,6 +1,6 @@
 # Service status (`fst.service-status.*`) — spec
 
-> **What:** platform-neutral behavior of the shared failed-read status: scrape freeze with automatic retry, generic outage, offline, syncing, not found and other errors. **Read when:** showing any failed public read on any platform. Platform notes: [ios.md](ios.md).
+> **What:** platform-neutral behavior of the shared failed-read status: scrape freeze with automatic retry, generic outage, offline, syncing, not found and other errors. **Read when:** showing any failed public read on any platform. Platform notes: [ios.md](ios.md), [windows.md](windows.md).
 
 Source: the web has no freeze UX; its client throws a generic `API <status>` error (`FortniteFestivalWeb/src/api/client.ts:119-120`). Freeze semantics come from the service ([service safety → freeze](../../platforms/service-safety.md#public-read-freeze)).
 

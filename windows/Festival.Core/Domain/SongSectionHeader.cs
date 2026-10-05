@@ -52,15 +52,29 @@ public static class SongSectionHeader
     /// <param name="realized">Realized rows with edges relative to the viewport top.</param>
     /// <param name="viewportHeight">Viewport height.</param>
     /// <returns>Index of the first visible row, clamped to the rows.</returns>
-    public static int FirstVisibleRow(int fallback, int count, IEnumerable<RealizedRow> realized, double viewportHeight)
+    public static int FirstVisibleRow(int fallback, int count, IEnumerable<RealizedRow> realized, double viewportHeight) =>
+        TryFirstVisibleRow(count, realized, viewportHeight, out var row) ? row : count <= 0 ? 0 : Math.Clamp(fallback, 0, count - 1);
+
+    /// <summary>
+    /// Finds the first row actually visible in the list viewport from the realized rows' geometry alone. Fails when no
+    /// realized row is in view: after a far scroll (scrollbar thumb, UI Automation or Narrator scroll, Home/End) the
+    /// final view change arrives before the panel realizes the destination rows, so the page must read the header again
+    /// once layout settles instead of trusting the stale first-visible index (issue #248: the bar kept "#" over S).
+    /// </summary>
+    /// <param name="count">Row count.</param>
+    /// <param name="realized">Realized rows with edges relative to the viewport top.</param>
+    /// <param name="viewportHeight">Viewport height.</param>
+    /// <param name="row">Index of the first visible row, or -1.</param>
+    /// <returns><see langword="true"/> when a realized row is in view.</returns>
+    public static bool TryFirstVisibleRow(int count, IEnumerable<RealizedRow> realized, double viewportHeight, out int row)
     {
-        if (count <= 0) return 0;
-        var first = -1;
-        foreach (var row in realized)
-            if (row.Index >= 0 && row.Index < count && row.Bottom > Tolerance && row.Top < viewportHeight
-                && (first < 0 || row.Index < first))
-                first = row.Index;
-        return first >= 0 ? first : Math.Clamp(fallback, 0, count - 1);
+        row = -1;
+        if (count <= 0) return false;
+        foreach (var candidate in realized)
+            if (candidate.Index >= 0 && candidate.Index < count && candidate.Bottom > Tolerance && candidate.Top < viewportHeight
+                && (row < 0 || candidate.Index < row))
+                row = candidate.Index;
+        return row >= 0;
     }
 
     /// <summary>Maps a first-visible row to its section label.</summary>
