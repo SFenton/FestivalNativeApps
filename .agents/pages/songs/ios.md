@@ -52,7 +52,7 @@ Done for this page: Songs (and Song Detail/SongScorePreview/SongPathsSheet/Shop)
 
 ## Root navigation-notice card (`fst.songs.navigation-notice`)
 
-`SongsScreen`'s top-of-list notice card (2026-09-28 operator ask) is generic: it just shows whatever `navigationNotice` string the root passes it, and clears when dismissed or replaced. Root shell (`App/FestivalRootView.swift`, Lane W1's file, not this lane's) sets that string for three separate resets: publication change, selected-profile change ("Selected profile changed. Returned to Songs…") and Shop being hidden. The operator asked to remove only the **profile-change** notice; that is entirely a root-side change (deleting the `songsNotice = "Selected profile changed…"` assignment there). This page's card needed no change — it keeps showing the other two legitimate notices unmodified, and simply stops receiving the removed one once the root no longer sets it.
+`SongsScreen`'s top-of-list notice card (2026-09-28 operator ask) is generic: it just shows whatever `navigationNotice` string the root passes it, and clears when dismissed or replaced. Root shell (`App/FestivalRootView.swift`) now sets that string only for a hidden instrument or a hidden Item Shop. The profile-change notice was removed earlier at the operator's request, and the publication-change notice ("Published scores changed. Returned to Songs…") was removed with its forced pop in issue #304: pages now refresh in place ([architecture](../../platforms/apple/architecture.md#publication-changes-refresh-in-place-issue-304)). The card itself needed no change.
 
 ## Operator batches 6–7 (Lane A3)
 

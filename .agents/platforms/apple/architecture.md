@@ -83,6 +83,13 @@ Loaded content never pops in: apply `.festivalFadeIn(isLoaded:)` (`Common/FadeIn
 - Suggestions fades each newly loaded batch: `SuggestionsViewModel.batchGeneration`/`latestBatchIds` and `FadeStagger.batchIndexes` stagger the newest batch in display order until it settles. Earlier cards never fade again.
 - Eager (`VStack`) pages build everything at load, so they need nothing extra. `ios_sim.py drive` keeps the background still and so turns Song Detail/Shop/Solo fades off; add the Debug-only `FST_DEBUG_KEEP_FADES=1` to record them.
 
+## Publication changes refresh in place (issue #304)
+
+A new score publication never pops a stack or shows a "returned to Songs" notice. The visible page fades out (150 ms), shows the spinner for at least 400 ms, then fades the rebuilt page in, like the web `PublicationBoundary`. Under system or in-app Reduce Motion the swap is instant. HIG: `apple-hig/references/hig/progress-indicators.md` ("Perform automatic content updates regularly; don't make people initiate every update"), `hig/accessibility.md` (Reduce Motion) and `hig/loading.md`.
+
+- **Live updates:** `PublicationLiveConnection` (`App/`) keeps one anonymous `URLSessionWebSocketTask` per process on `/api/ws?publicationId=N` while any scene is active; `PublicationLiveUpdates.run` (FestivalCore) re-reads `/api/publication` on connect and on `publication_changed`, reconnecting with 1 s → 30 s backoff. It sends nothing ([service safety](../service-safety.md)). Disabled for loopback fixture origins (Debug `FST_LIVE_PUBLICATION_UPDATES=1/0` overrides); fixture tests still change generations through Settings → Check Publication.
+- **Boundary:** `Common/PublicationRefreshBoundary` keys its content with a generation (`PublicationRefreshTransition`, FestivalCore), so the rebuilt page cannot draw rows from the old publication. Hidden old content stays mounted, without hit testing or accessibility, so the navigation title and toolbar persist. `AppRouteDestination` wraps every pushed page (iPhone stacks, iPad trailing pane, Mac stacks); song routes re-resolve their `Song` against the new catalogue first (`RouteSongRefresh`). The Suggestions, Leaderboards, Compete, Rivals, Statistics and Shop roots use `.refreshesOnPublication(session:)`. Songs already runs its own `FestivalReloadGate` (issue #71) and Settings must keep its publication-check status, so neither is wrapped.
+
 ## Loading indicators (operator rule)
 
 Every spinner is `Common/FestivalLoadingView` (white, **no visible title/subtitle**; spoken label only). Never `ProgressView("…")` with text. Determinate progress bars (e.g. Paths image download) are exempt.
