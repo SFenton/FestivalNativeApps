@@ -21,6 +21,22 @@ extension EnvironmentValues {
     @Entry var listDetailSelect: ListDetailSelectAction?
     /// The pane a page is in while a split is possible; nil in one full-width stack.
     @Entry var splitPane: SplitPaneRole?
+    /// Tells the root shell whether a section's trailing pane is open (Escape and the
+    /// iPad menu bar's Close); nil outside the root shell.
+    @Entry var splitOpenReporter: SplitOpenReporter?
+}
+
+/// Reports whether a section's trailing pane is open.
+///
+/// Equatable as always-equal: the root re-creates the closure on each pass and it only
+/// writes root-owned state (same reasoning as `OpenProfileAction`).
+struct SplitOpenReporter: Equatable {
+    let report: @MainActor (FestivalSection, Bool) -> Void
+
+    /// Record whether `section` shows its trailing pane.
+    @MainActor func callAsFunction(_ section: FestivalSection, isOpen: Bool) { report(section, isOpen) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 /// Opens a route in the trailing pane of the list page on top of the leading pane.
@@ -204,6 +220,7 @@ struct OnDemandSplitStack<Root: View>: View {
     let root: (Bool) -> Root
 
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.splitOpenReporter) private var openReporter
     /// The container's frame in window coordinates (for the midpoint and the hinge).
     @State private var container: CGRect = .zero
 
@@ -250,6 +267,12 @@ struct OnDemandSplitStack<Root: View>: View {
         }
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
             if frame != container { container = frame }
+        }
+        .onChange(of: open, initial: true) { _, open in
+            if isVisible { openReporter?(section, isOpen: open) }
+        }
+        .onChange(of: isVisible) { _, visible in
+            if visible { openReporter?(section, isOpen: open) }
         }
     }
 
@@ -368,7 +391,7 @@ struct SplitCloseButton: View {
         Button(action: action) {
             Label("Close", systemImage: "xmark")
         }
-        .keyboardShortcut(.cancelAction)
+        .keyboardShortcut(.escape, modifiers: [])
         .help("Close (Esc)")
         .accessibilityIdentifier("fst.split.close")
     }

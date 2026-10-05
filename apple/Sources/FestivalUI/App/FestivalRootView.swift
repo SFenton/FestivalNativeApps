@@ -61,6 +61,8 @@ public struct FestivalRootView: View {
     #endif
     /// Pull-to-refresh actions of the pages on screen, for ⌘R.
     @State private var refreshCommands = RefreshCommandRegistry()
+    /// Sections whose on-demand split shows its trailing pane (Escape closes it).
+    @State private var openSplits: Set<FestivalSection> = []
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
@@ -350,6 +352,9 @@ public struct FestivalRootView: View {
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { openGlobalSearch() })
         .environment(\.refreshCommandRegistry, refreshCommands)
+        .environment(\.splitOpenReporter, SplitOpenReporter { section, isOpen in
+            if isOpen { openSplits.insert(section) } else { openSplits.remove(section) }
+        })
         // Notification rows open their page on the current tab, not inside the sheet (#75).
         .environment(\.pushRoute, PushRouteAction { route in
             paths[selected, default: []].append(route)
@@ -686,8 +691,23 @@ public struct FestivalRootView: View {
             notifications: { notificationsPresented = true },
             whatsNew: { whatsNewPresented = true },
             licenses: { perform(.push(.licenses)) },
-            showNavigation: showNavigationCommand(presentation)
+            showNavigation: showNavigationCommand(presentation),
+            closeOverlay: closeOverlayCommand
         )
+    }
+
+    /// Escape from the iPad menu bar: closes the flyout, else the selected section's open
+    /// trailing pane; nil when neither shows or a sheet covers the window.
+    private var closeOverlayCommand: (@MainActor () -> Void)? {
+        if rootProfilePresented || globalSearchPresented || notificationsPresented || whatsNewPresented { return nil }
+        if drawerPresented { return { closeDrawer() } }
+        guard !searchActive, openSplits.contains(selected) else { return nil }
+        let section = selected
+        return {
+            if let list = OnDemandSplitPolicy.pathClosingDetail(path(for: section).wrappedValue, section: section) {
+                paths[section] = list
+            }
+        }
     }
 
     /// View › Show Navigation for the iPad flyout shell, else nil.

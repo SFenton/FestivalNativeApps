@@ -43,10 +43,14 @@ struct FestivalShellCommands: Equatable {
     var licenses: @MainActor () -> Void
     /// Open the navigation flyout (iPad regular width; nil where none is shown).
     var showNavigation: (@MainActor () -> Void)? = nil
+    /// Close the open flyout, else the open trailing pane (Escape); nil when neither shows.
+    var closeOverlay: (@MainActor () -> Void)? = nil
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.destinations == rhs.destinations && lhs.visible == rhs.visible && lhs.selected == rhs.selected
             && lhs.canGoBack == rhs.canGoBack && lhs.sheetOpen == rhs.sheetOpen && lhs.hasPlayer == rhs.hasPlayer
+            && (lhs.showNavigation == nil) == (rhs.showNavigation == nil)
+            && (lhs.closeOverlay == nil) == (rhs.closeOverlay == nil)
     }
 
     /// The Go menu's destinations for a shell: the sidebar's full set (web sidebar
@@ -120,6 +124,12 @@ public struct FestivalCommands: Commands {
                 Button("Show Navigation") { shell?.showNavigation?() }
                     .keyboardShortcut("s", modifiers: [.control, .command])
                     .disabled(blocked || shell?.showNavigation == nil)
+                // Escape closes the flyout or the open trailing pane (split-view.md).
+                // In-view Escape shortcuts never fired on iPad with the menu bar
+                // (live, 2026-10-04), so the window's command carries it.
+                Button("Close") { shell?.closeOverlay?() }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .disabled(shell?.closeOverlay == nil)
             }
             // HIG The menu bar › iPadOS: "Reserve Settings for opening your app's page in
             // iPadOS Settings; put internal-preferences ... beneath it, in the same group."

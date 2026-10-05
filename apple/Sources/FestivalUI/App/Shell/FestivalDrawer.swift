@@ -367,7 +367,7 @@ struct FestivalDrawer: View {
                 if closesOnEscape {
                     // Hardware Escape (HIG Keyboards): an invisible cancel button.
                     Button("Close Navigation", action: onClose)
-                        .keyboardShortcut(.cancelAction)
+                        .keyboardShortcut(.escape, modifiers: [])
                         .frame(width: 0, height: 0)
                         .opacity(0)
                         .accessibilityHidden(true)
