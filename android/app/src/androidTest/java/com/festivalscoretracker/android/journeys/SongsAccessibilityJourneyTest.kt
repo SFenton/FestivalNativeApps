@@ -19,6 +19,7 @@ import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -179,6 +180,31 @@ class SongsAccessibilityJourneyTest {
         h.tap("fst.song-detail.view-all.Solo_Guitar")
         h.waitForTag("fst.song-leaderboard.list")
         h.readingOrder("song-leaderboard")
+        h.assertAccessible()
+    }
+
+    /**
+     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the card's
+     * size on the device, selects Bass, drops to one best-score row and stays accessible.
+     */
+    @Test
+    fun songDetailScoreHistorySwitchKeepsTheCardAndSelectsTheNewChart() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
+        h.scrollTo("fst.song-detail.list", "fst.song-detail.history.card")
+        h.waitForTag("fst.song-detail.history.top.1")
+        fun card() = rule.onNodeWithTag("fst.song-detail.history.card").fetchSemanticsNode().size
+        val before = card()
+        h.readingOrder("song-detail-history-lead")
+        val compact = h.exists("fst.song-detail.history.instrument.compact")
+        h.tap(if (compact) "fst.song-detail.history.instrument.next" else "fst.song-detail.history.instrument.Solo_Bass")
+        rule.waitUntil(5_000) { !h.exists("fst.song-detail.history.top.1") }
+        rule.waitForIdle()
+        assertEquals("Score History card size after the switch", before, card())
+        val bass = if (compact) "fst.song-detail.history.instrument.preview" else "fst.song-detail.history.instrument.Solo_Bass"
+        rule.onNodeWithTag(bass).assertIsSelected().assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Bass")))
+        h.waitForTag("fst.song-detail.history.top.0")
+        h.readingOrder("song-detail-history-bass")
         h.assertAccessible()
     }
 
