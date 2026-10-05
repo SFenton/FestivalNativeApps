@@ -23,6 +23,17 @@ import FestivalDesign
     #expect(layout.metrics(for: nil).columns == 2)
 }
 
+/// Accessibility sizes drop to fewer, wider columns where three or four would fit; two
+/// columns stay the floor.
+@Test func statTileGridUsesWiderTilesAtAccessibilitySizes() {
+    let regular = StatTileGridLayout()
+    let large = StatTileGridLayout(minimumTileWidth: StatGridColumns.accessibilityMinimumTileWidth)
+    #expect(regular.metrics(for: 480).columns == 3)
+    #expect(large.metrics(for: 480).columns == 2)
+    #expect(large.metrics(for: 343).columns == 2)
+    #expect(large.metrics(for: 720).columns == 3)
+}
+
 @Test func statTileHintsNameTheirDestination() {
     #expect(PlayerStatTileView.hint(for: .songs(.instrument(.hasScores, .lead))) == "Shows these songs in Songs")
     #expect(PlayerStatTileView.hint(for: .songDetail(songId: "pulse", instrument: .lead)) == "Opens the song")

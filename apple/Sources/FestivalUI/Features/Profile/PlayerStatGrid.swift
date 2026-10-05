@@ -38,9 +38,14 @@ struct PlayerStatGrid: View {
     /// Accessibility identifier scope: `overview` or an instrument's raw value.
     let scope: String
     let onSelect: (PlayerStatLink) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        StatTileGridLayout(spacing: StatGridColumns.spacing) {
+        StatTileGridLayout(
+            spacing: StatGridColumns.spacing,
+            minimumTileWidth: dynamicTypeSize.isAccessibilitySize
+                ? StatGridColumns.accessibilityMinimumTileWidth : StatGridColumns.minimumTileWidth
+        ) {
             ForEach(tiles) { tile in
                 PlayerStatTileView(tile: tile, scope: scope, onSelect: onSelect)
             }
@@ -52,6 +57,8 @@ struct PlayerStatGrid: View {
 /// with each row as tall as its tallest tile.
 struct StatTileGridLayout: Layout {
     var spacing: CGFloat = StatGridColumns.spacing
+    /// Narrowest tile before a column is dropped (wider at accessibility sizes).
+    var minimumTileWidth: Double = StatGridColumns.minimumTileWidth
 
     /// Column count and tile width for a proposed width.
     ///
@@ -59,7 +66,9 @@ struct StatTileGridLayout: Layout {
     /// - Returns: Columns and the width of one tile.
     func metrics(for width: CGFloat?) -> (columns: Int, tileWidth: CGFloat) {
         let resolved = width ?? CGFloat(StatGridColumns.minimumTileWidth * 2) + spacing
-        let columns = StatGridColumns.count(forWidth: Double(resolved), spacing: Double(spacing))
+        let columns = StatGridColumns.count(
+            forWidth: Double(resolved), minimumTileWidth: minimumTileWidth, spacing: Double(spacing)
+        )
         let tileWidth = max(0, (resolved - spacing * CGFloat(columns - 1)) / CGFloat(columns))
         return (columns, tileWidth)
     }
