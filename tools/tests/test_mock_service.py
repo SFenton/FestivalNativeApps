@@ -156,6 +156,19 @@ class MockServiceTests(unittest.TestCase):
             urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=51")
         self.assertEqual(error.exception.code, 400)
 
+    def test_song_band_board_holds_the_appended_band_at_its_rank(self):
+        """The full Duos board lists the rank-14 band Song Detail appends (issue #307)."""
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0") as response:
+            body = json.load(response)
+        self.assertEqual(body["totalEntries"], 14)
+        self.assertEqual([e["rank"] for e in body["entries"]], list(range(1, 15)))
+        self.assertEqual(body["entries"][-1]["bandId"], "fixture-band-fixture-player-1")
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10"
+                     "&accountId=fixture-player-1") as response:
+            duets = json.load(response)["bands"][0]
+        self.assertEqual(duets["selectedPlayerEntry"]["bandId"], body["entries"][-1]["bandId"])
+        self.assertEqual(duets["selectedPlayerEntry"]["rank"], 14)
+
     def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):
         """`--large-rankings` pads rows for pagers; the default roster stays three accounts."""
         with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=25") as response:

@@ -1703,7 +1703,15 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_pagination"})
                 return
             if song_id == "fixture-pulse" and band_type == "Band_Duets":
-                all_entries = [_song_band_leaderboard_entry(rank, band_type) for rank in (1, 2)]
+                # Ranks 1-14; rank 14 is `fixture-player-1`'s band, the row Song Detail
+                # appends to its Duos preview, so its jump lands on a real row (#307).
+                all_entries = [_song_band_leaderboard_entry(rank, band_type) for rank in range(1, 14)]
+                mine = _song_band_leaderboard_entry(14, band_type)
+                mine["members"][0]["accountId"] = "fixture-player-1"
+                mine["members"][0]["displayName"] = RIVAL_DISPLAY_NAMES["fixture-player-1"]
+                mine["bandId"] = "fixture-band-fixture-player-1"
+                mine["teamKey"] = "fixture-team-fixture-player-1"
+                all_entries.append(mine)
             else:
                 all_entries = []
             total = len(all_entries)

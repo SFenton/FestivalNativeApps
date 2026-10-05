@@ -740,6 +740,26 @@ final class SongDetailJourneyTests: XCTestCase {
         )
         app.buttons["BackButton"].tap()
 
+        // The appended selected band row jumps to its place in the full board, like the
+        // solo spotlight row (issue #307): rank 14's page, scrolled into view.
+        XCTAssertTrue(selected.waitForExistence(timeout: 10))
+        for _ in 0..<4 where !selected.isHittable { app.swipeUp() }
+        selected.tap()
+        let focused = app.buttons["fst.song-band-leaderboard.row.fixture-band-fixture-player-1:14"]
+        XCTAssertTrue(
+            focused.waitForExistence(timeout: 15),
+            "The selected band row did not open the full board on its page"
+        )
+        let revealed = NSPredicate(format: "isHittable == true")
+        expectation(for: revealed, evaluatedWith: focused)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(
+            any("fst.song-band-leaderboard.band-type-menu").exists,
+            "The selected band row did not stay on the full band board"
+        )
+        SongsUITestSupport.record(app, name: "song-band-leaderboard-focused")
+        app.buttons["BackButton"].tap()
+
         let quads = any("fst.song-detail.band-empty.Band_Quad")
         for _ in 0..<8 where !(quads.exists && quads.isHittable) { app.swipeUp() }
         XCTAssertTrue(quads.exists, "Quads has no rows and must show its empty state")
