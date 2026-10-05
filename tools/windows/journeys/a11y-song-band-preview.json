@@ -1,0 +1,207 @@
+[
+  {
+    "name": "bp-demo-anonymous",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@20",
+      "assertname:id=fst.song-detail.band-row.Band_Duets.0|Rank 1. Band 1 Member A, Lead. Band 1 Member B, Bass. Team score 94,500 points, full combo, 96.5% accuracy, 5 stars",
+            "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@5",
+            "waitgone:id=fst.song-detail.band-selected.Band_Duets@3",
+            "scrollinto:id=fst.song-detail.band-empty.Band_Trios@10",
+      "scrollinto:id=fst.song-detail.band-empty.Band_Quad@5",
+      "waitgone:id=fst.song-detail.band-view-all.Band_Trios@3",
+      "waitgone:id=fst.song-detail.band-view-all.Band_Quad@3"
+    ]
+  },
+  {
+    "name": "bp-demo-player",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Duets@20",
+      "assertname:id=fst.song-detail.band-selected.Band_Duets|Your band, Rank 14. Fixture Player 1, Lead. Band 14 Member B, Bass. Team score 88,000 points, 96.5% accuracy, 5 stars",
+      "scrollinto:id=fst.song-detail.band-view-all.Band_Duets@5"
+    ]
+  },
+  {
+    "name": "bp-full-player",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "full"],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-header.Band_Duets@20",
+      "assertname:id=fst.song-detail.band-header.Band_Duets|Duos@5",
+      "waitfor:name=Duos, 2,468 bands@5",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Duets@10",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.9@5",
+      "scrollinto:id=fst.song-detail.band-row.Band_Trios.2@10",
+      "assertname:id=fst.song-detail.band-row.Band_Trios.2|Your band, Rank 3. Trios 3 Member A, Lead. Trios 3 Member B, Bass. Trios 3 Member C, Drums. Team score 267,000 points, 97.9% accuracy, 5 stars",
+      "waitgone:id=fst.song-detail.band-selected.Band_Trios@3",
+      "waitfor:name=Trios, 3,702 bands@5",
+      "scrollinto:id=fst.song-detail.band-row.Band_Quad.9@10",
+      "waitfor:name=Quads, 4,936 bands@5",
+      "waitgone:id=fst.song-detail.band-selected.Band_Quad@3",
+      "scrollinto:id=fst.song-detail.band-view-all.Band_Quad@10",
+      "shot:{stem}-quads.png"
+    ]
+  },
+  {
+    "name": "bp-full-anonymous",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "full"],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@20",
+      "waitgone:id=fst.song-detail.band-selected.Band_Duets@3",
+      "scrollinto:id=fst.song-detail.band-row.Band_Trios.9@10",
+      "assertname:id=fst.song-detail.band-row.Band_Trios.2|Rank 3. Trios 3 Member A, Lead. Trios 3 Member B, Bass. Trios 3 Member C, Drums. Team score 267,000 points, 97.9% accuracy, 5 stars"
+    ]
+  },
+  {
+    "name": "bp-loading",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "slow"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-header.Band_Duets@10",
+      "waitfor:name=Loading band scores@3",
+      "waitgone:id=fst.song-detail.band-row.Band_Duets.0@1"
+    ],
+    "teardown": [
+      "waitfor:id=fst.song-detail.band-row.Band_Duets.0@30",
+      "waitgone:name=Loading band scores@5"
+    ]
+  },
+  {
+    "name": "bp-error",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "error"],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-retry.Band_Duets@20",
+      "waitfor:name=Duos scores unavailable@5",
+      "scrollinto:id=fst.song-detail.band-retry.Band_Trios@5",
+      "scrollinto:id=fst.song-detail.band-retry.Band_Quad@5",
+      "waitgone:id=fst.song-detail.band-view-all.Band_Duets@2"
+    ],
+    "teardown": [
+      "scrollinto:id=fst.song-detail.band-retry.Band_Duets@10",
+      "invoke:id=fst.song-detail.band-retry.Band_Duets",
+      "waitfor:id=fst.song-detail.band-row.Band_Duets.0@15",
+      "waitgone:id=fst.song-detail.band-retry.Band_Duets@5",
+      "scrollinto:id=fst.song-detail.band-empty.Band_Trios@5"
+    ]
+  },
+  {
+    "name": "bp-frozen",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "frozen"],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-retry.Band_Duets@20",
+      "waitgone:id=fst.song-detail.band-row.Band_Duets.0@2",
+      "waitgone:name=Duos scores unavailable@2"
+    ]
+  },
+  {
+    "name": "bp-invalid",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "invalid"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-retry.Band_Duets@20",
+      "waitgone:id=fst.song-detail.band-empty.Band_Duets@2"
+    ]
+  },
+  {
+    "name": "bp-navigation",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-view-all.Band_Duets@20",
+      "assertname:id=fst.song-detail.band-view-all.Band_Duets|View Full Leaderboard, Duos"
+    ],
+    "after_ready": [
+      "invoke:id=fst.song-detail.band-view-all.Band_Duets",
+      "waitfor:id=fst.song-band-leaderboard.list@15",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.song-detail.title@15",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@20",
+      "invoke:id=fst.song-detail.band-row.Band_Duets.0",
+      "waitfor:id=fst.band.title@15",
+      "waitfor:id=fst.band.member.fixture-band-1-a@10",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.song-detail.title@15"
+    ]
+  },
+  {
+    "name": "bp-keyboard",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "full"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.song-detail.band-row.Band_Duets.0",
+      "assertfocus:id=fst.song-detail.band-row.Band_Duets.0@3",
+      "key:down",
+      "assertfocus:id=fst.song-detail.band-row.Band_Duets.1@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.band-view-all.Band_Duets@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.band-row.Band_Trios.0@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.band-view-all.Band_Trios@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.band-row.Band_Quad.0@3",
+      "key:tab",
+      "assertfocus:id=fst.song-detail.band-view-all.Band_Quad@3",
+      "shot:{stem}-focus.png",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-detail.band-row.Band_Quad.0@3",
+      "key:enter",
+      "waitfor:id=fst.band.title@15",
+      "key:alt+left",
+      "waitfor:id=fst.song-detail.title@15"
+    ]
+  },
+  {
+    "name": "bp-live-player",
+    "route": "/songs/0b65324a-0912-4da2-af1b-122cf706be73",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@30",
+      "scrollinto:id=fst.song-detail.band-header.Band_Duets@30",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Duets@20",
+      "shot:{stem}-duos.png",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Trios@10",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Quad@10",
+      "scrollinto:id=fst.song-detail.band-view-all.Band_Quad@10",
+      "shot:{stem}-quads.png"
+    ]
+  },
+  {
+    "name": "bp-live-anonymous",
+    "route": "/songs/0b65324a-0912-4da2-af1b-122cf706be73",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@30",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@30",
+      "waitgone:id=fst.song-detail.band-selected.Band_Duets@3",
+      "shot:{stem}-duos.png"
+    ]
+  }
+]
