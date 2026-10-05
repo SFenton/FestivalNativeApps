@@ -155,9 +155,9 @@ object SongScoreSpotlight {
 
 /**
  * The selected player's band pinned above the pager on a song's full Duos/Trios/Quads board
- * (web `SongBandLeaderboardPage` `FixedLeaderboardPlayerFooter`, issue #306). It follows the
- * solo board's rule ([SongScoreSpotlight]): pinned while the band is off the current page,
- * highlighted in place instead when it is on the page.
+ * (web `SongBandLeaderboardPage` `FixedLeaderboardPlayerFooter`, issue #306). Like the web
+ * (`hasSelectedFooter = !!selectedEntry`), it is pinned on every page while the response
+ * carries the selected band; on the band's own page its row is also highlighted in place.
  */
 object SongBandSpotlight {
     /**
@@ -191,11 +191,11 @@ object SongBandSpotlight {
      *
      * @param response Page.
      * @param selectedAccountId Selected player, or null.
-     * @return Footer row, or null when the band is on this page or there is nothing to pin.
+     * @return Footer row (whether or not the band is on this page), or null when there is
+     *   nothing to pin.
      */
     fun footer(response: SongBandLeaderboardResponse, selectedAccountId: String?): LeaderboardEntry? {
         val band = selected(response, selectedAccountId) ?: return null
-        if (response.entries.any { it.sameBand(band) }) return null
         return LeaderboardEntry(
             // Non-empty, so the row shows the names rather than "Unknown User".
             accountId = band.bandId.ifEmpty { band.teamKey }.ifEmpty { selectedAccountId.orEmpty() },

@@ -39,6 +39,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 | Debt | Breaks | Plan |
 |---|---|---|
 | Apple’s fitter decides difficulty and stars, but Apple score rows do not yet render them. | Full web metadata parity on Apple score rows. | `TODO(orchestrator): scope the missing Apple score metadata columns.` |
+| Android's Solo song board (`SongScoreSpotlight.footer`) and full rankings drop the pinned row while the player's row is on the current page; the web keeps it on every page (`LeaderboardPage` `hasPlayerFooter`, `SongBandLeaderboardPage` `hasSelectedFooter`). The song band board follows the web (#306). | R5 parity on Android Solo boards. | `TODO(orchestrator): file an Android issue to keep the Solo pinned row on the player's own page.` |
 
 ## Guards (`tools/pattern_guard.py`)
 

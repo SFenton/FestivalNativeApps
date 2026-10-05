@@ -131,8 +131,8 @@ fun SongBandLeaderboardScreen(
     val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = type to page)
     val accountId by viewModel.accountId.collectAsStateWithLifecycle()
     val shown = (swap.shown as? LoadState.Loaded)?.value
-    // The selected player's band: highlighted in place on its page, pinned above the pager on
-    // every other page (web SongBandLeaderboardPage footer; the solo board's rule, issue #306).
+    // The selected player's band: pinned above the pager on every page, and also highlighted in
+    // place on its own page (web SongBandLeaderboardPage hasSelectedFooter, issue #306).
     val selectedBand = shown?.let { SongBandSpotlight.selected(it, accountId) }
     val footer = shown?.let { SongBandSpotlight.footer(it, accountId) }
     val footerColumns = rememberScoreColumns(listOfNotNull(footer))

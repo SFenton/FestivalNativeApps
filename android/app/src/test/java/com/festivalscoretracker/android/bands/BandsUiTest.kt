@@ -12,7 +12,9 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -322,37 +324,36 @@ class BandsUiTest {
         launch("songBandLeaderboard:s-alpha:Band_Duets", player)
         waitForTag("fst.song-band-leaderboard.row.band-1:1")
         assertTrue(transport.requests.any { "/bands/Band_Duets" in it.url && "accountId=${player.accountId}" in it.url })
-        // Rank 12 is on page one: highlighted in place, not pinned.
-        assertTrue(!exists("fst.song-band-leaderboard.spotlight-footer"))
-        click("fst.song-band-leaderboard.page-next")
-        waitForTag("fst.song-band-leaderboard.row.band-26:26")
+        // Rank 12 is on page one: pinned like web hasSelectedFooter, and its row is highlighted too.
         waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        val inFooter = hasAnyAncestor(hasTestTag("fst.song-band-leaderboard.spotlight-footer"))
         val footer = rule.onNodeWithTag("fst.song-band-leaderboard.spotlight-footer", useUnmergedTree = true)
         footer.assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, androidx.compose.ui.semantics.Role.Button))
         assertEquals("Open band", footer.fetchSemanticsNode().config[SemanticsActions.OnClick].label)
-        rule.onNodeWithText("Synthetic Lead + Unknown User", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("#12", useUnmergedTree = true).assertExists()
+        rule.onNode(hasText("Synthetic Lead + Unknown User") and inFooter, useUnmergedTree = true).assertExists()
+        rule.onNode(hasText("#12") and inFooter, useUnmergedTree = true).assertExists()
         // Pinned immediately above the pager; the rows end above the footer (nothing covered).
         val footerBounds = footer.getUnclippedBoundsInRoot()
         val pager = rule.onNodeWithTag("fst.song-band-leaderboard.pager", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue(footerBounds.bottom <= pager.top)
         repeat(3) { rule.onNodeWithTag("fst.song-band-leaderboard.list").performTouchInput { swipeUp() }; settle() }
-        val lastRow = rule.onNodeWithTag("fst.song-band-leaderboard.row.band-30:30", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val lastRow = rule.onNodeWithTag("fst.song-band-leaderboard.row.band-25:25", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue(lastRow.bottom <= footerBounds.top)
+        // Off its page the band stays pinned.
+        click("fst.song-band-leaderboard.page-next")
+        waitForTag("fst.song-band-leaderboard.row.band-26:26")
+        waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        rule.onNode(hasText("#12") and inFooter, useUnmergedTree = true).assertExists()
         // Quads: no band score, no footer.
         rule.onNodeWithTag("fst.song-band-leaderboard.list").performScrollToNode(hasTestTag("fst.song-band-leaderboard.band-type.Band_Quad"))
         click("fst.song-band-leaderboard.band-type.Band_Quad")
         waitForTag("fst.song-band-leaderboard.empty")
         assertTrue(!exists("fst.song-band-leaderboard.spotlight-footer"))
-        // Trios rank 2 is on page one: highlighted in place.
+        // Trios rank 2 is on page one: pinned, and the current-page footer opens the band (web Link).
         click("fst.song-band-leaderboard.band-type.Band_Trios")
         waitForTag("fst.song-band-leaderboard.row.band-2:2")
-        assertTrue(!exists("fst.song-band-leaderboard.spotlight-footer"))
-        // Back to Duos page two: the footer opens the band.
-        click("fst.song-band-leaderboard.band-type.Band_Duets")
-        waitForTag("fst.song-band-leaderboard.row.band-1:1")
-        click("fst.song-band-leaderboard.page-next")
         waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        rule.onNode(hasText("#2") and inFooter, useUnmergedTree = true).assertExists()
         click("fst.song-band-leaderboard.spotlight-footer")
         waitForTag("fst.band.screen")
     }

@@ -247,7 +247,7 @@ class RankingsCoreTest {
     }
 
     @Test
-    fun songBandFooterPinsTheSelectedPlayersBandOffThePage() {
+    fun songBandFooterPinsTheSelectedPlayersBandOnEveryPage() {
         val me = RankingsFixtures.SELECTED
         val friend = RankingsFixtures.accountId(2)
         val mine = SongBandLeaderboardEntry(
@@ -278,9 +278,9 @@ class RankingsCoreTest {
         assertFalse(SongBandSpotlight.isSelected(other, mine))
         assertFalse(SongBandSpotlight.isSelected(mine, null))
 
-        // On its page the band is highlighted in place, not pinned.
+        // On its page the band is still pinned (web hasSelectedFooter) and also highlighted in place.
         val onPage = offPage.copy(entries = listOf(other, mine.copy()))
-        assertNull(SongBandSpotlight.footer(onPage, me))
+        assertEquals(footer, SongBandSpotlight.footer(onPage, me))
         assertTrue(SongBandSpotlight.isSelected(onPage.entries[1], SongBandSpotlight.selected(onPage, me)))
 
         // Nothing selected, no band score, another player's or another size's response: no footer.
