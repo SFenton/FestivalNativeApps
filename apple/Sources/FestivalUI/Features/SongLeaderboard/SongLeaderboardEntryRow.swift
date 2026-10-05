@@ -15,6 +15,10 @@ struct SongLeaderboardEntryRow: View {
     var seasonColumn = false
     /// The catalogue's current season, whose pill is inverted like the web's.
     var currentSeason: Int?
+    /// Draw the stars right after the score when the section's columns show stars
+    /// (web `LeaderboardEntry` `starsAfterScore`, used by the band leaderboard's pinned
+    /// footer, issue #306). Off for the Solo chart, whose rows never draw stars.
+    var starsAfterScore = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// The section's shared rank/score widths and visible columns (issue #37).
     @Environment(\.leaderboardRowColumns) private var columns
@@ -55,6 +59,9 @@ struct SongLeaderboardEntryRow: View {
                 }
                 LeaderboardColumnSlot(template: columns?.scoreLabel, alignment: .trailing) {
                     score
+                }
+                if starsAfterScore, columns?.showsStars == true, let stars = entry.stars, stars > 0 {
+                    StarRating(stars: stars)
                 }
                 if let value = entry.accuracy {
                     let color: Result<ScoreAccuracyTint, Error> = Result {
