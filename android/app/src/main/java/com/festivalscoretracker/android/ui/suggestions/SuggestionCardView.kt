@@ -81,6 +81,13 @@ internal object SuggestionTokens {
     val songRival = Color(0xFF4285F4)
     val leaderboardRival = Color(0xFFFBBC04)
 
+    /**
+     * "Behind" rank-delta text (issue #167). `BrandTokens.statusRed` is a fill colour: as 12 sp
+     * text on the card it measured 3.0:1 on FST_Phone, below WCAG AA 4.5:1. This is the Rivals
+     * page's readable red (`RivalColors.loseText`, ≈ 7:1); the green "ahead" delta already passes.
+     */
+    val rivalBehindText = Color(0xFFFF8A80)
+
     /** `Radius.xs` pills. */
     val pillShape = RoundedCornerShape(8.dp)
 }
@@ -223,7 +230,7 @@ private fun RowMetadata(p: SuggestionRowPresentation, keyboard: Boolean) {
                         Text(
                             delta,
                             style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum"),
-                            color = if (p.rivalDeltaSign > 0) BrandTokens.statusGreen else BrandTokens.statusRed,
+                            color = if (p.rivalDeltaSign > 0) BrandTokens.statusGreen else SuggestionTokens.rivalBehindText,
                         )
                     }
                 }
