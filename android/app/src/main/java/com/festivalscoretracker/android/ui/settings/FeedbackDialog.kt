@@ -107,6 +107,8 @@ import com.festivalscoretracker.android.presentation.feedback.FeedbackPhase
 import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
 import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 import com.festivalscoretracker.android.ui.common.FestivalModalHeader
+import com.festivalscoretracker.android.ui.common.HingeSideDialogLayout
+import com.festivalscoretracker.android.ui.common.dialogHingeArea
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -158,26 +160,42 @@ fun FeedbackDialogHost(viewModel: FeedbackViewModel) {
     val state by viewModel.form.collectAsStateWithLifecycle()
     val form = state ?: return
     val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })
+    // Wider windows centre the dialog; a separating hinge keeps it on one side (issue #146).
+    val hingeArea = if (compact) null else dialogHingeArea()
     Dialog(
         onDismissRequest = viewModel::requestClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false),
     ) {
         BackHandler(onBack = viewModel::requestClose)
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(if (compact) 0.dp else 24.dp),
-        ) {
+        val surface: @Composable (Modifier) -> Unit = { placement ->
             Surface(
                 shape = if (compact) RoundedCornerShape(0.dp) else RoundedCornerShape(28.dp),
                 color = BrandTokens.cardBackground,
                 modifier = Modifier
-                    .then(if (compact) Modifier.fillMaxSize() else Modifier.widthIn(max = 640.dp).fillMaxWidth())
+                    .then(
+                        when {
+                            compact -> Modifier.fillMaxSize()
+                            else -> Modifier.padding(if (hingeArea != null) 16.dp else 0.dp).widthIn(max = 640.dp).fillMaxWidth()
+                        },
+                    )
+                    .then(placement)
                     .popupTestTags()
                     .testTag("fst.settings.feedback.dialog")
                     .semantics { paneTitle = form.draft.kind.formTitle },
             ) {
                 FeedbackForm(form, viewModel)
             }
+        }
+        if (hingeArea == null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(if (compact) 0.dp else 24.dp),
+            ) {
+                surface(Modifier)
+            }
+        } else {
+            // Outside taps never dismiss the form (unsent input), as on the centred dialog.
+            Box(Modifier.fillMaxSize().imePadding()) { HingeSideDialogLayout(hingeArea, onDismissRequest = {}, surface = surface) }
         }
         if (form.confirmingDiscard) {
             val noun = form.draft.kind.noun

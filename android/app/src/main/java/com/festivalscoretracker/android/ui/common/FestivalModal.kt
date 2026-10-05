@@ -231,7 +231,8 @@ val MODAL_DIALOG_MAX_WIDTH: Dp = 560.dp
  * @param maxHeight Height cap ([Dp.Unspecified] for none).
  * @param titleStyle Header title style.
  * @param avoidHinge Keep the dialog on one side of a separating fold or hinge
- *   ([DialogHinge]) instead of centring it across the hinge.
+ *   ([DialogHinge]) instead of centring it across the hinge (default; M3: never place
+ *   interactive content across the hinge, issue #146).
  * @param content Dialog body below the header.
  */
 @Composable
@@ -245,7 +246,7 @@ fun FestivalModalDialog(
     compact: Boolean = false,
     maxHeight: Dp = Dp.Unspecified,
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
-    avoidHinge: Boolean = false,
+    avoidHinge: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     CoversBackdrop()
@@ -296,7 +297,7 @@ fun FestivalModalDialog(
  * @return The [DialogHinge] area, or null.
  */
 @Composable
-private fun dialogHingeArea(): DialogHinge.Area? {
+internal fun dialogHingeArea(): DialogHinge.Area? {
     val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return null
     val root = LocalView.current.rootView
@@ -331,7 +332,7 @@ private fun dialogHingeArea(): DialogHinge.Area? {
  * @param surface The dialog surface; apply the given modifier after its outer margin.
  */
 @Composable
-private fun HingeSideDialogLayout(
+internal fun HingeSideDialogLayout(
     area: DialogHinge.Area,
     onDismissRequest: () -> Unit,
     surface: @Composable (Modifier) -> Unit,
