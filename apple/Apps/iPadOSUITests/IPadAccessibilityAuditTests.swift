@@ -1,13 +1,17 @@
 import XCTest
 
-/// iPadOS accessibility audits for the universal FestivalMobile app on
-/// "FST Native iPad Pro 11" (`.agents/testing/apple/accessibility.md`, iPad section).
+/// iPadOS and iPhone Duo accessibility audits for the universal FestivalMobile app on
+/// "FST Native iPad Pro 11" and "iPhone Duo (FST)" (`.agents/testing/apple/accessibility.md`).
 ///
 /// Every page and sheet runs `performAccessibilityAudit(for: .all)` in each mode: the
 /// full-screen landscape window (on-demand split), a regular-width portrait window
 /// (one stack), a compact ⅓
 /// window (Split View "Arrange thirds"), Dynamic Type AX1 and AX5, and the system
-/// settings Bold Text, Increase Contrast and Reduce Transparency. Each audit collects every issue (so
+/// settings Bold Text, Increase Contrast and Reduce Transparency. The **shell** group
+/// audits the redesigned shell itself: the overlay flyout open, and each split page with
+/// its trailing pane open (landscape only). `Duo*` modes run the same pages on iPhone Duo
+/// in whatever pose Device Hub holds (`ios_sim.py pose --set …` first; the test never
+/// rotates or resizes the Duo). Each audit collects every issue (so
 /// one run lists all of them), attaches the list and a screenshot, writes a JSON summary
 /// plus each page's capture and element tree to `FST_AUDIT_OUT`
 /// (`TEST_RUNNER_FST_AUDIT_OUT` through xcodebuild) when set, and then fails if any issue
@@ -18,20 +22,35 @@ import XCTest
 /// System settings cannot be switched from a test: run those methods with
 /// `python3 tools/ios_sim.py uitest --device ipad --a11y bold-text --only
 /// IPadAccessibilityAuditTests/testBoldTextBrowse` (the method skips unless the runner
-/// sees the setting on). The structural journey (`testThreeColumnReadingOrderAndTraits`)
-/// checks reading order, the selected-row trait and headings in the landscape split.
+/// sees the setting on). The structural journeys (`IPadShellAccessibilityTests`) check
+/// the flyout's modality and dismissal, and the split's reading order, selection and
+/// focus moves.
 ///
 /// Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765), never production.
 final class IPadAccessibilityAuditTests: XCTestCase {
+    /// iPhone Duo: whether this run's pose splits (read once per test).
+    private var duoSplitPossible: Bool?
+
     // MARK: - Modes and pages
 
     /// Window and text configuration for one audit pass.
     enum Mode: String {
-        case regular, threeColumn, compact, ax1, ax5, ax5Compact, boldText, increaseContrast, reduceTransparency
+        case regular, landscape, landscapeAX5, compact, ax1, ax5, ax5Compact
+        case boldText, increaseContrast, reduceTransparency
+        case duo, duoAX5
 
-        /// Portrait, except `threeColumn` (named before 2026-10-04): the landscape window,
-        /// where list pages split on demand.
-        var orientation: UIDeviceOrientation { self == .threeColumn ? .landscapeLeft : .portrait }
+        /// Portrait, except the landscape window (list pages split on demand); nil on iPhone
+        /// Duo, whose pose and rotation only Device Hub sets.
+        var orientation: UIDeviceOrientation? {
+            switch self {
+            case .landscape, .landscapeAX5: .landscapeLeft
+            case .duo, .duoAX5: nil
+            default: .portrait
+            }
+        }
+
+        /// Runs on iPhone Duo (and only there).
+        var isDuo: Bool { self == .duo || self == .duoAX5 }
 
         /// Audit types for this mode. Contrast is audited where colours can change:
         /// regular, compact, three columns, Increase Contrast and Reduce Transparency.
@@ -45,7 +64,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         /// contrast verdict is checked against real pixels like the portrait ones.
         var auditTypes: XCUIAccessibilityAuditType {
             switch self {
-            case .regular, .threeColumn, .compact, .increaseContrast, .reduceTransparency: .all
+            case .regular, .landscape, .compact, .increaseContrast, .reduceTransparency, .duo: .all
             default: XCUIAccessibilityAuditType.all.subtracting(.contrast)
             }
         }
@@ -54,7 +73,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         var contentSize: UIContentSizeCategory? {
             switch self {
             case .ax1: .accessibilityMedium
-            case .ax5, .ax5Compact: .accessibilityExtraExtraExtraLarge
+            case .ax5, .ax5Compact, .landscapeAX5, .duoAX5: .accessibilityExtraExtraExtraLarge
             default: nil
             }
         }
@@ -86,6 +105,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         var open: (@MainActor (XCUIApplication) -> String?)?
         /// The page is a presented sheet (its proof, or `ready`, lies inside it).
         var sheet = false
+        /// The page is a split with its trailing pane open: audited only in a landscape
+        /// window (portrait and compact push the same page, audited in its own group).
+        var splitOnly = false
     }
 
     /// Songs list | Song Detail, its sheets, Item Shop and Search.
@@ -170,15 +192,46 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }, sheet: true),
     ]
 
+    /// The redesigned shell (Lane SPLIT, 2026-10-05): the overlay flyout open (modal,
+    /// its footer reachable at AX5), and every split page with its trailing pane open.
+    static let shell: [Page] = [
+        Page(name: "flyout", profile: true, ready: "fst.songs.list", open: { app in
+            // The proof is a row inside the panel, so the panel is the "sheet" region.
+            tapFirst(app, ["fst.shell.drawer.open"]) ? "fst.shell.drawer.songs" : nil
+        }, sheet: true),
+        Page(name: "song-board-split", env: ["FST_DEBUG_SONG": "fixture-pulse"],
+             ready: "fst.song-detail.intensity", open: { app in
+                 openSplit(app, ids: ["fst.song-detail.leaderboard.Solo_Guitar"])
+             }, splitOnly: true),
+        Page(name: "song-history-split", env: ["FST_DEBUG_SONG": "fixture-pulse"], profile: true,
+             ready: "fst.song-detail.intensity", open: { app in
+                 openSplit(app, ids: ["fst.song-detail.history.view-all"])
+             }, splitOnly: true),
+        Page(name: "rivals-split", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals",
+             open: { app in openSplit(app, prefix: "fst.rivals.row.") }, splitOnly: true),
+        Page(name: "leaderboards-split", env: ["FST_DEBUG_TAB": "leaderboards"], ready: "Leaderboards",
+             open: { app in openSplit(app, prefix: "fst.rankings.row.") }, splitOnly: true),
+        Page(name: "full-rankings-split", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"],
+             ready: "Lead Rankings", open: { app in openSplit(app, prefix: "fst.rankings.row.") }, splitOnly: true),
+        Page(name: "settings-split", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings",
+             open: { app in openSplit(app, ids: ["fst.settings.licenses"]) }, splitOnly: true),
+    ]
+
     // MARK: - Lifecycle
+
+    /// The runner is on iPhone Duo (simulator device name).
+    static var runningOnDuo: Bool {
+        ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"]?.contains("Duo") ?? false
+    }
 
     override func setUpWithError() throws {
         let isPad = MainActor.assumeIsolated { UIDevice.current.userInterfaceIdiom == .pad }
-        try XCTSkipUnless(isPad, "iPad-only journeys")
+        try XCTSkipUnless(isPad || Self.runningOnDuo, "iPad and iPhone Duo journeys")
         continueAfterFailure = true
     }
 
     override func tearDown() {
+        guard !Self.runningOnDuo else { return }
         MainActor.assumeIsolated {
             let app = FestivalApp.makeApp()
             if app.state == .runningForeground { WindowResize.fill(app) }
@@ -188,11 +241,31 @@ final class IPadAccessibilityAuditTests: XCTestCase {
 
     // MARK: - Audits: landscape (on-demand split)
 
-    @MainActor func testThreeColumnBrowse() throws { try audit(Self.browse, mode: .threeColumn, group: "browse") }
-    @MainActor func testThreeColumnRankings() throws {
-        try audit(Self.rankings, mode: .threeColumn, group: "rankings")
+    @MainActor func testLandscapeBrowse() throws { try audit(Self.browse, mode: .landscape, group: "browse") }
+    @MainActor func testLandscapeRankings() throws { try audit(Self.rankings, mode: .landscape, group: "rankings") }
+    @MainActor func testLandscapeProfile() throws { try audit(Self.profile, mode: .landscape, group: "profile") }
+    @MainActor func testLandscapeShell() throws { try audit(Self.shell, mode: .landscape, group: "shell") }
+    @MainActor func testLandscapeAX5Shell() throws { try audit(Self.shell, mode: .landscapeAX5, group: "shell") }
+
+    // MARK: - Audits: the shell in portrait modes (flyout; splits push there)
+
+    @MainActor func testRegularShell() throws { try audit(Self.shell, mode: .regular, group: "shell") }
+    @MainActor func testCompactShell() throws { try audit(Self.shell, mode: .compact, group: "shell") }
+    @MainActor func testAX1Shell() throws { try audit(Self.shell, mode: .ax1, group: "shell") }
+    @MainActor func testAX5Shell() throws { try audit(Self.shell, mode: .ax5, group: "shell") }
+    @MainActor func testBoldTextShell() throws { try audit(Self.shell, mode: .boldText, group: "shell") }
+    @MainActor func testIncreaseContrastShell() throws { try audit(Self.shell, mode: .increaseContrast, group: "shell") }
+    @MainActor func testReduceTransparencyShell() throws {
+        try audit(Self.shell, mode: .reduceTransparency, group: "shell")
     }
-    @MainActor func testThreeColumnProfile() throws { try audit(Self.profile, mode: .threeColumn, group: "profile") }
+
+    // MARK: - Audits: iPhone Duo (pose set in Device Hub beforehand)
+
+    @MainActor func testDuoBrowse() throws { try audit(Self.browse, mode: .duo, group: "browse") }
+    @MainActor func testDuoRankings() throws { try audit(Self.rankings, mode: .duo, group: "rankings") }
+    @MainActor func testDuoProfile() throws { try audit(Self.profile, mode: .duo, group: "profile") }
+    @MainActor func testDuoShell() throws { try audit(Self.shell, mode: .duo, group: "shell") }
+    @MainActor func testDuoAX5Shell() throws { try audit(Self.shell, mode: .duoAX5, group: "shell") }
 
     // MARK: - Audits: regular width (portrait: one stack)
 
@@ -242,54 +315,6 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         try audit(Self.profile, mode: .reduceTransparency, group: "profile")
     }
 
-    // MARK: - Structure: reading order, selection and headings
-
-    /// The landscape on-demand split (`split-view.md`, 2026-10-04): Full Rankings starts
-    /// full width; a chosen row opens the player in the trailing half, reads after the
-    /// list and carries the selected trait; choosing another row moves the selection.
-    @MainActor
-    func testThreeColumnReadingOrderAndTraits() throws {
-        continueAfterFailure = false
-        XCUIDevice.shared.orientation = .landscapeLeft
-        let app = makeApp(
-            Page(name: "full-rankings", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"], ready: "Lead Rankings"),
-            mode: .threeColumn
-        )
-        launchFilled(app)
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 25))
-        XCTAssertFalse(Self.anyElement(app, "fst.split.trailing").exists, "starts full width")
-        rows.element(boundBy: 0).tap()
-        XCTAssertTrue(Self.anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10), "opens the trailing half")
-
-        let order = try flatten(app.snapshot())
-        func index(_ match: (XCUIElementSnapshot) -> Bool) -> Int? { order.firstIndex(where: match) }
-        let list = index { $0.identifier.hasPrefix("fst.rankings.row.") }
-        let detail = index { $0.identifier == "fst.split.trailing" }
-        XCTAssertNotNil(list, "list row in the tree")
-        XCTAssertNotNil(detail, "trailing pane in the tree")
-        if let list, let detail { XCTAssertLessThan(list, detail, "the list reads before the trailing pane") }
-
-        let selectedRows = rows.matching(NSPredicate(format: "isSelected == true"))
-        XCTAssertEqual(selectedRows.count, 1, "exactly one list row carries the selected trait")
-        let headings = order.filter { Self.isHeader($0) }.map(\.label)
-        add(attachment(named: "headings", text: headings.joined(separator: "\n")))
-        if let dir = ProcessInfo.processInfo.environment["FST_AUDIT_OUT"] {
-            let summary: [String: Any] = [
-                "order": ["list": list ?? -1, "trailing": detail ?? -1],
-                "traitsReadable": Self.traitsReadable(order), "headings": headings,
-            ]
-            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            try? JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys])
-                .write(to: URL(fileURLWithPath: dir).appendingPathComponent("structure.json"))
-        }
-        let second = rows.element(boundBy: 1)
-        second.tap()
-        XCTAssertTrue(second.waitForSelection(timeout: 5), "the chosen row is selected")
-        XCTAssertEqual(selectedRows.count, 1, "selection moved, not added")
-        XCTAssertTrue(Self.anyElement(app, "fst.split.trailing").exists, "still split after choosing")
-    }
-
     // MARK: - Audit runner
 
     /// One recorded audit issue.
@@ -319,10 +344,20 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         if let missing = mode.systemSettingMissing {
             throw XCTSkip("run with `ios_sim.py uitest --device ipad --a11y \(missing)`")
         }
-        XCUIDevice.shared.orientation = mode.orientation
+        if mode.isDuo != Self.runningOnDuo {
+            throw XCTSkip(mode.isDuo ? "iPhone Duo mode" : "iPad mode")
+        }
+        if let orientation = mode.orientation { XCUIDevice.shared.orientation = orientation }
+        // iPhone Duo: read the pose's window once (split possible, capture orientation).
+        if mode.isDuo { _ = splitPossible(mode) }
         var findings: [Finding] = []
         var unreached: [String] = []
+        var skipped: [String] = []
         for page in pages {
+            if page.splitOnly, !splitPossible(mode) {
+                skipped.append(page.name)
+                continue
+            }
             guard let (app, proof) = try reachWithProof(page, mode: mode, contentSize: mode.contentSize) else {
                 unreached.append(page.name)
                 continue
@@ -373,7 +408,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             }
             findings += pageFindings
         }
-        report(findings, unreached: unreached, mode: mode, group: group)
+        report(findings, unreached: unreached, skipped: skipped, mode: mode, group: group)
         XCTAssertTrue(unreached.isEmpty, "pages not reached: \(unreached)")
         let open = findings.filter { $0.waiver == nil }
         XCTAssertTrue(open.isEmpty, "\(open.count) audit issue(s) (\(findings.count - open.count) waived):\n"
@@ -436,14 +471,18 @@ final class IPadAccessibilityAuditTests: XCTestCase {
 
     /// Attach and (optionally) write the findings as JSON.
     @MainActor
-    private func report(_ findings: [Finding], unreached: [String], mode: Mode, group: String) {
+    private func report(_ findings: [Finding], unreached: [String], skipped: [String], mode: Mode, group: String) {
         struct Summary: Codable {
             let mode: String
             let group: String
             let unreached: [String]
+            /// Split pages left out because this window cannot split (portrait, compact).
+            let skipped: [String]
             let findings: [Finding]
         }
-        let summary = Summary(mode: mode.rawValue, group: group, unreached: unreached, findings: findings)
+        let summary = Summary(
+            mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped, findings: findings
+        )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? encoder.encode(summary) else { return }
@@ -462,7 +501,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
 
     /// A configured, not-yet-launched app for a page and mode.
     @MainActor
-    private func makeApp(_ page: Page, mode: Mode, contentSize: UIContentSizeCategory? = nil) -> XCUIApplication {
+    func makeApp(_ page: Page, mode: Mode, contentSize: UIContentSizeCategory? = nil) -> XCUIApplication {
         var env = [
             "FST_API_BASE_URL": "http://127.0.0.1:8765",
             "FST_UI_TEST_CLEAR_PROFILE": "1",
@@ -479,10 +518,86 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     }
 
     /// Launch and make the window fill the screen (iPadOS remembers resized windows).
+    /// iPhone Duo has one full-screen window per display: nothing to resize.
     @MainActor
-    private func launchFilled(_ app: XCUIApplication) {
+    func launchFilled(_ app: XCUIApplication) {
         app.launch()
-        WindowResize.fill(app)
+        if !Self.runningOnDuo { WindowResize.fill(app) }
+    }
+
+    /// Whether the mode's window splits on demand: the iPad landscape modes; on iPhone Duo
+    /// the inner display in landscape (a probe launch reads the window, since Device Hub
+    /// holds the pose).
+    @MainActor
+    private func splitPossible(_ mode: Mode) -> Bool {
+        switch mode {
+        case .landscape, .landscapeAX5: return true
+        case .duo, .duoAX5:
+            if let known = duoSplitPossible { return known }
+            let app = makeApp(Page(name: "probe", ready: "fst.songs.list"), mode: mode)
+            app.launch()
+            _ = Self.anyElement(app, "fst.songs.list").waitForExistence(timeout: 25)
+            let frame = app.windows.firstMatch.frame
+            app.terminate()
+            // Inner landscape is 951 × 669 pt; inner portrait and the outer display push.
+            let known = frame.width > frame.height && frame.width >= 800
+            duoSplitPossible = known
+            IPadAuditRenderedContrast.interfaceIsLandscape = frame.width > frame.height
+            return known
+        default: return false
+        }
+    }
+
+    /// A slow vertical drag between two screen points (no flick momentum).
+    @MainActor
+    static func slowDrag(_ app: XCUIApplication, x: CGFloat, fromY: CGFloat, toY: CGFloat) {
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        origin.withOffset(CGVector(dx: x, dy: fromY)).press(
+            forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: x, dy: toY)),
+            withVelocity: .slow, thenHoldForDuration: 0.2
+        )
+        Thread.sleep(forTimeInterval: 0.5)
+    }
+
+    /// Open a split page's trailing pane from a row (an identifier, or the first row
+    /// whose identifier has `prefix`), scrolling the page with slow drags until the row
+    /// is on screen. Programmatic taps on offscreen rows stall the main thread
+    /// (`xcuitest.md` pitfalls).
+    ///
+    /// - Returns: `fst.split.trailing` once the trailing pane shows, else nil.
+    @MainActor
+    static func openSplit(_ app: XCUIApplication, ids: [String] = [], prefix: String? = nil) -> String? {
+        func row() -> XCUIElement {
+            if let prefix {
+                return app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
+            }
+            for id in ids where anyElement(app, id).exists { return anyElement(app, id) }
+            return anyElement(app, ids.first ?? "")
+        }
+        _ = row().waitForExistence(timeout: 15)
+        let window = app.windows.firstMatch.frame
+        for attempt in 0..<12 {
+            let element = row()
+            if element.exists, element.isHittable, window.insetBy(dx: 0, dy: 80).contains(
+                CGPoint(x: element.frame.midX, y: element.frame.midY)
+            ) {
+                element.tap()
+                return anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10) ? "fst.split.trailing" : nil
+            }
+            // Screen points from the window frame: normalized app coordinates stay in the
+            // portrait frame in a landscape window, so the drag ran sideways.
+            // Song Detail ignores these drags in landscape (its score-history chart spans
+            // the page and takes them as bar selection); XCUITest's own scroll-to-tap
+            // reaches the row there (as `IPadShellJourneyTests` does).
+            if attempt >= 4, element.exists {
+                element.tap()
+                return anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10) ? "fst.split.trailing" : nil
+            }
+            // The trailing margin: a drag that starts on a chart selects a bar.
+            slowDrag(app, x: window.maxX - 10, fromY: window.minY + window.height * 0.75,
+                     toY: window.minY + window.height * 0.35)
+        }
+        return nil
     }
 
     /// Tile the window to a compact third and wait for the phone tab bar.
@@ -529,13 +644,6 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         return false
     }
 
-    /// Depth-first flattening of a snapshot (accessibility tree order).
-    private func flatten(_ snapshot: XCUIElementSnapshot) throws -> [XCUIElementSnapshot] {
-        var out: [XCUIElementSnapshot] = [snapshot]
-        for child in snapshot.children { out += try flatten(child) }
-        return out
-    }
-
     /// The snapshot's accessibility traits, when the runtime exposes them (`traits` on the
     /// concrete snapshot class); nil otherwise.
     static func traits(_ snapshot: XCUIElementSnapshot) -> UInt64? {
@@ -559,14 +667,6 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     @MainActor
     private func screenshot(_ app: XCUIApplication, _ name: String) -> XCTAttachment {
         let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        return attachment
-    }
-
-    /// A kept text attachment.
-    private func attachment(named name: String, text: String) -> XCTAttachment {
-        let attachment = XCTAttachment(string: text)
         attachment.name = name
         attachment.lifetime = .keepAlways
         return attachment
