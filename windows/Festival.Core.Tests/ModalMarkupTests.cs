@@ -91,6 +91,8 @@ public class ModalMarkupTests
         Assert.Empty(Matching(".xaml", @"<TextBox\b[^>]*\bDescription="""));
         var feedback = Sources(".cs").Single(source => source.Path == "Controls/FeedbackDialog.cs").Text;
         Assert.Matches(@"Description\s*=\s*new TextBlock \{[^}]*TextWrapping\.WrapWholeWords", feedback);
+        // Issue #236: the field labels clipped the same way.
+        Assert.Matches(@"Header\s*=\s*new TextBlock \{[^}]*TextWrapping\.WrapWholeWords", feedback);
     }
 
     [Fact]

@@ -123,13 +123,16 @@ def parse_selector(text: str) -> dict:
 
     Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>``, ``raw=<AutomationId>`` (searches the
     raw view, for parts a control marks ``AccessibilityView=Raw`` such as a score row's badge text) or
-    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only).
+    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only). An ``id=``/``name=``
+    selector may end with ``&class=<ClassName>`` to also match the class, e.g. ``id=1&class=Button`` for a
+    system file picker's Open button, which shares AutomationId ``1`` with the picker's first folder.
 
     Args:
         text: Selector text.
 
     Returns:
-        ``{"kind": "id"|"name"|"class"|"raw", "value": ...}`` or ``{"kind": "xy", "x", "y"}``.
+        ``{"kind": "id"|"name"|"class"|"raw", "value": ...}`` (plus ``"class"`` when qualified) or
+        ``{"kind": "xy", "x", "y"}``.
 
     Raises:
         ValueError: Unrecognized selector.
@@ -139,6 +142,9 @@ def parse_selector(text: str) -> dict:
         return {"kind": "xy", "x": int(match.group(1)), "y": int(match.group(2))}
     kind, sep, value = text.partition("=")
     kind = kind.strip().lower()
+    qualified = re.fullmatch(r"(.+)&class=([^&]+)", value) if kind in ("id", "name") else None
+    if sep and qualified:
+        return {"kind": kind, "value": qualified.group(1), "class": qualified.group(2)}
     if sep and kind in ("id", "name", "class", "raw") and value:
         return {"kind": kind, "value": value}
     raise ValueError(f"bad selector {text!r}; use id=, name=, class=, raw= or x,y")

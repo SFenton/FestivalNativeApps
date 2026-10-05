@@ -19,6 +19,9 @@ class SelectorAndKeyTests(unittest.TestCase):
         self.assertEqual(u.parse_selector("id=fst.songs.list"), {"kind": "id", "value": "fst.songs.list"})
         self.assertEqual(u.parse_selector("NAME=Refresh songs"), {"kind": "name", "value": "Refresh songs"})
         self.assertEqual(u.parse_selector(" 12, 34 "), {"kind": "xy", "x": 12, "y": 34})
+        self.assertEqual(u.parse_selector("id=1&class=Button"), {"kind": "id", "value": "1", "class": "Button"})
+        self.assertEqual(u.parse_selector("name=A&B&class=Edit"), {"kind": "name", "value": "A&B", "class": "Edit"})
+        self.assertEqual(u.parse_selector("raw=a&class=b"), {"kind": "raw", "value": "a&class=b"})
         for bad in ("fst.x", "id=", "role=button"):
             with self.assertRaises(ValueError):
                 u.parse_selector(bad)
