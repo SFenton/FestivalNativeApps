@@ -74,7 +74,9 @@ public enum ScrollEdgeFade {
     ///   - contentHeight: Height of the scrollable content (including its last row's
     ///     bottom inset).
     ///   - offsetY: Vertical content offset (negative under a top inset).
-    ///   - containerHeight: Height of the scroll view.
+    ///   - containerHeight: Full height of the scroll view, including the regions
+    ///     under its insets (`ScrollGeometry.visibleRect`; a `ScrollView`'s
+    ///     `containerSize` leaves its safe-area insets out, issue #305).
     ///   - bottomInset: Content inset at the bottom (pinned chrome and safe area).
     /// - Returns: Points of content past the unobscured bottom, or nil for a
     ///   non-finite input.

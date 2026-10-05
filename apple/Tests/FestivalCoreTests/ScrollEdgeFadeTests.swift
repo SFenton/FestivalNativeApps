@@ -65,6 +65,21 @@ import Testing
     ) == nil)
 }
 
+/// Readings at the end of an iPhone 17 Pro board (issue #305): a `ScrollView`'s
+/// `containerSize` leaves out its 116 pt top and 135 pt bottom insets, so only the
+/// full `visibleRect` height reaches 0 there; a `List` reports both as the full height.
+@Test func contentOverflowReachesZeroWithFullScrollViewHeight() {
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1441, offsetY: 702, containerHeight: 874, bottomInset: 135
+    ) == 0)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1441, offsetY: 702, containerHeight: 623, bottomInset: 135
+    ) == 251)
+    #expect(ScrollEdgeFade.contentOverflow(
+        contentHeight: 1520, offsetY: 785, containerHeight: 874, bottomInset: 139
+    ) == 0)
+}
+
 /// The last row rests one row gap above the footer, or above the pager when the
 /// player has no score; the footer rests one row gap above the pager.
 @Test func pinnedChromeKeepsRowGap() {
@@ -84,6 +99,15 @@ import Testing
         rowGap: 2, rowBottomInset: 6, edgePadding: -3, hasFooter: true, hasPager: false
     )
     #expect(degenerate == .init(footerTop: 0, footerBottom: 0, pagerTop: 2))
+}
+
+/// Band boards (issue #305) pad the card stack's bottom by a full row gap, so the
+/// pinned pager adds nothing and the last card rests one gap above it.
+@Test func pinnedPagerAddsNothingWhenCardsCarryTheGap() {
+    let band = PinnedChromeSpacing.resolve(
+        rowGap: 6, rowBottomInset: 6, edgePadding: 8, hasFooter: false, hasPager: true
+    )
+    #expect(band == .init(footerTop: 0, footerBottom: 0, pagerTop: 0))
 }
 
 // MARK: - Selected player on page while paging (issue #93)

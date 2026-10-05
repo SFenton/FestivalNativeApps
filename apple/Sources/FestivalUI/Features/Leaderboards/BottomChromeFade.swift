@@ -1,0 +1,129 @@
+import SwiftUI
+import FestivalCore
+
+// MARK: - Bottom chrome fade
+
+extension View {
+    /// Reports the top edge of a page's pinned bottom chrome (a pager, optionally
+    /// with the selected player's footer above it) for ``bottomChromeFade(chromeTop:distance:in:)``.
+    ///
+    /// - Parameters:
+    ///   - space: Named coordinate space shared with the faded rows.
+    ///   - changed: Receives the chrome's top in `space`, or nil while it draws
+    ///     nothing (the iPhone Duo vertical bar moves the pager into the rail).
+    /// - Returns: The chrome, measured.
+    func reportsBottomChromeTop(in space: String, _ changed: @escaping (CGFloat?) -> Void) -> some View {
+        onGeometryChange(for: CGFloat?.self) { proxy in
+            proxy.size.height > 0 ? proxy.frame(in: .named(space)).minY : nil
+        } action: { top in
+            changed(top)
+        }
+    }
+
+    /// Fades a board's scrolling rows out above its pinned bottom chrome, the one
+    /// bottom edge every paginated leaderboard shares (issue #305).
+    ///
+    /// Rows are opaque until up to 36 pt above the chrome's top, fade to clear at
+    /// that edge and are not drawn beneath it (web `useScrollFade`, issue #93). The
+    /// fade shrinks with the remaining scroll, so the last row comes to rest unfaded
+    /// (issue #293). It applies whether or not the chrome holds a player footer: a
+    /// board without one (band boards, no selected player, no score here) used to
+    /// cut its rows off hard at the pager. A manual scroll-edge effect for a custom
+    /// bar: "With custom bars, you might add one manually if needed" (HIG Scroll
+    /// views); "Prefer scroll-edge effects to solid/semi-opaque backgrounds beneath
+    /// controls" (HIG Layout).
+    ///
+    /// - Parameters:
+    ///   - chromeTop: The chrome's top from ``reportsBottomChromeTop(in:_:)``; nil
+    ///     draws every row. Read the state into a local at the top of the screen's
+    ///     own `body`: read only inside a `FestivalReloadGate` content closure, the
+    ///     screen never re-renders when it changes (issues #294, #305).
+    ///   - distance: The page's fade height, updated from the scroll position.
+    ///   - space: Named coordinate space shared with the chrome.
+    /// - Returns: The scroll view, masked.
+    func bottomChromeFade(chromeTop: CGFloat?, distance: Binding<Double>, in space: String) -> some View {
+        modifier(BottomChromeFade(chromeTop: chromeTop, distance: distance, space: space))
+    }
+}
+
+/// The mask behind ``SwiftUI/View/bottomChromeFade(chromeTop:distance:in:)``.
+///
+/// The chrome top arrives as a value the screen read in its own body, not inside the
+/// mask's lazy `GeometryReader`: read only there, the first page kept an opaque mask
+/// (rows behind the pager) until something else re-rendered the page (issue #294).
+private struct BottomChromeFade: ViewModifier {
+    let chromeTop: CGFloat?
+    @Binding var distance: Double
+    let space: String
+
+    func body(content: Content) -> some View {
+        let fadeDistance = distance
+        content
+            .modifier(BottomFadeDistanceReader { distance = $0 })
+            .mask { mask(fadeDistance: fadeDistance) }
+    }
+
+    /// Opaque, then a fade ending at the chrome's top edge, clear beneath it.
+    /// Extends into the top safe area so rows still scroll under the navigation bar.
+    ///
+    /// - Parameter fadeDistance: Height of the fade above the chrome.
+    /// - Returns: The alpha mask.
+    private func mask(fadeDistance: Double) -> some View {
+        GeometryReader { proxy in
+            let frame = proxy.frame(in: .named(space))
+            if let chromeTop {
+                let stops = ScrollEdgeFade.bottom(
+                    height: Double(frame.height),
+                    obscured: Double(frame.maxY - chromeTop),
+                    distance: fadeDistance
+                )
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: stops.fadeStart),
+                        .init(color: .clear, location: stops.fadeEnd),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            } else {
+                Color.black
+            }
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Bottom fade distance reader
+
+/// Reports the bottom fade height for how far a scroll view's rows still run below its
+/// pinned chrome (iOS 18 / macOS 15 and later; nothing before, which keeps the full
+/// fade). Read from the scroll view: a last-row frame reader did not update while the
+/// List scrolled, so the fade stayed on the resting last row (issue #293). The value
+/// is clamped before it reaches the screen, so only the last fade-height of scrolling
+/// re-renders it.
+///
+/// The scroll view's height is `visibleRect`'s, which spans the regions under its
+/// insets for a `List` and a `ScrollView` alike. `containerSize` does only for a
+/// `List`: a `ScrollView` reports it without its safe-area insets, which counted
+/// the bottom inset twice, so the fade never shrank and the last row rested faded
+/// (Full Rankings, band boards; issue #305).
+struct BottomFadeDistanceReader: ViewModifier {
+    let changed: (Double) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.onScrollGeometryChange(for: Double.self) { geometry in
+                ScrollEdgeFade.bottomDistance(lastRowOverflow: ScrollEdgeFade.contentOverflow(
+                    contentHeight: Double(geometry.contentSize.height),
+                    offsetY: Double(geometry.contentOffset.y),
+                    containerHeight: Double(geometry.visibleRect.height),
+                    bottomInset: Double(geometry.contentInsets.bottom)
+                )).rounded()
+            } action: { _, distance in
+                changed(distance)
+            }
+        } else {
+            content
+        }
+    }
+}
