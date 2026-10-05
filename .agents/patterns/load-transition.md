@@ -1,8 +1,8 @@
 # Load transition
 
-> **What:** first-load gates, reload swaps and row entrances for pages, boards and data-backed modal content. **Read when:** a load, refresh, selector, page or modal switch changes visible data.
+> **What:** first-load gates, reload swaps, graph card list swaps and row entrances for pages, boards and data-backed modal content. **Read when:** a load, refresh, selector, page or modal switch changes visible data.
 
-Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71.
+Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71, #169.
 
 ## Intent
 
@@ -16,6 +16,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 | `FortniteFestivalWeb/src/components/page/LoadGate.tsx` (`LoadGate`) | First-load spinner gate and content reveal. |
 | `FortniteFestivalWeb/src/components/leaderboard/PaginatedLeaderboard.tsx` (`PaginatedLeaderboard`) | Board reload spinner, row stagger and pinned footer. |
 | `FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx` | Cancellable Paths image/text switch with its distinct minimum spinner durations. |
+| `FortniteFestivalWeb/src/hooks/chart/useListAnimation.ts` (`useListAnimation`) with `components/common/GraphCard.tsx` | Graph card list swap for already-loaded data: old cards out, height transition, new cards in. |
 
 ## Rules
 
@@ -25,6 +26,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 - **R4. Keep controls usable.** Pickers, pagers and modal selectors live outside the gated result area; a new selection supersedes pending work instead of waiting for it.
 - **R5. Do not replay entry motion while scrolling.** A page-level fade window closes after scroll movement; already-running fades finish, but lazily realized old content appears immediately. Suggestions alone reveals newly generated batches.
 - **R6. Honor reduced motion.** Motion-disabled platforms swap without fades or stagger; retain only the minimum spinner hold needed to avoid a blink. HIG Motion: "Add motion purposefully; gratuitous or excessive animation distracts and can cause physical discomfort." MD3: the easing/duration system is used for "transitions (entering, exiting, shared-axis)."
+- **R7. Graph card lists follow the web list sequence.** When a graph card's selector changes already-loaded data, its list under the card (Score History's best scores) is not a reload and shows no spinner. The old rows fade out and drift up 8 units (150 ms ease-in, 40 ms stagger; the phase lasts 200 + 40 × (rows − 1) ms). Then the list eases to its new height over 300 ms (`ease`) with no rows visible, and the new rows fade in from 12 units below (300 ms ease-out, 60 ms stagger). A newer change cancels the running one, and the same rows update in place. The list follows the selection at once rather than a graph fade, and the card's View All button sits outside the list, toggling with the selection as in the web `GraphCard`. Reduced motion swaps at once (R6).
 
 ## Canonical implementation
 
@@ -33,15 +35,17 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 | First-load gate | `FestivalUI/Common/FestivalReloadGate.swift` `FestivalReloadGate`; `Common/FadeInOnLoad.swift` `FestivalFadeInScope` | `ui/common/LoadGate.kt` `FestivalLoadGate`; `core/shell/LoadGatePhase.kt` `LoadGatePolicy` | `Festival.App/Controls/FadeIn.cs` `FadeIn` |
 | Reload swap | `FestivalCore/ReloadTransition.swift` `ReloadTransition`; `Common/FestivalReloadGate.swift` | `ui/common/LoadSwap.kt` `rememberLoadSwap`; `core/shell/LoadSwapPhase.kt` `LoadSwapPolicy` | `Festival.Core/Domain/LoadSwap.cs` `LoadSwap`; `Festival.App/Controls/LoadSwapVisual.cs` `LoadSwapVisual` |
 | Paths swap | `FestivalCore/PathSwitchTransition.swift` `PathSwitchTransition` | `presentation/songs/SongPathsViewModel.kt` `PathSwapPhase` | `Festival.Core/ViewModels/SongPathsViewModel.cs` `PathSwapTiming` |
+| Graph card list (R7) | Not mirrored yet (see debt) | `ui/common/GraphCardList.kt` `GraphCardList`; `core/shell/GraphListPhase.kt` `GraphListPolicy` | Not mirrored yet (see debt) |
 
 ## Known debt
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| None verified. | — | — |
+| Apple and Windows Score History lists are not verified against R7 (Android adopted it in #169). | R7 | Cross-platform check from #169's blast radius. |
 
 ## Guards (`tools/pattern_guard.py`)
 
 - `load-transition/apple-reload-gate`
 - `load-transition/android-load-swap`
 - `load-transition/windows-load-swap`
+- `load-transition/android-graph-list`
