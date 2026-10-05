@@ -28,6 +28,7 @@
 | 8769 | `--fail-first-white-catalogue` | Songs 503 once → Settings check → recovered Songs |
 | 8767 / 8768 | `--unpinned --rollover-on-command` | iPhone / iPad generation 7→8 via one `GET /__fixture__/advance-publication` (`--rollover-on-read 2` is only for its Python wire test). A listener is spent after one advance; to rerun `testHeaderlessRolloverRefreshesDetailInPlace` against a fresh one on another port, set `TEST_RUNNER_FST_ROLLOVER_FIXTURE_PORT=<port>` for `ios_sim.py uitest` |
 | 8779 / 8780 | `--unpinned --rollover-on-command` | iPhone (and Duo) / iPad listener for `testLiveRolloverKeepsVoiceOverOnDetail`: the live-update loop (`FST_LIVE_PUBLICATION_UPDATES=1`) picks up one advance while Song Detail stays open. Spent after one advance; `TEST_RUNNER_FST_LIVE_ROLLOVER_FIXTURE_PORT=<port>` points a rerun at a fresh listener |
+| 8783 / 8784 | `--unpinned --rollover-on-command` | iPhone (and Duo) / iPad listener for `testLiveRolloverLeavesOutsideFocusAlone` (VoiceOver focus simulated outside the page: no page anchor). Spent after one advance; `TEST_RUNNER_FST_OUTSIDE_ROLLOVER_FIXTURE_PORT=<port>` points a rerun at a fresh listener |
 | 8771 | `--unpinned --stop-after-first-songs` | Songs connection loss (legacy offline journey) |
 | 8772 | `--unpinned --stop-after-first-score` | Serves the top-10 preview **and** first top-25 chart, then closes (legacy offline journey) |
 | 8773 | `--unpinned --stop-after-first-shop` | Closes after a validated Shop read and a test-only painted-art proof |

@@ -977,8 +977,16 @@
             "symbol": "PublicationRefreshBoundary"
           },
           {
+            "path": "apple/Sources/FestivalCore/PublicationRefreshTransition.swift",
+            "symbol": "PublicationRefreshTransition"
+          },
+          {
             "path": "apple/Sources/FestivalCore/PublicationRefreshFocus.swift",
             "symbol": "PublicationRefreshFocus"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PublicationFocusProbe.swift",
+            "symbol": "PublicationFocusProbe"
           },
           {
             "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
@@ -1110,7 +1118,8 @@
         30,
         60,
         70,
-        71
+        71,
+        304
       ]
     },
     {
