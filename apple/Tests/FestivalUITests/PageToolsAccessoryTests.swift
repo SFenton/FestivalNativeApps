@@ -3,60 +3,69 @@ import SwiftUI
 import Testing
 @testable import FestivalUI
 
-// MARK: - PageToolsAccessoryFit (issue #92)
+// MARK: - PageToolsAccessoryFit (issues #92, #300)
 
 @Suite("Tab-bar accessory fit")
 struct PageToolsAccessoryFitTests {
-    @Test("Required width counts 44 pt slots, gaps, the divider and padding")
+    @Test("Required width counts fixed 44 pt slots and the divider before the bell")
     func requiredWidth() {
-        // Profile only: one slot plus padding.
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 0, accountItems: 1) == 56)
-        // Notifications and Profile: two slots, one gap, no divider.
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 0, accountItems: 2) == 104)
-        // Sort, Filter | Notifications, Profile: four slots, a divider, four gaps.
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 2, accountItems: 2) == 205)
-        // Sort, Filter, Quick Links | Notifications, Profile.
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 3, accountItems: 2) == 253)
+        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 0, showsBell: false) == 0)
+        // Notifications alone: one slot, no divider.
+        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 0, showsBell: true) == 44)
+        // Sort, Filter, Quick Links without a profile: three slots.
+        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 3, showsBell: false) == 132)
+        // Sort, Filter, Quick Links | Notifications.
+        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 3, showsBell: true) == 177)
     }
 
     @Test("Negative counts are treated as zero")
     func negativeCounts() {
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: -3, accountItems: -1) == 12)
+        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: -3, showsBell: true) == 44)
     }
 
-    @Test("The expanded accessory keeps every Songs item")
-    func expandedKeepsAll() {
-        // iPhone 17 (402 pt): the expanded accessory measures 348 pt.
-        #expect(!PageToolsAccessoryFit.folds(
-            width: 348, pageTools: 3, accountItems: 2, dynamicTypeSize: .large
-        ))
+    @Test("The inline width follows the window, never the morphing accessory")
+    func inlineWidth() {
+        // Measured: the inline capsule is 222 pt on a 402 pt iPhone, 260 pt on 440 pt.
+        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 402) == 210)
+        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 440) == 248)
+        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 375) == 183)
+        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 100) == 0)
     }
 
-    @Test("The inline accessory folds five items but keeps four")
-    func inlineFoldsOnlyWhenNeeded() {
-        // Inline beside the minimized tab bar it measures 222 pt.
+    @Test("Songs keeps every item, expanded and inline, from 375 pt up")
+    func songsNeverFoldsAtStandardSizes() {
+        for window: CGFloat in [375, 393, 402, 440] {
+            #expect(!PageToolsAccessoryFit.folds(
+                windowWidth: window, pageTools: 3, showsBell: true, dynamicTypeSize: .large
+            ))
+        }
+    }
+
+    @Test("A window too narrow for the inline accessory folds, in both placements")
+    func narrowWindowFolds() {
+        // 320 pt (Display Zoom on a small iPhone): 128 pt inline.
         #expect(PageToolsAccessoryFit.folds(
-            width: 222, pageTools: 3, accountItems: 2, dynamicTypeSize: .large
+            windowWidth: 320, pageTools: 3, showsBell: true, dynamicTypeSize: .large
         ))
         #expect(!PageToolsAccessoryFit.folds(
-            width: 222, pageTools: 2, accountItems: 2, dynamicTypeSize: .large
+            windowWidth: 320, pageTools: 2, showsBell: false, dynamicTypeSize: .large
         ))
     }
 
-    @Test("An unmeasured accessory never folds on width alone")
+    @Test("An unmeasured window never folds on width alone")
     func unmeasured() {
         #expect(!PageToolsAccessoryFit.folds(
-            width: 0, pageTools: 3, accountItems: 2, dynamicTypeSize: .large
+            windowWidth: 0, pageTools: 3, showsBell: true, dynamicTypeSize: .large
         ))
     }
 
     @Test("Accessibility text sizes always fold; standard sizes do not")
     func dynamicType() {
         #expect(PageToolsAccessoryFit.folds(
-            width: 400, pageTools: 2, accountItems: 1, dynamicTypeSize: .accessibility1
+            windowWidth: 402, pageTools: 2, showsBell: true, dynamicTypeSize: .accessibility1
         ))
         #expect(!PageToolsAccessoryFit.folds(
-            width: 400, pageTools: 2, accountItems: 1, dynamicTypeSize: .xxxLarge
+            windowWidth: 402, pageTools: 2, showsBell: true, dynamicTypeSize: .xxxLarge
         ))
     }
 }
@@ -130,15 +139,25 @@ struct PageToolsRegistryTests {
         #expect(registry.frontItems.map(\.id) == [filter])
     }
 
-    @Test("Identical layout reports leave the stored values unchanged")
-    func reportAccessory() {
+    @Test("Window width reports are stored")
+    func reportWindow() {
         let registry = PageToolsRegistry()
-        registry.reportAccessory(width: 348, inline: false)
-        #expect(registry.accessoryWidth == 348)
-        #expect(!registry.isInline)
-        registry.reportAccessory(width: 222, inline: true)
-        #expect(registry.accessoryWidth == 222)
-        #expect(registry.isInline)
+        #expect(registry.windowWidth == 0)
+        registry.reportWindow(width: 402)
+        #expect(registry.windowWidth == 402)
+        registry.reportWindow(width: 402)
+        #expect(registry.windowWidth == 402)
+    }
+
+    @Test("The accessory has content with a profile or with front-page tools")
+    func hasContent() {
+        let registry = PageToolsRegistry()
+        let page = UUID()
+        registry.pageAppeared(page)
+        #expect(!registry.hasContent(hasPlayer: false))
+        #expect(registry.hasContent(hasPlayer: true))
+        _ = entry(registry, page, PageToolOrder.primary)
+        #expect(registry.hasContent(hasPlayer: false))
     }
 
     @Test("An inline menu choice runs only after its sheet has closed")
