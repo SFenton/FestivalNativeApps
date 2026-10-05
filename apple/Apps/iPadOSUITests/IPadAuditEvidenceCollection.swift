@@ -34,7 +34,14 @@ extension IPadAccessibilityAuditTests {
             let element = Self.anyElement(app, id)
             if element.exists { containers[id] = element.frame }
         }
-        if app.keyboards.firstMatch.exists { containers[IPadAuditWaivers.keyboardContainer] = app.keyboards.firstMatch.frame }
+        // The system keyboard plus its QuickType bar ("Typing Predictions", drawn just
+        // above the keyboard's own frame).
+        if app.keyboards.firstMatch.exists {
+            var frame = app.keyboards.firstMatch.frame
+            let predictions = app.otherElements["Typing Predictions"]
+            if predictions.exists { frame = frame.union(predictions.frame) }
+            containers[IPadAuditWaivers.keyboardContainer] = frame
+        }
         let content = IPadAuditPageEvidence.contentRect(app)
         let auditedIsLarge = mode.contentSize?.isAccessibilityCategory ?? false
         let auditedIsAX5 = mode.contentSize == .accessibilityExtraExtraExtraLarge

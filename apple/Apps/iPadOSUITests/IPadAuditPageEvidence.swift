@@ -141,8 +141,11 @@ enum IPadAuditPageEvidence {
         guard let root = try? app.snapshot() else { return (0, []) }
         var checked = 0
         var failing: [String] = []
+        // Leaf texts only: a combined element's label also carries text that is spoken but
+        // not drawn (a Songs row's per-instrument status), so its children are read instead.
         for node in flatten(root) where node.elementType == .staticText && !node.label.isEmpty
-            && content.contains(node.frame) && node.frame.height >= 8 {
+            && content.contains(node.frame) && node.frame.height >= 8
+            && !node.children.contains(where: { $0.elementType == .staticText }) {
             checked += 1
             let seen = IPadAuditTextEvidence.recognizedText(in: node.frame, capture: capture)
             if !IPadAuditTextEvidence.showsWhole(node.label, in: seen) {
@@ -169,7 +172,9 @@ enum IPadAuditPageEvidence {
     static func contentRect(_ app: XCUIApplication) -> CGRect {
         let window = app.windows.firstMatch.frame
         var bottom = window.maxY
-        for element in [app.tabBars.firstMatch, app.descendants(matching: .any)["fst.page-tools"]] where element.exists {
+        // Only bars on screen: a sheet covering the tab bar leaves it in the tree but not hittable.
+        for element in [app.tabBars.firstMatch, app.descendants(matching: .any)["fst.page-tools"]]
+            where element.exists && element.isHittable {
             let frame = element.frame
             if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
         }

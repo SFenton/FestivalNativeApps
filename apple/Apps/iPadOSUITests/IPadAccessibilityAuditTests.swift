@@ -92,10 +92,12 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static let browse: [Page] = [
         Page(name: "songs", ready: "fst.songs.list"),
         Page(name: "song-detail", ready: "fst.songs.list", open: { app in
-            // Regular width auto-selects the detail; compact pushes it from the row.
+            // Regular width auto-selects the detail (the top row, Fixture Orbit); compact
+            // pushes the same song from its row. The top row: at AX5 in a ⅓ window the
+            // second row's centre sits under the floating page tools.
             if !app.otherElements["fst.song-detail.intensity"].exists,
                !anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 8) {
-                let row = app.buttons["fst.songs.row.fixture-pulse"]
+                let row = app.buttons["fst.songs.row.fixture-orbit"]
                 guard row.waitForExistence(timeout: 10) else { return nil }
                 row.tap()
             }
@@ -109,7 +111,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }, sheet: true),
         Page(name: "paths-sheet", ready: "fst.songs.list", open: { app in
             if !anyElement(app, "fst.song-detail.paths").waitForExistence(timeout: 8) {
-                let row = app.buttons["fst.songs.row.fixture-pulse"]
+                let row = app.buttons["fst.songs.row.fixture-orbit"]
                 guard row.waitForExistence(timeout: 10) else { return nil }
                 row.tap()
             }
