@@ -80,6 +80,9 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
     private int pendingPin = -1;
 
+    /// <summary>Whether a settled re-read of the pinned header is queued after a final view change.</summary>
+    private bool stickyRecheckQueued;
+
     /// <summary>Section the pinned bar names while the list is shown; the open index focuses its letter.</summary>
     private int stickySection;
 
@@ -142,6 +145,9 @@ public sealed partial class SongsPage : Page, IPageBack
         switch (e.PropertyName)
         {
             case nameof(SongsViewModel.Sections):
+                // Every pipeline run (search, sort, filter, data); the scroll stress journey requires none while only
+                // scrolling (issue #247).
+                PerfLog.Event("songs-sections");
                 // A new search, sort or filter closes the jump index: its letters described the old list.
                 if (!Zoom.IsZoomedInViewActive) Zoom.IsZoomedInViewActive = true;
                 RebindGroups();
@@ -231,10 +237,29 @@ public sealed partial class SongsPage : Page, IPageBack
     {
         if (scroller is null && (scroller = FindScrollViewer(SongList)) is not null)
         {
-            scroller.ViewChanged += (_, _) => UpdateStickyHeader();
+            scroller.ViewChanged += OnScrollerViewChanged;
             StartPushAnimations(scroller);
         }
         return scroller;
+    }
+
+    /// <summary>
+    /// Re-reads the pinned header on every view change and once more after the final one settles: a jump without
+    /// animation (the UI Automation Scroll pattern assistive technology uses, or <c>ChangeView</c> with animation off)
+    /// raises a single final change before the list realizes rows at the new offset, so the first read still saw the
+    /// old rows and left the previous section named (issue #247: "#" over the L rows).
+    /// </summary>
+    /// <param name="sender">Scroll viewer.</param>
+    /// <param name="e">View change.</param>
+    private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        UpdateStickyHeader();
+        if (e.IsIntermediate || stickyRecheckQueued) return;
+        stickyRecheckQueued = DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            stickyRecheckQueued = false;
+            UpdateStickyHeader();
+        });
     }
 
     /// <summary>A section's visible in-list title and its text top relative to the list viewport's top.</summary>
@@ -910,8 +935,13 @@ public sealed partial class SongsPage : Page, IPageBack
         var clock = System.Diagnostics.Stopwatch.StartNew();
         autoScroll = DispatcherQueue.CreateTimer();
         autoScroll.Interval = TimeSpan.FromMilliseconds(16);
+        // A tick after the window closes calls into torn-down XAML and fails fast in CoreMessagingXP (0xc000027b), so the
+        // perf run's close looked like a crash (issue #247).
+        Unloaded += StopAutoScroll;
+        if (MainWindow.Instance is { } window) window.Closed += StopAutoScroll;
         autoScroll.Tick += (_, _) =>
         {
+            if (autoScroll is null) return;
             var elapsed = clock.Elapsed.TotalSeconds;
             clock.Restart();
             if (EnsureScroller() is not { } viewer) return;
@@ -923,6 +953,17 @@ public sealed partial class SongsPage : Page, IPageBack
             viewer.ChangeView(null, Math.Clamp(next, 0, end), null, true);
         };
         autoScroll.Start();
+    }
+
+    /// <summary>Stops <c>--auto-scroll</c> when the page unloads or the window closes.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void StopAutoScroll(object sender, object e)
+    {
+        Unloaded -= StopAutoScroll;
+        if (MainWindow.Instance is { } window) window.Closed -= StopAutoScroll;
+        autoScroll?.Stop();
+        autoScroll = null;
     }
 
     /// <summary>Finds the first ScrollViewer below an element.</summary>
