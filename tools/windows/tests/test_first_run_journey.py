@@ -4,6 +4,7 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
 
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -95,7 +96,47 @@ class ContractTests(unittest.TestCase):
         self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|placeholder", steps)
         self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|catalogue@{j.SONGS_DELAY + 20}", steps)
         self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|catalogue@5")
-        self.assertTrue(all(s.fixture == () for s in j.SCENARIOS if s is not late))
+        others = [s for s in j.SCENARIOS if s is not late and s.name != "catalogue-unavailable"]
+        self.assertTrue(all(s.fixture == () for s in others))
+
+    def test_page_slides_match_the_catalogue(self):
+        catalog = (REPO / "windows" / "Festival.Core" / "Domain" / "FirstRunCatalog.cs").read_text(encoding="utf-8")
+        ids = re.findall(r'new\("([a-z]+-[a-z-]+)", \d+,', catalog)
+        self.assertEqual(len(ids), 42)
+        self.assertEqual(list(j.PAGE_SLIDES), list(j.PAGE_TITLES))
+        for key, slides in j.PAGE_SLIDES.items():
+            self.assertEqual(slides, [i for i in ids if i.split("-")[0] == key], key)
+
+    def test_demo_phases_assert_every_slide(self):
+        demo = next(s for s in j.SCENARIOS if s.name == "demo-songs")
+        steps = [step for phase in demo.phases for step in phase.steps]
+        for slides in j.PAGE_SLIDES.values():
+            for slide in slides:
+                self.assertIn(j._demo(slide, "catalogue", 15), steps)
+        self.assertEqual(len(demo.phases), 2 * len(j.PAGE_SLIDES))
+        top = demo.phases[2 * list(j.PAGE_SLIDES).index("statistics")]
+        self.assertEqual(top.steps.count("invoke:id=PrimaryButton"), 5)
+        self.assertIn(j._dialog("Statistics"), top.expect)
+        down = next(s for s in j.SCENARIOS if s.name == "catalogue-unavailable")
+        self.assertEqual(down.fixture, ("--songs-unavailable",))
+        down_steps = [step for phase in down.phases for step in phase.steps]
+        self.assertIn(j._demo("statistics-top-songs", "placeholder", 15), down_steps)
+        self.assertIn(j._demo("suggestions-category-card", "placeholder", 15), down_steps)
+        self.assertIn(j._demo("rivals-detail", "placeholder", 15), down_steps)
+        self.assertFalse(any("|catalogue" in step for step in down_steps))
+        self.assertIn(f"wait:{1 + j.UNAVAILABLE_WAIT}", down_steps)
+
+    def test_live_demo_pages_parse_and_assert_catalogue_songs(self):
+        import a11y_matrix
+        import uiwin
+        pages = json.loads((REPO / "tools" / "windows" / "journeys" / "first-run-demos.json").read_text(encoding="utf-8"))
+        self.assertEqual(a11y_matrix.live_pages(pages), pages)
+        for page in pages:
+            steps = a11y_matrix.page_steps(page, "medium", Path("out"), "", True, 12)
+            for step in steps:
+                uiwin.parse_step(step)
+            self.assertTrue(any(s.startswith("assertstatus:id=fst.first-run.demo.") and s.split("|")[1].startswith("catalogue")
+                                for s in steps), page["name"])
 
     def test_states_covered(self):
         product = json.loads((REPO / "contracts" / "product.json").read_text(encoding="utf-8"))

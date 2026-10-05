@@ -10,7 +10,9 @@ list (``/api/rankings/bands/{bandType}`` without ``teamKey``) with a zero-team b
 whose second has no band identity and blank member names (shown as "Unknown User", not openable).
 
 ``--songs-delay SECONDS`` (issue #240) answers ``/api/songs`` only after the delay, so a first-run guide opened at
-launch shows its placeholder demo rows before the catalogue arrives.
+launch shows its placeholder demo rows before the catalogue arrives. ``--songs-unavailable`` (issue #257) answers
+every ``/api/songs`` read with a 503 (no freeze header: a generic outage), so first-run demos must keep their
+placeholder rows rather than invent songs.
 
 Usage: ``python tools/windows/rivals_fixture.py --port 8765`` (same flags as mock_service.py), then launch the
 app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-player-1:Demo Player``.
@@ -177,6 +179,19 @@ def take_songs_delay(argv: list[str]) -> tuple[float | None, list[str]]:
             raise SystemExit("--songs-delay needs a non-negative number of seconds")
     return delay, rest
 
+
+def install_songs_unavailable() -> None:
+    """Answer every catalogue read with a 503 outage, so the catalogue never loads."""
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if urlsplit(self.path).path == SONGS_PATH:
+            self._json(503, {"status": "fixture_songs_unavailable"})
+        else:
+            original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
 # endregion
 
 
@@ -206,11 +221,15 @@ def main() -> None:
     """Anonymize the Rivals fixtures, then hand over to the mock service's own CLI."""
     scenario, rest = take_band_rankings(sys.argv[1:])
     songs_delay, rest = take_songs_delay(rest)
+    songs_unavailable = "--songs-unavailable" in rest
+    rest = [arg for arg in rest if arg != "--songs-unavailable"]
     sys.argv[1:] = rest
     if scenario:
         install_band_rankings(scenario)
     if songs_delay:
         install_songs_delay(songs_delay)
+    if songs_unavailable:
+        install_songs_unavailable()
     names: dict[str, str] = {}
     for payload in (
         mock_service.RIVALS_LIST_DEMO,
