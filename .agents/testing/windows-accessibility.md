@@ -349,3 +349,19 @@ Evidence: `a11y_matrix.py --scan --tabs 60 --pages journeys/settings-states.json
 Evidence: `a11y_matrix.py --scan --tabs 30 --pages journeys/a11y-navigation.json` (anonymous, player, band page, Settings, pane open at compact) at compact, medium, wide, snap-left, snap-right and maximized, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%: 0 Axe errors except the open minimal pane (WinUI popup-host finding, open issue 8). `journeys/navigation.py` covers `songs`, `leaderboards`, `settings`, `player`, `band`, `reselect`, the compact pane and keyboard use (8/8 pass). Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#validation-issue-225-2026-10-04).
 
 Fixed: keyboard focus entering the pane from the title bar (Tab from profile) or the minimal pane opening from the toggle landed on Songs rather than the selected section; NavigationView only does this for a Tab that passes through itself.
+
+## Modal component validation (issue #239, 2026-10-04)
+
+Evidence: `a11y_matrix.py --scan --pages journeys/modals.json` (all eight `FestivalDialog` callers: Settings Reset, Privacy Policy, Report an Issue, Suggest a Feature, What's New, Licenses, First Run, the Karaoke Paths notice, Paths, and both profile confirmations) with fixtures, plus live public-service runs (`--live`, no profile pages). Every run: Esc closes, focus returns to the invoker, Tab stays inside the dialog (2–7 stops) and Axe found 0 errors.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all 11 pages); maximized, snap-left, snap-right | Pass. Compact fixed: Feedback field hints were cut off |
+| Light and dark theme | Pass; identical by design (`FestivalDialog` is dark-only) |
+| Desert, Night sky | Pass after the fix below. Pixel-check captures: a run can start before the theme reaches the app; prefix `ready` with `wait:15` |
+| Text 200% (compact, wide) | Pass after the Feedback hint fix |
+| Display 100%, 150% (wide) | Pass |
+| Keyboard only | Pass: Enter opens, Tab cycles, Esc closes, focus restored |
+| Live service | Pass for every page except Feedback, which the service hides (`/api/features` `feedback:false`) |
+
+Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact width and 200% text; they now wrap. Under contrast themes WinUI drew a Window-coloured text backplate inside the Highlight fill of the default command (Next, Cancel, Submit, OK) and around the selected First Run pip; `DialogChrome.CommandLabelsWithoutBackplate` and `WithoutBackplate` turn it off. Deliberate deviations: the Karaoke notice is an alert (OK / Don't Show Again, no Close); a one-slide First Run shows only Done; Reset defaults to Cancel.
