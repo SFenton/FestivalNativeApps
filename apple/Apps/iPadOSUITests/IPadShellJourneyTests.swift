@@ -146,6 +146,34 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertFalse(element(app, "fst.songs.list").isHittable, "Songs is covered, not beside it")
     }
 
+    /// A landscape grid row holds two cards; tapping the second opens only that song.
+    /// A `List` row fired every `NavigationLink` in it, so both songs were pushed and
+    /// Back revealed the first song's page instead of Songs.
+    @MainActor
+    func testSongsGridCardOpensOnlyItsSong() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(orbit.waitForExistence(timeout: 20))
+        XCTAssertTrue(pulse.waitForExistence(timeout: 5))
+        XCTAssertEqual(orbit.frame.minY, pulse.frame.minY, accuracy: 2, "both cards share one grid row")
+        let (second, title) = orbit.frame.minX > pulse.frame.minX
+            ? (orbit, "Fixture Orbit") : (pulse, "Fixture Pulse")
+        XCTAssertGreaterThan(second.frame.minX, app.windows.firstMatch.frame.midX - 20, "the trailing card")
+        second.tap()
+        let hero = element(app, "fst.song-detail.hero-title")
+        XCTAssertTrue(hero.waitForExistence(timeout: 20), "Song Detail opens")
+        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5), "the tapped song's page")
+        // One push: a single Back returns to the Songs grid, not to another Song Detail.
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+        XCTAssertTrue(waitForDisappearance(of: hero, timeout: 10), "Back leaves Song Detail")
+        XCTAssertTrue(second.waitForExistence(timeout: 10))
+        XCTAssertTrue(second.isHittable, "Songs is on top again")
+    }
+
     /// Song Detail splits on demand: its full leaderboard opens in the trailing half
     /// beside the song page; Close returns to full width.
     @MainActor

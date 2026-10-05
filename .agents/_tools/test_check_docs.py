@@ -59,6 +59,21 @@ class CheckDocsTests(unittest.TestCase):
         self.assertEqual(report.errors, [])
         self.assertIn("[ios](songs/ios.md)", (check_docs.AGENTS / "pages/README.md").read_text())
 
+    def test_skill_folders_need_frontmatter_and_routing(self) -> None:
+        """Skills are `<name>/SKILL.md` with name/description frontmatter, routed by `skills/README.md`."""
+        a = check_docs.AGENTS
+        header = "# T\n\n> **What:** x. **Read when:** y.\n"
+        _write(a / "README.md", header + "[p](pages/README.md) [c](controls/README.md) [s](skills/README.md)\n")
+        _write(a / "skills/README.md", header + "[fix](fix/SKILL.md)\n")
+        _write(a / "skills/fix/SKILL.md", "---\nname: fix\ndescription: Fix things.\n---\n\n" + header)
+        self.assertEqual(check_docs.run().errors, [])
+        _write(a / "skills/fix/SKILL.md", "---\nname: other\n---\n\n" + header)
+        _write(a / "skills/flat.md", header)
+        errors = "\n".join(check_docs.run().errors)
+        self.assertIn("frontmatter `name` must be `fix`", errors)
+        self.assertIn("needs a `description`", errors)
+        self.assertIn("skills live in `<name>/SKILL.md` folders", errors)
+
     def test_spec_naming_a_platform_fails(self) -> None:
         """Platform-neutral specs cannot carry platform headings."""
         _write(check_docs.AGENTS / "pages/songs/spec.md", "# T\n\n> x\n## iPad layout\n")

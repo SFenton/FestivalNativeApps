@@ -40,7 +40,7 @@ struct StatisticsScreen: View {
                     Text("Select a player to see their statistics.")
                 } actions: {
                     Button("Choose Profile") { openProfile() }
-                        .buttonStyle(.borderedProminent)
+                        .festivalProminentButton()
                         .accessibilityIdentifier("fst.statistics.choose-profile")
                 }
                 .accessibilityIdentifier("fst.statistics.empty")

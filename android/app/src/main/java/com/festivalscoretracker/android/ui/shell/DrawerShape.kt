@@ -123,11 +123,32 @@ private fun rememberWindowCorners(): WindowCorners? {
 @RequiresApi(Build.VERSION_CODES.S)
 internal fun readWindowCorners(view: View): WindowCorners? {
     val insets = view.rootWindowInsets ?: return null
-    fun corner(position: Int): DisplayCorner? = insets.getRoundedCorner(position)
-        ?.takeIf { it.radius > 0 && it.center.x > 0 && it.center.y > 0 }
-        ?.let { DisplayCorner(it.radius.toFloat(), it.center.x.toFloat(), it.center.y.toFloat()) }
     val location = IntArray(2)
     view.getLocationInWindow(location)
+    return windowCorners(
+        insets::getRoundedCorner,
+        WindowRect(
+            left = location[0].toFloat(),
+            top = location[1].toFloat(),
+            right = (location[0] + view.width).toFloat(),
+            bottom = (location[1] + view.height).toFloat(),
+        ),
+    )
+}
+
+/**
+ * Map the window's reported rounded corners to [WindowCorners]. A corner the system reports with a
+ * zero radius or an unset centre (FST_Tablet reports all four as `radius=0, center=(0, 0)`) is square.
+ *
+ * @param roundedCorner The insets' corner lookup (`WindowInsets::getRoundedCorner`) by `RoundedCorner` position.
+ * @param container The composition's bounds in window pixels.
+ * @return Display corners and container bounds.
+ */
+@RequiresApi(Build.VERSION_CODES.S)
+internal fun windowCorners(roundedCorner: (Int) -> RoundedCorner?, container: WindowRect): WindowCorners {
+    fun corner(position: Int): DisplayCorner? = roundedCorner(position)
+        ?.takeIf { it.radius > 0 && it.center.x > 0 && it.center.y > 0 }
+        ?.let { DisplayCorner(it.radius.toFloat(), it.center.x.toFloat(), it.center.y.toFloat()) }
     return WindowCorners(
         corners = DisplayCorners(
             topLeft = corner(RoundedCorner.POSITION_TOP_LEFT),
@@ -135,12 +156,7 @@ internal fun readWindowCorners(view: View): WindowCorners? {
             bottomRight = corner(RoundedCorner.POSITION_BOTTOM_RIGHT),
             bottomLeft = corner(RoundedCorner.POSITION_BOTTOM_LEFT),
         ),
-        container = WindowRect(
-            left = location[0].toFloat(),
-            top = location[1].toFloat(),
-            right = (location[0] + view.width).toFloat(),
-            bottom = (location[1] + view.height).toFloat(),
-        ),
+        container = container,
     )
 }
 
