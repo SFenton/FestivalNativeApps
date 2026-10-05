@@ -11,6 +11,10 @@ public class RoutingTests
         { new AppRoute.SongLeaderboard("s1", Instrument.Lead), "/songs/s1/Solo_Guitar", AppSection.Songs },
         { new AppRoute.SongLeaderboard("s1", Instrument.Lead, 3), "/songs/s1/Solo_Guitar?page=3", AppSection.Songs },
         { new AppRoute.SongBandLeaderboard("s1", "Band_Duets"), "/songs/s1/bands/Band_Duets", AppSection.Songs },
+        // Pattern leaderboard-row R7 (#307): the selected row's jump reveals it, as web navToPlayer / navToBand.
+        { new AppRoute.SongLeaderboard("s1", Instrument.Lead, 3, RevealSelected: true), "/songs/s1/Solo_Guitar?page=3&navToPlayer=true", AppSection.Songs },
+        { new AppRoute.SongBandLeaderboard("s1", "Band_Duets", 2), "/songs/s1/bands/Band_Duets?page=2", AppSection.Songs },
+        { new AppRoute.SongBandLeaderboard("s1", "Band_Duets", 1, RevealSelected: true), "/songs/s1/bands/Band_Duets?page=1&navToBand=true", AppSection.Songs },
         { new AppRoute.PlayerHistory("s1", Instrument.Karaoke), "/songs/s1/Solo_PeripheralVocals/history", AppSection.Songs },
         { new AppRoute.Player("acc1"), "/player/acc1", AppSection.Leaderboards },
         { new AppRoute.PlayerBands("acc1"), "/bands/player/acc1", AppSection.Leaderboards },
@@ -76,6 +80,10 @@ public class RoutingTests
     {
         AppRouteParser.TryParse("/songs/s1/Solo_Bass?page=abc&junk&=x&instrument=%01", out var route, out _);
         Assert.Equal(new AppRoute.SongLeaderboard("s1", Instrument.Bass, 1), route);
+        AppRouteParser.TryParse("/songs/s1/bands/Band_Trios?page=-4&navToBand=TRUE", out var band, out _);
+        Assert.Equal(new AppRoute.SongBandLeaderboard("s1", "Band_Trios", 1, RevealSelected: true), band);
+        AppRouteParser.TryParse("/songs/s1/Solo_Bass?navToPlayer=yes", out var unflagged, out _);
+        Assert.Equal(new AppRoute.SongLeaderboard("s1", Instrument.Bass), unflagged);
         AppRouteParser.TryParse("/leaderboards/all", out var rankings, out _);
         Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore"), rankings); // web DEFAULT_METRIC
         AppRouteParser.TryParse("/rivals/r1/rivalry", out var rivalry, out _);

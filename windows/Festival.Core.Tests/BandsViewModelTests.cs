@@ -489,4 +489,77 @@ public class SongBandLeaderboardViewModelTests
         await Async.Settle();
         Assert.True(vm.ShowRows);
     }
+
+    [Fact]
+    public async Task SelectedBandFooter_JumpsToItsPageThenOpensBandDetail_LikeTheSoloFooter()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+        var bands = new BandService { Selected = 29 };
+        var session = bands.Service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+
+        var sent = bands.Service.Handler.To("/api/leaderboard/fixture-pulse/bands/Band_Duets").Single();
+        Assert.Equal($"?top=25&offset=0&accountId={PlayerWire.Id}", sent.Uri.Query);
+        Assert.DoesNotContain(sent.Headers.Keys, h => h.StartsWith("x-fst-selected", StringComparison.OrdinalIgnoreCase) || h == "X-API-Key");
+
+        Assert.True(vm.ShowSpotlight);
+        var footer = vm.Spotlight!;
+        Assert.Equal(new SelectedRowAction(2), footer.Action);
+        Assert.True(vm.CanJump && vm.JumpCommand.CanExecute(null));
+        Assert.Equal("#29", footer.RankText);
+        Assert.True(footer.IsSelected);
+        Assert.Equal("Lead 29 + Unknown User", footer.Name);
+        Assert.Equal(new AppRoute.Band("sb29", "Band_Duets", "t29a:t29b"), footer.Route);
+        Assert.Equal("fst.song-band-leaderboard.spotlight-footer", footer.AutomationId);
+        Assert.StartsWith("Your band's rank, 29th. Jump to your band's position. Lead 29 + Unknown User, 99,971 points", footer.Announcement, StringComparison.Ordinal);
+        Assert.DoesNotContain(vm.Rows, r => r.IsSelected);
+        Assert.False(vm.RevealSelected);
+
+        await vm.JumpCommand.ExecuteAsync(null);
+        Assert.Equal(2, vm.Pager.Page);
+        Assert.True(vm.RevealSelected);
+        var mine = Assert.Single(vm.Rows, r => r.IsSelected);
+        Assert.Equal(29, mine.Entry.Rank);
+        Assert.StartsWith("Your band, Rank 29. ", mine.PageAnnouncement, StringComparison.Ordinal);
+        Assert.False(vm.CanJump || vm.JumpCommand.CanExecute(null));
+        Assert.Equal(new SelectedRowAction(null), vm.Spotlight!.Action);
+        Assert.StartsWith("Your band's rank, 29th. Open band. ", vm.Spotlight.Announcement, StringComparison.Ordinal);
+
+        vm.BandType = BandType.Trios;
+        Assert.False(vm.RevealSelected);
+        await Async.Until(() => vm.ShowRows && vm.BandType == BandType.Trios);
+        Assert.Equal(1, vm.Pager.Page);
+    }
+
+    [Fact]
+    public async Task RevealRoute_OpensOnTheRequestedPage_AndAnonymousReadsSendNoAccount()
+    {
+        var bands = new BandService { Selected = 29 };
+        var session = bands.Service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets", 2, RevealSelected: true));
+        Assert.True(vm.RevealSelected);
+        await vm.LoadAsync();
+        Assert.Equal(2, vm.Pager.Page);
+        Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.Query.StartsWith("?top=25&offset=25&accountId=", StringComparison.Ordinal));
+        Assert.Single(vm.Rows, r => r.IsSelected);
+        Assert.False(vm.CanJump);
+
+        var anonymous = new BandService { Selected = 29 };
+        var plain = new SongBandLeaderboardViewModel(anonymous.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await plain.LoadAsync();
+        Assert.Equal("?top=25&offset=0", anonymous.Service.Handler.To("/api/leaderboard/fixture-pulse/bands/Band_Duets").Single().Uri.Query);
+        Assert.False(plain.ShowSpotlight);
+        Assert.False(plain.JumpCommand.CanExecute(null));
+        await plain.JumpCommand.ExecuteAsync(null);
+        Assert.Equal(1, plain.Pager.Page);
+
+        anonymous.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.InternalServerError) : null;
+        await vm.LoadAsync();
+        Assert.True(vm.ShowSpotlight);
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.InternalServerError) : null;
+        await vm.LoadAsync();
+        Assert.True(vm.ShowError);
+        Assert.False(vm.ShowSpotlight);
+    }
 }

@@ -131,9 +131,11 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     /// <summary>Whether the pinned row is shown.</summary>
     public bool ShowSpotlight => Spotlight is not null;
 
-    /// <summary>Whether "Jump to your page" applies (ranked, on another page).</summary>
-    public bool CanJump => Spotlight?.Entry.Rank is > 0 and var rank && LeaderboardPaging.PageForRank(rank) != Page &&
-                           !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, Spotlight.Entry.AccountId));
+    /// <summary>
+    /// Whether the pinned row jumps to the selected player's page (ranked, on another page) rather than opening Statistics
+    /// (pattern <c>leaderboard-row</c> R7, issue #307).
+    /// </summary>
+    public bool CanJump => Spotlight is { } own && PinnedAction(own.Entry).Jumps;
 
     /// <summary>Starts following the selected player's scores; call when the page is shown.</summary>
     /// <returns>Load task.</returns>
@@ -221,10 +223,17 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         }
     }
 
-    /// <summary>Jumps to the selected player's page.</summary>
+    /// <summary>Pinned row: jumps to the selected player's page (the view then brings the highlighted row into view).</summary>
     /// <returns>Load task.</returns>
     [RelayCommand(CanExecute = nameof(CanJump))]
-    private Task JumpAsync() => CanJump ? GoToPageAsync(LeaderboardPaging.PageForRank(Spotlight!.Entry.Rank)) : Task.CompletedTask;
+    private Task JumpAsync() =>
+        Spotlight is { } own && PinnedAction(own.Entry).JumpPage is { } page ? GoToPageAsync(page) : Task.CompletedTask;
+
+    /// <summary>The pinned row's action: jump unless the shown page holds (or should hold) the selected player's row.</summary>
+    /// <param name="own">Selected player's entry.</param>
+    /// <returns>Shared selected-row action.</returns>
+    private SelectedRowAction PinnedAction(LeaderboardEntry own) => SelectedRowAction.Footer(own.Rank,
+        LeaderboardPaging.PageForRank(own.Rank) == Page || entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, own.AccountId)));
 
     /// <summary>Builds rows (with the selected highlight) and the pinned row from the current score index.</summary>
     private void ApplySelection()
@@ -236,7 +245,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         // selected-player row, gets the same columns at the same widths so they line up (operator batch 7.9, issue #37).
         var section = LeaderboardColumns.Measure(spotlight is null ? rows : [.. rows, spotlight]);
         Rows = [.. rows.Select(r => r with { Section = section })];
-        Spotlight = spotlight is null ? null : spotlight with { Section = section };
+        Spotlight = spotlight is null ? null : spotlight with { Section = section, PinnedAction = PinnedAction(spotlight.Entry) };
         OnPropertyChanged(nameof(CanJump));
         JumpCommand.NotifyCanExecuteChanged();
     }
@@ -311,6 +320,12 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <inheritdoc />
     public LeaderboardSection? Section { get; init; }
 
+    /// <summary>
+    /// For the pinned footer row only: jump to the player's page or open Statistics (pattern <c>leaderboard-row</c> R7);
+    /// the view runs the jump through the page's command and the open through <see cref="Route"/>.
+    /// </summary>
+    public SelectedRowAction? PinnedAction { get; init; }
+
     /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
     public int StarCount => Entry.Stars ?? 0;
 
@@ -329,8 +344,8 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
 
     /// <summary>Screen-reader name.</summary>
     public string Announcement =>
-        (IsSelected && Entry.Rank > 0 ? $"Your rank, {RankingFormatting.Ordinal(Entry.Rank)}. {Name}" :
-         IsSelected ? $"Your score. {Name}" : $"Rank {RankText}, {Name}") +
+        (IsSelected && Entry.Rank > 0 ? $"Your rank, {RankingFormatting.Ordinal(Entry.Rank)}. " : IsSelected ? "Your score. " : $"Rank {RankText}, ") +
+        (PinnedAction is { } action ? $"{action.Destination(SelectedRowSubject.Player)}. " : "") + Name +
         $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
         (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
         (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");

@@ -112,8 +112,9 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     public void Apply(SongBandPreview preview, bool showTotals)
     {
         List<SongBandPreviewRow> rows =
-            [.. preview.Entries.Select((e, i) => new SongBandPreviewRow(new SongBandRow(e), TypeId, i, preview.IsSelected(e), false))];
-        if (preview.FooterEntry is { } footer) rows.Add(new SongBandPreviewRow(new SongBandRow(footer), TypeId, rows.Count, true, true));
+            [.. preview.Entries.Select((e, i) => new SongBandPreviewRow(new SongBandRow(e), TypeId, i, preview.IsSelected(e), false) { SongId = SongId })];
+        if (preview.FooterEntry is { } footer)
+            rows.Add(new SongBandPreviewRow(new SongBandRow(footer), TypeId, rows.Count, true, true) { SongId = SongId });
         Subtitle = rows.Count == 0 ? NoScoresText : showTotals && preview.TotalEntries > 0
             ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{preview.TotalEntries:N0} {(preview.TotalEntries == 1 ? "band" : "bands")}")
             : "";
@@ -133,7 +134,11 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     }
 }
 
-/// <summary>A band row in a Song Detail band preview.</summary>
+/// <summary>
+/// A band row in a Song Detail band preview. The selected band appended after the top rows follows the same rule as the
+/// solo spotlight row (pattern <c>leaderboard-row</c> R7, issue #307): it jumps to the full band board's page containing
+/// its rank and reveals it; every other row, including the selected band ranked in the top rows, opens Band Detail.
+/// </summary>
 /// <param name="Band">Shared song band row (members, rank, score, accuracy, stars, Band Detail route).</param>
 /// <param name="TypeId">Band size service ID, part of the automation ID.</param>
 /// <param name="Index">Zero-based position in the section.</param>
@@ -144,11 +149,23 @@ public sealed record SongBandPreviewRow(SongBandRow Band, string TypeId, int Ind
     /// <summary>UIA automation ID (<c>fst.song-detail.band-row.&lt;type&gt;.&lt;i&gt;</c> or <c>band-selected.&lt;type&gt;</c>, as Android).</summary>
     public string AutomationId => IsFooter ? "fst.song-detail.band-selected." + TypeId : $"fst.song-detail.band-row.{TypeId}.{Index}";
 
-    /// <summary>Screen-reader summary, prefixed "Your band, " for the selected player's band.</summary>
-    public string Announcement => (IsSelected ? "Your band, " : "") + Band.Announcement;
+    /// <summary>Song, for the appended row's full-board jump.</summary>
+    public string SongId { get; init; } = "";
 
-    /// <summary>Band Detail route.</summary>
-    public AppRoute Route => Band.Route;
+    /// <summary>What activating the row does when it is the selected band (<see langword="null"/> for other bands).</summary>
+    public SelectedRowAction? SelectedAction => IsSelected ? SelectedRowAction.Preview(Band.Entry.Rank, IsFooter) : null;
+
+    /// <summary>
+    /// Screen-reader summary, prefixed "Your band, " for the selected player's band and ending with its destination
+    /// ("Jump to your band's position" or "Open band").
+    /// </summary>
+    public string Announcement => (IsSelected ? "Your band, " : "") + Band.Announcement +
+                                  (SelectedAction is { } action ? $". {action.Destination(SelectedRowSubject.Band)}" : "");
+
+    /// <summary>The full band board at the appended row's page (revealing it), else Band Detail.</summary>
+    public AppRoute Route => SelectedAction is { JumpPage: { } page } && SongId.Length > 0
+        ? new AppRoute.SongBandLeaderboard(SongId, TypeId, page, RevealSelected: true)
+        : Band.Route;
 
     /// <summary>Members with icons.</summary>
     public List<BandMemberRow> Members => Band.Members;

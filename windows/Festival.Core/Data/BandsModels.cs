@@ -377,7 +377,7 @@ public sealed record SongBandLeaderboardEntry
     [JsonIgnore] public string MembersLabel => BandMember.JoinNames(Members);
 }
 
-/// <summary>Page from <c>GET /api/leaderboard/{songId}/bands/{bandType}?top=&amp;offset=</c>.</summary>
+/// <summary>Page from <c>GET /api/leaderboard/{songId}/bands/{bandType}?top=&amp;offset=[&amp;accountId=]</c>.</summary>
 public sealed record SongBandLeaderboardResponse
 {
     /// <summary>Echoed song.</summary>
@@ -392,6 +392,19 @@ public sealed record SongBandLeaderboardResponse
     [JsonPropertyName("localEntries")] public int? LocalEntries { get; init; }
     /// <summary>Rows.</summary>
     [JsonPropertyName("entries")] public IReadOnlyList<SongBandLeaderboardEntry> Entries { get; init; } = [];
+    /// <summary>The selected player's best band of this size on the song (<c>accountId</c> query), with its board rank.</summary>
+    [JsonPropertyName("selectedPlayerEntry")] public SongBandLeaderboardEntry? SelectedPlayerEntry { get; init; }
+    /// <summary>A selected band's own row (<c>selectedTeamKey</c> query, not sent by natives yet).</summary>
+    [JsonPropertyName("selectedBandEntry")] public SongBandLeaderboardEntry? SelectedBandEntry { get; init; }
+
+    /// <summary>The pinned, highlighted row: a selected band wins over the selected player's best band (web board).</summary>
+    [JsonIgnore] public SongBandLeaderboardEntry? SelectedEntry => SelectedBandEntry ?? SelectedPlayerEntry;
+
+    /// <summary>Whether a page row is the pinned, highlighted row.</summary>
+    /// <param name="entry">Page row.</param>
+    /// <returns><see langword="true"/> when it is the same band as <see cref="SelectedEntry"/>.</returns>
+    public bool IsSelected(SongBandLeaderboardEntry entry) =>
+        SelectedEntry is { } selected && SongBandPreview.IsSameBand(entry, selected);
 
     /// <summary>Paging population (<c>localEntries ?? totalEntries</c>, never negative).</summary>
     [JsonIgnore] public int Population => Math.Max(0, LocalEntries ?? TotalEntries);
@@ -409,7 +422,8 @@ public sealed record SongBandLeaderboardResponse
     public void Validate(string songId, BandType bandType, int top)
     {
         if (SongId != songId || BandType != bandType.ServiceId() || Entries is null || Count != Entries.Count ||
-            Count > top || TotalEntries < 0 || LocalEntries is < 0 || Entries.Any(e => e is null || e.Members is null))
+            Count > top || TotalEntries < 0 || LocalEntries is < 0 || Entries.Any(e => e is null || e.Members is null) ||
+            new[] { SelectedPlayerEntry, SelectedBandEntry }.Any(e => e is not null && (e.Members is null || e.BandType != BandType)))
             throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
     }
 }

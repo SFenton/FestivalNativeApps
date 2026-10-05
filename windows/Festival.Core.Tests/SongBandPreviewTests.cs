@@ -176,7 +176,11 @@ public class SongBandPreviewTests
         Assert.Equal(2, rows.Count);
         Assert.Equal([false, true], rows.Select(r => r.IsSelected));
         Assert.StartsWith("Your band, Rank 2", rows[1].Announcement);
+        Assert.EndsWith(". Open band", rows[1].Announcement, StringComparison.Ordinal);
+        Assert.Equal(new AppRoute.Band("me:mate", "Band_Duets", "me:mate"), rows[1].Route);
         Assert.DoesNotContain(rows, r => r.IsFooter);
+        Assert.Null(rows[0].SelectedAction);
+        Assert.DoesNotContain("Open band", rows[0].Announcement, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -193,9 +197,24 @@ public class SongBandPreviewTests
         Assert.True(duos[1].IsSelected);
         Assert.Equal("fst.song-detail.band-selected.Band_Duets", duos[1].AutomationId);
         Assert.Equal("#14", duos[1].Rank);
+        Assert.Equal(new AppRoute.SongBandLeaderboard("s1", "Band_Duets", 1, RevealSelected: true), duos[1].Route);
+        Assert.EndsWith(". Jump to your band's position", duos[1].Announcement, StringComparison.Ordinal);
         var trios = vm.BandPreviews[1].Rows;
         Assert.Equal("#22", trios[^1].Rank);
-        Assert.Equal(new AppRoute.Band("chosen", "Band_Trios", "c:d:e"), trios[^1].Route);
+        Assert.Equal(new AppRoute.SongBandLeaderboard("s1", "Band_Trios", 1, RevealSelected: true), trios[^1].Route);
+        Assert.Equal("/songs/s1/bands/Band_Trios?page=1&navToBand=true", trios[^1].Route.ToPath());
+        Assert.Equal(new AppRoute.Band("r1a:r1b", "Band_Duets", "r1a:r1b"), duos[0].Route);
+    }
+
+    [Fact]
+    public async Task AppendedBandRow_JumpsToThePageContainingItsRank_LikeTheSoloSpotlight()
+    {
+        var (_, _, vm) = await Open(_ => Wire.Ok(All("s1", true,
+            Band("Band_Duets", [Entry("Band_Duets", 1)], 400, player: Entry("Band_Duets", 129, "", "me:x"))), (Pub, "7")), player: true);
+        var footer = vm.BandPreviews[0].Rows[^1];
+        Assert.True(footer.IsFooter);
+        Assert.Equal(new SelectedRowAction(6), footer.SelectedAction);
+        Assert.Equal(new AppRoute.SongBandLeaderboard("s1", "Band_Duets", 6, RevealSelected: true), footer.Route);
     }
 
     [Fact]
