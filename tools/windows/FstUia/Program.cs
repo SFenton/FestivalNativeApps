@@ -761,7 +761,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
 
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
-    /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
+    /// percent (<c>scroll</c>) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -789,6 +790,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
                     "selected" => element.Patterns.SelectionItem.PatternOrDefault is { } item
                         ? item.IsSelected.ValueOrDefault ? "true" : "false"
+                        : null,
+                    // Rounded vertical scroll percent (-1 when the content fits), e.g. a list back at its top.
+                    "scroll" => element.Patterns.Scroll.PatternOrDefault is { } scroll
+                        ? Math.Round(scroll.VerticalScrollPercent.ValueOrDefault).ToString(System.Globalization.CultureInfo.InvariantCulture)
                         : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
@@ -1033,10 +1038,19 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var window = FindWindow(request);
         var pid = window.Properties.ProcessId.Value;
-        window.Close();
         using var process = Process.GetProcessById(pid);
-        if (!process.WaitForExit(5000)) process.Kill(entireProcessTree: true);
-        return new JsonObject { ["pid"] = pid, ["closed"] = true };
+        // Open the handle while the app runs: Process.ExitCode refuses processes this driver did not start.
+        var handle = process.SafeHandle;
+        window.Close();
+        var killed = !process.WaitForExit(5000);
+        if (killed)
+        {
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit(5000);
+        }
+        // A fail-fast during shutdown (e.g. 0xc000027b) is a crash, not a clean close (issue #247).
+        long? exitCode = process.HasExited && Native.GetExitCodeProcess(handle, out var code) ? (int)code : null;
+        return new JsonObject { ["pid"] = pid, ["closed"] = true, ["killed"] = killed, ["exitCode"] = exitCode };
     }
 
     #endregion
@@ -1071,6 +1085,7 @@ internal static class Native
     [StructLayout(LayoutKind.Sequential)]
     private struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
 
+    [DllImport("kernel32.dll")] public static extern bool GetExitCodeProcess(Microsoft.Win32.SafeHandles.SafeProcessHandle process, out uint code);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
