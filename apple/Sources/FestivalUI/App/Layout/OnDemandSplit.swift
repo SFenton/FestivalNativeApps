@@ -565,27 +565,34 @@ private struct ListDetailSelectableRow: ViewModifier {
     func body(content: Content) -> some View {
         let selected = selection == route
         content
-            // An overlay, not a background: Song rows are opaque material cards. The
-            // translucent fill keeps the row's own Shop highlight stroke readable.
+            #if os(macOS)
+            // An overlay: Mac Song rows are opaque material cards. Accent while the list
+            // has keyboard focus, gray otherwise (HIG Focus and selection, `NSTableView`).
             .overlay {
-                #if os(macOS)
-                // Accent while the list has keyboard focus, gray otherwise
-                // (HIG Focus and selection, `NSTableView`).
                 if selected {
                     MacSelectionHighlight(cornerRadius: 12, focused: keyboard?.hasFocus ?? true)
                 }
-                #else
+            }
+            #else
+            // Behind the row's text: drawn over it, the translucent fill washed the rivals
+            // pills down to 4.0–4.3:1 (iPad audit, Lane A11Y3). iOS split rows are clear
+            // (Songs, the opaque cards, never splits); the accent bar stays on top.
+            .background {
                 if selected {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(BrandTokens.accentBlue.opacity(0.22))
-                        .overlay(alignment: .leading) {
-                            Capsule().fill(BrandTokens.accentBlue).frame(width: 3).padding(.vertical, 8)
-                        }
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                #endif
             }
+            .overlay(alignment: .leading) {
+                if selected {
+                    Capsule().fill(BrandTokens.accentBlue).frame(width: 3).padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            #endif
             .accessibilityAddTraits(selected ? .isSelected : [])
             .accessibilityFocused($focused)
             .onChange(of: focusReturn) { _, request in
