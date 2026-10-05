@@ -279,7 +279,11 @@ final class IPadShellJourneyTests: XCTestCase {
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 20))
         row.press(forDuration: 1.2)
-        let open = app.buttons["Open in New Window"]
+        // Landscape grid rows carry one menu naming each card ("Open “Fixture Pulse” in
+        // New Window"); a single-card row reads "Open in New Window".
+        let open = app.buttons.matching(NSPredicate(
+            format: "label == 'Open in New Window' OR (label CONTAINS 'New Window' AND label CONTAINS 'Fixture Pulse')"
+        )).firstMatch
         XCTAssertTrue(open.waitForExistence(timeout: 5), "the row offers Open in New Window")
         let cards = XCUIApplication(bundleIdentifier: "com.apple.springboard").descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'card:com.sfenton.festivalscoretracker.native:sceneID:'"))

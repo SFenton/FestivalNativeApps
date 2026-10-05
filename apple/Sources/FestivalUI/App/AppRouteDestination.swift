@@ -151,6 +151,7 @@ struct FestivalTabStack<Root: View>: View {
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.isEmpty, isList: isListPane)
                 .splitPaneContext(paneContext)
+                .rootTabBarVisibility()
                 .navigationDestination(for: AppRoute.self) { route in
                 AppRouteDestination(
                     route: route, session: session, visibleInstruments: visibleInstruments,
@@ -162,6 +163,7 @@ struct FestivalTabStack<Root: View>: View {
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.last == route, isList: isListPane)
                 .splitPaneContext(paneContext)
+                .rootTabBarVisibility()
             }
         }
     }
