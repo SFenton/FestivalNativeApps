@@ -30,6 +30,8 @@ import XCTest
 final class IPadAccessibilityAuditTests: XCTestCase {
     /// iPhone Duo: whether this run's pose splits (read once per test).
     private var duoSplitPossible: Bool?
+    /// The app window of the last page reached (in the JSON: proves the pose or tile).
+    private var lastWindow = ""
 
     // MARK: - Modes and pages
 
@@ -443,6 +445,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             app.terminate()
             return nil
         }
+        lastWindow = NSCoder.string(for: app.windows.firstMatch.frame)
         var proof = page.ready
         if let open = page.open {
             guard let opened = open(app), Self.anyElement(app, opened).waitForExistence(timeout: 15) else {
@@ -478,10 +481,13 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let unreached: [String]
             /// Split pages left out because this window cannot split (portrait, compact).
             let skipped: [String]
+            /// The app window of the last page reached (iPhone Duo pose, ⅓ tile).
+            let window: String
             let findings: [Finding]
         }
         let summary = Summary(
-            mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped, findings: findings
+            mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped,
+            window: lastWindow, findings: findings
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
