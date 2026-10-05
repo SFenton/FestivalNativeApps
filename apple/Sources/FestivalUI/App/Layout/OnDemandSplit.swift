@@ -24,6 +24,35 @@ extension EnvironmentValues {
     /// Tells the root shell whether a section's trailing pane is open (Escape and the
     /// iPad menu bar's Close); nil outside the root shell.
     @Entry var splitOpenReporter: SplitOpenReporter?
+    /// The root `TabView`'s bar is hidden on every page (the iPad flyout shell).
+    @Entry var hidesRootTabBar = false
+}
+
+extension View {
+    /// Hide the root tab bar on this page in the iPad flyout shell; a no-op elsewhere
+    /// (iPhone and compact windows keep their tab bar untouched).
+    ///
+    /// - Returns: The page.
+    func rootTabBarVisibility() -> some View {
+        modifier(RootTabBarVisibility())
+    }
+}
+
+/// Implementation of ``SwiftUI/View/rootTabBarVisibility()``.
+private struct RootTabBarVisibility: ViewModifier {
+    @Environment(\.hidesRootTabBar) private var hidden
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if hidden {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
 }
 
 /// Reports whether a section's trailing pane is open.
@@ -77,7 +106,8 @@ struct ListDetailSelectAction: Equatable {
 }
 
 /// What every page of a split's stack needs: its pane width (for its own width class),
-/// the open item and the select action (leading pane), and its menu-bar role.
+/// the open item and the select action (leading pane), its menu-bar role, and the
+/// split's shared chrome (one backdrop, one top-scrim height; `SplitPaneChrome`).
 struct SplitPaneContext: Equatable {
     /// The pane's width while the split is open, else nil (the window's layout applies).
     var paneWidth: CGFloat?
@@ -87,6 +117,13 @@ struct SplitPaneContext: Equatable {
     var selection: AppRoute?
     /// Opens a row's route in the trailing pane (leading pane only).
     var select: ListDetailSelectAction?
+    /// The split's shared top-scrim height (iOS), or nil.
+    var topScrim: SplitTopScrim?
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.paneWidth == rhs.paneWidth && lhs.role == rhs.role && lhs.selection == rhs.selection
+            && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim
+    }
 }
 
 extension View {
@@ -120,7 +157,34 @@ private struct SplitPaneContextModifier: ViewModifier {
             .transformEnvironment(\.listDetailSelect) { select in
                 if let context { select = context.select }
             }
+            // One backdrop behind both panes: the page draws none and its navigation
+            // container is clear (`SplitPaneChrome`).
+            .modifier(SplitNavigationContainerBackground(clear: sharesBackdrop))
+            .transformEnvironment(\.splitSharesBackdrop) { shares in
+                if context != nil { shares = sharesBackdrop }
+            }
+            .transformEnvironment(\.splitTopScrim) { scrim in
+                if let context { scrim = context.topScrim }
+            }
+            // The edge facing the divider is mid-window: a safe-area inset there belongs
+            // to the window's far edge (the iPhone Duo vertical bar gave the leading pane
+            // 84 pt of dead space beside the hinge), so the page lays out to the band.
+            .ignoresSafeArea(.container, edges: SplitPaneChrome.edgesFacingDivider(
+                role: context?.role, isOpen: context?.paneWidth != nil
+            ))
+            #if os(iOS)
+            // Full-page bar margins at the pane's mid-window edges.
+            .background {
+                if context != nil {
+                    SplitPaneBarMargins()
+                        .frame(width: 0, height: 0)
+                        .accessibilityHidden(true)
+                }
+            }
+            #endif
     }
+
+    private var sharesBackdrop: Bool { context != nil && SplitPaneChrome.sharesBackdrop }
 }
 
 // MARK: - Split layout
@@ -130,9 +194,17 @@ private struct SplitPaneContextModifier: ViewModifier {
 /// leading half while the trailing pane slides in from the trailing edge (Reduce
 /// Motion: a crossfade). A hairline divider sits at the exact midpoint, or the iPhone
 /// Duo hinge band. Shared by iPad, iPhone Duo and the Mac content area.
+///
+/// With a `backdrop` it draws the session's one backdrop behind both panes and the
+/// divider band (the pages inside draw none; `SplitPaneChrome`), whether or not an item
+/// is open, so opening and closing never change the image under the list.
 struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     /// Pane geometry while the trailing pane shows, else nil (leading fills the width).
     let geometry: OnDemandSplitPolicy.Geometry?
+    /// The shared backdrop to draw behind both panes, or nil (pages draw their own).
+    let backdrop: FestivalBackgroundCoordinator?
+    /// The leading page's top-scrim height, drawn across the divider band too.
+    let topScrimHeight: CGFloat?
     let leading: Leading
     let trailing: Trailing
 
@@ -143,13 +215,18 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     ///
     /// - Parameters:
     ///   - geometry: Pane geometry while an item is open, else nil.
+    ///   - backdrop: The shared backdrop to draw behind both panes, or nil.
+    ///   - topScrimHeight: The leading page's top-scrim height, or nil.
     ///   - leading: The list page's stack.
     ///   - trailing: The open item's stack (built only while `geometry` is set).
     init(
         geometry: OnDemandSplitPolicy.Geometry?,
+        backdrop: FestivalBackgroundCoordinator? = nil, topScrimHeight: CGFloat? = nil,
         @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing
     ) {
         self.geometry = geometry
+        self.backdrop = backdrop
+        self.topScrimHeight = topScrimHeight
         self.leading = leading()
         self.trailing = trailing()
     }
@@ -167,7 +244,7 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
                 .frame(width: geometry?.leadingWidth)
                 .frame(maxWidth: geometry == nil ? .infinity : nil)
             if let geometry {
-                SplitDivider(width: geometry.dividerWidth)
+                SplitDivider(width: geometry.dividerWidth, topScrimHeight: topScrimHeight)
                     .transition(.opacity)
                 trailing
                     .frame(width: geometry.trailingWidth)
@@ -179,13 +256,20 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
         // the container at the old width after the window narrows.
         // Not clipped: pages draw their bars and scroll content into the safe areas.
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .leading)
+        // One backdrop for both panes and the band, outside the animation so it never
+        // moves or fades while the panes resize.
+        .background {
+            if let backdrop { SplitBackdrop(coordinator: backdrop) }
+        }
         .animation(Self.animation(reduceMotion: reduceMotion), value: geometry)
     }
 }
 
-/// The band between the panes: a hairline at its centre (the hinge itself on iPhone Duo).
+/// The band between the panes: a hairline at its centre (the hinge itself on iPhone Duo),
+/// over the panes' top-edge gradient so the darkening runs unbroken across the band.
 private struct SplitDivider: View {
     let width: CGFloat
+    let topScrimHeight: CGFloat?
 
     var body: some View {
         Rectangle()
@@ -193,6 +277,11 @@ private struct SplitDivider: View {
             .frame(width: OnDemandSplitPolicy.midpointDividerWidth)
             .frame(width: width)
             .frame(maxHeight: .infinity)
+            .background(alignment: .top) {
+                if let topScrimHeight {
+                    TopEdgeScrim.gradient.frame(height: topScrimHeight)
+                }
+            }
             .ignoresSafeArea()
             .accessibilityHidden(true)
             .accessibilityIdentifier("fst.split.divider")
@@ -223,6 +312,8 @@ struct OnDemandSplitStack<Root: View>: View {
     @Environment(\.splitOpenReporter) private var openReporter
     /// The container's frame in window coordinates (for the midpoint and the hinge).
     @State private var container: CGRect = .zero
+    /// The leading page's top-scrim height, shared with the trailing pane and the band.
+    @State private var topScrim = SplitTopScrim()
 
     /// Create a section stack.
     ///
@@ -258,7 +349,14 @@ struct OnDemandSplitStack<Root: View>: View {
         let cut = cut
         let geometry = geometry
         let open = geometry != nil && cut?.selection != nil
-        OnDemandSplitLayout(geometry: open ? geometry : nil) {
+        // While a split is possible (open or not) the container draws the one backdrop,
+        // so opening and closing never change the image under the list.
+        let sharesBackdrop = geometry != nil && SplitPaneChrome.sharesBackdrop
+        OnDemandSplitLayout(
+            geometry: open ? geometry : nil,
+            backdrop: sharesBackdrop ? session.backgroundCoordinator : nil,
+            topScrimHeight: topScrim.height
+        ) {
             leadingStack(cut: geometry == nil ? nil : cut, paneWidth: open ? geometry?.leadingWidth : nil)
         } trailing: {
             if let cut, let selection = cut.selection, let geometry {
@@ -291,7 +389,8 @@ struct OnDemandSplitStack<Root: View>: View {
             SplitPaneContext(
                 paneWidth: paneWidth, role: .leading,
                 selection: cut.selection,
-                select: ListDetailSelectAction(section: section, page: cut.page) { route in open(route) }
+                select: ListDetailSelectAction(section: section, page: cut.page) { route in open(route) },
+                topScrim: topScrim
             )
         }
         return FestivalTabStack(
@@ -333,11 +432,14 @@ struct OnDemandSplitStack<Root: View>: View {
     ///   - width: The trailing pane's width.
     /// - Returns: The trailing stack.
     private func trailingStack(cut: OnDemandSplitPolicy.Cut, selection: AppRoute, width: CGFloat) -> some View {
-        let context = SplitPaneContext(paneWidth: width, role: .trailing)
+        let context = SplitPaneContext(paneWidth: width, role: .trailing, topScrim: topScrim)
         return NavigationStack(path: detailTail) {
             destination(selection)
                 .id(selection)
+                // The same top-edge gradient as a full page, at the leading page's height.
+                .modifier(TopEdgeScrim())
                 .splitPaneContext(context)
+                .rootTabBarVisibility()
                 .menuBarColumn(isTop: isVisible && cut.detail.count == 1)
                 .toolbar {
                     ToolbarItem(placement: SplitCloseButton.placement) {
@@ -346,7 +448,9 @@ struct OnDemandSplitStack<Root: View>: View {
                 }
                 .navigationDestination(for: AppRoute.self) { route in
                     destination(route)
+                        .modifier(TopEdgeScrim())
                         .splitPaneContext(context)
+                        .rootTabBarVisibility()
                         .menuBarColumn(isTop: isVisible && cut.detail.last == route)
                 }
         }

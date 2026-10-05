@@ -124,6 +124,35 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void TitleBar_BellAndProfileAreSeparateNamedButtons()
+    {
+        // Issue #253 (#53/#14): two independent title-bar buttons, each with its own action and UIA name, never one container.
+        var header = Load("MainWindow.xaml").Descendants().Single(e => e.Name.LocalName == "TitleBar.RightHeader");
+        var children = header.Elements().Single().Elements().Select(e => Attr(e, "Name")).ToList();
+        Assert.Equal(["GlobalSearchButton", "NotificationsHost", "ProfileButton"], children);
+        var profile = Assert.Single(ById(Load("MainWindow.xaml"), "fst.shell.profile"));
+        Assert.Equal("{x:Bind Shell.ProfileButtonName, Mode=OneWay}", Attr(profile, "AutomationProperties.Name"));
+        Assert.Equal("OnProfileButtonClick", Attr(profile, "Click"));
+        var bell = Assert.Single(ById(Load(Path.Combine("Controls", "NotificationsBell.xaml")), "fst.shell.notifications"));
+        Assert.Equal("{x:Bind Model.BellName, Mode=OneWay}", Attr(bell, "AutomationProperties.Name"));
+        Assert.Contains(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
+    }
+
+    [Fact]
+    public void NotificationsBadge_HasNoContrastBackplate()
+    {
+        // Issue #253: under a contrast theme the count drew WindowText on a clipped dark backplate inside the Highlight
+        // circle. InfoBadge already pairs HighlightText with Highlight, so the badge and its template parts opt out.
+        var badge = Load(Path.Combine("Controls", "NotificationsBell.xaml")).Descendants().Single(e => e.Name.LocalName == "InfoBadge");
+        Assert.Equal("None", Attr(badge, "HighContrastAdjustment"));
+        Assert.Equal("OnBadgeLayout", Attr(badge, "Loaded"));
+        Assert.Equal("OnBadgeLayout", Attr(badge, "SizeChanged"));
+        Assert.Equal("Raw", Attr(badge, "AutomationProperties.AccessibilityView"));
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "NotificationsBell.xaml.cs"));
+        Assert.Contains("DialogChrome.WithoutBackplate(UnreadBadge)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ServiceStatus_PagesUseTheSharedControls()
     {
         // Issue #233: nine hand-copied inline rows had drifted (missing countdowns, live regions, IDs on panels UIA skips).

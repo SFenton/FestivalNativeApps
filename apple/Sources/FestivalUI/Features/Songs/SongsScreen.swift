@@ -1427,14 +1427,19 @@ struct SongsScreen: View {
     ) -> some View {
         HStack(alignment: .top, spacing: SongGridPolicy.spacing) {
             ForEach(songs) { song in
-                songCell(for: song, catalogueObservation: catalogueObservation, fadeIndex: fadeOrder[song.songId])
-                    .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+                songCell(
+                    for: song, catalogueObservation: catalogueObservation,
+                    fadeIndex: fadeOrder[song.songId], windowMenu: false
+                )
+                .accessibilityIdentifier("fst.songs.row.\(song.songId)")
                     .frame(maxWidth: .infinity)
             }
             ForEach(songs.count..<columns, id: \.self) { _ in
                 Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
             }
         }
+        // One menu for the row: a `List` row honours a single context menu.
+        .openInNewWindowMenu(songs.map { (title: $0.title, route: FestivalWindowRoute.song(songId: $0.songId)) })
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(songRowInsets)
@@ -1455,7 +1460,7 @@ struct SongsScreen: View {
 
     /// A song card with its Song Detail link, context menu, fade and selected state.
     private func songCell(
-        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil
+        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil, windowMenu: Bool = true
     ) -> some View {
         let highlight = ShopPresentationPolicy.highlight(
             for: shopOffersForCurrentSongs?[song.songId],
@@ -1502,7 +1507,7 @@ struct SongsScreen: View {
             MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
         }
         #else
-        .openInNewWindowMenu(.song(songId: song.songId))
+        .modifier(SongCellWindowMenu(song: song, enabled: windowMenu))
         #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
@@ -2130,6 +2135,21 @@ private struct PinnedHeaderBacking: ViewModifier {
     }
 }
 
+
+/// A Songs card's own Open in New Window menu (iPad), off inside a grid row, whose row
+/// carries one menu for both cards.
+private struct SongCellWindowMenu: ViewModifier {
+    let song: Song
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.openInNewWindowMenu(.song(songId: song.songId))
+        } else {
+            content
+        }
+    }
+}
 
 // MARK: - Landscape grid policy
 

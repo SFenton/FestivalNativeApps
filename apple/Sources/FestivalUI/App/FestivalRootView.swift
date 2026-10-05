@@ -228,6 +228,7 @@ public struct FestivalRootView: View {
                         hideShop: hideShop, selected: selected, topRoute: paths[selected]?.last,
                         showsSearch: presentation.navigation == .flyout, searchActive: searchActive,
                         closesOnEscape: presentation.navigation == .flyout || layout.pose != .standard,
+                        footerScrollsAtAccessibilitySizes: presentation.navigation == .flyout || layout.pose != .standard,
                         onIntent: handleDrawer, onClose: closeDrawer
                     )
                     .transition(reduceMotion || systemReduceMotion
@@ -331,21 +332,14 @@ public struct FestivalRootView: View {
                 content(for: selected)
             }
             #else
-            if presentation.navigation == .flyout {
-                // iPad at regular width: the selected section (or Search) full width; the
-                // destinations live in the overlay flyout (`split-view.md`, operator
-                // 2026-10-04: no persistent sidebar column).
-                Group {
-                    if searchActive {
-                        searchView(asTab: false)
-                    } else {
-                        content(for: selected)
-                    }
-                }
-                .modifier(ShellKeyFocus(key: searchActive ? nil : selected))
-            } else {
-                tabs(visibleSections)
-            }
+            // iPad at regular width uses the same `TabView` with its tab bar hidden: the
+            // destinations live in the overlay flyout (`split-view.md`, operator
+            // 2026-10-04: no persistent sidebar column). A plain view switch lost the
+            // window's first responder on every section change, so the iPadOS menu bar
+            // (⌘-digits, ⌘[, Escape) stopped responding (live, 2026-10-05); the tab
+            // controller keeps each section alive and the responder chain intact.
+            tabs(visibleSections, hidesTabBar: presentation.navigation == .flyout)
+                .environment(\.hidesRootTabBar, presentation.navigation == .flyout)
             #endif
         }
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
@@ -457,18 +451,22 @@ public struct FestivalRootView: View {
     ///
     /// - Parameter visibleSections: Sections to show as tabs.
     /// - Returns: The tab view.
-    @ViewBuilder private func tabs(_ visibleSections: [FestivalSection]) -> some View {
+    @ViewBuilder private func tabs(_ visibleSections: [FestivalSection], hidesTabBar: Bool = false) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
             TabView(selection: rootTabSelection) {
                 ForEach(visibleSections) { section in
                     Tab(section.title, systemImage: section.symbol, value: RootTab.section(section)) {
                         content(for: section)
-                            .accessibilityIdentifier("fst.nav.\(section.rawValue)")
+                            // Phone tabs only: on the iPad flyout shell's container this
+                            // identifier replaced every child's (the split's panes, rows).
+                            .modifier(TabContentIdentifier(id: "fst.nav.\(section.rawValue)", isEnabled: !hidesTabBar))
                     }
                 }
                 #if os(iOS)
                 Tab(value: RootTab.search, role: .search) {
-                    searchView(asTab: true)
+                    // The iPad flyout's Search row: the field stays unfocused and the
+                    // account items show, as in the old sidebar's search page.
+                    searchView(asTab: !hidesTabBar)
                 }
                 #endif
             }
@@ -947,30 +945,21 @@ public struct FestivalRootView: View {
 }
 
 
-// MARK: - Keyboard focus (iPad flyout shell)
+// MARK: - Tab content identifier
 
-/// Keeps a keyboard focus target in the iPad flyout shell. The persistent sidebar list
-/// used to hold focus; without it, switching sections destroyed the focused view and
-/// the window was left with no first responder, so the menu bar's shortcuts (⌘1…⌘9,
-/// ⌘[, Escape) stopped reaching it (live, 2026-10-05: ⌘3 ignored after ⌘2). The page
-/// container takes focus again whenever the section changes.
-private struct ShellKeyFocus: ViewModifier {
-    /// The shown section (nil for Search, whose field manages its own focus).
-    let key: FestivalSection?
-    @FocusState private var focused: Bool
+/// The phone tab content's `fst.nav.<section>` identifier (iPhone journeys find tabs
+/// by it); skipped in the iPad flyout shell, where nothing names the tab and the
+/// identifier would replace every child element's own.
+private struct TabContentIdentifier: ViewModifier {
+    let id: String
+    let isEnabled: Bool
 
     func body(content: Content) -> some View {
-        #if os(iOS)
-        content
-            .focusable(key != nil)
-            .focusEffectDisabled()
-            .focused($focused)
-            .onChange(of: key, initial: true) { _, key in
-                if key != nil { focused = true }
-            }
-        #else
-        content
-        #endif
+        if isEnabled {
+            content.accessibilityIdentifier(id)
+        } else {
+            content
+        }
     }
 }
 

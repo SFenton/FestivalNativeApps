@@ -37,6 +37,33 @@ public class SongSectionHeaderTests
     }
 
     [Fact]
+    public void FarScroll_StaleRowsAboveTheViewport_ReportNoVisibleRow()
+    {
+        // Issue #248: a far scroll (thumb, UIA SetScrollPercent) ends before the panel realizes S; the old # rows now sit
+        // thousands of epx above the viewport, so geometry finds nothing and the page must re-read after layout.
+        var stale = Layout(0, 0, 12).Select(r => r with { Top = r.Top - 50_000, Bottom = r.Bottom - 50_000 }).ToList();
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(Count, stale, Viewport, out var row));
+        Assert.Equal(-1, row);
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(Count, [], Viewport, out _));
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(0, Layout(0, 0, 4), Viewport, out _));
+        // A row below the viewport or outside the list does not count either.
+        Assert.False(SongSectionHeader.TryFirstVisibleRow(Count, [new(5, Viewport, Viewport + Row), new(Count, 0, Row)], Viewport, out _));
+    }
+
+    [Fact]
+    public void FarScroll_AfterLayout_NamesTheSectionAtTheTop()
+    {
+        // The post-layout re-read sees S realized under the top edge and names it, whatever the stale index says.
+        var s = Array.IndexOf(Labels, "S");
+        Assert.True(SongSectionHeader.TryFirstVisibleRow(Count, Layout(s, s * 4 - 3, s * 4 + 8), Viewport, out var row));
+        Assert.Equal(s * 4, row);
+        Assert.Equal("S", Label(0, Layout(s, s * 4 - 3, s * 4 + 8)));
+        // Scrolling back up to F after that behaves the same way.
+        var f = Array.IndexOf(Labels, "F");
+        Assert.Equal("F", Label(s * 4, Layout(f, f * 4 - 2, f * 4 + 9)));
+    }
+
+    [Fact]
     public void FarJump_HashToP_ShowsP()
     {
         // # → P: the panel may still report row 0 from before the jump; the realized rows put P on top.

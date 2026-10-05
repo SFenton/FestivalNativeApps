@@ -271,3 +271,4 @@ struct MenuBarTopPagePublisher<Published>: ViewModifier {
     }
 }
 #endif
+

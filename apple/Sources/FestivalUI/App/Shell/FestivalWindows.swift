@@ -46,13 +46,25 @@ extension View {
     /// - Parameter route: The content the new window shows.
     /// - Returns: The row.
     func openInNewWindowMenu(_ route: FestivalWindowRoute) -> some View {
-        modifier(OpenInNewWindowMenu(route: route))
+        modifier(OpenInNewWindowMenu(entries: [(nil, route)]))
+    }
+
+    /// iPad: one context menu for a list row that shows several items side by side (the
+    /// Songs landscape grid), with an **Open “Title” in New Window** item per item. A
+    /// `List` row honours only one context menu, so each card cannot carry its own.
+    ///
+    /// - Parameter entries: Each item's title and window route, in row order.
+    /// - Returns: The row.
+    func openInNewWindowMenu(_ entries: [(title: String, route: FestivalWindowRoute)]) -> some View {
+        modifier(OpenInNewWindowMenu(entries: entries.count == 1
+            ? [(nil, entries[0].route)] : entries.map { (Optional($0.title), $0.route) }))
     }
 }
 
 /// Context menu behind ``SwiftUI/View/openInNewWindowMenu(_:)``.
 private struct OpenInNewWindowMenu: ViewModifier {
-    let route: FestivalWindowRoute
+    /// The routes to offer; a nil title reads "Open in New Window".
+    let entries: [(title: String?, route: FestivalWindowRoute)]
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
     @Environment(\.openWindow) private var openWindow
 
@@ -60,8 +72,13 @@ private struct OpenInNewWindowMenu: ViewModifier {
         #if os(iOS)
         if supportsMultipleWindows && UIDevice.current.userInterfaceIdiom == .pad {
             content.contextMenu {
-                Button("Open in New Window", systemImage: "macwindow.badge.plus") {
-                    openWindow(value: route)
+                ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+                    Button(
+                        entry.title.map { "Open “\($0)” in New Window" } ?? "Open in New Window",
+                        systemImage: "macwindow.badge.plus"
+                    ) {
+                        openWindow(value: entry.route)
+                    }
                 }
             }
         } else {

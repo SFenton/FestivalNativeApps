@@ -309,6 +309,10 @@ struct FestivalDrawer: View {
     var searchActive = false
     /// Escape closes the panel (iPad and iPhone Duo hardware keyboards).
     var closesOnEscape = false
+    /// The iPad / Duo flyout: at accessibility text sizes the footer (profile, Settings)
+    /// scrolls with the rows instead of staying pinned, so it stays reachable (the old
+    /// iPad sidebar's AX5 rule, Lane A11Y2). The iPhone drawer keeps its pinned footer.
+    var footerScrollsAtAccessibilitySizes = false
     let onIntent: (DrawerIntent) -> Void
     let onClose: () -> Void
 
@@ -427,20 +431,33 @@ struct FestivalDrawer: View {
                 group((showsSearch ? [DrawerMenu.search] : []) + DrawerMenu.browse(
                     profile: profile, visibleSections: visibleSections, hideShop: hideShop
                 ))
+                if footerScrolls {
+                    footer.padding(.top, 12).padding(.bottom, bottomInset)
+                }
             }
             .scrollBounceBehavior(.basedOnSize)
-            // Web sidebar footer: the profile row (or Select Profile), then Settings.
-            VStack(alignment: .leading, spacing: 2) {
-                profileSection
-                group(DrawerMenu.more)
+            if !footerScrolls {
+                footer.padding(.bottom, bottomInset)
             }
-            .padding(.bottom, bottomInset)
         }
         .padding(.horizontal, DrawerCorners.contentInset)
         .drawerPanelShape(.clip)
         // A container element, so the identifier does not replace the rows' own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.shell.drawer")
+    }
+
+    /// Whether the footer scrolls with the rows (``footerScrollsAtAccessibilitySizes``).
+    private var footerScrolls: Bool {
+        footerScrollsAtAccessibilitySizes && dynamicTypeSize.isAccessibilitySize
+    }
+
+    /// Web sidebar footer: the profile row (or Select Profile), then Settings.
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            profileSection
+            group(DrawerMenu.more)
+        }
     }
 
     private var header: some View {

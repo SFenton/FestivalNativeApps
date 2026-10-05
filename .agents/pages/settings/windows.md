@@ -61,3 +61,32 @@ Fixture matrix (`a11y_matrix.py --scan --tabs 60` with `journeys/settings-states
 Journeys (`tools/windows/journeys/settings.py`): visual order persists across relaunch, Filter Invalid Scores reveals Leeway, Hide Shop disables Shop highlighting, the last visible chart cannot be hidden, telemetry needs diagnostics, Reset Cancel keeps and Reset restores app settings (Songs sort kept), Licenses/Back, Privacy Policy, What's New, Feedback cancel and First Run replay. `SettingsContrastMarkupTests` guards the markup.
 
 Deliberate deviations from `winui-design`: dark-only theme (web parity; light/dark system setting does not change it); hand-built Settings-card rows instead of the Community Toolkit `SettingsCard` (no extra package; one card per web section); reorder lists keep web grip/row look with Fluent `ListView` drag and Move buttons.
+
+## Validation: CHOpt Path Default View (issue #256, 2026-10-05)
+
+No app change needed. `path-default-view` is an inline Fluent `RadioButtons` group with Image and Text options. `winui-design` maps "pick one of 2–3 options" to `RadioButtons` (WinUI Gallery `gallery-radiobutton-2`). `winapp find-api` confirmed `Header`, `SelectedIndex` and `MaxColumns` on the app's references. There is no expander, so there is no expanded/collapsed state to announce. UIA reports:
+
+- a level-3 heading "CHOpt Path Default View" and the description;
+- a Group named "CHOpt Path Default View" (`RadioButtons`);
+- Image and Text `RadioButton`s with the SelectionItem pattern, so Narrator reads the name and the selected option;
+- then the Column Order heading.
+
+Fixture matrix: `a11y_matrix.py --scan --pages journeys/a11y-settings-path-view.json` runs Image selected, Text seeded and the keyboard page `kb-settings-path-view`. Axe found 0 errors in every configuration below.
+
+| Configuration | Result |
+|---|---|
+| Compact, medium, wide, maximized, snap-left, snap-right | Pass: the group stays under its description in one column at every width |
+| Light and dark system theme | Pass, unchanged (dark-only app) |
+| Desert, Night sky | Pass: selected dot and focus rectangle use contrast colours |
+| Text 200% | Pass: title, description and options wrap with nothing clipped. The stock radio glyph stays top-aligned to the taller label |
+| Display 100%, 150%, 150% + text 200% | Pass |
+| Keyboard | Pass: Tab from Visual Order lands on the selected option. Down/Up move focus and selection together. Tab leaves the group and Shift+Tab returns to the selected option |
+| Live public service | Pass: Settings and Song Detail Paths open in the saved view for a real song (`/api/songs`, `/api/paths` only) |
+
+Journey `path-default-view` (`journeys/settings.py`, `Journey.relaunch_to`):
+
+1. Select Text: Settings stays open and saves `"pathDefaultView": "Text"`.
+2. Relaunch: Text is still selected.
+3. Relaunch to a song: Paths opens the table.
+4. Close Paths, return to Settings and select Image: saves `"Image"`.
+5. Paths now opens the image.
