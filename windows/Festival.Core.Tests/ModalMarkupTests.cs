@@ -92,4 +92,17 @@ public class ModalMarkupTests
         var feedback = Sources(".cs").Single(source => source.Path == "Controls/FeedbackDialog.cs").Text;
         Assert.Matches(@"Description\s*=\s*new TextBlock \{[^}]*TextWrapping\.WrapWholeWords", feedback);
     }
+
+    [Fact]
+    public void CommandLabels_DropTheContrastBackplate()
+    {
+        // Issue #239: under Desert/Night sky the default button's label sat on a Window-coloured box inside its Highlight fill.
+        var factory = Sources(".cs").Single(source => source.Path == "Controls/FestivalDialog.cs").Text;
+        Assert.Contains("DialogChrome.CommandLabelsWithoutBackplate(dialog);", factory, StringComparison.Ordinal);
+        var chrome = Sources(".cs").Single(source => source.Path == "Controls/DialogChrome.cs").Text;
+        Assert.Contains(@"[""PrimaryButton"", ""SecondaryButton"", ""CloseButton""]", chrome, StringComparison.Ordinal);
+        Assert.Contains("HighContrastAdjustment = ElementHighContrastAdjustment.None", chrome, StringComparison.Ordinal);
+        var carousel = Sources(".cs").Single(source => source.Path == "Controls/FirstRunCarousel.xaml.cs").Text;
+        Assert.Contains("DialogChrome.WithoutBackplate(Pips);", carousel, StringComparison.Ordinal);
+    }
 }

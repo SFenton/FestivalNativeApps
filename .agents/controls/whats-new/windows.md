@@ -38,7 +38,7 @@ Per configuration (fixture runs use `ui_journey` and `a11y_matrix --scan --tabs 
 | Medium, wide, maximized | the dialog sizes to its notes up to ContentDialog's maximum width (548 epx), centred over the dimmed page; 0 Axe errors |
 | Resize across breakpoints | `presented-resize-across-breakpoints`: compact → wide → medium → compact with the dialog open keeps the heading and Dismiss on screen. Fixed: the notes height was fixed when the dialog opened, so long notes could be clipped after the window shrank. It now refits on `XamlRoot.Changed`, like the Feedback dialog |
 | Light / dark system theme | the dialog keeps the app's dark brand surface ([design/windows.md](../../design/windows.md)); 0 Axe errors |
-| Desert, Night sky | system colours: window background and text, outlined dialog and notes, and Dismiss in Highlight with a text backplate; 0 Axe errors |
+| Desert, Night sky | system colours: window background and text, outlined dialog and notes, and Dismiss as HighlightText on Highlight (issue #239 removed the text backplate box from the shared dialog's buttons); 0 Axe errors |
 | Text 200% | the title, headings and bullets wrap and Dismiss grows; 0 Axe errors at compact and medium |
 | Display 100% / 150% (and the host's 300%) | layout identical in epx; 0 Axe errors |
 | Keyboard | the dialog opens with focus on the notes (visible focus rectangle), and Down scrolls them. Tab moves to Dismiss and Shift+Tab back; Enter or Esc dismisses. After the Settings replay, focus returns to the row (`kb-whats-new-dismiss`, `kb-whats-new-replay` at C/M/W). Fixed: the notes were not a tab stop, so the keyboard could not scroll long notes (Licenses and Privacy Policy had the same fix in #215) |
