@@ -385,6 +385,9 @@ struct RankHistoryCharts: View {
             // again (measured in the Mac accessibility tree, Lane A11Y2).
             .accessibilityLabel(point.label)
             .accessibilityValue(Self.accessibilityValue(point))
+            // Only the visible page: bars paged out of the plot kept elements with frames
+            // left of the card (over the iPad sidebar); the pager and Audio Graph reach them.
+            .accessibilityHidden(!range.contains(point.index))
             LineMark(
                 x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank)),
