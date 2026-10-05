@@ -16,6 +16,7 @@ REPO = Path(__file__).resolve().parents[3]
 
 # Lines from a real `uiwin.py tree` dump of the Songs carousel (2026-10-04).
 TREE = "\n".join([
+    '    Button "Close" id=Close class= rect=3123,0,144,144 patterns=Invoke',
     'Window "Songs" id=fst.first-run.dialog class=Popup rect=573,1,2694,2012',
     '  Unknown(flip view) "Songs" id=fst.first-run.slides class=FlipView rect=1260,335,1320,1110 patterns=Scroll',
     '    ListItem "Song List" id= class=FlipViewItem rect=1260,335,1320,1110 [focused,focusable,selected] patterns=SelectionItem',
@@ -24,7 +25,7 @@ TREE = "\n".join([
     '      Button "Page 6" id= class=Button rect=0,0,0,0 [offscreen,focusable] patterns=Invoke',
     '  Button "Next" id=PrimaryButton class=Button rect=1260,1700,424,95 [focusable] patterns=Invoke',
     '  Button "Back" id=SecondaryButton class=Button rect=1708,1700,423,95 [disabled] patterns=Invoke',
-    '  Button "Close" id=CloseButton class=Button rect=2155,1700,424,95 [focusable] patterns=Invoke',
+    '  Button "Close" id=fst.first-run.close class=Button rect=2155,1700,424,95 [focusable] patterns=Invoke',
 ])
 
 
@@ -45,6 +46,11 @@ class PatternTests(unittest.TestCase):
 
     def test_single_slide_forbids_paging(self):
         self.assertEqual(len(j.check_tree(TREE, j.Phase([], forbid=j.NO_PAGING))), 3)
+        # The title bar's Close is not a dialog command; an untagged dialog Close still is.
+        title_bar = TREE.splitlines()[0]
+        self.assertEqual(j.check_tree(title_bar, j.Phase([], forbid=j.NO_PAGING)), [])
+        untagged = '  Button "Close" id=CloseButton class=Button rect=2155,1700,424,95 [focusable] patterns=Invoke'
+        self.assertEqual(len(j.check_tree(untagged, j.Phase([], forbid=j.NO_PAGING))), 1)
 
 
 class SeenTests(unittest.TestCase):

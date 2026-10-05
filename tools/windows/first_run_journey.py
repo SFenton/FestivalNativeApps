@@ -92,6 +92,8 @@ class Scenario:
 
 
 DIALOG = "id=fst.first-run.dialog"
+# The dialog's native Close command, tagged with the cross-platform test ID (issue #244; Apple/Android share it).
+CLOSE = "fst.first-run.close"
 OPEN = f"waitfor:{DIALOG}@30"
 CLOSED = f"waitgone:{DIALOG}@10"
 SONGS_READY = "waitfor:id=fst.songs.sort@30"
@@ -133,7 +135,8 @@ def _older(slide_id: str) -> Callable[[Seen], Seen]:
 
 
 SINGLE = [_button("PrimaryButton", "Done")]
-NO_PAGING = [r"id=SecondaryButton ", r"id=CloseButton ", r"id=fst\.first-run\.pips "]
+# The dialog's Close, tagged or not; the window title bar's own Close (id=Close) is always in the tree.
+NO_PAGING = [r"id=SecondaryButton ", r'Button "Close" id=(CloseButton|fst\.first-run\.close) ', r"id=fst\.first-run\.pips "]
 
 SCENARIOS = [
     Scenario(
@@ -143,12 +146,12 @@ SCENARIOS = [
             # Fresh anonymous Songs: six gate-passing slides; Back is present but disabled on slide 1.
             Phase([OPEN, "wait:1"],
                   expect=[_dialog("Songs"), *_pips(6), _slide("Song List"), _button("PrimaryButton", "Next"),
-                          _button("SecondaryButton", "Back", enabled=False), _button("CloseButton", "Close")],
+                          _button("SecondaryButton", "Back", enabled=False), _button(CLOSE, "Close")],
                   forbid=[_no_pip(7)]),
             Phase(["invoke:id=PrimaryButton", "wait:1"],
                   expect=[_button("SecondaryButton", "Back"), _button("PrimaryButton", "Next")]),
             # dismissed: Close records only the two slides viewed.
-            Phase(["invoke:id=CloseButton", CLOSED, "wait:1"],
+            Phase([f"invoke:id={CLOSE}", CLOSED, "wait:1"],
                   forbid=[DIALOG],
                   seen={"only the two viewed slides are seen": lambda s: len(s) == 2 and "songs-song-list" in s}),
             # new-slides-only: the four unviewed slides return alone on the next launch.

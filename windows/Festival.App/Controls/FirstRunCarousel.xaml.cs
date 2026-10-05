@@ -156,7 +156,8 @@ public sealed partial class FirstRunCarousel : UserControl
             closeText: carousel.CloseLabel,
             primaryText: carousel.NextLabel,
             secondaryText: carousel.BackLabel,
-            defaultButton: ContentDialogButton.Primary);
+            defaultButton: ContentDialogButton.Primary,
+            closeAutomationId: carousel.CloseAutomationId);
         dialog.IsSecondaryButtonEnabled = !carousel.IsFirst;
         PropertyChangedEventHandler sync = (_, e) =>
         {
