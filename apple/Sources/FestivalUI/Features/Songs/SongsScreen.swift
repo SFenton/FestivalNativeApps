@@ -1442,7 +1442,7 @@ struct SongsScreen: View {
             ForEach(songs) { song in
                 songCell(
                     for: song, catalogueObservation: catalogueObservation,
-                    fadeIndex: fadeOrder[song.songId], windowMenu: false
+                    fadeIndex: fadeOrder[song.songId], windowMenu: false, gridCard: true
                 )
                 .accessibilityIdentifier("fst.songs.row.\(song.songId)")
                     .frame(maxWidth: .infinity)
@@ -1472,8 +1472,18 @@ struct SongsScreen: View {
     }
 
     /// A song card with its Song Detail link, context menu, fade and selected state.
+    ///
+    /// - Parameters:
+    ///   - song: Validated catalogue song to display.
+    ///   - catalogueObservation: Observed generation of the retained catalogue.
+    ///   - fadeIndex: Stagger index when the row just loaded, else nil.
+    ///   - windowMenu: Attach this card's own "Open in New Window" menu.
+    ///   - gridCard: The card shares its `List` row with another (landscape grid), so
+    ///     it opens through its own borderless button (``SongGridCardLink``).
+    /// - Returns: The decorated card.
     private func songCell(
-        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil, windowMenu: Bool = true
+        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil, windowMenu: Bool = true,
+        gridCard: Bool = false
     ) -> some View {
         let highlight = ShopPresentationPolicy.highlight(
             for: shopOffersForCurrentSongs?[song.songId],
@@ -1506,12 +1516,7 @@ struct SongsScreen: View {
         // focus ring would be invisible too).
         let link = ListDetailLink(value: AppRoute.songDetail(song)) { row }
         #else
-        let link = ZStack {
-            row
-            ListDetailLink(value: AppRoute.songDetail(song)) { EmptyView() }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(0)
-        }
+        let link = SongCardLink(route: AppRoute.songDetail(song), gridCard: gridCard) { row }
         #endif
         return link
         .contentShape(Rectangle())
@@ -2151,6 +2156,94 @@ private struct PinnedHeaderBacking: ViewModifier {
 
 /// A Songs card's own Open in New Window menu (iPad), off inside a grid row, whose row
 /// carries one menu for both cards.
+#if !os(macOS)
+// MARK: - Card links (iOS/iPadOS)
+
+/// A Song card's Song Detail link on iOS/iPadOS.
+///
+/// A one-card row keeps the invisible ``ListDetailLink`` stretched over the card (the
+/// `List` row is the tap target). A landscape grid row holds two cards, and a `List`
+/// row fires every `NavigationLink` it contains on one tap, so both songs opened;
+/// grid cards use ``SongGridCardLink`` instead.
+private struct SongCardLink<Label: View>: View {
+    let route: AppRoute
+    let gridCard: Bool
+    let label: Label
+
+    /// Create a card link.
+    ///
+    /// - Parameters:
+    ///   - route: Song Detail route.
+    ///   - gridCard: The card shares its `List` row with another card.
+    ///   - label: The card.
+    init(route: AppRoute, gridCard: Bool, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.gridCard = gridCard
+        self.label = label()
+    }
+
+    var body: some View {
+        if gridCard {
+            SongGridCardLink(route: route) { label }
+        } else {
+            ZStack {
+                label
+                ListDetailLink(value: route) { EmptyView() }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(0)
+            }
+        }
+    }
+}
+
+/// One grid card's own Song Detail button: borderless, so the `List` row does not
+/// claim the tap and only the touched card opens (HIG Lists and tables: each item is
+/// its own target).
+///
+/// It routes like ``ListDetailLink``: the trailing pane when a split accepts the route,
+/// else a push on the section's stack (`\.pushRoute`); outside the root shell (hosted
+/// tests) a plain `NavigationLink`.
+private struct SongGridCardLink<Label: View>: View {
+    let route: AppRoute
+    let label: Label
+    @Environment(\.listDetailSelect) private var select
+    @Environment(\.pushRoute) private var pushRoute
+
+    /// Create a grid card link.
+    ///
+    /// - Parameters:
+    ///   - route: Song Detail route.
+    ///   - label: The card.
+    init(route: AppRoute, @ViewBuilder label: () -> Label) {
+        self.route = route
+        self.label = label()
+    }
+
+    /// The action opening `route`, or nil when only a `NavigationLink` can.
+    private var open: (@MainActor () -> Void)? {
+        if let select, select.accepts(route) { return { select(route) } }
+        if let pushRoute { return { pushRoute(route) } }
+        return nil
+    }
+
+    var body: some View {
+        Group {
+            if let open {
+                Button(action: open) { label }
+                    .buttonStyle(.plain)
+                    // VoiceOver's activate on the combined card runs this card's push.
+                    .accessibilityAction(.default, open)
+            } else {
+                NavigationLink(value: route) { label }
+                    .buttonStyle(.plain)
+            }
+        }
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .hoverEffect(.highlight)
+    }
+}
+#endif
+
 private struct SongCellWindowMenu: ViewModifier {
     let song: Song
     let enabled: Bool

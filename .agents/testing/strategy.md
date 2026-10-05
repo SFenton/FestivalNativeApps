@@ -8,7 +8,7 @@
 |---|---|---|
 | Build | Every commit | `swift build --build-tests` + iOS build (via `tools/lane_integrate.sh`) |
 | Unit | As you go | Tests for new non-UX logic; run only new/changed tests while iterating |
-| Visual smoke | While building UI | `tools/ios_sim.py shot` compared with the web app at the same viewport ([screenshot-compare](../skills/screenshot-compare.md)) |
+| Visual smoke | While building UI | `tools/ios_sim.py shot` compared with the web app at the same viewport ([screenshot-compare](../skills/screenshot-compare/SKILL.md)) |
 | UX tests | A **feature** is complete | XCUITest journeys + hosted snapshot per control state (target 90% UX lines) |
 | Accessibility | The **app** is complete (per platform) | Audits, focus order, Dynamic Type, contrast, in-app a11y toggles ([apple/accessibility.md](apple/accessibility.md)) |
 | VoiceOver | After accessibility | Scripted screen-reader walkthroughs per page ([apple/voiceover.md](apple/voiceover.md)) |

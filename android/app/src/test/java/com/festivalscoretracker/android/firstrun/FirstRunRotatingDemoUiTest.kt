@@ -10,6 +10,10 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.festivalscoretracker.android.core.firstrun.FirstRunDemoBars
 import java.text.NumberFormat
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -100,6 +104,51 @@ class FirstRunRotatingDemoUiTest {
         assertNotEquals(before, texts("fst.first-run.demo.song."))
     }
 
+    /** Issue #166: rotation runs only while the app is in the foreground (RESUMED). */
+    @Test
+    fun backgroundedAppHoldsStillUntilResumed() {
+        val owner = TestLifecycle()
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            FestivalTheme {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner, LocalFirstRunDemoCatalog provides catalog) { FirstRunDemo("songs-song-list", true) }
+            }
+        }
+        rule.mainClock.advanceTimeByFrame()
+        rule.runOnIdle { owner.registry.currentState = Lifecycle.State.STARTED }
+        val before = texts("fst.first-run.demo.song.")
+        repeat(18) {
+            rule.mainClock.advanceTimeBy(1_000)
+            rule.waitForIdle()
+        }
+        assertEquals("no swaps while paused", before, texts("fst.first-run.demo.song."))
+        rule.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        repeat(8) {
+            rule.mainClock.advanceTimeBy(1_000)
+            rule.waitForIdle()
+        }
+        assertNotEquals("swaps again once resumed", before, texts("fst.first-run.demo.song."))
+    }
+
+    /** Issue #166: leaving a slide mid-fade still lands the swap, then the slide holds still. */
+    @Test
+    fun leavingMidFadeCompletesTheSwapThenHoldsStill() {
+        var active by mutableStateOf(true)
+        show("songs-song-list", active = { active })
+        val before = texts("fst.first-run.demo.song.")
+        rule.mainClock.advanceTimeBy(FirstRunDemoTiming.SWAP_INTERVAL_MS + FirstRunDemoTiming.FADE_MS / 2L)
+        assertEquals("mid fade-out, old rows still shown", before, texts("fst.first-run.demo.song."))
+        rule.runOnIdle { active = false }
+        repeat(3) {
+            rule.mainClock.advanceTimeByFrame()
+            rule.waitForIdle()
+        }
+        val landed = texts("fst.first-run.demo.song.")
+        assertEquals(1, before.indices.count { before[it] != landed[it] })
+        rule.mainClock.advanceTimeBy(cycle * 3)
+        assertEquals("inactive slide holds still", landed, texts("fst.first-run.demo.song."))
+    }
+
     @Test
     fun reduceMotionStillSwapsWithACrossFade() {
         show("songs-song-list", reduceMotion = true)
@@ -176,5 +225,11 @@ class FirstRunRotatingDemoUiTest {
             }
         }
         rule.mainClock.advanceTimeByFrame()
+    }
+
+    /** A lifecycle the test moves between RESUMED (foreground) and STARTED (backgrounded or covered). */
+    private class TestLifecycle : LifecycleOwner {
+        val registry: LifecycleRegistry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
     }
 }
