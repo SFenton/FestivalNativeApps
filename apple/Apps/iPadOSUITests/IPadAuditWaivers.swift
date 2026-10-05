@@ -150,6 +150,9 @@ enum IPadAuditWaivers {
     /// The ``Waiver/containedIn`` scope for the system keyboard (`app.keyboards`).
     static let keyboardContainer = "system-keyboard"
 
+    /// Pseudo-container: the union of the top navigation bars' frames.
+    static let navigationBarContainer = "system-navigation-bar"
+
     /// System fields: their placeholders and clear buttons are drawn by UIKit.
     static let systemFields: Set<XCUIElement.ElementType> = [.searchField, .textField, .secureTextField]
 
@@ -236,6 +239,15 @@ enum IPadAuditWaivers {
             id: "system-toolbar-badge", kind: .systemControl, auditType: .contrast,
             reason: "Contrast", elementTypes: [.staticText], containedIn: "fst.shell.notifications",
             evidence: "System toolbar-item badge on the Notifications bell (UIKit)"
+        ),
+        // (c) Text a navigation bar hosts: the bar caps its items' text size (Song Detail's
+        // pinned title, shown once the hero scrolls away, measured 1.1× at AX5 in the
+        // split's leading bar; Lane A11Y3). The title also offers the Large Content Viewer
+        // (long press), as system bar titles do, and the hero it repeats grows in full.
+        Waiver(
+            id: "system-bar-title-size", kind: .systemControl, auditType: .dynamicType,
+            reason: "partially unsupported", elementTypes: [.staticText], containedIn: navigationBarContainer,
+            evidence: "Static text inside a top navigation bar (UIKit caps bar item text size; Large Content Viewer offered)"
         ),
         // (c) The search field's own clear button (UIKit, 20.5 pt): the field itself is
         // the 44 pt target, and Clear is also reachable by selecting and deleting.

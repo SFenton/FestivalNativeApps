@@ -38,7 +38,7 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 
 - **Header outside the card**: title (16 sp bold, heading), description (12 sp `textTertiary` #9AA6B2) and, for single-chart categories, a 36 dp instrument icon sit above the glass card (`fst.suggestions.header.<id>`), like Leaderboards/Compete; the card holds only the rows (1 dp `borderSubtle` dividers). Cards are 24 dp apart (web `Gap.section`).
 - Row: 44 dp artwork, then title (14 sp semibold) and "Artist · Year" (12 sp `textSubtle`), both marquee when they overflow (shared `FestivalMarqueeText`; truncated under Reduce Motion); 10 dp vertical / 16 dp horizontal insets (web 24 px; Material list-item inset keeps metadata beside the text on phones). Narrow cards move metadata to a right-aligned second line.
-- Metadata per category (web `RightContent`): instrument chips = 34 dp solid status circles (gold/green/red fill + 2 dp darker stroke, 20 dp icon, 6 dp gap, Settings-visible charts); star-gain rows = web star images at 20 dp (`StarRating`) + 28 dp instrument icon; percentile = `PercentilePill` (subtle white; Top 5% gold outline; Top 1% gold outline italic — Compose has no skew) + 28 dp icon; UNFC = accuracy pill tinted by accuracy; stale = 48 dp `SeasonPill` (16 sp); rival = name badge (blue song rival / yellow leaderboard rival, 11 sp, ≤ 100 dp; mixed-rival cards only, see Decisions) + bold tabular rank delta (green ahead / red behind) + 28 dp icon; unplayed/variety/artist = none.
+- Metadata per category (web `RightContent`): instrument chips = 34 dp solid status circles (gold/green/red fill + 2 dp darker stroke, 20 dp icon, 6 dp gap, Settings-visible charts); star-gain rows = web star images at 20 dp (`StarRating`) + 28 dp instrument icon; percentile = `PercentilePill` (subtle white; Top 5% gold outline; Top 1% gold outline italic — Compose has no skew) + 28 dp icon; UNFC = accuracy pill tinted by accuracy; stale = 48 dp `SeasonPill` (16 sp); rival = name badge (song rival: #A8C7FA text on a 20% #4285F4 tint / leaderboard rival: #FBBC04 on its tint, 11 sp, ≤ 100 dp; mixed-rival cards only, see Decisions) + bold tabular rank delta (`statusGreen` ahead / readable red #FF8A80 behind, issue #167) + 28 dp icon; unplayed/variety/artist = none.
 - Entry motion: each generated batch fades in (web `getCardDelay`: 125 ms stagger from the batch's first card); cards already revealed or scrolled back into view show at once; Reduce Motion shows them immediately.
 
 ## Decisions
@@ -46,9 +46,10 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 - Suggestions keeps its own score read rather than the profile lane's `presentation/profile/SelectedProfileStore` (landed mid-lane): the second `GET /api/player/{id}` within one publication is a 304 through `FestivalApi`'s per-URL ETag cache. TODO(orchestrator): consolidate onto `SelectedProfileStore` once its API exposes an awaitable score index, so Retry on Suggestions also refreshes Songs/Statistics.
 - The mix persists per back-stack entry (tab switches restore it); a player switch/deselect, a new catalogue or score publication, or Start a new mix rebuilds it; `mixId` is monotonic so the grid returns to the top.
 - A filter that disables every type skips generation (nothing could show).
-- **Rival name badge, native deviation (2026-10-02, issue #59 check of #29):** single-rival cards (`song_rival_spotlight_`/`gap_`/`protect_`/`slipping_`/`dominate_`) name the rival in their title, so rows drop the web's per-row name badge and show only the signed delta + icon (`SuggestionRowPresentation.showsRivalName`, as Apple). Mixed-rival cards (`song_rival_battleground` and the cross-pollination families) keep the badge. TalkBack still names the rival on badge-less rows: the row label ends "2 ranks behind Rival B1" (`rivalDeltaAccessibilityLabel`); mixed rows keep "rival X, ahead by 1 rank" (singular "rank" fixed at the same time). Verified on `FST_Phone` (fixture mode, seed 1) via the UI tree's `content-desc`.
+- **Rival name badge, native deviation (2026-10-02, issue #59 check of #29):** single-rival cards (`song_rival_spotlight_`/`gap_`/`protect_`/`slipping_`/`dominate_`) name the rival in their title, so rows drop the web's per-row name badge and show only the signed delta + icon (`SuggestionRowPresentation.showsRivalName`, as Apple). Mixed-rival cards (`song_rival_battleground` and the cross-pollination families) keep the badge. TalkBack still names the rival on badge-less rows: the row label ends "2 ranks behind Rival B1" (`rivalDeltaAccessibilityLabel`); mixed rows keep "rival X, ahead by 1 rank" (singular "rank" fixed at the same time). Verified on `FST_Phone` (fixture mode, seed 1) via the UI tree's `content-desc`; revalidated on the live service on every AVD in issue #167 (below).
+- **Rival row text contrast (issue #167):** the web's `statusRed` #C62828 "behind" delta measured 3.0:1 on device (12 sp bold, fails WCAG AA 4.5:1) and the blue song-rival badge text (#4285F4 on its own 20% tint) 3.6–4.0:1. The delta now uses the Rivals page's readable red #FF8A80 (`SuggestionTokens.rivalBehindText`, as `RivalColors.loseText`; Apple uses `RivalStatusText.red`) and the badge text a same-hue #A8C7FA (`songRivalText`), keeping the tint, sizes and layout. Measured on device after the change: behind 6.8–8.2:1, badge 7.9–11.5:1; green ahead was already 7.8–8.8:1.
 - Filter stays reachable while the cards scroll (issue #52): `FestivalScreen(pinActions = true)` pins the compact floating toolbar instead of hiding it on scroll; global search is already in the pinned top app bar.
-- Filter reads before the feed (issue #112): the shell reads the floating toolbar after page content (traversal index 1), but this feed loads cards as TalkBack scrolls, so linear navigation never reached Filter. `FestivalScreen(actionsReadFirst = true)` makes the top app bar a traversal group at −2 and the toolbar −1: top bar → Filter → cards. Other pages keep the default.
+- Filter reads before the feed (issue #112): the shell reads the floating toolbar after page content (traversal index 1), but this feed loads cards as TalkBack scrolls, so linear navigation never reached Filter. `FestivalScreen(actionsReadFirst = true)` makes the top app bar a traversal group at −2 and the toolbar −1: top bar → Filter → cards. Songs reads its toolbar first too (issue #160); other pages keep the default.
 - Button copy follows the web strings (`FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`) in the repo's Title Case for buttons ([design](../../design/README.md)): `Start a New Mix` (web "Start a new mix"), `Reset Filters`.
 
 ## Debug and fixtures
@@ -62,7 +63,8 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 | `core/suggestions/SuggestionParityTest`, `SuggestionCoreTest` | Apple parity; helpers, filter cascade/persistence, rival index edge cases, row layouts, skip streak, spotlight |
 | `suggestions/SuggestionDataTest` | Wire validation (identity, counts, duplicates, bounds, 202 envelope), instrument bit codes, keyless requests, rivals 404/500, filter store |
 | `suggestions/SuggestionsViewModelTest` | Batching, rival splice, remix to the cap + new mix, filter/visibility refilter, syncing/failure retry, player switch, new publication |
-| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded), traversal order (top bar → Filter → cards; other pages unchanged) and hosted renders of every phase/row layout, phone and expanded |
+| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded), traversal order (top bar → Filter → cards; Song Detail and other pages unchanged) and hosted renders of every phase/row layout, phone and expanded |
+| `suggestions/SuggestionRivalRowUiTest` (Robolectric, native graphics) | Rival rows' pixels at 360/600 dp × font 1.0/2.0: Spotlight rows draw no badge and an unclipped delta (readable red, never `statusRed`), ≥ 48 dp; mixed rows keep the badge; delta and badge text ≥ 4.5:1 over the card on any backdrop |
 | `journeys/SuggestionsAccessibilityJourneyTest` (connected, `device.py test`) | ATF on the feed and filter sheet, reading order in logcat `FST_A11Y`, no card across a separating hinge |
 
 Fixtures: `testing/SuggestionFixtures` (shared with `androidTest`).
@@ -97,6 +99,46 @@ Live public service, SFentonX selected, dark scheme. Material 3 skill guidance c
 | Connected ATF journey | `SuggestionsAccessibilityJourneyTest` on FST_Phone and FST_Book_Fold half-open | 0 errors; no card straddles the hinge |
 
 Deliberate deviations kept: dark scheme only; width-capped `ModalBottomSheet` instead of an M3 side sheet on expanded windows (as Songs #101); 16 dp margins app-wide (M3 suggests 24 dp at medium+); pinned (always-visible) floating toolbar on compact windows (issue #52).
+
+## Validation (issue #160, 2026-10-05: pinned Filter and global search from #52)
+
+Live public service, SFentonX selected, dark scheme, animator scale 0. Each configuration: three swipes down the feed, UI tree and screenshot, open Filter while scrolled, swipe back up and compare bounds.
+
+| Configuration | Found | Result |
+|---|---|---|
+| FST_Phone portrait/landscape, fs 1.0/2.0 | — | Pass: Filter (floating toolbar in portrait, top bar in landscape) and global search (top bar) keep identical bounds while scrolled; the filter sheet opens; the first card returns at the top |
+| FST_Tablet, FST_Resizable (all four), FST_Book_Fold, FST_Passport_Fold, FST_TriFold (every posture) | — | Pass: Filter and global search fixed in the top app bar |
+| Reduced motion | — | Nothing animates: both controls never move |
+| TalkBack | — | Top bar → Filter → cards (issue #112) |
+| Connected scroll journey | — | `journeys/PinnedPageControlsDeviceTest`: scrolls the feed three times, Filter and global search keep their bounds and open while scrolled, restore at the top, ATF plus traversal top bar (−2) → toolbar (−1) → list (0) on compact. Pass on FST_Phone (floating toolbar), FST_Book_Fold half-open and FST_Tablet (top bar) |
+
+Tests: `ui/PinnedPageControlsUiTest` (phone, medium, expanded Suggestions cases) and the connected `journeys/PinnedPageControlsDeviceTest`.
+
+## Validation (issue #167, 2026-10-05)
+
+Rival Spotlight rows (#59). Tested on the live public service with SFentonX selected and seed 1, dark scheme, using the debug APK built from this branch. Material 3 skill guidance checked:
+
+- "verify contrast: … 4.5:1 for normal text (WCAG 2.x)"
+- "TalkBack/semantics (Compose), focus order, touch targets (~48dp)"
+- "Minimum touch target 48x48dp"
+
+Contrast was measured on device screenshots: text pixels against the local row background.
+
+| Configuration | Found | Result |
+|---|---|---|
+| FST_Phone portrait, fs 1.0 and 2.0 | #59 holds: Spotlight rows show only the delta and icon. The "behind" delta (#C62828) measured 3.0:1. Badge text on mixed cards (#4285F4 on its 20% tint) measured 3.6–4.0:1. | Fixed (Decisions, "Rival row text contrast"). After the fix: behind 6.8–8.2:1, badge 7.9–10.1:1, nothing clipped at 2.0. |
+| FST_Phone landscape | — | Pass: two columns, delta-only Spotlight rows |
+| FST_Tablet landscape (fs 1.0 and 2.0) and portrait | — | Pass. Landscape: two columns, permanent drawer, inline metadata. Portrait: one wide column with the rail. |
+| FST_Resizable phone, foldable, tablet and desktop | — | Pass: 1 column / 1 wide column (rail) / 2 columns / 3 columns |
+| FST_Book_Fold folded, unfolded and half | — | Pass: phone layout / one wide column / two columns split at the hinge |
+| FST_Passport_Fold folded and unfolded | — | Pass: phone layout / one wide column with the rail |
+| FST_TriFold folded, partial and unfolded | — | Pass |
+| Light theme | The app stays dark | Documented dark-only deviation |
+| Reduced motion (animator scale 0) | — | Emulator default; rows show at once |
+| TalkBack labels (UI tree) | Spotlight rows end "N rank(s) behind/ahead of <rival>". Mixed rows read "rival <name>, behind by N ranks". | Pass: the rival is still named |
+| Connected ATF journey | `device.py test …SuggestionsAccessibilityJourneyTest --avd FST_Phone` | Pass (1/1; no Accessibility Test Framework errors, so touch target, label and contrast checks pass) |
+
+A few low or old-colour hits in the contrast scan (Book_Fold half, Tablet, TriFold unfolded, Resizable tablet) were album-art pixels, confirmed by crops. They are not row text.
 
 ## Open
 

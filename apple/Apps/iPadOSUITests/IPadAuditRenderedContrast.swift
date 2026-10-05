@@ -9,6 +9,17 @@ import XCTest
 /// pixel (surface), as a WCAG luminance ratio (``measure(luminances:)``). A
 /// contrast waiver (``IPadAuditWaivers``) only applies when this measurement passes.
 enum IPadAuditRenderedContrast {
+    /// The interface orientation when `XCUIDevice` does not know it: iPhone Duo's pose and
+    /// rotation come from Device Hub, so the audit sets this from the app window's aspect.
+    @MainActor static var interfaceIsLandscape: Bool?
+    /// The app window's size in points, when the screen to capture must be chosen by it:
+    /// on iPhone Duo `XCUIScreen.main` is the outer display, black while the app runs on
+    /// the inner one (measured 2026-10-05: 1398 × 2034 px of black for a 951 × 669 pt window).
+    @MainActor static var windowSize: CGSize?
+    /// iPhone Duo: the quarter turn that reads upright, found once by text recognition
+    /// (Device Hub decides the inner display's rotation, so `XCUIDevice` cannot say).
+    @MainActor static var duoClockwise: Bool?
+
     // MARK: - Capture
 
     /// A full-screen capture with the screen's size in points, in the current interface
@@ -37,11 +48,16 @@ enum IPadAuditRenderedContrast {
         /// - Returns: The capture, or nil when no bitmap is available.
         @MainActor
         static func screen() -> Capture? {
-            let shot = XCUIScreen.main.screenshot().image
+            let shot = screenshotMatchingWindow().image
             guard let raw = shot.cgImage else { return nil }
-            let landscape = XCUIDevice.shared.orientation.isLandscape
-            guard let image = upright(raw, landscape: landscape),
-                  let pixels = try? bitmapPixels(image) else { return nil }
+            let landscape = interfaceIsLandscape ?? XCUIDevice.shared.orientation.isLandscape
+            let image: CGImage?
+            if windowSize != nil, landscape, raw.height > raw.width {
+                image = duoUpright(raw, scale: max(1, shot.scale))
+            } else {
+                image = upright(raw, landscape: landscape)
+            }
+            guard let image, let pixels = try? bitmapPixels(image) else { return nil }
             // Points from the bitmap itself: SpringBoard's frame (1194 pt) is shorter than
             // the 11-inch framebuffer (1210 pt) the app's window and frames use.
             let scale = max(1, shot.scale)
@@ -49,6 +65,58 @@ enum IPadAuditRenderedContrast {
             return Capture(pixels: pixels, width: image.width, height: image.height, screen: points,
                            image: image, rotated: image !== raw)
         }
+    }
+
+    /// The screenshot of the screen showing the app: `XCUIScreen.main`, or with
+    /// ``windowSize`` set the screen whose size matches the window in either orientation.
+    @MainActor
+    static func screenshotMatchingWindow() -> XCUIScreenshot {
+        guard let window = windowSize else { return XCUIScreen.main.screenshot() }
+        for screen in XCUIScreen.screens {
+            let shot = screen.screenshot()
+            let scale = max(1, shot.image.scale)
+            let size = CGSize(width: shot.image.size.width * shot.image.scale / scale,
+                              height: shot.image.size.height * shot.image.scale / scale)
+            let matches = { (a: CGSize) in abs(a.width - window.width) < 3 && abs(a.height - window.height) < 3 }
+            if matches(size) || matches(CGSize(width: size.height, height: size.width)) { return shot }
+        }
+        return XCUIScreen.main.screenshot()
+    }
+
+    /// Turn a portrait iPhone Duo inner-display framebuffer upright for a landscape
+    /// window, choosing the direction once by which reads more text.
+    @MainActor
+    static func duoUpright(_ raw: CGImage, scale: CGFloat) -> CGImage? {
+        func turned(_ clockwise: Bool) -> CGImage? { rotate(raw, clockwise: clockwise) }
+        if let known = duoClockwise { return turned(known) }
+        let counts = [true, false].map { clockwise -> Int in
+            guard let image = turned(clockwise), let pixels = try? bitmapPixels(image) else { return 0 }
+            let capture = Capture(pixels: pixels, width: image.width, height: image.height,
+                                  screen: CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale),
+                                  image: image, rotated: true)
+            return IPadAuditPageEvidence.recognizedLines(in: capture).count
+        }
+        duoClockwise = counts[0] >= counts[1]
+        return turned(duoClockwise ?? true)
+    }
+
+    /// A quarter turn of `image`.
+    static func rotate(_ image: CGImage, clockwise: Bool) -> CGImage? {
+        let width = image.height, height = image.width
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        if clockwise {
+            context.translateBy(x: CGFloat(width), y: 0)
+            context.rotate(by: .pi / 2)
+        } else {
+            context.translateBy(x: 0, y: CGFloat(height))
+            context.rotate(by: -.pi / 2)
+        }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
     }
 
     // MARK: - Measurement

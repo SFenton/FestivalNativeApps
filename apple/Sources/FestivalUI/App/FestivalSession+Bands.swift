@@ -86,13 +86,16 @@ extension FestivalSession {
     ///   - page: One-based page number.
     ///   - pageSize: Rows per page.
     ///   - combo: Optional instrument-combo filter.
+    ///   - accountId: Selected player for the `accountId` footer query, if any.
     /// - Returns: Validated band score rows and publication provenance.
     /// - Throws: Client configuration, transport, decoding or validation failures.
     func songBandLeaderboard(
-        songId: String, bandType: BandType, page: Int, pageSize: Int = 25, combo: String? = nil
+        songId: String, bandType: BandType, page: Int, pageSize: Int = 25, combo: String? = nil,
+        accountId: String? = nil
     ) async throws -> SongBandLeaderboardPayload {
         let payload = try await client().songBandLeaderboard(
-            songId: songId, bandType: bandType, page: page, pageSize: pageSize, combo: combo
+            songId: songId, bandType: bandType, page: page, pageSize: pageSize, combo: combo,
+            accountId: accountId
         )
         try await observe(publicationId: payload.observedPublicationId)
         return payload
