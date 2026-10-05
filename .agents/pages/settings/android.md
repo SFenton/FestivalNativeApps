@@ -49,7 +49,8 @@
 
 - `settings/SettingsModelTest.kt` (defaults vs web, guards, codecs, leeway, every-field round trip, registry, Reset), `core/AppBuildInfoTest.kt` (App Version text, short-commit rules, Gradle's stamped `GIT_SHA`), `settings/SettingsUiTest.kt` (every control persists, Reset cancel/confirm, Quick Links sheet jumps to the live Service Info card and the service version, expanded pane, Privacy Policy sheet on phones and dialog on expanded windows), `privacy/PrivacyPolicyTest.kt` (the bundled asset equals `contracts/privacy-policy.json` byte for byte, so re-copy it after editing the contract; section order, malformed/schema/invalid-block handling, link ranges), `settings/ServiceInfoTest.kt` (keyless unpinned read + freeze header, malformed bodies/versions, reducer monotonicity/stale/restart/indeterminate rules, attempt-progress validation/monotonicity/text, labels, rows, 5 s poll/stop; `ServiceInfoSectionUiTest`: no printed captions or freeze row, spoken values, 4 dp gaps, state row side by side at 1× and stacked at 2×, no live region).
 - Issue #121 regressions in `settings/SettingsUiTest.kt` (native graphics mode, since legacy Robolectric text measurement hides the overlap): `SettingsValueRowUiTest` (short values stay inline at 1×), `LargeTextSettingsValueRowUiTest` (the Service origin stacks under its title at 2×, title never narrower than its text), `WideSettingsColumnUiTest` (`w1280dp` landscape: every section is 840 dp wide and centred).
-- Connected: `journeys/BandsSettingsJourneyTest#settingsTogglesResetAndLicenses` runs the Accessibility Test Framework on every interaction (errors fail the test); it passes on FST_Phone and FST_Tablet.
+- Issue #151: `settings/AppVersionRowUiTest.kt` (`AppVersionRow`, the App Version row on its own: stamped text read as one non-interactive item "App Version, <version> (<build>) · <sha7>", unstamped text with no separator, the default equals this build's `BuildConfig` identity, and at font scale 2.0 on a 360 dp window the title and value stay inside the row without overlapping, stamped and unstamped).
+- Connected: `journeys/BandsSettingsJourneyTest#settingsTogglesResetAndLicenses` runs the Accessibility Test Framework on every interaction (errors fail the test); it passes on FST_Phone and FST_Tablet. Since issue #151 it also scrolls to `fst.settings.app-version`, checks its text against `AppBuildInfo` (suffix present only when `GIT_SHA` is a stamped hex SHA) and that the reading order holds it as one item. Run it with `FST_GIT_SHA=$(git rev-parse HEAD)` to exercise the stamped state. UiAutomation caches nodes and Compose sends it no invalidation after a programmatic scroll, so the test calls `UiAutomation.clearCache()` (API 34+) before reading the window again.
 - Screenshots: `android/reports/screenshots/settings-*.png` (fixture mode).
 
 ## Validation (issue #121, 2026-10-03)
@@ -72,6 +73,26 @@ Live public service (keyless `https://festivalscoretracker.com/`, no profile sel
 | Motion (`--animations`, FST_Phone fs 2.0) | Quick Links sheet opens, expands and scrolls to Version | Pass |
 
 Material 3 review (`material-3` skill, Compose guidance): switch rows are whole-row `toggleable(role = Switch)` list items with 48 dp minimum targets; Quick Links is a modal bottom sheet at compact width and a menu at medium/expanded; Reset is an M3 `AlertDialog`; the body column is capped at 840 dp on expanded windows; content stays on one side of a separating hinge. Deliberate deviations: the dark-only brand theme and translucent `GlassCard` surfaces over album art (product tokens, [android.md](../../platforms/android.md)); Service Info is not a live region (above). Contrast of every Settings text pair passes 4.5:1 (lowest 4.87:1, secondary text on a glass card).
+
+## Validation: App Version build commit (issue #151, 2026-10-04)
+
+Live public service, debug APK stamped with `FST_GIT_SHA=d12dbe5b…` (expected row "0.2.0 (1) · d12dbe5"), `device.py drive` with `FST_DEBUG_STILL_BACKGROUND=1`, animator scale 0. Each configuration jumped to Version through Quick Links (sheet below 600 dp, menu above) after the change, since rotation, resizing and font scale move the list.
+
+| Configuration | Result |
+|---|---|
+| Unstamped build (FST_Phone, fs 1.0) | "0.2.0 (1)", no separator or suffix: pass |
+| FST_Phone portrait, fs 1.0 / 2.0 | Inline at 1.0; at 2.0 the value stacks under "App Version" on one line: pass |
+| FST_Phone landscape, fs 1.0 / 2.0 | Inline: pass |
+| FST_Phone system light theme | App stays dark (dark-only brand theme, deliberate): pass |
+| FST_Tablet landscape / portrait, fs 1.0 / 2.0 | Inline in the 840 dp column: pass |
+| FST_Resizable compact / medium (1680×2400) / expanded, fs 1.0 / 2.0 | Compact 2.0 stacks; medium and expanded inline: pass |
+| FST_Book_Fold folded / unfolded, fs 1.0 / 2.0 | Folded 2.0 stacks; otherwise inline: pass |
+| FST_Passport_Fold folded / unfolded, fs 1.0 / 2.0 | Folded 2.0 stacks; otherwise inline: pass |
+| FST_TriFold folded / partial / unfolded, fs 1.0 / 2.0 | Folded 2.0 stacks; partial and unfolded inline: pass |
+| TalkBack (`talkback_walk.py`, FST_Phone) | "App Version. 0.2.0 (1) · d12dbe5" as one item after the section description, no role or action: pass |
+| Connected `BandsSettingsJourneyTest#settingsTogglesResetAndLicenses` (stamped, FST_Phone) | Text, suffix and reading order assertions plus ATF: pass |
+
+Material 3 (`material-3` skill, `references/component-catalog.md` § Lists): a read-only list item with a headline and supporting value, no touch target (not interactive), `onSurface`/`onSurfaceVariant` text roles. The " · " separator and 7-character commit match iOS. No user-visible change was needed (the row moved into `internal fun AppVersionRow` only so tests can render it with any text); the row never wraps mid-suffix in any configuration because `ValueRow` stacks the whole value under the title when it does not fit beside it.
 
 ## Open
 
