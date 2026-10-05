@@ -569,6 +569,14 @@ public static class FirstRunDemos
     /// <summary>Top-songs percentile samples.</summary>
     public static IReadOnlyList<double> TopSongPercentiles { get; } = [1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9];
 
+    /// <summary>
+    /// The percentile pill of top-songs row <paramref name="row"/>: fixed per row, like the web's
+    /// <c>DEMO_PERCENTILES[i % length]</c>, so the pills stay in rank order while the songs rotate.
+    /// </summary>
+    /// <param name="row">Zero-based visible row.</param>
+    /// <returns>Percentile sample.</returns>
+    public static double TopSongPercentile(int row) => TopSongPercentiles[row % TopSongPercentiles.Count];
+
     /// <summary>Song Info bar-select samples.</summary>
     public static IReadOnlyList<FirstRunDemoBar> BarSelectBars { get; } =
     [

@@ -230,6 +230,9 @@ public class FirstRunDemoTests
         Assert.Equal(10, FirstRunDemos.MetaData.Count);
         Assert.Equal(6, FirstRunDemos.MetadataLayouts.Count);
         Assert.Equal([1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9], FirstRunDemos.TopSongPercentiles);
+        // Issue #257: the web pins each row's pill (DEMO_PERCENTILES[i]); rotation must not reorder or repeat them.
+        Assert.Equal([1.2, 3.5, 7.8, 14.2], Enumerable.Range(0, 4).Select(FirstRunDemos.TopSongPercentile));
+        Assert.Equal(1.2, FirstRunDemos.TopSongPercentile(7));
         Assert.Equal(4, FirstRunDemos.SuggestionTemplates.Count);
         Assert.Equal(4, FirstRunDemos.ExperimentalMetrics.Count);
         Assert.Equal(6, FirstRunDemos.RivalsAbove.Count);

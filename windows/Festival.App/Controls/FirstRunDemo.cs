@@ -135,7 +135,7 @@ public sealed partial class FirstRunDemo : UserControl
             {
                 setter(poolIndex);
                 trailing.Children.Clear();
-                trailing.Children.Add(Pill($"Top {FirstRunDemos.TopSongPercentiles[(poolIndex + slot) % FirstRunDemos.TopSongPercentiles.Count]:0.#}%"));
+                trailing.Children.Add(Pill($"Top {FirstRunDemos.TopSongPercentile(slot):0.#}%"));
             };
             set(i);
             AddSlot(row, set);
