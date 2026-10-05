@@ -11,6 +11,12 @@ description: Find every place a UI behavior or component pattern appears across 
 
 1. **Name the behavior**, not the screen: for example "rows fade under a pinned header", "card surface", "row height", "spinner placement", "Close button in a sheet".
 2. **Registry first.** `python3 tools/pattern_guard.py index`, then read the matching doc in [patterns](../../patterns/README.md). Its *Canonical implementation* table is the expected answer; its *Known debt* table lists the divergences already known.
+2b. **No registered pattern? The web is the pattern.** The web app is the product's design source of truth, so before concluding "nothing shared exists", find how the web builds this behavior:
+   - Start from the web page for the screen (`FortniteFestivalWeb/src/pages/…`) and follow its imports to the component or hook that draws the behavior.
+   - Shared web building blocks live in `src/components/{common,page,modals,leaderboard,songs,sort,search,shell,display,…}`, `src/hooks/ui/`, `src/styles/` (`theme.css`, `effects.module.css`, `animations.css`, `songRowStyles.ts`), and the design tokens in `packages/theme/src/` at the scraper repo root (spacing, sizes, colors, motion).
+   - Count its reuse: `rg -l "<ComponentOrHook>" <web>/FortniteFestivalWeb/src --glob '!**/__test__/**' | wc -l`. Used by two or more pages or modals means it's a **shared web pattern**, even though the native registry doesn't list it yet.
+   - Look at the PWA reference captures and notes (`.agents/testing/pwa-reference/`) for how it looks and moves on each platform.
+   - Then: the web component's states, constants, copy and tokens are the rules (semantic parity; native chrome stays native). Implement one shared native component per platform, and register the pattern (`.agents/patterns/<id>.md` + `contracts/patterns.json`, status `current`, the web files as *Web source*) in the same change. A behavior that exists neither in the registry nor on the web is a native invention: for navigation, chrome, layout or materials it is an owner decision ([design-proposal](../design-proposal/SKILL.md)).
 3. **Search the code on all three platforms** with keywords from the pattern (`keywords` in `contracts/patterns.json`) and the APIs involved:
    - Apple: `rg -n '<keyword>|<API>' apple/Sources`
    - Android: `rg -n '<keyword>|<API>' android/app/src/main`
