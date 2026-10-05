@@ -239,7 +239,6 @@ public struct FestivalCommands: Commands {
     }
 
     /// Go › Next / Previous Section over the front page's Quick Links (the detail page wins).
-    /// Next / Previous Section.
     @ViewBuilder private var quickLinksCommands: some View {
         let controller = (pageQuickLinks ?? listQuickLinks)?.controller
         let sections = controller?.isAvailable == true ? controller?.sections ?? [] : []
