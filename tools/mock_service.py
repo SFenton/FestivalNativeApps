@@ -342,6 +342,26 @@ def _song_band_leaderboard_entry(rank: int, band_type: str) -> dict:
     }
 
 
+def _selected_band_entry(account_id: str | None, band_type: str) -> dict | None:
+    """The selected player's rank-14 band row, or None for a non-fixture player.
+
+    Args:
+        account_id: Optional selected player from the `accountId` query.
+        band_type: Requested band size, echoed back.
+
+    Returns:
+        A JSON-ready `SongBandLeaderboardEntry` whose first member is the player.
+    """
+    if not account_id or not account_id.startswith("fixture-player-"):
+        return None
+    selected = _song_band_leaderboard_entry(14, band_type)
+    selected["members"][0]["accountId"] = account_id
+    selected["members"][0]["displayName"] = RIVAL_DISPLAY_NAMES.get(account_id, account_id)
+    selected["bandId"] = f"fixture-band-{account_id}"
+    selected["teamKey"] = f"fixture-team-{account_id}"
+    return selected
+
+
 def _song_band_leaderboards_all(song_id: str, top: int, account_id: str | None) -> dict:
     """Song Detail's band previews for `GET /api/leaderboard/{songId}/bands/all`.
 
@@ -361,13 +381,7 @@ def _song_band_leaderboards_all(song_id: str, top: int, account_id: str | None) 
     for band_type in ("Band_Duets", "Band_Trios", "Band_Quad"):
         rows = ([_song_band_leaderboard_entry(rank, band_type) for rank in (1, 2)]
                 if song_id == "fixture-pulse" and band_type == "Band_Duets" else [])
-        selected = None
-        if rows and account_id and account_id.startswith("fixture-player-"):
-            selected = _song_band_leaderboard_entry(14, band_type)
-            selected["members"][0]["accountId"] = account_id
-            selected["members"][0]["displayName"] = RIVAL_DISPLAY_NAMES.get(account_id, account_id)
-            selected["bandId"] = f"fixture-band-{account_id}"
-            selected["teamKey"] = f"fixture-team-{account_id}"
+        selected = _selected_band_entry(account_id, band_type) if rows else None
         entries = rows[:top]
         bands.append({
             "bandType": band_type, "count": len(entries),
@@ -1699,18 +1713,25 @@ class FixtureHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self._json(400, {"status": "invalid_pagination"})
                 return
-            if not 1 <= top <= 100 or offset < 0:
+            account_ids = query.get("accountId", [])
+            if not 1 <= top <= 100 or offset < 0 or len(account_ids) > 1:
                 self._json(400, {"status": "invalid_pagination"})
                 return
             if song_id == "fixture-pulse" and band_type == "Band_Duets":
                 all_entries = [_song_band_leaderboard_entry(rank, band_type) for rank in (1, 2)]
             else:
                 all_entries = []
-            total = len(all_entries)
+            # A `fixture-player-*` `accountId` adds that player's rank-14 band as the
+            # `selectedPlayerEntry` (the service's pure-read
+            # `GetSongBandLeaderboardEntryForAccount`), pinned as the page footer.
+            selected = (_selected_band_entry(account_ids[0] if account_ids else None, band_type)
+                        if all_entries else None)
+            total = 14 if selected else len(all_entries)
             entries = all_entries[offset:offset + top]
             self._json(200, {
                 "songId": song_id, "bandType": band_type, "count": len(entries),
                 "totalEntries": total, "localEntries": total, "entries": entries,
+                "selectedPlayerEntry": selected, "selectedBandEntry": None,
             })
         elif match := LEADERBOARD.fullmatch(path):
             song_id, instrument = match.groups()
