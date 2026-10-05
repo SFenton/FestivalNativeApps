@@ -910,6 +910,7 @@
         "pages": [
           "song-detail",
           "song-leaderboard",
+          "song-band-leaderboard",
           "leaderboards",
           "compete"
         ]
@@ -923,7 +924,8 @@
         292,
         293,
         294,
-        295
+        295,
+        306
       ]
     },
     {
