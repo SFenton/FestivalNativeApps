@@ -102,6 +102,39 @@ private func fixtureURL(_ name: String) -> URL {
     #expect(first.members.first?.chartedInstruments == [.lead])
 }
 
+/// `accountId` adds the selected player's best band; it is the pinned footer's row and
+/// highlights the matching page row. A selected row of another size is rejected.
+@Test func songBandLeaderboardDecodesSelectedPlayerBand() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let entries = try #require(object["entries"] as? [[String: Any]])
+    var mine = try #require(entries.last)
+    mine["rank"] = 29
+    object["selectedPlayerEntry"] = mine
+    let response = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    try response.validate(songId: "fixture-pulse", bandType: .duets)
+    let selected = try #require(response.selectedEntry)
+    #expect(selected.rank == 29)
+    #expect(response.selectedBandEntry == nil)
+    #expect(response.isSelected(try #require(response.entries.last)))
+    #expect(!response.isSelected(try #require(response.entries.first)))
+    // Without a selected row nothing is highlighted.
+    let plain = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
+    #expect(plain.selectedEntry == nil)
+    #expect(!plain.isSelected(try #require(plain.entries.first)))
+    // A selected row from another band size does not belong on this board.
+    mine["bandType"] = "Band_Trios"
+    object["selectedPlayerEntry"] = mine
+    let mismatched = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    #expect(throws: FestivalAPIError.invalidBandProfile) {
+        try mismatched.validate(songId: "fixture-pulse", bandType: .duets)
+    }
+}
+
 @Test func songBandLeaderboardRejectsMismatchedSongOrBandType() throws {
     let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
     let response = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
@@ -166,6 +199,25 @@ private func fixtureURL(_ name: String) -> URL {
         ).url(relativeTo: base).absoluteString
         == "https://example.com/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0"
     )
+    // The selected player is a query parameter only (their best band, issue #307).
+    let selected = PublicEndpoint.songBandLeaderboard(
+        songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 25, combo: nil,
+        accountId: "fixture-player-1"
+    )
+    #expect(
+        try selected.url(relativeTo: base).absoluteString
+        == "https://example.com/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=25&accountId=fixture-player-1"
+    )
+    #expect(!selected.allowsSnapshotCache)
+    #expect(PublicEndpoint.songBandLeaderboard(
+        songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil
+    ).allowsSnapshotCache)
+    #expect(throws: FestivalAPIError.invalidResource) {
+        try PublicEndpoint.songBandLeaderboard(
+            songId: "fixture-pulse", bandType: "Band_Duets", top: 25, offset: 0, combo: nil,
+            accountId: "not valid"
+        ).url(relativeTo: base)
+    }
 }
 
 @Test func bandEndpointsRejectInvalidParameters() throws {

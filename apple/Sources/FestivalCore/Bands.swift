@@ -343,6 +343,53 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
     public let totalEntries: Int
     public let localEntries: Int?
     public let entries: [SongBandLeaderboardEntry]
+    /// The selected player's best band on this song and size (`accountId` query).
+    public let selectedPlayerEntry: SongBandLeaderboardEntry?
+    /// A selected band's own row (`teamKey` query); natives have no selected-band
+    /// identity yet, but decode it like the Song Detail previews.
+    public let selectedBandEntry: SongBandLeaderboardEntry?
+
+    /// Create a page, e.g. for tests.
+    ///
+    /// - Parameters:
+    ///   - songId: Song of the board.
+    ///   - bandType: Wire band-size key.
+    ///   - count: Rows on this page.
+    ///   - totalEntries: Ranked bands of this size on the song.
+    ///   - localEntries: Rankable bands, when the service reports them.
+    ///   - entries: Page rows.
+    ///   - selectedPlayerEntry: Selected player's best band row, if any.
+    ///   - selectedBandEntry: Selected band's row, if any.
+    public init(
+        songId: String, bandType: String, count: Int, totalEntries: Int, localEntries: Int?,
+        entries: [SongBandLeaderboardEntry],
+        selectedPlayerEntry: SongBandLeaderboardEntry? = nil,
+        selectedBandEntry: SongBandLeaderboardEntry? = nil
+    ) {
+        self.songId = songId
+        self.bandType = bandType
+        self.count = count
+        self.totalEntries = totalEntries
+        self.localEntries = localEntries
+        self.entries = entries
+        self.selectedPlayerEntry = selectedPlayerEntry
+        self.selectedBandEntry = selectedBandEntry
+    }
+
+    /// The pinned footer's row: a selected band's row wins over the selected player's
+    /// best band (web `SongBandLeaderboardPage` `selectedEntry`).
+    public var selectedEntry: SongBandLeaderboardEntry? {
+        selectedBandEntry ?? selectedPlayerEntry
+    }
+
+    /// Whether a page row is the selected row (web `isSameSongBandEntry`).
+    ///
+    /// - Parameter entry: A page row.
+    /// - Returns: True when it should get the selected-row highlight.
+    public func isSelected(_ entry: SongBandLeaderboardEntry) -> Bool {
+        guard let selectedEntry else { return false }
+        return SongBandLeaderboardPreview.isSameBand(entry, selectedEntry)
+    }
 
     /// Pages of 25 rows, matching `LeaderboardResponse.pageCount`.
     public var pageCount: Int {
@@ -350,15 +397,18 @@ public struct SongBandLeaderboardResponse: Decodable, Sendable, Equatable {
         return total == 0 ? 1 : (total - 1) / 25 + 1
     }
 
-    /// Reject a response for the wrong song or band size, or an impossible row count.
+    /// Reject a response for the wrong song or band size, an impossible row count, or a
+    /// selected row filed under another size.
     ///
     /// - Parameters:
     ///   - songId: Requested song.
     ///   - bandType: Requested band size.
     /// - Throws: `FestivalAPIError.invalidBandProfile` on a mismatched or corrupt response.
     public func validate(songId: String, bandType: BandType) throws {
+        let selectedRows = [selectedPlayerEntry, selectedBandEntry].compactMap { $0 }
         guard self.songId == songId, self.bandType == bandType.rawValue,
-              count == entries.count, count >= 0, totalEntries >= 0 else {
+              count == entries.count, count >= 0, totalEntries >= 0,
+              selectedRows.allSatisfy({ $0.bandType == bandType.rawValue }) else {
             throw FestivalAPIError.invalidBandProfile
         }
     }

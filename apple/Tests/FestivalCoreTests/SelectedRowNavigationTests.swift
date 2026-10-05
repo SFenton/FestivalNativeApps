@@ -25,6 +25,18 @@ import Testing
     #expect(SelectedRowAction.preview(rank: 0, isAppended: true, pageSize: 25) == .openProfile)
 }
 
+/// Footer labels name the rank and the destination for both boards and both actions,
+/// so VoiceOver says where the footer goes (issue #307).
+@Test func selectedFooterLabelsNameTheDestination() {
+    let jump = SelectedRowAction.jump(page: 2)
+    let open = SelectedRowAction.openProfile
+    #expect(jump.footerLabel(for: .player, rank: 29) == "Your rank, 29th. Jump to your position.")
+    #expect(open.footerLabel(for: .player, rank: 3) == "Your rank, 3rd. Open your statistics.")
+    #expect(jump.footerLabel(for: .band, rank: 29)
+        == "Your band's rank, 29th. Jump to your band's position.")
+    #expect(open.footerLabel(for: .band, rank: 1) == "Your band's rank, 1st. Open band.")
+}
+
 // MARK: - Band row focus
 
 /// A focus matches the same `bandId`, or the same size and roster key, like the web's

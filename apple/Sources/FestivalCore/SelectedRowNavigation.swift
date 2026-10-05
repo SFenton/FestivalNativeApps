@@ -44,6 +44,37 @@ public enum SelectedRowAction: Equatable, Sendable {
     }
 }
 
+// MARK: - Footer labels
+
+/// Whose row a board's pinned footer shows.
+public enum SelectedRowSubject: Equatable, Sendable {
+    /// The selected player's own score (Solo board).
+    case player
+    /// The selected player's band (band board).
+    case band
+}
+
+extension SelectedRowAction {
+    /// The VoiceOver label of a full board's pinned footer: the rank, then the
+    /// destination it opens, so the label stays current when the action changes (HIG
+    /// VoiceOver: "keep labels current as interface and content change").
+    ///
+    /// - Parameters:
+    ///   - subject: Player or band footer.
+    ///   - rank: The row's 1-based rank.
+    /// - Returns: E.g. "Your band's rank, 29th. Jump to your band's position." or
+    ///   "Your rank, 3rd. Open your statistics."
+    public func footerLabel(for subject: SelectedRowSubject, rank: Int) -> String {
+        let ordinal = RankingFormatting.ordinal(rank)
+        switch (subject, self) {
+        case (.player, .jump): return "Your rank, \(ordinal). Jump to your position."
+        case (.player, .openProfile): return "Your rank, \(ordinal). Open your statistics."
+        case (.band, .jump): return "Your band's rank, \(ordinal). Jump to your band's position."
+        case (.band, .openProfile): return "Your band's rank, \(ordinal). Open band."
+        }
+    }
+}
+
 // MARK: - Band row focus
 
 /// Identifies one band's row on a song band leaderboard, so the board opened from
