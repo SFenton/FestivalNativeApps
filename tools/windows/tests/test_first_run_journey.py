@@ -96,8 +96,25 @@ class ContractTests(unittest.TestCase):
         self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|placeholder", steps)
         self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|catalogue@{j.SONGS_DELAY + 20}", steps)
         self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|catalogue@5")
-        others = [s for s in j.SCENARIOS if s is not late and s.name != "catalogue-unavailable"]
+        others = [s for s in j.SCENARIOS if s is not late and s.name not in ("catalogue-unavailable", "top-songs-rotation")]
         self.assertTrue(all(s.fixture == () for s in others))
+
+    def test_top_songs_rotation_asserts_pinned_pills_after_real_swaps(self):
+        import uiwin
+        rotation = next(s for s in j.SCENARIOS if s.name == "top-songs-rotation")
+        self.assertEqual(rotation.fixture, ("--large-catalogue",))
+        opened, rotated = rotation.phases
+        self.assertEqual(opened.steps.count("invoke:id=PrimaryButton"), 5)
+        self.assertEqual(j.TOP_SONG_PILLS, ["Top 1.2%", "Top 3.5%", "Top 7.8%", "Top 14.2%"])
+        self.assertFalse(any(s.startswith("assertstatus:raw=") for s in opened.steps))
+        for slot, pill in enumerate(j.TOP_SONG_PILLS):
+            selector = f"raw=fst.first-run.demo.statistics-top-songs.pill.{slot}"
+            self.assertIn(f"assertname:{selector}|{pill}", opened.steps)
+            # After the slot's own swap (sticky status, so lock delays can't skip past it), its pill is unchanged.
+            status = rotated.steps.index(f"assertstatus:{selector}|rotated@{5 * j.TOP_SONG_TICKS + 20}")
+            self.assertEqual(rotated.steps[status + 1], f"assertname:{selector}|{pill}")
+        for step in opened.steps + rotated.steps:
+            uiwin.parse_step(step)
 
     def test_page_slides_match_the_catalogue(self):
         catalog = (REPO / "windows" / "Festival.Core" / "Domain" / "FirstRunCatalog.cs").read_text(encoding="utf-8")

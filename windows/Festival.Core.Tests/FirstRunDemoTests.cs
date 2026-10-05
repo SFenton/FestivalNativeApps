@@ -222,6 +222,48 @@ public class FirstRunDemoTests
     }
 
     [Fact]
+    public void TopSongsDemo_RotatesSongsUnderPinnedPills()
+    {
+        // Issue #257: each slot's pill is the web's DEMO_PERCENTILES[i]; a swap changes the song, never the pill.
+        var catalog = Enumerable.Range(0, 20).Select(i => new Song { SongId = $"s{i:00}", Title = $"T{i}", Artist = "A", AlbumArt = "x.jpg" });
+        var demo = new FirstRunTopSongsDemo(FirstRunDemos.SongPool(catalog));
+        string[] pills = ["Top 1.2%", "Top 3.5%", "Top 7.8%", "Top 14.2%"];
+        Assert.Equal(pills, Enumerable.Range(0, FirstRunTopSongsDemo.SlotCount).Select(FirstRunTopSongsDemo.Pill));
+        Assert.Equal(["s00", "s01", "s02", "s03"], demo.Songs.Select(s => s.SongId));
+        var everSwapped = new HashSet<int>();
+        int? firstFull = null;
+        for (var tick = 1; tick <= 6; tick++)
+        {
+            var before = demo.Songs.Select(s => s.SongId).ToList();
+            var swapped = demo.Advance();
+            Assert.Equal(2, swapped.Count);
+            Assert.Equal(tick, demo.Rotations);
+            everSwapped.UnionWith(swapped);
+            if (everSwapped.Count == FirstRunTopSongsDemo.SlotCount) firstFull ??= tick;
+            for (var slot = 0; slot < FirstRunTopSongsDemo.SlotCount; slot++)
+                Assert.Equal(swapped.Contains(slot), before[slot] != demo.Songs[slot].SongId);
+            Assert.Equal(FirstRunTopSongsDemo.SlotCount, demo.Songs.Select(s => s.SongId).Distinct().Count());
+            Assert.Equal(pills, Enumerable.Range(0, FirstRunTopSongsDemo.SlotCount).Select(FirstRunTopSongsDemo.Pill));
+        }
+        // tools/windows/first_run_journey.py (TOP_SONG_TICKS) waits for every slot's first swap: three ticks.
+        Assert.Equal(3, firstFull);
+    }
+
+    [Fact]
+    public void TopSongsDemo_ShortOrMissingCatalogue_DoesNotRotate()
+    {
+        foreach (var real in new[] { 0, 2 })
+        {
+            var catalog = Enumerable.Range(0, real).Select(i => new Song { SongId = $"s{i}", Title = $"T{i}", Artist = "A", AlbumArt = "x.jpg" });
+            var demo = new FirstRunTopSongsDemo(FirstRunDemos.SongPool(catalog));
+            Assert.Equal(FirstRunTopSongsDemo.SlotCount, demo.Songs.Count);
+            Assert.Equal(FirstRunTopSongsDemo.SlotCount - real, demo.Songs.Count(s => s.IsPlaceholder));
+            Assert.Empty(demo.Advance());
+            Assert.Equal(0, demo.Rotations);
+        }
+    }
+
+    [Fact]
     public void WebDataPools_AreAvailable()
     {
         Assert.Equal(10, FirstRunDemos.Rankings.Count);

@@ -121,31 +121,34 @@ public sealed partial class FirstRunDemo : UserControl
     }
     #endregion
 
-    /// <summary>Statistics Top Songs: four catalogue rows with rotating percentile pills.</summary>
+    /// <summary>
+    /// Statistics Top Songs (<see cref="FirstRunTopSongsDemo"/>): four catalogue rows whose songs rotate under fixed
+    /// percentile pills. Each pill is a raw-view <c>fst.first-run.demo.statistics-top-songs.pill.N</c> whose ItemStatus
+    /// turns from "initial" to "rotated" once its own row's song has swapped, so UI tests can check every pill after a
+    /// real swap.
+    /// </summary>
     private void BuildTopSongs()
     {
-        const int count = 4;
-        var rotation = new FirstRunRowRotation<FirstRunDemoSong>(songs, count);
-        for (var i = 0; i < count; i++)
+        var demo = new FirstRunTopSongsDemo(songs);
+        for (var slot = 0; slot < demo.Songs.Count; slot++)
         {
             var row = SongRow(out var setter);
-            var trailing = (StackPanel)((Grid)row.Child).Children[2];
-            var slot = i;
-            Action<int> set = poolIndex =>
+            var pill = Pill(FirstRunTopSongsDemo.Pill(slot));
+            var label = (TextBlock)pill.Child;
+            AutomationProperties.SetAutomationId(label, $"fst.first-run.demo.{SlideId}.pill.{slot}");
+            AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
+            AutomationProperties.SetItemStatus(label, "initial");
+            ((StackPanel)((Grid)row.Child).Children[2]).Children.Add(pill);
+            setter(slot);
+            AddSlot(row, poolIndex =>
             {
                 setter(poolIndex);
-                trailing.Children.Clear();
-                trailing.Children.Add(Pill($"Top {FirstRunDemos.TopSongPercentile(slot):0.#}%"));
-            };
-            set(i);
-            AddSlot(row, set);
+                AutomationProperties.SetItemStatus(label, "rotated");
+            });
         }
         advance = _ =>
         {
-            var indices = rotation.NextSwap();
-            if (indices.Count == 0) return;
-            rotation.Replace(indices);
-            foreach (var rowIndex in indices) FadeSwap(rowIndex, SongPoolIndex(rotation.Rows[rowIndex]));
+            foreach (var slot in demo.Advance()) FadeSwap(slot, SongPoolIndex(demo.Songs[slot]));
         };
     }
 

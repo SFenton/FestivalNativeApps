@@ -303,6 +303,44 @@ public sealed class FirstRunWindowRotation<T>
         start = (start + Count) % Pool.Count;
     }
 }
+
+/// <summary>
+/// Statistics' "Highest and Lowest Rank Breakdown" demo (web <c>TopSongsDemo</c>): four song slots whose songs rotate
+/// while each slot keeps its pinned percentile pill (web <c>DEMO_PERCENTILES[i]</c>; issue #257).
+/// </summary>
+public sealed class FirstRunTopSongsDemo
+{
+    /// <summary>Visible slots (the web's four top-song rows).</summary>
+    public const int SlotCount = 4;
+
+    private readonly FirstRunRowRotation<FirstRunDemoSong> rotation;
+
+    /// <summary>Creates the demo with the pool's first songs in their slots.</summary>
+    /// <param name="pool">Demo song pool (<see cref="FirstRunDemos.SongPool"/>).</param>
+    public FirstRunTopSongsDemo(IReadOnlyList<FirstRunDemoSong> pool) => rotation = new(pool, SlotCount);
+
+    /// <summary>The song in each visible slot.</summary>
+    public IReadOnlyList<FirstRunDemoSong> Songs => rotation.Rows;
+
+    /// <summary>Rotations that replaced at least one slot's song.</summary>
+    public int Rotations { get; private set; }
+
+    /// <summary>A slot's pill text: fixed per slot, never derived from the slot's current song.</summary>
+    /// <param name="slot">Zero-based visible slot.</param>
+    /// <returns>For example "Top 1.2%".</returns>
+    public static string Pill(int slot) => string.Create(CultureInfo.InvariantCulture, $"Top {FirstRunDemos.TopSongPercentile(slot):0.#}%");
+
+    /// <summary>Replaces the next web-chosen slots' songs (nothing when the pool can't show a new song).</summary>
+    /// <returns>Sorted slots whose song changed.</returns>
+    public IReadOnlyList<int> Advance()
+    {
+        var slots = rotation.NextSwap();
+        if (slots.Count == 0) return slots;
+        rotation.Replace(slots);
+        Rotations++;
+        return slots;
+    }
+}
 #endregion
 
 #region Song icon pattern
