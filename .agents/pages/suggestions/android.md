@@ -49,7 +49,7 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 - **Rival name badge, native deviation (2026-10-02, issue #59 check of #29):** single-rival cards (`song_rival_spotlight_`/`gap_`/`protect_`/`slipping_`/`dominate_`) name the rival in their title, so rows drop the web's per-row name badge and show only the signed delta + icon (`SuggestionRowPresentation.showsRivalName`, as Apple). Mixed-rival cards (`song_rival_battleground` and the cross-pollination families) keep the badge. TalkBack still names the rival on badge-less rows: the row label ends "2 ranks behind Rival B1" (`rivalDeltaAccessibilityLabel`); mixed rows keep "rival X, ahead by 1 rank" (singular "rank" fixed at the same time). Verified on `FST_Phone` (fixture mode, seed 1) via the UI tree's `content-desc`; revalidated on the live service on every AVD in issue #167 (below).
 - **Rival row text contrast (issue #167):** the web's `statusRed` #C62828 "behind" delta measured 3.0:1 on device (12 sp bold, fails WCAG AA 4.5:1) and the blue song-rival badge text (#4285F4 on its own 20% tint) 3.6–4.0:1. The delta now uses the Rivals page's readable red #FF8A80 (`SuggestionTokens.rivalBehindText`, as `RivalColors.loseText`; Apple uses `RivalStatusText.red`) and the badge text a same-hue #A8C7FA (`songRivalText`), keeping the tint, sizes and layout. Measured on device after the change: behind 6.8–8.2:1, badge 7.9–11.5:1; green ahead was already 7.8–8.8:1.
 - Filter stays reachable while the cards scroll (issue #52): `FestivalScreen(pinActions = true)` pins the compact floating toolbar instead of hiding it on scroll; global search is already in the pinned top app bar.
-- Filter reads before the feed (issue #112): the shell reads the floating toolbar after page content (traversal index 1), but this feed loads cards as TalkBack scrolls, so linear navigation never reached Filter. `FestivalScreen(actionsReadFirst = true)` makes the top app bar a traversal group at −2 and the toolbar −1: top bar → Filter → cards. Other pages keep the default.
+- Filter reads before the feed (issue #112): the shell reads the floating toolbar after page content (traversal index 1), but this feed loads cards as TalkBack scrolls, so linear navigation never reached Filter. `FestivalScreen(actionsReadFirst = true)` makes the top app bar a traversal group at −2 and the toolbar −1: top bar → Filter → cards. Songs reads its toolbar first too (issue #160); other pages keep the default.
 - Button copy follows the web strings (`FortniteFestivalWeb/src/i18n/en.json` `suggestions.*`) in the repo's Title Case for buttons ([design](../../design/README.md)): `Start a New Mix` (web "Start a new mix"), `Reset Filters`.
 
 ## Debug and fixtures
@@ -63,7 +63,7 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 | `core/suggestions/SuggestionParityTest`, `SuggestionCoreTest` | Apple parity; helpers, filter cascade/persistence, rival index edge cases, row layouts, skip streak, spotlight |
 | `suggestions/SuggestionDataTest` | Wire validation (identity, counts, duplicates, bounds, 202 envelope), instrument bit codes, keyless requests, rivals 404/500, filter store |
 | `suggestions/SuggestionsViewModelTest` | Batching, rival splice, remix to the cap + new mix, filter/visibility refilter, syncing/failure retry, player switch, new publication |
-| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded), traversal order (top bar → Filter → cards; other pages unchanged) and hosted renders of every phase/row layout, phone and expanded |
+| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded), traversal order (top bar → Filter → cards; Song Detail and other pages unchanged) and hosted renders of every phase/row layout, phone and expanded |
 | `suggestions/SuggestionRivalRowUiTest` (Robolectric, native graphics) | Rival rows' pixels at 360/600 dp × font 1.0/2.0: Spotlight rows draw no badge and an unclipped delta (readable red, never `statusRed`), ≥ 48 dp; mixed rows keep the badge; delta and badge text ≥ 4.5:1 over the card on any backdrop |
 | `journeys/SuggestionsAccessibilityJourneyTest` (connected, `device.py test`) | ATF on the feed and filter sheet, reading order in logcat `FST_A11Y`, no card across a separating hinge |
 
@@ -99,6 +99,20 @@ Live public service, SFentonX selected, dark scheme. Material 3 skill guidance c
 | Connected ATF journey | `SuggestionsAccessibilityJourneyTest` on FST_Phone and FST_Book_Fold half-open | 0 errors; no card straddles the hinge |
 
 Deliberate deviations kept: dark scheme only; width-capped `ModalBottomSheet` instead of an M3 side sheet on expanded windows (as Songs #101); 16 dp margins app-wide (M3 suggests 24 dp at medium+); pinned (always-visible) floating toolbar on compact windows (issue #52).
+
+## Validation (issue #160, 2026-10-05: pinned Filter and global search from #52)
+
+Live public service, SFentonX selected, dark scheme, animator scale 0. Each configuration: three swipes down the feed, UI tree and screenshot, open Filter while scrolled, swipe back up and compare bounds.
+
+| Configuration | Found | Result |
+|---|---|---|
+| FST_Phone portrait/landscape, fs 1.0/2.0 | — | Pass: Filter (floating toolbar in portrait, top bar in landscape) and global search (top bar) keep identical bounds while scrolled; the filter sheet opens; the first card returns at the top |
+| FST_Tablet, FST_Resizable (all four), FST_Book_Fold, FST_Passport_Fold, FST_TriFold (every posture) | — | Pass: Filter and global search fixed in the top app bar |
+| Reduced motion | — | Nothing animates: both controls never move |
+| TalkBack | — | Top bar → Filter → cards (issue #112) |
+| Connected scroll journey | — | `journeys/PinnedPageControlsDeviceTest`: scrolls the feed three times, Filter and global search keep their bounds and open while scrolled, restore at the top, ATF plus traversal top bar (−2) → toolbar (−1) → list (0) on compact. Pass on FST_Phone (floating toolbar), FST_Book_Fold half-open and FST_Tablet (top bar) |
+
+Tests: `ui/PinnedPageControlsUiTest` (phone, medium, expanded Suggestions cases) and the connected `journeys/PinnedPageControlsDeviceTest`.
 
 ## Validation (issue #167, 2026-10-05)
 

@@ -2,7 +2,7 @@
 
 > **What:** where navigation, global search, page actions, Quick Links, notifications and Profile belong. **Read when:** adding, moving or styling a shell or page action.
 
-Status: **current**, 2026-10-05. Provenance: #84, #92, #300.
+Status: **current**, 2026-10-05. Provenance: #52, #84, #92, #160, #300.
 
 ## Intent
 
@@ -24,6 +24,7 @@ Navigation preserves location; page tools act on the current content. The web is
 - **R4. Use the current Android placement.** Compact windows put page actions and global search in the shell’s `FloatingToolbar`; regular windows use the top app bar, with notifications then Profile at the trailing end. Material 3’s top-app-bar rule is “Use when: Every screen needs a title and optional actions”; the floating toolbar is the approved compact variant from #84.
 - **R5. Use the current Windows placement.** `TitleBar.Content` owns the global `AutoSuggestBox`; page-local Songs search, Sort, Filter and Jump remain in the page actions row. `NavigationView` owns destinations; it has no minimizing bottom-tab accessory (#84).
 - **R6. Do not add a parallel command surface.** Pages register Apple tools, register Android shell actions, or use the Windows page-header convention; they do not create a second dock, floating capsule, global-search entry point or custom navigation bar.
+- **R7. Android page tools stay reachable while the content scrolls (#52, #160).** Songs and Suggestions pass `FestivalScreen(pinActions = true)`: the compact floating toolbar never hides on scroll (only Songs' search pill minimizes, never under TalkBack, and snaps under Remove animations), the top app bar never scrolls, and scrolling back to the top restores the same bounds. Long or endless lists also pass `actionsReadFirst = true`, so TalkBack reads top bar → toolbar → content. On a list pane too narrow for the title, `AdaptiveTopBarActions` moves the page tools behind ⋮; its menu closes once the sheet or menu one of its tools opened has closed (window refocus). Material 3 toolbars: “Displays frequently used actions relevant to current page context”; keeping them pinned instead of hide-on-scroll is the owner's #52 choice. Device evidence: `journeys/PinnedPageControlsDeviceTest` on `FST_Phone` (toolbar) and `FST_Book_Fold --posture half` (⋮).
 
 ## Canonical implementation
 
@@ -32,6 +33,7 @@ Navigation preserves location; page tools act on the current content. The web is
 | Page-tool registry and placement | `apple/Sources/FestivalUI/App/Shell/PageToolsAccessory.swift` `PageToolsRegistry`, `PageToolsAccessoryHost` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt` `FloatingToolbar`, `FloatingToolbarContent` | `windows/Festival.App/Pages/SongsPage.xaml` `Actions` |
 | Global search | `apple/Sources/FestivalUI/App/Shell/RootChrome.swift` `FestivalRootTrailingItems` | `android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt` `GlobalSearchEntry` | `windows/Festival.App/MainWindow.xaml` `GlobalSearchBox` |
 | Current-page filter/actions | `apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift` `festivalPageTool` | `android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt` `FloatingToolbar` | `windows/Festival.App/Pages/SongsPage.xaml` `SearchBox`, `SortButton`, `FilterButton` |
+| Narrow-pane overflow (⋮) | — | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/TopBarActions.kt` `AdaptiveTopBarActions` | — |
 
 ## Known debt
 
