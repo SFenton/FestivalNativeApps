@@ -67,7 +67,7 @@ No official tri-fold profile ships with emulator 37.1 or cmdline-tools 23.0. `FS
 | `features [postures…]` | FoldingFeatures seen by WindowManager, per posture |
 | `test [pkg.Class[#m]\|package:pkg] [--task] [--posture]` | Connected tests on one AVD with `ANDROID_SERIAL` pinned (posture applied first), killed at the hold limit |
 
-Common options: `--avd` (default `FST_Phone`), `--hold` (≤300 s), `--wait-timeout`, `--window` (only works in an interactive session), `--allow-foreign`, `--animations`. Exit codes: 3 for device/usage errors, 124 for lock timeouts.
+Common options: `--avd` (default `FST_Phone`), `--hold` (≤300 s), `--wait-timeout`, `--window` (only works in an interactive session), `--allow-foreign`, `--animations`. `--animations` only skips zeroing the scales; the AVD keeps whatever an earlier lane left (usually 0), so for motion evidence set them in the steps (`shell:settings put global animator_duration_scale 1`, likewise `transition_animation_scale` and `window_animation_scale`) and relaunch with a `shell:am start -W -S …` step before recording (issue #149). Exit codes: 3 for device/usage errors, 124 for lock timeouts.
 
 Drive steps (`;`- or newline-separated; `#` comments):
 

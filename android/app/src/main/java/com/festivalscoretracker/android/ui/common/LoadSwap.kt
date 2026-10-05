@@ -19,6 +19,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
@@ -80,8 +82,15 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
     /** Whether the spinner is composed. */
     val showsSpinner: Boolean get() = !showsContent
 
-    /** Content opacity for the fade-out, read only in the draw phase. */
-    val contentModifier: Modifier = Modifier.graphicsLayer { alpha = contentAlpha.value }
+    private val fadingContent: Modifier = Modifier.graphicsLayer { alpha = contentAlpha.value }
+
+    /**
+     * Content opacity for the fade-out, read only in the draw phase. While the spinner shows,
+     * content kept composed beside it (a pinned row's slot, issue #93) is hidden, silent to
+     * TalkBack and ignores touches, with or without Reduce Motion, so stale content never shows
+     * under the spinner (issue #149).
+     */
+    val contentModifier: Modifier get() = if (showsSpinner) HiddenWhileLoading else fadingContent
 
     /** Spinner opacity for its fade-out, read only in the draw phase. */
     val spinnerModifier: Modifier = Modifier.graphicsLayer { alpha = spinnerAlpha.value }
@@ -263,6 +272,16 @@ fun <T> FestivalLoadSwap(
         }
     }
 }
+
+/** Stale content kept composed while the spinner shows: invisible, unread and untouchable. */
+private val HiddenWhileLoading: Modifier = Modifier
+    .graphicsLayer { alpha = 0f }
+    .clearAndSetSemantics { }
+    .pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+        }
+    }
 
 /** Default test tag of the swap spinner. */
 const val LOAD_SWAP_SPINNER_TAG = "fst.load-swap.spinner"

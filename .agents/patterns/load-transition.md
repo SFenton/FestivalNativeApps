@@ -2,7 +2,7 @@
 
 > **What:** first-load gates, reload swaps and row entrances for pages, boards and data-backed modal content. **Read when:** a load, refresh, selector, page or modal switch changes visible data.
 
-Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71.
+Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71, #149.
 
 ## Intent
 
@@ -20,7 +20,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 ## Rules
 
 - **R1. Separate first load from reload.** A first-load gate shows one spinner until the initial content is ready; a selector, page or retry reload uses the shared swap rather than a local Boolean or skeleton implementation.
-- **R2. Reloads are latest-wins.** Hide or fade the old result, show the spinner while the newest request settles, fade the spinner, then reveal the committed result and its row stagger. Apple’s immediate old-content removal is the approved #71 variant that prevents new labels on stale rows.
+- **R2. Reloads are latest-wins.** Hide or fade the old result, show the spinner while the newest request settles, fade the spinner, then reveal the committed result and its row stagger. Apple’s immediate old-content removal is the approved #71 variant that prevents new labels on stale rows. Stale content never shows under the spinner: content that keeps its slot beside the spinner (a pinned "your score" row whose slot holds the pager in place, #93) is invisible, absent from the accessibility tree and ignores touches until the new result commits, with or without reduced motion (Android `LoadSwap.contentModifier`, #149).
 - **R3. Use the shared timings.** Board/page swaps use 300 ms content-out and 500 ms spinner-out; Apple gates retain the web 150 ms spinner-in and 400 ms minimum spinner. Paths uses 300 ms fades with a 400 ms image or 500 ms text minimum.
 - **R4. Keep controls usable.** Pickers, pagers and modal selectors live outside the gated result area; a new selection supersedes pending work instead of waiting for it.
 - **R5. Do not replay entry motion while scrolling.** A page-level fade window closes after scroll movement; already-running fades finish, but lazily realized old content appears immediately. Suggestions alone reveals newly generated batches.

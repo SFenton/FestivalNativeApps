@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -20,6 +21,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -473,6 +475,44 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         assertEquals(0f, row, 0.5f)
         assertEquals(0f, footer, 0.5f)
     }
+
+    /**
+     * Pages from page 1 (selected score pinned) to a held page 2 and checks the stale pinned row
+     * is hidden from TalkBack and ignores a tap at its old place while the spinner shows (issue #149).
+     */
+    private fun assertStalePinnedRowHiddenWhilePaging(reduceMotion: Boolean) {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        if (reduceMotion) {
+            runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true } } }
+        }
+        val nextPage = CompletableDeferred<Unit>()
+        hold = { request -> nextPage.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") && request.url.contains("offset=25") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForDescription("Page 1 of 3")
+        waitForTag(footerTag)
+        val pinned = node(footerTag).fetchSemanticsNode().boundsInRoot.center
+        assertTrue(rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isNotEmpty())
+        click("fst.song-leaderboard.page-next")
+        waitForTag("fst.song-leaderboard.loading")
+        settle()
+        // The merged tree is what TalkBack reads; the unmerged one still lists cleared descendants.
+        assertTrue("page 1's pinned row must not show under the spinner", rule.onAllNodesWithTag(footerTag).fetchSemanticsNodes().isEmpty())
+        rule.onRoot().performTouchInput { this.click(pinned) }
+        settle()
+        assertTrue("a tap where the pinned row was must not open a player", exists("fst.song-leaderboard.loading"))
+        nextPage.complete(Unit)
+        waitForDescription("Page 2 of 3")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.loading") }
+        assertTrue("the pinned score returns with the new page", exists(footerTag))
+    }
+
+    @Test
+    fun songLeaderboardHidesTheStalePinnedScoreWhileThePageLoads() = assertStalePinnedRowHiddenWhilePaging(reduceMotion = false)
+
+    @Test
+    fun songLeaderboardHidesTheStalePinnedScoreWhileThePageLoadsUnderReduceMotion() = assertStalePinnedRowHiddenWhilePaging(reduceMotion = true)
 
     // endregion
 
