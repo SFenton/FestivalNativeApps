@@ -7,7 +7,8 @@ namespace Festival.App.Controls;
 #region Carousel dialog
 /// <summary>
 /// First-run carousel presented in the shared <see cref="FestivalDialog"/> (a modal onboarding sequence; TeachingTip is
-/// for single anchored tips). Primary = Next/Done before Secondary = Back, then the standard Close (issue #23); a
+/// for single anchored tips). Primary = Next/Done before Secondary = Back, then the standard Close (issue #23); Back is
+/// disabled, not hidden, on slide 1 so ContentDialog's command columns never shift under the pointer (issue #241); a
 /// one-slide guide shows only a full-width Done (operator batch 6.7: no Skip, no disabled Back). Done, Close, Esc and a
 /// click outside the dialog all close it and mark only
 /// the slides actually viewed as seen. The FlipView's hover arrows are hidden (the buttons and pips page it).
@@ -34,7 +35,7 @@ public sealed partial class FirstRunCarousel : UserControl
             // Containers realize after load; activate the first slide's demo once they exist.
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateActiveDemo);
         };
-        // WinUI can raise a stale Unloaded after Loaded while a dialog opens (issue #240); keep announcing then.
+        // WinUI can raise a late Unloaded while the content is still in the live tree; keep slide announcements then.
         Unloaded += (_, _) =>
         {
             if (!IsLoaded) carousel.PropertyChanged -= announce;
@@ -154,7 +155,7 @@ public sealed partial class FirstRunCarousel : UserControl
             "fst.first-run.dialog",
             closeText: carousel.CloseLabel,
             primaryText: carousel.NextLabel,
-            secondaryText: carousel.IsSingle ? "" : "Back",
+            secondaryText: carousel.BackLabel,
             defaultButton: ContentDialogButton.Primary);
         dialog.IsSecondaryButtonEnabled = !carousel.IsFirst;
         PropertyChangedEventHandler sync = (_, e) =>

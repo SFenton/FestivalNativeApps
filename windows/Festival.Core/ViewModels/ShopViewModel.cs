@@ -49,7 +49,7 @@ public sealed partial class ShopViewModel : ObservableObject
     /// flyout shows it; not persisted.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsFilterActive))]
+    [NotifyPropertyChangedFor(nameof(IsFilterActive), nameof(FilterStatus))]
     private ShopOfferFilter filter = new();
 
     /// <summary>Offers in the feed before filtering.</summary>
@@ -103,6 +103,12 @@ public sealed partial class ShopViewModel : ObservableObject
 
     /// <summary>Whether a filter switch is on (gold Filter button).</summary>
     public bool IsFilterActive => Filter.IsActive;
+
+    /// <summary>
+    /// UI Automation item status of the Filter button ("Filters applied" while a switch is on, like Songs), so Narrator
+    /// hears what the gold tint shows.
+    /// </summary>
+    public string FilterStatus => IsFilterActive ? "Filters applied" : "";
 
     /// <summary>The feed has offers but the filter hides them all ("No Matching Songs", never the empty-Shop card).</summary>
     public bool ShowNoMatches => ShowOffers && Offers.Count == 0;

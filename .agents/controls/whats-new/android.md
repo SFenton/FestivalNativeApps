@@ -17,15 +17,40 @@
 
 ## Presentation
 
-- Compact windows (< 600 dp): full-height `ModalBottomSheet` (M3 bottom sheets suit compact screens; swipe down, back and a scrim tap all close it). Wider windows: a 560 dp M3 dialog (a bottom sheet would be width-capped and short on landscape tablets); outside tap and back close it. Every close path records the dismissal (web writes `{version, hash}` on dismiss).
+- Compact windows (< 600 dp) **and any window with a separating hinge** (each panel is compact; issue #142): full-height `ModalBottomSheet` on one side of the hinge (M3 bottom sheets suit compact screens; swipe down, back and a scrim tap all close it). Wider windows: a 560 dp M3 dialog (a bottom sheet would be width-capped and short on landscape tablets); outside tap and back close it. Every close path records the dismissal (web writes `{version, hash}` on dismiss).
 - Opaque `cardBackground`; title "What's New · <versionName>" (heading); Close icon (`fst.whats-new.close`); Title Case block headings (`titleMedium` bold, heading semantics, `fst.whats-new.section.<i>`), category subheadings (`titleSmall` semibold secondary, heading semantics, `fst.whats-new.group.<i>.<g>`; only when `headed`) and decorative bullets; the list (`fst.whats-new.list`) scrolls above an opaque bottom bar with a hairline and a **centred** Dismiss button (`fst.whats-new.dismiss`, batch 6.14). Pane title = the sheet title.
+- The compact sheet is full height, so `WhatsNewContent(fillHeight = true)` gives the list the remaining height and pins the Dismiss bar to the sheet's bottom edge (M3 adaptive table: "Bottom sheet | Compact: Full height"). The dialog wraps its content (`fillHeight = false`). Before #142 the bar floated under short content with empty sheet below it.
 
 ## Gate and ordering
 
-- `WhatsNewHost` waits 700 ms (`WhatsNewGate.SETTLE_MS`, > first-run's 600 ms settle) so the launch page's carousel claims the slot first; it re-checks whenever the carousel, profile sheet or notifications sheet closes. While What's New shows, `FirstRunHost` is blocked and re-evaluates the page once it closes.
+- The shell blocks `WhatsNewHost` until `FirstRunCenter.launchSettled` is true: it is set when `tryBegin` completes an evaluation (carousel or not) or, for a resolved destination without a first-run page, by `FirstRunHost` after its 600 ms settle (`markLaunchSettled`). Only then does What's New wait 700 ms (`WhatsNewGate.SETTLE_MS`) and claim the slot, so the launch page's carousel always wins (spec). The timer alone lost on the live service: slow first frames resolved the Songs page after 700 ms and What's New showed first (#142). The host re-checks whenever the carousel, profile sheet or notifications sheet closes. While What's New shows, `FirstRunHost` is blocked and re-evaluates the page once it closes.
 - `FST_DEBUG_WHATS_NEW=off|on|fresh|force` ([android debug extras](../../platforms/android.md#debug-launch-extras-debug-builds-only)): debug default **off** so journeys and screenshots never meet it; release is always normal; `fresh` forgets the dismissal once per process.
 
 ## Tests
 
-- JVM: `whatsnew/WhatsNewTest` (decode/bounds, bundled placeholder, hash, empty never shown, `JSON.stringify` escaping, Title Case, Manual filter, store validation, mode/debug extra, slot exclusion, controller launch/replay/fresh/force, groups/tester decode verbatim and bounded, channel blocks, installer → channel with debug override).
-- Robolectric: `whatsnew/WhatsNewUiTest` (phone sheet: force → Dismiss records seen; debug default off; Settings replay → Close; category headings in order) and `WhatsNewDialogUiTest` (wide dialog). Buttons inside the Robolectric bottom sheet are activated with the semantics `OnClick` action (touch injection into the sheet popup is unreliable there).
+- JVM: `whatsnew/WhatsNewTest` (decode/bounds, bundled placeholder, hash, empty never shown, `JSON.stringify` escaping, Title Case, Manual filter, store validation, mode/debug extra, slot exclusion, launch settling, controller launch/replay/fresh/force, groups/tester decode verbatim and bounded, channel blocks, installer → channel with debug override).
+- Robolectric: `whatsnew/WhatsNewUiTest`, one test per state: `presented` → `dismissed` (force → Dismiss records seen), `hidden-seen` (stored hash, normal launch), unseen hash presents, `waiting-for-first-run` (carousel first, then the sheet; also with a launch page that resolves late, and a destination without a carousel), `replay` (Settings → Close), debug default off, category headings, Dismiss pinned to the compact sheet's bottom. `WhatsNewDialogUiTest` covers the wide dialog. Buttons inside the Robolectric bottom sheet are activated with the semantics `OnClick` action (touch injection into the sheet popup is unreliable there).
+- Connected: `androidTest/…/whatsnew/WhatsNewDeviceTest` (`device.py test`): presented → dismissed, hidden-seen, waiting-for-first-run, Settings replay and font scale 2.0, each with ATF checks, animator scale 0, TalkBack order (title → Close → notes → Dismiss), 48 dp targets, the sheet/dialog, Close and Dismiss off any separating hinge (screen positions), and on compact or hinged windows Dismiss within 80 dp of the sheet bottom.
+
+## Validation (issue #142)
+
+Checked on the live public service on every FST AVD, light/dark system theme, font scale 1.0/2.0, portrait/landscape. States `hidden-seen`, `waiting-for-first-run`, `presented`, `dismissed`, `replay`.
+
+| Configuration | Finding |
+|---|---|
+| FST_Phone portrait | Full-height sheet. The Dismiss bar floated under the short placeholder list; **fixed** (pinned to the bottom edge). Forced first run + forced What's New showed What's New first on the live service; **fixed** (gated on the first-run evaluation). Replay from Settings, Close and Dismiss all record the dismissal |
+| FST_Phone landscape | About 760 dp wide, so the 560 dp dialog; at font 2.0 the title wraps, the notes scroll and Dismiss stays visible |
+| FST_Tablet, FST_Resizable tablet/desktop, unfolded folds | 560 dp centred dialog, 28 dp corners; outside tap and back close it |
+| FST_Resizable phone/foldable | Sheet on the phone preset; dialog on the 2208 × 1840 foldable preset (its fold is flat, not separating) |
+| FST_Book_Fold / FST_Passport_Fold / FST_TriFold folded | Compact sheet, as the phone |
+| FST_Book_Fold half-open (separating vertical hinge) | The centred dialog crossed the hinge, with Dismiss on the fold; **fixed**: a separating hinge presents the sheet, which `festivalSheetHingeSide` keeps on the leading panel. The connected test missed it because it compared dialog-window bounds with activity-window hinge bounds; it now compares screen positions |
+| Font scale 2.0 | Title, notes and Dismiss wrap without clipping; list scrolls; Dismiss stays reachable |
+| Light system theme | App stays on its dark scheme; nothing breaks |
+| Animator scale 0 | Sheet and dialog appear without motion; content and order unchanged |
+
+- M3 alignment: compact = full-height `ModalBottomSheet`, wider = centred dialog capped at 560 dp with 28 dp corners (M3 adaptive table), 48 dp targets, pane title, heading semantics. Deliberate deviations: the header uses the app's shared modal header (`titleLarge` bold with a Close icon) rather than the dialog's Headline Small, matching every other Festival sheet and the web; dark scheme only; a debug build's title shows its `versionName` (`0.2.0`).
+- TalkBack order: scrim "Close sheet", the Material sheet pane (unlabelled, accepted in [android-accessibility](../../testing/android-accessibility.md)), drag handle, title, Close, version heading, notes, Dismiss.
+
+## Open
+
+- The shared `FestivalModalDialog` (the first-run carousel uses it too) still centres across a separating hinge; What's New avoids it by presenting the hinge-aware sheet. Out of scope for #142.

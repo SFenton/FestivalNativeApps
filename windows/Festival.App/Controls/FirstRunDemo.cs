@@ -59,18 +59,19 @@ public sealed partial class FirstRunDemo : UserControl
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
         Loaded += (_, _) =>
         {
+            // Idempotent: a repeated Loaded (see Unloaded) must not double-subscribe.
             Motion.Changed -= OnMotionChanged;
-            Motion.Changed += OnMotionChanged;
             App.Session.PropertyChanged -= OnSessionChanged;
+            Motion.Changed += OnMotionChanged;
             App.Session.PropertyChanged += OnSessionChanged;
             if (CatalogueNowAvailable) Build();
             UpdateTimer();
         };
         Unloaded += (_, _) =>
         {
-            // When the first-run dialog opens, the FlipView re-realizes its first slides and WinUI raises their
-            // Unloaded after the new Loaded (IsLoaded is still true). Tearing down then left the visible demo
-            // unsubscribed from the catalogue, so it kept placeholder rows for good (issue #240).
+            // The FlipView re-hosts realized slides after the dialog lays out, and WinUI then raises a late Unloaded
+            // while the demo is still in the live tree (issue #241). Tearing down there left the visible slide
+            // unsubscribed from the catalogue (placeholder rows on a slow network), its art cancelled and swaps cut.
             if (IsLoaded) return;
             Motion.Changed -= OnMotionChanged;
             App.Session.PropertyChanged -= OnSessionChanged;
@@ -86,6 +87,39 @@ public sealed partial class FirstRunDemo : UserControl
     /// </summary>
     /// <returns>A framework element peer.</returns>
     protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
+
+    #region Fit
+    private readonly ScaleTransform fit = new();
+    private double fitScale = 1;
+
+    /// <summary>
+    /// Lays the demo out at the frame's width and, when large text makes it taller than the 210 epx frame, re-lays it
+    /// out wider and shrinks it uniformly so every sample row stays whole (issue #241; <see cref="FirstRunDemoFit"/>).
+    /// </summary>
+    /// <param name="availableSize">Frame size.</param>
+    /// <returns>Desired size, never taller than the frame.</returns>
+    protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size availableSize)
+    {
+        var width = availableSize.Width;
+        root.Measure(new Windows.Foundation.Size(width, double.PositiveInfinity));
+        fitScale = double.IsFinite(width) ? FirstRunDemoFit.Scale(root.DesiredSize.Height, availableSize.Height) : 1;
+        if (fitScale < 1) root.Measure(new Windows.Foundation.Size(width / fitScale, double.PositiveInfinity));
+        return new Windows.Foundation.Size(
+            double.IsFinite(width) ? width : root.DesiredSize.Width,
+            Math.Min(root.DesiredSize.Height * fitScale, availableSize.Height));
+    }
+
+    /// <summary>Arranges the (possibly re-laid-out) demo in unscaled space, then applies the fit scale.</summary>
+    /// <param name="finalSize">Frame size.</param>
+    /// <returns><paramref name="finalSize"/>.</returns>
+    protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
+    {
+        fit.ScaleX = fit.ScaleY = fitScale;
+        root.RenderTransform = fitScale < 1 ? fit : null;
+        root.Arrange(new Windows.Foundation.Rect(0, 0, finalSize.Width / fitScale, finalSize.Height / fitScale));
+        return finalSize;
+    }
+    #endregion
 
     /// <summary>Statistics Top Songs: four catalogue rows with rotating percentile pills.</summary>
     private void BuildTopSongs()
@@ -178,7 +212,7 @@ public sealed partial class FirstRunDemo : UserControl
                     "near_fc_any" => instruments[i % instruments.Length],
                     _ => template.Instrument,
                 };
-                rows.Children.Add(new TextBlock { Text = $"{song.Row.Title} · {value}", FontSize = 12, IsTextScaleFactorEnabled = false, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
+                rows.Children.Add(new TextBlock { Text = $"{song.Row.Title} · {value}", FontSize = 12, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis });
             }
         }
         Apply(0);
@@ -678,7 +712,7 @@ public sealed partial class FirstRunDemo : UserControl
             button.BorderThickness = new Thickness(1);
         }
         var label = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center, Padding = new Thickness(20, 0, 20, 0) };
-        label.Children.Add(new FontIcon { Glyph = paths ? "" : "", FontSize = 16, IsTextScaleFactorEnabled = false, Foreground = new SolidColorBrush(Colors.White), VerticalAlignment = VerticalAlignment.Center });
+        label.Children.Add(new FontIcon { Glyph = paths ? "" : "", FontSize = 16, Foreground = new SolidColorBrush(Colors.White), VerticalAlignment = VerticalAlignment.Center });
         label.Children.Add(Text(paths ? "View Paths" : "Item Shop", 15, true));
         button.Children.Add(label);
         // The song header the button sits under on Song Detail; the button's own breathe is the motion.
@@ -907,11 +941,7 @@ public sealed partial class FirstRunDemo : UserControl
         return pill;
     }
 
-    /// <summary>
-    /// White demo text at a fixed size: the demo is a decorative, Narrator-hidden picture of the app inside a fixed
-    /// 210 epx illustration, so Windows text scaling would only clip it (issue #240); the slide's title and
-    /// description below it scale.
-    /// </summary>
+    /// <summary>White demo text (large text sizes are fitted to the frame by the demo's measure pass).</summary>
     /// <param name="text">Text.</param>
     /// <param name="size">Font size.</param>
     /// <param name="bold">Semibold.</param>
@@ -919,7 +949,7 @@ public sealed partial class FirstRunDemo : UserControl
     /// <returns>Text block.</returns>
     private static TextBlock Text(string text, double size, bool bold, HorizontalAlignment alignment = HorizontalAlignment.Left) => new()
     {
-        Text = text, FontSize = size, IsTextScaleFactorEnabled = false, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis,
+        Text = text, FontSize = size, Foreground = new SolidColorBrush(Colors.White), TextTrimming = TextTrimming.CharacterEllipsis,
         FontWeight = bold ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
         HorizontalAlignment = alignment, VerticalAlignment = VerticalAlignment.Center,
     };
@@ -1053,6 +1083,10 @@ public sealed partial class FirstRunDemo : UserControl
     }
 
     /// <summary>Compositor fade-out, content swap, fade-in matching the web timing.</summary>
+    /// <remarks>
+    /// The vertical nudge animates the visual's <c>Translation</c>, never <c>Offset</c>: XAML layout owns a hand-out
+    /// visual's Offset, and resetting it to zero stacked every swapped row on the first one (issue #241).
+    /// </remarks>
     /// <param name="element">Element.</param>
     /// <param name="change">Change at the midpoint, if any.</param>
     /// <param name="duration">One fade duration.</param>
@@ -1062,13 +1096,16 @@ public sealed partial class FirstRunDemo : UserControl
         if (!Motion.Allowed)
         {
             change?.Invoke();
-            var instant = ElementCompositionPreview.GetElementVisual(element);
-            instant.Opacity = 1;
-            instant.Offset = new Vector3(0, 0, 0);
+            ResetVisual(element);
             return;
         }
         var fade = duration ?? FirstRunDemoTiming.FadeOut;
         var visual = ElementCompositionPreview.GetElementVisual(element);
+        if (translateY != 0)
+        {
+            ElementCompositionPreview.SetIsTranslationEnabled(element, true);
+            visual.Properties.InsertVector3("Translation", Vector3.Zero);
+        }
         var ease = visual.Compositor.CreateCubicBezierEasingFunction(new Vector2(0.25f, 0.1f), new Vector2(0.25f, 1f));
         var swap = new ActiveSwap { Element = element, Change = change };
         activeSwaps.Add(swap);
@@ -1082,18 +1119,18 @@ public sealed partial class FirstRunDemo : UserControl
             visual.StartAnimation("Opacity", animation);
         }
 
-        void AnimateOffset(float from, float to)
+        void AnimateTranslation(float from, float to)
         {
             if (translateY == 0) return;
             var animation = visual.Compositor.CreateVector3KeyFrameAnimation();
             animation.InsertKeyFrame(0f, new Vector3(0, from, 0));
             animation.InsertKeyFrame(1f, new Vector3(0, to, 0), ease);
             animation.Duration = fade;
-            visual.StartAnimation("Offset", animation);
+            visual.StartAnimation("Translation", animation);
         }
 
         AnimateOpacity(1, 0);
-        AnimateOffset(0, translateY);
+        AnimateTranslation(0, translateY);
         var midpoint = DispatcherQueue.CreateTimer();
         midpoint.Interval = fade;
         midpoint.IsRepeating = false;
@@ -1103,14 +1140,13 @@ public sealed partial class FirstRunDemo : UserControl
             change?.Invoke();
             visual.Opacity = 0;
             AnimateOpacity(0, 1);
-            AnimateOffset(translateY, 0);
+            AnimateTranslation(translateY, 0);
             var done = DispatcherQueue.CreateTimer();
             done.Interval = fade;
             done.IsRepeating = false;
             done.Tick += (_, _) =>
             {
-                visual.Opacity = 1;
-                visual.Offset = new Vector3(0, 0, 0);
+                ResetVisual(element);
                 activeSwaps.Remove(swap);
             };
             swap.Timers.Add(done);
@@ -1131,12 +1167,22 @@ public sealed partial class FirstRunDemo : UserControl
                 swap.Change?.Invoke();
                 swap.Changed = true;
             }
-            var visual = ElementCompositionPreview.GetElementVisual(swap.Element);
-            visual.StopAnimation("Opacity");
-            visual.StopAnimation("Offset");
-            visual.Opacity = 1;
-            visual.Offset = new Vector3(0, 0, 0);
+            ResetVisual(swap.Element);
             activeSwaps.Remove(swap);
+        }
+    }
+
+    /// <summary>Stops a slot's fade and shows it fully opaque at its layout position.</summary>
+    /// <param name="element">Slot element.</param>
+    private static void ResetVisual(UIElement element)
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(element);
+        visual.StopAnimation("Opacity");
+        visual.Opacity = 1;
+        if (visual.Properties.TryGetVector3("Translation", out _) == Microsoft.UI.Composition.CompositionGetValueStatus.Succeeded)
+        {
+            visual.StopAnimation("Translation");
+            visual.Properties.InsertVector3("Translation", Vector3.Zero);
         }
     }
     #endregion

@@ -129,6 +129,27 @@ public static class FirstRunDemoTiming
 }
 #endregion
 
+#region Fit
+/// <summary>Fits a decorative demo into its fixed illustration frame (issue #241).</summary>
+public static class FirstRunDemoFit
+{
+    /// <summary>
+    /// Uniform scale that fits a demo laid out at <paramref name="naturalHeight"/> into <paramref name="availableHeight"/>:
+    /// 1 when it already fits or the frame is unbounded, otherwise the shrink factor. Large text sizes grow the demo's
+    /// sample rows past the 210 epx frame; shrinking the decorative picture keeps every row whole while the slide's
+    /// title and description keep the full text scale.
+    /// </summary>
+    /// <param name="naturalHeight">Demo height at the frame's width.</param>
+    /// <param name="availableHeight">Frame height.</param>
+    /// <returns>Scale in (0, 1].</returns>
+    public static double Scale(double naturalHeight, double availableHeight)
+    {
+        if (!double.IsFinite(availableHeight) || availableHeight <= 0 || !double.IsFinite(naturalHeight)) return 1;
+        return naturalHeight > availableHeight ? availableHeight / naturalHeight : 1;
+    }
+}
+#endregion
+
 #region Swap selection
 /// <summary>Deterministic native equivalent of the web demo row-selection rules.</summary>
 public static class FirstRunDemoRotation

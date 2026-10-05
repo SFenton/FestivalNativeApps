@@ -513,6 +513,49 @@
     ]
   },
   {
+    "name": "kb-shop-filter",
+    "route": "/shop",
+    "tabs": 0,
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "ready": [
+      "waitfor:id=fst.shop.song.fixture-pulse@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.filter",
+      "key:enter",
+      "assertfocus:id=fst.shop.filter.new@3",
+      "key:space",
+      "assertstate:id=fst.shop.filter.new|toggle=on@3",
+      "waitgone:id=fst.shop.song.fixture-orbit@5",
+      "key:tab",
+      "assertfocus:id=fst.shop.filter.available",
+      "key:tab",
+      "assertfocus:id=fst.shop.filter.leaving",
+      "key:space",
+      "assertstate:id=fst.shop.filter.leaving|toggle=on@3",
+      "waitfor:id=fst.shop.song.fixture-orbit@5",
+      "key:tab",
+      "assertfocus:id=fst.shop.filter.reset",
+      "key:enter",
+      "assertstate:id=fst.shop.filter.new|toggle=off@3",
+      "assertstate:id=fst.shop.filter.leaving|toggle=off",
+      "key:shift+tab",
+      "assertfocus:id=fst.shop.filter.leaving",
+      "key:space",
+      "key:esc",
+      "assertfocus:id=fst.shop.filter@3",
+      "assertstatus:id=fst.shop.filter|Filters applied@3",
+      "key:enter",
+      "assertstate:id=fst.shop.filter.leaving|toggle=on@3",
+      "key:esc",
+      "assertfocus:id=fst.shop.filter@3"
+    ]
+  },
+  {
     "name": "kb-shop-grid-open",
     "route": "/shop",
     "tabs": 0,
@@ -556,6 +599,10 @@
       "key:down",
       "assertfocus:id=fst.shop.song.fixture-pulse",
       "key:up",
+      "assertfocus:id=fst.shop.song.fixture-orbit",
+      "key:tab",
+      "assertfocus:id=fst.shop.external.fixture-orbit",
+      "key:shift+tab",
       "assertfocus:id=fst.shop.song.fixture-orbit",
       "key:enter",
       "waitfor:id=fst.song-detail.title@20",

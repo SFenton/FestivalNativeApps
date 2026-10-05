@@ -127,9 +127,10 @@ final class SongsChromeJourneyTests: XCTestCase {
     }
 
     /// Issue #92: Sort and Filter sit in the tab-bar accessory, not the navigation bar,
-    /// and stay reachable while the Songs list scrolls (folded into "Sort and Filter"
-    /// when the inline accessory is too narrow); the pinned Filter Songs field remains
-    /// present for local filtering.
+    /// and stay reachable while the Songs list scrolls; the pinned Filter Songs field
+    /// remains present for local filtering. Issue #300: the inline accessory shows the
+    /// same items as the expanded one (no fold mid-morph), and Profile stays the
+    /// navigation bar's trailing button.
     ///
     /// Needs a catalogue that scrolls (`TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`, as for
     /// ``testScrollingBackToTopNearTheTopStaysResponsive``); skips on the two-song fixture.
@@ -171,7 +172,12 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(accessory.waitForExistence(timeout: 5), "\(who): tab-bar accessory missing")
         func assertInAccessory(_ ids: [String], _ state: String) {
             let bar = app.navigationBars.firstMatch.frame
-            for id in ids + ["fst.shell.profile"] {
+            XCTAssertTrue(
+                app.navigationBars.buttons["fst.shell.profile"].exists, "\(who): Profile left the header \(state)"
+            )
+            XCTAssertFalse(accessory.buttons["fst.shell.profile"].exists, "\(who): Profile in the accessory \(state)")
+            XCTAssertFalse(accessory.buttons["fst.songs.tools"].exists, "\(who): Sort and Filter folded \(state)")
+            for id in ids {
                 let tool = accessory.buttons[id]
                 XCTAssertTrue(tool.exists, "\(who): \(id) missing from the accessory \(state)")
                 XCTAssertTrue(tool.isHittable, "\(who): \(id) not hittable \(state)")
@@ -182,16 +188,12 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
         assertInAccessory(tools, "at the top")
         app.swipeUp()
-        // Inline beside the minimized tab bar, Sort and Filter may fold into one control.
-        let folded = ["fst.songs.tools"]
+        // Inline beside the minimized tab bar the same items stay (issue #300).
         for _ in 0..<100 {
-            if (tools + ["fst.shell.profile"]).allSatisfy({ accessory.buttons[$0].isHittable })
-                || accessory.buttons["fst.songs.tools"].exists {
-                break
-            }
+            if tools.allSatisfy({ accessory.buttons[$0].isHittable }) { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        assertInAccessory(accessory.buttons["fst.songs.tools"].exists ? folded : tools, "while scrolled")
+        assertInAccessory(tools, "while scrolled")
         XCTAssertTrue(field.exists, "\(who): Filter Songs hid while scrolled")
         SongsUITestSupport.record(app, name: "songs-tools-accessory-\(who)")
     }
