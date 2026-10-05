@@ -42,6 +42,7 @@ struct GlobalSearchTab: View {
                 .modifier(KeepSearchTitleWhileSearching())
                 .task(id: model.runKey) { await model.search(session: session) }
                 .modifier(SearchPageChrome(session: session, enabled: !asTab))
+                .rootTabBarVisibility()
         }
         .onAppear { if asTab && isSelected { fieldPresented = true } }
         // Focus the field (and raise the keyboard) every time the tab is chosen; iOS 26

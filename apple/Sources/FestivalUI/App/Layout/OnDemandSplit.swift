@@ -24,6 +24,35 @@ extension EnvironmentValues {
     /// Tells the root shell whether a section's trailing pane is open (Escape and the
     /// iPad menu bar's Close); nil outside the root shell.
     @Entry var splitOpenReporter: SplitOpenReporter?
+    /// The root `TabView`'s bar is hidden on every page (the iPad flyout shell).
+    @Entry var hidesRootTabBar = false
+}
+
+extension View {
+    /// Hide the root tab bar on this page in the iPad flyout shell; a no-op elsewhere
+    /// (iPhone and compact windows keep their tab bar untouched).
+    ///
+    /// - Returns: The page.
+    func rootTabBarVisibility() -> some View {
+        modifier(RootTabBarVisibility())
+    }
+}
+
+/// Implementation of ``SwiftUI/View/rootTabBarVisibility()``.
+private struct RootTabBarVisibility: ViewModifier {
+    @Environment(\.hidesRootTabBar) private var hidden
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if hidden {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
 }
 
 /// Reports whether a section's trailing pane is open.
@@ -338,6 +367,7 @@ struct OnDemandSplitStack<Root: View>: View {
             destination(selection)
                 .id(selection)
                 .splitPaneContext(context)
+                .rootTabBarVisibility()
                 .menuBarColumn(isTop: isVisible && cut.detail.count == 1)
                 .toolbar {
                     ToolbarItem(placement: SplitCloseButton.placement) {
@@ -347,6 +377,7 @@ struct OnDemandSplitStack<Root: View>: View {
                 .navigationDestination(for: AppRoute.self) { route in
                     destination(route)
                         .splitPaneContext(context)
+                        .rootTabBarVisibility()
                         .menuBarColumn(isTop: isVisible && cut.detail.last == route)
                 }
         }

@@ -282,7 +282,7 @@ struct RankingRowLayout: View {
                 .font(.body)
                 .fontWeight(emphasized ? .bold : .semibold)
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.accentBlue)
+                .foregroundStyle(AccentText.blue)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
             if let bayesian {
@@ -302,7 +302,7 @@ struct RankingRowLayout: View {
                 .font(.body)
                 .fontWeight(emphasized ? .bold : .semibold)
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.accentBlue)
+                .foregroundStyle(AccentText.blue)
             if let bayesian {
                 Text(bayesian)
                     .font(.caption)

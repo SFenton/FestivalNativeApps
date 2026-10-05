@@ -98,9 +98,14 @@ class StepTests(unittest.TestCase):
         self.assertEqual(u.parse_step("assertstate:name=Lead|enabled=false")["value"], "false")
         selected = u.parse_step("assertstate:id=fst.quick-links.item.licenses|selected=True@4")
         self.assertEqual((selected["key"], selected["value"], selected["timeout"]), ("selected", "true", 4.0))
+        top = u.parse_step("assertstate:id=fst.songs.list|scroll=0@5")
+        self.assertEqual((top["key"], top["value"], top["timeout"]), ("scroll", "0", 5.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|scroll=-1")["value"], "-1")
+        self.assertEqual(u.parse_step("assertstate:id=x|scroll=100")["value"], "100")
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
-                    "assertstate:id=x|name=", "assertstate:id=x|selected=on"):
+                    "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
+                    "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
     def test_assertstatus(self):
@@ -137,6 +142,16 @@ class StepTests(unittest.TestCase):
         self.assertEqual(check["verb"], "assertpinned")
         self.assertEqual(check["selector"], pin["selector"])
         for bad in ("pin:10,20", "assertpinned:10,20", "pin:", "assertpinned:sort"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertinset(self):
+        step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
+        self.assertEqual(step["verb"], "assertinset")
+        self.assertEqual(step["selector"], {"kind": "name", "value": "Show Instruments", "class": "TextBlock"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.settings"})
+        self.assertEqual(step["epx"], 40.0)
+        for bad in ("assertinset:id=a|id=b", "assertinset:id=a|id=b|-2", "assertinset:id=a|1,2|32"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

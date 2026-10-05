@@ -92,10 +92,12 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static let browse: [Page] = [
         Page(name: "songs", ready: "fst.songs.list"),
         Page(name: "song-detail", ready: "fst.songs.list", open: { app in
-            // Regular width auto-selects the detail; compact pushes it from the row.
+            // Regular width auto-selects the detail (the top row, Fixture Orbit); compact
+            // pushes the same song from its row. The top row: at AX5 in a ⅓ window the
+            // second row's centre sits under the floating page tools.
             if !app.otherElements["fst.song-detail.intensity"].exists,
                !anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 8) {
-                let row = app.buttons["fst.songs.row.fixture-pulse"]
+                let row = app.buttons["fst.songs.row.fixture-orbit"]
                 guard row.waitForExistence(timeout: 10) else { return nil }
                 row.tap()
             }
@@ -109,7 +111,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }, sheet: true),
         Page(name: "paths-sheet", ready: "fst.songs.list", open: { app in
             if !anyElement(app, "fst.song-detail.paths").waitForExistence(timeout: 8) {
-                let row = app.buttons["fst.songs.row.fixture-pulse"]
+                let row = app.buttons["fst.songs.row.fixture-orbit"]
                 guard row.waitForExistence(timeout: 10) else { return nil }
                 row.tap()
             }
@@ -159,7 +161,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         Page(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals"),
         Page(name: "rival-detail",
              env: ["FST_DEBUG_ROUTE": "rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar"],
-             profile: true, ready: "fst.rival-detail.view-profile"),
+             // The rival's name titles the page in every width; View Profile moves out of
+             // the content in a compact window.
+             profile: true, ready: "uwphe"),
         Page(name: "compete-or-bands", env: ["FST_DEBUG_ROUTE": "bands"], profile: true, ready: "Bands"),
         Page(name: "notifications", profile: true, ready: "fst.songs.list", open: { app in
             tapFirst(app, ["fst.shell.notifications"]) ? "Notifications" : nil

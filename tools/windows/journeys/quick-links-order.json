@@ -1,0 +1,468 @@
+[
+  {
+    "name": "qlo-song-detail-player",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:name=Intensity&class=TextBlock@20",
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Intensity@5",
+      "reveal:id=fst.history@20",
+      "waitfor:id=fst.history@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band-Band_Quad@5",
+      "assertbelow:id=fst.quick-links.item.score-history|id=fst.quick-links.item.intensity",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Guitar|id=fst.quick-links.item.score-history",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Bass|id=fst.quick-links.item.instrument-Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Drums|id=fst.quick-links.item.instrument-Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Vocals|id=fst.quick-links.item.instrument-Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.band-Band_Duets|id=fst.quick-links.item.instrument-Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.band-Band_Trios|id=fst.quick-links.item.band-Band_Duets",
+      "assertbelow:id=fst.quick-links.item.band-Band_Quad|id=fst.quick-links.item.band-Band_Trios",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.band-Band_Quad@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.score-history@5",
+      "toggle:id=fst.quick-links.item.score-history",
+      "waitgone:id=fst.quick-links.item.score-history@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Score History@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument-Solo_Guitar@5",
+      "toggle:id=fst.quick-links.item.instrument-Solo_Guitar",
+      "waitgone:id=fst.quick-links.item.instrument-Solo_Guitar@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Lead@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument-Solo_Bass@5",
+      "toggle:id=fst.quick-links.item.instrument-Solo_Bass",
+      "waitgone:id=fst.quick-links.item.instrument-Solo_Bass@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bass@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument-Solo_Drums@5",
+      "toggle:id=fst.quick-links.item.instrument-Solo_Drums",
+      "waitgone:id=fst.quick-links.item.instrument-Solo_Drums@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument-Solo_Vocals@5",
+      "toggle:id=fst.quick-links.item.instrument-Solo_Vocals",
+      "waitgone:id=fst.quick-links.item.instrument-Solo_Vocals@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Tap Vocals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band-Band_Duets@5",
+      "toggle:id=fst.quick-links.item.band-Band_Duets",
+      "waitgone:id=fst.quick-links.item.band-Band_Duets@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Duos@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band-Band_Trios@5",
+      "toggle:id=fst.quick-links.item.band-Band_Trios",
+      "waitgone:id=fst.quick-links.item.band-Band_Trios@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Trios@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band-Band_Quad@5",
+      "toggle:id=fst.quick-links.item.band-Band_Quad",
+      "waitgone:id=fst.quick-links.item.band-Band_Quad@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Quads@5",
+      "scrollinto:id=fst.quick-links.open@5"
+    ]
+  },
+  {
+    "name": "qlo-song-detail-anonymous",
+    "route": "/songs/fixture-pulse",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:name=Intensity&class=TextBlock@20",
+      "waitgone:id=fst.history@5",
+      "waitfor:id=fst.quick-links.open@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band-Band_Quad@5",
+      "waitgone:id=fst.quick-links.item.score-history@2",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Guitar|id=fst.quick-links.item.intensity",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Bass|id=fst.quick-links.item.instrument-Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Drums|id=fst.quick-links.item.instrument-Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.instrument-Solo_Vocals|id=fst.quick-links.item.instrument-Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.band-Band_Duets|id=fst.quick-links.item.instrument-Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.band-Band_Trios|id=fst.quick-links.item.band-Band_Duets",
+      "assertbelow:id=fst.quick-links.item.band-Band_Quad|id=fst.quick-links.item.band-Band_Trios",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.band-Band_Quad@5"
+    ]
+  },
+  {
+    "name": "qlo-compete",
+    "route": "/compete",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rivals.section.common@20",
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Common Rivals@5"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_PeripheralDrums@5",
+      "assertbelow:id=fst.quick-links.item.Solo_Guitar|id=fst.quick-links.item.common",
+      "assertbelow:id=fst.quick-links.item.Solo_Bass|id=fst.quick-links.item.Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.Solo_Drums|id=fst.quick-links.item.Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.Solo_Vocals|id=fst.quick-links.item.Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralGuitar|id=fst.quick-links.item.Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralBass|id=fst.quick-links.item.Solo_PeripheralGuitar",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralVocals|id=fst.quick-links.item.Solo_PeripheralBass",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralCymbals|id=fst.quick-links.item.Solo_PeripheralVocals",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralDrums|id=fst.quick-links.item.Solo_PeripheralCymbals",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.Solo_PeripheralDrums@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_Guitar@5",
+      "toggle:id=fst.quick-links.item.Solo_Guitar",
+      "waitgone:id=fst.quick-links.item.Solo_Guitar@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Lead Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_Bass@5",
+      "toggle:id=fst.quick-links.item.Solo_Bass",
+      "waitgone:id=fst.quick-links.item.Solo_Bass@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bass Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_Drums@5",
+      "toggle:id=fst.quick-links.item.Solo_Drums",
+      "waitgone:id=fst.quick-links.item.Solo_Drums@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_Vocals@5",
+      "toggle:id=fst.quick-links.item.Solo_Vocals",
+      "waitgone:id=fst.quick-links.item.Solo_Vocals@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Tap Vocals Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_PeripheralGuitar@5",
+      "toggle:id=fst.quick-links.item.Solo_PeripheralGuitar",
+      "waitgone:id=fst.quick-links.item.Solo_PeripheralGuitar@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Pro Lead Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_PeripheralBass@5",
+      "toggle:id=fst.quick-links.item.Solo_PeripheralBass",
+      "waitgone:id=fst.quick-links.item.Solo_PeripheralBass@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Pro Bass Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_PeripheralVocals@5",
+      "toggle:id=fst.quick-links.item.Solo_PeripheralVocals",
+      "waitgone:id=fst.quick-links.item.Solo_PeripheralVocals@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Karaoke Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_PeripheralCymbals@5",
+      "toggle:id=fst.quick-links.item.Solo_PeripheralCymbals",
+      "waitgone:id=fst.quick-links.item.Solo_PeripheralCymbals@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Pro Drums + Cymbals Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.Solo_PeripheralDrums@5",
+      "toggle:id=fst.quick-links.item.Solo_PeripheralDrums",
+      "waitgone:id=fst.quick-links.item.Solo_PeripheralDrums@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Pro Drums Rivals@5",
+      "scrollinto:id=fst.quick-links.open@5"
+    ]
+  },
+  {
+    "name": "qlo-settings",
+    "route": "/settings",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "tabs": 0,
+    "ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "waitfor:id=fst.quick-links.open@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.reset@5",
+      "assertbelow:id=fst.quick-links.item.diagnostics|id=fst.quick-links.item.app-settings",
+      "assertbelow:id=fst.quick-links.item.item-shop|id=fst.quick-links.item.diagnostics",
+      "assertbelow:id=fst.quick-links.item.show-instruments|id=fst.quick-links.item.item-shop",
+      "assertbelow:id=fst.quick-links.item.show-metadata|id=fst.quick-links.item.show-instruments",
+      "assertbelow:id=fst.quick-links.item.accessibility|id=fst.quick-links.item.show-metadata",
+      "assertbelow:id=fst.quick-links.item.version|id=fst.quick-links.item.accessibility",
+      "assertbelow:id=fst.quick-links.item.service-info|id=fst.quick-links.item.version",
+      "assertbelow:id=fst.quick-links.item.first-run|id=fst.quick-links.item.service-info",
+      "assertbelow:id=fst.quick-links.item.licenses|id=fst.quick-links.item.first-run",
+      "assertbelow:id=fst.quick-links.item.privacy-policy|id=fst.quick-links.item.licenses",
+      "assertbelow:id=fst.quick-links.item.reset|id=fst.quick-links.item.privacy-policy",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.reset@5"
+    ]
+  },
+  {
+    "name": "qlo-leaderboards",
+    "route": "/leaderboards",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20",
+      "waitfor:id=fst.quick-links.open@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band:Band_Quad@5",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Bass|id=fst.quick-links.item.instrument:Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Drums|id=fst.quick-links.item.instrument:Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Vocals|id=fst.quick-links.item.instrument:Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar|id=fst.quick-links.item.instrument:Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralBass|id=fst.quick-links.item.instrument:Solo_PeripheralGuitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralVocals|id=fst.quick-links.item.instrument:Solo_PeripheralBass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralCymbals|id=fst.quick-links.item.instrument:Solo_PeripheralVocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralDrums|id=fst.quick-links.item.instrument:Solo_PeripheralCymbals",
+      "assertbelow:id=fst.quick-links.item.band:Band_Duets|id=fst.quick-links.item.instrument:Solo_PeripheralDrums",
+      "assertbelow:id=fst.quick-links.item.band:Band_Trios|id=fst.quick-links.item.band:Band_Duets",
+      "assertbelow:id=fst.quick-links.item.band:Band_Quad|id=fst.quick-links.item.band:Band_Trios",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.band:Band_Quad@5"
+    ]
+  },
+  {
+    "name": "qlo-player",
+    "route": "/player/fixture-player-1",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.player.overview@20",
+      "waitfor:id=fst.quick-links.open@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.bands@5",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Guitar|id=fst.quick-links.item.global",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Bass|id=fst.quick-links.item.instrument:Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Drums|id=fst.quick-links.item.instrument:Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Vocals|id=fst.quick-links.item.instrument:Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar|id=fst.quick-links.item.instrument:Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralBass|id=fst.quick-links.item.instrument:Solo_PeripheralGuitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralVocals|id=fst.quick-links.item.instrument:Solo_PeripheralBass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralCymbals|id=fst.quick-links.item.instrument:Solo_PeripheralVocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralDrums|id=fst.quick-links.item.instrument:Solo_PeripheralCymbals",
+      "assertbelow:id=fst.quick-links.item.bands|id=fst.quick-links.item.instrument:Solo_PeripheralDrums",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.bands@5"
+    ]
+  },
+  {
+    "name": "qlo-band-detail",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.band.title@20",
+      "waitfor:id=fst.quick-links.open@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.songs@5",
+      "assertbelow:id=fst.quick-links.item.summary|id=fst.quick-links.item.members",
+      "assertbelow:id=fst.quick-links.item.statistics|id=fst.quick-links.item.summary",
+      "assertbelow:id=fst.quick-links.item.rank-history|id=fst.quick-links.item.statistics",
+      "assertbelow:id=fst.quick-links.item.songs|id=fst.quick-links.item.rank-history",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.songs@5"
+    ]
+  },
+  {
+    "name": "qlo-rival-detail",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.quick-links.open@20",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.rival-category:pulling_forward@5",
+      "assertbelow:id=fst.quick-links.item.rival-category:almost_passed|id=fst.quick-links.item.rival-category:closest_battles",
+      "assertbelow:id=fst.quick-links.item.rival-category:barely_winning|id=fst.quick-links.item.rival-category:almost_passed",
+      "assertbelow:id=fst.quick-links.item.rival-category:pulling_forward|id=fst.quick-links.item.rival-category:barely_winning",
+      "shot:{stem}-menu.png@screen",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.rival-category:pulling_forward@5"
+    ]
+  },
+  {
+    "name": "qlo-pane-compete",
+    "route": "/compete",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rivals.section.common@20",
+      "waitfor:id=fst.quick-links.list@20",
+      "waitgone:id=fst.quick-links.open@3",
+      "assertbelow:id=fst.quick-links.item.Solo_Guitar|id=fst.quick-links.item.common",
+      "assertbelow:id=fst.quick-links.item.Solo_Bass|id=fst.quick-links.item.Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.Solo_Drums|id=fst.quick-links.item.Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.Solo_Vocals|id=fst.quick-links.item.Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralGuitar|id=fst.quick-links.item.Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralBass|id=fst.quick-links.item.Solo_PeripheralGuitar",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralVocals|id=fst.quick-links.item.Solo_PeripheralBass",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralCymbals|id=fst.quick-links.item.Solo_PeripheralVocals",
+      "assertbelow:id=fst.quick-links.item.Solo_PeripheralDrums|id=fst.quick-links.item.Solo_PeripheralCymbals"
+    ]
+  },
+  {
+    "name": "qlo-pane-settings",
+    "route": "/settings",
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "waitgone:id=fst.quick-links.open@3",
+      "assertbelow:id=fst.quick-links.item.diagnostics|id=fst.quick-links.item.app-settings",
+      "assertbelow:id=fst.quick-links.item.item-shop|id=fst.quick-links.item.diagnostics",
+      "assertbelow:id=fst.quick-links.item.show-instruments|id=fst.quick-links.item.item-shop",
+      "assertbelow:id=fst.quick-links.item.show-metadata|id=fst.quick-links.item.show-instruments",
+      "assertbelow:id=fst.quick-links.item.accessibility|id=fst.quick-links.item.show-metadata",
+      "assertbelow:id=fst.quick-links.item.version|id=fst.quick-links.item.accessibility",
+      "assertbelow:id=fst.quick-links.item.service-info|id=fst.quick-links.item.version",
+      "assertbelow:id=fst.quick-links.item.first-run|id=fst.quick-links.item.service-info",
+      "assertbelow:id=fst.quick-links.item.licenses|id=fst.quick-links.item.first-run",
+      "assertbelow:id=fst.quick-links.item.privacy-policy|id=fst.quick-links.item.licenses",
+      "assertbelow:id=fst.quick-links.item.reset|id=fst.quick-links.item.privacy-policy"
+    ]
+  },
+  {
+    "name": "qlo-pane-leaderboards",
+    "route": "/leaderboards",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20",
+      "waitfor:id=fst.quick-links.list@20",
+      "waitgone:id=fst.quick-links.open@3",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Bass|id=fst.quick-links.item.instrument:Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Drums|id=fst.quick-links.item.instrument:Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Vocals|id=fst.quick-links.item.instrument:Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar|id=fst.quick-links.item.instrument:Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralBass|id=fst.quick-links.item.instrument:Solo_PeripheralGuitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralVocals|id=fst.quick-links.item.instrument:Solo_PeripheralBass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralCymbals|id=fst.quick-links.item.instrument:Solo_PeripheralVocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralDrums|id=fst.quick-links.item.instrument:Solo_PeripheralCymbals",
+      "assertbelow:id=fst.quick-links.item.band:Band_Duets|id=fst.quick-links.item.instrument:Solo_PeripheralDrums",
+      "assertbelow:id=fst.quick-links.item.band:Band_Trios|id=fst.quick-links.item.band:Band_Duets",
+      "assertbelow:id=fst.quick-links.item.band:Band_Quad|id=fst.quick-links.item.band:Band_Trios"
+    ]
+  },
+  {
+    "name": "qlo-pane-player",
+    "route": "/player/fixture-player-1",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.player.overview@20",
+      "waitfor:id=fst.quick-links.list@20",
+      "waitgone:id=fst.quick-links.open@3",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Guitar|id=fst.quick-links.item.global",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Bass|id=fst.quick-links.item.instrument:Solo_Guitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Drums|id=fst.quick-links.item.instrument:Solo_Bass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_Vocals|id=fst.quick-links.item.instrument:Solo_Drums",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar|id=fst.quick-links.item.instrument:Solo_Vocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralBass|id=fst.quick-links.item.instrument:Solo_PeripheralGuitar",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralVocals|id=fst.quick-links.item.instrument:Solo_PeripheralBass",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralCymbals|id=fst.quick-links.item.instrument:Solo_PeripheralVocals",
+      "assertbelow:id=fst.quick-links.item.instrument:Solo_PeripheralDrums|id=fst.quick-links.item.instrument:Solo_PeripheralCymbals",
+      "assertbelow:id=fst.quick-links.item.bands|id=fst.quick-links.item.instrument:Solo_PeripheralDrums"
+    ]
+  },
+  {
+    "name": "qlo-pane-band-detail",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.band.title@20",
+      "waitfor:id=fst.quick-links.list@20",
+      "waitgone:id=fst.quick-links.open@3",
+      "assertbelow:id=fst.quick-links.item.summary|id=fst.quick-links.item.members",
+      "assertbelow:id=fst.quick-links.item.statistics|id=fst.quick-links.item.summary",
+      "assertbelow:id=fst.quick-links.item.rank-history|id=fst.quick-links.item.statistics",
+      "assertbelow:id=fst.quick-links.item.songs|id=fst.quick-links.item.rank-history"
+    ]
+  }
+]

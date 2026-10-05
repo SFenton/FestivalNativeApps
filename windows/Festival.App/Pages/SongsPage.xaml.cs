@@ -80,6 +80,15 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
     private int pendingPin = -1;
 
+    /// <summary>Whether the pinned header waits for the next layout pass to read rows a far scroll has not realized yet.</summary>
+    private bool headerRecheckPending;
+
+    /// <summary>Consecutive post-layout header re-reads that still found no realized row in view.</summary>
+    private int headerRechecks;
+
+    /// <summary>Most post-layout header re-reads in a row before giving up until the next view change.</summary>
+    private const int HeaderRecheckLimit = 4;
+
     /// <summary>Section the pinned bar names while the list is shown; the open index focuses its letter.</summary>
     private int stickySection;
 
@@ -145,6 +154,9 @@ public sealed partial class SongsPage : Page, IPageBack
         switch (e.PropertyName)
         {
             case nameof(SongsViewModel.Sections):
+                // Every pipeline run (search, sort, filter, data); the scroll stress journey requires none while only
+                // scrolling (issue #247).
+                PerfLog.Event("songs-sections");
                 // A new search, sort or filter closes the jump index: its letters described the old list.
                 if (!Zoom.IsZoomedInViewActive) Zoom.IsZoomedInViewActive = true;
                 RebindGroups();
@@ -194,15 +206,22 @@ public sealed partial class SongsPage : Page, IPageBack
     /// push it out like a plain list's pinned headers (issue #288; <see cref="SongSectionHeader.Push"/>). Runs on scroll
     /// view changes only (no per-frame work while idle); the push positions follow the scroll on the compositor. The
     /// first visible row comes from the realized rows' geometry: <see cref="ItemsStackPanel.FirstVisibleIndex"/> can
-    /// still describe the layout before a jump-index pick (issue #48: R → B kept "A" pinned).
+    /// still describe the layout before a jump-index pick (issue #48: R → B kept "A" pinned). When no realized row is in
+    /// view yet (a far scroll's last view change precedes realization, issue #248), it reads the rows again after the
+    /// next layout pass.
     /// </summary>
     private void UpdateStickyHeader()
     {
         EnsureScroller();
         var panel = SongList.ItemsPanelRoot as ItemsStackPanel;
         var fallback = panel is { FirstVisibleIndex: >= 0 } ? panel.FirstVisibleIndex : 0;
-        var row = SongSectionHeader.FirstVisibleRow(fallback, stickyRowCount, RealizedRows(panel),
-            scroller?.ViewportHeight ?? SongList.ActualHeight);
+        if (!SongSectionHeader.TryFirstVisibleRow(stickyRowCount, RealizedRows(panel),
+                scroller?.ViewportHeight ?? SongList.ActualHeight, out var row))
+        {
+            row = stickyRowCount > 0 ? Math.Clamp(fallback, 0, stickyRowCount - 1) : 0;
+            RecheckHeaderAfterLayout();
+        }
+        else headerRechecks = 0;
         var section = SongSectionHeader.SectionAt(groupStarts, row);
         var own = TitleAt(section);
         var next = TitleAt(section + 1);
@@ -211,6 +230,29 @@ public sealed partial class SongsPage : Page, IPageBack
         if (Zoom.IsZoomedInViewActive) stickySection = push.Current;
         var incoming = push.Incoming < 0 ? null : push.Incoming == section ? own : next;
         ShowStickyHeader(push.Current >= 0 ? stickyLabels[push.Current] : "", incoming);
+    }
+
+    /// <summary>
+    /// Reads the pinned header again once the list has laid out the rows at its new position (bounded to
+    /// <see cref="HeaderRecheckLimit"/> passes so a list that never realizes rows cannot keep re-arming it).
+    /// </summary>
+    private void RecheckHeaderAfterLayout()
+    {
+        if (headerRecheckPending || stickyRowCount <= 0 || !ViewModel.ShowList || !Zoom.IsZoomedInViewActive) return;
+        if (headerRechecks >= HeaderRecheckLimit)
+        {
+            headerRechecks = 0;
+            return;
+        }
+        headerRecheckPending = true;
+        headerRechecks++;
+        void Settled(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Settled;
+            headerRecheckPending = false;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settled;
     }
 
     /// <summary>Sets the pinned header's text and visibility.</summary>
@@ -940,8 +982,13 @@ public sealed partial class SongsPage : Page, IPageBack
         var clock = System.Diagnostics.Stopwatch.StartNew();
         autoScroll = DispatcherQueue.CreateTimer();
         autoScroll.Interval = TimeSpan.FromMilliseconds(16);
+        // A tick after the window closes calls into torn-down XAML and fails fast in CoreMessagingXP (0xc000027b), so the
+        // perf run's close looked like a crash (issue #247).
+        Unloaded += StopAutoScroll;
+        if (MainWindow.Instance is { } window) window.Closed += StopAutoScroll;
         autoScroll.Tick += (_, _) =>
         {
+            if (autoScroll is null) return;
             var elapsed = clock.Elapsed.TotalSeconds;
             clock.Restart();
             if (EnsureScroller() is not { } viewer) return;
@@ -953,6 +1000,17 @@ public sealed partial class SongsPage : Page, IPageBack
             viewer.ChangeView(null, Math.Clamp(next, 0, end), null, true);
         };
         autoScroll.Start();
+    }
+
+    /// <summary>Stops <c>--auto-scroll</c> when the page unloads or the window closes.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void StopAutoScroll(object sender, object e)
+    {
+        Unloaded -= StopAutoScroll;
+        if (MainWindow.Instance is { } window) window.Closed -= StopAutoScroll;
+        autoScroll?.Stop();
+        autoScroll = null;
     }
 
     /// <summary>Finds the first ScrollViewer below an element.</summary>

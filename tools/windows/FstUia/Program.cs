@@ -629,6 +629,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertgap":
                 AssertGap(window, step);
                 break;
+            case "assertinset":
+                AssertInset(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -765,7 +768,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
 
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
-    /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>) or name equals the step's value.
+    /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
+    /// percent (<c>scroll</c>) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -793,6 +797,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "enabled" => element.Properties.IsEnabled.ValueOrDefault ? "true" : "false",
                     "selected" => element.Patterns.SelectionItem.PatternOrDefault is { } item
                         ? item.IsSelected.ValueOrDefault ? "true" : "false"
+                        : null,
+                    // Rounded vertical scroll percent (-1 when the content fits), e.g. a list back at its top.
+                    "scroll" => element.Patterns.Scroll.PatternOrDefault is { } scroll
+                        ? Math.Round(scroll.VerticalScrollPercent.ValueOrDefault).ToString(System.Globalization.CultureInfo.InvariantCulture)
                         : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
@@ -1070,6 +1078,33 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         response["gaps"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(gap, 1) });
     }
 
+    /// <summary>
+    /// Waits (up to 3 s, for a settling jump) until the first element's top edge is <c>epx</c> effective pixels (window
+    /// DPI) below the second's top edge, within 1 epx: e.g. a Quick Links section landed on its scroller's landing line.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c>, <c>other</c> (the container) and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The inset still differs at the timeout.</exception>
+    private void AssertInset(Window window, JsonObject step)
+    {
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var expected = (double)step["epx"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (true)
+        {
+            var inset = (Find(window, step).BoundingRectangle.Top - Find(window, step, "other").BoundingRectangle.Top) / scale;
+            if (Math.Abs(inset - expected) <= 1)
+            {
+                response["insets"] ??= new JsonArray();
+                response["insets"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(inset, 1) });
+                return;
+            }
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"top inset {inset:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
+            Thread.Sleep(200);
+        }
+    }
+
     #endregion
 
     #region Close
@@ -1078,10 +1113,19 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var window = FindWindow(request);
         var pid = window.Properties.ProcessId.Value;
-        window.Close();
         using var process = Process.GetProcessById(pid);
-        if (!process.WaitForExit(5000)) process.Kill(entireProcessTree: true);
-        return new JsonObject { ["pid"] = pid, ["closed"] = true };
+        // Open the handle while the app runs: Process.ExitCode refuses processes this driver did not start.
+        var handle = process.SafeHandle;
+        window.Close();
+        var killed = !process.WaitForExit(5000);
+        if (killed)
+        {
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit(5000);
+        }
+        // A fail-fast during shutdown (e.g. 0xc000027b) is a crash, not a clean close (issue #247).
+        long? exitCode = process.HasExited && Native.GetExitCodeProcess(handle, out var code) ? (int)code : null;
+        return new JsonObject { ["pid"] = pid, ["closed"] = true, ["killed"] = killed, ["exitCode"] = exitCode };
     }
 
     #endregion
@@ -1116,6 +1160,7 @@ internal static class Native
     [StructLayout(LayoutKind.Sequential)]
     private struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public uint dwFlags; }
 
+    [DllImport("kernel32.dll")] public static extern bool GetExitCodeProcess(Microsoft.Win32.SafeHandles.SafeProcessHandle process, out uint code);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
