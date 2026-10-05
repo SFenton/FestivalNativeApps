@@ -1902,13 +1902,14 @@ private struct RowMaskShape: Shape {
 /// Songs' page tools (issue #92): Sort, Filter and Quick Links, then the account group.
 ///
 /// On iOS 26.1+ iPhone they sit in the tab-bar accessory (``PageToolsRegistry``); Sort
-/// and Filter fold into one "Sort and Filter" menu when the accessory is too narrow for
-/// every item (``PageToolsAccessoryFit``: inline beside the minimized tab bar, small
-/// iPhones, accessibility text sizes). Elsewhere they are navigation-bar items, folding
-/// by ``SongsToolbarFold``. Either way Quick Links, Notifications and Profile stay
-/// visible (HIG Toolbars, iOS: "Put only essential actions in the main area; use More
-/// for the rest"). It measures its own width, so a width change re-renders only this
-/// modifier.
+/// and Filter fold into one "Sort and Filter" menu when the inline accessory for this
+/// window would be too narrow for every item, or at accessibility text sizes
+/// (``PageToolsAccessoryFit``). The decision never follows the accessory's own width, so
+/// the expanded and inline accessory show the same items (issue #300). Elsewhere they are
+/// navigation-bar items, folding by ``SongsToolbarFold``. Either way Quick Links,
+/// Notifications and Profile stay visible (HIG Toolbars, iOS: "Put only essential
+/// actions in the main area; use More for the rest"). It measures its own width, so a
+/// width change re-renders only this modifier.
 private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
     let session: FestivalSession
     let quickLinks: QuickLinksController
@@ -1938,9 +1939,9 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
     /// Whether Sort and Filter fold into one menu in the tab-bar accessory.
     private func foldsInAccessory(_ registry: PageToolsRegistry) -> Bool {
         PageToolsAccessoryFit.folds(
-            width: registry.accessoryWidth,
+            windowWidth: registry.windowWidth,
             pageTools: (canPresentFilter ? 2 : 1) + (quickLinks.isAvailable ? 1 : 0),
-            accountItems: session.selectedPlayer == nil ? 1 : 2,
+            showsBell: session.selectedPlayer != nil,
             dynamicTypeSize: dynamicTypeSize
         )
     }
