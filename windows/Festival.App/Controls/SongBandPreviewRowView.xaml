@@ -80,9 +80,12 @@
                             Visibility="{x:Bind Row.IsFullCombo, Mode=OneWay}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                         <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
                     </Border>
-                    <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Background="{StaticResource FSTSurfaceMutedBrush}"
+                    <!-- As the Song Band Leaderboard row: contrast themes get a ButtonFace fill with ButtonText text and outline. -->
+                    <Border Grid.Column="2" CornerRadius="4" Padding="6,1" BorderThickness="1"
+                            Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
                             Visibility="{x:Bind Row.HasAccuracy, Mode=OneWay}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                        <TextBlock Text="{x:Bind Row.Accuracy, Mode=OneWay}" FontSize="12" AutomationProperties.AccessibilityView="Raw" />
+                        <TextBlock Text="{x:Bind Row.Accuracy, Mode=OneWay}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                                   AutomationProperties.AccessibilityView="Raw" />
                     </Border>
                     <controls:StarRow Grid.Column="3" Stars="{x:Bind Row.StarCount, Mode=OneWay}" StarSize="14"
                                       AutomationProperties.AccessibilityView="Raw" />
