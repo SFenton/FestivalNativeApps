@@ -38,7 +38,7 @@ Every result region communicates whether it is loading, empty or unavailable wit
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| Android Bands "not found" centres its message in the **upper** half in tabletop (`rememberBandTabletopHinge`, [pages/bands/android.md](../pages/bands/android.md), #118), while R7 keeps the full-page status below the hinge. | Two empty/error surfaces pick different tabletop halves. | TODO(orchestrator): owner decision whether page empty states follow R7's lower half; out of scope for #140 (Bands page layout). |
+| Android Bands "not found" centres its message in the **upper** half in tabletop (`rememberBandTabletopHinge`, [pages/bands/android.md](../pages/bands/android.md), #118), while R7 keeps the full-page status below the hinge. | Two empty/error surfaces pick different tabletop halves; deliberate for Bands (text only, no controls, the lower half holds the bottom bar). | TODO(orchestrator): owner to confirm whether text-only page empty states keep the upper half or follow R7. |
 
 ## Guards (tools/pattern_guard.py)
 
