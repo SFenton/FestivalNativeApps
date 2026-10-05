@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.datastore.preferences.core.mutablePreferencesOf
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.nav.CompeteRoute
@@ -21,6 +23,8 @@ import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.RivalryRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.model.SelectedPlayer
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.CompeteFixtures
@@ -29,6 +33,7 @@ import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
 import com.festivalscoretracker.android.testing.RivalsFixtures
+import com.festivalscoretracker.android.testing.SongsFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
@@ -45,7 +50,7 @@ import org.robolectric.annotation.Config
  * Issue #158 (Android check of #50 / #11): every other Quick Links page lists its sections in the
  * order the page shows them, top to bottom (left to right within a row), from the compact
  * floating-toolbar sheet and the wider top-app-bar menu alike. Settings and the player page are in
- * [QuickLinksPageOrderUiTest].
+ * [QuickLinksPageOrderUiTest]; Songs runs every bucketed sort (and one descending sort) here.
  *
  * The page order is read from the rendered page, not from the Quick Links model: the list is
  * scrolled through and each section's on-page anchor is recorded by its on-screen position. Song
@@ -62,8 +67,8 @@ class QuickLinksPageSweepUiTest {
         on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
     }
 
-    private fun launch(debug: DebugLaunch, transport: FakeTransport) {
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+    private fun launch(debug: DebugLaunch, transport: FakeTransport, prefs: InMemoryPreferences = InMemoryPreferences()) {
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = prefs)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -155,9 +160,22 @@ class QuickLinksPageSweepUiTest {
         return seen
     }
 
-    private fun assertSameOrder(menu: List<String>, page: List<String>) {
-        assertEquals("every section is listed once: $menu", menu.size, menu.toSet().size)
-        assertEquals("Quick Links list the page's sections top to bottom", page, menu)
+    private fun assertSameOrder(menu: List<String>, page: List<String>, context: String = "") {
+        assertEquals("$context every section is listed once: $menu", menu.size, menu.toSet().size)
+        assertEquals("$context Quick Links list the page's sections top to bottom", page, menu)
+    }
+
+    /** Closes the open sheet or menu by choosing [first] (Back would also pop a pushed page). */
+    private fun closeQuickLinks(sheet: Boolean, first: String) {
+        if (sheet) {
+            rule.onNodeWithTag(LIST).performScrollToIndex(0)
+            settle(100)
+        }
+        rule.onNodeWithTag(ITEM + first).performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) {
+            settle(100)
+            !exists(SHEET) && !exists(MENU)
+        }
     }
 
     // endregion
@@ -380,6 +398,76 @@ class QuickLinksPageSweepUiTest {
 
     // endregion
 
+    // region Songs
+
+    private fun songsBucketTransport() = FakeTransport.standard().apply {
+        on("/api/songs", headers = PUBLICATION) { SONGS_CATALOGUE }
+        on("/api/shop", headers = PUBLICATION) { SongsFixtures.shopJson.replace("\"b.jpg\"", "null") }
+        on("/api/player/${Fixtures.ACCOUNT_A}", headers = PUBLICATION) { SONGS_PROFILE }
+    }
+
+    /** Menu ID of a rendered bucket header: `fst.songs.section.<mode>.<token>` or `fst.songs.shop-section.<token>`. */
+    private fun songsSection(tag: String): String? = when {
+        tag.startsWith(SHOP_HEADER) -> "${SongSortMode.Shop.webId}:${tag.removePrefix(SHOP_HEADER)}"
+        tag.startsWith(BUCKET_HEADER) -> tag.removePrefix(BUCKET_HEADER).replaceFirst('.', ':')
+        else -> null
+    }
+
+    /** Applies [mode] and [ascending] through the Sort sheet and waits for that sort's headers. */
+    private fun applySort(mode: SongSortMode, ascending: Boolean) {
+        rule.onNodeWithTag("fst.songs.sort.open").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.songs.sort.form")
+        val option = "fst.songs.sort.${mode.name.lowercase()}"
+        val direction = if (ascending) "fst.songs.sort.ascending" else "fst.songs.sort.descending"
+        listOf(option, direction).forEach { tag ->
+            rule.onNodeWithTag("fst.songs.sort.form").performScrollToNode(hasTestTag(tag))
+            rule.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.OnClick)
+            settle(100)
+        }
+        rule.onNodeWithTag("fst.songs.sort.done").performSemanticsAction(SemanticsActions.OnClick)
+        val header = if (mode == SongSortMode.Shop) SHOP_HEADER else "$BUCKET_HEADER${mode.webId}."
+        rule.waitUntil(10_000) {
+            settle(100)
+            !exists("fst.songs.sort.form") && rule.onAllNodes(tagged(header), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
+     * Every bucketed sort (all but Title and Artist, which use the section index) in turn: the
+     * rendered sticky headers, read top to bottom, match the Quick Links items one for one.
+     */
+    private fun songs(sheet: Boolean) {
+        val prefs = InMemoryPreferences(mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.SONG_FILTERS) to """{"instrument":"Solo_Guitar"}"""))
+        launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), stillBackground = true), songsBucketTransport(), prefs)
+        waitForTag("fst.songs.row.s-alpha")
+        val sorts = SongSortMode.entries.filterNot { it.usesSectionIndex }.map { it to true } + (SongSortMode.Duration to false)
+        val menus = mutableMapOf<Pair<SongSortMode, Boolean>, List<String>>()
+        for ((mode, ascending) in sorts) {
+            val context = "${mode.name} ${if (ascending) "ascending" else "descending"}:"
+            applySort(mode, ascending)
+            val page = pageOrder("fst.songs.list", sectionOf = ::songsSection)
+            val menu = menuOrder(sheet)
+            assertSameOrder(menu, page, context)
+            assertTrue("$context several buckets: $menu", menu.size >= 2)
+            assertTrue("$context only this sort's buckets: $menu", menu.all { it.startsWith("${mode.webId}:") })
+            menus[mode to ascending] = menu
+            closeQuickLinks(sheet, menu.first())
+        }
+        assertEquals("Descending lists the buckets in reverse", menus.getValue(SongSortMode.Duration to true).reversed(), menus.getValue(SongSortMode.Duration to false))
+    }
+
+    /** Phone: each sort's buckets in the toolbar sheet, scrolled through. */
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xxhdpi")
+    fun songsSheetFollowsTheBucketsForEverySort() = songs(sheet = true)
+
+    /** Wide window (two panes): each sort's buckets in the top-bar menu. */
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
+    fun songsMenuFollowsTheBucketsForEverySort() = songs(sheet = false)
+
+    // endregion
+
     private companion object {
         const val OPEN = "fst.quick-links.open"
         const val SHEET = "fst.quick-links.sheet"
@@ -387,5 +475,35 @@ class QuickLinksPageSweepUiTest {
         const val LIST = "fst.quick-links.list"
         const val ITEM = "fst.quick-links.item."
         const val MAX_ITEMS = 80
+        const val BUCKET_HEADER = "fst.songs.section."
+        const val SHOP_HEADER = "fst.songs.shop-section."
+        val PUBLICATION = mapOf("X-FST-Publication-Id" to "7")
+
+        /**
+         * Nine Lead charts spread over every catalogue bucket (decades, minutes, intensities and
+         * Shop states with [SongsFixtures.shopJson]) and, with [SONGS_PROFILE], every score bucket.
+         */
+        val SONGS_CATALOGUE: String = listOf(
+            """{"songId":"s-alpha","title":"Alpha Tune","artist":"Band One","year":2021,"durationSeconds":185,"difficulty":{"guitar":3},"maxScores":{"Solo_Guitar":1150000}}""",
+            """{"songId":"s-beta","title":"Beta Song","artist":"Band Two","year":2019,"durationSeconds":240,"difficulty":{"guitar":5},"maxScores":{"Solo_Guitar":1100000}}""",
+            """{"songId":"s-gamma","title":"Gamma Ray","artist":"Band Three","year":1998,"durationSeconds":95,"difficulty":{"guitar":6},"maxScores":{"Solo_Guitar":700000}}""",
+            """{"songId":"s-delta","title":"Delta Blues","artist":"Band Four","year":1985,"durationSeconds":45,"difficulty":{"guitar":0},"maxScores":{"Solo_Guitar":400000}}""",
+            """{"songId":"s-epsilon","title":"Epsilon","artist":"Band Five","year":2005,"durationSeconds":330,"difficulty":{"guitar":1},"maxScores":{"Solo_Guitar":500000}}""",
+            """{"songId":"s-zeta","title":"Zeta Waves","artist":"Band Six","year":1972,"durationSeconds":610,"difficulty":{"guitar":2},"maxScores":{"Solo_Guitar":402000}}""",
+            """{"songId":"s-eta","title":"Eta Unknown","artist":"Band Seven","difficulty":{"guitar":4}}""",
+            """{"songId":"s-theta","title":"Theta Line","artist":"Band Eight","year":2012,"durationSeconds":150,"difficulty":{"guitar":4},"maxScores":{"Solo_Guitar":900000}}""",
+            """{"songId":"s-iota","title":"Iota Drift","artist":"Band Nine","year":2016,"durationSeconds":455,"difficulty":{"guitar":2},"maxScores":{"Solo_Guitar":300000}}""",
+        ).let { """{"count":${it.size},"currentSeason":15,"songs":[${it.joinToString(",")}]}""" }
+
+        /** Lead scores with mixed FC, stars, seasons, ranks, difficulties and play dates; Epsilon and Eta unplayed. */
+        val SONGS_PROFILE: String = listOf(
+            """{"si":"s-alpha","ins":"01","sc":1150000,"acc":1000,"fc":true,"st":6,"sn":15,"dif":3,"rk":3,"te":1000,"lp":"2026-09-01T12:00:00Z"}""",
+            """{"si":"s-beta","ins":"01","sc":1050000,"acc":990,"fc":false,"st":5,"sn":12,"dif":2,"rk":40,"te":1000,"lp":"2025-01-20T12:00:00Z"}""",
+            """{"si":"s-gamma","ins":"01","sc":620000,"acc":955,"fc":false,"st":4,"sn":9,"dif":1,"rk":300,"te":1000,"lp":"2024-05-02T12:00:00Z"}""",
+            """{"si":"s-delta","ins":"01","sc":180000,"acc":800,"fc":false,"st":2,"sn":3,"dif":0,"rk":900,"te":1000,"lp":"2023-03-02T12:00:00Z"}""",
+            """{"si":"s-zeta","ins":"01","sc":401500,"acc":930,"fc":true,"st":3,"sn":15,"dif":3,"rk":120,"te":1000,"lp":"2026-08-15T12:00:00Z"}""",
+            """{"si":"s-theta","ins":"01","sc":760000,"acc":975,"fc":false,"st":5,"sn":11,"dif":2,"rk":60,"te":1000,"lp":"2026-06-15T12:00:00Z"}""",
+            """{"si":"s-iota","ins":"01","sc":250000,"acc":910,"fc":false,"st":4,"sn":7,"dif":1,"rk":15,"te":1000,"lp":"2022-11-11T12:00:00Z"}""",
+        ).let { """{"accountId":"${Fixtures.ACCOUNT_A}","displayName":"Synthetic Player","totalScores":${it.size},"scores":[${it.joinToString(",")}]}""" }
     }
 }
