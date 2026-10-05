@@ -2,7 +2,7 @@
 
 > **What:** first-load gates, reload swaps and row entrances for pages, boards and data-backed modal content. **Read when:** a load, refresh, selector, page or modal switch changes visible data.
 
-Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71.
+Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71, #304.
 
 ## Intent
 
@@ -16,6 +16,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 | `FortniteFestivalWeb/src/components/page/LoadGate.tsx` (`LoadGate`) | First-load spinner gate and content reveal. |
 | `FortniteFestivalWeb/src/components/leaderboard/PaginatedLeaderboard.tsx` (`PaginatedLeaderboard`) | Board reload spinner, row stagger and pinned footer. |
 | `FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx` | Cancellable Paths image/text switch with its distinct minimum spinner durations. |
+| `FortniteFestivalWeb/src/contexts/PublicationBoundary.tsx` (`PublicationBoundary`) | A new publication (pushed over `/api/ws`) fades the current page out, shows the spinner and fades the rebuilt page in without leaving the route. |
 
 ## Rules
 
@@ -25,6 +26,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 - **R4. Keep controls usable.** Pickers, pagers and modal selectors live outside the gated result area; a new selection supersedes pending work instead of waiting for it.
 - **R5. Do not replay entry motion while scrolling.** A page-level fade window closes after scroll movement; already-running fades finish, but lazily realized old content appears immediately. Suggestions alone reveals newly generated batches.
 - **R6. Honor reduced motion.** Motion-disabled platforms swap without fades or stagger; retain only the minimum spinner hold needed to avoid a blink. HIG Motion: "Add motion purposefully; gratuitous or excessive animation distracts and can cause physical discomfort." MD3: the easing/duration system is used for "transitions (entering, exiting, shared-axis)."
+- **R7. A publication refresh keeps the reader on the page.** A new publication refreshes every open page and route in place through the shared publication boundary: no pop to a root, no explanatory card. While old content is hidden behind the spinner, VoiceOver keeps a stable page anchor (an invisible heading named with the page title, value "Loading new scores"); focus moves there only if it was inside the page, and returns there after the rebuild unless the reader moved elsewhere during the spinner. Pages inside the boundary therefore set their title with `festivalNavigationTitle`. HIG Focus and selection: "Avoid changing focus without people's interaction", with the exception "if the focused item disappears during discrete, directional input (keyboard, remote, game controller), moving focus to an item one step away keeps it findable" (VoiceOver swipes are discrete, directional input; the anchor is the nearest surviving item); HIG VoiceOver: "Inform VoiceOver of visible content or layout changes."
 
 ## Canonical implementation
 
@@ -33,6 +35,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 | First-load gate | `FestivalUI/Common/FestivalReloadGate.swift` `FestivalReloadGate`; `Common/FadeInOnLoad.swift` `FestivalFadeInScope` | `ui/common/LoadGate.kt` `FestivalLoadGate`; `core/shell/LoadGatePhase.kt` `LoadGatePolicy` | `Festival.App/Controls/FadeIn.cs` `FadeIn` |
 | Reload swap | `FestivalCore/ReloadTransition.swift` `ReloadTransition`; `Common/FestivalReloadGate.swift` | `ui/common/LoadSwap.kt` `rememberLoadSwap`; `core/shell/LoadSwapPhase.kt` `LoadSwapPolicy` | `Festival.Core/Domain/LoadSwap.cs` `LoadSwap`; `Festival.App/Controls/LoadSwapVisual.cs` `LoadSwapVisual` |
 | Paths swap | `FestivalCore/PathSwitchTransition.swift` `PathSwitchTransition` | `presentation/songs/SongPathsViewModel.kt` `PathSwapPhase` | `Festival.Core/ViewModels/SongPathsViewModel.cs` `PathSwapTiming` |
+| Publication refresh (R7) | `Common/PublicationRefreshBoundary.swift` `PublicationRefreshBoundary`; `FestivalCore/PublicationRefreshFocus.swift` `PublicationRefreshFocus`; `Common/PageTitle.swift` `festivalNavigationTitle` | — (not in #304 scope) | — (not in #304 scope) |
 
 ## Known debt
 
@@ -43,5 +46,6 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 ## Guards (`tools/pattern_guard.py`)
 
 - `load-transition/apple-reload-gate`
+- `load-transition/apple-page-title`
 - `load-transition/android-load-swap`
 - `load-transition/windows-load-swap`

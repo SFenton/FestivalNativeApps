@@ -948,6 +948,10 @@
         {
           "path": "pages/songinfo/components/path/PathsModal.tsx",
           "symbol": "PathsModal"
+        },
+        {
+          "path": "contexts/PublicationBoundary.tsx",
+          "symbol": "PublicationBoundary"
         }
       ],
       "canonical": {
@@ -967,6 +971,18 @@
           {
             "path": "apple/Sources/FestivalCore/PathSwitchTransition.swift",
             "symbol": "PathSwitchTransition"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PublicationRefreshBoundary.swift",
+            "symbol": "PublicationRefreshBoundary"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PublicationRefreshFocus.swift",
+            "symbol": "PublicationRefreshFocus"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "symbol": "festivalNavigationTitle"
           }
         ],
         "android": [
@@ -1024,6 +1040,22 @@
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
+        },
+        {
+          "id": "apple-page-title",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.navigationTitle\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "apple/Sources/FestivalUI/App/FestivalRootView.swift",
+            "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
+            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormSheet.swift",
+            "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
+          ],
+          "debt": [],
+          "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R7)."
         },
         {
           "id": "android-load-swap",
