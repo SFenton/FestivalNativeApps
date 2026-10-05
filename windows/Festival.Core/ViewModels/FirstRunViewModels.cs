@@ -161,6 +161,13 @@ public sealed partial class FirstRunCarouselViewModel : ObservableObject
     /// </summary>
     public string CloseLabel => IsSingle ? "" : ModalCommands.Close;
 
+    /// <summary>
+    /// Dialog Secondary (Back) button text: present on every slide of a multi-slide guide and only disabled on the first
+    /// (<see cref="PreviousCommand"/>), so ContentDialog never re-lays out its command columns under the pointer
+    /// (issue #241); a one-slide guide has no Back.
+    /// </summary>
+    public string BackLabel => IsSingle ? "" : "Back";
+
     /// <summary>Selects a slide, clamped to range.</summary>
     /// <param name="value">Requested index.</param>
     public void GoTo(int value) => Index = Math.Clamp(value, 0, Slides.Count - 1);

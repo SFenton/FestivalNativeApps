@@ -573,6 +573,44 @@
     "tabs": 12
   },
   {
+    "name": "first-run-back",
+    "tab": "songs",
+    "first_run": "force",
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "invoke:id=PrimaryButton",
+      "wait:1",
+      "assertstate:id=SecondaryButton|enabled=true",
+      "assertstate:id=PrimaryButton|name=Next"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "first-run-done",
+    "tab": "songs",
+    "first_run": "force",
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:0.5",
+      "invoke:id=PrimaryButton",
+      "wait:1",
+      "assertstate:id=PrimaryButton|name=Done",
+      "assertstate:id=SecondaryButton|enabled=true"
+    ],
+    "tabs": 12
+  },
+  {
     "name": "songs-filter",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
