@@ -162,6 +162,12 @@
             </StackPanel>
         </Grid>
 
+        <!-- Contrast themes only: a window-colour plate (footer height plus its bottom margin, sized in code) hides the rows
+             between and behind the footer's controls instead of letting their text show through (scroll-edge R7; the song
+             leaderboard's #197 plate, Band Rankings' #209). Never hit-testable. -->
+        <Border x:Name="FooterPlate" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
+
         <!-- Floating footer over the rows (BoardFooter): the selected player's band pinned in the shared leaderboard row
              (web FixedLeaderboardPlayerFooter, issue #306; same markup as the Solo board), "Your Page" above it when the band
              ranks on another page, then the shared board pager (web FixedLeaderboardPagination; operator batch 7.4). The

@@ -387,7 +387,9 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal("S9", pin.Season);
         Assert.False(pin.HasAccuracy || pin.IsFullCombo);
         Assert.Equal(0, pin.StarCount);
-        Assert.Null(pin.Section);
+        // R1: fitted with the page (rank 1's accuracy and stars reserve those columns on the pin, as web widthEntries).
+        Assert.Equal(new LeaderboardSection(LeaderboardRowKind.Score, 3, 2, 6, true, true, true), pin.Section);
+        Assert.Equal(new LeaderboardSection(LeaderboardRowKind.Score, 3, 2, 6, false, false, true), new SongBandSpotlightRow(pin.Entry).Section ?? LeaderboardColumns.Measure([pin with { Section = null }]));
         Assert.Equal(new AppRoute.Band("sb30", "Band_Duets", "t30a:t30b"), pin.Route);
         Assert.Equal("fst.song-band-leaderboard.spotlight-footer", pin.AutomationId);
         Assert.Equal("fst.score.accuracy.band-spotlight", pin.BadgeAutomationId);

@@ -212,7 +212,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
                 Population = board.Population;
                 Pager.PageCount = pages;
                 Rows = [.. board.Entries.Select(e => new SongBandRow(e, pinned is not null && SongBandPreview.IsSameBand(e, pinned)))];
-                Spotlight = pinned is null ? null : new SongBandSpotlightRow(pinned);
+                Spotlight = pinned is null ? null : SongBandSpotlightRow.Pinned(pinned, board.Entries);
                 State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
             }, AnimateLoadSwaps());
         }
@@ -351,8 +351,21 @@ public sealed record SongBandSpotlightRow(SongBandLeaderboardEntry Entry) : ILea
     /// <summary>Accuracy in ten-thousandths of a percent, for the badge tint.</summary>
     public double AccuracyValue => Entry.Accuracy ?? 0;
 
-    /// <summary>The row's own columns (band cards above are not leaderboard rows).</summary>
-    public LeaderboardSection? Section => null;
+    /// <summary>
+    /// Columns measured over the page's entries plus this row (web <c>widthEntries</c>; leaderboard-row R1), so a wider rank
+    /// or score elsewhere on the board sizes the pinned row; <see langword="null"/> = this row's own content.
+    /// </summary>
+    public LeaderboardSection? Section { get; init; }
+
+    /// <summary>The pinned row with its columns fitted to <paramref name="page"/> and itself (leaderboard-row R1).</summary>
+    /// <param name="entry">The selected player's band.</param>
+    /// <param name="page">The current page's entries.</param>
+    /// <returns>Pinned row.</returns>
+    public static SongBandSpotlightRow Pinned(SongBandLeaderboardEntry entry, IEnumerable<SongBandLeaderboardEntry> page)
+    {
+        var row = new SongBandSpotlightRow(entry);
+        return row with { Section = LeaderboardColumns.Measure([.. page.Select(e => new SongBandSpotlightRow(e)), row]) };
+    }
 
     /// <summary>Service stars (0 when missing).</summary>
     public int StarCount => Entry.Stars ?? 0;

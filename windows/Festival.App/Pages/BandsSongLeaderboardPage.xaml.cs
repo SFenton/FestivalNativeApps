@@ -26,6 +26,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         InitializeComponent();
         Controls.BoardFooter.Inset(Footer, Rows);
         SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
+        Footer.SizeChanged += (_, _) => UpdateFooterPlate();
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -132,7 +133,19 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         var items = Rows.ItemsSource;
         Rows.ItemsSource = null;
         Rows.ItemsSource = items;
+        UpdateFooterPlate();
     });
+
+    /// <summary>
+    /// Under a Windows contrast theme, shows the window-colour plate behind the floating footer (pinned band and pager) down
+    /// to the page bottom so rows scrolling beneath don't show through (scroll-edge R7, as the other boards); hidden otherwise.
+    /// </summary>
+    private void UpdateFooterPlate()
+    {
+        var on = ContrastTheme.IsOn && Footer.ActualHeight > 0;
+        FooterPlate.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        if (on) FooterPlate.Height = Footer.ActualHeight + Footer.Margin.Bottom;
+    }
 
     /// <summary>Opens Song Detail from the header title.</summary>
     /// <param name="sender">Link.</param>
