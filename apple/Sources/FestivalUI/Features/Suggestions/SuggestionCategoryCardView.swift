@@ -65,6 +65,7 @@ struct SuggestionSongRowView: View {
     var currentSeason: Int?
     var visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Web `CategoryCard.showStars`: star-progress categories only.
     ///
@@ -84,8 +85,12 @@ struct SuggestionSongRowView: View {
             .joined(separator: " \u{00B7} ")
     }
 
+    /// Metadata under the song instead of beside it (``SuggestionRowLayout/stacksMetadata(regularWidth:accessibilitySize:showsStars:)``).
     private var twoRow: Bool {
-        sizeClass != .regular && layout != .hidden && !layout.isCompact(showsStars: showsStars)
+        layout.stacksMetadata(
+            regularWidth: sizeClass == .regular, accessibilitySize: dynamicTypeSize.isAccessibilitySize,
+            showsStars: showsStars
+        )
     }
 
     var body: some View {

@@ -108,6 +108,24 @@ public enum SuggestionRowLayout: Equatable, Sendable {
         }
     }
 
+    /// Whether a row puts its metadata under the song instead of beside it.
+    ///
+    /// Compact width stacks the wide layouts (web narrow screens); accessibility text
+    /// sizes stack every layout with metadata at any width, where a regular-width row
+    /// squeezed its pill until "Top 4%" read back as "Top…" (HIG Typography: "consider
+    /// stacking text above secondary items").
+    ///
+    /// - Parameters:
+    ///   - regularWidth: The row's horizontal size class is regular.
+    ///   - accessibilitySize: The text size is an accessibility size.
+    ///   - showsStars: Whether this row draws stars.
+    /// - Returns: True for two rows.
+    public func stacksMetadata(regularWidth: Bool, accessibilitySize: Bool, showsStars: Bool) -> Bool {
+        guard self != .hidden else { return false }
+        if accessibilitySize { return true }
+        return !regularWidth && !isCompact(showsStars: showsStars)
+    }
+
     /// The instrument a single-instrument category is about (web `getCatInstrument`),
     /// drawn beside the category title.
     ///
