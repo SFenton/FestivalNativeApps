@@ -52,6 +52,21 @@ public static class DialogChrome
         if (Find(dialog, "CloseButton") is Button close) Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(close, automationId);
     };
 
+    /// <summary>
+    /// Keeps the dialog surface out of the window's caption band (issue #244). The window extends its content into the
+    /// title bar, so a tall dialog (large text, short window) otherwise grows to the full window height. Its top edge then
+    /// sits in the title bar's drag region under the window's own minimize/maximize/close buttons, whose small "×" reads as
+    /// the dialog's close but quits the app. Equal top and bottom margins keep short dialogs centred, and a taller body
+    /// scrolls in the template's own content scroller.
+    /// </summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    /// <param name="captionHeight">Title bar height in effective pixels.</param>
+    public static void ClearOfTitleBar(ContentDialog dialog, double captionHeight) => dialog.Loaded += (_, _) =>
+    {
+        if (captionHeight > 0 && Find(dialog, "BackgroundElement") is FrameworkElement surface)
+            surface.Margin = new Thickness(0, captionHeight, 0, captionHeight);
+    };
+
     /// <summary>Finds a named template part below the dialog.</summary>
     /// <param name="dialog">Dialog.</param>
     /// <param name="name">Part name.</param>
