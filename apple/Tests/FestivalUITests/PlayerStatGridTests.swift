@@ -50,6 +50,8 @@ import FestivalDesign
     #expect(PlayerStatTileView.valueLineLimit(.xxxLarge) == 1)
     #expect(PlayerStatTileView.valueLineLimit(.accessibility1) == 2)
     #expect(PlayerStatTileView.valueLineLimit(.accessibility5) == 2)
+    #expect(PlayerStatTileView.valueMinimumScale(.large) == 0.6)
+    #expect(PlayerStatTileView.valueMinimumScale(.accessibility5) == 0.5)
 }
 
 @Test func rankHistoryChartWidthComesFromTheCardWidth() {
