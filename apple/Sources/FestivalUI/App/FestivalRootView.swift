@@ -228,6 +228,7 @@ public struct FestivalRootView: View {
                         hideShop: hideShop, selected: selected, topRoute: paths[selected]?.last,
                         showsSearch: presentation.navigation == .flyout, searchActive: searchActive,
                         closesOnEscape: presentation.navigation == .flyout || layout.pose != .standard,
+                        footerScrollsAtAccessibilitySizes: presentation.navigation == .flyout || layout.pose != .standard,
                         onIntent: handleDrawer, onClose: closeDrawer
                     )
                     .transition(reduceMotion || systemReduceMotion
