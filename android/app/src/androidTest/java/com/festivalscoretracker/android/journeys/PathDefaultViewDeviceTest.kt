@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.journeys
 
+import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -58,15 +59,20 @@ class PathDefaultViewDeviceTest {
             for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
             return null
         }
-        return find(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // Compose sends UiAutomation no invalidation for a semantics click, so cached nodes keep the old state.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
+        return find(automation.rootInActiveWindow)
     }
 
     private fun assertRadio(tag: String, checked: Boolean) {
         rule.waitUntil(15_000) { accessibilityNode(tag)?.isChecked == checked }
         val node = checkNotNull(accessibilityNode(tag)) { "$tag in the accessibility tree" }
-        assertEquals("android.widget.RadioButton", node.className?.toString())
+        // Compose keeps class android.view.View on a row that merges children; TalkBack still says
+        // "Radio button" (issue #164 walk), from the checkable node and its state description.
         assertTrue("$tag is checkable", node.isCheckable)
         assertEquals(checked, node.isChecked)
+        assertEquals(if (checked) "Selected" else "Not selected", node.stateDescription?.toString())
     }
 
     @Test
