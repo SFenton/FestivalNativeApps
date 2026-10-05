@@ -619,7 +619,9 @@ struct BandRankingRow: View {
 
     var body: some View {
         let songs = entry.songsLabel(for: metric)
-        NavigationLink(
+        // Opens Band Detail in the trailing pane where the board can split (Band
+        // Rankings, the Leaderboards band cards), else pushes.
+        ListDetailLink(
             value: Self.route(entry, bandType: bandType)
         ) {
             RankingRowLayout(

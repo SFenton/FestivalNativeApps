@@ -149,57 +149,23 @@ enum MacSidebarPolicy {
         }
     }
 
-    /// The path after Back.
+    /// The path after Back (⌘[): one page back. With the trailing pane open that pops
+    /// its pushed page, then closes the open item (full-width list again), then pops the
+    /// list page.
     ///
-    /// With two populated columns the detail root belongs to the list page beside it, so
-    /// Back first pops the detail column's pushes, then the list column's page together
-    /// with its selection; it never empties the detail column of a root list (the shell
-    /// would only auto-select it again).
-    ///
-    /// - Parameters:
-    ///   - path: Destination path.
-    ///   - section: Shared section (list/detail rules), nil for Item Shop.
-    ///   - split: Whether the destination currently shows two columns.
+    /// - Parameter path: Destination path.
     /// - Returns: The new path, or nil when Back is unavailable.
-    static func backPath(_ path: [AppRoute], section: FestivalSection?, split: Bool) -> [AppRoute]? {
-        guard !path.isEmpty else { return nil }
-        guard split, let section, let cut = ListDetailPolicy.split(section: section, path: path),
-              cut.selection != nil
-        else { return Array(path.dropLast()) }
-        if cut.detail.count > 1 { return Array(path.dropLast()) }
-        guard !cut.list.isEmpty else { return nil }
-        return Array(cut.list.dropLast())
+    static func backPath(_ path: [AppRoute]) -> [AppRoute]? {
+        path.isEmpty ? nil : Array(path.dropLast())
     }
 }
 
 // MARK: - Mac layout policy
 
-/// Pure width rules for the Mac window's content area (right of the sidebar).
+/// Pure width rules for the Mac window's content area (right of the sidebar). Whether
+/// a list page splits is ``OnDemandSplitPolicy``'s rule (two ≥ 360 pt panes at the
+/// content area's midpoint), shared with iPad and iPhone Duo.
 enum MacLayoutPolicy {
-    /// Narrowest content width that shows list and detail side by side: a 340 pt list
-    /// plus a 480 pt detail (HIG Split views › macOS: "set reasonable minimum/maximum
-    /// defaults so the divider stays visible").
-    static let splitMinimumWidth: CGFloat = 820
-    /// List column bounds (points): `max` caps the automatic 38% width; a dragged
-    /// divider may widen the list to `dragMax` (still a compact-width column, so its
-    /// rows keep their list layout) while the detail keeps ``detailMinimumWidth``.
-    static let listColumn = (min: CGFloat(340), ideal: CGFloat(400), max: CGFloat(560), dragMax: CGFloat(680))
-    /// UserDefaults key remembering a dragged list column width (HIG Split views ›
-    /// macOS: "draggable dividers resize them"); absent or 0 means automatic.
-    static let listWidthKey = "fst.mac.listColumnWidth"
-    /// Points one accessibility increment/decrement moves the divider.
-    static let dividerStep: CGFloat = 20
-    /// Detail column minimum (points).
-    static let detailMinimumWidth: CGFloat = 480
-
-    /// Whether a destination shows two columns at a content width.
-    ///
-    /// - Parameters:
-    ///   - width: Content width in points (0 before the first layout pass).
-    ///   - hasListPage: Whether the destination's path has a list page (Songs, Full
-    ///     Rankings, Rivals lists).
-    ///   - emptyListCollapsed: The list produced no row to show beside it.
-    /// - Returns: True for two columns.
     /// Widest page content, centred in its column (web `MaxWidth.card`, 1400 px; the
     /// Item Shop grid uses `MaxWidth.grid`, 2170 px).
     ///
@@ -208,38 +174,6 @@ enum MacLayoutPolicy {
     /// - Returns: The maximum content width in points.
     static func pageMaxWidth(for route: AppRoute?, isShopRoot: Bool = false) -> CGFloat {
         route == .shop || (route == nil && isShopRoot) ? 2170 : 1400
-    }
-
-    /// List column width for a content width: 38% within ``listColumn`` bounds.
-    ///
-    /// - Parameter width: Content width in points.
-    /// - Returns: The list column width.
-    static func listWidth(forContentWidth width: CGFloat) -> CGFloat {
-        min(max(width * 0.38, listColumn.min), listColumn.max)
-    }
-
-    /// List column width honouring a width the person set by dragging the divider,
-    /// clamped so the divider stays visible: the list keeps ``listColumn`` `min`…
-    /// `dragMax` and the detail at least ``detailMinimumWidth`` (HIG Split views ›
-    /// macOS: "set reasonable minimum/maximum defaults so the divider stays visible").
-    ///
-    /// - Parameters:
-    ///   - width: Content width in points.
-    ///   - preferred: The remembered dragged width, or nil/≤ 0 for automatic.
-    /// - Returns: The list column width.
-    static func listWidth(forContentWidth width: CGFloat, preferred: CGFloat?) -> CGFloat {
-        guard let preferred, preferred > 0 else { return listWidth(forContentWidth: width) }
-        let range = listWidthRange(forContentWidth: width)
-        return min(max(preferred, range.lowerBound), range.upperBound)
-    }
-
-    /// Widths a dragged divider may take at a content width.
-    ///
-    /// - Parameter width: Content width in points.
-    /// - Returns: ``listColumn`` `min` up to `dragMax` or the width that leaves the
-    ///   detail ``detailMinimumWidth`` beside the 1 pt divider, whichever is smaller.
-    static func listWidthRange(forContentWidth width: CGFloat) -> ClosedRange<CGFloat> {
-        listColumn.min...max(listColumn.min, min(listColumn.dragMax, width - detailMinimumWidth - 1))
     }
 
     /// Column width from which pages use their regular-width layouts (two card columns,
@@ -255,9 +189,6 @@ enum MacLayoutPolicy {
         width >= regularMinimumWidth ? .regular : .compact
     }
 
-    static func showsSplit(width: CGFloat, hasListPage: Bool, emptyListCollapsed: Bool) -> Bool {
-        hasListPage && !emptyListCollapsed && width >= splitMinimumWidth
-    }
 }
 
 // MARK: - Navigation model
@@ -275,7 +206,7 @@ final class MacNavigationModel {
     private(set) var selected: MacDestination
     /// One independent path per destination (the web keeps each section's history).
     var paths: [MacDestination: [AppRoute]] = [:]
-    /// Destinations currently showing two columns (reported by the list/detail stack).
+    /// Destinations whose trailing pane is open (reported by `MacListDetailStack`).
     var splitDestinations: Set<MacDestination> = []
     /// Incremented by View › Refresh (⌘R); the detail column is rebuilt and reloads.
     private(set) var refreshGeneration = 0
@@ -320,9 +251,7 @@ final class MacNavigationModel {
     var canGoBack: Bool { backPath != nil }
 
     private var backPath: [AppRoute]? {
-        MacSidebarPolicy.backPath(
-            currentPath, section: selected.section, split: splitDestinations.contains(selected)
-        )
+        MacSidebarPolicy.backPath(currentPath)
     }
 
     /// Show a destination. Choosing the selected one again returns it to its root

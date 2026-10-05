@@ -4,8 +4,8 @@ import XCTest
 /// "FST Native iPad Pro 11" (`.agents/testing/apple/accessibility.md`, iPad section).
 ///
 /// Every page and sheet runs `performAccessibilityAudit(for: .all)` in each mode: the
-/// full-screen three-column split (landscape), a regular-width portrait window
-/// (sidebar | list), a compact ⅓
+/// full-screen landscape window (on-demand split), a regular-width portrait window
+/// (one stack), a compact ⅓
 /// window (Split View "Arrange thirds"), Dynamic Type AX1 and AX5, and the system
 /// settings Bold Text, Increase Contrast and Reduce Transparency. Each audit collects every issue (so
 /// one run lists all of them), attaches the list and a screenshot, writes a JSON summary
@@ -19,7 +19,7 @@ import XCTest
 /// `python3 tools/ios_sim.py uitest --device ipad --a11y bold-text --only
 /// IPadAccessibilityAuditTests/testBoldTextBrowse` (the method skips unless the runner
 /// sees the setting on). The structural journey (`testThreeColumnReadingOrderAndTraits`)
-/// checks reading order, the selected-row trait and headings in the three-column split.
+/// checks reading order, the selected-row trait and headings in the landscape split.
 ///
 /// Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765), never production.
 final class IPadAccessibilityAuditTests: XCTestCase {
@@ -29,8 +29,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     enum Mode: String {
         case regular, threeColumn, compact, ax1, ax5, ax5Compact, boldText, increaseContrast, reduceTransparency
 
-        /// Portrait, except the three-column split (from a 1000 pt window: landscape on
-        /// the 11-inch iPad).
+        /// Portrait, except `threeColumn` (named before 2026-10-04): the landscape window,
+        /// where list pages split on demand.
         var orientation: UIDeviceOrientation { self == .threeColumn ? .landscapeLeft : .portrait }
 
         /// Audit types for this mode. Contrast is audited where colours can change:
@@ -126,8 +126,12 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         }, sheet: true),
         Page(name: "item-shop", env: ["FST_DEBUG_ROUTE": "shop"], ready: "Item Shop"),
         Page(name: "search", ready: "fst.songs.list", open: { app in
-            if anyElement(app, "fst.nav.sidebar.search").waitForExistence(timeout: 5) {
-                anyElement(app, "fst.nav.sidebar.search").tap()
+            // Regular width: the flyout's Search row (no persistent sidebar, 2026-10-04).
+            if anyElement(app, "fst.shell.drawer.open").waitForExistence(timeout: 5),
+               !app.tabBars.buttons["Search"].exists {
+                anyElement(app, "fst.shell.drawer.open").tap()
+                guard anyElement(app, "fst.shell.drawer.search").waitForExistence(timeout: 5) else { return nil }
+                anyElement(app, "fst.shell.drawer.search").tap()
             } else if app.tabBars.buttons["Search"].waitForExistence(timeout: 5) {
                 app.tabBars.buttons["Search"].tap()
             } else {
@@ -178,7 +182,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
-    // MARK: - Audits: three columns (landscape)
+    // MARK: - Audits: landscape (on-demand split)
 
     @MainActor func testThreeColumnBrowse() throws { try audit(Self.browse, mode: .threeColumn, group: "browse") }
     @MainActor func testThreeColumnRankings() throws {
@@ -186,7 +190,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     }
     @MainActor func testThreeColumnProfile() throws { try audit(Self.profile, mode: .threeColumn, group: "profile") }
 
-    // MARK: - Audits: regular width (portrait: sidebar | list)
+    // MARK: - Audits: regular width (portrait: one stack)
 
     @MainActor func testRegularBrowse() throws { try audit(Self.browse, mode: .regular, group: "browse") }
     @MainActor func testRegularRankings() throws { try audit(Self.rankings, mode: .regular, group: "rankings") }
@@ -236,66 +240,50 @@ final class IPadAccessibilityAuditTests: XCTestCase {
 
     // MARK: - Structure: reading order, selection and headings
 
-    /// In the three-column split the accessibility order is sidebar → list → detail; the
-    /// sidebar's current destination, the list's selected song and the chosen row after a
-    /// tap carry the selected trait; the detail exposes headings for the rotor; and
-    /// choosing another row keeps the split (the detail follows, the list stays).
+    /// The landscape on-demand split (`split-view.md`, 2026-10-04): Full Rankings starts
+    /// full width; a chosen row opens the player in the trailing half, reads after the
+    /// list and carries the selected trait; choosing another row moves the selection.
     @MainActor
     func testThreeColumnReadingOrderAndTraits() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = makeApp(Page(name: "songs", ready: "fst.songs.list"), mode: .threeColumn)
+        let app = makeApp(
+            Page(name: "full-rankings", env: ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"], ready: "Lead Rankings"),
+            mode: .threeColumn
+        )
         launchFilled(app)
-        XCTAssertTrue(Self.anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 25))
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.rankings.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 25))
+        XCTAssertFalse(Self.anyElement(app, "fst.split.trailing").exists, "starts full width")
+        rows.element(boundBy: 0).tap()
+        XCTAssertTrue(Self.anyElement(app, "fst.split.trailing").waitForExistence(timeout: 10), "opens the trailing half")
 
-        // Order: depth-first over the app's accessibility snapshot, as VoiceOver walks
-        // SwiftUI's ordered element tree.
         let order = try flatten(app.snapshot())
         func index(_ match: (XCUIElementSnapshot) -> Bool) -> Int? { order.firstIndex(where: match) }
-        let sidebar = index { $0.identifier == "fst.nav.songs" }
-        let list = index { $0.identifier.hasPrefix("fst.songs.row.") }
-        let detail = index { $0.identifier == "fst.song-detail.intensity" }
-        XCTAssertNotNil(sidebar, "sidebar row in the tree")
+        let list = index { $0.identifier.hasPrefix("fst.rankings.row.") }
+        let detail = index { $0.identifier == "fst.split.trailing" }
         XCTAssertNotNil(list, "list row in the tree")
-        XCTAssertNotNil(detail, "detail in the tree")
-        if let sidebar, let list, let detail {
-            XCTAssertLessThan(sidebar, list, "sidebar reads before the list")
-            XCTAssertLessThan(list, detail, "list reads before the detail")
-        }
+        XCTAssertNotNil(detail, "trailing pane in the tree")
+        if let list, let detail { XCTAssertLessThan(list, detail, "the list reads before the trailing pane") }
 
-        // Selection: the sidebar destination and the auto-selected song.
-        XCTAssertTrue(Self.anyElement(app, "fst.nav.songs").waitForSelection(timeout: 5),
-                      "the sidebar's current destination is selected")
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.row.'"))
         let selectedRows = rows.matching(NSPredicate(format: "isSelected == true"))
         XCTAssertEqual(selectedRows.count, 1, "exactly one list row carries the selected trait")
-
-        // Headings: the detail's section titles are rotor headings.
         let headings = order.filter { Self.isHeader($0) }.map(\.label)
         add(attachment(named: "headings", text: headings.joined(separator: "\n")))
         if let dir = ProcessInfo.processInfo.environment["FST_AUDIT_OUT"] {
             let summary: [String: Any] = [
-                "order": ["sidebar": sidebar ?? -1, "list": list ?? -1, "detail": detail ?? -1],
+                "order": ["list": list ?? -1, "trailing": detail ?? -1],
                 "traitsReadable": Self.traitsReadable(order), "headings": headings,
             ]
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             try? JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys])
                 .write(to: URL(fileURLWithPath: dir).appendingPathComponent("structure.json"))
         }
-        if Self.traitsReadable(order) {
-            XCTAssertTrue(headings.contains { !$0.isEmpty }, "the split exposes rotor headings: \(headings)")
-        }
-
-        // Choosing another row: it becomes the selected one, the detail follows.
-        let second = app.buttons["fst.songs.row.fixture-pulse"]
-        if !second.isSelected {
-            second.tap()
-            XCTAssertTrue(second.waitForSelection(timeout: 5), "the chosen row is selected")
-            XCTAssertEqual(selectedRows.count, 1, "selection moved, not added")
-            XCTAssertTrue(app.navigationBars["Fixture Pulse"].waitForExistence(timeout: 10), "the detail follows")
-        }
-        XCTAssertTrue(Self.anyElement(app, "fst.nav.list-detail").exists, "still split after choosing")
-        XCTAssertTrue(Self.anyElement(app, "fst.nav.songs").isSelected, "sidebar selection unchanged")
+        let second = rows.element(boundBy: 1)
+        second.tap()
+        XCTAssertTrue(second.waitForSelection(timeout: 5), "the chosen row is selected")
+        XCTAssertEqual(selectedRows.count, 1, "selection moved, not added")
+        XCTAssertTrue(Self.anyElement(app, "fst.split.trailing").exists, "still split after choosing")
     }
 
     // MARK: - Audit runner

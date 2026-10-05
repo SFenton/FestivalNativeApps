@@ -61,17 +61,6 @@ public struct FestivalRootView: View {
     #endif
     /// Pull-to-refresh actions of the pages on screen, for ⌘R.
     @State private var refreshCommands = RefreshCommandRegistry()
-    /// Sections currently shown as two columns (reported by `ListDetailStack`), so ⌘[
-    /// pops the right column.
-    @State private var splitSections: Set<FestivalSection> = []
-    /// The iPad sidebar's trailing edge in window coordinates (0 while hidden).
-    @State private var sidebarExtent: CGFloat = 0
-    /// Shell split column visibility, shared by every section's split so a hidden
-    /// sidebar stays hidden across destinations.
-    @State private var sidebarVisibility: NavigationSplitViewVisibility = .all
-    /// Details each list/detail section's split chose by itself (auto-select or restore),
-    /// popped when the iPad window falls back to the compact tab shell.
-    @State private var automaticDetails: [FestivalSection: AppRoute] = [:]
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
@@ -214,16 +203,17 @@ public struct FestivalRootView: View {
                 FestivalBackgroundHost(session: session)
                     .ignoresSafeArea()
                 shell(presentation)
-                    .environment(
-                        \.sidebarShellContentWidth,
-                        presentation.navigation == .sidebar && layout.size.width > 0
-                            ? max(0, layout.size.width - sidebarExtent) : nil
-                    )
                     .background { keyboardCommands(presentation, layout: layout) }
                     .modifier(ShellCommandsPublisher(commands: shellCommands(presentation)))
+                    .modifier(FlyoutEdgeSwipe(
+                        isEnabled: usesDrawer && !drawerPresented
+                            && (presentation.navigation == .flyout || layout.pose != .standard)
+                            && (searchActive || (paths[selected] ?? []).isEmpty),
+                        open: openDrawer
+                    ))
                 #if DEBUG
                 if ProcessInfo.processInfo.environment["FST_DEBUG_LIST_DETAIL"] == "1" {
-                    Text("win=\(Int(layout.size.width)) sb=\(Int(sidebarExtent)) split=\(splitSections.map(\.rawValue).sorted().joined(separator: ",")) nav=\(presentation.navigation == .sidebar ? "SB" : "T")")
+                    Text("win=\(Int(layout.size.width)) nav=\(String(describing: presentation.navigation)) hinge=\(layout.splitHinge.map { "\(Int($0.minX))-\(Int($0.maxX))" } ?? "-")")
                         .font(.caption2).foregroundStyle(.yellow).background(.black)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .allowsHitTesting(false)
@@ -234,6 +224,8 @@ public struct FestivalRootView: View {
                     FestivalDrawer(
                         session: session, visibleSections: sections(for: presentation),
                         hideShop: hideShop, selected: selected, topRoute: paths[selected]?.last,
+                        showsSearch: presentation.navigation == .flyout, searchActive: searchActive,
+                        closesOnEscape: presentation.navigation == .flyout || layout.pose != .standard,
                         onIntent: handleDrawer, onClose: closeDrawer
                     )
                     .transition(reduceMotion || systemReduceMotion
@@ -256,11 +248,6 @@ public struct FestivalRootView: View {
         }
         .publishesDeviceLayout(usesSidebarShell: usesSidebarShell)
         .task { await applyWindowRoute() }
-        // A window that widens back into the sidebar shell shows every column again:
-        // the split may have tucked them away (`.detailOnly`) while it was narrow.
-        .onChange(of: usesSidebarShell) { _, sidebar in
-            if sidebar { sidebarVisibility = .all } else { dropAutomaticDetails() }
-        }
         // Debug only: lay the whole app out in a narrower canvas (e.g. 375 pt, iPhone
         // SE width) on a wider simulator, so small-width chrome (title truncation,
         // toolbar crowding) can be captured without an SE simulator.
@@ -284,11 +271,17 @@ public struct FestivalRootView: View {
 
     // MARK: - Platform shell
 
-    /// True wherever the hamburger drawer replaces the web sidebar: every phone, and
-    /// an iPad window at compact width (Slide Over, narrow Split View or window).
-    private var usesDrawer: Bool { !usesSidebarShell }
+    /// True wherever the drawer (overlay flyout) replaces the web sidebar: every iOS
+    /// window (phones, iPad at any width); the macOS hosted shell keeps its sidebar.
+    private var usesDrawer: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
+        #endif
+    }
 
-    /// The `NavigationSplitView` sidebar shell: macOS, and iPad at regular width.
+    /// The wide shell: macOS (persistent sidebar), and iPad at regular width (flyout).
     private var usesSidebarShell: Bool {
         #if os(iOS)
         ShellPresentation.usesSidebarShell(
@@ -336,27 +329,14 @@ public struct FestivalRootView: View {
                 content(for: selected)
             }
             #else
-            if presentation.navigation == .sidebar {
+            if presentation.navigation == .flyout {
+                // iPad at regular width: the selected section (or Search) full width; the
+                // destinations live in the overlay flyout (`split-view.md`, operator
+                // 2026-10-04: no persistent sidebar column).
                 if searchActive {
-                    // The sidebar's Search row shows global search in the detail column.
-                    NavigationSplitView(columnVisibility: $sidebarVisibility) {
-                        sidebarColumn
-                    } detail: {
-                        searchView(asTab: false)
-                    }
-                } else if ListDetailPolicy.splittableSections.contains(selected) {
-                    // List/detail sections draw the whole shell split themselves
-                    // (sidebar | stack, or sidebar | list | detail; `ListDetailStack`).
-                    content(for: selected)
-                        .environment(\.sidebarShell, SidebarShellContext(
-                            sidebar: AnyView(sidebarColumn), visibility: $sidebarVisibility
-                        ))
+                    searchView(asTab: false)
                 } else {
-                    NavigationSplitView(columnVisibility: $sidebarVisibility) {
-                        sidebarColumn
-                    } detail: {
-                        content(for: selected)
-                    }
+                    content(for: selected)
                 }
             } else {
                 tabs(visibleSections)
@@ -370,12 +350,6 @@ public struct FestivalRootView: View {
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { openGlobalSearch() })
         .environment(\.refreshCommandRegistry, refreshCommands)
-        .environment(\.listDetailSplitReporter, ListDetailSplitReporter { section, isSplit in
-            if isSplit { splitSections.insert(section) } else { splitSections.remove(section) }
-        })
-        .environment(\.listDetailAutomaticReporter, ListDetailAutomaticReporter { section, automatic in
-            automaticDetails[section] = automatic
-        })
         // Notification rows open their page on the current tab, not inside the sheet (#75).
         .environment(\.pushRoute, PushRouteAction { route in
             paths[selected, default: []].append(route)
@@ -431,8 +405,6 @@ public struct FestivalRootView: View {
         }
         .whatsNew(session: session)
         .onChange(of: visibleSections) { _, visible in
-            // Pop unchosen details before the paths move between section slots.
-            if !usesSidebarShell { dropAutomaticDetails() }
             let adapted = FestivalTabPolicy.adapt(selected: selected, paths: paths, to: visible)
             if adapted.paths != paths { paths = adapted.paths }
             if adapted.selected != selected { selected = adapted.selected }
@@ -511,10 +483,10 @@ public struct FestivalRootView: View {
         }
     }
 
-    /// Global search for the Search tab or the iPad sidebar's Search row.
+    /// Global search for the Search tab or the iPad flyout's Search row.
     ///
     /// - Parameter asTab: The phone Search tab (focuses the field when chosen and returns
-    ///   to the previous tab when it is dismissed); false for the sidebar's detail column.
+    ///   to the previous tab when it is dismissed); false for the iPad's full-width page.
     /// - Returns: The search page.
     private func searchView(asTab: Bool) -> some View {
         GlobalSearchTab(
@@ -626,23 +598,6 @@ public struct FestivalRootView: View {
         nonmutating set { paths[.songs] = newValue }
     }
 
-    #if os(iOS)
-    /// The iPad sections sidebar (primary column of the shell split).
-    private var sidebarColumn: some View {
-        FestivalSidebar(
-            session: session,
-            browse: SidebarMenu.browse(profile: profileKind, hideShop: hideShop),
-            selected: selected, searchSelected: searchActive,
-            onSelect: { perform(RootTabTransition.choose(.section($0), selected: selected, searchActive: searchActive)) },
-            onSearch: { perform(.openSearch) },
-            onOpenPlayer: { perform(.push($0)) },
-            onChooseProfile: { rootProfilePresented = true },
-            onExtentChange: { extent in
-                if abs(extent - sidebarExtent) >= 1 { sidebarExtent = extent }
-            }
-        )
-    }
-    #endif
 
     // MARK: - Keyboard commands
 
@@ -690,22 +645,6 @@ public struct FestivalRootView: View {
         }
     }
 
-    /// iPad: the window became compact (⅓ / ½ portrait / Slide Over), so the tab shell
-    /// rebuilds every section's stack. A detail the three-column split chose by itself
-    /// would otherwise stay pushed over the list (`ListDetailPolicy.pathDroppingAutomaticDetail`);
-    /// a row the person picked stays.
-    private func dropAutomaticDetails() {
-        guard !automaticDetails.isEmpty else { return }
-        for (section, automatic) in automaticDetails {
-            if let list = ListDetailPolicy.pathDroppingAutomaticDetail(
-                section: section, path: paths[section] ?? [], automatic: automatic
-            ) {
-                paths[section] = list
-            }
-        }
-        automaticDetails = [:]
-    }
-
     // MARK: - Windows
 
     /// Open a song window's song once the catalogue has it (players open at once).
@@ -727,14 +666,11 @@ public struct FestivalRootView: View {
         let visible = sections(for: presentation)
         return FestivalShellCommands(
             destinations: FestivalShellCommands.destinations(
-                sidebar: presentation.navigation == .sidebar, visible: visible
+                sidebar: presentation.listsSidebarDestinations, visible: visible
             ),
             visible: visible, selected: selected,
             // Search owns no stack: Back would pop the hidden section under it.
-            canGoBack: !searchActive && ListDetailPolicy.pathAfterBack(
-                section: selected, path: path(for: selected).wrappedValue,
-                isSplit: splitSections.contains(selected)
-            ) != nil,
+            canGoBack: !searchActive && !path(for: selected).wrappedValue.isEmpty,
             sheetOpen: rootProfilePresented || globalSearchPresented || notificationsPresented
                 || whatsNewPresented || drawerPresented,
             hasPlayer: session.selectedPlayer != nil,
@@ -749,18 +685,26 @@ public struct FestivalRootView: View {
             deselectProfile: { session.deselectPlayer() },
             notifications: { notificationsPresented = true },
             whatsNew: { whatsNewPresented = true },
-            licenses: { perform(.push(.licenses)) }
+            licenses: { perform(.push(.licenses)) },
+            showNavigation: showNavigationCommand(presentation)
         )
     }
 
-    /// Pop the frontmost column of the selected section (⌘[).
+    /// View › Show Navigation for the iPad flyout shell, else nil.
+    ///
+    /// - Parameter presentation: Presentation resolved for the current window.
+    /// - Returns: Opens the flyout, or nil where there is none to show.
+    private func showNavigationCommand(_ presentation: ShellPresentation) -> (@MainActor () -> Void)? {
+        guard presentation.navigation == .flyout else { return nil }
+        return { openDrawer() }
+    }
+
+    /// Go back one page in the selected section (⌘[): the trailing pane's pushed page,
+    /// then the open item itself (closing the split), then the list page.
     private func goBack() {
-        if let next = ListDetailPolicy.pathAfterBack(
-            section: selected, path: path(for: selected).wrappedValue,
-            isSplit: splitSections.contains(selected)
-        ) {
-            paths[selected] = next
-        }
+        let current = path(for: selected).wrappedValue
+        guard !current.isEmpty else { return }
+        paths[selected] = Array(current.dropLast())
     }
 
     // MARK: - Drawer
@@ -809,6 +753,8 @@ public struct FestivalRootView: View {
             rootProfilePresented = true
         case .deselectProfile:
             session.deselectPlayer()
+        case .openSearch:
+            perform(.openSearch)
         }
     }
 
@@ -935,9 +881,9 @@ public struct FestivalRootView: View {
         }
     }
 
-    /// Wrap a root screen in its own stack with shared root chrome: a `FestivalTabStack`,
-    /// or list/detail columns for Leaderboards and Rivals on an iPhone Duo inner display
-    /// (`ListDetailStack`, `ListDetailPolicy`).
+    /// Wrap a root screen in its own stack with shared root chrome: one stack, which
+    /// splits on demand in a landscape regular window while a list page is on top
+    /// (`OnDemandSplitStack`, `OnDemandSplitPolicy`).
     ///
     /// - Parameters:
     ///   - section: Section owning the stack and path.
@@ -947,7 +893,7 @@ public struct FestivalRootView: View {
         _ section: FestivalSection, @ViewBuilder root: () -> Root
     ) -> some View {
         let root = root()
-        return ListDetailStack(
+        return OnDemandSplitStack(
             section: section, session: session, visibleInstruments: visibleInstruments,
             path: path(for: section), isVisible: selected == section
         ) { _ in

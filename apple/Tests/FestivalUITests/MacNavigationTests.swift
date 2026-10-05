@@ -72,56 +72,38 @@ private let rival = AppRoute.rivalDetail(rivalId: "r1", name: "R", scope: nil)
 private let rankings = AppRoute.fullRankings(instrument: .lead, rankBy: "totalscore")
 private let player = AppRoute.player(accountId: "p1", displayName: "P")
 
-/// One column: Back pops one route; nothing to pop is unavailable.
-@Test func macBackInOneColumn() {
-    #expect(MacSidebarPolicy.backPath([], section: .songs, split: false) == nil)
-    #expect(MacSidebarPolicy.backPath([rival, player], section: .rivals, split: false) == [rival])
-    #expect(MacSidebarPolicy.backPath([.licenses], section: nil, split: true) == [])
-}
-
-/// Two columns: the detail root of a root list is never popped (it would only be
-/// auto-selected again); pushes inside the detail pop first; a pushed list page pops
-/// with its selection.
-@Test func macBackInTwoColumns() {
-    #expect(MacSidebarPolicy.backPath([rival], section: .rivals, split: true) == nil)
-    #expect(MacSidebarPolicy.backPath([rival, player], section: .rivals, split: true) == [rival])
-    #expect(MacSidebarPolicy.backPath([rankings, player], section: .leaderboards, split: true) == [])
-    #expect(MacSidebarPolicy.backPath([rankings], section: .leaderboards, split: true) == [])
+/// Back pops one page: a page pushed in the trailing pane, then the open item (full
+/// width again), then the list page; nothing to pop is unavailable.
+@Test func macBackPopsOnePage() {
+    #expect(MacSidebarPolicy.backPath([]) == nil)
+    #expect(MacSidebarPolicy.backPath([rival, player]) == [rival])
+    #expect(MacSidebarPolicy.backPath([rival]) == [])
+    #expect(MacSidebarPolicy.backPath([rankings, player]) == [rankings])
+    #expect(MacSidebarPolicy.backPath([.licenses]) == [])
 }
 
 // MARK: - Layout policy
 
-/// Two columns from 820 pt with a list page; regular width from 720 pt per column.
+/// Regular width from 720 pt per pane; page max widths.
 @Test func macLayoutWidths() {
-    #expect(!MacLayoutPolicy.showsSplit(width: 819, hasListPage: true, emptyListCollapsed: false))
-    #expect(MacLayoutPolicy.showsSplit(width: 820, hasListPage: true, emptyListCollapsed: false))
-    #expect(!MacLayoutPolicy.showsSplit(width: 1400, hasListPage: false, emptyListCollapsed: false))
-    #expect(!MacLayoutPolicy.showsSplit(width: 1400, hasListPage: true, emptyListCollapsed: true))
     #expect(MacLayoutPolicy.widthClass(forWidth: 719) == .compact)
     #expect(MacLayoutPolicy.widthClass(forWidth: 720) == .regular)
-    #expect(MacLayoutPolicy.listColumn.min + MacLayoutPolicy.detailMinimumWidth
-        <= MacLayoutPolicy.splitMinimumWidth)
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 820) == 340)
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060) == 1060 * 0.38)
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 3000) == 560)
-}
-
-/// A dragged divider width is remembered but clamped: never narrower than the list
-/// minimum, never wider than the drag maximum or than leaves the detail its minimum.
-@Test func macDraggedListWidthIsClampedSoTheDividerStaysVisible() {
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: nil) == 1060 * 0.38)
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 0) == 1060 * 0.38)
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 450) == 450)
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 100) == 340)
-    // 1060 − 480 − 1 leaves the detail its minimum.
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 1060, preferred: 900) == 579)
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 3000, preferred: 900) == 680)
-    // At the narrowest split the list never drops below its minimum.
-    #expect(MacLayoutPolicy.listWidth(forContentWidth: 820, preferred: 600) == 340)
     #expect(MacLayoutPolicy.pageMaxWidth(for: nil) == 1400)
     #expect(MacLayoutPolicy.pageMaxWidth(for: nil, isShopRoot: true) == 2170)
     #expect(MacLayoutPolicy.pageMaxWidth(for: .shop) == 2170)
     #expect(MacLayoutPolicy.pageMaxWidth(for: .licenses) == 1400)
+}
+
+/// The default 1280 pt window (content area 1060 pt) splits at its midpoint; the
+/// minimum 760 pt window (content 540 pt) pushes.
+@Test func macWindowSplitEligibility() {
+    func geometry(_ width: CGFloat) -> OnDemandSplitPolicy.Geometry? {
+        OnDemandSplitPolicy.geometry(.init(
+            container: CGRect(x: 0, y: 0, width: width, height: 800), isLandscape: true, isRegular: true
+        ))
+    }
+    #expect(geometry(MacWindowMetrics.defaultSize.width - 220)?.dividerMidX == 530)
+    #expect(geometry(MacWindowMetrics.minimum.width - 220) == nil)
 }
 
 // MARK: - Navigation model
@@ -165,14 +147,13 @@ private let player = AppRoute.player(accountId: "p1", displayName: "P")
     #expect(model.selected == .rivals)
 }
 
-/// Back respects the reported two-column state.
+/// Back closes an open item even while the trailing pane shows it.
 @MainActor
-@Test func macNavigationBackUsesSplitState() {
+@Test func macNavigationBackClosesOpenItem() {
     let model = MacNavigationModel(storage: nil, initial: .rivals, visible: MacDestination.allCases)
     model.paths[.rivals] = [rival]
-    #expect(model.canGoBack)
     model.splitDestinations.insert(.rivals)
-    #expect(!model.canGoBack)
+    #expect(model.canGoBack)
     model.push(player)
     model.goBack()
     #expect(model.currentPath == [rival])

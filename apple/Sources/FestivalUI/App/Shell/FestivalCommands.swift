@@ -41,6 +41,8 @@ struct FestivalShellCommands: Equatable {
     var whatsNew: @MainActor () -> Void
     /// Push Licenses on the current destination.
     var licenses: @MainActor () -> Void
+    /// Open the navigation flyout (iPad regular width; nil where none is shown).
+    var showNavigation: (@MainActor () -> Void)? = nil
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.destinations == rhs.destinations && lhs.visible == rhs.visible && lhs.selected == rhs.selected
@@ -112,7 +114,13 @@ public struct FestivalCommands: Commands {
 
     public var body: some Commands {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            SidebarCommands()
+            // No persistent sidebar on iPad (`split-view.md`): View › Show Navigation
+            // opens the overlay flyout instead of the system sidebar toggle.
+            CommandGroup(before: .toolbar) {
+                Button("Show Navigation") { shell?.showNavigation?() }
+                    .keyboardShortcut("s", modifiers: [.control, .command])
+                    .disabled(blocked || shell?.showNavigation == nil)
+            }
             // HIG The menu bar › iPadOS: "Reserve Settings for opening your app's page in
             // iPadOS Settings; put internal-preferences ... beneath it, in the same group."
             CommandGroup(after: .appSettings) {
