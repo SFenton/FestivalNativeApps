@@ -1,0 +1,47 @@
+# Modal shell
+
+> **What:** the shared sheet, dialog and alert container with its title, dismissal and standard Close affordance. **Read when:** presenting a scoped task, confirmation or notice.
+
+Status: **current**, 2026-10-05. Provenance: #23, #24, #25, #94, #96.
+
+## Intent
+
+A modal identifies one short, scoped task, exposes its platform-standard dismissal and closes before another modal opens. Features own body content and actions; the shared shell owns chrome, focus/dismissal behavior and the header.
+
+## Web source (behavior reference)
+
+| Web | Behavior |
+|---|---|
+| `FortniteFestivalWeb/src/components/modals/components/ModalShell.tsx` (`ModalShell`, `DEFAULT_TRANSITION_MS`, `FOCUSABLE_SELECTOR`) | One portal shell owns overlay, Escape, focus containment, focus restoration and nested-layer inertness. |
+| `FortniteFestivalWeb/src/components/modals/Modal.tsx` (`Modal`) | Variant content supplies reset/apply behavior inside the common shell. |
+
+## Rules
+
+- **R1. Use only the shared shell.** Every feature modal uses its platform canonical component; never construct an unowned sheet, dialog or `ContentDialog`.
+- **R2. Name the task.** The common header/dialog title is concise and announced before body content. Apple HIG Modality: “Identify the task with a title or explanatory/guidance text so people can regain their place after switching context.”
+- **R3. Offer the native dismissal.** Apple sheets use the system Close and permit vertical dismissal where no input is at risk; Android uses the Material Close button plus back/scrim/swipe; Windows uses the standard `ContentDialog` Close command and Esc/light dismiss. Apple HIG Modality: “Always provide an obvious, platform-conventional dismissal.”
+- **R4. Keep Close out of feature bodies.** Do not draw a custom xmark, footer Close or live-apply Done control. Apple’s system `FestivalSheetCloseItem`, Android’s 48 dp `FestivalModalCloseButton` and Windows’ command row are the only shared close affordances.
+- **R5. Keep the body below the header.** The Apple shell applies the shared top fade (#94); Android and Windows retain a hard content edge. Modal presentation never covers its own title or Close control.
+- **R6. Preserve the feedback-form exception.** It has potentially lossy text input, so it uses Cancel and Submit with discard confirmation rather than the ordinary Close-only task shell. Apple HIG Sheets: “Single-view sheets: Cancel on the top toolbar's leading edge; Done, when present, trailing.”
+- **R7. Serialize presentations.** Dismiss a sheet before opening another; a confirmation alert may sit above a modal, but never stack independent alerts. Apple HIG Sheets: “Display only one sheet at a time from the main interface.”
+
+## Canonical implementation
+
+| Sub-behavior | Apple | Android | Windows |
+|---|---|---|---|
+| Sheet/dialog shell | `apple/Sources/FestivalUI/Design/FestivalModal.swift` `FestivalModal` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt` `FestivalModalSheet`, `FestivalModalDialog` | `windows/Festival.App/Controls/FestivalDialog.cs` `FestivalDialog` |
+| Standard Close | `apple/Sources/FestivalUI/Design/SheetStyle.swift` `FestivalSheetCloseItem` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt` `FestivalModalCloseButton` | `windows/Festival.App/Controls/FestivalDialog.cs` `Create` |
+| Confirmation | `apple/Sources/FestivalUI/Design/FestivalModal.swift` `FestivalModal` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt` `FestivalAlertDialog` | `windows/Festival.App/Controls/FestivalDialog.cs` `ShowAsync` |
+
+## Known debt
+
+| Debt | Breaks | Plan |
+|---|---|---|
+| None verified. | — | Keep the shared-shell guards enabled; the feedback form is the documented R6 exception. |
+
+## Guards (tools/pattern_guard.py)
+
+- `modal-shell/windows-content-dialog`
+- `modal-shell/android-bottom-sheet`
+- `modal-shell/android-alert-dialog`
+- `modal-shell/apple-manual-modal-close` (precise single-line `ToolbarItem` Close/xmark forms; current-tree scan has no outside-`Design/` match)
