@@ -326,6 +326,24 @@ class WhatsNewTest {
     }
 
     @Test
+    fun launchSettlesOnlyAfterAFirstRunEvaluation() = runBlocking {
+        val off = center(FirstRunMode.Off)
+        assertFalse(off.launchSettled.value)
+        assertNull(off.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true))
+        assertTrue("an evaluation with nothing pending still settles", off.launchSettled.value)
+
+        val normal = center()
+        assertFalse(normal.launchSettled.value)
+        val carousel = normal.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)
+        assertNotNull(carousel)
+        assertTrue(normal.launchSettled.value)
+
+        val noPage = center()
+        noPage.markLaunchSettled()
+        assertTrue("a destination without a carousel settles", noPage.launchSettled.value)
+    }
+
+    @Test
     fun normalLaunchPresentsOncePerHashAfterTheCarousel() = runBlocking {
         val blob = MemoryBlobStore()
         val center = center()

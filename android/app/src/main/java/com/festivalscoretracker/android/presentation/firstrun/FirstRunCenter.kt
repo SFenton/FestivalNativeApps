@@ -70,6 +70,20 @@ class FirstRunCenter(
      */
     val claimed: StateFlow<String?> = claimFlow.asStateFlow()
 
+    private val launchSettledFlow = MutableStateFlow(false)
+
+    /**
+     * True once the launch page has had its first-run evaluation (a pending carousel then holds
+     * the slot). What's New waits for it rather than racing the carousel on a timer, so the
+     * carousel wins however slowly the first frames render (web `activeCarouselKey` order).
+     */
+    val launchSettled: StateFlow<Boolean> = launchSettledFlow.asStateFlow()
+
+    /** The visible destination has no carousel page: nothing will claim the slot at launch. */
+    fun markLaunchSettled() {
+        launchSettledFlow.value = true
+    }
+
     /**
      * Gate facts for a page. The web Shop page passes
      * `{hasPlayer: false, shopHighlightEnabled: true}` regardless of settings (`ShopPage.tsx:141`).
@@ -110,10 +124,16 @@ class FirstRunCenter(
      * @return The carousel to present, or null when nothing is pending or another carousel is showing.
      */
     suspend fun tryBegin(page: FirstRunPageKey, settings: AppSettings, compact: Boolean): FirstRunCarousel? = mutex.withLock {
-        if (activeFlow.value != null || claimFlow.value != null) return null
-        val slides = pendingSlides(page, settings, compact)
-        if (slides.isEmpty()) return null
-        FirstRunCarousel(ids.incrementAndGet(), page, slides, isReplay = false).also { activeFlow.value = it }
+        val carousel = if (activeFlow.value != null || claimFlow.value != null) {
+            null
+        } else {
+            pendingSlides(page, settings, compact).takeIf { it.isNotEmpty() }?.let { slides ->
+                FirstRunCarousel(ids.incrementAndGet(), page, slides, isReplay = false).also { activeFlow.value = it }
+            }
+        }
+        // Only a completed evaluation settles the launch (a cancelled one re-runs).
+        launchSettledFlow.value = true
+        carousel
     }
 
     /**
