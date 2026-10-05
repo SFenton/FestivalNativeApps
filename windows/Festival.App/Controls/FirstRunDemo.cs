@@ -1049,7 +1049,7 @@ public sealed partial class FirstRunDemo : UserControl
     #endregion
 
     #region Motion
-    /// <summary>Re-evaluates the timer when motion settings or window visibility change.</summary>
+    /// <summary>Re-evaluates the timer when motion settings, window visibility or window activation change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
     private void OnMotionChanged(object? sender, EventArgs e) => UpdateTimer();
@@ -1085,7 +1085,7 @@ public sealed partial class FirstRunDemo : UserControl
 
     /// <summary>The rotation gate: only <see cref="FirstRunDemoRotationState.Running"/> runs the swap clock.</summary>
     private FirstRunDemoRotationState RotationState =>
-        FirstRunDemoRotationStatus.State(advance is not null, active, IsLoaded, Motion.Paused);
+        FirstRunDemoRotationStatus.State(advance is not null, active, IsLoaded, Motion.Paused, Motion.Foreground);
 
     /// <summary>Publishes the data and rotation state as the raw-view peer's ItemStatus for UI tests.</summary>
     private void PublishStatus()

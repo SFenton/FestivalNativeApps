@@ -144,6 +144,9 @@ public enum FirstRunDemoRotationState
 
     /// <summary>The window is minimized, covered, cloaked or otherwise hidden: paused.</summary>
     Hidden,
+
+    /// <summary>The window is visible but not the foreground (activated) window, e.g. beside another app: paused.</summary>
+    Background,
 }
 
 /// <summary>
@@ -156,16 +159,18 @@ public static class FirstRunDemoRotationStatus
     /// <param name="active">The slide is the carousel's selected one.</param>
     /// <param name="loaded">The demo is in the live tree.</param>
     /// <param name="hidden">The window can't be seen (<c>Motion.Paused</c>).</param>
-    /// <returns>State.</returns>
-    public static FirstRunDemoRotationState State(bool rotates, bool active, bool loaded, bool hidden) =>
+    /// <param name="foreground">The window is the activated foreground window (<c>Motion.Foreground</c>).</param>
+    /// <returns>State. Hidden wins over background (a minimized window is also deactivated), and both over unselected.</returns>
+    public static FirstRunDemoRotationState State(bool rotates, bool active, bool loaded, bool hidden, bool foreground) =>
         !rotates ? FirstRunDemoRotationState.Static
         : hidden ? FirstRunDemoRotationState.Hidden
+        : !foreground ? FirstRunDemoRotationState.Background
         : active && loaded ? FirstRunDemoRotationState.Running
         : FirstRunDemoRotationState.Inactive;
 
     /// <summary>
     /// UIA ItemStatus: a static demo reports only its data status (<see cref="FirstRunDemos.DataStatus"/>); a rotating
-    /// one appends <c>rotation=running|inactive|not-visible</c>, the swaps drawn since it was built and how the last swap
+    /// one appends <c>rotation=running|inactive|not-visible|background</c>, the swaps drawn since it was built and how the last swap
     /// was drawn (<c>none</c>, <c>fade</c> or <c>instant</c> with animations off), e.g.
     /// <c>catalogue rotation=running swaps=2 swap=fade</c> (space-separated: UI test steps split on semicolons).
     /// <c>not-visible</c> matches the backdrop's hidden token.
@@ -182,6 +187,7 @@ public static class FirstRunDemoRotationStatus
         {
             FirstRunDemoRotationState.Running => "running",
             FirstRunDemoRotationState.Hidden => "not-visible",
+            FirstRunDemoRotationState.Background => "background",
             _ => "inactive",
         };
         var swap = swaps == 0 ? "none" : lastSwapFaded ? "fade" : "instant";
