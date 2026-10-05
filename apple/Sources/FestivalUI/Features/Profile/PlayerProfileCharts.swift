@@ -439,7 +439,11 @@ struct RankHistoryCharts: View {
             }
         }
         .chartOverlay { proxy in
-            axisElements(proxy: proxy, scale: scale, visible: visible)
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: RankHistoryPlotFrameKey.self, value: proxy.plotFrame.map { geometry[$0] }
+                )
+            }
         }
         .frame(height: Self.plotHeight)
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
@@ -451,6 +455,12 @@ struct RankHistoryCharts: View {
             }
         }
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
+        // After the chart's own accessibility modifiers, so the axis elements are plain
+        // static text: inside the chart they took its identifier and adjustable action
+        // (audited as an 18 pt tall control).
+        .overlayPreferenceValue(RankHistoryPlotFrameKey.self) { plot in
+            if let plot { axisElements(plot: plot, scale: scale, visible: visible) }
+        }
 
         if paging.needsPagination {
             // Swipe a page at a time (web `SWIPE_THRESHOLD` 50 pt): left shows newer
@@ -485,28 +495,31 @@ struct RankHistoryCharts: View {
     /// count matching the axes). Each element covers its labels' area and reads the axis
     /// range, so VoiceOver gets the scale the labels show (HIG Charts / VoiceOver: "Make
     /// charts and other infographics fully accessible").
-    private func axisElements(proxy: ChartProxy, scale: RankHistoryChartScale, visible: [Point]) -> some View {
+    private func axisElements(plot: CGRect, scale: RankHistoryChartScale, visible: [Point]) -> some View {
         GeometryReader { geometry in
-            if let anchor = proxy.plotFrame {
-                let plot = geometry[anchor]
-                let size = geometry.size
-                let ranks = scale.rankTicks.map { "#\($0.formatted())" }
-                ZStack(alignment: .topLeading) {
-                    axisElement(
-                        "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
-                        frame: CGRect(x: 0, y: plot.minY, width: max(1, plot.minX), height: plot.height)
-                    )
-                    axisElement(
-                        "Rank scale, \(ranks.first ?? "") to \(ranks.last ?? "")",
-                        frame: CGRect(x: plot.maxX, y: plot.minY, width: max(1, size.width - plot.maxX), height: plot.height)
-                    )
-                    axisElement(
-                        "Dates, \(visible.first?.label ?? "") to \(visible.last?.label ?? "")",
-                        frame: CGRect(x: plot.minX, y: plot.maxY, width: plot.width, height: max(1, size.height - plot.maxY))
-                    )
-                }
+            let size = geometry.size
+            let ranks = scale.rankTicks.map { "#\($0.formatted())" }
+            ZStack(alignment: .topLeading) {
+                axisElement(
+                    "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",
+                    frame: CGRect(x: 0, y: plot.minY, width: max(1, plot.minX), height: plot.height)
+                )
+                axisElement(
+                    "Rank scale, " + Self.span(ranks.first, ranks.last),
+                    frame: CGRect(x: plot.maxX, y: plot.minY, width: max(1, size.width - plot.maxX), height: plot.height)
+                )
+                axisElement(
+                    "Dates, " + Self.span(visible.first?.label, visible.last?.label),
+                    frame: CGRect(x: plot.minX, y: plot.maxY, width: plot.width, height: max(1, size.height - plot.maxY))
+                )
             }
         }
+    }
+
+    /// "first to last", or just the one value when they match.
+    static func span(_ first: String?, _ last: String?) -> String {
+        let first = first ?? "", last = last ?? ""
+        return first == last ? first : "\(first) to \(last)"
     }
 
     /// An invisible static-text element at `frame` (chart overlay coordinates).
@@ -781,4 +794,11 @@ struct PercentileDescriptor: AXChartDescriptorRepresentable {
             xAxis: xAxis, yAxis: yAxis, additionalAxes: [], series: [series]
         )
     }
+}
+
+/// The Rank History plot area in the chart's own coordinates (``RankHistoryCharts`` axis
+/// elements).
+private struct RankHistoryPlotFrameKey: PreferenceKey {
+    static let defaultValue: CGRect? = nil
+    static func reduce(value: inout CGRect?, nextValue: () -> CGRect?) { value = nextValue() ?? value }
 }
