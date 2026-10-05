@@ -106,7 +106,7 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertstatus": "status", "assertstate": "state",
+    "assertinset": "gap", "assertstatus": "status", "assertstate": "state",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text).
@@ -195,7 +195,9 @@ def parse_step(step: str) -> dict:
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
-    edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer.
+    edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
+    ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
+    pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top.
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
