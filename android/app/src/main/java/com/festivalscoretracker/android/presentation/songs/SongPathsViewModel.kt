@@ -195,7 +195,29 @@ class SongPathsViewModel(
     /** System or app Reduce Motion; read at each swap step. */
     var reduceMotion: Boolean = false
 
+    /** Sheet opening this state belongs to, or null before the first [beginOpening]. */
+    private var opening: Int? = null
+
     init {
+        reload()
+    }
+
+    /**
+     * Start sheet opening [opening]. The view model outlives the sheet (it is scoped to the
+     * song's back stack entry so a rotation keeps the selection), so a new opening resets to
+     * the first chart, Expert and [defaultDisplay], which Settings may have changed since the
+     * last one. The same opening again (recomposition, rotation) keeps the current selection;
+     * the first call only records it, since the constructor already loaded that state.
+     *
+     * @param opening Opening counter, increased by every tap on the Paths button.
+     * @param defaultDisplay Settings' current default display.
+     */
+    fun beginOpening(opening: Int, defaultDisplay: PathDisplayMode) {
+        val previous = this.opening
+        this.opening = opening
+        if (previous == null || previous == opening) return
+        job?.cancel()
+        mutableState.value = SongPathsState(instruments.first(), display = defaultDisplay)
         reload()
     }
 

@@ -71,6 +71,7 @@ private func hostSplit(
                 Text(rootIsTop ? "Root On Top" : "Root Covered")
                 SelectModeProbe()
                 ColumnWidthProbe()
+                BackdropProbe()
             }
         }
     }
@@ -100,7 +101,7 @@ private let duoInnerPortrait = DeviceLayout.resolve(LayoutSignals(
     let (host, window) = hostSplit(section: .rivals, path: [], layout: duoInner, size: size, recorder: recorder)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture List Root", "Root On Top", "Rows Select", "Width Regular"],
+        host, untilText: ["Fixture List Root", "Root On Top", "Rows Select", "Width Regular", "Backdrop Shared"],
         excluding: ["Close", "No Player Selected"], timeout: splitBudget
     )
     _ = try nativeHostedPNG(image, filename: "split-rivals-full-width.png", environment: "FST_SHELL_RENDER_OUT")
@@ -115,7 +116,8 @@ private let duoInnerPortrait = DeviceLayout.resolve(LayoutSignals(
     let (host, window) = hostSplit(section: .rivals, path: [fixtureRival], layout: duoInner, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select", "Width Compact"],
+        host,
+        untilText: ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select", "Width Compact", "Backdrop Shared"],
         timeout: splitBudget
     )
     _ = try nativeHostedPNG(image, filename: "split-rivals-open.png", environment: "FST_SHELL_RENDER_OUT")
@@ -132,7 +134,8 @@ private let duoInnerPortrait = DeviceLayout.resolve(LayoutSignals(
         let recorder = PathRecorder()
         let (host, window) = hostSplit(section: .rivals, path: [], layout: layout, size: size, recorder: recorder)
         defer { window.orderOut(nil) }
-        try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push"], timeout: splitBudget)
+        // One stack: the page draws its own backdrop copy.
+        try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push", "Backdrop Own"], timeout: splitBudget)
         #expect(recorder.path.isEmpty)
     }
 }
@@ -178,6 +181,69 @@ private let duoInnerPortrait = DeviceLayout.resolve(LayoutSignals(
     // Selecting a route no row shows leaves every row plain.
     let other = try await render(selection: .player(accountId: "z", displayName: nil))
     #expect(nativeHostedSignature(plain) == nativeHostedSignature(other))
+}
+
+// MARK: - One background per split
+
+/// Owns whether the trailing probe page is shown, so it appears after the leading one.
+private struct TwoPaneBackgroundHost: View {
+    let session: FestivalSession
+    @State private var showsTrailing = false
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack {
+                Text("Leading Probe")
+                BackdropProbe()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .festivalBackground(.carousel, session: session)
+            .splitPaneContext(SplitPaneContext(role: .leading))
+            if showsTrailing {
+                VStack {
+                    Text("Trailing Probe")
+                    BackdropProbe()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .festivalBackground(.song("trailing-art.png"), session: session)
+                .splitPaneContext(SplitPaneContext(role: .trailing))
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(300))
+            showsTrailing = true
+        }
+    }
+}
+
+/// One background per split (operator 2026-10-05): pages in both panes draw no backdrop
+/// of their own (the split container draws one), and a trailing page that appears after
+/// its parent, asking for a different artwork, never takes the shared background over.
+@MainActor
+@Test func splitPanesShareTheParentsBackground() async throws {
+    let size = CGSize(width: 800, height: 400)
+    let session = offlineSession()
+    let host = nativeHostedView(
+        TwoPaneBackgroundHost(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(
+        host, untilText: ["Leading Probe", "Trailing Probe", "Backdrop Shared"],
+        excluding: ["Backdrop Own"], timeout: splitBudget
+    )
+    let coordinator = session.backgroundCoordinator
+    #expect(coordinator.topToken != nil, "The parent page registers")
+    #expect(coordinator.resolvedMode == .carousel, "The trailing page's artwork never wins")
+}
+
+/// Shows whether the page draws its own backdrop or the split container draws one.
+private struct BackdropProbe: View {
+    @Environment(\.splitSharesBackdrop) private var shared
+    var body: some View { Text(shared ? "Backdrop Shared" : "Backdrop Own") }
 }
 
 /// Shows whether list rows would open the trailing pane or push.

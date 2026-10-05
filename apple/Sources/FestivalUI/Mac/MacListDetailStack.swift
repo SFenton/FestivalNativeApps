@@ -180,7 +180,12 @@ struct MacListDetailStack<Root: View>: View {
         let open = splitCut?.selection != nil
         Group {
             if let splitCut {
-                OnDemandSplitLayout(geometry: open ? geometry : nil) {
+                // One backdrop behind both panes while a list page is on top, open
+                // or not (`SplitPaneChrome`).
+                OnDemandSplitLayout(
+                    geometry: open ? geometry : nil,
+                    backdrop: SplitPaneChrome.sharesBackdrop ? session.backgroundCoordinator : nil
+                ) {
                     leadingPane(cut: splitCut, open: open)
                 } trailing: {
                     if let top = splitCut.detail.last {
