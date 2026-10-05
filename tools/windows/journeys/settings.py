@@ -77,13 +77,16 @@ class Journey:
         name: Short CLI name.
         phases: Drive phases.
         seed: Settings written before the first launch.
-        relaunch: Phase index after which the app is closed and relaunched on the same settings file.
+        relaunch: Phase index after which the app is closed and relaunched on Settings with the same settings file.
+        relaunch_to: Phase index → app launch arguments (e.g. ``["--route", "/songs/x"]``) for a relaunch elsewhere
+            after that phase, on the same settings file.
     """
 
     name: str
     phases: list[Phase]
     seed: dict[str, Any] = field(default_factory=dict)
     relaunch: int | None = None
+    relaunch_to: dict[int, list[str]] = field(default_factory=dict)
 
 
 def _id(automation_id: str) -> str:
@@ -97,6 +100,21 @@ def _disabled(automation_id: str) -> str:
 
 
 READY = "waitfor:id=fst.settings.show-instrument-icons@20"
+PATH_VIEW = "fst.settings.path-default-view"
+PATHS_SONG = "/songs/fixture-pulse"
+
+
+def _path_view_selected(option: str) -> list[str]:
+    """Steps asserting exactly ``option`` (``image``/``text``) is the selected CHOpt Path Default View radio."""
+    other = "text" if option == "image" else "image"
+    return [f"assertstate:id={PATH_VIEW}.{option}|selected=true@5", f"assertstate:id={PATH_VIEW}.{other}|selected=false"]
+
+
+def _open_paths(view: str) -> list[str]:
+    """Steps opening the song's Paths dialog and waiting for ``view`` (``table`` for Text, ``image`` for Image)."""
+    return ["waitfor:id=fst.song-detail.paths@20", "reveal:id=fst.song-detail.paths", "invoke:id=fst.song-detail.paths",
+            "waitfor:id=fst.paths@10", f"waitfor:id=fst.paths.{view}@15", "wait:1"]
+
 
 JOURNEYS = [
     Journey(
@@ -205,6 +223,37 @@ JOURNEYS = [
                   forbid=[_id("fst.first-run.dialog")]),
         ],
     ),
+    Journey(
+        # Issues #56/#256: CHOpt Path Default View is picked inline on Settings (no navigation, no disclosure), is read
+        # as a named group of radio buttons after its heading and description, persists across a relaunch, and the
+        # next Paths dialog opens in the chosen view, also when changed while a Song Detail page is open.
+        name="path-default-view",
+        seed={"pathUnavailableWarningDismissed": True},
+        phases=[
+            Phase([f"scrollinto:id={PATH_VIEW}", *_path_view_selected("image")],
+                  expect=[rf'^\s*Group "CHOpt Path Default View" {_id(PATH_VIEW)}',
+                          rf'^\s*RadioButton "Image" {_id(PATH_VIEW + ".image")}.*patterns=.*SelectionItem',
+                          rf'^\s*RadioButton "Text" {_id(PATH_VIEW + ".text")}.*patterns=.*SelectionItem'],
+                  order=[r'^\s*Text "CHOpt Path Default View" ', r'^\s*Text "Choose whether CHOpt paths open ',
+                         _id(PATH_VIEW), _id(PATH_VIEW + ".image"), _id(PATH_VIEW + ".text"),
+                         r'^\s*Text "CHOpt Text Path Column Order" '],
+                  forbid=[rf'{_id(PATH_VIEW)}.*patterns=.*ExpandCollapse']),
+            Phase([f"select:id={PATH_VIEW}.text", "wait:1", *_path_view_selected("text"),
+                   "assertstate:id=fst.nav.settings|selected=true"],
+                  expect=[_id(PATH_VIEW), _id("fst.settings.path-column-order")],
+                  saved={"pathDefaultView Text": lambda v: v.get("pathDefaultView") == "Text"}),
+            Phase([READY, f"scrollinto:id={PATH_VIEW}", *_path_view_selected("text")]),
+            Phase(_open_paths("table"),
+                  expect=[_id("fst.paths.table")], forbid=[_id("fst.paths.image")]),
+            Phase(["invoke:id=CloseButton", "waitgone:id=fst.paths@5", "select:id=fst.nav.settings", f"waitfor:id={PATH_VIEW}@10", f"scrollinto:id={PATH_VIEW}",
+                   *_path_view_selected("text"), f"select:id={PATH_VIEW}.image", "wait:1", *_path_view_selected("image")],
+                  saved={"pathDefaultView Image": lambda v: v.get("pathDefaultView") == "Image"}),
+            Phase(["select:id=fst.nav.songs", *_open_paths("image")],
+                  expect=[_id("fst.paths.image")], forbid=[_id("fst.paths.table")]),
+        ],
+        relaunch=1,
+        relaunch_to={2: ["--route", PATHS_SONG]},
+    ),
 ]
 
 # endregion
@@ -289,9 +338,9 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
                 break
             text = tree.read_text(encoding="utf-8", errors="replace") if tree.exists() else ""
             failures += [f"phase {index}: {f}" for f in check_tree(text, phase) + check_saved(settings, phase)]
-            if journey.relaunch == index:
+            if journey.relaunch == index or index in journey.relaunch_to:
                 _helpers._uiwin("close", "--pid", str(pid), check=False)
-                pid = _helpers._launch(exe, base, settings, launch)
+                pid = _helpers._launch(exe, base, settings, journey.relaunch_to.get(index, launch))
     except RuntimeError as error:
         failures.append(str(error))
     finally:

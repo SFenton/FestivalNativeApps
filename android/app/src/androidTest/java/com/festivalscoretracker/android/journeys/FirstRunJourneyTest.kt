@@ -83,9 +83,15 @@ class FirstRunJourneyTest {
         assertTitled(FirstRunPageKey.Songs)
         assertLayoutFitsTheWindow()
         h.readingOrder("first-run-journey")
+        val firstNext = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
         h.tap("fst.first-run.next")
         rule.waitUntil(5_000) { position().startsWith("Slide 2 of ") }
         assertTrue("Back appears after the first slide", h.exists("fst.first-run.back"))
+        // Material 3 dialog actions (issues #25, #148): Back, then Next, which never moves.
+        val back = rule.onNodeWithTag("fst.first-run.back").fetchSemanticsNode().boundsInRoot
+        val next = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
+        assertTrue("Back comes before Next", back.right <= next.left)
+        assertEquals("Next keeps its place on slide 2", firstNext, next)
         assertLayoutFitsTheWindow()
         h.tap("fst.first-run.close")
         h.waitGone("fst.first-run.dialog")

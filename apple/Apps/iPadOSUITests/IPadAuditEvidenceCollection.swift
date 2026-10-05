@@ -193,7 +193,8 @@ extension IPadAccessibilityAuditTests {
                 }
                 for index in heuristic where findings[index].text?.growth == nil
                     || (comparisonSize == .accessibilityExtraExtraExtraLarge && isClipped(index)) {
-                    guard let locator = locators[index], let element = locator.resolve(in: other, within: otherContent) else {
+                    guard let locator = locators[index],
+                          let element = locator.resolve(in: other, within: otherContent, fallbackX: frames[index].midX) else {
                         findings[index].text?.missing = "element not found in the comparison launch"
                         continue
                     }
