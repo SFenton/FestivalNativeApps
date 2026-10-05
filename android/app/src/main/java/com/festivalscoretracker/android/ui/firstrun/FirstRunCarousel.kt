@@ -106,8 +106,7 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, onComplete: (viewedCount:
         onDismissRequest = close,
         // Full-width margins capped at 560 dp on every window (see the KDoc above).
         compact = true,
-        // Half-open foldables: stay on one side of the hinge (M3 foldables guidance).
-        avoidHinge = true,
+        // Half-open foldables: the shared dialog stays on one side of the hinge (M3 foldables guidance).
         paneTitle = "Feature tour: ${carousel.page.label}",
         // The shared Title Large header, like What's New and Notifications (issue #147).
         titleTag = "fst.first-run.title",
