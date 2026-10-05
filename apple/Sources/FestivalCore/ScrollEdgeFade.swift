@@ -2,13 +2,33 @@ import Foundation
 
 // MARK: - Scroll edge fade
 
-/// Where scrolling rows fade out above chrome pinned to the bottom of a page, like
-/// the web's `useScrollFade` (36 px, `FortniteFestivalWeb/src/hooks/ui/useScrollFade.ts`):
-/// rows are fully drawn until `distance` above the chrome's top edge, fade to clear
-/// at that edge and are not drawn beneath the chrome at all (issue #93).
+/// The ramps of every scroll-edge fade (`.agents/patterns/scroll-edge.md`): content is
+/// clear at a pinned edge and fully drawn a ramp away from it.
+///
+/// Bottom chrome (pagers, footers) follows the web's `useScrollFade` (36 px,
+/// `FortniteFestivalWeb/src/hooks/ui/useScrollFade.ts`): rows are fully drawn until
+/// ``distance`` above the chrome's top edge, fade to clear at that edge and are not
+/// drawn beneath the chrome at all (issue #93). Top edges (sheet headers, pinned section
+/// titles) follow the web's `useScrollMask` (40 px, ``topDistance``). Both ramps are
+/// linear, and these are their only definitions on Apple platforms (scroll-edge R3,
+/// issue #308).
 public enum ScrollEdgeFade {
-    /// Web `DEFAULT_DISTANCE`: the height of the fade above the chrome.
+    /// Web `useScrollFade` `DEFAULT_DISTANCE`: the height of the fade above bottom chrome.
     public static let distance: Double = 36
+
+    /// Web `useScrollMask` `DEFAULT_SIZE`: the height of the fade below a top edge (a
+    /// sheet header or a pinned section title).
+    public static let topDistance: Double = 40
+
+    /// A ramp for the current accessibility settings (scroll-edge R7).
+    ///
+    /// - Parameters:
+    ///   - distance: The full ramp, ``distance`` or ``topDistance``.
+    ///   - hardEdge: Reduce Transparency or Increase Contrast (system or in-app) is on.
+    /// - Returns: `distance` (at least 0), or 0, a hard edge, when `hardEdge` is set.
+    public static func ramp(_ distance: Double, hardEdge: Bool) -> Double {
+        hardEdge || !distance.isFinite ? 0 : max(0, distance)
+    }
 
     /// Unit gradient locations (0 = top of the masked area, 1 = bottom).
     public struct Stops: Equatable, Sendable {

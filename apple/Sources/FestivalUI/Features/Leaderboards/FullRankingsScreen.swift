@@ -39,9 +39,6 @@ struct FullRankingsScreen: View {
     @State private var titleHidden = false
     /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
     @State private var bottomChromeTop: CGFloat?
-    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
-    /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
-    @State private var bottomFadeDistance = ScrollEdgeFade.distance
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -177,13 +174,10 @@ struct FullRankingsScreen: View {
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
-                .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
                 // Rows fade out over up to 36 pt above the pinned footer and pager and
                 // are not drawn beneath them, exactly like Song Leaderboard (issue #294;
-                // web `useScrollFade`, issue #93). The fade shrinks away as the last row
-                // arrives, so the list ends one row gap above the chrome with no
-                // reserved margin (issue #293).
-                .mask { bottomChromeFadeMask(chromeTop: chromeTop) }
+                // the shared scroll-edge fade, issues #93, #293, #308).
+                .scrollEdgeFade(bottomChromeTop: chromeTop, in: Self.pageSpace)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -343,38 +337,6 @@ struct FullRankingsScreen: View {
         case .pending, .unranked, .footer: return true
         case .some(.none), .inline, nil: return false
         }
-    }
-
-    /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
-    /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
-    /// reaches its resting place (issue #293). Extends into the top safe area so rows
-    /// still scroll under the navigation bar.
-    ///
-    /// - Parameter chromeTop: The chrome's measured top in ``pageSpace``; nil draws
-    ///   every row.
-    /// - Returns: The mask view.
-    private func bottomChromeFadeMask(chromeTop: CGFloat?) -> some View {
-        GeometryReader { proxy in
-            let frame = proxy.frame(in: .named(Self.pageSpace))
-            let stops = ScrollEdgeFade.bottom(
-                height: Double(frame.height),
-                obscured: chromeTop.map { Double(frame.maxY - $0) } ?? 0,
-                distance: bottomFadeDistance
-            )
-            if chromeTop == nil {
-                Color.black
-            } else {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: stops.fadeStart),
-                        .init(color: .clear, location: stops.fadeEnd),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
     }
 
     // MARK: Selected-player spotlight

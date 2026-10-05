@@ -1,3 +1,4 @@
+import FestivalCore
 import SwiftUI
 
 // MARK: - Modal top-edge fade
@@ -12,8 +13,9 @@ import SwiftUI
 /// the header is dimmed; the fade grows with the first ``rampHeight`` points of scrolling
 /// instead of the web's on/off switch.
 enum ModalTopEdgeFade {
-    /// Height of the fade below the header: the web mask's `DEFAULT_SIZE` (40 px).
-    static let rampHeight: CGFloat = 40
+    /// Height of the fade below the header: ``ScrollEdgeFade/topDistance``, the web
+    /// mask's `DEFAULT_SIZE` (40 px).
+    static let rampHeight = CGFloat(ScrollEdgeFade.topDistance)
 
     /// Header height from the content's two readings.
     ///
@@ -89,8 +91,13 @@ struct ModalTopEdgeFadeModifier: ViewModifier {
     /// Ramp height the content asked for (``ModalTopEdgeFadeRampKey``); nil uses
     /// ``ModalTopEdgeFade/rampHeight``.
     @State private var rampOverride: CGFloat?
+    /// Reduce Transparency or Increase Contrast: a hard edge under the header
+    /// (scroll-edge R7, issue #308).
+    @ScrollEdgeHardEdge private var hardEdge
 
-    private var rampHeight: CGFloat { rampOverride ?? ModalTopEdgeFade.rampHeight }
+    private var rampHeight: CGFloat {
+        hardEdge ? 0 : rampOverride ?? ModalTopEdgeFade.rampHeight
+    }
 
     private var headerHeight: CGFloat {
         ModalTopEdgeFade.headerHeight(safeAreaInset: safeAreaInset, containerOffset: containerOffset)
