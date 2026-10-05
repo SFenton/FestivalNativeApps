@@ -92,10 +92,34 @@ class ContractTests(unittest.TestCase):
         late = next(s for s in j.SCENARIOS if s.name == "late-catalogue")
         self.assertEqual(late.fixture, ("--songs-delay", str(j.SONGS_DELAY)))
         steps = [step for phase in late.phases for step in phase.steps]
-        self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|placeholder", steps)
-        self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|catalogue@{j.SONGS_DELAY + 20}", steps)
-        self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|catalogue@5")
-        self.assertTrue(all(s.fixture == () for s in j.SCENARIOS if s is not late))
+        self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|~^placeholder( |$)", steps)
+        self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue( |$)@{j.SONGS_DELAY + 20}", steps)
+        self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|~^catalogue( |$)@5")
+        rotating = {"rotation", "rotation-reduced"}
+        self.assertTrue(all(s.fixture == ("--large-catalogue",) for s in j.SCENARIOS if s.name in rotating))
+        self.assertTrue(all(s.fixture == () for s in j.SCENARIOS if s is not late and s.name not in rotating))
+
+    def test_rotation_scenarios_cover_running_paused_hidden_and_instant(self):
+        rotation = next(s for s in j.SCENARIOS if s.name == "rotation")
+        steps = "\n".join(step for phase in rotation.phases for step in phase.steps)
+        for token in ("rotation=running", "rotation=not-visible", "swap=fade", "resize:minimized", "resize:restored"):
+            self.assertIn(token, steps)
+        # Paging away and back within one phase leaves the first tick's single swap unchanged (paused while unselected).
+        first = rotation.phases[0].steps
+        back = first.index("invoke:id=SecondaryButton")
+        self.assertIn("invoke:id=PrimaryButton", first[:back])
+        self.assertEqual(first[back + 1], j._rotation("songs-song-list", j.FIRST_TICK_FADE))
+        self.assertRegex("catalogue rotation=running swaps=1 swap=fade", j.FIRST_TICK_FADE)
+        self.assertNotRegex("catalogue rotation=running swaps=3 swap=fade", j.FIRST_TICK_FADE)
+        reduced = next(s for s in j.SCENARIOS if s.name == "rotation-reduced")
+        self.assertTrue(reduced.settings["reduceMotion"])
+        self.assertIn("swap=instant", reduced.phases[0].steps[1])
+        status = "catalogue rotation=running swaps=3 swap=fade"
+        self.assertRegex(status, j.SWAPPED_FADE)
+        self.assertNotRegex("catalogue rotation=running swaps=0 swap=none", j.SWAPPED_FADE)
+        self.assertNotRegex(status, j.SWAPPED_INSTANT)
+        # Rotation steps never contain the step separator.
+        self.assertNotIn(";", steps)
 
     def test_states_covered(self):
         product = json.loads((REPO / "contracts" / "product.json").read_text(encoding="utf-8"))

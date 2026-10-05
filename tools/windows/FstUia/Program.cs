@@ -746,8 +746,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         };
         rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
         // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
-        // (a not-visible assertion must not restore a minimized window).
-        var front = expected != "not-visible";
+        // (a not-visible assertion, including a first-run demo's rotation=not-visible, must not restore a minimized window).
+        var front = !expected.Contains("not-visible", StringComparison.Ordinal);
         var nextFront = DateTime.MinValue;
         while (true)
         {
@@ -759,12 +759,21 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             string? seen;
             using (rawView.Activate())
                 seen = window.FindFirstDescendant(condition)?.Properties.ItemStatus.ValueOrDefault;
-            if (seen == expected) return;
+            if (StatusMatches(seen, expected)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} status is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
             Thread.Sleep(200);
         }
     }
+
+    /// <summary>Whether an ItemStatus equals the expected text, or matches it as a regex when it starts with <c>~</c>.</summary>
+    /// <param name="seen">ItemStatus, or <see langword="null"/> when the element is missing.</param>
+    /// <param name="expected">Exact status, or <c>~</c> followed by a .NET regular expression.</param>
+    /// <returns>Whether it matches.</returns>
+    internal static bool StatusMatches(string? seen, string expected) =>
+        seen is not null && (expected.StartsWith('~')
+            ? System.Text.RegularExpressions.Regex.IsMatch(seen, expected[1..])
+            : seen == expected);
 
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag

@@ -201,7 +201,9 @@ def parse_step(step: str) -> dict:
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
     pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top.
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
-    ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
+    ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
+    (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
+    ``not-visible`` is read without bringing the window to the front);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,

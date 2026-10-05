@@ -117,6 +117,10 @@ class StepTests(unittest.TestCase):
         plain = u.parse_step("assertstatus:name=Backdrop|no-art")
         self.assertEqual(plain["status"], "no-art")
         self.assertNotIn("timeout", plain)
+        # Issue #258: a `~` regex status passes through to FstUia unchanged.
+        regex = u.parse_step(r"assertstatus:id=fst.first-run.demo.songs-song-list|~^catalogue rotation=running swaps=[1-9]\d* swap=fade$@15")
+        self.assertEqual(regex["status"], r"~^catalogue rotation=running swaps=[1-9]\d* swap=fade$")
+        self.assertEqual(regex["timeout"], 15.0)
         for bad in ("assertstatus:id=x", "assertstatus:id=x|", "assertstatus:@1,2|on"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
