@@ -9,6 +9,20 @@ import FestivalDesign
 
 // MARK: - Fixtures
 
+/// A leaderboard-row-sized ``RankingRowSurface`` over a white page.
+private struct RankingRowProbe: View {
+    var body: some View {
+        ZStack {
+            Color.white
+            Text("Row")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(width: 280, height: 64)
+                .modifier(RankingRowSurface(isSelected: false))
+        }
+    }
+}
+
 /// A Song-row-sized card with one bright label over a white page.
 private struct RowCardProbe: View {
     var body: some View {
@@ -19,6 +33,33 @@ private struct RowCardProbe: View {
                 .foregroundStyle(.white)
                 .frame(width: 280, height: 64)
                 .festivalRowCard(cornerRadius: 12)
+        }
+    }
+}
+
+/// A pill-sized material capsule (`festivalCardCapsule`, custom floating controls).
+private struct CardCapsuleProbe: View {
+    var body: some View {
+        ZStack {
+            Color.white
+            Text("Row")
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(width: 280, height: 64)
+                .festivalCardCapsule()
+        }
+    }
+}
+
+/// A section card (`FestivalGlassSection`, Settings/Profile/Statistics groups).
+private struct SectionCardProbe: View {
+    var body: some View {
+        ZStack {
+            Color.white
+            FestivalGlassSection {
+                Text("Row").foregroundStyle(.white)
+            }
+            .frame(width: 280, height: 64)
         }
     }
 }
@@ -73,8 +114,9 @@ private func hostBlendsMaterials() throws -> Bool {
 
 // MARK: - Tests
 
-/// The Song row card (`festivalRowCard`) keeps every accessibility fallback of the
-/// Liquid Glass card it replaced, and no longer blanks hosted captures.
+/// The material card (`festivalRowCard`, `festivalCard`, `festivalCardCapsule`,
+/// `FestivalGlassSection`) keeps every accessibility fallback of the Liquid Glass card
+/// it replaced, and no longer blanks hosted captures (issue #291).
 @MainActor
 @Suite struct RowCardSurfaceTests {
     @Test("System Reduce Transparency draws the opaque card")
@@ -95,6 +137,32 @@ private func hostBlendsMaterials() throws -> Bool {
         #expect(max(centre.red, centre.green, centre.blue) < 0.2, "\(centre)")
     }
 
+    @Test("Section cards and control capsules keep the opaque fallbacks",
+          arguments: [nil, "fst.accessibility.lessTransparency", "fst.accessibility.moreContrast"])
+    func sectionAndCapsuleFallbacksAreOpaque(key: String?) throws {
+        for probe in [AnyView(CardCapsuleProbe()), AnyView(SectionCardProbe())] {
+            // nil: system Reduce Transparency (the harness's forced fallback).
+            let host = nativeHostedView(
+                probe.defaultAppStorage(rowCardDefaults(key)),
+                size: CGSize(width: 320, height: 96), forceGlassFallback: key == nil
+            )
+            let centre = try cardCentre(try nativeHostedImage(host))
+            #expect(max(centre.red, centre.green, centre.blue) < 0.2, "\(key ?? "system"): \(centre)")
+        }
+    }
+
+    @Test("The material capsule and section card capture without blanking")
+    func materialCapsuleAndSectionCapture() throws {
+        for probe in [AnyView(CardCapsuleProbe()), AnyView(SectionCardProbe())] {
+            let host = nativeHostedView(
+                probe.defaultAppStorage(rowCardDefaults(nil)),
+                size: CGSize(width: 320, height: 96), forceGlassFallback: false
+            )
+            // Tinted Liquid Glass blanks the whole capture; the white page must remain.
+            #expect(nativeHostedControlPixels(try nativeHostedImage(host)).bright > 0)
+        }
+    }
+
     @Test("The material card captures: the white page and label stay visible")
     func materialCardCaptures() throws {
         let host = nativeHostedView(
@@ -113,6 +181,18 @@ private func hostBlendsMaterials() throws -> Bool {
                 #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
             }
         }
+    }
+
+    @Test("Leaderboard rows draw the material card, not per-row Liquid Glass (issue #295)")
+    func rankingRowUsesMaterialCard() throws {
+        // A per-row `glassEffect` skipped the staggered load-in fade, so the selected
+        // player's non-glass row arrived last. Live tinted glass blanks this capture;
+        // the shared material card keeps the page and label.
+        let host = nativeHostedView(
+            RankingRowProbe().defaultAppStorage(rowCardDefaults(nil)),
+            size: CGSize(width: 320, height: 96), forceGlassFallback: false
+        )
+        #expect(nativeHostedControlPixels(try nativeHostedImage(host)).bright > 0)
     }
 }
 #endif

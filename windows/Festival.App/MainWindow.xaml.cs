@@ -69,7 +69,13 @@ public sealed partial class MainWindow : Window
         session.PropertyChanged += OnSessionChanged;
         session.FeatureStateReset += (_, files) => DropCachedSections(files.Select(f => f.Owner).OfType<AppSection>());
 
-        VisibilityChanged += (_, e) => { windowVisible = e.Visible; UpdateBackdropPolicy(); };
+        VisibilityChanged += (_, e) =>
+        {
+            windowVisible = e.Visible;
+            UpdateBackdropPolicy();
+            // A first-run check skipped while hidden runs once the window shows again (issue #232).
+            if (e.Visible) QueueFirstRun();
+        };
         AppWindow.Changed += OnAppWindowChanged;
         occlusion = new OcclusionTracker(WinRT.Interop.WindowNative.GetWindowHandle(this), DispatcherQueue);
         occlusion.Changed += (_, _) => UpdateBackdropPolicy();
@@ -493,8 +499,11 @@ public sealed partial class MainWindow : Window
     {
         if (args.DidPositionChange || args.DidSizeChange || args.DidZOrderChange || args.DidVisibilityChange) occlusion?.Invalidate();
         if (!args.DidPresenterChange && !args.DidSizeChange) return;
+        var wasMinimized = minimized;
         minimized = sender.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized };
         UpdateBackdropPolicy();
+        // The visible page's first-run check was skipped while minimized; run it on restore (issue #232).
+        if (wasMinimized && !minimized) QueueFirstRun();
     }
 
     /// <summary>Resolves and applies the background mode.</summary>

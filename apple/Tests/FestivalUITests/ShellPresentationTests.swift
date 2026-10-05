@@ -296,3 +296,20 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
     let sidebar = FestivalTabPolicy.sections(profile: .player, regularWidth: true)
     #expect(FestivalTabPolicy.searchTabOverflowRoute(for: .statistics, profile: .player, visible: sidebar) == nil)
 }
+
+// MARK: - Deferred section-set changes
+
+/// A fold or unfold changes the tabs one run-loop turn after the size class (the
+/// inner-portrait fold crashed UIKit's tab rebuild when both changed together):
+/// the applied set wins for tabs, the resolved set until one is applied, and the
+/// sidebar shell never defers.
+@Test func pendingSectionSetKeepsTheAppliedTabs() {
+    let folded = ShellPresentation.resolve(layout: Layouts.duoFoldedPortrait, usesSidebarShell: false)
+    let unfolded = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)
+    #expect(ShellPresentation.applying(folded, regularSet: true).usesRegularSectionSet)
+    #expect(!ShellPresentation.applying(unfolded, regularSet: false).usesRegularSectionSet)
+    #expect(ShellPresentation.applying(unfolded, regularSet: nil) == unfolded)
+    #expect(ShellPresentation.applying(folded, regularSet: false) == folded)
+    let sidebar = ShellPresentation.resolve(layout: .standardPhone, usesSidebarShell: true)
+    #expect(ShellPresentation.applying(sidebar, regularSet: false) == sidebar)
+}

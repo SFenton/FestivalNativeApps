@@ -14,6 +14,9 @@ public sealed class MotionPolicyTests
         Assert.Equal(125, FadeInTiming.Interval.TotalMilliseconds);
         Assert.Equal(12f, FadeInTiming.OffsetY);
         Assert.Equal((0f, 0f, 0.58f, 1f), FadeInTiming.EaseOut);
+        // Exits (Songs Jump, issue #231) use WinUI's fast control duration, quicker than the entrance.
+        Assert.Equal(167, FadeInTiming.HideDuration.TotalMilliseconds);
+        Assert.True(FadeInTiming.HideDuration < FadeInTiming.Duration);
     }
 
     [Theory]

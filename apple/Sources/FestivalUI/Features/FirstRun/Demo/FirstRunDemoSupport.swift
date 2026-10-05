@@ -279,7 +279,7 @@ extension View {
 // MARK: - Shared row styles
 
 /// A leaderboard row drawn with the app's real Leaderboards row (`RankingRowLayout` on a
-/// `RankingRowSurface` glass card, the selected player's purple accent), operator batch 7.
+/// `RankingRowSurface` material card, the selected player's purple accent), operator batch 7.
 struct FirstRunRankRow: View {
     let entry: FirstRunDemoPool.RankingEntry
 
@@ -302,11 +302,11 @@ struct FirstRunRivalRow: View {
     let direction: Direction
 
     var body: some View {
-        // The app's real rival row (`RivalRowContent`) on a glass card (operator batch 7).
+        // The app's real rival row (`RivalRowContent`) on a material card (operator batch 7).
         RivalRowContent(rival: rival, direction: direction == .above ? .above : .below)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .festivalGlass(.card, cornerRadius: 12)
+            .festivalCard(cornerRadius: 12)
     }
 }
 
@@ -329,8 +329,8 @@ struct FirstRunViewAllRow: View {
 }
 
 /// Same surface as the Leaderboards / Song Detail "View all" buttons (their
-/// `PurpleGlassButtonSurface` is file-private in each screen): accent-purple interactive
-/// glass on 26, solid purple under Reduce Transparency or the app's contrast overrides.
+/// `PurpleActionSurface`): the accent-purple material card on 26, solid purple under
+/// Reduce Transparency or the app's contrast overrides.
 struct FirstRunPurpleButtonSurface: ViewModifier {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
@@ -341,7 +341,10 @@ struct FirstRunPurpleButtonSurface: ViewModifier {
         if reduceTransparency || lessTransparency || moreContrast {
             content.background(BrandTokens.accentPurple, in: shape)
         } else if #available(iOS 26.0, macOS 26.0, *) {
-            content.glassEffect(.regular.tint(BrandTokens.accentPurple).interactive(), in: shape)
+            content
+                .background(PurpleActionSurface.tint, in: shape)
+                .background(.ultraThinMaterial, in: shape)
+                .overlay(shape.strokeBorder(RowCardStyle.rim, lineWidth: 1))
         } else {
             content
                 .background(BrandTokens.accentPurple.opacity(0.85), in: shape)

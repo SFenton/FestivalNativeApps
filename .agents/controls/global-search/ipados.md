@@ -9,5 +9,5 @@
 | Hardware keyboard | ⌘K and ⌘F open search (sidebar Search row or Search tab), as do the menu bar's Edit › Search Festival… and Go › Search…. Go destinations (⌘1…⌘9) leave Search like a sidebar row (the section Search was opened from returns with its stack); Go › Back is disabled while Search shows; Help › Licenses leaves Search and pushes on that section |
 | Title | Large **Search** navigation title in the detail column, kept while the field is focused (issue #100, same modifier as the [iPhone tab](ios.md)) |
 | Results | Pushed on the section that was showing before Search; that section's sidebar row is selected again |
-| Empty state | Same centred title, subtitle and Retry as [ios.md](ios.md) (issue #99), centred in the detail column below the scope bar |
+| Empty state | Same centred title and subtitle as [ios.md](ios.md) (issue #99; no Retry since #299), centred in the detail column below the scope bar; the #299 spinner centres in the same area |
 | Why | Issue #92. HIG Search fields (`apple-hig/references/hig/search-fields.md`): "Use a sidebar/tab-bar search item for a dedicated discovery area"; "on iPad with only a virtual keyboard, leave it unfocused to avoid unexpected keyboard coverage". The header Search button and the search sheet are gone on iPad |

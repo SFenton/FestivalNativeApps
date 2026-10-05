@@ -9,7 +9,8 @@ PrintWindow shot, with no SendInput, so the journeys also pass while the console
 Reachable overview states (issue #207): anonymous cards and rows, the selected player highlighted inside the top ten,
 pinned below it (outside), not yet ranked and a failed spotlight read with Retry, an empty board, a scrape-frozen
 board with its countdown and Retry Now, every card failing (closed port), Rank By, Quick Links, View All to Full and
-Band Rankings, and a row opening the player or band page. With ``--shots DIR`` it also saves screenshots.
+Band Rankings, a row opening the player or band page, and a long name scrolling in its row (issue #292). With
+``--shots DIR`` it also saves screenshots.
 
 Usage: ``python tools/windows/leaderboards_journey.py [--shots DIR] [--only NAME[,NAME…]] [--sizes compact,medium,wide]``
 """
@@ -26,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+from leaderboards_fixture import LONG_NAME  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
@@ -34,6 +36,7 @@ EXE = journey_exe.DEBUG_EXE
 ANONYMOUS = {"FST_DEBUG_ANONYMOUS": "1"}
 PLAYER = {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"}
 LEAD = "fst.leaderboards.card.Solo_Guitar"
+LONG_ROW_NAME = f"Rank #2, {LONG_NAME}. Total Score 88,000,000, 38 / 50 songs"
 
 def quick_link(section: str) -> list[str]:
     """Steps that open Quick Links and jump to one section (UIA Toggle, not the mouse wheel).
@@ -174,6 +177,25 @@ SCENARIOS: dict[str, tuple[dict[str, str], list[str], list[str]]] = {
             "waitfor:id=fst.band-rankings.list@15",
             "invoke:id=PART_BackButton",
             "waitfor:id=fst.leaderboards.band-card.Band_Duets.view-all@15",
+        ],
+    ),
+    "long-name": (
+        # Issue #292: a name too long for its column scrolls inside it (two shots 2 s apart show it moving) while the
+        # songs label, rating and chevron keep their places; Narrator reads the whole name once, here and in Full Rankings.
+        ANONYMOUS, ["--long-name"],
+        [
+            "waitfor:id=fst.rankings.row.fixture-player-2@30",
+            f"waitfor:name={LONG_ROW_NAME}",
+            "waitgone:name=Loading leaderboards",
+            "{shot:leaderboards-long-name-a}",
+            "wait:2",
+            "{shot:leaderboards-long-name-b}",
+            f"invoke:id={LEAD}.view-all",
+            "waitfor:id=fst.full-rankings.list@15",
+            f"waitfor:name={LONG_ROW_NAME}@15",
+            "{shot:full-rankings-long-name}",
+            "invoke:id=PART_BackButton",
+            f"waitfor:id={LEAD}.view-all@15",
         ],
     ),
     "rows": (

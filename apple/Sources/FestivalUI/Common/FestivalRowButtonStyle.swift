@@ -13,7 +13,7 @@ import FestivalDesign
 /// "Rely on system focus effects", "highlight items in lists and collections" → the
 /// row draws the system keyboard-focus colour as a ring in its own rounded shape while
 /// Full Keyboard Access focuses it (the system ring of an invisible or plain button is
-/// not visible on these glass cards).
+/// not visible on these material cards).
 struct FestivalRowButtonStyle: ButtonStyle {
     /// Corner radius of the row's card.
     var cornerRadius: CGFloat = 12

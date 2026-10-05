@@ -107,5 +107,27 @@ class JourneyHelperTests(unittest.TestCase):
                                  f"{name}: {step} needs real input")
 
 
+class LongNameTests(unittest.TestCase):
+    """``--long-name`` renames only the rank-2 entry (issue #292)."""
+
+    def setUp(self):
+        self.original = mock_service._ranking_entry
+        self.addCleanup(setattr, mock_service, "_ranking_entry", self.original)
+
+    def test_only_rank_two_gets_the_long_name(self):
+        f.install_long_name()
+        self.assertEqual(mock_service._ranking_entry(2, "fixture-player-2", "Fixture Player 2")["displayName"], f.LONG_NAME)
+        first = mock_service._ranking_entry(1, "fixture-player-1", "Fixture Player 1")
+        self.assertEqual((first["displayName"], first["accountId"]), ("Fixture Player 1", "fixture-player-1"))
+        # Everything but the name is the mock's usual row.
+        renamed = mock_service._ranking_entry(2, "fixture-player-2", "x")
+        self.assertEqual({**renamed, "displayName": "x"}, self.original(2, "fixture-player-2", "x"))
+
+    def test_long_name_overflows_any_row_and_is_in_the_journey_name(self):
+        self.assertGreater(len(f.LONG_NAME), 60)
+        self.assertIn(f.LONG_NAME, j.LONG_ROW_NAME)
+        self.assertEqual(j.SCENARIOS["long-name"][1], ["--long-name"])
+
+
 if __name__ == "__main__":
     unittest.main()

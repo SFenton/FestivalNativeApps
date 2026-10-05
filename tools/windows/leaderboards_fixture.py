@@ -5,6 +5,7 @@ failed states, so this wrapper can answer chosen top-level boards with an empty 
 scrape-freeze 503 with ``Retry-After: 30`` (``--frozen-board``). Board names are the service IDs used in the path:
 ``Solo_Bass`` for ``/api/rankings/Solo_Bass`` and ``Band_Trios`` for ``/api/rankings/bands/Band_Trios``. Player
 spotlight reads (``/api/rankings/{instrument}/{accountId}``) and every other route are the unchanged mock service.
+``--long-name`` renames every rank-2 player to a name too long for any row, for the name marquee (issue #292).
 
 Usage: ``python tools/windows/leaderboards_fixture.py --port 0 --empty-board Solo_Bass --frozen-board Band_Trios``
 (other flags, such as ``--large-rankings``, pass through to mock_service.py).
@@ -23,6 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import mock_service  # noqa: E402  (path set above)
 
 BOARD = re.compile(r"^/api/rankings/(?:(bands)/)?([A-Za-z_]+)$")
+LONG_NAME = "Fixture Player With An Extraordinarily Long Display Name That Never Fits"
+LONG_NAME_RANK = 2
 
 
 def board_override(path: str, empty: set[str], frozen: set[str]) -> tuple[str, str, bool] | None:
@@ -99,13 +102,30 @@ def install(empty: set[str], frozen: set[str]) -> None:
     mock_service.FixtureServer.request_queue_size = 128
 
 
+def install_long_name() -> None:
+    """Give every rank-2 rankings entry :data:`LONG_NAME`, for the overflowing-name marquee (issue #292).
+
+    Patches ``mock_service._ranking_entry``, so board pages, Full Rankings pages and the rank-2 player's spotlight
+    read agree on the name.
+    """
+    original = mock_service._ranking_entry
+
+    def entry(rank: int, account_id: str, display_name: str) -> dict:
+        return original(rank, account_id, LONG_NAME if rank == LONG_NAME_RANK else display_name)
+
+    mock_service._ranking_entry = entry
+
+
 def main() -> None:
     """Parse this wrapper's flags, then hand the rest to the mock service's own CLI."""
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--empty-board", action="append", default=[])
     parser.add_argument("--frozen-board", action="append", default=[])
+    parser.add_argument("--long-name", action="store_true")
     options, rest = parser.parse_known_args()
     install(set(options.empty_board), set(options.frozen_board))
+    if options.long_name:
+        install_long_name()
     sys.argv = [sys.argv[0], *rest]
     mock_service.main()
 

@@ -30,7 +30,8 @@ final class GlobalSearchModel {
     private(set) var songState = SectionState.idle
     private(set) var players: [PlayerSearchResult] = []
     private(set) var playerState = SectionState.idle
-    /// Bumped by Retry to rerun the same query.
+    /// Bumped to rerun the same query (keyboard Search after a failure, or a
+    /// service-status automatic retry).
     private(set) var retryRevision = 0
     private var catalogue: [Song]?
     /// Publication the catalogue was read under; a new publication reloads it.
@@ -58,6 +59,20 @@ final class GlobalSearchModel {
     /// Run the search again after a failure.
     func retry() {
         retryRevision += 1
+    }
+
+    /// The field's Search key was pressed: rerun a failed or empty search (issue #299,
+    /// no Retry button), leaving settled results and in-flight searches alone.
+    func submit() {
+        guard hasQuery, GlobalSearch.submitReruns(
+            scope: scope, songs: songOutcome, players: playerOutcome
+        ) else { return }
+        retry()
+    }
+
+    /// One centred spinner replaces the results while a shown section is pending.
+    var isSearching: Bool {
+        hasQuery && GlobalSearch.isSearching(scope: scope, songs: songOutcome, players: playerOutcome)
     }
 
     /// Search songs and players for the current query.
@@ -111,13 +126,13 @@ final class GlobalSearchModel {
     /// VoiceOver's result-count summary once the current query's results settle, or nil.
     var resultAnnouncement: String? {
         guard hasQuery else { return nil }
-        return GlobalSearch.resultAnnouncement(
-            scope: scope, songs: Self.outcome(songState, count: songs.count),
-            players: Self.outcome(playerState, count: players.count)
-        )
+        return GlobalSearch.resultAnnouncement(scope: scope, songs: songOutcome, players: playerOutcome)
     }
 
-    /// Map a section state to its announcement outcome.
+    private var songOutcome: GlobalSearch.SectionOutcome { Self.outcome(songState, count: songs.count) }
+    private var playerOutcome: GlobalSearch.SectionOutcome { Self.outcome(playerState, count: players.count) }
+
+    /// Map a section state to its outcome for the shared rules.
     private static func outcome(_ state: SectionState, count: Int) -> GlobalSearch.SectionOutcome {
         switch state {
         case .idle, .loading: .pending

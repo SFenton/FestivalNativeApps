@@ -26,8 +26,8 @@
     "route": "/search",
     "tabs": 0,
     "ready": ["waitfor:id=fst.global-search.field@20"],
-    "after_ready": ["setvalue:id=fst.global-search.field|rollover", "waitfor:class=Microsoft.UI.Xaml.Controls.ProgressRing@5",
-                    "shot:{stem}-ring.png", "waitgone:class=Microsoft.UI.Xaml.Controls.ProgressRing@15",
+    "after_ready": ["setvalue:id=fst.global-search.field|rollover", "waitfor:id=fst.global-search.loading@5",
+                    "shot:{stem}-ring.png", "waitgone:id=fst.global-search.loading@15",
                     "waitfor:id=fst.global-search.result.player@5"]
   },
   {

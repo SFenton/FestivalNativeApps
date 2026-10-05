@@ -129,7 +129,7 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
             }
         }
         .padding(14)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
     }
 }
 
@@ -147,7 +147,7 @@ struct FirstRunSuggestionsGlobalFilterDemo: View {
             }
         }
         .padding(14)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
         .accessibilityHidden(true)
     }
 
@@ -198,7 +198,7 @@ struct FirstRunSuggestionsInstrumentFilterDemo: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .festivalGlass(.card, cornerRadius: 16)
+        .festivalCard(cornerRadius: 16)
         .accessibilityHidden(true)
     }
 }
@@ -225,7 +225,7 @@ struct FirstRunSuggestionsInfiniteScrollDemo: View {
                 }
                 .padding(.horizontal, 12)
                 .frame(height: 44)
-                .festivalGlass(.card, cornerRadius: 12)
+                .festivalCard(cornerRadius: 12)
             }
         }
         .mask(

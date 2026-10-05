@@ -2,7 +2,8 @@
 """Run the global-search UI journeys and prove no band search reached the fixture service.
 
 Wraps ``ui_journey.py``: the loopback fixture service additionally records each request
-*path* (no query string, so no search text) to ``<shots>/fixture-paths.log``, every journey
+*path* (no query string, so no search text) to ``<shots>/fixture-paths.log`` and answers the
+account search for ``slow`` after a few seconds (a deterministic loading state), every journey
 gets a fresh isolated settings file (``--settings-path``) so selecting a player never
 touches real settings, and after the run the path log must contain at least one
 ``/api/account/search`` and no ``/api/bands/search``. ``--axe`` also opens the Search page
@@ -34,6 +35,10 @@ BAND_SEARCH = "/api/bands/search"
 #: which Release builds honour (they ignore ``FST_DEBUG_*``).
 EXE = ui_journey.EXE
 ACCOUNT_SEARCH = "/api/account/search"
+#: Account-search text the fixture answers only after ``SLOW_SECONDS``, so journeys can assert the loading state
+#: (issue #299: one spinner centred below the scope bar).
+SLOW_QUERY = "slow"
+SLOW_SECONDS = 4
 
 # region Fixture service
 
@@ -54,11 +59,16 @@ def start_logging_mock(log: Path, paths: Path) -> tuple[subprocess.Popen, int]:
     paths.write_text("", encoding="utf-8")
     handle = log.open("w", encoding="utf-8")
     bootstrap = (
-        "import sys, threading; sys.path.insert(0, sys.argv[1]); import mock_service as m; "
+        "import sys, threading, time as t; sys.path.insert(0, sys.argv[1]); import mock_service as m; "
         "lock = threading.Lock(); target = sys.argv[2]\n"
         "def log_request(self, code='-', size='-'):\n"
         "    with lock, open(target, 'a', encoding='utf-8') as f: f.write(self.path.split('?')[0] + '\\n')\n"
-        "m.FixtureHandler.log_request = log_request; m.FixtureServer.request_queue_size = 128; "
+        "get = m.FixtureHandler.do_GET\n"
+        "def slow_get(self):\n"
+        f"    if self.path.startswith('{ACCOUNT_SEARCH}?q={SLOW_QUERY}&'): t.sleep({SLOW_SECONDS})\n"
+        "    get(self)\n"
+        "m.FixtureHandler.log_request = log_request; m.FixtureHandler.do_GET = slow_get; "
+        "m.FixtureServer.request_queue_size = 128; "
         "sys.argv = ['mock_service', '--port', '0']; m.main()")
     proc = subprocess.Popen([sys.executable, "-u", "-c", bootstrap, str(ui_journey.MOCK.parent), str(paths)],
                             stdout=handle, stderr=subprocess.STDOUT)

@@ -317,6 +317,18 @@ object SongSectionIndex {
     }
 
     /**
+     * What TalkBack says for a rail label: the non-letter marker reads as "Numbers and
+     * symbols" (like its Quick Links bucket) rather than a symbol name; letters read as is.
+     *
+     * @param label Section label from [firstLetter].
+     * @return Spoken label.
+     */
+    fun spokenLabel(label: String): String = if (label == "#") NON_LETTER_SPOKEN else label
+
+    /** Spoken name of the `#` section. */
+    const val NON_LETTER_SPOKEN = "Numbers and symbols"
+
+    /**
      * How many sections each drawn rail label stands for: 1 when every label fits, otherwise
      * every `stride`-th section gets a label.
      *

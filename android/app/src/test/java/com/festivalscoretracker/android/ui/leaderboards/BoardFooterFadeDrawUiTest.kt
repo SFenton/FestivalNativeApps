@@ -18,10 +18,12 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -119,5 +121,47 @@ class BoardFooterFadeDrawUiTest {
     fun rowsUnderAVisibleFooterStayReachable() {
         board(fade = false)
         rule.onNodeWithTag("row.14").assertIsDisplayed()
+    }
+
+    /**
+     * A board of 30 rows above a 48 dp pager and, when [withScore], a 56 dp pinned score row,
+     * scrolled to its end. Returns the gap in dp between the last row and the first footer element.
+     */
+    private fun endGap(withScore: Boolean): Float {
+        rule.setContent {
+            Box(Modifier.size(400.dp, 800.dp)) {
+                RankingsBoardLayout(
+                    hinge = null,
+                    measure = Modifier,
+                    padding = PaddingValues(bottom = 96.dp),
+                    listState = rememberLazyListState(),
+                    idPrefix = "fst.t",
+                    controls = { Box(Modifier.fillMaxWidth().height(80.dp)) },
+                    footer = { if (withScore) Box(Modifier.fillMaxWidth().height(56.dp).testTag("score")) },
+                    pager = { Box(Modifier.fillMaxWidth().height(48.dp).testTag("pager")) },
+                    fadeAboveFooter = true,
+                ) {
+                    items(30) { Box(Modifier.fillMaxWidth().height(40.dp).testTag("row.$it")) }
+                }
+            }
+        }
+        rule.onNodeWithTag("fst.t.list").performScrollToIndex(30)
+        rule.waitForIdle()
+        val last = rule.onNodeWithTag("row.29").fetchSemanticsNode()
+        val lastBottom = last.positionInRoot.y + last.size.height
+        val next = rule.onNodeWithTag(if (withScore) "score" else "pager").fetchSemanticsNode().positionInRoot.y
+        return next - lastBottom
+    }
+
+    /** Issue #293: the pinned score row follows the last row at the list's own 12 dp item gap. */
+    @Test
+    fun lastRowSitsOneItemGapAboveThePinnedScore() {
+        assertEquals(12f, endGap(withScore = true), 0.5f)
+    }
+
+    /** Issue #293: without a score row, the pager follows the last row with no empty score slot. */
+    @Test
+    fun lastRowSitsOneItemGapAboveThePagerWithoutAScore() {
+        assertEquals(12f, endGap(withScore = false), 0.5f)
     }
 }

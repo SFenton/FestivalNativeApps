@@ -76,7 +76,7 @@ public sealed partial class LeaderboardsSpotlight : UserControl
             PinnedRow.RowAutomationId = prefix;
             AutomationProperties.SetAutomationId(LoadingRing, prefix + ".loading");
             AutomationProperties.SetAutomationId(Unranked, prefix + ".unranked");
-            AutomationProperties.SetAutomationId(Retry, prefix + ".retry");
+            Failed.RetryAutomationId = prefix + ".retry";
         }
         AutomationProperties.SetAutomationId(Jump, JumpAutomationId ?? (IdPrefix is null ? "" : IdPrefix + "-jump"));
     }

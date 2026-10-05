@@ -4,10 +4,12 @@ import FestivalDesign
 
 // MARK: - Results
 
-/// Global search results: a scope bar (All · Songs · Players · Bands) over one section per
-/// kind, mirroring the web `SearchModal` (`.agents/controls/global-search/spec.md`).
+/// Global search results: a scope bar (All · Songs · Players · Bands) over song rows then
+/// player rows, mirroring the web `SearchModal` (`.agents/controls/global-search/spec.md`).
+/// No section titles (issue #299): the scope bar already names the scope.
 ///
-/// The search field and scope bar sit on top; results or a centred message fill the rest. Every result is its own `List` row
+/// The search field and scope bar sit on top; results, one centred spinner or a centred
+/// message fill the rest. Every result is its own `List` row
 /// holding one action (`.agents/platforms/apple/architecture.md`, "List rows hold one
 /// action"). Placement per layout: `.agents/controls/global-search/ios.md`.
 struct GlobalSearchResults: View {
@@ -25,8 +27,11 @@ struct GlobalSearchResults: View {
     var body: some View {
         VStack(spacing: 10) {
             if showsField {
-                GlobalSearchField(text: $model.query, prompt: GlobalSearch.prompt(for: model.scope))
-                    .padding(.horizontal, 16)
+                GlobalSearchField(
+                    text: $model.query, prompt: GlobalSearch.prompt(for: model.scope),
+                    submit: { model.submit() }
+                )
+                .padding(.horizontal, 16)
             }
             // HIG scope bar: a segmented control, broadest scope first.
             Picker("Search Scope", selection: $model.scope) {
@@ -61,21 +66,34 @@ struct GlobalSearchResults: View {
     /// speak intermediate counts.
     static let announcementDelay: Duration = .milliseconds(700)
 
-    /// The area below the scope bar: a centred message, or the result sections.
+    /// The area below the scope bar: a centred hint, spinner or empty state, or the rows.
     @ViewBuilder private var results: some View {
-        if model.scope == .bands {
+        if !model.hasQuery {
+            // Issue #299: the hint names what the scope searches, Bands included.
+            centeredMessage(GlobalSearch.enterQueryHint(for: model.scope))
+        } else if model.scope == .bands {
             resultList { bandsUnavailable }
-        } else if !model.hasQuery {
-            centeredMessage("Enter at least two characters to search.")
+        } else if model.isSearching {
+            // Issue #299: one spinner for the whole area, centred between the scope bar
+            // and the field, keyboard or tab bar (HIG Progress indicators: "Display
+            // progress indicators in a consistent location").
+            searchingIndicator
         } else if isEmpty, let state = GlobalSearch.emptyState(scope: model.scope, query: model.query) {
-            // Issue #99: a centred title, subtitle and Retry, not an inline row.
-            GlobalSearchEmptyStateView(state: state) { model.retry() }
+            // Issue #99: a centred title and subtitle, not an inline row.
+            GlobalSearchEmptyStateView(state: state)
         } else {
             resultList {
-                if model.scope.sections.contains(.songs) { songsSection }
-                if model.scope.sections.contains(.players) { playersSection }
+                if model.scope.sections.contains(.songs) { songRows }
+                if model.scope.sections.contains(.players) { playerRows }
             }
         }
+    }
+
+    /// The one search spinner, centred in the results area.
+    private var searchingIndicator: some View {
+        FestivalLoadingView(accessibilityLabel: "Searching")
+            .accessibilityIdentifier("fst.global-search.loading")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// Web `SearchModal`: every result is its own frosted card, 4pt apart, on the
@@ -133,23 +151,19 @@ struct GlobalSearchResults: View {
 
     // MARK: Songs
 
-    /// Songs appear as soon as the catalogue filter runs; they never wait for players.
-    @ViewBuilder private var songsSection: some View {
-        let single = model.scope == .songs
+    /// Song rows, or why songs failed. Shown once every section the scope shows settled.
+    @ViewBuilder private var songRows: some View {
         switch model.songState {
         case .idle, .loading:
-            if single { section("Songs", id: "songs") { loadingRow("Searching Songs") } }
+            EmptyView()
         case let .failed(issue):
-            section("Songs", id: "songs") {
-                ServiceStatusInline(issue, scope: "global-search.songs") { model.retry() }
-                    .accessibilityIdentifier("fst.global-search.retry")
-            }
+            failureRow(issue, section: .songs)
         case .ready where model.songs.isEmpty:
             // "All" hides an empty section (web parity); the Songs scope's empty state
             // is drawn centred by `results`.
             EmptyView()
         case .ready:
-            section("Songs", id: "songs") {
+            Section {
                 ForEach(model.songs) { song in
                     Button {
                         open(.songDetail(song))
@@ -167,7 +181,7 @@ struct GlobalSearchResults: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .festivalGlass(.card, cornerRadius: 12)
+                        .festivalCard(cornerRadius: 12)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -183,30 +197,26 @@ struct GlobalSearchResults: View {
                     )
                 }
             }
+            .modifier(ResultSectionChrome())
         }
     }
 
     // MARK: Players
 
-    @ViewBuilder private var playersSection: some View {
+    /// Player rows, or why players failed (a scrape freeze reads "Scores are updating",
+    /// never "no players").
+    @ViewBuilder private var playerRows: some View {
         switch model.playerState {
         case .idle, .loading:
-            section("Players", id: "players") {
-                loadingRow("Searching Players")
-                    .accessibilityIdentifier("fst.global-search.players-loading")
-            }
+            EmptyView()
         case let .failed(issue):
-            // A scrape freeze reads "Scores are updating", never "no players".
-            section("Players", id: "players") {
-                ServiceStatusInline(issue, scope: "global-search.players") { model.retry() }
-                    .accessibilityIdentifier("fst.global-search.retry")
-            }
+            failureRow(issue, section: .players)
         case .ready where model.players.isEmpty:
             // "All" hides an empty section, like the web (issue #99); the Players scope
-            // and an all-empty "All" show the centred empty state with Retry instead.
+            // and an all-empty "All" show the centred empty state instead.
             EmptyView()
         case .ready:
-            section("Players", id: "players") {
+            Section {
                 PlayerSearchResultRows(model.players) { player in
                     Button {
                         // Web: the selected profile opens Statistics, others their page.
@@ -220,7 +230,7 @@ struct GlobalSearchResults: View {
                             .foregroundStyle(BrandTokens.textPrimary)
                             .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
                             .padding(.horizontal, 16)
-                            .festivalGlass(.card, cornerRadius: 12)
+                            .festivalCard(cornerRadius: 12)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -237,7 +247,27 @@ struct GlobalSearchResults: View {
                     )
                 }
             }
+            .modifier(ResultSectionChrome())
         }
+    }
+
+    /// A failed section's message without Retry (issue #299): the keyboard's Search key
+    /// re-runs the query, and a scrape freeze still retries on its own countdown.
+    ///
+    /// - Parameters:
+    ///   - issue: Classified failure.
+    ///   - section: `.songs` or `.players`.
+    private func failureRow(_ issue: ServiceIssue, section: GlobalSearchScope) -> some View {
+        Section {
+            ServiceStatusInline(
+                issue, scope: "global-search.\(section.rawValue)", showsRetryButton: false,
+                fallbackTitle: GlobalSearch.unavailableTitle(for: section)
+            ) { model.retry() }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("fst.global-search.\(section.rawValue)-error")
+            .listRowInsets(Self.cardInsets)
+        }
+        .modifier(ResultSectionChrome())
     }
 
     // MARK: Bands
@@ -264,8 +294,6 @@ struct GlobalSearchResults: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("fst.global-search.bands-unavailable")
-        } header: {
-            FestivalSectionHeader("Bands")
         }
         .listRowBackground(Color.white.opacity(0.06))
     }
@@ -280,38 +308,15 @@ struct GlobalSearchResults: View {
         return text
     }
 
-    private func section<Rows: View>(
-        _ title: String, id: String, @ViewBuilder rows: () -> Rows
-    ) -> some View {
-        Section {
-            // Web: a small uppercase heading row, not a pinned header band. The
-            // identifier sits on the heading (on the `Section` it would override rows').
-            Text(title.uppercased())
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(FestivalText.primary)
-                .padding(.horizontal, 4)
-                .padding(.top, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel(title)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("fst.global-search.section.\(id)")
-                .listRowInsets(Self.cardInsets)
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            rows()
-        }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .listSectionSeparator(.hidden)
-    }
+}
 
-    private func loadingRow(_ label: String) -> some View {
-        HStack {
-            Spacer(minLength: 0)
-            FestivalLoadingView(accessibilityLabel: label)
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 8)
+/// Clear, separator-free chrome for a run of result cards (no heading, issue #299).
+private struct ResultSectionChrome: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
     }
 }
 
@@ -346,6 +351,8 @@ struct GlobalSearchSheet: View {
 struct GlobalSearchField: View {
     @Binding var text: String
     let prompt: String
+    /// Return/Search was pressed (re-runs a failed or empty search, issue #299).
+    var submit: () -> Void = {}
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -356,6 +363,7 @@ struct GlobalSearchField: View {
             TextField(prompt, text: $text)
                 .focused($focused)
                 .submitLabel(.search)
+                .onSubmit(submit)
                 .autocorrectionDisabled()
                 #if os(iOS)
                 .textInputAutocapitalization(.never)

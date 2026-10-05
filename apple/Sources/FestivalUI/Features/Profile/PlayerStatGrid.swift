@@ -26,7 +26,7 @@ struct StatTile: Identifiable {
 // MARK: - Grid
 
 /// Stat tiles in an adaptive grid: two columns on iPhone, three or four as the page
-/// widens (``StatGridColumns``). Every tile is its own glass card (web `StatBox` in a
+/// widens (``StatGridColumns``). Every tile is its own material card (web `StatBox` in a
 /// `frostedCard`); clickable tiles show an in-tile chevron.
 ///
 /// A custom `Layout`, not a `LazyVGrid`: it reads the proposed width in the same layout
@@ -202,7 +202,7 @@ struct PlayerStatTileView: View {
     }
 }
 
-/// Each tile is its own glass card, like the web's one `frostedCard` per `StatBox`
+/// Each tile is its own material card, like the web's one `frostedCard` per `StatBox`
 /// (operator batch 6: no big card around the grid). Pressed, a 4% white wash (web
 /// `clickablePressed`).
 struct StatTileSurface: ViewModifier {
@@ -218,7 +218,7 @@ struct StatTileSurface: ViewModifier {
                     .fill(Color.white.opacity(isPressed ? 0.06 : 0))
                     .allowsHitTesting(false)
             }
-            .festivalGlass(.card, cornerRadius: Self.cornerRadius)
+            .festivalCard(cornerRadius: Self.cornerRadius)
         if let glow {
             surface.firstRunPulse(glow, shape: .roundedRect(cornerRadius: Self.cornerRadius))
         } else {

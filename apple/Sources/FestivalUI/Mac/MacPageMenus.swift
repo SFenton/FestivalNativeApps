@@ -33,6 +33,43 @@ struct MacRankByCommands: Equatable {
     static let accountOptions = RankingMetric.allCases.map { Option(id: $0.rawValue, label: $0.label) }
 }
 
+// MARK: - Instrument
+
+/// A rankings page's instrument switcher for View › Instrument (issue #294: the Full
+/// Rankings instrument menu is a toolbar item, and HIG Toolbars › macOS says "Every
+/// toolbar item must also be a menu-bar command").
+struct MacInstrumentCommands: Equatable {
+    /// One chart.
+    struct Option: Equatable, Identifiable {
+        let id: String
+        let label: String
+    }
+
+    /// The page's selectable charts in menu order.
+    let options: [Option]
+    /// The chart in effect.
+    let selected: String
+    /// Applies a chart by id.
+    let select: @MainActor (String) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.options == rhs.options && lhs.selected == rhs.selected
+    }
+
+    /// Menu options for the given charts, in their order.
+    ///
+    /// - Parameter instruments: The page's selectable charts.
+    /// - Returns: One option per chart, keyed by its wire id.
+    static func options(for instruments: [Instrument]) -> [Option] {
+        instruments.map { Option(id: $0.rawValue, label: $0.label) }
+    }
+
+    /// Every chart, shown disabled when no rankings page is in front so the submenu
+    /// keeps its items (HIG Menus: "Make sure a submenu remains available even when its
+    /// items are unavailable").
+    static let allOptions = options(for: Instrument.allCases)
+}
+
 // MARK: - Quick Links
 
 /// A page's Quick Links for Go › Quick Links and Next/Previous Section.
@@ -85,10 +122,29 @@ extension View {
             select: { id in BandRankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
         )))
     }
+
+    /// Publish a rankings page's instrument switcher to View › Instrument (macOS and
+    /// the iPadOS menu bar; a no-op on iPhone).
+    ///
+    /// - Parameters:
+    ///   - instruments: The charts the page's own menu offers, in order.
+    ///   - selection: The page's chart.
+    /// - Returns: The view.
+    func macInstrumentCommands(_ instruments: [Instrument], selection: Binding<Instrument>) -> some View {
+        modifier(MacInstrumentPublisher(commands: MacInstrumentCommands(
+            options: MacInstrumentCommands.options(for: instruments),
+            selected: selection.wrappedValue.rawValue,
+            select: { id in Instrument(rawValue: id).map { selection.wrappedValue = $0 } }
+        )))
+    }
 }
 
 private struct MacRankByCommandsKey: FocusedValueKey {
     typealias Value = MacRankByCommands
+}
+
+private struct MacInstrumentCommandsKey: FocusedValueKey {
+    typealias Value = MacInstrumentCommands
 }
 
 private struct MacQuickLinksPageKey: FocusedValueKey {
@@ -104,6 +160,12 @@ extension FocusedValues {
     var macRankBy: MacRankByCommands? {
         get { self[MacRankByCommandsKey.self] }
         set { self[MacRankByCommandsKey.self] = newValue }
+    }
+
+    /// The front rankings page's instrument switcher.
+    var macInstrument: MacInstrumentCommands? {
+        get { self[MacInstrumentCommandsKey.self] }
+        set { self[MacInstrumentCommandsKey.self] = newValue }
     }
 
     /// Quick Links of the page in the detail (or only) column.
@@ -127,6 +189,20 @@ private struct MacRankByPublisher: ViewModifier {
     func body(content: Content) -> some View {
         if MenuBarCommandsSupport.isAvailable {
             content.focusedSceneValue(\.macRankBy, isTop ? commands : nil)
+        } else {
+            content
+        }
+    }
+}
+
+/// Publishes the instrument switcher only from the top page of its column.
+private struct MacInstrumentPublisher: ViewModifier {
+    let commands: MacInstrumentCommands
+    @Environment(\.macPageIsTop) private var isTop
+
+    func body(content: Content) -> some View {
+        if MenuBarCommandsSupport.isAvailable {
+            content.focusedSceneValue(\.macInstrument, isTop ? commands : nil)
         } else {
             content
         }

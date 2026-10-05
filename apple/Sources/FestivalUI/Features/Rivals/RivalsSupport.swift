@@ -66,8 +66,8 @@ struct RivalsChooseProfileState: View {
 // MARK: - Rival row content
 
 /// Flat row content for one rival, meant to sit inside a `FestivalGlassSection`
-/// card (per `.agents/design/apple/liquid-glass.md`: Rivals groups get one glass
-/// card per group, with flat rows inside — never per-row glass).
+/// card (per `.agents/design/apple/liquid-glass.md`: Rivals groups get one material
+/// card per group, with flat rows inside — never a card per row).
 ///
 /// Field placement mirrors the web's `RivalRow.tsx`, including its slightly
 /// surprising pairing: the "ahead" pill shows `behindCount` and the "behind"
@@ -168,6 +168,13 @@ struct RivalSongRowContent: View {
     let rivalName: String
 
     private var instrument: Instrument? { Instrument(rawValue: song.instrument) }
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// Rank comparison layout: a row, or a column at accessibility sizes.
+    private var comparisonLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2)) : AnyLayout(HStackLayout(spacing: 4))
+    }
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -185,7 +192,9 @@ struct RivalSongRowContent: View {
                         .foregroundStyle(FestivalText.primary)
                         .lineLimit(1)
                 }
-                HStack(spacing: 4) {
+                // One line normally; at accessibility sizes each part gets its own
+                // wrapping line (the AX5 audit read "#12 Fixt… vs #13 u…").
+                comparisonLayout {
                     Text("#\(song.userRank) \(playerName)")
                     Text("vs")
                         .foregroundStyle(FestivalText.primary)
@@ -193,7 +202,7 @@ struct RivalSongRowContent: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(FestivalText.primary)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
             Spacer(minLength: 8)
             deltaBadge

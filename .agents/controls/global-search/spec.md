@@ -127,17 +127,17 @@ Band search is **not called** by native apps: when its projection is missing, th
 | `fst.global-search.scope.{songs,players,bands}` | Scope chips |
 | `fst.global-search.hint` | Short-query / empty / error message |
 | `fst.global-search.empty` | Centred empty state (Android/Windows; title `.empty.title`, subtitle `.empty.subtitle` on Windows) |
-| `fst.global-search.section.{songs,players}` | Section containers (headings inside); removed on Android by issue #299 |
+| `fst.global-search.section.{songs,players}` | Section containers (headings inside); removed on Android, Windows and Apple by issue #299 |
 | `fst.global-search.result.song`, `fst.global-search.result.player` | Each result row (repeated; accessible name = title/artist or display name) |
-| `fst.global-search.loading` | The one centred search spinner (Android) |
-| `fst.global-search.players-loading` | Players inline progress; removed on Android by issue #299 |
-| `fst.global-search.players-error` | Players failure / freeze message (Android, Windows) |
-| `fst.global-search.retry` | Players / empty-state Retry; on Apple the whole centred empty state of Players and All is this one element (title, subtitle, Retry); removed on Android by issue #299 |
+| `fst.global-search.loading` | The one centred search spinner (Android, Windows, Apple) |
+| `fst.global-search.players-loading` | Players inline progress; removed on Android, Windows and Apple by issue #299 |
+| `fst.global-search.players-error` | Players failure / freeze message (Android, Windows, Apple; Apple also `fst.global-search.songs-error`) |
+| `fst.global-search.retry` | Players / empty-state Retry; removed on Android, Windows and Apple by issue #299 (the Apple empty state is now the static `fst.global-search.hint` element) |
 | `fst.global-search.bands-unavailable` | Band explanation block and its Band Rankings button |
 
 ## Test matrix
 
-Open from a tab root and from a detail page in every layout · <2 chars · debounce (fast typing = one request) · songs-only match, players-only match, both · diacritics/punctuation song match · players empty envelope + centred Retry empty state (Players scope; hidden section in All when songs match) · all-empty centred title + subtitle · players 503 freeze · players transport error with songs still shown · scope toggle on/off · Bands chip explanation (assert no `/api/bands/search` request in the fixture log) · tap song/player/selected player → destination and Back · close by Escape/back gesture restores focus to the opener · screen-reader names, headings and count announcement · Songs filter text untouched by global search and vice versa.
+Open from a tab root and from a detail page in every layout · <2 chars · debounce (fast typing = one request) · songs-only match, players-only match, both · diacritics/punctuation song match · players empty envelope + centred empty state without Retry, re-run by submitting the same text (Players scope; hidden section in All when songs match) · all-empty centred title + subtitle · players 503 freeze · players transport error with songs still shown · scope toggle on/off · Bands chip explanation (assert no `/api/bands/search` request in the fixture log) · tap song/player/selected player → destination and Back · close by Escape/back gesture restores focus to the opener · screen-reader names, no section titles, scope-specific short-query hint, one centred spinner and count announcement · Songs filter text untouched by global search and vice versa.
 
 ## Open questions (operator)
 

@@ -12,7 +12,8 @@ Journey file shape::
     [{"name": "player-bands", "route": "/bands/player/fixture-player-1",
       "preset": "medium", "steps": ["waitfor:id=fst.player-bands.title@10", "..."]}]
 
-``{shots}`` in a step expands to the ``--shots`` directory (Windows path). An optional
+``{shots}`` in a step or an ``extra`` value expands to the ``--shots`` directory (Windows path), so journeys can
+share a ``FST_DEBUG_DATA_DIR`` across relaunches (e.g. a dismissal persisting). An optional
 ``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks,
 ``"args": ["--reduce-motion"]`` extra app arguments, and an optional ``"fixture": ["--band-rankings", "empty"]``
 runs that journey against its own fixture service with those flags (``rivals_fixture.py`` unless ``--fixture``).
@@ -101,6 +102,24 @@ def uiwin(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(UIWIN), *args], capture_output=True, text=True)
 
 
+def launch_args(journey: dict, port: int, shots: Path) -> list[str]:
+    """``uiwin.py launch`` arguments for one journey.
+
+    Args:
+        journey: Journey definition.
+        port: Fixture service port.
+        shots: Screenshot directory, substituted for ``{shots}`` in ``extra`` values.
+
+    Returns:
+        The argument list (after ``launch``).
+    """
+    return [str(EXE), "--route", journey["route"],
+            "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
+            "--preset", journey.get("preset", "medium"),
+            *(f"--arg={arg}" for arg in journey.get("args", [])),
+            *(f"--extra={key}={str(value).replace('{shots}', str(shots))}" for key, value in journey.get("extra", {}).items())]
+
+
 def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:
     """Launch, drive and close one journey.
 
@@ -112,11 +131,7 @@ def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:
     Returns:
         Pass flag and a short failure detail.
     """
-    launch = uiwin("launch", str(EXE), "--route", journey["route"],
-                   "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
-                   "--preset", journey.get("preset", "medium"),
-                   *(f"--arg={arg}" for arg in journey.get("args", [])),
-                   *(f"--extra={key}={value}" for key, value in journey.get("extra", {}).items()))
+    launch = uiwin("launch", *launch_args(journey, port, shots))
     if launch.returncode != 0:
         return False, "launch: " + launch.stderr.strip()
     steps = [s.replace("{shots}", str(shots)) for s in journey["steps"]]

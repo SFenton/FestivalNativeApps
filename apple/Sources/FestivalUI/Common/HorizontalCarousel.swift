@@ -124,7 +124,7 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
     ///   - hasMore: True while an endless source can load more.
     ///   - onNearEnd: Called when a card near the end appears (load the next page).
     ///   - card: Builds one card's content (the carousel adds no card chrome, so pass
-    ///     glass sections or `festivalGlass` cards).
+    ///     `FestivalGlassSection` or `festivalCard` cards).
     init(
         _ title: String, items: [Item], minimumCardWidth: CGFloat = 300,
         hasMore: Bool = false, onNearEnd: (() -> Void)? = nil,

@@ -23,16 +23,34 @@ struct FullRankingsScreen: View {
     @State private var state: RankLoadState<RankingsPayload> = .loading
     @State private var lastRequest: RequestKey?
     /// Ranked-account count and page count for the current instrument and metric,
-    /// kept while another page loads so the floating pager and the subtitle don't
+    /// kept while another page loads so the pager and the ranked count don't
     /// flicker; cleared when the instrument or metric changes.
     @State private var board: BoardSummary?
     /// The selected player's own row on this instrument's board, independent of
     /// the current page — mirroring the web client's separate `playerRanking`
     /// query on `FullRankingsPage.tsx`.
     @State private var spotlightState: RankLoadState<PlayerInstrumentRankingPayload> = .loading
+    /// The last loaded page's rows: keeps the pinned spotlight footer and the shared
+    /// columns in place while the next page loads (Song Leaderboard, issue #93);
+    /// cleared with ``board`` when the instrument or metric changes.
+    @State private var shownEntries: [AccountRankingEntry]?
+    /// The in-list title has scrolled under the bar: the bar shows the instrument icon
+    /// and title instead (issue #294, like Song Leaderboard's pinned title).
+    @State private var titleHidden = false
+    /// Top edge of the pinned footer and pager in ``pageSpace``; nil without chrome.
+    @State private var bottomChromeTop: CGFloat?
+    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
+    /// above the chrome, then shrinking to nothing (Song Leaderboard, issue #293).
+    @State private var bottomFadeDistance = ScrollEdgeFade.distance
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
+
+    /// Coordinate space shared by the rows' fade mask and the pinned chrome.
+    nonisolated private static let pageSpace = "fst.full-rankings.page"
+    /// Space between two rows, and between the last row and the pinned chrome.
+    nonisolated private static let rowGap: CGFloat = 6
 
     private struct SpotlightKey: Equatable {
         let instrument: Instrument
@@ -84,7 +102,33 @@ struct FullRankingsScreen: View {
         return Instrument.allCases.filter { shown.contains($0) || $0 == instrument }
     }
 
+    /// The page title for a chart, e.g. "Lead Rankings": the navigation title (back
+    /// menu, window title, VoiceOver) and the text beside the instrument icon.
+    ///
+    /// - Parameter instrument: Chart being ranked.
+    /// - Returns: The localized-format title.
+    static func title(for instrument: Instrument) -> String {
+        "\(instrument.label) Rankings"
+    }
+
+    /// Whether the bar shows the pinned icon and title: once the in-list title has
+    /// scrolled away, and while a new board has no in-list title yet (first load,
+    /// instrument or metric switch, failure). A page change keeps the last decision so
+    /// the bar doesn't flash the title while only the rows reload.
+    private var showsPinnedTitle: Bool {
+        switch state {
+        case .loaded: titleHidden
+        case .failed: true
+        case .loading: titleHidden || board == nil
+        }
+    }
+
     var body: some View {
+        // Read here, not only inside the mask's lazy `GeometryReader`, so measuring the
+        // pinned chrome always rebuilds the mask: otherwise the first page kept an
+        // opaque mask, and rows showed behind the pager, until something else
+        // re-rendered the page (issue #294).
+        let chromeTop = bottomChromeTop
         // Instrument, metric and page changes fade the board out, show the spinner and
         // fade the new page in (web LoadGate, issue #71).
         FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading rankings") {
@@ -97,7 +141,16 @@ struct FullRankingsScreen: View {
                 }
             case let .loaded(payload):
                 ScrollView {
-                    LazyVStack(spacing: 6) {
+                    LazyVStack(spacing: Self.rowGap) {
+                        RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .header)
+                            .padding(.top, 8)
+                            .onGeometryChange(for: Bool.self) { proxy in
+                                SongDetailPinnedTitlePolicy.isHeroHidden(
+                                    titleMaxY: proxy.frame(in: .scrollView).maxY
+                                )
+                            } action: { hidden in
+                                titleHidden = hidden
+                            }
                         if let board {
                             RankingsCountHeader(
                                 text: RankingsCountText.rankedPlayers(board.totalAccounts),
@@ -112,63 +165,69 @@ struct FullRankingsScreen: View {
                         ForEach(payload.rankings.entries) { entry in
                             AccountRankingRow(
                                 entry: entry, metric: rankBy,
-                                isSelected: isSelectedAccount(entry.accountId), glassSurface: true
+                                isSelected: isSelectedAccount(entry.accountId), cardSurface: true
                             )
                             .macKeyboardRow(entry.id)
                         }
                     }
                     .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.top, 8)
+                    .padding(.bottom, Self.rowGap)
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
-                // The player's own row fades with the page it belongs to.
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    spotlightFooter(entries: payload.rankings.entries)
-                }
-                // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split
-                // column, portrait iPhone) drops songs played/total on every row when it
-                // would truncate a name, instead of cutting names to ~5 characters
-                // (the Compete cards' issue #38 fit; rows are padded 16 pt per side).
-                .leaderboardSectionColumns(
-                    pageColumns(payload.rankings.entries),
-                    hidingCrowdedSongsFor: pageNames(payload.rankings.entries),
-                    rowInset: 32
-                )
+                .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
+                // Rows fade out over up to 36 pt above the pinned footer and pager and
+                // are not drawn beneath them, exactly like Song Leaderboard (issue #294;
+                // web `useScrollFade`, issue #93). The fade shrinks away as the last row
+                // arrives, so the list ends one row gap above the chrome with no
+                // reserved margin (issue #293).
+                .mask { bottomChromeFadeMask(chromeTop: chromeTop) }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The shared Song Leaderboard pager and the player's footer, pinned outside the
+        // reload gate so both stay put while only the rows fade (issue #294; a bottom
+        // safe-area inset for the same tab-bar reason as `SoloLeaderboardScreen`).
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 8) {
-                RankingsFloatingBar(
-                    pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },
-                    idPrefix: "fst.full-rankings"
-                ) { destination in
-                    page = destination
-                } menu: { showsTitle in
-                    instrumentMenu(showsTitle: showsTitle)
+            bottomChrome
+        }
+        // `/duo` J2 (operator, 2026-10-02): a narrow board (folded Duo, a split column,
+        // portrait iPhone) drops songs played/total on every row when it would truncate
+        // a name, instead of cutting names to ~5 characters (the Compete cards' issue
+        // #38 fit; rows are padded 16 pt per side).
+        .leaderboardSectionColumns(
+            pageColumns(shownEntries ?? []),
+            hidingCrowdedSongsFor: pageNames(shownEntries ?? []),
+            rowInset: 32
+        )
+        .coordinateSpace(.named(Self.pageSpace))
+        .festivalBackground(.carousel, session: session)
+        .navigationTitle(Self.title(for: instrument))
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsPinnedTitle)
+        // Mac: View › Rank By and View › Instrument mirror the toolbar menus.
+        .macRankByCommands($rankBy)
+        .macInstrumentCommands(visibleInstruments, selection: $instrument)
+        .toolbar {
+            #if os(iOS)
+            // The rail of the iPhone Duo vertical bar never draws a custom title view
+            // (Song Detail, `/duo` D4), so the in-list title stays the only one there.
+            if !layout.sectionChrome.isVerticalBar {
+                ToolbarItem(placement: .principal) {
+                    pinnedTitle
                 }
             }
-        }
-        .festivalBackground(.carousel, session: session)
-        .navigationTitle("\(instrument.label) Rankings")
-        // Mac: View › Rank By mirrors the toolbar menu.
-        .macRankByCommands($rankBy)
-        .toolbar {
-            if layout.sectionChrome.isVerticalBar {
-                // `/duo` J1 (operator, 2026-10-02): the instrument and Rank By are two
-                // titled items, so the rail can place both (one custom `HStack` item
-                // kept a horizontal top bar just for itself; HIG Designing for iPhone
-                // Duo: "Give every non-text-only item a title and symbol").
+            #endif
+            // The instrument and Rank By are two titled items in one group, so the Duo
+            // rail can place both (`/duo` J1; HIG Designing for iPhone Duo: "Give every
+            // non-text-only item a title and symbol"), and every other bar shows them
+            // side by side now that the pager no longer carries the instrument pill.
+            // The iPhone tab-bar accessory takes both instead (issue #92).
+            if layout.sectionChrome.isVerticalBar || pageTools == nil {
                 ToolbarItemGroup(placement: .festivalPageAction) {
-                    instrumentMenu(showsTitle: false)
+                    instrumentPicker
                     RankByMenu(selection: $rankBy)
-                }
-            } else if pageTools == nil {
-                ToolbarItem(placement: .festivalPageAction) {
-                    HStack(spacing: 4) {
-                        RankByMenu(selection: $rankBy)
-                    }
                 }
             }
             #if os(iOS)
@@ -182,20 +241,140 @@ struct FullRankingsScreen: View {
             }
             #endif
         }
-        // iPhone tab-bar accessory (issue #92): Rank By.
-        .festivalPageTool(token: rankBy, order: PageToolOrder.primary) {
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        // iPhone tab-bar accessory (issue #92): Instrument, then Rank By.
+        .festivalPageTool(
+            token: InstrumentToolToken(selected: instrument, choices: visibleInstruments),
+            order: PageToolOrder.primary
+        ) {
+            instrumentPicker
+        }
+        .festivalPageTool(token: rankBy, order: PageToolOrder.secondary) {
             RankByMenu(selection: $rankBy)
         }
         .onChange(of: instrument) { _, _ in
-            page = 1
-            board = nil
+            resetBoard()
         }
         .onChange(of: rankBy) { _, _ in
-            page = 1
-            board = nil
+            resetBoard()
         }
         .task(id: requestKey) { await load() }
         .task(id: spotlightKey) { await loadSpotlight() }
+    }
+
+    /// Start a new board on page 1 without the previous board's counts or rows.
+    private func resetBoard() {
+        page = 1
+        board = nil
+        shownEntries = nil
+    }
+
+    // MARK: Title
+
+    /// The bar's icon and title once the in-list title has scrolled away.
+    ///
+    /// Built only while shown: a hidden (opacity 0) copy was still audited, and its
+    /// icon failed Dynamic Type on Song Leaderboard. Until then an empty, unspoken
+    /// placeholder holds the slot, so the bar does not fall back to `navigationTitle`
+    /// above the in-list title (issue #93).
+    @ViewBuilder
+    private var pinnedTitle: some View {
+        if showsPinnedTitle {
+            RankingsPageTitle(instrument: instrument, title: Self.title(for: instrument), style: .pinned)
+                .frame(maxWidth: 260)
+                // A bar title stays on one line at every text size.
+                .environment(\.marqueeWrapsAtAccessibilitySizes, false)
+                .transition(.opacity)
+        } else {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityHidden(true)
+        }
+    }
+
+    // MARK: Pinned bottom chrome
+
+    /// The player's footer and the shared pager, floating over the page background
+    /// with no band behind them, exactly as on Song Leaderboard. Built from the last
+    /// loaded page, so paging keeps both in place while only the rows reload.
+    private var bottomChrome: some View {
+        let spacing = chromeSpacing
+        return VStack(spacing: 0) {
+            if let shownEntries {
+                spotlightFooter(entries: shownEntries)
+                    .padding(.top, spacing.footerTop)
+                    .padding(.bottom, spacing.footerBottom)
+            }
+            if let board {
+                RankingsPagerView(
+                    page: page, totalPages: board.totalPages,
+                    idPrefix: "fst.full-rankings", topPadding: spacing.pagerTop
+                ) { destination in
+                    page = destination
+                }
+            }
+        }
+        .onGeometryChange(for: CGFloat?.self) { proxy in
+            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
+        } action: { top in
+            bottomChromeTop = top
+        }
+    }
+
+    /// Padding that rests the last row one row gap above the player's footer, or
+    /// above the pager without a footer, and the footer one row gap above the pager,
+    /// as on Song Leaderboard (issue #293).
+    private var chromeSpacing: PinnedChromeSpacing {
+        PinnedChromeSpacing.resolve(
+            rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowGap), edgePadding: 8,
+            hasFooter: shownEntries.map { Self.showsFooter(spotlightPlacement(entries: $0)) } ?? false,
+            hasPager: board != nil && !layout.sectionChrome.isVerticalBar
+        )
+    }
+
+    /// Whether a spotlight placement draws a row in the pinned footer.
+    ///
+    /// - Parameter placement: The selected player's placement, nil without one.
+    /// - Returns: True for the pending, unranked and off-page footer rows.
+    private static func showsFooter(_ placement: RankingSpotlightPlacement?) -> Bool {
+        switch placement {
+        case .pending, .unranked, .footer: return true
+        case .some(.none), .inline, nil: return false
+        }
+    }
+
+    /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
+    /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
+    /// reaches its resting place (issue #293). Extends into the top safe area so rows
+    /// still scroll under the navigation bar.
+    ///
+    /// - Parameter chromeTop: The chrome's measured top in ``pageSpace``; nil draws
+    ///   every row.
+    /// - Returns: The mask view.
+    private func bottomChromeFadeMask(chromeTop: CGFloat?) -> some View {
+        GeometryReader { proxy in
+            let frame = proxy.frame(in: .named(Self.pageSpace))
+            let stops = ScrollEdgeFade.bottom(
+                height: Double(frame.height),
+                obscured: chromeTop.map { Double(frame.maxY - $0) } ?? 0,
+                distance: bottomFadeDistance
+            )
+            if chromeTop == nil {
+                Color.black
+            } else {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: stops.fadeStart),
+                        .init(color: .clear, location: stops.fadeEnd),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 
     // MARK: Selected-player spotlight
@@ -273,23 +452,25 @@ struct FullRankingsScreen: View {
                         Task { await loadSpotlight() }
                     }
                     .padding(12)
-                    .festivalGlass(.card, cornerRadius: 12)
+                    .festivalCard(cornerRadius: 12)
                     .padding(.horizontal, 16)
                 } else {
                     // The footer row's height, so it does not jump when the rank arrives.
                     RankingSpotlightLoadingRow()
                         .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight)
+                        .padding(.horizontal, 16)
                         .accessibilityIdentifier("fst.full-rankings.spotlight-footer.loading")
                 }
             case .unranked:
                 RankingSpotlightUnrankedRow(message: "You're not yet ranked on \(instrument.label).")
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .festivalGlassCapsule(.card)
+                    .festivalCardCapsule()
+                    .padding(.horizontal, 16)
                     .accessibilityIdentifier("fst.full-rankings.spotlight-footer.unranked")
             case let .footer(entry):
                 HStack(spacing: 8) {
-                    AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, glassSurface: true)
+                    AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, cardSurface: true)
                     Button {
                         page = LeaderboardPaging.page(forRank: entry.rank(for: rankBy), pageSize: 25)
                     } label: {
@@ -324,27 +505,12 @@ struct FullRankingsScreen: View {
         }
     }
 
-    /// Instrument switcher: a glass pill in the floating bar, or a titled toolbar
-    /// item (instrument artwork plus name) in the iPhone Duo rail (`/duo` J1).
-    ///
-    /// - Parameter showsTitle: Whether the pill shows the instrument's name.
-    /// - Returns: The native `Menu`, keeping `fst.full-rankings.instrument-menu`.
-    @ViewBuilder
-    private func instrumentMenu(showsTitle: Bool) -> some View {
-        if layout.sectionChrome.isVerticalBar {
-            instrumentPicker
-                .accessibilityIdentifier("fst.full-rankings.instrument-menu")
-                .accessibilityLabel("Instrument")
-                .accessibilityValue(instrument.label)
-        } else {
-            instrumentPillMenu(showsTitle: showsTitle)
-        }
-    }
-
-    /// The rail's instrument `Menu`: a system toolbar item (system hit target and
-    /// overflow title) whose `Label` carries the artwork redrawn as a menu-sized image.
+    /// The instrument switcher: a system toolbar `Menu` (system hit target, overflow
+    /// title and Duo rail placement) whose `Label` carries the artwork redrawn as a
+    /// menu-sized image; in the iPhone tab-bar accessory it lists the same charts in
+    /// a sheet (``PageToolMenu``, issue #92). Keeps `fst.full-rankings.instrument-menu`.
     private var instrumentPicker: some View {
-        Menu {
+        PageToolMenu("Instrument", choices: instrumentMenuChoices) {
             instrumentChoices
         } label: {
             Label {
@@ -353,6 +519,9 @@ struct FullRankingsScreen: View {
                 InstrumentIcon.menuImage(for: instrument, keyboard: false)
             }
         }
+        .accessibilityIdentifier("fst.full-rankings.instrument-menu")
+        .accessibilityLabel("Instrument")
+        .accessibilityValue(instrument.label)
     }
 
     /// The visible charts as a picker, shared by the rail item and the pill.
@@ -369,22 +538,20 @@ struct FullRankingsScreen: View {
         }
     }
 
-    /// The floating bar's glass instrument pill (iPhone, iPad, Duo inner portrait).
-    ///
-    /// - Parameter showsTitle: Whether the pill shows the instrument's name.
-    /// - Returns: The pill `Menu`.
-    private func instrumentPillMenu(showsTitle: Bool) -> some View {
-        Menu {
-            instrumentChoices
-        } label: {
-            RankingsSwitcherPillLabel(title: instrument.label, showsTitle: showsTitle) {
-                RankingsSwitcherInstrumentIcon(instrument: instrument)
-            }
+    /// The visible charts for the inline-accessory sheet (``PageToolMenu``).
+    private func instrumentMenuChoices() -> [PageToolMenuChoice] {
+        visibleInstruments.map { chart in
+            PageToolMenuChoice(
+                id: "fst.full-rankings.instrument.\(chart.rawValue)",
+                label: AnyView(Label {
+                    Text(chart.label)
+                } icon: {
+                    InstrumentIcon(chart, size: 16)
+                }),
+                isSelected: chart == instrument,
+                action: { instrument = chart }
+            )
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("fst.full-rankings.instrument-menu")
-        .accessibilityLabel("Instrument")
-        .accessibilityValue(instrument.label)
     }
 
     /// Load the current page, rejecting late responses from a previous selection.
@@ -408,6 +575,7 @@ struct FullRankingsScreen: View {
                 totalAccounts: payload.rankings.totalAccounts,
                 totalPages: payload.rankings.pageCount
             )
+            shownEntries = payload.rankings.entries
             state = .loaded(payload)
         } catch is CancellationError {
             return
@@ -417,5 +585,63 @@ struct FullRankingsScreen: View {
             guard requested == requestKey else { return }
             state = .failed(ServiceIssue(error))
         }
+    }
+}
+
+/// Everything the accessory's instrument tool displays: re-registers it when the
+/// selection or the Settings-visible charts change (issue #92).
+private struct InstrumentToolToken: Hashable {
+    let selected: Instrument
+    let choices: [Instrument]
+}
+
+// MARK: - Page title
+
+/// A rankings page title with the instrument artwork to its left (issue #294): the
+/// large heading at the top of the list, and the compact copy the bar shows once that
+/// heading has scrolled under it.
+///
+/// The artwork is decorative (the title already names the instrument), so it is hidden
+/// from VoiceOver, and it scales with the title's text style so it keeps matching the
+/// text at every Dynamic Type size (HIG Icons: "Match icon weight to adjacent text").
+/// The artwork's visible disc fills about 84% of its square, so a square slightly
+/// taller than the font's point size reads as the same height as the capitals.
+struct RankingsPageTitle: View {
+    /// Where the title is drawn.
+    enum Style {
+        /// The page's large heading, first in the scrolling content.
+        case header
+        /// The navigation bar's principal title after the heading scrolls away.
+        case pinned
+    }
+
+    let instrument: Instrument
+    let title: String
+    let style: Style
+    @ScaledMetric(relativeTo: .largeTitle) private var headerIconSide: CGFloat = 36
+    @ScaledMetric(relativeTo: .headline) private var pinnedIconSide: CGFloat = 24
+
+    var body: some View {
+        HStack(spacing: style == .header ? 10 : 6) {
+            InstrumentIcon(instrument, size: style == .header ? headerIconSide : pinnedIconSide)
+                .fixedSize()
+                .accessibilityHidden(true)
+            switch style {
+            case .header:
+                Text(title)
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(FestivalText.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            case .pinned:
+                MarqueeText(title)
+                    .font(.headline)
+                    .foregroundStyle(FestivalText.primary)
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier(style == .header ? "fst.full-rankings.title" : "fst.full-rankings.pinned-title")
     }
 }

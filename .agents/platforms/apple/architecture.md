@@ -60,7 +60,7 @@ Never put several default-style `Button`s or `NavigationLink`s in **one** `List`
 | Explicit scaled `frame` inside shared badges | SwiftUI `padding` inside the fixed score badge | Padding caused an iPad split-view layout loop ([score-accuracy](../../controls/score-accuracy/ipados.md)) |
 | `InstrumentSelector` (`Design/InstrumentSelector.swift`, rules in Core `InstrumentSelection`; [instrument-selector](../../controls/instrument-selector/ios.md)) | A `Picker`/menu of instrument names | Operator batch 6.36: the web's selector with all its modes, everywhere the web uses it |
 | `PurpleActionLabel` (`Features/Leaderboards/PurpleActionButton.swift`) for every "View full leaderboard" / "View all …" | Per-screen purple surfaces | Operator batch 6.29/7.6: one purple button |
-| `RankingRowSurface` (48 pt glass row, web `purpleHighlight` player row) for every leaderboard row | A card around rows, or a purple stroke only | Operator batch 7.4: one leaderboard design (web `entryRow`) |
+| `RankingRowSurface` (48 pt material row card, web `purpleHighlight` player row; glass until issue #295) for every leaderboard row | A card around rows, or a purple stroke only | Operator batch 7.4: one leaderboard design (web `entryRow`) |
 | Page-level gate: spinner until the page's reads settle, then `festivalFadeIn(isLoaded:index:)` (Profile `ProfileExtrasLoader`, Song Detail `SongDetailPreloader`, `LeaderboardsPreloader`) | Cards popping in one by one | Operator batch 6.41 (web `useLoadPhase`) |
 | Accessibility IDs from the `product.json` registry | Ad-hoc IDs | `tools/verify_product.py` checks the registry |
 
@@ -134,7 +134,7 @@ Before = `a64b8fae`/`301adecf`, after = this lane's commits; CPU is the mean of 
 
 iPad scroll stalls (Lane IPAD2, 2026-10-03): **not iPad-specific.** The stall log now lists the events counted during each long unit (`Stall.counts`) and the main-thread CPU at the pass's marks (`cpuMarks`; `apple_perf.py` prints `main_cpu_s` and `rows_built`). Every stall ≥ 100 ms in the pass is Songs rows being built (`songs.row`, ~10 per 100 ms); no root, split, detail or artwork work appears, and the iPad stress runs in portrait with no detail column. The iPhone 17 Pro simulator gives the same picture: 39 units, 1316 rows, 12.6 ms main-thread CPU per row, against the iPad's 32–43 units, 1150–1420 rows, 12–14.5 ms per row. Per-row CPU with one part removed (same build, flags since removed): plain card instead of Liquid Glass `glassEffect` 9.2 ms (about −27%), no invisible `ListDetailLink` 10.8 ms (−15%); fade, hover, auto-select, context menu, chips, artwork and marquee were each within noise. Measured while other lanes loaded the host (load average 20–190 on 10 cores), so wall-clock stall counts varied by ±6 between identical runs; compare `main_cpu_s` per row. Open (operator/design): the row glass is the largest single cost; the only lever is a cheaper card surface or fewer rows built per animated jump (the stress pass's jumps build ~25 rows each; real `jumpToSection` jumps are instant). Rows already built by scrolling now skip the fade modifier (`festivalFadeIn(staggerIndex:)`) and one-stack rows carry no auto-select geometry observer; neither moved the numbers measurably.
 
-Songs row card (Lane CARD, 2026-10-03): the per-row Liquid Glass card became a standard material tuned to the same look ([liquid-glass.md § Song row card](../../design/apple/liquid-glass.md#song-row-card)). Same-session `--stress` runs, main-thread ms per row built (`main_cpu_s` / `rows_built`), host load average 20–250:
+Songs row card (Lane CARD, 2026-10-03): the per-row Liquid Glass card became a standard material tuned to the same look ([liquid-glass.md § Material card](../../design/apple/liquid-glass.md#material-card)). Same-session `--stress` runs, main-thread ms per row built (`main_cpu_s` / `rows_built`), host load average 20–250:
 
 | Target | Glass card | Material card | Stalls ≥ 100 ms (worst) |
 |---|---|---|---|
@@ -147,5 +147,15 @@ Songs row card (Lane CARD, 2026-10-03): the per-row Liquid Glass card became a s
 - iOS stall counts did not move with the cheaper card: each animated far jump built ~25 rows (25 × ~10 ms > 100 ms). Fewer rows per jump was the lever: see far jumps above.
 - With `FST_DEBUG_ROW_CARD_AB` set, Debug rows also read the switch (up to ~1 ms more per row on the iOS sims); compare A/B runs only with each other.
 - Other row costs on the Mac trace: `MarqueeFitLayout.sizeThatFits` 3.1% (the title and subtitle text measurement itself), `SongsScreen.songLink` 0.9%, chips 0.7%; none is a cheap win without changing the row layout.
+
+Every card and custom control on the material card (issue #291, 2026-10-04): same-binary A/B (`FST_DEBUG_ROW_CARD_AB`) on the iPad Pro 11" sim, Debug, `apple_perf.py ipad --stress --env FST_DEBUG_PAGE_SCROLL_STRESS=1` (6 rounds of animated bottom↔top scrolls, `Common/PageScrollStress.swift`), main-thread CPU between the pass's marks (`main_cpu_s`), 2 interleaved runs each, host load average 20–200:
+
+| Page | Glass cards | Material cards | Stalls ≥ 100 ms |
+|---|---|---|---|
+| Leaderboards (`--tab leaderboards`) | 14.1, 14.1 s | 4.1, 3.8 s (−72%) | 28, 26 → 0, 0 |
+| Statistics / Profile (`--route statistics`) | 10.1, 10.6 s | 9.4, 5.8 s (−26%, noisy) | 26, 26 → 24, 3 |
+| Settings (`--tab settings`) | 3.0, 3.0 s | 2.3, 1.9 s (−32%) | 0 → 0 |
+
+- On iPad, `--tab statistics` leaves Songs on screen; use `--route statistics`. The Mac was not measured: its Debug app shares the bundle ID (and defaults) with a long-running Release instance on the host.
 
 First-run sheet (Lane IPAD2, 2026-10-03, iPad Debug, sheet open on its first slide): Leaderboards 4.1% → 0.0%, Statistics ("Select This Player" pill glowing) 2.6% → 0.0%. The glow still breathes (`~/FestivalShowcase/native-ipad/2/first-run-glow-{rest,lit}.png`) and rests under Reduce Motion or off screen.

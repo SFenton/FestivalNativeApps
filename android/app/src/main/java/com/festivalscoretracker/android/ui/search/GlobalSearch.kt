@@ -1,25 +1,29 @@
 package com.festivalscoretracker.android.ui.search
 
+import android.os.Build
+import android.view.View
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -45,12 +49,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -61,13 +66,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -79,11 +85,12 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.search.GlobalPlayerResult
@@ -233,11 +240,7 @@ fun GlobalSearchHost(
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    // Window height and keyboard height as the main window sees them: the docked panel is a
-    // popup of fixed height, so the keyboard can cover its bottom; its results pad by exactly
-    // that overlap instead of the panel resizing (operator batch 6, 6.21).
-    var windowHeightPx by remember { mutableIntStateOf(0) }
-    val imeBottomPx = WindowInsets.ime.getBottom(density)
+
 
     // The view model owns "open"; the Material state follows it, and a collapse the
     // Material bar makes on its own (back, scrim, Escape) closes the view model.
@@ -256,7 +259,7 @@ fun GlobalSearchHost(
         }
     }
 
-    Box(Modifier.fillMaxSize().onSizeChanged { windowHeightPx = it.height }) {
+    Box(Modifier.fillMaxSize()) {
         with(density) {
             Box(
                 Modifier
@@ -285,15 +288,10 @@ fun GlobalSearchHost(
         )
     }
     val dockedHeightPx = anchor.maxPanelHeight
-    val dockedImeOverlapPx = if (presentation == SearchPresentation.Docked && dockedHeightPx != null && windowHeightPx > 0) {
-        GlobalSearchLayout.imeOverlap(anchor.anchor.top, dockedHeightPx, windowHeightPx, imeBottomPx)
-    } else {
-        0
-    }
+
     val content: @Composable () -> Unit = {
         GlobalSearchContent(
             ui = ui,
-            bottomInset = with(density) { dockedImeOverlapPx.toDp() },
             artworkUrl = artworkUrl,
             onToggleScope = viewModel::toggleScope,
             onOpen = { destination -> collapseThen { onOpen(destination) } },
@@ -314,13 +312,63 @@ fun GlobalSearchHost(
                 state = searchState,
                 inputField = inputField,
                 colors = colors,
+                // The popup's own Back/Escape handling is off: its overlay-priority Back callback
+                // closed the panel together with the keyboard, and it swallowed Escape before the
+                // field could clear the text. DockedPanelBack closes it once the keyboard is down.
+                properties = PopupProperties(focusable = true, clippingEnabled = false, dismissOnBackPress = false),
                 // A fixed height: the panel never shrinks or grows as results, progress and
-                // hints replace each other while typing.
+                // hints replace each other while typing. Material pads the surface by the part
+                // the keyboard covers (imePadding inside this modifier), so content needs no
+                // inset of its own; adding one clipped the empty state twice over.
                 modifier = surfaceModifier
                     .width(anchor.anchor.width.toDp())
-                    .then(dockedHeightPx?.let { Modifier.height(it.toDp()) } ?: Modifier),
-            ) { content() }
+                    .then(dockedHeightPx?.let { Modifier.height(it.toDp()) } ?: Modifier)
+                    // Before API 33 (and on hardware keys the system still delivers), Back arrives
+                    // as a key event once the keyboard has handled its own.
+                    .onKeyEvent { event ->
+                        if (event.key != Key.Back) return@onKeyEvent false
+                        if (event.type == KeyEventType.KeyUp) collapseThen {}
+                        true
+                    },
+            ) {
+                DockedPanelBack { collapseThen {} }
+                content()
+            }
         }
+    }
+}
+
+/**
+ * Back for the docked panel's popup window on API 33+, at default priority so the keyboard's
+ * own Back callback (registered when it shows, so newer) hides the keyboard first and the next
+ * Back closes the panel.
+ *
+ * @param onBack Close the panel.
+ */
+@Composable
+private fun DockedPanelBack(onBack: () -> Unit) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    val view = LocalView.current
+    val latest by rememberUpdatedState(onBack)
+    DisposableEffect(view) {
+        val registration = DockedBackApi33.register(view) { latest() }
+        onDispose { registration?.invoke() }
+    }
+}
+
+/** API 33 window back-callback registration, kept apart for class verification on older releases. */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private object DockedBackApi33 {
+    /**
+     * Registers [onBack] on [view]'s window dispatcher at default priority.
+     *
+     * @return Unregister action, or null when the view has no window dispatcher yet.
+     */
+    fun register(view: View, onBack: () -> Unit): (() -> Unit)? {
+        val dispatcher = view.findOnBackInvokedDispatcher() ?: return null
+        val callback = OnBackInvokedCallback { onBack() }
+        dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+        return { dispatcher.unregisterOnBackInvokedCallback(callback) }
     }
 }
 
@@ -381,7 +429,6 @@ private fun SearchField(
  *
  * @param ui Current state.
  * @param artworkUrl Artwork resolver.
- * @param bottomInset Space the keyboard covers at the bottom of the surface (docked panel).
  * @param onToggleScope Toggle a scope chip.
  * @param onOpen Open a result.
  * @param onBandRankings Open Band Rankings.
@@ -393,7 +440,6 @@ fun GlobalSearchContent(
     onToggleScope: (SearchScope) -> Unit,
     onOpen: (SearchDestination) -> Unit,
     onBandRankings: () -> Unit,
-    bottomInset: Dp = 0.dp,
 ) {
     // Fills the surface: every state (hint, progress, results) shares one full-height region,
     // so nothing resizes while typing.
@@ -414,15 +460,16 @@ fun GlobalSearchContent(
         }
         Box(Modifier.fillMaxWidth().weight(1f)) {
             when {
-                ui.hint != null -> CenteredMessage(ui.hint!!, bottomInset)
+                ui.hint != null -> CenteredMessage(ui.hint!!)
                 ui.isBandsScope -> BandsUnavailable(onBandRankings)
-                ui.emptyState != null -> EmptyResults(ui.emptyState!!, bottomInset)
+                ui.emptyState != null -> EmptyResults(ui.emptyState!!)
                 // The one spinner, centred in the region between the scope chips and the bottom
-                // edge (or the keyboard), like the web panel spinner (issue #299).
-                ui.isBusy -> Box(Modifier.fillMaxSize().padding(bottom = bottomInset), contentAlignment = Alignment.Center) {
+                // edge (the docked surface already sits above the keyboard), like the web panel
+                // spinner (issue #299).
+                ui.isBusy -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     FestivalLoading("Searching", Modifier.testTag(GlobalSearchTags.LOADING), size = 36.dp)
                 }
-                else -> Results(ui, artworkUrl, onOpen, bottomInset)
+                else -> Results(ui, artworkUrl, onOpen)
             }
         }
     }
@@ -431,44 +478,70 @@ fun GlobalSearchContent(
 /**
  * Songs / Players / Bands scope toggles as M3 filter chips with pill ends (web `aria-pressed`
  * pills). Tapping the selected chip returns to All, so at most one is selected; each chip is
- * an equal share of the row and at least 48 dp tall to touch.
+ * an equal share of the row and at least 48 dp tall to touch. When large text makes a label
+ * wider than its share, the row scrolls horizontally with natural-width chips instead of
+ * clipping the label ([GlobalSearchLayout.scopeChipsFitEqually]).
  *
  * @param selected Current scope.
  * @param onToggle Toggle a chip.
  */
 @Composable
 private fun ScopePills(selected: SearchScope, onToggle: (SearchScope) -> Unit) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).selectableGroup().testTag(GlobalSearchTags.SCOPES),
-    ) {
-        SearchScope.chips.forEach { chip ->
-            val isSelected = selected == chip
-            FilterChip(
-                selected = isSelected,
-                onClick = { onToggle(chip) },
-                label = { Text(chip.title, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
-                shape = CircleShape,
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = Color.Transparent,
-                    labelColor = BrandTokens.textSecondary,
-                    selectedContainerColor = BrandTokens.accentPurple.copy(alpha = 0.45f),
-                    selectedLabelColor = BrandTokens.textPrimary,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelLarge
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val rowWidthPx = constraints.maxWidth
+        val equal = remember(rowWidthPx, labelStyle, density) {
+            val widths = SearchScope.chips.map { measurer.measure(it.title, labelStyle, maxLines = 1).size.width.toFloat() }
+            GlobalSearchLayout.scopeChipsFitEqually(widths, rowWidthPx, density.density)
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(GlobalSearchLayout.CHIP_GAP_DP.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (equal) Modifier else Modifier.horizontalScroll(rememberScrollState()))
+                .padding(horizontal = GlobalSearchLayout.CHIP_ROW_PADDING_DP.dp, vertical = 4.dp)
+                .selectableGroup()
+                .testTag(GlobalSearchTags.SCOPES),
+        ) {
+            SearchScope.chips.forEach { chip ->
+                val isSelected = selected == chip
+                FilterChip(
                     selected = isSelected,
-                    borderColor = BrandTokens.glassBorder,
-                    selectedBorderColor = BrandTokens.accentPurple,
-                ),
-                modifier = Modifier.weight(1f).heightIn(min = 40.dp).testTag(GlobalSearchTags.scope(chip)),
-            )
+                    onClick = { onToggle(chip) },
+                    label = {
+                        Text(
+                            chip.title,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = if (equal) Modifier.fillMaxWidth() else Modifier,
+                        )
+                    },
+                    shape = CircleShape,
+                    colors = FilterChipDefaults.filterChipColors(
+                        containerColor = Color.Transparent,
+                        labelColor = BrandTokens.textSecondary,
+                        selectedContainerColor = BrandTokens.accentPurple.copy(alpha = 0.45f),
+                        selectedLabelColor = BrandTokens.textPrimary,
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = BrandTokens.glassBorder,
+                        selectedBorderColor = BrandTokens.accentPurple,
+                    ),
+                    modifier = (if (equal) Modifier.weight(1f) else Modifier)
+                        .heightIn(min = 40.dp)
+                        .testTag(GlobalSearchTags.scope(chip)),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onOpen: (SearchDestination) -> Unit, bottomInset: Dp) {
+private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onOpen: (SearchDestination) -> Unit) {
     // Web SearchModal restaggers once per content signature: hide for a frame when the result
     // set changes, then fade rows in (web fadeInUp, 125 ms stagger).
     val signature = remember(ui.songs, ui.players) { ui.songs.map { it.songId } to ui.players.map { it.accountId } }
@@ -476,7 +549,10 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
     LaunchedEffect(signature) { settled = signature }
     val revealed = rememberRevealed(settled == signature)
     val playersOffset = if (ui.showSongsSection) ui.songs.size else 0
-    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), contentPadding = PaddingValues(bottom = bottomInset)) {
+    // A new scope or query starts at the top: a kept state would pin the previously first
+    // visible key (the first player after Players → All) and hide the songs above it.
+    val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
+    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), state = listState) {
         if (ui.showSongsSection) {
             if (ui.songsPhase == SectionPhase.Failed) {
                 item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }
@@ -571,13 +647,13 @@ private fun InlineMessage(text: String) {
 }
 
 @Composable
-private fun CenteredMessage(text: String, bottomInset: Dp) {
+private fun CenteredMessage(text: String) {
     // Web: the hint ("Enter at least two characters…") is plain white text centred in the
     // results area, with no container.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-        modifier = Modifier.fillMaxSize().padding(bottom = bottomInset).padding(horizontal = 24.dp, vertical = 32.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
     ) {
         Text(text, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.testTag(GlobalSearchTags.HINT))
     }
@@ -589,11 +665,10 @@ private fun CenteredMessage(text: String, bottomInset: Dp) {
  * clipping when large text outgrows a short window.
  *
  * @param empty Title and subtitle.
- * @param bottomInset Space the keyboard covers at the bottom of the surface.
  */
 @Composable
-private fun EmptyResults(empty: SearchEmptyState, bottomInset: Dp) {
-    BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = bottomInset).testTag(GlobalSearchTags.EMPTY)) {
+private fun EmptyResults(empty: SearchEmptyState) {
+    BoxWithConstraints(Modifier.fillMaxSize().testTag(GlobalSearchTags.EMPTY)) {
         val viewport = maxHeight
         Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport), contentAlignment = Alignment.Center) {
             FestivalEmptyState(title = empty.title, subtitle = empty.subtitle, modifier = Modifier.fillMaxWidth())

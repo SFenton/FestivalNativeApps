@@ -184,7 +184,7 @@
       "assertfocus:name=Search songs and players@3",
       "type:Fixture",
       "key:enter",
-      "waitfor:id=fst.global-search.section.songs@15",
+      "waitfor:id=fst.global-search.result.song@15",
       "key:alt+left",
       "waitfor:id=fst.songs.row.fixture-pulse@10"
     ]
@@ -556,6 +556,10 @@
       "key:down",
       "assertfocus:id=fst.shop.song.fixture-pulse",
       "key:up",
+      "assertfocus:id=fst.shop.song.fixture-orbit",
+      "key:tab",
+      "assertfocus:id=fst.shop.external.fixture-orbit",
+      "key:shift+tab",
       "assertfocus:id=fst.shop.song.fixture-orbit",
       "key:enter",
       "waitfor:id=fst.song-detail.title@20",

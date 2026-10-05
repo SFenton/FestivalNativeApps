@@ -49,6 +49,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ (pane titles wrap, #230) |
 | First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
+| What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass
 
@@ -77,6 +78,12 @@ Scope: Song Detail only, fixture matrix plus the live public service (SFentonX o
 ## Item Shop validation (issue #224, 2026-10-04)
 
 Scope: the Shop Offers control only. Results per configuration are in [shop-offers/windows.md](../controls/shop-offers/windows.md#validation-issue-224-2026-10-04). `a11y_matrix.py --scan --tabs 30 --only shop` gave 0 Axe errors at compact, medium and wide (6/10/10 Tab stops: compact has no List/Grid toggle). At medium it also gave 0 Axe errors under Desert, Night sky, light and dark system theme, text 200%, and display 100% and 150%. No run had focus leaving the window or repeated stops. The live public service (anonymous) was checked at compact, medium, wide, maximized and snap-left, and under Desert, text 200% and display 150%. Fixed: under a contrast theme, WinUI's automatic adjustment had repainted the badge text as WindowText on a backplate inside the Highlight pill (`HighContrastAdjustment=None` while it is on, as `LeaderboardEntryRow` does). The active ProgressRing reads "Busy Loading Item Shop" (WinUI prefix), so tests use `fst.shop.loading`.
+
+## What's New validation (issue #235, 2026-10-04)
+
+Scope: the What's New dialog only. Results per configuration are in [whats-new/windows.md](../controls/whats-new/windows.md#validation-issue-235-2026-10-04). `a11y_matrix.py --scan --tabs 6 --pages journeys/a11y-whats-new.json` gave 0 Axe errors for the launch dialog and the Settings replay. That held at compact, medium, wide, maximized and snap-left, and at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. Text 200% also gave 0 at compact. Every run had 2 Tab stops (notes, Dismiss), no focus leaving the window and no repeated stops. The keyboard pages `kb-whats-new-dismiss` and `kb-whats-new-replay` pass at all three sizes. `ui_journey.py journeys/whats-new.json` drives every reachable state.
+
+Fixed: the notes scroller was not a tab stop, so the keyboard could not scroll long notes. It now opens focused and is named after the title. Dismiss and the headings gained automation IDs. Backdrop-click journeys need an unlocked console (`journeys/whats-new-pointer.json`).
 
 ## Notifications validation (issue #229, 2026-10-04)
 
@@ -184,7 +191,7 @@ Fixed:
 
 A run on this shared host left the Desert contrast theme on system-wide with no pending restore, so later modes rendered under it. Check `sysset` state before trusting light-theme/text/scale screenshots, and re-run them after restoring.
 
-Seen, out of scope: with live data (three Shop buckets) at the medium preset, the Songs **Jump** zoomed-out index truncates "Leaving Tomorrow" and "Not In Shop" to "Leavi…" and "Not I…". The Songs Jump index owns that layout, not Sort.
+Seen, out of scope: with live data (three Shop buckets) at the medium preset, the Songs **Jump** zoomed-out index truncates "Leaving Tomorrow" and "Not In Shop" to "Leavi…" and "Not I…". The Songs Jump index owns that layout, not Sort. Fixed by issue #231: cells are sized to the widest label ([songs-section-index/windows.md](../controls/songs-section-index/windows.md)).
 
 ## Artwork Background validation (issue #217, 2026-10-03)
 
