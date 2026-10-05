@@ -58,10 +58,12 @@ Applies to iPhone, iPhone Duo, iPad and Mac (shared `NotificationsSheet`). The s
   - The List's SwiftUI frame starts at the pin line (it is laid out in the safe area); its scroll view reaches up under the modal title by the top content inset. Positions are measured from that scroll-view top (`listTop − pinLine`).
   - The pinned band is the header's whole cell: the List centres the header content in it (+10 pt above and below on iOS 26; a 28 pt minimum on macOS 26). `listRowInsets` does not apply to headers.
   - A row's own frame starts below its cell by the row insets (15 pt here), so the first row's cell top is read from its `listRowBackground`, which fills the cell. At scroll offset 0, padding = row cell top − header content bottom, and gap = header content top − padding − pin line. Readings outside 0–24 pt padding or 0–48 pt gap are rejected.
+  - The pin line and scroll offset come from `onScrollGeometryChange` on iOS 18 / macOS 15+. On iOS 17 / macOS 14 each row's `ListScrollViewLocator` hands the List's scroll view to `ListScrollOffsetObserver` (KVO on `contentOffset`; `NSClipView` bounds notifications), so the ramp still grows from 0 to 40 pt there instead of staying a hard cut (#308 review).
 - **Verified by:**
   - `PinnedHeaderEdgeFadeTests` (ramp, hard edge, linear stops, edge, layout reading, lift, depth, cut, state).
   - `ModalTopEdgeFadeTests` (zero ramp).
   - `NotificationsPinnedHeaderRenderTests` (macOS hosted): scrolls the real `NSTableView` and asserts no row ink in the pinned header's row band, for New and for Older after the push. It fails without the row mask.
+  - `PinnedHeaderLegacyScrollRenderTests` (macOS hosted): the same List on both scroll paths has no fade at rest, a 15 pt fade after 15 pt and the full 40 pt after that, with the same pin line and header band. The legacy case fails without the observer.
 - **HIG:**
   - Lists and tables: "Choose a table or list style (`ListStyle`) that coordinates with your data and platform."
   - Materials: "Let content scroll and peek through while preserving control and navigation legibility."
