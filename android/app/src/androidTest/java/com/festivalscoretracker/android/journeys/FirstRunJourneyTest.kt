@@ -58,6 +58,18 @@ class FirstRunJourneyTest {
         h.assertNothingStraddles("fst.first-run.dialog")
     }
 
+    /** The page title heads the dialog beside Close and names the pane (issues #24, #147). */
+    private fun assertTitled(page: FirstRunPageKey) {
+        val title = rule.onNodeWithTag("fst.first-run.title", useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals(listOf(page.label), title.config[SemanticsProperties.Text].map { it.text })
+        assertTrue("the title is a heading", SemanticsProperties.Heading in title.config)
+        val dialog = rule.onNodeWithTag("fst.first-run.dialog").fetchSemanticsNode()
+        assertEquals("Feature tour: ${page.label}", dialog.config[SemanticsProperties.PaneTitle])
+        val close = rule.onNodeWithTag("fst.first-run.close").fetchSemanticsNode().boundsInRoot
+        assertTrue("the title ends before Close", title.boundsInRoot.right <= close.left)
+        assertTrue("Close stays inside the dialog", close.right <= dialog.boundsInRoot.right && close.top >= dialog.boundsInRoot.top)
+    }
+
     /** `new-slides-only` from a fresh store, then `dismissed` with Close. */
     @Test
     fun newSlidesShowOnFirstVisitAndCloseDismisses() {
@@ -65,6 +77,7 @@ class FirstRunJourneyTest {
         h.launch(DebugLaunch(firstRun = "on", stillBackground = true), transport)
         h.waitForTag("fst.first-run.dialog")
         assertTrue(position().startsWith("Slide 1 of "))
+        assertTitled(FirstRunPageKey.Songs)
         assertLayoutFitsTheWindow()
         h.readingOrder("first-run-journey")
         h.tap("fst.first-run.next")
@@ -92,6 +105,7 @@ class FirstRunJourneyTest {
         assertTrue("replay claims the slot", replay != null)
         h.waitForTag("fst.first-run.dialog")
         assertEquals("Slide 1 of ${replay!!.slides.size}", position())
+        assertTitled(FirstRunPageKey.Songs)
         assertLayoutFitsTheWindow()
         h.assertAccessible()
     }
