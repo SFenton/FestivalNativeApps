@@ -40,6 +40,28 @@ public static class FadeInTiming
     public static TimeSpan? StaggerDelay(int index, int maxItems) =>
         index >= 0 && index < Math.Min(maxItems, MaxStaggered) ? Interval * (index + 1) : null;
 
+    /// <summary>
+    /// Web Suggestions <c>getCardDelay</c>: rows before <paramref name="batchStart"/> were already revealed and show
+    /// without animation; a newly loaded batch staggers from its own first row.
+    /// </summary>
+    /// <param name="index">Row index (0-based) in the whole list.</param>
+    /// <param name="batchStart">Index of the batch's first row (0 for a fresh list).</param>
+    /// <param name="maxItems">Rows that stagger (the visible count).</param>
+    /// <returns>Delay, or <see langword="null"/> when the row shows without animation.</returns>
+    public static TimeSpan? BatchDelay(int index, int batchStart, int maxItems) =>
+        index < batchStart ? null : StaggerDelay(index - Math.Max(0, batchStart), maxItems);
+
+    /// <summary>
+    /// The batch start after another batch arrives: batches appended back to back (a fast scroll that cascades
+    /// incremental loads) form one reveal from the earliest unrevealed row; a batch after the window starts its own.
+    /// </summary>
+    /// <param name="current">Start of the batch still armed.</param>
+    /// <param name="next">Start of the batch just added.</param>
+    /// <param name="sinceArmed">Time since <paramref name="current"/> was armed.</param>
+    /// <returns>Start to arm.</returns>
+    public static int MergeBatchStart(int current, int next, TimeSpan sinceArmed) =>
+        WithinWindow(sinceArmed) ? Math.Min(current, next) : next;
+
     /// <summary>Web <c>estimateVisibleCount</c>: rows of <paramref name="itemHeight"/> that fit, plus one partial row.</summary>
     /// <param name="viewportHeight">Viewport height in epx.</param>
     /// <param name="itemHeight">Row height in epx.</param>

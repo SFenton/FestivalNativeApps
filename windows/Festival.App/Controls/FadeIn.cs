@@ -14,8 +14,8 @@ namespace Festival.App.Controls;
 /// lower). <c>FadeIn.OnShow</c> fades an element each time it becomes visible (page content bound to a loaded state);
 /// <c>FadeIn.Stagger</c> on an <see cref="ItemsRepeater"/> or <see cref="ListViewBase"/> fades the rows realized just
 /// after its items change, 125 ms apart, for the rows that fit the viewport (rows realized later by scrolling just
-/// appear, as on the web). Both run on the compositor, leave nothing running when finished, and do nothing while
-/// motion is off (<see cref="Motion.Allowed"/>).
+/// appear, as on the web); <see cref="Restagger(UIElement, int)"/> re-arms it for an appended batch only. Both run on
+/// the compositor, leave nothing running when finished, and do nothing while motion is off (<see cref="Motion.Allowed"/>).
 /// </summary>
 public static class FadeIn
 {
@@ -122,6 +122,9 @@ public static class FadeIn
     private static readonly DependencyProperty ArmedAtProperty = DependencyProperty.RegisterAttached(
         "ArmedAt", typeof(long), typeof(FadeIn), new PropertyMetadata(0L));
 
+    private static readonly DependencyProperty BatchStartProperty = DependencyProperty.RegisterAttached(
+        "BatchStart", typeof(int), typeof(FadeIn), new PropertyMetadata(0));
+
     private static readonly DependencyProperty AnimatedProperty = DependencyProperty.RegisterAttached(
         "Animated", typeof(bool), typeof(FadeIn), new PropertyMetadata(false));
 
@@ -147,7 +150,20 @@ public static class FadeIn
 
     /// <summary>Re-arms a list's stagger (a sort, filter or search changed without replacing its items source).</summary>
     /// <param name="list">Repeater or list view.</param>
-    public static void Restagger(UIElement list) => list.SetValue(ArmedAtProperty, Stopwatch.GetTimestamp());
+    public static void Restagger(UIElement list) => Restagger(list, 0);
+
+    /// <summary>
+    /// Re-arms a list's stagger for a batch appended at <paramref name="batchStart"/> (Suggestions' incremental
+    /// loading): rows before it were already revealed and never fade again; the batch staggers from its first row.
+    /// </summary>
+    /// <param name="list">Repeater or list view.</param>
+    /// <param name="batchStart">Index of the batch's first row (0 when the whole list is new).</param>
+    public static void Restagger(UIElement list, int batchStart)
+    {
+        var sinceArmed = Stopwatch.GetElapsedTime((long)list.GetValue(ArmedAtProperty));
+        list.SetValue(BatchStartProperty, FadeInTiming.MergeBatchStart((int)list.GetValue(BatchStartProperty), batchStart, sinceArmed));
+        list.SetValue(ArmedAtProperty, Stopwatch.GetTimestamp());
+    }
 
     /// <summary>Hooks element preparation and items-source changes once.</summary>
     /// <param name="d">List.</param>
@@ -206,16 +222,20 @@ public static class FadeIn
         }
     }
 
-    /// <summary>Fades a freshly realized row when its list loaded moments ago and it is within the visible count.</summary>
+    /// <summary>
+    /// Fades a freshly realized row when its list (or its newest batch) loaded moments ago and the row is within the
+    /// visible count of that batch; rows revealed before the batch show in place.
+    /// </summary>
     /// <param name="list">Owning list.</param>
     /// <param name="element">Row element.</param>
     /// <param name="index">Row index.</param>
     private static void Prepare(FrameworkElement list, UIElement element, int index)
     {
         var armedAt = (long)list.GetValue(ArmedAtProperty);
+        var batchStart = (int)list.GetValue(BatchStartProperty);
         var visible = FadeInTiming.VisibleCount(list.XamlRoot?.Size.Height ?? list.ActualHeight, GetRowHeight(list));
         if (FadeInTiming.WithinWindow(Stopwatch.GetElapsedTime(armedAt))
-            && FadeInTiming.StaggerDelay(index, visible) is { } delay)
+            && FadeInTiming.BatchDelay(index, batchStart, visible) is { } delay)
             Play(element, delay);
         else
             Reset(element);

@@ -32,6 +32,8 @@ public sealed partial class SearchPage : Page, IPageFind
         var route = e.Parameter as AppRoute.Search ?? new AppRoute.Search();
         ViewModel = new GlobalSearchViewModel(App.Session, route, MainWindow.Instance?.TitleBarSearch);
         ViewModel.ResultsAnnounced += OnResultsAnnounced;
+        ViewModel.PropertyChanged += OnViewModelChanged;
+        songsShown = playersShown = false;
         Bindings.Update();
         ScopeBar.SelectedItem = ScopeBar.Items[(int)ViewModel.Scope];
     }
@@ -40,6 +42,7 @@ public sealed partial class SearchPage : Page, IPageFind
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         ViewModel.ResultsAnnounced -= OnResultsAnnounced;
+        ViewModel.PropertyChanged -= OnViewModelChanged;
         ViewModel.Deactivate();
         base.OnNavigatedFrom(e);
     }
@@ -58,6 +61,33 @@ public sealed partial class SearchPage : Page, IPageFind
     {
         MainWindow.FocusAndSelect(PageField);
         return true;
+    }
+
+    /// <summary>Whether the Songs section was showing at the last model change.</summary>
+    private bool songsShown;
+
+    /// <summary>Whether the Players section was showing at the last model change.</summary>
+    private bool playersShown;
+
+    /// <summary>
+    /// Re-arms a section's row stagger when it appears: rows stay collapsed behind the one spinner until every read
+    /// settles, which is usually after the stagger armed when the items arrived, so they fade as the spinner clears
+    /// (web: "rows fade up with a stagger").
+    /// </summary>
+    /// <param name="sender">Model.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(GlobalSearchViewModel.ShowSongsSection))
+        {
+            if (ViewModel.ShowSongsSection && !songsShown) FadeIn.Restagger(SongsList);
+            songsShown = ViewModel.ShowSongsSection;
+        }
+        else if (e.PropertyName == nameof(GlobalSearchViewModel.ShowPlayersSection))
+        {
+            if (ViewModel.ShowPlayersSection && !playersShown) FadeIn.Restagger(PlayersList);
+            playersShown = ViewModel.ShowPlayersSection;
+        }
     }
 
     /// <summary>Speaks the settled counts.</summary>
