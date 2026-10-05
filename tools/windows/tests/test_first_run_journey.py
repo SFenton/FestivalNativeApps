@@ -69,6 +69,28 @@ class SeenTests(unittest.TestCase):
 class ContractTests(unittest.TestCase):
     """Every reachable `first-run` contract state has a scenario."""
 
+    def test_title_phases_cover_every_page(self):
+        catalog = (REPO / "windows" / "Festival.Core" / "Domain" / "FirstRunCatalog.cs").read_text(encoding="utf-8")
+        self.assertEqual(len(j.PAGE_TITLES), 9)
+        self.assertTrue(all(f'"{key}-' in catalog for key in j.PAGE_TITLES))
+        phases = j._title_phases()
+        self.assertEqual(len(phases), 2 * len(j.PAGE_TITLES))
+        for (key, title), opened, closed in zip(j.PAGE_TITLES.items(), phases[::2], phases[1::2]):
+            self.assertIn(f"invoke:id=fst.settings.first-run.{key}", opened.steps)
+            self.assertIn(j._dialog(title), opened.expect)
+            self.assertEqual(closed.forbid, [j.DIALOG])
+        self.assertEqual(j.check_tree(TREE, phases[0]), [])
+        self.assertTrue(j.check_tree(TREE, phases[2]))
+
+    def test_late_catalogue_asserts_placeholder_then_catalogue(self):
+        late = next(s for s in j.SCENARIOS if s.name == "late-catalogue")
+        self.assertEqual(late.fixture, ("--songs-delay", str(j.SONGS_DELAY)))
+        steps = [step for phase in late.phases for step in phase.steps]
+        self.assertIn("assertstatus:id=fst.first-run.demo.songs-song-list|placeholder", steps)
+        self.assertIn(f"assertstatus:id=fst.first-run.demo.songs-song-list|catalogue@{j.SONGS_DELAY + 20}", steps)
+        self.assertEqual(j._demo("songs-sort", "catalogue", 5), "assertstatus:id=fst.first-run.demo.songs-sort|catalogue@5")
+        self.assertTrue(all(s.fixture == () for s in j.SCENARIOS if s is not late))
+
     def test_states_covered(self):
         product = json.loads((REPO / "contracts" / "product.json").read_text(encoding="utf-8"))
         states = next(c["states"] for c in product["controls"] if c["id"] == "first-run")
