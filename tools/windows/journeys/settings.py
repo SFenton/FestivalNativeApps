@@ -59,12 +59,14 @@ class Phase:
         expect: Regular expressions that must each match a line of the UIA tree dumped after the steps.
         forbid: Regular expressions that must not match any line of that tree.
         saved: Predicates over the saved ``settings.json`` (name → check), evaluated after the steps.
+        order: Regular expressions whose first matching tree lines must appear in this order (UIA/Narrator order).
     """
 
     steps: list[str]
     expect: list[str] = field(default_factory=list)
     forbid: list[str] = field(default_factory=list)
     saved: dict[str, Callable[[dict[str, Any]], bool]] = field(default_factory=dict)
+    order: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -181,6 +183,19 @@ JOURNEYS = [
         ],
     ),
     Journey(
+        # Issue #43/#243: the App Version row shows the display version plus the stamped build commit (every local,
+        # CI and Store build stamps one), selectable, after its label, in UIA order before Build Configuration.
+        name="version",
+        phases=[
+            Phase(["reveal:id=fst.settings.whats-new", "waitfor:id=fst.settings.app-version@5",
+                   "assertbelow:id=fst.settings.service-version|id=fst.settings.app-version"],
+                  expect=[rf'^\s*Text "\d+(\.\d+)+ · [0-9a-f]{{7}}" {_id("fst.settings.app-version")}'],
+                  order=[r'^\s*Text "App Version" ', _id("fst.settings.app-version"), r'^\s*Text "Build Configuration" ',
+                         r'^\s*Text "Service Version" ', _id("fst.settings.service-version")],
+                  forbid=[rf'Text "[^"]* · [^"]*" {_id("fst.settings.service-version")}']),
+        ],
+    ),
+    Journey(
         name="first-run",
         phases=[
             Phase(["scrollinto:id=fst.settings.licenses", "wait:0.5", "scrollinto:id=fst.settings.first-run.songs", "invoke:id=fst.settings.first-run.songs",
@@ -212,6 +227,9 @@ def check_tree(text: str, phase: Phase) -> list[str]:
                 if not any(re.search(p, line) for line in lines)]
     failures += [f"did not expect /{p}/ in the UIA tree" for p in phase.forbid
                  if any(re.search(p, line) for line in lines)]
+    positions = [next((i for i, line in enumerate(lines) if re.search(p, line)), -1) for p in phase.order]
+    if phase.order and (-1 in positions or positions != sorted(positions)):
+        failures.append(f"expected UIA order {phase.order}, found line positions {positions}")
     return failures
 
 
