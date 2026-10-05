@@ -108,6 +108,14 @@ public sealed class QuickLinksBinder
     /// </summary>
     public Func<double, double>? ObscuredTop { get; set; }
 
+    /// <summary>
+    /// For a section laid out after a virtualizing repeater, returns the repeater's realized last element to bring into
+    /// view first (e.g. the last instrument card before Bands), or <see langword="null"/>. Such a section's position
+    /// depends on the repeater's estimated heights, which can swing with text scaling so re-aims chase it in a cycle or
+    /// stop at an underestimated end (#246); once the last element is in place the section below it measures exactly.
+    /// </summary>
+    public Func<string, FrameworkElement?>? LeadIn { get; set; }
+
     /// <summary>Whether Windows or the app asks for reduced motion.</summary>
     /// <param name="appReduceMotion">In-app override.</param>
     /// <returns><see langword="true"/> when animations should be skipped.</returns>
@@ -174,6 +182,13 @@ public sealed class QuickLinksBinder
         if (!anchors.TryGetValue(id, out var element)) return;
         Land(element, id);
         landing = element;
+        if (LeadIn?.Invoke(id) is { } lead)
+        {
+            lead.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0, AnimationDesired = false });
+            // CheckLanding then aims at the section from its now-exact position.
+            scroller.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, CheckLanding);
+            return;
+        }
         if (!Aim(element))
         {
             landing = null;

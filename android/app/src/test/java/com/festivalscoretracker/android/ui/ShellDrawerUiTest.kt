@@ -1,11 +1,32 @@
 package com.festivalscoretracker.android.ui
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasContentDescriptionExactly
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
@@ -84,6 +105,96 @@ class ShellDrawerUiTest {
         rule.onNodeWithTag("fst.nav.drawer.deselect").performClick()
         assertEquals(listOf<AppRoute>(LeaderboardsRoute), routes)
         assertTrue(deselected)
+    }
+
+    /**
+     * Issue #162 (Android check of Apple #16): the player row shows only the name, no
+     * "Selected Player" caption, with the same Tab role, height, icon column and label metrics
+     * as the other rows, and TalkBack reads it as "Profile: <name>".
+     */
+    @Test
+    fun playerRowShowsOnlyTheNameStyledLikeTheOtherRows() {
+        var opened = 0
+        rule.setContent {
+            DrawerContent(
+                visible = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false),
+                selected = FestivalSection.Songs,
+                profile = ProfileKind.Player,
+                player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
+                onSection = { opened++ },
+                onRoute = { opened++ },
+                onOpenProfile = {},
+                onDeselect = {},
+            )
+        }
+        val inDrawer = hasAnyAncestor(hasTestTag("fst.nav.drawer-sheet"))
+        assertEquals(0, rule.onAllNodes(inDrawer and hasText("Selected", substring = true, ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodes(inDrawer and hasContentDescription("Selected", substring = true, ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().size)
+
+        val row = rule.onNodeWithTag("fst.nav.drawer.player")
+        row.assert(hasContentDescriptionExactly("Profile: Synthetic Player"))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Text))
+        rule.onNodeWithTag("fst.nav.drawer.songs").assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+        // The name is the row's only semantics child (the icon is decorative): no second line.
+        val playerParts = rule.onAllNodes(hasAnyAncestor(hasTestTag("fst.nav.drawer.player")), useUnmergedTree = true).fetchSemanticsNodes()
+        assertEquals(1, playerParts.size)
+
+        val name = playerParts.single().boundsInRoot
+        val songs = rule.onNode(hasText("Songs") and hasAnyAncestor(hasTestTag("fst.nav.drawer.songs")), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val settings = rule.onNode(hasText("Settings") and hasAnyAncestor(hasTestTag("fst.nav.drawer.settings")), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertEquals("label column", songs.left, name.left, 0.5f)
+        assertEquals("label column", settings.left, name.left, 0.5f)
+        assertEquals("label line height", songs.height, name.height, 0.5f)
+        val playerRow = row.fetchSemanticsNode().boundsInRoot
+        val songsRow = rule.onNodeWithTag("fst.nav.drawer.songs").fetchSemanticsNode().boundsInRoot
+        assertEquals("row start", songsRow.left, playerRow.left, 0.5f)
+        assertEquals("row height", songsRow.height, playerRow.height, 0.5f)
+
+        row.performClick()
+        assertEquals(1, opened)
+    }
+
+    /**
+     * Issue #162: on a short window at 2.0× (phone landscape) the whole sheet scrolls, so the
+     * destinations keep their full rows instead of a sliver above a pinned footer; on a tall
+     * window the footer still sits at the bottom of the sheet.
+     */
+    @Test
+    fun shortLargeTextSheetScrollsAsOneListAndTallSheetKeepsTheFooterAtTheBottom() {
+        var tall by mutableStateOf(false)
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = if (tall) 1f else 2f)) {
+                Box(Modifier.width(360.dp).height(if (tall) 800.dp else 340.dp)) {
+                    DrawerContent(
+                        visible = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false),
+                        selected = FestivalSection.Songs,
+                        profile = ProfileKind.Player,
+                        player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
+                        onSection = {},
+                        onRoute = {},
+                        onOpenProfile = {},
+                        onDeselect = {},
+                    )
+                }
+            }
+        }
+        val sheet = rule.onNodeWithTag("fst.nav.drawer-sheet")
+        val range = sheet.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange]
+        assertTrue("short sheet scrolls", range.maxValue() > 0f)
+        val songs = rule.onNodeWithTag("fst.nav.drawer.songs").fetchSemanticsNode().boundsInRoot
+        val sheetBounds = sheet.fetchSemanticsNode().boundsInRoot
+        assertTrue("Songs row fully visible", songs.bottom <= sheetBounds.bottom)
+        rule.onNodeWithTag("fst.nav.drawer.settings").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("fst.nav.drawer.player").assertIsDisplayed()
+
+        tall = true
+        rule.waitForIdle()
+        val settings = rule.onNodeWithTag("fst.nav.drawer.settings").fetchSemanticsNode().boundsInRoot
+        val tallSheet = sheet.fetchSemanticsNode().boundsInRoot
+        assertEquals("footer at the bottom", tallSheet.bottom, settings.bottom, 1f)
+        assertEquals(0f, sheet.fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].maxValue(), 0.5f)
     }
 
     @Test

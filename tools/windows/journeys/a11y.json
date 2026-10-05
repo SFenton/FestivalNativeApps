@@ -570,6 +570,9 @@
     "ready": [
       "waitfor:id=fst.first-run.dialog@20"
     ],
+    "after_ready": [
+      "assertstate:id=fst.first-run.close|name=Close"
+    ],
     "tabs": 12
   },
   {

@@ -166,8 +166,9 @@ internal object PlayerScoreWire {
  */
 suspend fun FestivalApi.suggestionScores(accountId: String): SuggestionScoresRead {
     val read = readPinnedResponse(SuggestionEndpoints.player(accountId))
-    val wire = decode(PlayerProfileWire.serializer(), read.body)
-    return PlayerScoreWire.toRead(wire, accountId, read.status, read.observedPublicationId)
+    return decode(PlayerProfileWire.serializer(), read.body) { wire ->
+        PlayerScoreWire.toRead(wire, accountId, read.status, read.observedPublicationId)
+    }
 }
 
 /**

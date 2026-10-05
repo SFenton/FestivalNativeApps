@@ -1,7 +1,12 @@
 package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescriptionExactly
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -174,6 +179,10 @@ class ShellAccessibilityJourneyTest {
         } else {
             h.waitForTag("fst.nav.drawer.deselect")
         }
+        // Issue #162: the player row is one "Profile: <name>" stop with no "Selected Player" caption.
+        rule.onNodeWithTag("fst.nav.drawer.player").assert(hasContentDescriptionExactly("Profile: Synthetic Player"))
+        val drawer = hasAnyAncestor(hasTestTag("fst.nav.drawer-sheet"))
+        assertTrue(rule.onAllNodes(drawer and hasText("Selected", substring = true, ignoreCase = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         h.assertAccessible()
     }
 

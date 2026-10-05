@@ -53,6 +53,21 @@ public static class DialogChrome
     };
 
     /// <summary>
+    /// Keeps the dialog surface out of the window's caption band (issue #244). The window extends its content into the
+    /// title bar, so a tall dialog (large text, short window) otherwise grows to the full window height. Its top edge then
+    /// sits in the title bar's drag region under the window's own minimize/maximize/close buttons, whose small "×" reads as
+    /// the dialog's close but quits the app. Equal top and bottom margins keep short dialogs centred, and a taller body
+    /// scrolls in the template's own content scroller.
+    /// </summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    /// <param name="captionHeight">Title bar height in effective pixels.</param>
+    public static void ClearOfTitleBar(ContentDialog dialog, double captionHeight) => dialog.Loaded += (_, _) =>
+    {
+        if (captionHeight > 0 && Find(dialog, "BackgroundElement") is FrameworkElement surface)
+            surface.Margin = new Thickness(0, captionHeight, 0, captionHeight);
+    };
+
+    /// <summary>
     /// Drops WinUI's automatic high-contrast text backplate from the command buttons' labels. The template already draws
     /// them in system colour pairs (ButtonText on ButtonFace, HighlightText on Highlight for the default button), so the
     /// adjustment only painted a Window-coloured box inside the default button's Highlight fill
