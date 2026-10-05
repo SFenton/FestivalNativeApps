@@ -1443,14 +1443,18 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(noMatches.waitForExistence(timeout: 10))
     }
 
-    /// Explain why an unpinned generation change returns an old Detail route to Songs.
+    /// An unpinned generation change keeps an open Song Detail and refreshes it in place
+    /// (issue #304): no pop to Songs and no "Published scores changed" notice.
     ///
-    /// - Throws: Missing unverified-data label, stale Detail route or absent notice.
+    /// - Throws: Missing unverified-data label, a popped Detail route or a reset notice.
     @MainActor
-    func testHeaderlessRolloverExplainsRouteReset() async throws {
+    func testHeaderlessRolloverRefreshesDetailInPlace() async throws {
         continueAfterFailure = false
         let app = SongsUITestSupport.fixtureApp()
-        let port = UIDevice.current.userInterfaceIdiom == .pad ? 8768 : 8767
+        // A spent listener stays on generation 8; `TEST_RUNNER_FST_ROLLOVER_FIXTURE_PORT`
+        // points a rerun at a fresh one without stopping a listener another lane owns.
+        let port = ProcessInfo.processInfo.environment["FST_ROLLOVER_FIXTURE_PORT"]
+            .flatMap(Int.init) ?? (UIDevice.current.userInterfaceIdiom == .pad ? 8768 : 8767)
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
@@ -1484,19 +1488,19 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertEqual(status.label, "Publication 8; songs live (publication unverified)")
 
         SongsUITestSupport.rootControl("Songs", app: app).tap()
-        let notice = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "Published scores changed.")
-        ).firstMatch
-        let noticeAppeared = notice.waitForExistence(timeout: 10)
-        if !noticeAppeared {
-            SongsUITestSupport.record(app, name: "songs-unpinned-rollover-missing-notice")
+        let detail = app.staticTexts["Intensity"]
+        let stayed = detail.waitForExistence(timeout: 10)
+        if !stayed {
+            SongsUITestSupport.record(app, name: "songs-unpinned-rollover-left-detail")
         }
-        XCTAssertTrue(
-            noticeAppeared, "Unpinned rollover return: \(app.debugDescription.prefix(2_400))"
-        )
-        XCTAssertFalse(app.staticTexts["Intensity"].exists)
-        XCTAssertTrue(song.waitForExistence(timeout: 10))
-        SongsUITestSupport.record(app, name: "songs-unpinned-rollover-notice")
+        XCTAssertTrue(stayed, "Rollover kept Song Detail: \(app.debugDescription.prefix(2_400))")
+        XCTAssertTrue(app.descendants(matching: .any)["fst.publication.refreshing"]
+            .waitForNonExistence(timeout: 10), "The refresh spinner fades out")
+        XCTAssertTrue(detail.exists, "Song Detail is rebuilt in place, not popped")
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Published scores changed.")
+        ).firstMatch.exists)
+        SongsUITestSupport.record(app, name: "songs-unpinned-rollover-in-place")
     }
 
     /// Keep old Songs unfiltered and unbadged when only new Shop/profile reads succeed.

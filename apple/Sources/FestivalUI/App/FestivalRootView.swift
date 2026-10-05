@@ -112,7 +112,8 @@ public struct FestivalRootView: View {
             }
             session = FestivalSession(
                 factory: factory, selectionStorage: selectionStorage,
-                debugSelectedPlayer: debugSelectedPlayer
+                debugSelectedPlayer: debugSelectedPlayer,
+                liveConnection: PublicationLiveConnection.isEnabled() ? PublicationLiveConnection() : nil
             )
             Self.processSession = session
         }
@@ -411,16 +412,10 @@ public struct FestivalRootView: View {
             if adapted.paths != paths { paths = adapted.paths }
             if adapted.selected != selected { selected = adapted.selected }
         }
-        // A new publication can leave retained `Song`-valued routes pointing at an older
-        // catalogue (AGENTS.md publication invariants), so the Songs path is cleared with a
-        // visible explanation. Profile/band selection never navigates: pages refresh in
-        // place for the new identity (operator, 2026-09-28).
-        .onChange(of: session.publicationRevision) { _, _ in
-            if !songsPath.isEmpty {
-                songsNotice = "Published scores changed. Returned to Songs to avoid outdated details."
-                songsPath.removeAll()
-            }
-        }
+        // A new publication never navigates (issue #304): every page refreshes in place
+        // (`PublicationRefreshBoundary`), re-reading `Song`-valued routes from the new
+        // catalogue. Profile/band selection never navigates either (operator, 2026-09-28).
+        .publicationLiveUpdates(session: session)
         .onChange(of: visibleInstruments) { _, shown in
             if let songsInstrument, !shown.contains(songsInstrument) {
                 songsNotice = "\(songsInstrument.label) was hidden. Showing all instruments."
@@ -596,12 +591,6 @@ public struct FestivalRootView: View {
         } set: { value in
             paths[section] = value
         }
-    }
-
-    /// Songs path, used by publication/profile invalidation notices.
-    private var songsPath: [AppRoute] {
-        get { paths[.songs] ?? [] }
-        nonmutating set { paths[.songs] = newValue }
     }
 
 
@@ -870,24 +859,32 @@ public struct FestivalRootView: View {
         case .suggestions:
             tabStack(.suggestions) {
                 SuggestionsScreen(session: session, visibleInstruments: visibleInstruments)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.suggestions, session: session)
             }
         case .leaderboards:
             tabStack(.leaderboards) {
-                LeaderboardsScreen(session: session).firstRun(.leaderboards, session: session)
+                LeaderboardsScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.leaderboards, session: session)
             }
         case .compete:
             tabStack(.compete) {
-                CompeteScreen(session: session).firstRun(.compete, session: session)
+                CompeteScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.compete, session: session)
             }
         case .rivals:
             tabStack(.rivals) {
                 RivalsScreen(session: session, showsRootTrailingItems: true)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.rivals, session: session)
             }
         case .statistics:
             tabStack(.statistics) {
-                StatisticsScreen(session: session).firstRun(.statistics, session: session)
+                StatisticsScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.statistics, session: session)
             }
         case .settings:
             tabStack(.settings) {
@@ -897,6 +894,7 @@ public struct FestivalRootView: View {
             // Sidebar Item Shop row (iPad/macOS); phones push `.shop` instead.
             tabStack(.shop) {
                 ShopScreen(session: session, isVisible: selected == .shop && (paths[.shop] ?? []).isEmpty)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.shop, session: session)
             }
         }
