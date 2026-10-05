@@ -110,6 +110,30 @@ import Testing
     #expect(band == .init(footerTop: 0, footerBottom: 0, pagerTop: 0))
 }
 
+// MARK: - Accessibility hard edge (scroll-edge R7, issue #305)
+
+/// Reduce Transparency or Increase Contrast turn the bottom ramp into a hard cut at
+/// the chrome's top edge; with neither the scroll-driven fade height is kept.
+@Test(arguments: [(false, false, 36.0), (true, false, 0.0), (false, true, 0.0), (true, true, 0.0)])
+func bottomFadeIsAHardEdgeForAccessibility(reduceTransparency: Bool, increaseContrast: Bool, expected: Double) {
+    #expect(ScrollEdgeFade.accessibleDistance(
+        36, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast
+    ) == expected)
+    #expect(ScrollEdgeFade.accessibleDistance(
+        12.5, reduceTransparency: reduceTransparency, increaseContrast: increaseContrast
+    ) == (expected == 0 ? 0 : 12.5))
+}
+
+/// A zero-height fade puts the opaque and clear stops on the chrome's top edge: rows
+/// are fully drawn right up to it and still clear beneath it.
+@Test func hardEdgeStopsMeetAtChromeTop() {
+    let stops = ScrollEdgeFade.bottom(
+        height: 800, obscured: 200,
+        distance: ScrollEdgeFade.accessibleDistance(36, reduceTransparency: true, increaseContrast: false)
+    )
+    #expect(stops == .init(fadeStart: 0.75, fadeEnd: 0.75))
+}
+
 // MARK: - Selected player on page while paging (issue #93)
 
 /// Loaded rows decide, case-insensitively, regardless of the rank's page.

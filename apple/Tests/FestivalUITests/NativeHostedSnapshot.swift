@@ -247,6 +247,44 @@ func nativeHostedPNG(
     return png
 }
 
+/// Bright (text/glyph) samples inside `rect`, in host points, of a capture of `host`:
+/// every second pixel per axis whose red, green and blue average above `threshold`.
+///
+/// - Parameters:
+///   - rect: Region in the host's top-left points.
+///   - image: Native capture of the host.
+///   - hostSize: The host's size in points.
+///   - threshold: Minimum mean channel value, 0–255.
+/// - Returns: The number of bright samples.
+@MainActor
+func nativeHostedBrightSamples(
+    in rect: CGRect, of image: CGImage, hostSize: CGSize, threshold: Int = 150
+) -> Int {
+    let width = image.width, height = image.height
+    var bytes = [UInt8](repeating: 0, count: width * height * 4)
+    let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
+        guard let context = CGContext(
+            data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return false }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    guard drawn else { return 0 }
+    let scale = CGFloat(width) / hostSize.width
+    let minX = max(0, Int(rect.minX * scale)), maxX = min(width, Int(rect.maxX * scale))
+    let minY = max(0, Int(rect.minY * scale)), maxY = min(height, Int(rect.maxY * scale))
+    var count = 0
+    for y in stride(from: minY, to: maxY, by: 2) {
+        for x in stride(from: minX, to: maxX, by: 2) {
+            let pixel = (y * width + x) * 4
+            if Int(bytes[pixel]) + Int(bytes[pixel + 1]) + Int(bytes[pixel + 2]) > 3 * threshold { count += 1 }
+        }
+    }
+    return count
+}
+
 // MARK: - Settling
 
 /// Whether the test process runs in a virtual machine (`kern.hv_vmm_present`),
