@@ -161,7 +161,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         Page(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals"),
         Page(name: "rival-detail",
              env: ["FST_DEBUG_ROUTE": "rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar"],
-             profile: true, ready: "fst.rival-detail.view-profile"),
+             // The rival's name titles the page in every width; View Profile moves out of
+             // the content in a compact window.
+             profile: true, ready: "uwphe"),
         Page(name: "compete-or-bands", env: ["FST_DEBUG_ROUTE": "bands"], profile: true, ready: "Bands"),
         Page(name: "notifications", profile: true, ready: "fst.songs.list", open: { app in
             tapFirst(app, ["fst.shell.notifications"]) ? "Notifications" : nil
