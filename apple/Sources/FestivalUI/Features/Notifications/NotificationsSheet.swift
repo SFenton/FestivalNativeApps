@@ -27,6 +27,8 @@ struct NotificationsSheet: View {
     /// The first reveal's stagger has finished; rows rebuilt later (List recycling while
     /// scrolling back up) appear without fading again (operator batch 7).
     @State private var fadeSettled = false
+    /// Pinned header and scroll readings for the rows' fade under the headers (#301).
+    @State private var pinnedFade = ModalPinnedHeaderFadeState()
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
@@ -63,20 +65,21 @@ struct NotificationsSheet: View {
     }
 
     private var list: some View {
-        List {
-            let unread = center.notifications.filter { center.unreadIds.contains($0.id) }
-            let older = center.notifications.filter { !center.unreadIds.contains($0.id) }
+        let unread = center.notifications.filter { center.unreadIds.contains($0.id) }
+        let older = center.notifications.filter { !center.unreadIds.contains($0.id) }
+        return List {
             if !unread.isEmpty {
-                Section { rows(unread) } header: { sectionHeader("New") }
+                Section { rows(unread) } header: { sectionHeader("New", first: true) }
             }
             if !older.isEmpty || unread.isEmpty {
                 Section { rows(older, offset: unread.count) } header: {
-                    if !unread.isEmpty { sectionHeader("Older") }
+                    if !unread.isEmpty { sectionHeader("Older", first: false) }
                 }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .modalPinnedHeaderList(pinnedFade, showsHeaders: !unread.isEmpty)
         .task(id: center.notifications.count) {
             await FadeStagger.settle(afterRevealing: min(center.notifications.count, 12)) {
                 fadeSettled = true
@@ -84,13 +87,15 @@ struct NotificationsSheet: View {
         }
     }
 
-    /// White section title ("New" / "Older", operator batch 7).
-    private func sectionHeader(_ title: String) -> some View {
+    /// White section title ("New" / "Older", operator batch 7), measured for the rows'
+    /// fade under it while pinned; the first is drawn where it pins from the start (#301).
+    private func sectionHeader(_ title: String, first: Bool) -> some View {
         Text(title)
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(FestivalText.primary)
             .textCase(nil)
             .accessibilityAddTraits(.isHeader)
+            .modalPinnedSectionHeader(pinnedFade, first: first)
     }
 
     @ViewBuilder
@@ -106,7 +111,7 @@ struct NotificationsSheet: View {
             }
             .festivalRowButtonStyle()
             .festivalFadeIn(isLoaded: true, index: FadeStagger.index(offset + index, settled: fadeSettled))
-            .listRowBackground(Color.clear)
+            .modalPinnedHeaderRow(pinnedFade, first: offset == 0 && index == 0)
             .accessibilityIdentifier("fst.notifications.row.\(notification.id)")
         }
     }
