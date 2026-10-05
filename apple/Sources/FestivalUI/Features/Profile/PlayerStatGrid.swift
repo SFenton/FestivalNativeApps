@@ -124,6 +124,9 @@ struct PlayerStatTileView: View {
     let scope: String
     let onSelect: (PlayerStatLink) -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Side padding that clears the chevron at every text size: a fixed 22 pt let the
+    /// AX5 chevron (footnote, ≈ 2.5×) sit on "2 (66.6%)" (iPad audit capture, Lane A11Y3).
+    @ScaledMetric(relativeTo: .footnote) private var chevronInset: CGFloat = 22
 
     private var identifier: String { "fst.player.stat.\(scope).\(tile.id)" }
 
@@ -203,7 +206,7 @@ struct PlayerStatTileView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 14)
-        .padding(.horizontal, 22)
+        .padding(.horizontal, chevronInset)
         .overlay(alignment: .trailing) {
             if showsChevron {
                 Image(systemName: "chevron.forward")
