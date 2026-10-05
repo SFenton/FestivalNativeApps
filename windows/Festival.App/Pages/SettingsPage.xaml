@@ -484,31 +484,23 @@
                     <TextBlock Text="Festival Score Tracker Version" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Festival Score Tracker information to help with debugging." Style="{StaticResource SectionSubtitleStyle}" />
                     <Border Style="{StaticResource FSTCardStyle}">
-                        <Grid ColumnSpacing="12" RowSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="App Version" />
-                            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.AppVersion}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                        <!-- Label/value pairs: values share a right column while everything fits, else every value moves under
+                             its label (narrow window, 200% text, long release version) instead of clipping the label. -->
+                        <controls:SettingValueGrid>
+                            <TextBlock Text="App Version" TextWrapping="Wrap" />
+                            <TextBlock Text="{x:Bind ViewModel.AppVersion}" Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap"
                                        IsTextSelectionEnabled="True" AutomationProperties.AutomationId="fst.settings.app-version" />
-                            <TextBlock Grid.Row="1" Text="Build Configuration" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.BuildConfiguration}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                            <TextBlock Grid.Row="2" Text="Service Version" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.ServiceVersion, Mode=OneWay}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                            <TextBlock Text="Build Configuration" TextWrapping="Wrap" />
+                            <TextBlock Text="{x:Bind ViewModel.BuildConfiguration}" Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
+                            <TextBlock Text="Service Version" TextWrapping="Wrap" />
+                            <TextBlock Text="{x:Bind ViewModel.ServiceVersion, Mode=OneWay}" Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap"
                                        IsTextSelectionEnabled="True" AutomationProperties.AutomationId="fst.settings.service-version" />
                             <!-- Replays the launch What's New dialog (web: the changelog under Version). -->
-                            <TextBlock Grid.Row="3" Text="What's New" VerticalAlignment="Center" />
-                            <Button Grid.Row="3" Grid.Column="1" Content="Show" Click="OnShowWhatsNew"
+                            <TextBlock Text="What's New" TextWrapping="Wrap" />
+                            <Button Content="Show" Click="OnShowWhatsNew"
                                     AutomationProperties.Name="Show What's New"
                                     AutomationProperties.AutomationId="fst.settings.whats-new" />
-                        </Grid>
+                        </controls:SettingValueGrid>
                     </Border>
                 </StackPanel>
 
