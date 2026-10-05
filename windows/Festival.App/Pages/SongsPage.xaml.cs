@@ -83,6 +83,9 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Section the pinned bar names while the list is shown; the open index focuses its letter.</summary>
     private int stickySection;
 
+    /// <summary>Whether a settled view change's after-layout header re-read is queued (<see cref="OnScrollerViewChanged"/>).</summary>
+    private bool stickySettlePending;
+
     /// <summary>How the open index focuses its letter: with a focus rectangle unless a pointer opened it.</summary>
     private FocusState letterFocus = FocusState.Keyboard;
 
@@ -231,10 +234,35 @@ public sealed partial class SongsPage : Page, IPageBack
     {
         if (scroller is null && (scroller = FindScrollViewer(SongList)) is not null)
         {
-            scroller.ViewChanged += (_, _) => UpdateStickyHeader();
+            scroller.ViewChanged += OnScrollerViewChanged;
             StartPushAnimations(scroller);
         }
         return scroller;
+    }
+
+    /// <summary>
+    /// Re-reads the pinned header on every view change, and once more after layout when a view change settles: a single
+    /// large jump (a UIA Scroll pattern set, keyboard End or a scroll-bar page) raises one final change before the panel
+    /// realizes the rows now in view, which would otherwise leave the header naming the old section (issue #249).
+    /// </summary>
+    /// <param name="sender">The list's scroll viewer.</param>
+    /// <param name="e">View change.</param>
+    private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        UpdateStickyHeader();
+        if (e.IsIntermediate || stickySettlePending) return;
+        stickySettlePending = true;
+        void Settle(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Settle;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settle;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            stickySettlePending = false;
+            UpdateStickyHeader();
+        });
     }
 
     /// <summary>A section's visible in-list title and its text top relative to the list viewport's top.</summary>
@@ -327,9 +355,11 @@ public sealed partial class SongsPage : Page, IPageBack
     private void UpdateEdgeFade(bool headerShown)
     {
         var settings = App.Session.Settings;
-        var enabled = headerShown && SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
+        var enabled = SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, fadeUiSettings.AdvancedEffectsEnabled,
             settings.LessTransparency, settings.MoreContrast);
-        edgeFade.Update(enabled ? SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0) : 0);
+        var strength = SongHeaderEdgeFade.Strength(scroller?.VerticalOffset ?? 0);
+        edgeFade.Update(headerShown && enabled ? strength : 0);
+        ListFadeHost.SetStatus(SongHeaderEdgeFade.Status(headerShown, enabled, strength));
     }
 
     /// <summary>Follows appearance changes that switch the edge fade on or off while the page is shown.</summary>
