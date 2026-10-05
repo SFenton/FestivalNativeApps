@@ -370,6 +370,44 @@ public sealed class FirstRunWindowRotation<T>
         start = (start + Count) % Pool.Count;
     }
 }
+
+/// <summary>
+/// Statistics' "Highest and Lowest Rank Breakdown" demo (web <c>TopSongsDemo</c>): four song slots whose songs rotate
+/// while each slot keeps its pinned percentile pill (web <c>DEMO_PERCENTILES[i]</c>; issue #257).
+/// </summary>
+public sealed class FirstRunTopSongsDemo
+{
+    /// <summary>Visible slots (the web's four top-song rows).</summary>
+    public const int SlotCount = 4;
+
+    private readonly FirstRunRowRotation<FirstRunDemoSong> rotation;
+
+    /// <summary>Creates the demo with the pool's first songs in their slots.</summary>
+    /// <param name="pool">Demo song pool (<see cref="FirstRunDemos.SongPool"/>).</param>
+    public FirstRunTopSongsDemo(IReadOnlyList<FirstRunDemoSong> pool) => rotation = new(pool, SlotCount);
+
+    /// <summary>The song in each visible slot.</summary>
+    public IReadOnlyList<FirstRunDemoSong> Songs => rotation.Rows;
+
+    /// <summary>Rotations that replaced at least one slot's song.</summary>
+    public int Rotations { get; private set; }
+
+    /// <summary>A slot's pill text: fixed per slot, never derived from the slot's current song.</summary>
+    /// <param name="slot">Zero-based visible slot.</param>
+    /// <returns>For example "Top 1.2%".</returns>
+    public static string Pill(int slot) => string.Create(CultureInfo.InvariantCulture, $"Top {FirstRunDemos.TopSongPercentile(slot):0.#}%");
+
+    /// <summary>Replaces the next web-chosen slots' songs (nothing when the pool can't show a new song).</summary>
+    /// <returns>Sorted slots whose song changed.</returns>
+    public IReadOnlyList<int> Advance()
+    {
+        var slots = rotation.NextSwap();
+        if (slots.Count == 0) return slots;
+        rotation.Replace(slots);
+        Rotations++;
+        return slots;
+    }
+}
 #endregion
 
 #region Song icon pattern
@@ -593,6 +631,12 @@ public static class FirstRunDemos
     /// <summary>Most songs a demo rotates through.</summary>
     public const int PoolSize = 12;
 
+    /// <summary>
+    /// Most song rows any demo shows at once (the Suggestions card lists five; Statistics' top songs and Rival detail
+    /// four). <see cref="SongPool"/> pads to this so a short catalogue shows placeholders, never a wrapped duplicate.
+    /// </summary>
+    public const int MaxVisibleSongs = 5;
+
     /// <summary>Whether a demo shows Item Shop songs, so it prefers the current Shop (web <c>useItemShopDemoSongs</c>).</summary>
     /// <param name="kind">Demo kind.</param>
     /// <returns><see langword="true"/> for the Shop pulse rows and Shop tiles.</returns>
@@ -629,6 +673,14 @@ public static class FirstRunDemos
 
     /// <summary>Top-songs percentile samples.</summary>
     public static IReadOnlyList<double> TopSongPercentiles { get; } = [1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9];
+
+    /// <summary>
+    /// The percentile pill of top-songs row <paramref name="row"/>: fixed per row, like the web's
+    /// <c>DEMO_PERCENTILES[i % length]</c>, so the pills stay in rank order while the songs rotate.
+    /// </summary>
+    /// <param name="row">Zero-based visible row.</param>
+    /// <returns>Percentile sample.</returns>
+    public static double TopSongPercentile(int row) => TopSongPercentiles[row % TopSongPercentiles.Count];
 
     /// <summary>Song Info bar-select samples.</summary>
     public static IReadOnlyList<FirstRunDemoBar> BarSelectBars { get; } =
@@ -763,17 +815,18 @@ public static class FirstRunDemos
 
     /// <summary>
     /// The songs a demo rotates through: real catalogue songs, padded with <see cref="FirstRunDemoSong.Placeholder"/>s to
-    /// <see cref="RowCount"/> (all placeholders while the catalogue loads or is unavailable). Never invents songs.
+    /// <see cref="MaxVisibleSongs"/> (all placeholders while the catalogue loads or is unavailable). Never invents songs,
+    /// and no visible row has to wrap around to repeat a song.
     /// </summary>
     /// <param name="catalog">Loaded catalogue songs, or <see langword="null"/>.</param>
     /// <param name="preferring">Song IDs to show first, or <see langword="null"/>.</param>
-    /// <returns>At least <see cref="RowCount"/> entries.</returns>
+    /// <returns>At least <see cref="MaxVisibleSongs"/> entries.</returns>
     public static IReadOnlyList<FirstRunDemoSong> SongPool(IEnumerable<Song>? catalog, IEnumerable<string>? preferring = null)
     {
         var pool = Pick(catalog, PoolSize, preferring)
             .Select(s => new FirstRunDemoSong(s.SongId, new FirstRunDemoRow(s.Title, s.Year is { } y ? $"{s.Artist} · {y}" : s.Artist), s.AlbumArt))
             .ToList();
-        while (pool.Count < RowCount) pool.Add(FirstRunDemoSong.Placeholder);
+        while (pool.Count < MaxVisibleSongs) pool.Add(FirstRunDemoSong.Placeholder);
         return pool;
     }
 

@@ -139,17 +139,22 @@ extension FestivalAPI {
     ///   - page: One-based page number.
     ///   - pageSize: Rows per page; 25 matches the Solo chart's page size.
     ///   - combo: Optional instrument-combo filter.
+    ///   - accountId: Selected player, sent only as the `accountId` query so the service
+    ///     returns that player's best band row (`selectedPlayerEntry`, a pure `SELECT`
+    ///     in `MetaDatabase.GetSongBandLeaderboardEntryForAccount`); never as a
+    ///     selected-profile header.
     /// - Returns: Validated band score rows and explicit offline freshness.
     /// - Throws: Invalid parameters, service failures or malformed wire responses.
     public func songBandLeaderboard(
-        songId: String, bandType: BandType, page: Int, pageSize: Int = 25, combo: String? = nil
+        songId: String, bandType: BandType, page: Int, pageSize: Int = 25, combo: String? = nil,
+        accountId: String? = nil
     ) async throws -> SongBandLeaderboardPayload {
         guard page > 0, page - 1 <= Int.max / max(1, pageSize) else {
             throw FestivalAPIError.invalidResource
         }
         let resource = PublicEndpoint.songBandLeaderboard(
             songId: songId, bandType: bandType.rawValue, top: pageSize,
-            offset: (page - 1) * pageSize, combo: combo
+            offset: (page - 1) * pageSize, combo: combo, accountId: accountId
         )
         let payload = try await read(resource)
         let response = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: payload.data)
