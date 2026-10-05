@@ -42,7 +42,9 @@
             <SelectorBarItem Text="Quads" AutomationProperties.AutomationId="fst.song-band-leaderboard.band-type.Band_Quad" />
         </SelectorBar>
 
-        <Grid Grid.Row="2" Grid.RowSpan="2">
+        <!-- The fade source (BoardFooterFade, issue #305): the rows fade out above the floating pager. The list keeps its
+             own visual for the load swap; the centred spinner and messages sit clear of the edge. -->
+        <Grid x:Name="BoardFadeSource" Grid.Row="2" Grid.RowSpan="2">
             <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56"
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                       ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
@@ -157,6 +159,13 @@
                            TextWrapping="Wrap" />
             </StackPanel>
         </Grid>
+
+        <!-- Paints BoardFadeSource with its rows faded above the pager while the fade is on; never hit-testable. -->
+        <Border x:Name="BoardFadeHost" Grid.Row="2" Grid.RowSpan="2" IsHitTestVisible="False" />
+        <!-- Contrast themes turn the fade off: a window-colour plate (pager height plus its margin, sized by BoardFooterFade)
+             hides the rows between and behind the pager's buttons. Never hit-testable. -->
+        <Border x:Name="FooterPlate" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
 
         <!-- Shared board pager floating over the rows (web FixedLeaderboardPagination; operator batch 7.4). -->
         <controls:LeaderboardsPager x:Name="Footer" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" Margin="0,0,0,12"

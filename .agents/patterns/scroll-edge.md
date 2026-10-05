@@ -2,7 +2,7 @@
 
 > **What:** how scrolling content meets anything pinned above or below it: page headers, sheet headers, pinned section titles and bottom chrome (pagers, footers). **Read when:** you touch a fade, mask, scrim, scroll-edge effect or sticky header on any platform, or a bug says content "shows under", "is faded under" or "is cut off at" a header.
 
-Status: **current**, 2026-10-05. Provenance: #10, #49, #93, #94, #286, #288, #297, #298, #301 (audit 2026-10-05: six parallel mechanisms grew up for this one behavior).
+Status: **current**, 2026-10-05. Provenance: #10, #49, #93, #94, #286, #288, #297, #298, #301, #305 (audit 2026-10-05: six parallel mechanisms grew up for this one behavior).
 
 ## Intent
 
@@ -28,6 +28,7 @@ The web has **no sticky section headers**. Native pinned section titles are a na
 - **R6. No decorative bands.** A header gets a glass or material band only when content actually scrolls behind floating chrome. HIG Scroll views: "Only use an edge effect when a scroll view is behind floating interface elements. It isn't decorative." Sheets hide the system edge effect (#94). **Approved variant (Apple pages):** the system soft top scroll-edge effect plus `TopEdgeScrim`, a dark legibility gradient over bright artwork that ends no lower than bar + 32 pt (max 150). It is a scrim, not a content mask, and must never dim a section-jump landing ([section-jump-landing](section-jump-landing.md)).
 - **R7. Accessibility gives a hard edge, never a leak.** With Reduce Transparency, Increase Contrast or the in-app Less Transparency on (Android: the app's settings; Windows: high contrast), the ramp becomes a hard cut at the edge. Content still never shows behind the header.
 - **R8. Jumps land clear of the ramp.** After a Quick Links or A–Z jump the target's first row is fully opaque and the pinned title names the target ([section-jump-landing](section-jump-landing.md)).
+- **R9. Every board's bottom chrome fades the same way (#305).** Each board with a floating pager or footer (Song, Full Rankings, Band Rankings, band song leaderboard, Player Bands) fades its rows above that chrome. The fade is the same with or without the selected player's pinned row: it depends only on the chrome being on screen and on the R7 settings. Windows pages call `BoardFooterFade.Attach(source, host, footer, rows, plate)` and never wire the fade themselves. `BoardFooterEdgeFade.Treatment` chooses the fade, the high-contrast plate or neither.
 
 ## Canonical implementation
 
@@ -36,7 +37,7 @@ The web has **no sticky section headers**. Native pinned section titles are a na
 | Page header | `FestivalUI/Common/Chrome/PageChrome.swift` `TopEdgeScrim` + system soft edge (R6 variant) | `ui/common/FestivalScreen.kt` pinned `TopAppBar` (opaque bar, content clipped at its edge) | `Festival.App` page header row (content clipped below it) |
 | Sheet header | `FestivalUI/Design/ModalTopEdgeFade.swift` `ModalTopEdgeFadeModifier`, applied by `FestivalModal` | `ui/common/FestivalModal.kt` (no ramp: hard edge) | `Festival.App/Controls/FestivalDialog.cs` (`ContentDialog`, no ramp) |
 | Pinned section title in a list | Songs: `FestivalUI/Features/Songs/SectionBarEdgeFade.swift` + `SongsScreen.swift` `SectionBarRowMask`; sheet lists: `FestivalUI/Design/ModalPinnedHeaderFade.swift` | `core/songs/SongHeaderEdgeFade.kt` + `ui/songs/PinnedHeaderEdgeFade.kt` (native `stickyHeader`) | `Festival.Core/Domain/SongHeaderEdgeFade.cs` + `Festival.App/Controls/TopEdgeFade.cs` |
-| Bottom chrome (pager, footer) | `FestivalCore/ScrollEdgeFade.swift` (36) | `core/rankings/BoardFooterEdgeFade.kt` | `Festival.Core/Domain/BoardFooterEdgeFade.cs` + `Festival.App/Controls/BoardFooterFade.cs` |
+| Bottom chrome (pager, footer) | `FestivalCore/ScrollEdgeFade.swift` (36) | `core/rankings/BoardFooterEdgeFade.kt` | `Festival.Core/Domain/BoardFooterEdgeFade.cs` + `Festival.App/Controls/BoardFooterFade.cs` (`Attach`, every board) |
 
 `TODO(orchestrator)`: confirm whether Android/Windows page and sheet headers need a web-style 40 ramp (R2/R3) or keep the platform's opaque bar with a hard edge as an approved variant (M3 top app bar and Fluent header both separate content from chrome).
 

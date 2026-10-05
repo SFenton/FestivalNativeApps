@@ -50,7 +50,11 @@ Checked 2026-10-03 with the winui-design and winui-code-review skills. Fixture s
 | Display 100% / 150% | Correct. |
 | Narrator / UIA | Rows are Buttons named "Rank #4, SFentonX. Total Score 105,593,371, 731 / 731 songs"; page info is a polite live region ("Page 2 of 34,694"); menus are radio items with checked state; Your page, Retry and the pinned row have names and IDs. Reading order follows the Tab order. |
 
-Deliberate deviations: a custom pager instead of `PagerControl` (web `Paginator` parity, Fluent circle buttons, keyboard arrows); in non-contrast themes rows scroll under the floating footer like the web backdrop; no scroll fade; the songs label below the name at large text differs from the web's single line. Axe reports `BoundingRectangleCompletelyObscuresContainer` on WinUI's own `PopupHost`/`InputSiteWindowClass` while a menu or the pager tooltip is open ([windows-accessibility.md](../../testing/windows-accessibility.md#open-issues) item 8); no app element is involved.
+Deliberate deviations: a custom pager instead of `PagerControl` (web `Paginator` parity, Fluent circle buttons, keyboard arrows); the songs label below the name at large text differs from the web's single line. Axe reports `BoundingRectangleCompletelyObscuresContainer` on WinUI's own `PopupHost`/`InputSiteWindowClass` while a menu or the pager tooltip is open ([windows-accessibility.md](../../testing/windows-accessibility.md#open-issues) item 8); no app element is involved.
+
+## Footer edge (issue #305)
+
+Rows fade out over 40 epx above the floating footer's top (pinned row or pager) and are hidden beneath it, with or without a selected player, as on the song leaderboard ([scroll-edge](../../patterns/scroll-edge.md) R9). Before #305 the page had no fade, so rows ran straight under the pager. `BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Footer, Scroller, FooterPlate)` draws it: `BoardFadeSource` wraps the `Scroller` because the fade source can't carry the load-swap visual. The band eases out over the last 40 epx of scroll, so the last row is fully readable at the end. The same `Attach` call shows the contrast `FooterPlate` under contrast themes; Windows transparency effects off, Less Transparency and Increase Contrast keep the plain list. Live check, 2026-10-06: anonymous Lead, medium, scrolled to 40% and to the end.
 
 ## Open
 

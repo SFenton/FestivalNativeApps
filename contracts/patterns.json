@@ -75,10 +75,12 @@
             "symbol": "TopEdgeFade"
           },
           {
-            "path": "windows/Festival.Core/Domain/BoardFooterEdgeFade.cs"
+            "path": "windows/Festival.Core/Domain/BoardFooterEdgeFade.cs",
+            "symbol": "Treatment"
           },
           {
-            "path": "windows/Festival.App/Controls/BoardFooterFade.cs"
+            "path": "windows/Festival.App/Controls/BoardFooterFade.cs",
+            "symbol": "Attach"
           }
         ]
       },

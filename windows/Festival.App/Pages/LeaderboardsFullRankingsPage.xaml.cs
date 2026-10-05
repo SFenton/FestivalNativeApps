@@ -26,7 +26,6 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     private (int Index, FocusState Focus)? revealSelected;
     private bool split;
     private string? detailAccountId;
-    private readonly Windows.UI.ViewManagement.UISettings plateUiSettings = new();
 
     /// <summary>Creates the page.</summary>
     public LeaderboardsFullRankingsPage()
@@ -34,15 +33,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         InitializeComponent();
         BoardFooter.Inset(Footer, RowsRepeater);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
-        Footer.SizeChanged += (_, _) => UpdateFooterPlate();
-        Scroller.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateFooterPlate());
-        Loaded += (_, _) =>
-        {
-            // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
-            plateUiSettings.ColorValuesChanged += OnPlateColorsChanged;
-            UpdateFooterPlate();
-        };
-        Unloaded += (_, _) => plateUiSettings.ColorValuesChanged -= OnPlateColorsChanged;
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Footer, Scroller, FooterPlate);
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -141,25 +132,6 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(RowsRepeater));
         RevealSelected();
     }
-
-    #region Footer plate
-    /// <summary>
-    /// In a contrast theme, backs the floating footer (pinned row and pager) with a window-colour plate of its height so
-    /// rows scrolling underneath never show between or behind its controls; other themes keep the rows visible under it.
-    /// </summary>
-    private void UpdateFooterPlate()
-    {
-        var on = ContrastTheme.IsOn && Scroller.Visibility == Visibility.Visible && Footer.ActualHeight > 0;
-        FooterPlate.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
-        if (on) FooterPlate.Height = Footer.ActualHeight;
-    }
-
-    /// <summary>Re-evaluates the plate when the contrast theme changes (any thread).</summary>
-    /// <param name="sender">Ignored.</param>
-    /// <param name="args">Ignored.</param>
-    private void OnPlateColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
-        DispatcherQueue.TryEnqueue(UpdateFooterPlate);
-    #endregion
 
     #region Split layout
     /// <summary>

@@ -74,24 +74,29 @@
         </Grid>
 
         <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows scroll on beneath the
-             floating footer (BoardFooter). -->
-        <ScrollViewer x:Name="Scroller" Grid.Row="1" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
-                      controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
-                      AutomationProperties.AutomationId="fst.full-rankings.list">
-            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
-                           ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
-                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
-                           ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
-                <ItemsRepeater.Layout>
-                    <StackLayout Spacing="4" />
-                </ItemsRepeater.Layout>
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate x:DataType="vm:RankingRowViewModel">
-                        <controls:LeaderboardEntryRow Row="{x:Bind}" />
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
-        </ScrollViewer>
+             floating footer (BoardFooter) and fade out above it, with or without the pinned row (BoardFooterFade, issues
+             #93, #305). The wrapper is the fade source: the scroller keeps its own visual for the load swap. -->
+        <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="3">
+            <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                          AutomationProperties.AutomationId="fst.full-rankings.list">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
+                               ElementPrepared="OnRowPrepared" BringIntoViewRequested="OnRowsBringIntoViewRequested"
+                               controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="4" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RankingRowViewModel">
+                            <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+        </Grid>
+        <!-- Paints BoardFadeSource with its rows faded above the footer while the fade is on; never hit-testable. -->
+        <Border x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" IsHitTestVisible="False" />
         <TextBlock Grid.Row="1" Text="No ranked players yet." Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -103,9 +108,9 @@
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <!-- Contrast themes: this window-colour plate (footer height, sized in code) hides the rows between and behind the
-             floating footer's controls instead of letting their text show through (issue #208, as the song leaderboard).
-             Never hit-testable; other themes keep the web's rows-under-footer look. -->
+        <!-- Contrast themes turn the footer fade off; this window-colour plate (footer height, sized by BoardFooterFade) hides
+             the rows between and behind the floating footer's controls instead of letting their text show through (issue
+             #208, as the song leaderboard). Never hit-testable. -->
         <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
 

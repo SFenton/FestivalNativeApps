@@ -25,6 +25,25 @@ public static class BoardFooterEdgeFade
     }
 
     /// <summary>
+    /// What a board draws where its rows meet the floating footer. Every board with a floating footer (pinned row and/or
+    /// pager) gets the same treatment whether or not the selected player has a pinned row (issue #305).
+    /// </summary>
+    /// <param name="footerShown">The rows and a non-empty footer are on screen.</param>
+    /// <param name="contrastTheme">A Windows contrast theme is on.</param>
+    /// <param name="transparencyEffects">Windows transparency effects are on.</param>
+    /// <param name="lessTransparency">The in-app Less Transparency setting is on.</param>
+    /// <param name="moreContrast">The in-app Increase Contrast setting is on.</param>
+    /// <returns>The treatment.</returns>
+    public static BoardFooterTreatment Treatment(bool footerShown, bool contrastTheme, bool transparencyEffects, bool lessTransparency, bool moreContrast)
+    {
+        if (!footerShown) return BoardFooterTreatment.None;
+        if (contrastTheme) return BoardFooterTreatment.Plate;
+        return SongHeaderEdgeFade.IsEnabled(contrastTheme, transparencyEffects, lessTransparency, moreContrast)
+            ? BoardFooterTreatment.Fade
+            : BoardFooterTreatment.None;
+    }
+
+    /// <summary>
     /// Mask stops for a gradient from <see cref="Depth"/> epx above the footer's top to 1 epx below it: opaque above the
     /// band, the reversed smoothstep through the band (scaled by <paramref name="strength"/>), then clear from the
     /// footer's top down so no row shows beneath the footer.
@@ -37,5 +56,18 @@ public static class BoardFooterEdgeFade
         var band = SongHeaderEdgeFade.Stops.Select(s => (s.Offset * scale, SongHeaderEdgeFade.MaskAlpha(1 - s.Alpha, strength)));
         return [.. band, (1f, 0f)];
     }
+}
+
+/// <summary>How a board's rows meet its floating footer (<see cref="BoardFooterEdgeFade.Treatment"/>).</summary>
+public enum BoardFooterTreatment
+{
+    /// <summary>Plain rows: no footer on screen, or transparency is reduced and the footer's solid surfaces suffice.</summary>
+    None,
+
+    /// <summary>Rows fade out over <see cref="BoardFooterEdgeFade.Depth"/> epx above the footer and are hidden beneath it.</summary>
+    Fade,
+
+    /// <summary>Contrast theme: a window-colour plate the footer's height hides the rows behind it.</summary>
+    Plate,
 }
 #endregion

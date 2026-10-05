@@ -30,7 +30,9 @@
             <SelectorBarItem Text="Quads" AutomationProperties.AutomationId="fst.player-bands.group.quads" />
         </SelectorBar>
 
-        <Grid Grid.Row="2" Grid.RowSpan="2">
+        <!-- The fade source (BoardFooterFade, issue #305): the cards fade out above the floating pager. The list keeps its
+             own visual for the load swap; the centred spinner and messages sit clear of the edge. -->
+        <Grid x:Name="BoardFadeSource" Grid.Row="2" Grid.RowSpan="2">
             <ScrollViewer Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}" x:Name="Scroller"
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                           AutomationProperties.AutomationId="fst.player-bands.list">
@@ -68,6 +70,13 @@
                            TextWrapping="Wrap" />
             </StackPanel>
         </Grid>
+
+        <!-- Paints BoardFadeSource with its cards faded above the pager while the fade is on; never hit-testable. -->
+        <Border x:Name="BoardFadeHost" Grid.Row="2" Grid.RowSpan="2" IsHitTestVisible="False" />
+        <!-- Contrast themes turn the fade off: a window-colour plate (pager height plus its margin, sized by BoardFooterFade)
+             hides the cards between and behind the pager's buttons. Never hit-testable. -->
+        <Border x:Name="FooterPlate" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"
+                Visibility="Collapsed" Background="{ThemeResource FSTFloatingBackplateBrush}" />
 
         <!-- Shared board pager floating over the cards (web FixedLeaderboardPagination; operator batch 7.4). -->
         <controls:LeaderboardsPager x:Name="Footer" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" Margin="0,0,0,12"

@@ -3,7 +3,7 @@ using Xunit;
 
 namespace Festival.Core.Tests;
 
-/// <summary>The fade above a leaderboard's floating footer (issue #93).</summary>
+/// <summary>The fade above a leaderboard's floating footer (issues #93, #305).</summary>
 public sealed class BoardFooterEdgeFadeTests
 {
     [Fact]
@@ -40,6 +40,21 @@ public sealed class BoardFooterEdgeFadeTests
     [Fact]
     public void Stops_HalfStrengthHalvesTheBand() =>
         Assert.Equal(0.5f, BoardFooterEdgeFade.Stops(0.5)[4].Alpha, 6);
+
+    // Issue #305: the edge depends only on the footer being on screen and the appearance settings, never on whether
+    // the footer holds the selected player's pinned row.
+    [Theory]
+    [InlineData(true, false, true, false, false, BoardFooterTreatment.Fade)]
+    [InlineData(false, false, true, false, false, BoardFooterTreatment.None)]
+    [InlineData(true, true, true, false, false, BoardFooterTreatment.Plate)]
+    [InlineData(true, true, false, true, true, BoardFooterTreatment.Plate)]
+    [InlineData(false, true, true, false, false, BoardFooterTreatment.None)]
+    [InlineData(true, false, false, false, false, BoardFooterTreatment.None)]
+    [InlineData(true, false, true, true, false, BoardFooterTreatment.None)]
+    [InlineData(true, false, true, false, true, BoardFooterTreatment.None)]
+    public void Treatment_FadesAnyShownFooterUnlessAppearanceAsksForThePlainList(
+        bool shown, bool contrastTheme, bool transparencyEffects, bool lessTransparency, bool moreContrast, BoardFooterTreatment expected) =>
+        Assert.Equal(expected, BoardFooterEdgeFade.Treatment(shown, contrastTheme, transparencyEffects, lessTransparency, moreContrast));
 
     private sealed class FloatTolerance : IEqualityComparer<float>
     {
