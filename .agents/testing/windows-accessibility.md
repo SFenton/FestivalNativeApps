@@ -359,6 +359,10 @@ Evidence: `a11y_matrix.py --scan --tabs 30 --pages journeys/a11y-navigation.json
 
 Fixed: keyboard focus entering the pane from the title bar (Tab from profile) or the minimal pane opening from the toggle landed on Songs rather than the selected section; NavigationView only does this for a Tab that passes through itself.
 
+## Navigation pane corners validation (issue #255, 2026-10-05)
+
+Evidence: `a11y_matrix.py --scan --tabs 20 --pages journeys/a11y-pane-corners.json` (pane closed, overlay, inline, collapsed rail) ran with fixtures and live (`--live`). It covered compact, medium, wide, maximized and both snap halves, plus light and dark theme, Desert, Night sky, text 200% and display 100%/150%. Every state passes. Axe found 0 errors except on the open overlay (open issue 8), and Tab stops stay in the window without repeats. `navigation.py compact keyboard` passes. No app code changed. Per configuration: [app-navigation/windows.md](../controls/app-navigation/windows.md#pane-corners-validation-issue-255-2026-10-05).
+
 ## Modal component validation (issue #239, 2026-10-04)
 
 Evidence: `a11y_matrix.py --scan --pages journeys/modals.json` (all eight `FestivalDialog` callers: Settings Reset, Privacy Policy, Report an Issue, Suggest a Feature, What's New, Licenses, First Run, the Karaoke Paths notice, Paths, and both profile confirmations) with fixtures, plus live public-service runs (`--live`, no profile pages). Every run: Esc closes, focus returns to the invoker, Tab stays inside the dialog (2–7 stops) and Axe found 0 errors.
