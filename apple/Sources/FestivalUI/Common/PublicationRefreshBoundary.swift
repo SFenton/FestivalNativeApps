@@ -6,25 +6,31 @@ import FestivalCore
 /// Refreshes one page in place when the service publishes a new generation (issue #304),
 /// like the web's `PublicationBoundary`, which keeps the route and remounts the pages.
 ///
-/// The sequence is ``PublicationRefreshTransition`` (FestivalCore): the content fades out
-/// as the spinner fades in, the spinner holds ≥400 ms and until `prepare` has finished for
-/// the newest generation, then the page is rebuilt and fades in while the spinner fades
-/// out; the rebuilt page loads its own data with its own load fade. The hidden content
-/// stays mounted (no hit testing, hidden from VoiceOver) so the page's title, toolbar and
-/// navigation stay put; it is never shown again.
+/// The sequence is ``PublicationRefreshTransition`` (FestivalCore, load-transition R3):
+/// the content fades out (300 ms), the spinner fades in (150 ms) and holds ≥400 ms and
+/// until `prepare` has finished for the newest generation, the spinner fades out
+/// (500 ms), then the page is rebuilt and fades in; the rebuilt page loads its own data
+/// with its own load fade. The hidden content stays mounted (no hit testing, hidden from
+/// VoiceOver from the start of its fade) so the page's title, toolbar and navigation stay
+/// put; it is never shown again.
 ///
-/// VoiceOver stays on the page (``PublicationRefreshFocus``, FestivalCore): while
-/// VoiceOver runs, a refresh adds a **page anchor**, an invisible heading named with the
+/// VoiceOver stays where the person left it (``PublicationRefreshFocus``, FestivalCore;
+/// load-transition R7). When ``PublicationFocusProbe`` establishes that VoiceOver focus is
+/// inside this page, a refresh adds a **page anchor**, an invisible heading named with the
 /// page's ``festivalNavigationTitle(_:)`` that lives outside the rebuilt content. Focus
 /// moves to it as the old content is hidden (it reads "*Title*, heading, Loading new
 /// scores"), stays there through the spinner and is restored to it after the rebuild;
-/// the anchor retires once the person moves on. HIG VoiceOver: "Give each page or screen
-/// a unique, succinct title describing its content and purpose."
+/// the anchor retires once the person moves on. When focus is anywhere else (tab bar,
+/// navigation bar, a sheet, another column, or always on macOS) focus is not moved and
+/// an on-screen page announces "Loading new scores" once per publication
+/// (``PublicationRefreshAnnouncements``). HIG VoiceOver: "Give each page or screen a
+/// unique, succinct title describing its content and purpose"; "Announce visible content
+/// and layout changes."
 ///
 /// HIG Progress indicators (iOS, iPadOS): "Perform automatic content updates regularly;
 /// don't make people initiate every update." HIG Accessibility: with Reduce Motion "reduce
-/// automatic and repetitive animation", so system or in-app Reduce Motion (and
-/// `festivalFadeInEnabled == false`) swaps instantly while the spinner still holds 400 ms.
+/// automatic and repetitive animation", so system or in-app Reduce Motion swaps instantly
+/// while the spinner still holds 400 ms; `festivalFadeInEnabled == false` also skips the hold.
 struct PublicationRefreshBoundary<Content: View>: View {
     let session: FestivalSession
     /// Readies page state for a generation before the page is rebuilt (for example,
@@ -38,6 +44,9 @@ struct PublicationRefreshBoundary<Content: View>: View {
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @State private var transition: PublicationRefreshTransition
     @State private var focus = PublicationRefreshFocus()
+    @State private var probe = PublicationFocusProbe()
+    /// Whether the page is on screen (not under a pushed page or in another tab).
+    @State private var onScreen = false
     @AccessibilityFocusState private var focusedElement: PublicationRefreshFocus.Element?
     /// The page's last published title (kept across the rebuild and its own load).
     @State private var pageTitle: String?
@@ -57,8 +66,9 @@ struct PublicationRefreshBoundary<Content: View>: View {
         _transition = State(initialValue: PublicationRefreshTransition(revision: session.publicationRevision))
     }
 
-    /// Identifies the running spinner hold so a new spinner restarts it.
-    private struct HoldID: Equatable {
+    /// Identifies the running wait so a phase change restarts it.
+    private struct WaitID: Equatable {
+        let phase: PublicationRefreshTransition.Phase
         let generation: Int
         let wait: PublicationRefreshTransition.Wait?
     }
@@ -79,9 +89,12 @@ struct PublicationRefreshBoundary<Content: View>: View {
                     .transition(.opacity)
             }
         }
+        .background { PublicationFocusProbeView(probe: probe) }
         .overlay(alignment: .top) {
             if showsPageAnchor { pageAnchor }
         }
+        .onAppear { onScreen = true }
+        .onDisappear { onScreen = false }
         .onPreferenceChange(FestivalPageTitleKey.self) { title in
             if let title { pageTitle = title }
         }
@@ -93,7 +106,7 @@ struct PublicationRefreshBoundary<Content: View>: View {
             if !anchors { focus = PublicationRefreshFocus() }
         }
         .onChange(of: focusedElement) { old, new in
-            focus.focusChanged(from: old, to: new, refreshing: transition.showsSpinner)
+            focus.focusChanged(from: old, to: new, refreshing: transition.isRefreshing)
         }
         .task(id: focus.anchorFocusRequest) {
             guard focus.anchorFocusRequest > 0, voiceOverEnabled, focus.showsAnchor else { return }
@@ -103,15 +116,24 @@ struct PublicationRefreshBoundary<Content: View>: View {
             guard !Task.isCancelled else { return }
             focusedElement = .pageAnchor
         }
-        .task(id: HoldID(generation: transition.generation, wait: transition.pendingWait)) {
-            guard transition.pendingWait != nil else { return }
-            // Frozen fades (`festivalFadeInEnabled == false`) skip the hold, like
-            // `FestivalReloadGate`; Reduce Motion keeps it so the spinner never blinks.
-            if fadeEnabled {
-                try? await Task.sleep(for: PublicationRefreshTransition.minimumSpinnerDuration)
+        .task(id: focus.announcementRequest) {
+            guard focus.announcementRequest > 0, anchorsFocus, onScreen else { return }
+            let revision = transition.targetRevision
+            guard PublicationRefreshAnnouncer.gate.request(for: revision) else { return }
+            // A page that moves focus to its anchor for the same publication in this
+            // update cancels the announcement (the anchor reads the loading state).
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, PublicationRefreshAnnouncer.gate.shouldPost(for: revision) else { return }
+            AccessibilityNotification.Announcement(Self.loadingLabel).post()
+        }
+        .task(id: WaitID(phase: transition.phase, generation: transition.generation, wait: transition.pendingWait)) {
+            guard let wait = transition.pendingWait else { return }
+            let duration = timing.duration(of: wait)
+            if duration > .zero {
+                try? await Task.sleep(for: duration)
             }
             guard !Task.isCancelled else { return }
-            update { $0.minimumSpinnerElapsed() }
+            update { $0.timerFired(wait) }
         }
         .task(id: transition.preparationRevision) {
             guard let revision = transition.preparationRevision else { return }
@@ -126,11 +148,16 @@ struct PublicationRefreshBoundary<Content: View>: View {
     /// The spinner's spoken label, also the anchor's value while the spinner is up.
     private static var loadingLabel: String { PublicationPageAnchor.loadingLabel }
 
-    /// See ``PublicationPageAnchor/forced``.
-    private static var forcesPageAnchor: Bool { PublicationPageAnchor.forced }
+    /// See ``PublicationPageAnchor/forcedFocusInPage``.
+    private static var forcedFocusInPage: Bool? { PublicationPageAnchor.forcedFocusInPage }
 
-    /// Whether a refresh keeps VoiceOver on a page anchor.
-    private var anchorsFocus: Bool { voiceOverEnabled || Self.forcesPageAnchor }
+    /// Whether a refresh tracks VoiceOver focus (VoiceOver runs, or a UI test simulates it).
+    private var anchorsFocus: Bool { voiceOverEnabled || Self.forcedFocusInPage != nil }
+
+    /// Whether VoiceOver focus is inside this page now, before its content is hidden.
+    private var focusIsInsidePage: Bool {
+        Self.forcedFocusInPage ?? probe.voiceOverFocusIsInsidePage(pageOnScreen: onScreen)
+    }
 
     /// Whether the page anchor is in the accessibility tree.
     private var showsPageAnchor: Bool { focus.showsAnchor && anchorsFocus }
@@ -145,7 +172,7 @@ struct PublicationRefreshBoundary<Content: View>: View {
             .allowsHitTesting(false)
             .accessibilityElement()
             .accessibilityLabel(pageTitle ?? "Current page")
-            .accessibilityValue(transition.showsSpinner ? Self.loadingLabel : "")
+            .accessibilityValue(transition.isRefreshing ? Self.loadingLabel : "")
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("fst.publication.page-anchor")
             .accessibilityFocused($focusedElement, equals: .pageAnchor)
@@ -159,27 +186,49 @@ struct PublicationRefreshBoundary<Content: View>: View {
     /// Whether fades play.
     private var animates: Bool { fadeEnabled && !reduceMotion }
 
-    /// Apply a change, animating the phase it moves into: content out / spinner in
-    /// (150 ms ease-in), or the rebuilt content in (web `fadeInUp` timing).
+    /// Durations for the current motion settings (R3; instant swaps under Reduce Motion,
+    /// no hold either when fades are frozen).
+    private var timing: PublicationRefreshTransition.Timing {
+        fadeEnabled ? .standard(reduceMotion: reduceMotion) : .instant
+    }
+
+    /// The fade for a move into `phase`, or nil for an instant swap.
+    ///
+    /// - Parameter phase: The phase being entered.
+    /// - Returns: Content-out (300 ms ease-out), spinner-in (150 ms ease-in), spinner-out
+    ///   (500 ms ease-out) or the web `fadeInUp` timing for the rebuilt content.
+    private func animation(to phase: PublicationRefreshTransition.Phase) -> Animation? {
+        guard animates else { return nil }
+        switch phase {
+        case .contentOut: return .easeOut(duration: Self.seconds(timing.contentOut))
+        case .spinner: return .easeIn(duration: Self.seconds(timing.spinnerIn))
+        case .spinnerOut: return .easeOut(duration: Self.seconds(timing.spinnerOut))
+        case .content: return FestivalFadeIn.animation
+        }
+    }
+
+    /// Apply a change, animating the phase it moves into.
     ///
     /// - Parameter change: The transition update.
     private func update(_ change: (inout PublicationRefreshTransition) -> Void) {
         var next = transition
         change(&next)
         guard next != transition else { return }
-        if next.showsSpinner && !transition.showsSpinner {
-            if anchorsFocus { focus.refreshStarted() }
+        if next.isRefreshing && !transition.isRefreshing {
+            if anchorsFocus {
+                // Read focus before the content is hidden: hiding it moves VoiceOver.
+                let inside = focusIsInsidePage
+                focus.refreshStarted(focusInPage: inside)
+                if inside { PublicationRefreshAnnouncer.gate.focusClaimed(for: next.targetRevision) }
+            }
         } else if next.generation != transition.generation {
             focus.contentRevealed()
         }
-        guard animates, next.phase != transition.phase else {
+        if next.phase != transition.phase, let animation = animation(to: next.phase) {
+            withAnimation(animation) { transition = next }
+        } else {
             transition = next
-            return
         }
-        let animation: Animation = next.showsSpinner
-            ? .easeIn(duration: Self.seconds(PublicationRefreshTransition.fadeOutDuration))
-            : FestivalFadeIn.animation
-        withAnimation(animation) { transition = next }
     }
 
     /// - Parameter duration: A duration.
@@ -197,15 +246,26 @@ private enum PublicationPageAnchor {
     /// The spinner's spoken label, also the anchor's value while the spinner is up.
     static let loadingLabel = "Loading new scores"
 
-    /// Debug-only: UI tests set `FST_UI_TEST_PAGE_ANCHOR=1` to keep the anchor without
-    /// VoiceOver (XCUITest cannot run VoiceOver), so a journey can see where focus goes.
-    static let forced: Bool = {
+    /// Debug-only: XCUITest cannot run VoiceOver, so UI tests simulate where its focus is
+    /// when a refresh starts: `FST_UI_TEST_PAGE_ANCHOR=inside` (or `1`) inside the page,
+    /// `outside` elsewhere (tab bar, navigation bar). Nil runs the real focus check.
+    static let forcedFocusInPage: Bool? = {
         #if DEBUG
-        ProcessInfo.processInfo.environment["FST_UI_TEST_PAGE_ANCHOR"] == "1"
+        switch ProcessInfo.processInfo.environment["FST_UI_TEST_PAGE_ANCHOR"] {
+        case "1", "inside": true
+        case "outside": false
+        default: nil
+        }
         #else
-        false
+        nil
         #endif
     }()
+}
+
+/// The process-wide once-per-publication announcement gate shared by every boundary.
+@MainActor
+enum PublicationRefreshAnnouncer {
+    static var gate = PublicationRefreshAnnouncements()
 }
 
 extension View {
