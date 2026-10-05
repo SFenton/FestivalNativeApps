@@ -64,6 +64,20 @@ private struct SectionCardProbe: View {
     }
 }
 
+/// The material card's own layers (tint over `ultraThinMaterial`) drawn directly over
+/// the same white page: what ``RowCardProbe``'s centre must match on any host.
+private struct MaterialLayersProbe: View {
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        ZStack {
+            Color.white
+            shape.fill(RowCardStyle.tint(increasedContrast: false))
+                .background(.ultraThinMaterial, in: shape)
+                .frame(width: 280, height: 64)
+        }
+    }
+}
+
 /// Throwaway defaults with one in-app accessibility toggle switched on.
 ///
 /// - Parameter key: `fst.accessibility.*` key to enable, or nil for none.
@@ -92,6 +106,19 @@ private func cardCentre(_ image: CGImage) throws -> (red: Double, green: Double,
     }
     let samples = try #require(count > 0 ? count : nil)
     return (sum.0 / samples, sum.1 / samples, sum.2 / samples)
+}
+
+/// Largest per-channel difference between two mean colours.
+///
+/// - Parameters:
+///   - lhs: First mean colour (0–1).
+///   - rhs: Second mean colour (0–1).
+/// - Returns: The largest absolute channel difference.
+private func channelDistance(
+    _ lhs: (red: Double, green: Double, blue: Double),
+    _ rhs: (red: Double, green: Double, blue: Double)
+) -> Double {
+    max(abs(lhs.red - rhs.red), abs(lhs.green - rhs.green), abs(lhs.blue - rhs.blue))
 }
 
 /// Whether this host's captures blend a material with the view behind it.
@@ -174,12 +201,25 @@ private func hostBlendsMaterials() throws -> Bool {
         let pixels = nativeHostedControlPixels(try nativeHostedImage(host))
         #expect(pixels.bright > 0)
         let centre = try cardCentre(try nativeHostedImage(host))
+
+        // Host-independent: the card centre is its own material layers, not the opaque
+        // card. GitHub's `xcode-27-arm64` runner (#122) draws an offscreen material
+        // opaque without sampling its backdrop, so only relative checks hold there.
+        let layers = try cardCentre(try nativeHostedImage(nativeHostedView(
+            MaterialLayersProbe(), size: CGSize(width: 320, height: 96), forceGlassFallback: false
+        )))
+        let opaque = try cardCentre(try nativeHostedImage(nativeHostedView(
+            RowCardProbe(), size: CGSize(width: 320, height: 96), forceGlassFallback: true
+        )))
+        let toLayers = channelDistance(centre, layers)
+        let toOpaque = channelDistance(centre, opaque)
+        #expect(toLayers <= 0.01, "card \(centre) vs material layers \(layers)")
+        #expect(toLayers < toOpaque, "card \(centre) nearer opaque \(opaque) than material \(layers)")
+
+        // Where the host blends materials (developer Macs), the white page must also
+        // show through the card.
         if try hostBlendsMaterials() {
             #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
-        } else {
-            withKnownIssue("This host draws materials without their backdrop (#122)") {
-                #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
-            }
         }
     }
 
