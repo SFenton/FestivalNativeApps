@@ -121,10 +121,27 @@ private func channelDistance(
     max(abs(lhs.red - rhs.red), abs(lhs.green - rhs.green), abs(lhs.blue - rhs.blue))
 }
 
+/// Host a probe with SwiftUI's Reduce Transparency pinned off, so the shipping
+/// material branch is drawn whatever the host's system setting.
+///
+/// GitHub's macOS runner (issue #122) reports system Reduce Transparency on: unpinned,
+/// the card correctly drew its opaque fallback there and the material check failed.
+///
+/// - Parameter probe: View to host over its own white page.
+/// - Returns: A 320×96 pt offscreen host.
+@MainActor
+private func materialHost<Probe: View>(_ probe: Probe) -> NSHostingView<NativeHostedRoot<AnyView>> {
+    nativeHostedView(
+        AnyView(probe.environment(\._accessibilityReduceTransparency, false)),
+        size: CGSize(width: 320, height: 96), forceGlassFallback: false
+    )
+}
+
 /// Whether this host's captures blend a material with the view behind it.
 ///
-/// Some CI runners (GitHub `xcode-27-arm64`, issue #122) draw an offscreen material
-/// opaque without sampling its backdrop, so a plain material over white reads dark.
+/// AppKit draws materials opaque under the system Reduce Transparency setting (and
+/// may without a compositing window server), whatever SwiftUI's environment says, so
+/// a bare material over white then reads dark.
 ///
 /// - Returns: True when a bare `ultraThinMaterial` over white captures bright.
 /// - Throws: An unavailable capture.
@@ -134,8 +151,7 @@ private func hostBlendsMaterials() throws -> Bool {
         Color.white
         RoundedRectangle(cornerRadius: 12).fill(.ultraThinMaterial).frame(width: 280, height: 64)
     }
-    let host = nativeHostedView(probe, size: CGSize(width: 320, height: 96), forceGlassFallback: false)
-    let centre = try cardCentre(try nativeHostedImage(host))
+    let centre = try cardCentre(try nativeHostedImage(materialHost(probe)))
     return max(centre.red, centre.green, centre.blue) >= 0.2
 }
 
@@ -192,10 +208,7 @@ private func hostBlendsMaterials() throws -> Bool {
 
     @Test("The material card captures: the white page and label stay visible")
     func materialCardCaptures() throws {
-        let host = nativeHostedView(
-            RowCardProbe().defaultAppStorage(rowCardDefaults(nil)),
-            size: CGSize(width: 320, height: 96), forceGlassFallback: false
-        )
+        let host = materialHost(RowCardProbe().defaultAppStorage(rowCardDefaults(nil)))
         // Tinted Liquid Glass blanked the whole capture (see `NativeHostedRoot`); the
         // material card must not, and must not fall back to the opaque card.
         let pixels = nativeHostedControlPixels(try nativeHostedImage(host))
@@ -203,23 +216,23 @@ private func hostBlendsMaterials() throws -> Bool {
         let centre = try cardCentre(try nativeHostedImage(host))
 
         // Host-independent: the card centre is its own material layers, not the opaque
-        // card. GitHub's `xcode-27-arm64` runner (#122) draws an offscreen material
-        // opaque without sampling its backdrop, so only relative checks hold there.
-        let layers = try cardCentre(try nativeHostedImage(nativeHostedView(
-            MaterialLayersProbe(), size: CGSize(width: 320, height: 96), forceGlassFallback: false
-        )))
+        // card, even where AppKit draws the material itself opaque (issue #122).
+        let layers = try cardCentre(try nativeHostedImage(materialHost(MaterialLayersProbe())))
         let opaque = try cardCentre(try nativeHostedImage(nativeHostedView(
             RowCardProbe(), size: CGSize(width: 320, height: 96), forceGlassFallback: true
         )))
+        let blends = try hostBlendsMaterials()
+        let system = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+        let context = "system Reduce Transparency \(system), blends \(blends)"
         let toLayers = channelDistance(centre, layers)
         let toOpaque = channelDistance(centre, opaque)
-        #expect(toLayers <= 0.01, "card \(centre) vs material layers \(layers)")
-        #expect(toLayers < toOpaque, "card \(centre) nearer opaque \(opaque) than material \(layers)")
+        #expect(toLayers <= 0.01, "card \(centre) vs material layers \(layers); \(context)")
+        #expect(toLayers < toOpaque, "card \(centre) nearer opaque \(opaque) than \(layers); \(context)")
 
         // Where the host blends materials (developer Macs), the white page must also
         // show through the card.
-        if try hostBlendsMaterials() {
-            #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre)")
+        if blends {
+            #expect(max(centre.red, centre.green, centre.blue) >= 0.2, "\(centre); \(context)")
         }
     }
 
