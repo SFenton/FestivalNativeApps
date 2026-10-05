@@ -1,0 +1,171 @@
+[
+  {
+    "name": "qll-settings-menu",
+    "route": "/settings",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left",
+      "maximized"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
+    ],
+    "after_ready": [
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.show-instruments@5",
+      "toggle:id=fst.quick-links.item.show-instruments",
+      "waitgone:id=fst.quick-links.item.show-instruments@5",
+      "assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Show Instruments@5",
+      "shot:{stem}-show-instruments.png",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.accessibility@5",
+      "toggle:id=fst.quick-links.item.accessibility",
+      "waitgone:id=fst.quick-links.item.accessibility@5",
+      "assertinset:name=Accessibility&class=TextBlock|id=fst.settings|40",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Accessibility@5"
+    ]
+  },
+  {
+    "name": "qll-settings-pane",
+    "route": "/settings",
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=true@5"
+    ],
+    "after_ready": [
+      "invoke:id=fst.quick-links.item.show-instruments",
+      "assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40",
+      "assertstate:id=fst.quick-links.item.show-instruments|selected=true@5",
+      "assertstate:id=fst.quick-links.item.app-settings|selected=false",
+      "shot:{stem}-show-instruments.png",
+      "invoke:id=fst.quick-links.item.accessibility",
+      "assertinset:name=Accessibility&class=TextBlock|id=fst.settings|40",
+      "assertstate:id=fst.quick-links.item.accessibility|selected=true@5"
+    ]
+  },
+  {
+    "name": "qll-leaderboards-menu",
+    "route": "/leaderboards",
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20",
+      "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Lead@5"
+    ],
+    "after_ready": [
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "toggle:id=fst.quick-links.item.instrument:Solo_Drums",
+      "waitgone:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "assertinset:name=Drums&class=AccessibleGroup|id=fst.leaderboards|32",
+      "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Drums@5",
+      "shot:{stem}-drums.png"
+    ]
+  },
+  {
+    "name": "qll-leaderboards-pane",
+    "route": "/leaderboards",
+    "sizes": [
+      "wide"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_Guitar|selected=true@5"
+    ],
+    "after_ready": [
+      "invoke:id=fst.quick-links.item.instrument:Solo_Drums",
+      "assertinset:name=Drums&class=AccessibleGroup|id=fst.leaderboards|32",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_Drums|selected=true@5",
+      "shot:{stem}-drums.png",
+      "invoke:id=fst.quick-links.item.band:Band_Duets",
+      "assertstate:id=fst.quick-links.item.band:Band_Duets|selected=true@5"
+    ]
+  },
+  {
+    "name": "qll-player-menu",
+    "route": "/player/fixture-player-1",
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.player.name@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Global Statistics@5"
+    ],
+    "after_ready": [
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "toggle:id=fst.quick-links.item.instrument:Solo_Drums",
+      "waitgone:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "assertinset:id=fst.player.section.Solo_Drums|id=fst.player.available|40",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums@5",
+      "shot:{stem}-drums.png"
+    ]
+  },
+  {
+    "name": "qll-player-pane",
+    "route": "/player/fixture-player-1",
+    "sizes": [
+      "wide"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.list@20",
+      "assertstate:id=fst.quick-links.item.global|selected=true@5"
+    ],
+    "after_ready": [
+      "invoke:id=fst.quick-links.item.instrument:Solo_Drums",
+      "assertinset:id=fst.player.section.Solo_Drums|id=fst.player.available|40",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_Drums|selected=true@5",
+      "shot:{stem}-drums.png",
+      "invoke:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar",
+      "assertstate:id=fst.quick-links.item.instrument:Solo_PeripheralGuitar|selected=true@5"
+    ]
+  },
+  {
+    "name": "qll-song-menu",
+    "route": "/songs/fixture-pulse",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.instrument-Solo_Drums@5",
+      "toggle:id=fst.quick-links.item.instrument-Solo_Drums",
+      "waitgone:id=fst.quick-links.item.instrument-Solo_Drums@5",
+      "wait:1",
+      "assertinset:name=Drums, 1 total entry&class=AccessibleGroup|id=fst.song-detail|89.7",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums@5",
+      "shot:{stem}-drums.png",
+      "scrollinto:id=fst.quick-links.open@5",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.band-Band_Duets@5",
+      "toggle:id=fst.quick-links.item.band-Band_Duets",
+      "waitgone:id=fst.quick-links.item.band-Band_Duets@5",
+      "wait:1",
+      "assertinset:name=Duos&class=AccessibleGroup|id=fst.song-detail|97.7",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Duos@5",
+      "shot:{stem}-duos.png"
+    ]
+  }
+]

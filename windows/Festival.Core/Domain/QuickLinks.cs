@@ -90,6 +90,14 @@ public static class QuickLinks
     /// </summary>
     public const int MaxJumpCorrections = 4;
 
+    /// <summary>
+    /// <c>BringIntoViewOptions.VerticalOffset</c> for a jump to a repeater-realized section with
+    /// <c>VerticalAlignmentRatio = 0</c>. WinUI scrolls so the target's top rests this far below the viewport top, so it
+    /// is the positive landing gap: a negative value (the #51 port) parked the section 32 epx under the title bar until
+    /// the binder's correction pass re-aimed it (#251).
+    /// </summary>
+    public const double BringIntoViewOffset = LandingOffset;
+
     /// <summary>Scroll offset that puts an anchor <paramref name="landingMargin"/> below the viewport top.</summary>
     /// <param name="verticalOffset">Current scroll offset.</param>
     /// <param name="anchorTop">Anchor top relative to the viewport.</param>
@@ -147,6 +155,32 @@ public static class QuickLinks
     /// <returns>Vertical offset; sections near either end land as close as the content allows.</returns>
     public static double LandingTarget(double contentTop, double scrollableHeight, double landingOffset = LandingOffset) =>
         Math.Clamp(contentTop - landingOffset, 0, Math.Max(0, scrollableHeight));
+
+    /// <summary>
+    /// Scroll offset that lands a section <see cref="LandingOffset"/> below page chrome pinned over the viewport top at
+    /// that offset (Song Detail's compact song header, #251). When the plain landing would pin chrome over the section,
+    /// the section lands that much lower; it stays there even if the lower offset no longer pins the chrome.
+    /// </summary>
+    /// <param name="contentTop">Section top in content coordinates.</param>
+    /// <param name="scrollableHeight">Largest reachable offset.</param>
+    /// <param name="obscuredTop">Height (epx) covered at the viewport top when scrolled to a given offset.</param>
+    /// <returns>Target offset clamped to <c>[0, scrollableHeight]</c>.</returns>
+    public static double LandingTarget(double contentTop, double scrollableHeight, Func<double, double> obscuredTop)
+    {
+        var target = LandingTarget(contentTop, scrollableHeight);
+        var inset = ObscuredHeight(obscuredTop, target);
+        return inset > 0 ? LandingTarget(contentTop, scrollableHeight, LandingOffset + inset) : target;
+    }
+
+    /// <summary>Reads a chrome height, treating negative or non-finite values as none.</summary>
+    /// <param name="obscuredTop">Height covered at the viewport top for an offset, or <see langword="null"/>.</param>
+    /// <param name="verticalOffset">Scroll offset.</param>
+    /// <returns>Height in epx, at least 0.</returns>
+    public static double ObscuredHeight(Func<double, double>? obscuredTop, double verticalOffset)
+    {
+        var height = obscuredTop?.Invoke(verticalOffset) ?? 0;
+        return height > 0 && double.IsFinite(height) ? height : 0;
+    }
 
     /// <summary>
     /// The section a reader is "in": the row whose top crossed the activation line most recently (greatest top at or
