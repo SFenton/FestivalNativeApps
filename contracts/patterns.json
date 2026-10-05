@@ -51,6 +51,10 @@
           {
             "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
             "symbol": "ScrollEdgeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "bottomChromeFade"
           }
         ],
         "android": [
@@ -93,9 +97,7 @@
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
           ],
           "debt": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
-            "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
-            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift"
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
         },
@@ -159,7 +161,8 @@
         288,
         297,
         298,
-        301
+        301,
+        305
       ]
     },
     {
