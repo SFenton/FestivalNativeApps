@@ -133,6 +133,16 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertinset(self):
+        step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
+        self.assertEqual(step["verb"], "assertinset")
+        self.assertEqual(step["selector"], {"kind": "name", "value": "Show Instruments", "class": "TextBlock"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.settings"})
+        self.assertEqual(step["epx"], 40.0)
+        for bad in ("assertinset:id=a|id=b", "assertinset:id=a|id=b|-2", "assertinset:id=a|1,2|32"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_window_state_presets(self):
         self.assertEqual(u.preset_op("minimized"), {"kind": "minimize"})
         self.assertEqual(u.preset_op("restored"), {"kind": "restore"})

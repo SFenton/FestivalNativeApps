@@ -140,6 +140,18 @@ public sealed class SongDetailLayoutTests
         Assert.Equal(expectedHeight, newHeight);
     }
 
+    [Theory]
+    [InlineData(100, 150, 57, 0)]
+    [InlineData(162, 150, 57, 0)]
+    [InlineData(163, 150, 57, 57)]
+    [InlineData(900, 150, 0, 64)]
+    [InlineData(900, 150, double.NaN, 64)]
+    public void PinnedHeaderInset_CoversOnlyOncePinned(double offset, double fullHeader, double pinned, double expected)
+    {
+        Assert.Equal(expected, Festival.Core.ViewModels.SongDetailLayout.PinnedHeaderInset(offset, fullHeader, pinned));
+        Assert.Equal(expected > 0, Festival.Core.ViewModels.SongDetailLayout.PinsHeader(offset, fullHeader));
+    }
+
     [Fact]
     public void AccuracyValue_ZeroWhenMissing()
     {

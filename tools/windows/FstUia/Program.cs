@@ -629,6 +629,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertgap":
                 AssertGap(window, step);
                 break;
+            case "assertinset":
+                AssertInset(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -1028,6 +1031,33 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"vertical gap {gap:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
         response["gaps"] ??= new JsonArray();
         response["gaps"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(gap, 1) });
+    }
+
+    /// <summary>
+    /// Waits (up to 3 s, for a settling jump) until the first element's top edge is <c>epx</c> effective pixels (window
+    /// DPI) below the second's top edge, within 1 epx: e.g. a Quick Links section landed on its scroller's landing line.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c>, <c>other</c> (the container) and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The inset still differs at the timeout.</exception>
+    private void AssertInset(Window window, JsonObject step)
+    {
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var expected = (double)step["epx"]!;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (true)
+        {
+            var inset = (Find(window, step).BoundingRectangle.Top - Find(window, step, "other").BoundingRectangle.Top) / scale;
+            if (Math.Abs(inset - expected) <= 1)
+            {
+                response["insets"] ??= new JsonArray();
+                response["insets"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(inset, 1) });
+                return;
+            }
+            if (DateTime.UtcNow > until)
+                throw new InvalidOperationException($"top inset {inset:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
+            Thread.Sleep(200);
+        }
     }
 
     #endregion
