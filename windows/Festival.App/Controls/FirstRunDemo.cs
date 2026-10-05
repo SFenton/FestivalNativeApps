@@ -59,13 +59,19 @@ public sealed partial class FirstRunDemo : UserControl
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
         Loaded += (_, _) =>
         {
+            Motion.Changed -= OnMotionChanged;
             Motion.Changed += OnMotionChanged;
+            App.Session.PropertyChanged -= OnSessionChanged;
             App.Session.PropertyChanged += OnSessionChanged;
             if (CatalogueNowAvailable) Build();
             UpdateTimer();
         };
         Unloaded += (_, _) =>
         {
+            // When the first-run dialog opens, the FlipView re-realizes its first slides and WinUI raises their
+            // Unloaded after the new Loaded (IsLoaded is still true). Tearing down then left the visible demo
+            // unsubscribed from the catalogue, so it kept placeholder rows for good (issue #240).
+            if (IsLoaded) return;
             Motion.Changed -= OnMotionChanged;
             App.Session.PropertyChanged -= OnSessionChanged;
             timer?.Stop();
@@ -73,6 +79,13 @@ public sealed partial class FirstRunDemo : UserControl
             artLoads?.Cancel();
         };
     }
+
+    /// <summary>
+    /// Raw-view peer so UI tests can read the demo's <c>fst.first-run.demo.*</c> AutomationId and ItemStatus
+    /// (Narrator still skips it; its decorative children stay as they were).
+    /// </summary>
+    /// <returns>A framework element peer.</returns>
+    protected override AutomationPeer OnCreateAutomationPeer() => new FrameworkElementAutomationPeer(this);
 
     /// <summary>Statistics Top Songs: four catalogue rows with rotating percentile pills.</summary>
     private void BuildTopSongs()
@@ -367,6 +380,8 @@ public sealed partial class FirstRunDemo : UserControl
         kind = FirstRunDemos.KindFor(SlideId);
         if (kind is not { } k) return;
         songs = SongPoolFor(k);
+        AutomationProperties.SetAutomationId(this, $"fst.first-run.demo.{SlideId}");
+        AutomationProperties.SetItemStatus(this, FirstRunDemos.DataStatus(songs));
         artLoads?.Cancel();
         artLoads = new CancellationTokenSource();
         if (FirstRunDemos.RotationKindFor(SlideId) is { } rotating)

@@ -28,6 +28,16 @@ public class FirstRunDemoTests
     }
 
     [Fact]
+    public void DataStatus_ReportsCatalogueOnlyForRealSongs()
+    {
+        Assert.Equal(FirstRunDemos.PlaceholderStatus, FirstRunDemos.DataStatus(FirstRunDemos.SongPool(null)));
+        Assert.Equal(FirstRunDemos.PlaceholderStatus, FirstRunDemos.DataStatus([]));
+        var pool = FirstRunDemos.SongPool([new Song { SongId = "a", Title = "A", Artist = "X", AlbumArt = "a.jpg" }]);
+        Assert.Equal("catalogue", FirstRunDemos.DataStatus(pool));
+        Assert.Equal("placeholder", FirstRunDemos.PlaceholderStatus);
+    }
+
+    [Fact]
     public void SongPool_UsesCatalogueSongsWithArt_EpicGamesFirst_ElsePlaceholders()
     {
         Song S(string id, string artist, string? art, int? year = 2024) => new() { SongId = id, Title = "T" + id, Artist = artist, AlbumArt = art, Year = year };

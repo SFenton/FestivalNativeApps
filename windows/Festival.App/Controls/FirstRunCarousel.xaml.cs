@@ -27,13 +27,18 @@ public sealed partial class FirstRunCarousel : UserControl
         };
         Loaded += (_, _) =>
         {
+            carousel.PropertyChanged -= announce;
             carousel.PropertyChanged += announce;
             HideFlipViewArrows();
             FitSlidesHeight();
             // Containers realize after load; activate the first slide's demo once they exist.
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateActiveDemo);
         };
-        Unloaded += (_, _) => carousel.PropertyChanged -= announce;
+        // WinUI can raise a stale Unloaded after Loaded while a dialog opens (issue #240); keep announcing then.
+        Unloaded += (_, _) =>
+        {
+            if (!IsLoaded) carousel.PropertyChanged -= announce;
+        };
     }
 
     #region Text-scale fit
