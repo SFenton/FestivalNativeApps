@@ -174,7 +174,8 @@ if ($statLines) {
         p50Ms = ($parsed | ForEach-Object { $_.p50 } | Measure-Object -Average).Average
         p95Ms = ($parsed | ForEach-Object { $_.p95 } | Measure-Object -Maximum).Maximum
         p99Ms = ($parsed | ForEach-Object { $_.p99 } | Measure-Object -Maximum).Maximum
-        over33 = ($parsed | ForEach-Object { $_.over33 } | Measure-Object -Sum).Sum
+        maxMs = ($parsed | ForEach-Object { $_.max } | Measure-Object -Maximum).Maximum
+        over33 =  ($parsed | ForEach-Object { $_.over33 } | Measure-Object -Sum).Sum
     }
 }
 

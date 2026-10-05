@@ -1,0 +1,55 @@
+[
+  {
+    "name": "songs-scroll-top",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "waitfor:id=fst.songs.section-header@30",
+      "assertstate:id=fst.songs.list|scroll=0@10"
+    ]
+  },
+  {
+    "name": "songs-scroll-mid",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "waitfor:id=fst.songs.section-header@30"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.songs.list,50",
+      "wait:1",
+      "assertstate:id=fst.songs.list|scroll=50@10"
+    ]
+  },
+  {
+    "name": "songs-scroll-bottom",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "waitfor:id=fst.songs.section-header@30"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.songs.list,100",
+      "wait:1",
+      "assertstate:id=fst.songs.list|scroll=100@10"
+    ]
+  },
+  {
+    "name": "songs-scroll-back-to-top",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.list@30",
+      "waitfor:id=fst.songs.section-header@30"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.songs.list,100",
+      "wait:0.3",
+      "scrollto:id=fst.songs.list,0",
+      "wait:0.3",
+      "scrollto:id=fst.songs.list,3",
+      "scrollto:id=fst.songs.list,0",
+      "assertstate:id=fst.songs.list|scroll=0@10",
+      "waitfor:id=fst.songs.section-header@10"
+    ]
+  }
+]
