@@ -47,6 +47,9 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     /// <summary>Automation ID of the empty-state text.</summary>
     public string EmptyAutomationId => "fst.song-detail.band-empty." + TypeId;
 
+    /// <summary>Automation ID of the loading ring (its UIA name gains WinUI's "Busy" prefix while active).</summary>
+    public string LoadingAutomationId => "fst.song-detail.band-loading." + TypeId;
+
     /// <summary>Automation ID of the inline Retry button.</summary>
     public string RetryAutomationId => "fst.song-detail.band-retry." + TypeId;
 

@@ -154,6 +154,7 @@ public class SongBandPreviewTests
         Assert.Equal(SongBandPreviewViewModel.NoScoresText, quads.Subtitle);
         Assert.Equal("When Quads scores are submitted for this song, they will show up here on the next leaderboard update.", quads.EmptyText);
         Assert.Equal("fst.song-detail.band-empty.Band_Quad", quads.EmptyAutomationId);
+        Assert.Equal("fst.song-detail.band-loading.Band_Quad", quads.LoadingAutomationId);
         vm.Detach();
     }
 

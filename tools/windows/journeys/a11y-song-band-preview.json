@@ -35,7 +35,7 @@
     "ready": [
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-header.Band_Duets@20",
-      "assertname:id=fst.song-detail.band-header.Band_Duets|Duos@5",
+      "assertname:id=fst.song-detail.band-header.Band_Duets|Duos",
       "waitfor:name=Duos, 2,468 bands@5",
       "scrollinto:id=fst.song-detail.band-selected.Band_Duets@10",
       "scrollinto:id=fst.song-detail.band-row.Band_Duets.9@5",
@@ -58,7 +58,7 @@
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@20",
       "waitgone:id=fst.song-detail.band-selected.Band_Duets@3",
-      "scrollinto:id=fst.song-detail.band-row.Band_Trios.9@10",
+      "scrollinto:id=fst.song-detail.band-row.Band_Trios.2@10",
       "assertname:id=fst.song-detail.band-row.Band_Trios.2|Rank 3. Trios 3 Member A, Lead. Trios 3 Member B, Bass. Trios 3 Member C, Drums. Team score 267,000 points, 97.9% accuracy, 5 stars"
     ]
   },
@@ -69,13 +69,13 @@
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.song-detail.title@20",
-      "scrollinto:id=fst.song-detail.band-header.Band_Duets@10",
-      "waitfor:name=Loading band scores@3",
-      "waitgone:id=fst.song-detail.band-row.Band_Duets.0@1"
+      "scrollinto:id=fst.song-detail.band-loading.Band_Duets@10",
+      "waitgone:id=fst.song-detail.band-row.Band_Duets.0@1",
+      "scrollinto:id=fst.song-detail.band-loading.Band_Quad@5"
     ],
     "teardown": [
-      "waitfor:id=fst.song-detail.band-row.Band_Duets.0@30",
-      "waitgone:name=Loading band scores@5"
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.0@30",
+      "waitgone:id=fst.song-detail.band-loading.Band_Duets@5"
     ]
   },
   {
@@ -106,7 +106,7 @@
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-retry.Band_Duets@20",
       "waitgone:id=fst.song-detail.band-row.Band_Duets.0@2",
-      "waitgone:name=Duos scores unavailable@2"
+      "waitfor:name=Scores are updating@5"
     ]
   },
   {
@@ -172,7 +172,9 @@
       "assertfocus:id=fst.song-detail.band-view-all.Band_Quad@3",
       "shot:{stem}-focus.png",
       "key:shift+tab",
-      "assertfocus:id=fst.song-detail.band-row.Band_Quad.0@3",
+      "assertfocus:id=fst.song-detail.band-row.Band_Quad.9@3",
+      "key:up",
+      "assertfocus:id=fst.song-detail.band-row.Band_Quad.8@3",
       "key:enter",
       "waitfor:id=fst.band.title@15",
       "key:alt+left",
