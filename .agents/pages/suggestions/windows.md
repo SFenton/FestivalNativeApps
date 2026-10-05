@@ -87,7 +87,7 @@ Per configuration:
 - **Axe:** `a11y_matrix.py --only suggestions` scanned 0 errors in normal, Desert, Night sky, light, dark, scale-100, scale-150 and text-200, at compact, medium and wide.
 - **Axe, rival rows:** the new seeded `suggestions-rivals` matrix page (`journeys/a11y.json`: Spotlight card in view) scanned 0 errors in normal, Desert, Night sky and text-200 at compact, medium and wide. The one exception is scale-150 medium, which reported 2 `BoundingRectangleSizeReasonable` findings. They are on one subtitle clipped to zero height at the list's viewport edge, which is WinUI clipping ([windows-accessibility](../../testing/windows-accessibility.md) item 3).
 - **Journeys:** the full `suggestions_journey.py` run passed.
-- **Not checked:** `loading` (an 8 s state) kept expiring while it waited behind other sessions on the shared desktop lock (`LOCK_BOUND`). It doesn't touch rival rows, and it passed in the #205 run.
+- **Loading:** `loading` (an 8 s state) kept expiring while it waited behind other sessions on the shared desktop lock (`LOCK_BOUND`). A later retry passed at medium. It doesn't touch rival rows, and it passed at every width in the #205 run.
 
 ## IDs
 
