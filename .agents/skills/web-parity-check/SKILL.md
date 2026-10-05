@@ -9,7 +9,7 @@ description: Compare a FestivalNativeApps behavior with the web app (the product
 
 ## Steps
 
-1. **Locate the web source.** Use `$FST_WEB_SRC`, or `~/fst-agents/repos/FortniteFestivalLeaderboardScraper/FortniteFestivalWeb/src` on agent hosts. The operator's own checkout may be dirty: read it, never modify it. Start from the page (`pages/…`), the component (`components/…`) or the hook (`hooks/ui/…`) named in the pattern doc or page spec.
+1. **Locate the web source.** Use `$FST_WEB_SRC`, or `~/fst-agents/repos/FortniteFestivalLeaderboardScraper/FortniteFestivalWeb/src` on agent hosts. The operator's own checkout may be dirty: read it, never modify it. Start from the page (`pages/…`), the component (`components/…`) or the hook (`hooks/ui/…`) named in the pattern doc or page spec. Design tokens (spacing, sizes, colors, motion) live in `packages/theme/src/` at the scraper repo root; global styles in `src/styles/`. The PWA captures in [pwa-reference](../../testing/pwa-reference/README.md) show the result on each platform.
 2. **Extract the facts** into a table: states (loading, empty, error, populated, selected), constants (sizes, durations, easing, thresholds such as `useScrollMask` `DEFAULT_SIZE = 40` or `useScrollFade` `36`), copy (exact strings per state), ordering, and what each input changes. Cite `file:line`.
 3. **Compare** with the native implementation on your platform(s) and with the pattern's canonical component.
 4. **Decide what parity means here** ([design/fluent.md](../../design/fluent.md)):
