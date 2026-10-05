@@ -32,7 +32,7 @@ Work down the ladder in order; each rung either answers the question or hands it
 | Place (page/modal/platform) | Implementation (file:symbol) | Matches the rules? | Action |
 |---|---|---|---|
 
-   Fix everything in scope through the one canonical component, and register or update the pattern. Out-of-scope divergences go in `blast_radius` as `deferred`. Anything the precedence table marks *decision* goes to [design-proposal](../design-proposal/SKILL.md).
+   Fix everything in scope through the one canonical component, and register or update the pattern. Out-of-scope divergences go in `blast_radius` as `deferred`. Anything the precedence table marks *decision* is decided and documented with [design-decision](../design-decision/SKILL.md).
 
 ## Precedence when the rungs disagree
 
@@ -42,8 +42,8 @@ Work down the ladder in order; each rung either answers the question or hands it
 | An explicit owner decision (issue, comment, `/choose`, or an approved variant in a pattern doc) vs web or a platform recommendation | The owner decision |
 | Web behavior (states, constants, copy, data) vs an undocumented native implementation | The web; consolidate the native copies to it |
 | Web chrome (header, menus, modals, search UI) vs native platform chrome | Native platform conventions |
-| Web behavior vs a platform **should/consider** recommendation, with no owner decision | **Decision**: propose options |
-| No registry, native or web precedent, in navigation, chrome, layout or materials | **Decision**: propose options |
+| Web behavior vs a platform **should/consider** recommendation, with no owner decision | **Decision**: decide and document it ([design-decision](../design-decision/SKILL.md)); the owner may override |
+| No registry, native or web precedent, in navigation, chrome, layout or materials | **Decision**: decide and document it ([design-decision](../design-decision/SKILL.md)); the owner may override |
 | No precedent anywhere, in content or logic | Build it shared, register it as a new pattern |
 
 ## Smells that mean a sweep was skipped

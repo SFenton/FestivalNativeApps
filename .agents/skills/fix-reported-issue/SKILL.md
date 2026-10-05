@@ -10,7 +10,7 @@ description: End-to-end procedure for fixing a bug or building a feature from a 
 ## 1. Pin the owner's intent
 
 - Quote the owner's own words (issue body, screenshots, owner comments; newest owner comment wins). The triage summary is an interpretation; when they disagree, the owner's words win.
-- Write one sentence: *what the owner will see when this is done*. If you can't, or two readings lead to visibly different designs, go to [design-proposal](../design-proposal/SKILL.md) and stop.
+- Write one sentence: *what the owner will see when this is done*. If two readings lead to visibly different designs, decide and document which one with [design-decision](../design-decision/SKILL.md).
 
 ## 2. Find the precedent before the fix (the design ladder)
 
@@ -19,8 +19,8 @@ Follow [consistency-sweep](../consistency-sweep/SKILL.md) rung by rung, starting
 1. **Registered pattern?** `python3 tools/pattern_guard.py index` / `which <file>`, then the owning [pattern](../../patterns/README.md) docs.
 2. **Undocumented native pattern?** Search all three platforms and git history for the same behavior. A shared component, or the same behavior solved in several places, gets consolidated and registered.
 3. **Web pattern?** The web page's component, hook, styles and `packages/theme` tokens define the behavior ([web-parity-check](../web-parity-check/SKILL.md)).
-4. **Platform guidance.** `apple-hig` / `material-3` / `winui-design`, keeping each rule's strength (must, should, consider). Resolve conflicts with the sweep's precedence table: platform *musts* and owner decisions win, web behavior beats native copies, native chrome beats web chrome, and web-vs-*should* conflicts are owner decisions.
-5. **Implement**, or stop for a decision.
+4. **Platform guidance.** `apple-hig` / `material-3` / `winui-design`, keeping each rule's strength (must, should, consider). Resolve conflicts with the sweep's precedence table: platform *musts* and owner decisions win, web behavior beats native copies, native chrome beats web chrome, and web-vs-*should* conflicts are documented design decisions (you decide; the owner may override).
+5. **Implement**, documenting any design decision ([design-decision](../design-decision/SKILL.md)).
 
 Classify the change:
 
@@ -28,8 +28,8 @@ Classify the change:
 |---|---|---|
 | `aligns` | The pattern's rules already describe the fix | Fix it in the canonical component |
 | `extends_pattern` | Same rules, one more consumer or state | Extend the canonical component; add the consumer to the doc |
-| `diverges_from_pattern` | The ask conflicts with a pattern rule | **Stop**: [design-proposal](../design-proposal/SKILL.md) unless the owner already chose (issue comment or `/choose`) |
-| `new_pattern` | No registered pattern owns it and it will recur | Use the native or web precedent the ladder found (rungs 2–3). If the web has one, mirror it as one shared native component and register the pattern (status `current`, web provenance) in the same PR. If the web has none and it touches navigation, chrome, layout or materials, **stop**: [design-proposal](../design-proposal/SKILL.md) |
+| `diverges_from_pattern` | The ask conflicts with a pattern rule | Follow the owner's explicit choice if there is one; otherwise decide and document it with [design-decision](../design-decision/SKILL.md), then implement |
+| `new_pattern` | No registered pattern owns it and it will recur | Use the native or web precedent the ladder found (rungs 2–3). If the web has one, mirror it as one shared native component and register the pattern (status `current`, web provenance) in the same PR. If the web has none and it touches navigation, chrome, layout or materials, decide and document it with [design-decision](../design-decision/SKILL.md) |
 
 ## 3. Reproduce, then fix the pattern, not the instance
 
