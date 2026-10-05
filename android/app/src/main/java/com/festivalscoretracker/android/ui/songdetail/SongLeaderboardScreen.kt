@@ -190,8 +190,9 @@ fun SongLeaderboardScreen(
                 }
             },
             // The pinned score fades out with the page and staggers back in with its first row (issue #295);
-            // its slot and the pager stay in place while the next page loads (issue #93).
-            footer = { footer?.let { AnchoredRowCard(with(swap) { Modifier.staggered(0) }) { LeaderboardSectionMember(columns, "footer") { SelectedScoreFooter(it, navigate, columns.plan) } } } },
+            // its slot and the pager stay in place while the next page loads (issue #93), the stale row
+            // hidden, unread and untouchable under the spinner (issue #149).
+            footer = { footer?.let { AnchoredRowCard(with(swap) { Modifier.staggered(0) }.then(swap.pinnedContentModifier)) { LeaderboardSectionMember(columns, "footer") { SelectedScoreFooter(it, navigate, columns.plan) } } } },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
             // Rows fade out above the pinned score and pager, as on the web (issue #93).
             fadeAboveFooter = true,

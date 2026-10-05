@@ -49,7 +49,9 @@ import kotlinx.coroutines.launch
  * no waits; the spinner shows only while data is loading and content swaps at once.
  *
  * Obtain one with [rememberLoadSwap]; draw [shown] with [staggered] (or [contentModifier]) while
- * [showsContent], and [LoadSwapSpinner] / [loadSwapSpinnerItem] while [showsSpinner].
+ * [showsContent], and [LoadSwapSpinner] / [loadSwapSpinnerItem] while [showsSpinner]. A pinned
+ * row kept composed beside the spinner adds [pinnedContentModifier]; pagers and pickers add
+ * neither and stay usable.
  *
  * @param T Value the content is drawn from (usually a `LoadState`).
  */
@@ -82,15 +84,17 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?) {
     /** Whether the spinner is composed. */
     val showsSpinner: Boolean get() = !showsContent
 
-    private val fadingContent: Modifier = Modifier.graphicsLayer { alpha = contentAlpha.value }
+    /** Content opacity for the fade-out, read only in the draw phase. */
+    val contentModifier: Modifier = Modifier.graphicsLayer { alpha = contentAlpha.value }
 
     /**
-     * Content opacity for the fade-out, read only in the draw phase. While the spinner shows,
-     * content kept composed beside it (a pinned row's slot, issue #93) is hidden, silent to
-     * TalkBack and ignores touches, with or without Reduce Motion, so stale content never shows
-     * under the spinner (issue #149).
+     * For stale result content kept composed beside the spinner (a pinned row whose slot holds
+     * the pager in place, issue #93): while the spinner shows it is hidden, silent to TalkBack
+     * and ignores touches, with or without Reduce Motion, so stale content never shows under
+     * the spinner (issue #149). Never apply it to controls: pickers and pagers stay visible and
+     * usable during a swap so a newer selection supersedes the pending one (load-transition R4).
      */
-    val contentModifier: Modifier get() = if (showsSpinner) HiddenWhileLoading else fadingContent
+    val pinnedContentModifier: Modifier get() = if (showsSpinner) HiddenWhileLoading else Modifier
 
     /** Spinner opacity for its fade-out, read only in the draw phase. */
     val spinnerModifier: Modifier = Modifier.graphicsLayer { alpha = spinnerAlpha.value }
@@ -273,7 +277,7 @@ fun <T> FestivalLoadSwap(
     }
 }
 
-/** Stale content kept composed while the spinner shows: invisible, unread and untouchable. */
+/** Stale pinned content kept composed while the spinner shows: invisible, unread and untouchable. */
 private val HiddenWhileLoading: Modifier = Modifier
     .graphicsLayer { alpha = 0f }
     .clearAndSetSemantics { }

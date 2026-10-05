@@ -160,8 +160,13 @@ fun SongBandLeaderboardScreen(
                                 BandScoreRow(entry, song) { onNavigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
                             }
                         }
-                        item(key = "pager") { Box(swap.contentModifier) { BandPager(page, response.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) } }
                     }
+                }
+                // The pager stays outside the swapped rows, visible and usable while a page loads, so
+                // a newer page supersedes the pending one (load-transition R4; web keeps the previous
+                // page's count as placeholder data). Hidden for the first load and on failure, as on web.
+                (state as? LoadState.Loaded)?.value?.let { response ->
+                    item(key = "pager") { BandPager(page, response.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) }
                 }
             }
         }

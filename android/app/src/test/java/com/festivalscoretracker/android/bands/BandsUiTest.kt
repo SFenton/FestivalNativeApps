@@ -24,13 +24,16 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
+import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
+import kotlinx.coroutines.CompletableDeferred
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -56,9 +59,18 @@ class BandsUiTest {
     private val player = SelectedPlayer(BandFixtures.PLAYER, "Synthetic Player")
     private val duoRoute = "band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}"
 
+    /** Holds a matching request until the returned deferred completes (null = answer at once). */
+    private var hold: (HttpRequest) -> CompletableDeferred<Unit>? = { null }
+
     private fun launch(route: String, profile: SelectedPlayer? = null) {
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+        val gated = object : HttpTransport {
+            override suspend fun send(request: HttpRequest): HttpResult {
+                hold(request)?.await()
+                return transport.send(request)
+            }
+        }
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = InMemoryPreferences())
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -87,6 +99,48 @@ class BandsUiTest {
     private fun scrollTo(list: String, tag: String) {
         rule.onNodeWithTag(list).performScrollToNode(hasTestTag(tag))
         settle()
+    }
+
+    private fun described(description: String) =
+        rule.onAllNodesWithContentDescription(description, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /**
+     * Pages 1 → 2 with page 2's request held, checks the pager stays below the spinner, then taps
+     * it again for page 3: page 3 must commit while page 2 is still pending, and the late page 2
+     * must never show (issue #149, load-transition R4: a newer selection supersedes pending work).
+     *
+     * @param route Debug route of the paged list.
+     * @param prefix Test-tag prefix (`<prefix>.list`, `.loading`, `.page-next`).
+     * @param isPage2 Matches page 2's request URL.
+     * @param rows A row tag on pages 1, 2 and 3.
+     */
+    private fun assertPagerSupersedesAPendingPage(route: String, prefix: String, isPage2: (String) -> Boolean, rows: Triple<String, String, String>) {
+        BandFixtures.install(transport, bandCount = 80, boardTotal = 80)
+        val page2 = CompletableDeferred<Unit>()
+        hold = { request -> page2.takeIf { isPage2(request.url) } }
+        launch(route)
+        waitForTag(rows.first)
+        scrollTo("$prefix.list", "$prefix.page-next")
+        assertTrue(described("Page 1 of 4"))
+        click("$prefix.page-next")
+        waitForTag("$prefix.loading")
+        settle()
+        // The pager stays below the spinner, on the requested page, and can still be used.
+        scrollTo("$prefix.list", "$prefix.page-next")
+        rule.onNodeWithTag("$prefix.page-next", useUnmergedTree = true).assertIsDisplayed()
+        assertTrue("the pager shows the requested page while it loads", described("Page 2 of 4"))
+        click("$prefix.page-next")
+        rule.waitUntil(10_000) { settle(100); !exists("$prefix.loading") }
+        assertTrue("page 3 committed while page 2 was still pending", !page2.isCompleted)
+        scrollTo("$prefix.list", rows.third)
+        page2.complete(Unit)
+        settle()
+        settle()
+        assertTrue(!exists("$prefix.loading"))
+        assertTrue("a late page 2 never replaces page 3", !exists(rows.second))
+        scrollTo("$prefix.list", rows.third)
+        scrollTo("$prefix.list", "$prefix.page-next")
+        assertTrue(described("Page 3 of 4"))
     }
 
     // region Landing
@@ -131,6 +185,14 @@ class BandsUiTest {
         rule.onNodeWithText("Quads · 2 bands").assertIsDisplayed()
         assertEquals(false, exists("fst.player-bands.page-next"))
     }
+
+    @Test
+    fun playerBandsPagerSupersedesAPendingPage() = assertPagerSupersedesAPendingPage(
+        route = "playerBands:${BandFixtures.PLAYER}",
+        prefix = "fst.player-bands",
+        isPage2 = { "/api/player/${BandFixtures.PLAYER}/bands" in it && Regex("[?&]page=2(&|$)").containsMatchIn(it) },
+        rows = Triple("fst.player-bands.row.${BandFixtures.DUO_ID}", "fst.player-bands.row.band-25", "fst.player-bands.row.band-50"),
+    )
 
     @Test
     fun playerBandsFailureShowsRetry() {
@@ -309,6 +371,14 @@ class BandsUiTest {
         click("fst.song-band-leaderboard.row.band-1:1")
         waitForTag("fst.band.screen")
     }
+
+    @Test
+    fun songBandLeaderboardPagerSupersedesAPendingPage() = assertPagerSupersedesAPendingPage(
+        route = "songBandLeaderboard:s-alpha:Band_Duets",
+        prefix = "fst.song-band-leaderboard",
+        isPage2 = { "/api/leaderboard/s-alpha/bands/Band_Duets" in it && Regex("[?&]offset=25(&|$)").containsMatchIn(it) },
+        rows = Triple("fst.song-band-leaderboard.row.band-1:1", "fst.song-band-leaderboard.row.band-26:26", "fst.song-band-leaderboard.row.band-51:51"),
+    )
 
     @Test
     fun songBandLeaderboardFailureAndSongLink() {
