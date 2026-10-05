@@ -87,6 +87,33 @@
     ]
   },
   {
+    "name": "kb-profile-selected-tab-order",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "key:ctrl+shift+p",
+      "waitfor:id=fst.profile.deselect@5",
+      "assertname:id=fst.shell.profile|Profile: Fixture Player 1",
+      "focus:id=fst.profile.deselect",
+      "assertfocus:id=fst.profile.deselect@3",
+      "key:tab",
+      "assertfocus:id=fst.profile.scope.players@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.profile.deselect@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.profile.view-selected@3",
+      "shot:{stem}-focus.png",
+      "key:esc",
+      "waitgone:id=fst.profile.search@5",
+      "assertfocus:id=fst.shell.profile@3"
+    ]
+  },
+  {
     "name": "kb-profile-button-statistics",
     "tab": "songs",
     "profile": "fixture-player-1:Fixture Player 1",

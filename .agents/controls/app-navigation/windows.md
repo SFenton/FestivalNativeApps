@@ -9,6 +9,7 @@
 - `OnNavItemInvoked` calls `Show(section)`: switching restores the section's saved nested route; invoking the current section pops it to its root (spec "re-tapping returns to root").
 - `MainWindow.Accessibility.cs`: each item gets `KeyboardAccelerator` Ctrl+1…7 in pane order (Settings Ctrl+comma) and an access key (Alt+S Songs, U Suggestions, T Statistics, R Rivals, L Leaderboards, I Item Shop, E Settings; P the profile button). UIA exposes them as AcceleratorKey "Control+1" / AccessKey "Alt, S". Back is Alt+Left; the content host `FrameHost` is the `main` landmark "Page content".
 - Profile: `fst.shell.profile` (anonymous: flyout with `fst.profile.search`; with a player: the Statistics section, issue #290; Ctrl+Shift+P and its context menu open the flyout in both states) and, with a player only, the bell `fst.shell.notifications`. Selecting or deselecting a player rebuilds the pane but keeps the current section.
+- No player row (issue #254): the pane never lists the selected player, so there's no "Selected Player" caption to remove. The player shows only as the title-bar avatar, which Narrator reads as "Profile: <name>". The live check across sizes, themes, text 200% and display scaling is in [profile-selection/windows.md](../profile-selection/windows.md#selected-player-caption-check-issue-254-2026-10-05).
 
 ## Design decisions (winui-design)
 
