@@ -114,6 +114,7 @@ struct PlayerStatTileView: View {
     let tile: StatTile
     let scope: String
     let onSelect: (PlayerStatLink) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var identifier: String { "fst.player.stat.\(scope).\(tile.id)" }
 
@@ -141,6 +142,12 @@ struct PlayerStatTileView: View {
         }
     }
 
+    /// Lines a tile value may take: one, or two at accessibility text sizes.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: The value's line limit.
+    static func valueLineLimit(_ size: DynamicTypeSize) -> Int { size.isAccessibilitySize ? 2 : 1 }
+
     private var spokenValue: String {
         if tile.isPlaceholder { return "Loading" }
         return tile.goldStars ? "5 gold stars" : tile.value
@@ -162,7 +169,11 @@ struct PlayerStatTileView: View {
                         .font(.title3.bold())
                         .monospacedDigit()
                         .foregroundStyle(tile.tint ?? BrandTokens.accentBlue)
-                        .lineLimit(1)
+                        // One line, shrinking to fit; at accessibility sizes the value may
+                        // also wrap ("2 (66.6%)" truncated to "2 (66…" in an iPad tile at
+                        // AX5: HIG Typography "Keep text truncation to a minimum").
+                        .lineLimit(Self.valueLineLimit(dynamicTypeSize))
+                        .multilineTextAlignment(.center)
                         .minimumScaleFactor(0.6)
                         .redacted(reason: tile.isPlaceholder ? .placeholder : [])
                 }
