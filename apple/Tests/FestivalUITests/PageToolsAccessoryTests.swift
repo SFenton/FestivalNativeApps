@@ -190,3 +190,42 @@ struct PageToolsRegistryTests {
         #expect(registry.inlineMenu == nil)
     }
 }
+
+// MARK: - Host gate (iPhone Duo inner portrait)
+
+@Suite("Tab-bar accessory host")
+struct PageToolsAccessoryHostTests {
+    @Test("iPhone portrait hosts the accessory")
+    func iPhoneHosts() {
+        let phone = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 402, height: 874), widthClass: .compact,
+            safeAreaInsets: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
+        ))
+        #expect(PageToolsAccessoryHost.hostsAccessory(in: phone))
+    }
+
+    @Test("Duo inner portrait (regular width, horizontal tab bar) keeps bar items")
+    func duoInnerPortraitKeepsBarItems() {
+        let inner = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+        ))
+        #expect(inner.sectionChrome == .tabBar)
+        #expect(!PageToolsAccessoryHost.hostsAccessory(in: inner))
+    }
+
+    @Test("Duo vertical bars never host the accessory")
+    func verticalBarsDoNot() {
+        let folded = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 466, height: 678), widthClass: .compact,
+            safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+            verticalBarEdge: .trailing, hinge: .closed
+        ))
+        let innerLandscape = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 951, height: 669), widthClass: .regular,
+            safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
+            verticalBarEdge: .trailing, hinge: .fullyOpen
+        ))
+        #expect(!PageToolsAccessoryHost.hostsAccessory(in: folded))
+        #expect(!PageToolsAccessoryHost.hostsAccessory(in: innerLandscape))
+    }
+}
