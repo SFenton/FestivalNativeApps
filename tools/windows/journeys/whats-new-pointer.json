@@ -1,0 +1,32 @@
+[
+  {
+    "name": "outside-click-dismisses-whats-new",
+    "route": "/songs",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_WHATS_NEW": "force"},
+    "steps": [
+      "waitfor:id=fst.whats-new.dialog@20",
+      "wait:1.5",
+      "click:60,900",
+      "waitgone:id=fst.whats-new.dialog@5",
+      "expand:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.reset@5",
+      "key:esc"
+    ]
+  },
+  {
+    "name": "outside-click-dismisses-first-run",
+    "route": "/songs",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_FIRST_RUN": "force"},
+    "steps": [
+      "waitfor:id=fst.first-run.dialog@20",
+      "wait:1.5",
+      "click:60,900",
+      "waitgone:id=fst.first-run.dialog@5",
+      "expand:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.reset@5",
+      "key:esc"
+    ]
+  }
+]

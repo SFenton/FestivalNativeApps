@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.presentation.feedback
 import com.festivalscoretracker.android.core.feedback.FeedbackAttachment
 import com.festivalscoretracker.android.core.feedback.FeedbackException
 import com.festivalscoretracker.android.core.feedback.FeedbackKind
+import com.festivalscoretracker.android.core.feedback.FeedbackLimits
 import com.festivalscoretracker.android.core.feedback.FeedbackProblem
 import com.festivalscoretracker.android.core.feedback.FeedbackJob
 import com.festivalscoretracker.android.core.feedback.FeedbackJobState
@@ -49,7 +50,10 @@ class FeedbackViewModelTest {
         vm.open(FeedbackKind.Feature)
         assertEquals(FeedbackKind.Bug, vm.form.value!!.draft.kind)
         assertEquals("[Bug] ", vm.form.value!!.draft.title)
-        assertTrue(vm.form.value!!.editable && vm.form.value!!.canSubmit)
+        assertTrue(vm.form.value!!.editable)
+        // Only the prefix: Submit stays disabled and says why.
+        assertFalse(vm.form.value!!.canSubmit)
+        assertEquals(FeedbackProblem.MissingTitle.message, vm.form.value!!.validationMessage)
     }
 
     @Test
@@ -78,17 +82,30 @@ class FeedbackViewModelTest {
     }
 
     @Test
-    fun submitValidatesFirst() = runTest {
+    fun invalidFormKeepsSubmitDisabledWithAReason() = runTest {
         val vm = model()
         vm.open(FeedbackKind.Bug)
-        vm.submit()
-        assertEquals(FeedbackProblem.MissingTitle.message, vm.form.value!!.error)
-        vm.edit { it.copy(title = "[Bug] Crash") }
+        vm.submit() // disabled: a no-op, not an error
         assertNull(vm.form.value!!.error)
+        assertEquals(FeedbackPhase.Editing, vm.form.value!!.phase)
+        vm.edit { it.copy(title = "[Bug] Crash") }
+        assertFalse(vm.form.value!!.canSubmit)
+        assertEquals(FeedbackProblem.MissingDescription.message, vm.form.value!!.validationMessage)
         vm.submit()
-        assertEquals(FeedbackProblem.MissingDescription.message, vm.form.value!!.error)
+        assertNull(vm.form.value!!.error)
+        vm.edit { it.copy(title = "[Bug] Crash", description = "x".repeat(FeedbackLimits.MAX_TEXT_LENGTH + 1)) }
+        assertEquals(FeedbackProblem.TooLong.message, vm.form.value!!.validationMessage)
+        vm.edit { it.copy(title = "[Bug] Crash", description = "d") }
+        assertTrue(vm.form.value!!.canSubmit)
+        assertNull(vm.form.value!!.validationMessage)
         advanceUntilIdle()
         assertTrue(sent.isEmpty())
+        vm.submit()
+        // While sending the reason is hidden and Submit stays off.
+        assertFalse(vm.form.value!!.canSubmit)
+        assertNull(vm.form.value!!.validationMessage)
+        advanceUntilIdle()
+        assertEquals(1, sent.size)
     }
 
     @Test

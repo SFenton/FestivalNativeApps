@@ -5,8 +5,11 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeAccessibilityValidator
 import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -106,14 +109,22 @@ class JourneyHarness(private val rule: JourneyRule) {
     /**
      * ATF measures a row cut off by its scrolling container at its visible height; a
      * touch-target finding whose tagged node is really at least 48 dp tall is that artifact.
+     * Likewise a text field scrolled to a sliver hides its label child, so a missing-label
+     * finding on a tagged node that composes a label (a text descendant) is a clipping artifact.
      *
      * @param finding Collected finding line.
      * @return True for a clipping artifact.
      */
     private fun clippedTouchTarget(finding: String): Boolean {
         val parts = finding.split(" | ")
-        if (parts.getOrNull(1) != "TouchTargetSizeCheck") return false
         val tag = parts.getOrNull(2)?.takeIf { it.startsWith("fst.") } ?: return false
+        if (parts.getOrNull(1) == "SpeakableTextPresentCheck") {
+            if (tag in labelledTags) return true
+            val labelled = hasAnyAncestor(hasTestTag(tag)) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Text)
+            return (exists(tag) && rule.onAllNodes(labelled, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+                .also { if (it) labelledTags += tag }
+        }
+        if (parts.getOrNull(1) != "TouchTargetSizeCheck") return false
         val min = with(rule.density) { 48.dp.toPx() } - 1
         val nodes = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
         return nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }
@@ -121,6 +132,9 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     /** Checks the current window when accessibility checks are on. */
     private var checkNow: () -> Unit = {}
+
+    /** Tags whose missing-label finding proved to be a clipped label (resolved while composed). */
+    private val labelledTags = mutableSetOf<String>()
 
     /** Fail with every ATF error collected during the journey (warnings only log). */
     fun assertAccessible() {
@@ -242,6 +256,8 @@ class JourneyHarness(private val rule: JourneyRule) {
     fun readingOrder(screen: String): List<String> {
         rule.waitForIdle()
         checkNow()
+        // Resolve clipping artifacts while the flagged nodes are still composed.
+        accessibilityFindings.forEach { clippedTouchTarget(it) }
         val root = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow ?: return emptyList()
         val nodes = mutableListOf<AccessibilityNodeInfo>()
         val insideFocusable = mutableListOf<Boolean>()

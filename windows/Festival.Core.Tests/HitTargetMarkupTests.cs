@@ -104,4 +104,39 @@ public class HitTargetMarkupTests
         var title = template.Descendants().Single(e => e.Name.LocalName == "TextBlock" && Attr(e, "Text") == "{x:Bind Title}");
         Assert.Equal("Wrap", Attr(title, "TextWrapping"));
     }
+
+    [Theory]
+    [InlineData("Controls/ServiceStatusView.xaml")]
+    [InlineData("Controls/ServiceStatusInline.xaml")]
+    public void ServiceStatus_RetryUsesMinTargetAndCountdownCollapses(string file)
+    {
+        // Issue #233: Retry was 36 epx tall, and the always-present countdown left a blank line above it outside a freeze.
+        var doc = Load(file);
+        var named = doc.Descendants().Where(e => Attr(e, "Name") is not null).ToDictionary(e => Attr(e, "Name")!);
+        Assert.Equal(Resource, Attr(named["RetryButton"], "MinHeight"));
+        Assert.StartsWith("{x:Bind Status.HasCountdown", Attr(named["CountdownBlock"], "Visibility"));
+        Assert.Equal("{x:Bind Status.CountdownAnnouncement, Mode=OneWay}", Attr(named["CountdownBlock"], "AutomationProperties.Name"));
+        if (Attr(named["RetryButton"], "Style") == "{StaticResource AccentButtonStyle}")
+        {
+            // Under a contrast theme the accent button is already HighlightText on Highlight; the automatic backplate boxed the label.
+            Assert.Equal("None", Attr(named["RetryButton"], "HighContrastAdjustment"));
+        }
+    }
+
+    [Fact]
+    public void ServiceStatus_PagesUseTheSharedControls()
+    {
+        // Issue #233: nine hand-copied inline rows had drifted (missing countdowns, live regions, IDs on panels UIA skips).
+        var shared = new[] { "ServiceStatusView.xaml", "ServiceStatusInline.xaml" };
+        var offenders = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !shared.Contains(Path.GetFileName(path)) && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+            .Where(path => File.ReadAllText(path).Contains("fst.service-status", StringComparison.Ordinal)
+                           || File.ReadAllText(path).Contains("Status.CountdownText", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ToList();
+        Assert.Empty(offenders);
+        var inline = Load(Path.Combine("Pages", "SongDetailPage.xaml")).Descendants()
+            .Where(e => e.Name.LocalName == "ServiceStatusInline").ToList();
+        Assert.Contains(inline, e => Attr(e, "TitleAutomationId") == "fst.history.error" && Attr(e, "RetryAutomationId") == "fst.history.retry");
+    }
 }

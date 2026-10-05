@@ -56,7 +56,7 @@ Deliberate deviations: a custom pager instead of `PagerControl` (web `Paginator`
 
 - Paging does not update the back-stack route (a restored page comes from the kept view model, not the route).
 - No band-combo filter; no percentile/rank-history extras.
-- The shared `ServiceStatusView` Retry gets WinUI's default text backplate in Night sky (legible; shared control).
+- ~~The shared `ServiceStatusView` Retry gets WinUI's default text backplate in Night sky~~: fixed in issue #233 ([service-status/windows.md](../../controls/service-status/windows.md)).
 
 Band Rankings got the same ungated `ShowContent` fix and a contrast `FooterPlate` in issue #209 ([band-rankings/windows.md](../band-rankings/windows.md#validation-issue-209-2026-10-03)).
 

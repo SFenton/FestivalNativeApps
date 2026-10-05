@@ -2,6 +2,10 @@ package com.festivalscoretracker.android.whatsnew
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
@@ -18,9 +22,21 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.firstrun.FirstRunMode
+import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
+import com.festivalscoretracker.android.core.firstrun.FirstRunSeenStore
+import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.settings.MemoryBlobStore
+import com.festivalscoretracker.android.core.whatsnew.WhatsNewMode
+import com.festivalscoretracker.android.presentation.firstrun.FirstRunCenter
+import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
+import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
+import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import com.festivalscoretracker.android.ui.whatsnew.WhatsNewHost
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.core.whatsnew.Changelog
 import com.festivalscoretracker.android.core.whatsnew.ChangelogGroup
+import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenRecord
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenStore
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewBlock
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
@@ -84,6 +100,101 @@ class WhatsNewUiTest {
         rule.onNodeWithTag("fst.whats-new.dismiss").performSemanticsAction(SemanticsActions.OnClick)
         waitGone("fst.whats-new.sheet")
         assertEquals(Changelog.currentHash, ChangelogSeenStore.decode(seen)!!.hash)
+    }
+
+    /** `presented` (compact): the full-height sheet keeps Dismiss at its bottom edge, not under short notes. */
+    @Test
+    fun compactSheetPinsDismissToTheBottomEdge() {
+        launch(DebugLaunch(stillBackground = true, whatsNew = "force"))
+        waitForTag("fst.whats-new.sheet")
+        val sheet = rule.onNodeWithTag("fst.whats-new.sheet").fetchSemanticsNode().boundsInWindow
+        val dismiss = rule.onNodeWithTag("fst.whats-new.dismiss").fetchSemanticsNode().boundsInWindow
+        val gap = with(rule.density) { (sheet.bottom - dismiss.bottom).toDp() }
+        // 12 dp bar padding below the button (no navigation bar under Robolectric).
+        assertTrue("Dismiss is ${gap} above the sheet's bottom edge", gap.value in 0f..24f)
+        val list = rule.onNodeWithTag("fst.whats-new.list").fetchSemanticsNode().boundsInWindow
+        assertTrue("list fills the space above the bar", list.bottom <= dismiss.top && sheet.height * 0.5f < list.height)
+    }
+
+    /** `hidden-seen`: a stored record of the current hash presents nothing on a normal launch. */
+    @Test
+    fun seenHashPresentsNothingOnANormalLaunch() {
+        kotlinx.coroutines.runBlocking {
+            store.updateData { it.toMutablePreferences().apply { set(stringPreferencesKey(SettingsRegistry.CHANGELOG_SEEN), ChangelogSeenStore.encode(ChangelogSeenRecord("2610.01.01", Changelog.currentHash))) } }
+        }
+        launch(DebugLaunch(stillBackground = true, whatsNew = "on"))
+        waitForTag("fst.nav.tab.songs")
+        settle(2_000)
+        assertTrue(rule.onAllNodesWithTag("fst.whats-new.sheet").fetchSemanticsNodes().isEmpty())
+    }
+
+    /** `presented` → `dismissed`: an unseen hash presents on a normal launch and Dismiss records it. */
+    @Test
+    fun unseenHashPresentsOnANormalLaunch() {
+        launch(DebugLaunch(stillBackground = true, whatsNew = "on"))
+        waitForTag("fst.whats-new.sheet")
+        rule.onNodeWithTag("fst.whats-new.close").performSemanticsAction(SemanticsActions.OnClick)
+        waitGone("fst.whats-new.sheet")
+        assertEquals(Changelog.currentHash, ChangelogSeenStore.decode(seen)!!.hash)
+    }
+
+    /** `waiting-for-first-run`: the launch carousel holds the slot; What's New follows once it closes. */
+    @Test
+    fun firstRunCarouselShowsFirstThenWhatsNew() {
+        launch(DebugLaunch(stillBackground = true, firstRun = "force", whatsNew = "force"))
+        waitForTag("fst.first-run.dialog")
+        settle(2_000)
+        assertTrue(rule.onAllNodesWithTag("fst.whats-new.sheet").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.first-run.close").performClick()
+        waitGone("fst.first-run.dialog")
+        waitForTag("fst.whats-new.sheet")
+        assertTrue(rule.onAllNodesWithTag("fst.first-run.dialog").fetchSemanticsNodes().isEmpty())
+        assertNull(seen)
+    }
+
+    /**
+     * `waiting-for-first-run` when the launch page resolves late (slow first frames on a live
+     * catalogue): What's New must not win the slot on its settle timer before the carousel.
+     */
+    @Test
+    fun lateLaunchPageStillShowsTheCarouselFirst() {
+        val center = FirstRunCenter(FirstRunSeenStore(MemoryBlobStore()), FirstRunMode.Force)
+        val controller = WhatsNewController(ChangelogSeenStore(MemoryBlobStore()), center, WhatsNewMode.Force, "0.2.0")
+        var page by mutableStateOf<FirstRunPageKey?>(null)
+        rule.setContent {
+            FestivalTheme {
+                val active by center.active.collectAsState()
+                val settled by center.launchSettled.collectAsState()
+                val shown by controller.shown.collectAsState()
+                FirstRunHost(center, page, AppSettings(), compact = true, blocked = shown != null, destinationResolved = page != null)
+                WhatsNewHost(controller, blocked = active != null || !settled, compact = true)
+            }
+        }
+        repeat(30) { rule.mainClock.advanceTimeBy(100); settle(100) }
+        assertTrue("no sheet before the launch page is evaluated", rule.onAllNodesWithTag("fst.whats-new.sheet").fetchSemanticsNodes().isEmpty())
+        page = FirstRunPageKey.Songs
+        waitForTag("fst.first-run.dialog")
+        settle(2_000)
+        assertTrue(rule.onAllNodesWithTag("fst.whats-new.sheet").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.first-run.close").performClick()
+        waitGone("fst.first-run.dialog")
+        waitForTag("fst.whats-new.sheet")
+    }
+
+    /** A destination without a carousel (e.g. Settings) settles the launch: What's New still presents. */
+    @Test
+    fun destinationWithoutCarouselStillPresents() {
+        val center = FirstRunCenter(FirstRunSeenStore(MemoryBlobStore()), FirstRunMode.Force)
+        val controller = WhatsNewController(ChangelogSeenStore(MemoryBlobStore()), center, WhatsNewMode.Force, "0.2.0")
+        rule.setContent {
+            FestivalTheme {
+                val active by center.active.collectAsState()
+                val settled by center.launchSettled.collectAsState()
+                FirstRunHost(center, null, AppSettings(), compact = true, blocked = false, destinationResolved = true)
+                WhatsNewHost(controller, blocked = active != null || !settled, compact = true)
+            }
+        }
+        waitForTag("fst.whats-new.sheet")
     }
 
     @Test

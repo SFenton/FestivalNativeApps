@@ -12,7 +12,7 @@ namespace Festival.Core.Domain;
 /// auto-scroll), <c>--auto-scroll-span N</c> (turn back at N epx), <c>--drift-fps N</c> (background drift steps/s),
 /// <c>--frame-stats</c> (UI-thread frame intervals in the perf log), <c>--profile accountId:Name</c> (select a player in memory
 /// only, never persisted), <c>--anonymous</c> (no player, in memory only), <c>--settings-path file</c> (isolated settings file).
-/// <c>--control-lab instrument-selector</c> (<c>FST_DEBUG_CONTROL_LAB</c>; opens a control's state lab instead of the shell, honoured only
+/// <c>--control-lab instrument-selector|service-status</c> (<c>FST_DEBUG_CONTROL_LAB</c>; opens a control's state lab instead of the shell, honoured only
 /// in Debug and automation launches). <c>--automation</c> is resolved separately by <see cref="AutomationLaunch"/> and only accepted here as a flag.
 /// </summary>
 public sealed record LaunchOptions
@@ -69,7 +69,7 @@ public sealed record LaunchOptions
     public string? ControlLab { get; init; }
 
     /// <summary>Control labs the app can open (UI-automation harnesses for states no page reaches, e.g. disabled instruments).</summary>
-    public static IReadOnlyList<string> ControlLabs { get; } = ["instrument-selector"];
+    public static IReadOnlyList<string> ControlLabs { get; } = ["instrument-selector", "service-status"];
 
     /// <summary>Whether settings must stay in memory (a debug profile or anonymous launch).</summary>
     public bool InMemorySettings => DebugProfile is not null || Anonymous;

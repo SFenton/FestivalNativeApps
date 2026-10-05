@@ -95,16 +95,9 @@
                                         <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}">
                                             <TextBlock Text="{x:Bind EmptyText}" Style="{StaticResource FSTSecondaryTextStyle}" />
                                         </Border>
-                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="16" CornerRadius="8"
-                                                    BorderThickness="1" Background="{ThemeResource FSTCardSurfaceBrush}"
-                                                    BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-                                                    AutomationProperties.AutomationId="fst.service-status.inline">
-                                            <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                            <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Visibility="{x:Bind pages:LeaderboardsPage.VisibleWhenText(Status.CountdownText), Mode=OneWay}"
-                                                       AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
-                                            <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
-                                        </StackPanel>
+                                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowError, Mode=OneWay}">
+                                            <controls:ServiceStatusInline Status="{x:Bind Status}" />
+                                        </Border>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
@@ -155,16 +148,9 @@
                                         <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}">
                                             <TextBlock Text="{x:Bind EmptyText}" Style="{StaticResource FSTSecondaryTextStyle}" />
                                         </Border>
-                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="16" CornerRadius="8"
-                                                    BorderThickness="1" Background="{ThemeResource FSTCardSurfaceBrush}"
-                                                    BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-                                                    AutomationProperties.AutomationId="fst.service-status.inline">
-                                            <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                            <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Visibility="{x:Bind pages:LeaderboardsPage.VisibleWhenText(Status.CountdownText), Mode=OneWay}"
-                                                       AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
-                                            <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
-                                        </StackPanel>
+                                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowError, Mode=OneWay}">
+                                            <controls:ServiceStatusInline Status="{x:Bind Status}" />
+                                        </Border>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
                                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>

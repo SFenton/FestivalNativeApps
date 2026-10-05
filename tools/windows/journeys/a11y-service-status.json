@@ -1,0 +1,48 @@
+[
+  {
+    "name": "service-status-lab",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "service-status"
+    },
+    "ready": [
+      "scrollinto:id=fst.service-status.scrape-freeze-countdown.retry@20"
+    ],
+    "after_ready": [
+      "hover:20,20",
+      "wait:0.5"
+    ],
+    "tabs": 9
+  },
+  {
+    "name": "service-status-lab-errors",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "service-status"
+    },
+    "ready": [
+      "scrollinto:id=fst.service-status.offline.retry@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.service-status.not-found.retry@5",
+      "hover:20,20",
+      "wait:0.5"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "service-status-lab-inline",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "service-status"
+    },
+    "ready": [
+      "scrollinto:id=fst.service-status.inline-offline.value@20"
+    ],
+    "after_ready": [
+      "hover:20,20",
+      "wait:0.5"
+    ],
+    "tabs": 0
+  }
+]

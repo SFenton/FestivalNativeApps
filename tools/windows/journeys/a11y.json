@@ -134,7 +134,8 @@
     },
     "sizes": [
       "medium",
-      "wide"
+      "wide",
+      "maximized"
     ],
     "ready": [
       "waitfor:id=fst.shop.list@20",
