@@ -31,7 +31,9 @@ extension View {
     /// cut its rows off hard at the pager. A manual scroll-edge effect for a custom
     /// bar: "With custom bars, you might add one manually if needed" (HIG Scroll
     /// views); "Prefer scroll-edge effects to solid/semi-opaque backgrounds beneath
-    /// controls" (HIG Layout).
+    /// controls" (HIG Layout). Reduce Transparency, Increase Contrast and the app's
+    /// Less Transparency / Increase Contrast make it a hard cut at the chrome's top
+    /// edge instead (scroll-edge R7).
     ///
     /// - Parameters:
     ///   - chromeTop: The chrome's top from ``reportsBottomChromeTop(in:_:)``; nil
@@ -51,16 +53,44 @@ extension View {
 /// The chrome top arrives as a value the screen read in its own body, not inside the
 /// mask's lazy `GeometryReader`: read only there, the first page kept an opaque mask
 /// (rows behind the pager) until something else re-rendered the page (issue #294).
-private struct BottomChromeFade: ViewModifier {
+struct BottomChromeFade: ViewModifier {
     let chromeTop: CGFloat?
     @Binding var distance: Double
     let space: String
+    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
+    @Environment(\.colorSchemeContrast) private var systemContrast
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
 
     func body(content: Content) -> some View {
-        let fadeDistance = distance
+        let fadeDistance = Self.fadeDistance(
+            distance, systemReduceTransparency: systemReduceTransparency, lessTransparency: lessTransparency,
+            systemContrast: systemContrast, moreContrast: moreContrast
+        )
         content
             .modifier(BottomFadeDistanceReader { distance = $0 })
             .mask { mask(fadeDistance: fadeDistance) }
+    }
+
+    /// The fade height to draw for the system and in-app accessibility settings
+    /// (scroll-edge R7): 0, a hard cut at the chrome's top edge, when any is on.
+    ///
+    /// - Parameters:
+    ///   - distance: The scroll-driven fade height.
+    ///   - systemReduceTransparency: System Reduce Transparency.
+    ///   - lessTransparency: The app's Less Transparency.
+    ///   - systemContrast: System contrast (Increase Contrast is `.increased`).
+    ///   - moreContrast: The app's Increase Contrast.
+    /// - Returns: The fade height, in points.
+    static func fadeDistance(
+        _ distance: Double, systemReduceTransparency: Bool, lessTransparency: Bool,
+        systemContrast: ColorSchemeContrast, moreContrast: Bool
+    ) -> Double {
+        ScrollEdgeFade.accessibleDistance(
+            distance,
+            reduceTransparency: systemReduceTransparency || lessTransparency,
+            increaseContrast: moreContrast || systemContrast == .increased
+        )
     }
 
     /// Opaque, then a fade ending at the chrome's top edge, clear beneath it.

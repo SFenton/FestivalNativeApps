@@ -42,6 +42,23 @@ public enum ScrollEdgeFade {
         return Stops(fadeStart: start, fadeEnd: end)
     }
 
+    /// The bottom fade height for the reader's accessibility settings (scroll-edge R7).
+    ///
+    /// Reduce Transparency and Increase Contrast (the system's or the app's Less
+    /// Transparency / Increase Contrast) turn the ramp into a hard cut at the chrome's
+    /// top edge: rows stay fully opaque up to it and are still not drawn beneath it.
+    ///
+    /// - Parameters:
+    ///   - distance: The fade height otherwise (``bottomDistance(lastRowOverflow:distance:)``).
+    ///   - reduceTransparency: System Reduce Transparency or the app's Less Transparency.
+    ///   - increaseContrast: System Increase Contrast or the app's Increase Contrast.
+    /// - Returns: `distance`, or 0 (a hard edge) when either setting is on.
+    public static func accessibleDistance(
+        _ distance: Double, reduceTransparency: Bool, increaseContrast: Bool
+    ) -> Double {
+        reduceTransparency || increaseContrast ? 0 : distance
+    }
+
     /// Height of the bottom fade for how far the list's last row still runs past its
     /// resting place above the chrome.
     ///
