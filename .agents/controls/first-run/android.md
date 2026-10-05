@@ -66,6 +66,21 @@ Live public service, debug build with `FST_DEBUG_FIRST_RUN=force` (Songs) plus a
 
 Material 3 (`material-3` skill, typography and shape): "Top app bar title | Title Large"; the M3 basic dialog's headline is Headline Small, but here the slide title below already uses Headline Small and the header pairs with a Close icon like a full-screen dialog / app bar, so the header keeps the app's shared Title Large modal style (deliberate). At font 2.0 the header grows about 8 dp; the slide layout adapts. Tests: `FirstRunCarouselUiTest` (every page's title text, heading, Title Large size and pane title; title beside Close at font 2.0 portrait and landscape) and the connected `FirstRunJourneyTest` (`assertTitled`), passing on FST_Phone and FST_Book_Fold half-open.
 
+## Validation (issue #152, 2026-10-04): Close control
+
+Check of #44 (first-run dismiss control must be the native one that matches the app's other modals). Finding: already compliant, so there is no UI change. `FirstRunCarousel` uses the shared `FestivalModalDialog` header, whose `FestivalModalCloseButton` is the stock M3 `IconButton` + `Icons.Filled.Close` (24 dp icon, 48 dp target, label "Close", tag `fst.first-run.close`). It is the same control as Profile (`fst.profile.close`), What's New, Paths, Notifications and Quick Links. Live public service, debug build with `FST_DEBUG_FIRST_RUN=force` (Songs tour); the UIAutomator bounds of the clickable Close node at each density:
+
+| Configuration | Close target | Close tap | System Back | Esc |
+|---|---|---|---|---|
+| FST_Phone portrait 1.0 (dark and system light), 2.0; landscape 1.0, 2.0 | 126 px @420 = 48 dp | dismissed | dismissed | dismissed (portrait 1.0, landscape 2.0) |
+| FST_Tablet landscape / portrait, font 1.0 / 2.0 | 96 px @320 = 48 dp | dismissed | dismissed | dismissed (landscape 1.0) |
+| FST_Resizable phone 1.0 / 2.0 (compact), foldable (medium), tablet (expanded), desktop 1.0 / 2.0 (expanded) | 126 px @420, 72 px @240, 48 px @160 = 48 dp | dismissed | dismissed | dismissed (desktop 1.0) |
+| FST_Book_Fold folded portrait 1.0 / 2.0, folded landscape, unfolded 1.0 / 2.0, half-open | 117 px @390 = 48 dp | dismissed | dismissed | dismissed (half-open; dialog on one side of the hinge) |
+| FST_Passport_Fold folded portrait, folded landscape 2.0, unfolded 1.0 / 2.0, half-open | 126 px @420 = 48 dp | dismissed | dismissed | dismissed (half-open) |
+| FST_TriFold folded, partial, unfolded 1.0 / 2.0 | 96 px @320 = 48 dp | dismissed | dismissed | dismissed (unfolded 1.0) |
+
+The Close icon stays at the header's trailing edge and is never clipped at font 2.0. The app is dark-only, so the system light theme looks the same. TalkBack reads the merged node as "Close, Button": the label sits on the child `Icon`, so UIAutomator shows an empty `content-desc` on the clickable parent. Material 3 (`material-3` skill, Compose guidance): icon-only buttons need a label and a "Minimum touch target 48x48dp" (`component-catalog.md`); dialogs are "Centered dialog (max 560dp wide)" on medium+ windows (`layout-and-responsive.md`). The deliberate deviations listed under #139 still apply. Tests: `FirstRunCarouselUiTest` (Close is a named 48 dp button; closing marks the viewed slides seen) and the connected `FirstRunJourneyTest`, which adds `systemBackDismissesAndMarksTheDisplayedSlidesSeen` and `escapeDismissesAndMarksTheDisplayedSlidesSeen` (4/4 on FST_Phone).
+
 ## Open
 
 - Pages owned by other lanes get first-run automatically through the host; no per-screen registration is needed. Songs list-detail on expanded widths shows the Songs carousel even when a song is open in the detail pane.
