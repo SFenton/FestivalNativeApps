@@ -457,7 +457,9 @@ public struct FestivalRootView: View {
                 ForEach(visibleSections) { section in
                     Tab(section.title, systemImage: section.symbol, value: RootTab.section(section)) {
                         content(for: section)
-                            .accessibilityIdentifier("fst.nav.\(section.rawValue)")
+                            // Phone tabs only: on the iPad flyout shell's container this
+                            // identifier replaced every child's (the split's panes, rows).
+                            .modifier(TabContentIdentifier(id: "fst.nav.\(section.rawValue)", isEnabled: !hidesTabBar))
                     }
                 }
                 #if os(iOS)
@@ -942,6 +944,24 @@ public struct FestivalRootView: View {
     }
 }
 
+
+// MARK: - Tab content identifier
+
+/// The phone tab content's `fst.nav.<section>` identifier (iPhone journeys find tabs
+/// by it); skipped in the iPad flyout shell, where nothing names the tab and the
+/// identifier would replace every child element's own.
+private struct TabContentIdentifier: ViewModifier {
+    let id: String
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.accessibilityIdentifier(id)
+        } else {
+            content
+        }
+    }
+}
 
 // MARK: - Menu bar publishing
 
