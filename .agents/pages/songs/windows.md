@@ -48,7 +48,7 @@ From a **1100 epx page** (e.g. a 1440 epx window with the expanded pane) the pag
 | Right-edge scrubber | `SemanticZoom` + Jump button | Windows-native quick jump (Start, Mail, Photos) |
 | Marquee always scrolls on overflow | Same (operator 2026-09-28): scrolls whenever it overflows, phase-aligned; stops when motion is off, the window is hidden or the row is unrealized | Composition animation only; see perf notes in [design/windows.md](../../design/windows.md#motion) |
 | Cancel on a changed draft confirms discard | Light-dismiss flyout discards | Fluent flyout convention |
-| iPhone search/tools dock into the nav bar on scroll (iOS #13) and bottom accessory (iOS #42) | Search, Sort, Filter and Jump sit in the `Actions` row above the `ListView`; only the list scrolls | Fluent persistent page header; checked for issue #52 (2026-10-01): UIA rects identical before/after scrolling at compact and medium, Sort/Filter flyouts and Jump open while scrolled, Esc returns focus. No change; no scroll transition, so Animation effects off is moot. Rechecked for issue #84 (2026-10-02): `NavigationView` (`PaneDisplayMode=Auto`) has no bottom tab bar to minimize into, so the iOS #42 accessory does not apply; Sort/Filter/Jump keep `FSTMinTargetSize` 40 epx and Quick Links stays a header `DropDownButton` (pane at ≥ 1150 epx). No change |
+| iPhone search/tools dock into the nav bar on scroll (iOS #13) and bottom accessory (iOS #42) | Search, Sort, Filter and Jump sit in the `Actions` row above the `ListView`; only the list scrolls | Fluent persistent page header; checked for issue #52 (2026-10-01): UIA rects identical before/after scrolling at compact and medium, Sort/Filter flyouts and Jump open while scrolled, Esc returns focus. No change; no scroll transition, so Animation effects off is moot. Rechecked for issue #84 (2026-10-02): `NavigationView` (`PaneDisplayMode=Auto`) has no bottom tab bar to minimize into, so the iOS #42 accessory does not apply; Sort/Filter/Jump keep `FSTMinTargetSize` 40 epx and Quick Links stays a header `DropDownButton` (pane at ≥ 1150 epx). No change. Re-validated for issue #252 with `journeys/anchored-controls.json` ([below](#validation-issue-252-2026-10-05)) |
 
 ## UI journeys
 
@@ -94,6 +94,29 @@ Live public service (keyless default origin, no player), console locked (UIA `sc
 | Keyboard | Pass: `kb-songs-order`, `kb-songs-sort-esc`, `kb-section-accelerators` at compact/medium/wide |
 
 Axe on a list scanned *during* the ping-pong reports transient `ClickablePointOnScreen` / `IsControlElementPropertyExists` / `ControlShouldSupportSetInfoXAML` findings on containers being recycled (name `Festival.Core.ViewModels.SongRowItem` before binding); settled scans of the same rows report 0, so ping-pong pages run without `--scan`. Wheel pages (`songs-scroll`, `songs-scroll-live`) need an unlocked console (`SendInput` is denied while LogonUI owns the input desktop); the #45 run covered wheel input. `winui-design`: the page already follows "use the platform collection + virtualisation" (`winapp find-ui` → Gallery grouped `ListView` with `AreStickyGroupHeadersEnabled="False"`).
+
+## Validation (issue #252, 2026-10-05)
+
+Re-check of #52 (Songs Search, Sort, Filter and Jump/Quick Links, plus the title-bar global search, stay reachable while scrolling). Already met; no app code changed. The controls sit in the fixed `Actions` row above `fst.songs.list` and the global search in the title bar, so only the list scrolls. There is no dock transition, so Animation effects off has nothing to reduce, and scrolling back to the top cannot shift the layout. `winui-design`: matches "use the platform collection + virtualisation" with a constrained-height `ListView` rather than a list inside a scroller, and no required command is hidden at small widths (compact shows Jump as an icon button and global search as a button; Ctrl+E opens Search). `winapp find-ui` lists only the Gallery `CommandBar` for a header above a scrolling list, and a persistent page header is the Fluent equivalent of the iOS nav-bar dock.
+
+New automated check: `tools/windows/journeys/anchored-controls.json` through `a11y_matrix.py` (see [testing/windows.md](../../testing/windows.md)). Each page:
+- pins every control's window-relative rect;
+- `scrollto:` mid-list and asserts the rects are unchanged (≤ 1 px);
+- while scrolled, Ctrl+F focuses Search, then Tab → Sort → Enter (Reset scrolled into view) → Esc returns focus, the same for Filter, and Tab → Jump → Enter → Esc;
+- scrolls to the end and back to the top, then asserts the `#` header and the pins again.
+
+`*-resize` pages repeat the checks after `resize:` compact → wide → maximized → snap-left → snap-right → medium. `tools/windows/tests/test_anchored_controls.py` checks the journey file.
+
+| Configuration | Result |
+|---|---|
+| Fixture (large catalogue): compact, medium, wide, maximized, snap-left, snap-right; resize across breakpoints | Pass; Axe 0 |
+| Fixture: hc-desert, hc-night-sky, light theme, display scale 100% and 150%, Animation effects off (compact, wide); text 200% (compact, medium, wide) | Pass; Axe 0. Light looks identical (Dark-only by design); contrast themes use system colours; at compact with 200% text, Sort/Filter/Jump sit on a second header row that stays fixed |
+| Live service (`SFentonX`): compact, medium, wide, maximized, snap-left, snap-right; resize across breakpoints | Pass; Axe 0 |
+| Live: hc-desert, text 200%, display scale 150%, light theme (compact, wide) | Pass; Axe 0. At 200% text the player's longer Sort list puts Reset below the fold; the flyout scrolls (default `FlyoutPresenter`), and `scrollinto:` reaches it |
+| Live: app auto-scroll ping-pong (`anchored-songs-frames-live`, 80 PrintWindow frames, medium) | Pass: 40 `assertpinned` checks during the motion |
+| Keyboard / Narrator (UIA) | Pass: while scrolled, focus goes Search → Sort → Filter → Jump, and Esc returns focus to the button that opened the flyout. UIA names: "Search songs", "Sort Songs" (HelpText carries the current sort), "Filter Songs" and "Jump to Section". The drop-downs expose Button with ExpandCollapse. Scrolling does not change the UIA tree order (header before list) |
+
+One run (fixture, Animation effects off, wide, Suggestions global search) saw focus "(none)" after Ctrl+E; a rerun passed. The foreground was lost on the shared desktop; it is not a product failure.
 
 ## Gotchas
 
