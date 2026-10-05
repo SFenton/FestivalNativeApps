@@ -5,8 +5,8 @@ import XCTest
 ///
 /// The audit's contrast verdicts on iPadOS 26.5 misjudge white text on translucent
 /// materials and glass. This measures the element's own frame in a full-screen capture
-/// taken in the same run: the median glyph pixel (text core) against the median pixel
-/// (surface), as a WCAG luminance ratio (``measure(luminances:)``). A
+/// taken in the same run: the glyph pixels' upper quartile (text core) against the median
+/// pixel (surface), as a WCAG luminance ratio (``measure(luminances:)``). A
 /// contrast waiver (``IPadAuditWaivers``) only applies when this measurement passes.
 enum IPadAuditRenderedContrast {
     // MARK: - Capture
@@ -89,16 +89,19 @@ enum IPadAuditRenderedContrast {
         return measure(luminances: luminances)
     }
 
-    /// Glyph-core contrast: the median of the glyph pixels against the surface.
+    /// Glyph-core contrast: the upper quartile of the glyph pixels against the surface.
     ///
-    /// The surface is the median pixel of the frame. Glyph pixels differ from it by at
+    /// The surface is the median pixel of the crop. Glyph pixels differ from it by at
     /// least 1.5× (WCAG luminance ratio), lighter or darker, whichever set is larger (the
-    /// text's polarity). Their median is the text core: anti-aliased fringes pull it down,
-    /// so the reading errs low, and it does not depend on how much of a wide frame the
-    /// text fills (a fixed top percentile read a 296 pt "Settings" row at 2.8:1 although
-    /// its text is 17:1).
+    /// text's polarity). Their upper quartile (towards the stronger end) is the text's core
+    /// colour: anti-aliased fringes and a pill's tinted outline sit below it. It does not
+    /// depend on how much of a wide frame the text fills (a fixed top percentile of the
+    /// whole crop read a 296 pt "Settings" row at 2.8:1 although its text is 17:1), and the
+    /// median of the glyph pixels read 11 pt pill text at 4.3:1 where its colours give 6:1.
+    /// Callers crop to one recognized word (``IPadAuditPageEvidence/reading(for:label:lines:capture:)``)
+    /// so a differently coloured icon in the same element is left out.
     ///
-    /// - Parameter luminances: Relative luminances of one element's pixels.
+    /// - Parameter luminances: Relative luminances of one crop's pixels.
     /// - Returns: The ratio and glyph pixel count.
     static func measure(luminances: [Double]) -> Measurement? {
         guard !luminances.isEmpty else { return nil }
@@ -106,11 +109,13 @@ enum IPadAuditRenderedContrast {
         let surface = sorted[sorted.count / 2] + 0.05
         let light = sorted.filter { ($0 + 0.05) / surface >= 1.5 }
         let dark = sorted.filter { surface / ($0 + 0.05) >= 1.5 }
-        let glyphs = light.count >= dark.count ? light : dark
-        guard !glyphs.isEmpty else { return Measurement(ratio: 1, glyphPixels: 0) }
-        let core = glyphs[glyphs.count / 2] + 0.05
+        guard !(light.isEmpty && dark.isEmpty) else { return Measurement(ratio: 1, glyphPixels: 0) }
+        // Sorted ascending: the light core is near the top, the dark core near the bottom.
+        let core = light.count >= dark.count
+            ? light[light.count * 3 / 4] + 0.05
+            : dark[dark.count / 4] + 0.05
         let ratio = max(core / surface, surface / core)
-        return Measurement(ratio: (ratio * 100).rounded() / 100, glyphPixels: glyphs.count)
+        return Measurement(ratio: (ratio * 100).rounded() / 100, glyphPixels: max(light.count, dark.count))
     }
 
     /// WCAG relative luminance of one sRGB pixel.

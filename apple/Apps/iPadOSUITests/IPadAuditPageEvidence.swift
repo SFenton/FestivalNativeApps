@@ -108,7 +108,7 @@ enum IPadAuditPageEvidence {
                 continue
             }
             visible.texts.append((locator, frame.height))
-            guard let measurement = reading(for: frame, lines: lines, capture: capture),
+            guard let measurement = reading(for: frame, label: node.label, lines: lines, capture: capture),
                   measurement.glyphPixels >= 40 else { continue }
             visible.evidence.add(label: node.label, ratio: measurement.ratio)
         }
@@ -201,7 +201,8 @@ enum IPadAuditPageEvidence {
     /// Rendered contrast of the text inside `frame`.
     ///
     /// Each recognized word whose centre lies in the frame is measured on its own tight
-    /// box (2 pt of surface around it), and the weakest word is the reading. Element
+    /// box (2 pt of surface around it), and the weakest word is the reading; when the
+    /// element has a label, only words of that label count. Element
     /// frames and whole lines mislead: a selected sidebar row's blue symbol read the
     /// row's white text at 3.8:1 instead of 13.4:1, and one recognized line can span two
     /// adjacent pills of different colours. Single-character words are left out when
@@ -210,16 +211,25 @@ enum IPadAuditPageEvidence {
     ///
     /// - Parameters:
     ///   - frame: Element frame in screen points.
+    ///   - label: The element's label, when known.
     ///   - lines: Recognized lines of the same capture.
     ///   - capture: The capture.
     /// - Returns: The reading, or nil when nothing measurable is inside the frame.
     static func reading(
-        for frame: CGRect, lines: [Line], capture: IPadAuditRenderedContrast.Capture
+        for frame: CGRect, label: String = "", lines: [Line], capture: IPadAuditRenderedContrast.Capture
     ) -> IPadAuditRenderedContrast.Measurement? {
         let bounds = frame.insetBy(dx: -2, dy: -2)
         let inside = lines.flatMap(\.words).filter { bounds.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
         let alphanumerics: (String) -> Int = { $0.filter { $0.isLetter || $0.isNumber }.count }
-        let words = inside.contains { alphanumerics($0.text) >= 2 } ? inside.filter { alphanumerics($0.text) >= 2 } : inside
+        var words = inside.contains { alphanumerics($0.text) >= 2 } ? inside.filter { alphanumerics($0.text) >= 2 } : inside
+        // Words of the element's own label: a symbol recognized as letters ("ooo" for
+        // chart bars) is not the text being judged.
+        let wanted = IPadAuditTextEvidence.normalized(label)
+        let ofLabel = words.filter { word in
+            let seen = IPadAuditTextEvidence.normalized(word.text)
+            return !seen.isEmpty && IPadAuditTextEvidence.approximateSubstringDistance(seen, in: wanted) <= max(1, seen.count / 4)
+        }
+        if !wanted.isEmpty, !ofLabel.isEmpty { words = ofLabel }
         let readings = words.compactMap { IPadAuditRenderedContrast.measure($0.frame.insetBy(dx: -2, dy: -2), in: capture) }
         guard let weakest = readings.min(by: { $0.ratio < $1.ratio }) else {
             return IPadAuditRenderedContrast.measure(frame, in: capture)

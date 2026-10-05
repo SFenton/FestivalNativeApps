@@ -49,7 +49,9 @@ extension IPadAccessibilityAuditTests {
         for index in findings.indices where isContrast(index) && !findings[index].frame.isEmpty
             && content.contains(frames[index]) {
             if let capture {
-                findings[index].rendered = IPadAuditPageEvidence.reading(for: frames[index], lines: lines, capture: capture)
+                findings[index].rendered = IPadAuditPageEvidence.reading(
+                    for: frames[index], label: findings[index].label, lines: lines, capture: capture
+                )
             }
         }
         var visible: IPadAuditPageEvidence.Visible?
@@ -100,7 +102,9 @@ extension IPadAccessibilityAuditTests {
             guard let shot = IPadAuditRenderedContrast.Capture.screen() else { continue }
             if isContrast(index) {
                 let shotLines = IPadAuditPageEvidence.recognizedLines(in: shot)
-                findings[index].rendered = IPadAuditPageEvidence.reading(for: element.frame, lines: shotLines, capture: shot)
+                findings[index].rendered = IPadAuditPageEvidence.reading(
+                    for: element.frame, label: locator.label, lines: shotLines, capture: shot
+                )
             } else {
                 let seen = IPadAuditTextEvidence.recognizedText(in: element.frame, capture: shot)
                 let whole = IPadAuditTextEvidence.showsWhole(locator.label, in: seen)
@@ -119,7 +123,9 @@ extension IPadAccessibilityAuditTests {
                     continue
                 }
                 let shotLines = IPadAuditPageEvidence.recognizedLines(in: shot)
-                if let reading = IPadAuditPageEvidence.reading(for: element.frame, lines: shotLines, capture: shot),
+                if let reading = IPadAuditPageEvidence.reading(
+                    for: element.frame, label: locator.label, lines: shotLines, capture: shot
+                ),
                    reading.glyphPixels >= 40 {
                     visible?.evidence.add(label: locator.label, ratio: reading.ratio)
                 } else {

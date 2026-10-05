@@ -54,21 +54,29 @@ enum IPadAuditTextEvidence {
         }
 
         /// The element at ``ordinal``, scrolled inside `content` (default: the window) if
-        /// needed, at most six swipes.
+        /// needed, at most eight slow drags.
         @MainActor
         func resolve(in app: XCUIApplication, within content: CGRect? = nil) -> XCUIElement? {
             let window = content ?? app.windows.firstMatch.frame
-            for _ in 0..<6 {
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            for _ in 0..<8 {
                 let found = matches(in: app)
+                // A slow drag by about the distance needed: a flick's momentum overshot a
+                // Form's last header past the top and back again.
+                var distance: CGFloat = 400
+                var x = window.midX
                 if ordinal < found.count {
-                    let element = found[ordinal]
-                    let frame = element.frame
-                    if window.contains(frame) { return element }
-                    if frame.minY < window.minY { app.swipeDown() } else { app.swipeUp() }
-                } else {
-                    app.swipeUp()
+                    let frame = found[ordinal].frame
+                    if window.contains(frame) { return found[ordinal] }
+                    x = min(max(frame.midX, window.minX + 20), window.maxX - 20)
+                    distance = frame.minY < window.minY
+                        ? -min(500, window.minY - frame.minY + 60)
+                        : min(500, frame.maxY - window.maxY + 60)
                 }
-                Thread.sleep(forTimeInterval: 0.8)
+                let start = origin.withOffset(CGVector(dx: x, dy: window.midY + distance / 2))
+                let end = origin.withOffset(CGVector(dx: x, dy: window.midY - distance / 2))
+                start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.3)
+                Thread.sleep(forTimeInterval: 0.5)
             }
             return nil
         }
