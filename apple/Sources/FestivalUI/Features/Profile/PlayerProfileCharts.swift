@@ -472,6 +472,10 @@ struct RankHistoryCharts: View {
     }
 
     /// A rotated axis title beside the plot, like the web's rotated Recharts labels.
+    ///
+    /// Read as "Total Score axis" before the bars and "Rank axis" after them: visible
+    /// text hidden from assistive technologies was what the iPad audit reported as
+    /// "Potentially inaccessible text" on Statistics.
     private func axisTitle(_ text: String, degrees: Double) -> some View {
         Text(text)
             .font(.caption)
@@ -479,7 +483,7 @@ struct RankHistoryCharts: View {
             .fixedSize()
             .rotationEffect(.degrees(degrees))
             .frame(width: 16)
-            .accessibilityHidden(true)
+            .accessibilityLabel("\(text) axis")
     }
 
     // MARK: Legend
