@@ -83,17 +83,17 @@ public static class BoardFooterEdgeFade
     };
 
     /// <summary>
-    /// Mask stops for a gradient from <see cref="Depth"/> epx above the footer's top to 1 epx below it: opaque above the
-    /// band, the reversed smoothstep through the band (scaled by <paramref name="strength"/>), then clear from the
-    /// footer's top down so no row shows beneath the footer.
+    /// Mask stops for a gradient from <see cref="Depth"/> epx above the footer's top to 1 epx below it: opaque at the
+    /// band's start, a linear ramp (web <c>useScrollMask</c>: <c>linear-gradient(black bottom-40px, transparent
+    /// bottom)</c>) to <c>1 − strength</c> at the footer's top, then clear from the footer's top down so no row shows
+    /// beneath the footer. Not the Songs header's smoothstep (<see cref="SongHeaderEdgeFade.Stops"/>, scroll-edge R3).
     /// </summary>
     /// <param name="strength">Fade strength from <see cref="Strength"/>.</param>
     /// <returns>Offsets along that gradient with their mask alpha.</returns>
     public static IReadOnlyList<(float Offset, float Alpha)> Stops(double strength)
     {
-        var scale = (float)(Depth / (Depth + 1));
-        var band = SongHeaderEdgeFade.Stops.Select(s => (s.Offset * scale, SongHeaderEdgeFade.MaskAlpha(1 - s.Alpha, strength)));
-        return [.. band, (1f, 0f)];
+        var footerTop = (float)(Depth / (Depth + 1));
+        return [(0f, 1f), (footerTop, (float)(1 - Math.Clamp(strength, 0, 1))), (1f, 0f)];
     }
 }
 

@@ -15,7 +15,8 @@ namespace Festival.App.Controls;
 /// Fades a board's rows out just above its floating footer and hides them beneath it (issue #93, web
 /// <c>useScrollMask</c> over a viewport that ends at the footer). Same composition opacity-mask technique as
 /// <see cref="TopEdgeFade"/>: a <see cref="CompositionVisualSurface"/> renders <c>source</c>'s visual, a
-/// <see cref="CompositionMaskBrush"/> multiplies it by <see cref="BoardFooterEdgeFade.Stops"/> placed at the footer's top,
+/// <see cref="CompositionMaskBrush"/> multiplies it by <see cref="BoardFooterEdgeFade.Stops"/> (the web's linear 40 epx
+/// ramp) placed at the footer's top,
 /// and a sprite on <c>host</c> (a hit-test-invisible sibling over the same cell) paints the result while the source's own
 /// visual is hidden. Hit testing, keyboard focus and UI Automation still use the source. With reduced transparency the
 /// same mask runs at zero strength: a hard cut at the footer's top. Turned off, the source shows directly and the sprite

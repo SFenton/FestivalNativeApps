@@ -20,26 +20,48 @@ public sealed class BoardFooterEdgeFadeTests
     public void Strength_EasesOutOverTheLastDepthOfScroll(double scrollable, double offset, double expected) =>
         Assert.Equal(expected, BoardFooterEdgeFade.Strength(scrollable, offset), 6);
 
+    // Review of #305: the footer edge is the web useScrollMask's linear 40 px ramp, not the Songs header's smoothstep.
     [Fact]
-    public void Stops_FadeToTheFooterTopThenClearBeneathIt()
+    public void Stops_AreALinearRampToTheFooterTopThenClearBeneathIt()
     {
         var stops = BoardFooterEdgeFade.Stops(1);
-        var scale = 40f / 41f;
-        Assert.Equal([0f, 0.25f * scale, 0.5f * scale, 0.75f * scale, scale, 1f], stops.Select(s => s.Offset));
-        Assert.Equal([1f, 0.84375f, 0.5f, 0.15625f, 0f, 0f], stops.Select(s => s.Alpha), new FloatTolerance());
+        Assert.Equal([0f, 40f / 41f, 1f], stops.Select(s => s.Offset), new FloatTolerance());
+        Assert.Equal([1f, 0f, 0f], stops.Select(s => s.Alpha), new FloatTolerance());
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(10, 0.75)]
+    [InlineData(20, 0.5)]
+    [InlineData(30, 0.25)]
+    [InlineData(40, 0)]
+    public void Stops_FadeLinearlyThroughTheBand(double epxIntoBand, double expectedAlpha)
+    {
+        var stops = BoardFooterEdgeFade.Stops(1);
+        var t = (float)(epxIntoBand / 41);
+        var (o0, a0) = stops[0];
+        var (o1, a1) = stops[1];
+        Assert.Equal(expectedAlpha, a0 + (a1 - a0) * (t - o0) / (o1 - o0), 5);
     }
 
     [Fact]
     public void Stops_AtTheEndKeepRowsOpaqueButStillClearBeneathTheFooter()
     {
         var stops = BoardFooterEdgeFade.Stops(0);
-        Assert.All(stops.Take(5), s => Assert.Equal(1f, s.Alpha));
+        Assert.All(stops.Take(2), s => Assert.Equal(1f, s.Alpha));
         Assert.Equal((1f, 0f), stops[^1]);
     }
 
     [Fact]
     public void Stops_HalfStrengthHalvesTheBand() =>
-        Assert.Equal(0.5f, BoardFooterEdgeFade.Stops(0.5)[4].Alpha, 6);
+        Assert.Equal(0.5f, BoardFooterEdgeFade.Stops(0.5)[1].Alpha, 6);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(0.3)]
+    [InlineData(1)]
+    public void Stops_KeepOneCountSoTheCompositionStopsCanBeUpdatedInPlace(double strength) =>
+        Assert.Equal(BoardFooterEdgeFade.Stops(1).Count, BoardFooterEdgeFade.Stops(strength).Count);
 
     // Issue #305: the edge depends only on the footer being on screen and the appearance settings, never on whether
     // the footer holds the selected player's pinned row. Scroll-edge R7: a shown footer never lets rows show behind it.
