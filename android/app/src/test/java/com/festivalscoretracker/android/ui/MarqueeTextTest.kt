@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.common.FestivalMarquee
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
@@ -67,6 +68,37 @@ class MarqueeTextTest {
         assertEquals(FestivalMarquee.Mode.Wrapped, FestivalMarquee.fallbackMode(lineCount = 2, ellipsized = false))
         assertEquals(FestivalMarquee.Mode.Truncated, FestivalMarquee.fallbackMode(lineCount = 1, ellipsized = true))
         assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.fallbackMode(lineCount = 1, ellipsized = false))
+    }
+
+    @Test
+    fun scrollingModeHoldsBehindAModal() {
+        assertEquals(FestivalMarquee.Mode.Scrolling, FestivalMarquee.scrollingMode(overflowing = true, held = false))
+        assertEquals(FestivalMarquee.Mode.Held, FestivalMarquee.scrollingMode(overflowing = true, held = true))
+        assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.scrollingMode(overflowing = false, held = true))
+        assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.scrollingMode(overflowing = false, held = false))
+    }
+
+    /** Issue #186 (`modal-shell` R10): an overflowing marquee stops scrolling while a modal covers it. */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun overflowingMarqueeHoldsWhileAModalCoversIt() {
+        val long = "Through the Fire and Flames, an overflowing synthetic title"
+        val coverage = ModalCoverage.shared
+        rule.setContent {
+            FestivalMarqueeText(long, Modifier.width(80.dp).testTag("marquee"), wrapAtLargeText = false)
+        }
+        val mode = { rule.onNodeWithTag("marquee").fetchSemanticsNode().config[FestivalMarquee.ModeKey] }
+        rule.waitForIdle()
+        assertEquals(FestivalMarquee.Mode.Scrolling, mode())
+        coverage.open()
+        try {
+            rule.waitForIdle()
+            assertEquals(FestivalMarquee.Mode.Held, mode())
+        } finally {
+            coverage.close()
+        }
+        rule.waitForIdle()
+        assertEquals(FestivalMarquee.Mode.Scrolling, mode())
     }
 
     /** Issue #315: the top app bar learns whether a marquee title overflows, in motion and Reduce Motion. */

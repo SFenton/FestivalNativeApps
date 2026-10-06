@@ -365,11 +365,17 @@ class PresentationTest {
         coverage.open()
         coverage.open()
         assertEquals(2, coverage.openCount.value)
+        assertEquals(2, coverage.openModals)
+        assertTrue(coverage.covers(0))
+        assertTrue(coverage.covers(1))
+        assertFalse(coverage.covers(2))
         coverage.close()
         assertEquals(1, coverage.openCount.value)
         coverage.close()
         coverage.close()
         assertEquals(0, coverage.openCount.value)
+        assertEquals(0, coverage.openModals)
+        assertFalse(coverage.covers(0))
         assertSame(ModalCoverage.shared, ModalCoverage.shared)
     }
 

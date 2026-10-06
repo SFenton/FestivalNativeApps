@@ -109,13 +109,16 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
+    "assertannouncedcount": "announcedcount",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
-#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable).
+#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
-              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false")}
+              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
+              "value": None}
 
 # endregion
 
@@ -218,19 +221,22 @@ def parse_step(step: str) -> dict:
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
-    ``not-visible`` or ``=background`` is read without bringing the window to the front);
+    ``not-visible``, ``=background`` or ``pulse=held`` is read without bringing the window to the front);
     ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
     visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
     both send ``WM_ACTIVATE`` instead);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
     (``on``/``off``/``indeterminate``), ``enabled`` (``true``/``false``), ``selected`` (UIA SelectionItem
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
-    rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
+    rounded: ``0`` is a list back at its top), ``name`` or ``value`` (UIA Value, else the selected item's name: what
+    Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``) equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
-    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``).
+    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
+    ``assertannouncedcount:<n>|<text>`` fails unless exactly ``<n>`` recorded announcements match ``<text>`` so far
+    (no wait), e.g. a value announced once and not repeated on later reads.
 
     Args:
         step: A step string.
@@ -304,7 +310,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll|type|invoke|focusable=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -362,6 +368,11 @@ def parse_step(step: str) -> dict:
         result["text"] = text.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape == "announcedcount":
+        count, _, text = arg.partition("|")
+        if not re.fullmatch(r"\d+", count.strip()) or not text.strip():
+            raise ValueError(f"bad assertannouncedcount {arg!r}; use <count>|<text>")
+        result["count"], result["text"] = int(count), text.strip()
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":

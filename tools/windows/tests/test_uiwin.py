@@ -106,7 +106,10 @@ class StepTests(unittest.TestCase):
         self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
         self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
-        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
+        # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
+        current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
+        self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
+        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
                     "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",
@@ -148,6 +151,17 @@ class StepTests(unittest.TestCase):
         self.assertEqual((regex["text"], regex["timeout"]), (r"~^Lead Expert path loaded, \d+ activations?$", 2.5))
         self.assertEqual(u.parse_step("assertannounced:mail@home")["text"], "mail@home")
         for bad in ("listen:", "listen:focus", "assertannounced:", "assertannounced:@5"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertannouncedcount(self):
+        # Issue #275: a value announced once, not repeated by later reads.
+        step = u.parse_step("assertannouncedcount:1|Phase. 1,310 attempted this pass · 70 | x")
+        self.assertEqual((step["verb"], step["count"], step["text"]),
+                         ("assertannouncedcount", 1, "Phase. 1,310 attempted this pass · 70 | x"))
+        self.assertEqual(u.parse_step(r"assertannouncedcount:0|~^Loading")["count"], 0)
+        for bad in ("assertannouncedcount:", "assertannouncedcount:1", "assertannouncedcount:x|text",
+                    "assertannouncedcount:1|", "assertannouncedcount:-1|text"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

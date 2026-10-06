@@ -18,8 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -98,7 +96,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     // The requested page's rows are on screen (not the previous page fading out or the spinner).
     val pageShown = swap.phase == LoadSwapPhase.ContentIn && board is LoadState.Loaded && swap.shown === board
     // Inner width of the rows card, so narrow panes (beside a hinge) keep names readable (issue #115).
-    var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+    var rowWidth by rememberRankingRowWidth()
 
     // A new page starts at the top, unless it holds the selected row (revealed instead).
     LaunchedEffect(swap.showsSpinner) {

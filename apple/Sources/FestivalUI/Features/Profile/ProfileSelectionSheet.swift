@@ -3,9 +3,11 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
-/// Available native search scopes; band reads remain blocked by the service contract
-/// (`.agents/controls/profile-selection.md`): the band-search GET's missing-projection
-/// fallback deletes/rebuilds membership state, so this scope never issues a request.
+/// Available native search scopes. The Bands scope issues no request because native
+/// band *profile selection* isn't built yet (`.agents/controls/profile-selection/spec.md`),
+/// not because band search is unsafe: global search finds bands through the read-only,
+/// allowlisted `FestivalAPI.searchBands` endpoint (#320 service fix; see
+/// `.agents/platforms/service-safety.md`), and this scope points users there.
 private enum ProfileSearchScope: String, CaseIterable, Identifiable {
     case players
     case bands
@@ -168,14 +170,14 @@ struct ProfileSelectionSheet: View {
         }
     }
 
-    /// Bands gate, the enter-query hint, loading, results and error states.
+    /// Bands note (natives have no band profile yet; global search finds bands, issue
+    /// #320), the enter-query hint, loading, results and error states.
     @ViewBuilder private var scopeResultsContent: some View {
         switch scope {
         case .bands:
             centredMessage(
-                "Band search is paused: the service's fallback for a missing "
-                    + "band index rebuilds membership data instead of only reading it, "
-                    + "so this app never sends that request.",
+                "Choosing a band as your profile isn't available in the app yet. "
+                    + "Use Search to find a band and open its page.",
                 identifier: "fst.profile.bands-unavailable"
             )
         case .players:

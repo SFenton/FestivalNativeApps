@@ -188,7 +188,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
 
     /// Pages that need a selected player.
     static let profile: [Page] = [
-        Page(name: "statistics", env: ["FST_DEBUG_TAB": "statistics"], profile: true, ready: "Fixture Player 1"),
+        // The overview section, not the title: the iPhone Duo bar does not expose it.
+        Page(name: "statistics", env: ["FST_DEBUG_TAB": "statistics"], profile: true, ready: "fst.player.overview"),
         Page(name: "suggestions", env: ["FST_DEBUG_TAB": "suggestions"], profile: true, ready: "Suggestions"),
         Page(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals"),
         Page(name: "rival-detail",

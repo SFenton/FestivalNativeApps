@@ -10,8 +10,9 @@ import FestivalDesign
 ///
 /// Rows in the top region select instead of pushing (`dualSourceSelection`), so the
 /// list stays put while this pane swaps rivals. Each themed category of shared songs
-/// (Closest Battles, Almost Passed, …) is one swipeable card, as on `RivalDetailScreen`;
-/// "See All" opens the full Rival Detail page.
+/// (Closest Battles, Almost Passed, …) is one swipeable card ending in its "View All"
+/// button, as on `RivalDetailScreen`; the pane header's "View All" opens the full Rival
+/// Detail page.
 struct RivalDualDetailPane: View {
     let session: FestivalSession
     /// The selected `.rivalDetail` route, or nil before the first selection.
@@ -90,32 +91,18 @@ private struct RivalDualDetailContent: View {
                     )
                 } else {
                     HorizontalCarousel("\(displayName) Rivalry", items: categories, minimumCardWidth: 300) { category in
-                        categoryCard(category, rivalName: detail.rival.displayName ?? name ?? "Rival")
+                        RivalDualCategoryCard(
+                            category: category, rivalId: rivalId, scope: scope,
+                            rivalName: detail.rival.displayName ?? name ?? "Rival",
+                            playerName: session.selectedPlayer?.displayName ?? "You",
+                            songsById: songsById
+                        )
                     }
                 }
             }
         }
         .task { await load() }
         .task { await loadSongLookup() }
-    }
-
-    private func categoryCard(_ category: RivalCategory, rivalName: String) -> some View {
-        FestivalGlassSection(category.title, subtitle: category.subtitle) {
-            ForEach(category.songs.prefix(5)) { song in
-                let row = RivalSongRowContent(
-                    song: song, playerName: session.selectedPlayer?.displayName ?? "You", rivalName: rivalName
-                )
-                if let match = songsById[song.songId] {
-                    NavigationLink(value: AppRoute.songDetail(match)) { row }
-                } else {
-                    row
-                }
-            }
-            NavigationLink(value: AppRoute.rivalry(rivalId: rivalId, mode: category.key, name: rivalName, scope: scope)) {
-                RivalViewAllRow(title: "See All")
-            }
-        }
-        .accessibilityIdentifier("fst.dual.rivals.category.\(category.key)")
     }
 
     @MainActor
@@ -136,5 +123,42 @@ private struct RivalDualDetailContent: View {
         songsById = Dictionary(
             payload.catalog.songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first }
         )
+    }
+}
+
+// MARK: - Category card
+
+/// One themed rivalry category in the Duo pane: up to five song rows ending in the
+/// shared purple "View All" CTA (`view-all-cta` R1–R4), as on `RivalDetailScreen`.
+struct RivalDualCategoryCard: View {
+    let category: RivalCategory
+    let rivalId: String
+    let scope: RivalScope?
+    let rivalName: String
+    let playerName: String
+    let songsById: [String: Song]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FestivalGlassSection(category.title, subtitle: category.subtitle) {
+                ForEach(category.songs.prefix(5)) { song in
+                    let row = RivalSongRowContent(song: song, playerName: playerName, rivalName: rivalName)
+                    if let match = songsById[song.songId] {
+                        NavigationLink(value: AppRoute.songDetail(match)) { row }
+                    } else {
+                        row
+                    }
+                }
+            }
+            PurpleActionLink(
+                title: "View All",
+                route: .rivalry(rivalId: rivalId, mode: category.key, name: rivalName, scope: scope),
+                identifier: "fst.dual.rivals.category.\(category.key).view-all",
+                card: category.title
+            )
+        }
+        // `.contain` keeps the rows' and the View All CTA's identifiers reachable.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.dual.rivals.category.\(category.key)")
     }
 }
