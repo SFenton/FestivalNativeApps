@@ -268,7 +268,10 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag(row)
         val place = node(row).fetchSemanticsNode().boundsInRoot.center
         click("fst.rankings.rank-by-menu")
-        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.loading") { node("fst.rankings.rank-by.fcrate").performSemanticsAction(SemanticsActions.OnClick) })
+        // The old rows stay up and fade with the page until the spinner shows: they never cut to
+        // the new Rank By's empty loading rows first (issue #178).
+        val keepsOldRows = { assertTrue("the old rows must fade out, not vanish, before the spinner", exists(row)) }
+        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.loading", beforeSpinner = keepsOldRows) { node("fst.rankings.rank-by.fcrate").performSemanticsAction(SemanticsActions.OnClick) })
         settle()
         assertTrue(exists("fst.leaderboards.loading"))
         // The merged tree is what TalkBack reads; the unmerged one still lists cleared descendants.

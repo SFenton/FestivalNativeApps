@@ -13,10 +13,11 @@ import org.robolectric.Shadows.shadowOf
  *
  * @param spinner Test tag of the swap's spinner.
  * @param frames 32 ms frames to step (the default covers the 300 ms fade-out and 500 ms spinner fade).
+ * @param beforeSpinner Check run on every frame until the spinner first shows (the fade-out).
  * @param action Trigger of the reload.
  * @return Whether the spinner was composed during the swap.
  */
-fun ComposeContentTestRule.spinnerShowsDuring(spinner: String, frames: Int = 80, action: () -> Unit): Boolean {
+fun ComposeContentTestRule.spinnerShowsDuring(spinner: String, frames: Int = 80, beforeSpinner: () -> Unit = {}, action: () -> Unit): Boolean {
     mainClock.autoAdvance = false
     try {
         action()
@@ -25,6 +26,7 @@ fun ComposeContentTestRule.spinnerShowsDuring(spinner: String, frames: Int = 80,
             mainClock.advanceTimeBy(32)
             shadowOf(Looper.getMainLooper()).idle()
             if (onAllNodesWithTag(spinner, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()) saw = true
+            if (!saw) beforeSpinner()
         }
         return saw
     } finally {
