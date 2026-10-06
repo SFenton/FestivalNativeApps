@@ -101,6 +101,11 @@ struct SoloLeaderboardScreen: View {
     }
 
     var body: some View {
+        // Read here, not only inside the reload gate's content or the mask's lazy
+        // `GeometryReader`, so measuring the pinned chrome always rebuilds the mask:
+        // otherwise the first page kept an opaque mask, and rows showed behind the
+        // pager, until something else re-rendered the page (issues #294, #305).
+        let chromeTop = bottomChromeTop
         // Page changes fade the rows out, show the spinner and fade the new page in
         // (web LoadGate, issue #71).
         FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard") {
@@ -165,15 +170,17 @@ struct SoloLeaderboardScreen: View {
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                     .rankingsListRailClearance(layout)
-                    .modifier(BottomFadeDistanceReader { bottomFadeDistance = $0 })
                     // Rows fade out over up to 36 pt above the pinned footer and pager
                     // and are not drawn beneath them (web `useScrollFade`, issue #93),
                     // so the chrome floats over the page background with no opaque
                     // band, and no row text sits under its text (the contrast audit
                     // that once required the band). The fade shrinks away as the last
                     // row arrives, so the list ends one row gap above the chrome with
-                    // no reserved margin (issue #293).
-                    .mask { bottomChromeFadeMask }
+                    // no reserved margin (issue #293). Shared with every paginated
+                    // board, with or without a footer (issue #305).
+                    .bottomChromeFade(
+                        chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
+                    )
                 }
                 .task {
                     await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
@@ -290,11 +297,7 @@ struct SoloLeaderboardScreen: View {
                 }
             }
         }
-        .onGeometryChange(for: CGFloat?.self) { proxy in
-            proxy.size.height > 0 ? proxy.frame(in: .named(Self.pageSpace)).minY : nil
-        } action: { top in
-            bottomChromeTop = top
-        }
+        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the footer, or above the
@@ -306,34 +309,6 @@ struct SoloLeaderboardScreen: View {
             hasFooter: session.selectedPlayer != nil && selectedPlayerEntry() != nil,
             hasPager: shownPayload != nil && !layout.sectionChrome.isVerticalBar
         )
-    }
-
-    /// Alpha mask for the rows: opaque, then a fade of up to 36 pt ending at the
-    /// pinned chrome's top edge, clear beneath it. The fade shrinks as the last row
-    /// reaches its resting place, one row gap above the chrome (issue #293). Extends
-    /// into the top safe area so rows still scroll under the navigation bar.
-    private var bottomChromeFadeMask: some View {
-        GeometryReader { proxy in
-            let frame = proxy.frame(in: .named(Self.pageSpace))
-            let stops = ScrollEdgeFade.bottom(
-                height: Double(frame.height),
-                obscured: bottomChromeTop.map { Double(frame.maxY - $0) } ?? 0,
-                distance: bottomFadeDistance
-            )
-            if bottomChromeTop == nil {
-                Color.black
-            } else {
-                LinearGradient(
-                    stops: [
-                        .init(color: .black, location: stops.fadeStart),
-                        .init(color: .clear, location: stops.fadeEnd),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
     }
 
     // MARK: Selected-player spotlight
@@ -563,33 +538,4 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
-}
-
-// MARK: - Bottom fade distance reader
-
-/// Reports the bottom fade height for how far a scroll view's rows still run below its
-/// pinned chrome (iOS 18 / macOS 15 and later; nothing before, which keeps the full
-/// fade). Read from the scroll view: a last-row frame reader did not update while the
-/// List scrolled, so the fade stayed on the resting last row (issue #293). The value
-/// is clamped before it reaches the screen, so only the last fade-height of scrolling
-/// re-renders it.
-struct BottomFadeDistanceReader: ViewModifier {
-    let changed: (Double) -> Void
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content.onScrollGeometryChange(for: Double.self) { geometry in
-                ScrollEdgeFade.bottomDistance(lastRowOverflow: ScrollEdgeFade.contentOverflow(
-                    contentHeight: Double(geometry.contentSize.height),
-                    offsetY: Double(geometry.contentOffset.y),
-                    containerHeight: Double(geometry.containerSize.height),
-                    bottomInset: Double(geometry.contentInsets.bottom)
-                )).rounded()
-            } action: { _, distance in
-                changed(distance)
-            }
-        } else {
-            content
-        }
-    }
 }

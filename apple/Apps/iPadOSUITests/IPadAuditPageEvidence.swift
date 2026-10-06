@@ -81,7 +81,7 @@ enum IPadAuditPageEvidence {
     /// - Returns: The evidence and the texts still to measure.
     @MainActor
     static func measure(
-        _ app: XCUIApplication, capture: IPadAuditRenderedContrast.Capture, lines: [Line], content: CGRect,
+        _ app: XCUIApplication, capture: IPadAuditRenderedContrast.Capture, lines: [Line], content: ContentArea,
         sheetProof: String?, systemRegions: [CGRect] = []
     ) -> Visible? {
         guard let root = try? app.snapshot() else { return nil }
@@ -136,7 +136,7 @@ enum IPadAuditPageEvidence {
     /// - Returns: Checked count and the labels not read back whole.
     @MainActor
     static func notWhole(
-        in app: XCUIApplication, capture: IPadAuditRenderedContrast.Capture, content: CGRect
+        in app: XCUIApplication, capture: IPadAuditRenderedContrast.Capture, content: ContentArea
     ) -> (checked: Int, failing: [String]) {
         guard let root = try? app.snapshot() else { return (0, []) }
         var checked = 0
@@ -173,9 +173,52 @@ enum IPadAuditPageEvidence {
         return nodes
     }
 
-    /// The window minus the bars over its bottom (tab bar, floating page tools).
+    /// Where page text can be measured: the window minus the bars over its bottom (tab
+    /// bar, floating page tools), and, per column, below each top navigation bar and above
+    /// each pager's scroll-edge fade. A split has a bar and edges per pane: Song Detail's
+    /// card header scrolled under the leading bar read 1.84:1 and the board's last rows
+    /// under its pager fade 2.6–3.7:1 (Lane A11Y3); text there is scrolled clear first.
+    struct ContentArea {
+        /// The window minus the bottom bars.
+        let rect: CGRect
+        /// Top navigation bars (their own titles and buttons count as clear).
+        var topBars: [CGRect] = []
+        /// Frames of elements inside the top bars.
+        var barElements: Set<String> = []
+        /// Pagers at the bottom of a pane.
+        var pagers: [CGRect] = []
+
+        /// Scroll-edge fade under a top bar, and above a pager.
+        static let topFade: CGFloat = 8
+        static let pagerFade: CGFloat = 44
+
+        private func overlapsColumn(_ bar: CGRect, _ frame: CGRect) -> Bool {
+            bar.minX < frame.maxX && frame.minX < bar.maxX
+        }
+
+        /// The effective top edge for an element's column.
+        func top(for frame: CGRect) -> CGFloat {
+            topBars.filter { overlapsColumn($0, frame) }.map { $0.maxY + Self.topFade }.max()
+                .map { max($0, rect.minY) } ?? rect.minY
+        }
+
+        /// The effective bottom edge for an element's column.
+        func bottom(for frame: CGRect) -> CGFloat {
+            pagers.filter { overlapsColumn($0, frame) }.map { $0.minY - Self.pagerFade }.min()
+                .map { min($0, rect.maxY) } ?? rect.maxY
+        }
+
+        /// Whether `frame` is wholly where it can be measured (a bar's own element is).
+        func contains(_ frame: CGRect) -> Bool {
+            guard rect.contains(frame) else { return false }
+            if barElements.contains(NSCoder.string(for: frame)) { return true }
+            return frame.minY >= top(for: frame) && frame.maxY <= bottom(for: frame)
+        }
+    }
+
+    /// The page's ``ContentArea``.
     @MainActor
-    static func contentRect(_ app: XCUIApplication) -> CGRect {
+    static func contentRect(_ app: XCUIApplication) -> ContentArea {
         let window = app.windows.firstMatch.frame
         var bottom = window.maxY
         // Only bars on screen: a sheet covering the tab bar leaves it in the tree but not hittable.
@@ -184,7 +227,17 @@ enum IPadAuditPageEvidence {
             let frame = element.frame
             if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
         }
-        return CGRect(x: window.minX, y: window.minY, width: window.width, height: bottom - window.minY)
+        var area = ContentArea(rect: CGRect(x: window.minX, y: window.minY, width: window.width, height: bottom - window.minY))
+        guard let root = try? app.snapshot() else { return area }
+        func walk(_ node: XCUIElementSnapshot, inBar: Bool) {
+            let isBar = node.elementType == .navigationBar && node.frame.maxY < window.midY && node.frame.height > 0
+            if isBar { area.topBars.append(node.frame) }
+            if inBar || isBar { area.barElements.insert(NSCoder.string(for: node.frame)) }
+            if node.identifier.hasSuffix(".pager"), node.frame.minY > window.midY { area.pagers.append(node.frame) }
+            node.children.forEach { walk($0, inBar: inBar || isBar) }
+        }
+        walk(root, inBar: false)
+        return area
     }
 
     /// The presented sheet: the largest ancestor of `proof` smaller than the window.

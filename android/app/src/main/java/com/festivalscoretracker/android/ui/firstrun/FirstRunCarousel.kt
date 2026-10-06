@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -59,6 +61,10 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import kotlin.math.roundToInt
 
 // region Carousel
@@ -67,7 +73,9 @@ import kotlin.math.roundToInt
  * First-run carousel: the shared [FestivalModalDialog] (page label header in the shared
  * Title Large modal style, with the standard Close button) holding a horizontal pager, white page dots and the footer actions,
  * ordered as Material 3 dialog actions (issue #25): **Back, then Next/Done** at the trailing
- * edge, so the confirming action is always last and never moves under the finger. Back shows
+ * edge, so the confirming action is always last and never moves under the finger. Stacked slides
+ * reserve the tallest slide's text height, so the dialog and its footer also keep one height
+ * through the tour (issue #148). Back shows
  * only after the first slide (never disabled; operator batch 6.7) and there is no Skip: the
  * close button is the one-tap early exit, so a one-slide guide shows only Done. Close, Done, system
  * back and a tap outside all complete it, marking only the slides actually displayed as
@@ -98,76 +106,104 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, onComplete: (viewedCount:
         onDismissRequest = close,
         // Full-width margins capped at 560 dp on every window (see the KDoc above).
         compact = true,
-        // Half-open foldables: stay on one side of the hinge (M3 foldables guidance).
-        avoidHinge = true,
+        // Half-open foldables: the shared dialog stays on one side of the hinge (M3 foldables guidance).
         paneTitle = "Feature tour: ${carousel.page.label}",
         // The shared Title Large header, like What's New and Notifications (issue #147).
         titleTag = "fst.first-run.title",
         modifier = Modifier.testTag("fst.first-run.dialog"),
     ) {
-        BoxWithConstraints(Modifier.weight(1f, fill = false)) {
-            // Short, wide windows (landscape phones, folded posture) lay the slide out side by side
-            // and move the dots into the footer, so the title and description stay in view.
-            val sideBySide = FirstRunSlideLayout.sideBySide(maxWidth.value, maxHeight.value)
-            Column(Modifier.padding(bottom = 12.dp).testTag(if (sideBySide) "fst.first-run.layout.side-by-side" else "fst.first-run.layout.stacked")) {
-                HorizontalPager(
-                    state = pager,
-                    key = { carousel.slides[it].id },
-                    // Takes what the header, dots and buttons leave, so the buttons stay on screen
-                    // at large font sizes; each slide then scrolls vertically.
-                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false).testTag("fst.first-run.pager"),
-                ) { page ->
-                    val slide = carousel.slides[page]
-                    val active = page == pager.currentPage && pager.currentPageOffsetFraction == 0f
-                    val titleModifier = Modifier
-                        .semantics { heading() }
-                        .then(if (page == pager.currentPage) Modifier.focusRequester(titleFocus) else Modifier)
-                    Box(Modifier.fillMaxWidth().testTag("fst.first-run.slide.${slide.id}")) {
-                        if (sideBySide) {
-                            SideBySideSlide(slide, active, titleModifier)
-                        } else {
-                            StackedSlide(slide, active, titleModifier)
-                        }
-                    }
-                }
-                // Position is spoken from the dots' state ("Slide 2 of 6"); no visible text.
-                if (!sideBySide) {
-                    Dots(
-                        pager.currentPage,
-                        carousel.slides.size,
-                        carousel.position(pager.currentPage),
-                        Modifier.align(Alignment.CenterHorizontally).padding(vertical = 12.dp),
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, top = 8.dp),
-                ) {
-                    if (sideBySide) {
-                        Dots(pager.currentPage, carousel.slides.size, carousel.position(pager.currentPage), Modifier.padding(start = 8.dp))
-                    }
-                    Spacer(Modifier.weight(1f))
-                    if (pager.currentPage > 0) {
-                        TextButton(
-                            onClick = { go(pager.currentPage - 1) },
-                            colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
-                            modifier = Modifier.testTag("fst.first-run.back"),
-                        ) { Text("Back") }
-                    }
-                    // M3 dialog actions: the confirming action is last, so Next/Done keeps its place when Back appears.
-                    Button(
-                        onClick = { if (last) close() else go(pager.currentPage + 1) },
-                        colors = festivalFilledButtonColors(),
-                        modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
-                    ) { Text(if (last) "Done" else "Next") }
-                }
-            }
-        }
+        FirstRunCarouselBody(
+            carousel,
+            pager,
+            titleFocus,
+            onBack = { go(pager.currentPage - 1) },
+            onNext = { if (last) close() else go(pager.currentPage + 1) },
+        )
     }
     LaunchedEffect(pager.currentPage) {
         viewed = maxOf(viewed, pager.currentPage + 1)
         runCatching { titleFocus.requestFocus() }
+    }
+}
+
+/**
+ * The tour's body below the dialog header: pager, dots and the Back/Next/Done footer. Internal
+ * so layout tests can measure it in a full-height window.
+ *
+ * @param carousel Presentation.
+ * @param pager Page state, hoisted so a dismissal can report the slides displayed.
+ * @param titleFocus Focus for the current slide's title.
+ * @param onBack Back to the previous slide.
+ * @param onNext Next slide, or Done on the last one.
+ */
+@Composable
+internal fun ColumnScope.FirstRunCarouselBody(
+    carousel: FirstRunCarousel,
+    pager: PagerState,
+    titleFocus: FocusRequester,
+    onBack: () -> Unit,
+    onNext: () -> Unit,
+) {
+    BoxWithConstraints(Modifier.weight(1f, fill = false)) {
+        // Short, wide windows (landscape phones, folded posture) lay the slide out side by side
+        // and move the dots into the footer, so the title and description stay in view.
+        val sideBySide = FirstRunSlideLayout.sideBySide(maxWidth.value, maxHeight.value)
+        val last = pager.currentPage == carousel.slides.lastIndex
+        val textBlockHeight = stackedTextBlockHeight(carousel.slides, maxWidth - (STACKED_PADDING_DP * 2).dp)
+        Column(Modifier.padding(bottom = 12.dp).testTag(if (sideBySide) "fst.first-run.layout.side-by-side" else "fst.first-run.layout.stacked")) {
+            HorizontalPager(
+                state = pager,
+                key = { carousel.slides[it].id },
+                // Takes what the header, dots and buttons leave, so the buttons stay on screen
+                // at large font sizes; each slide then scrolls vertically.
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false).testTag("fst.first-run.pager"),
+            ) { page ->
+                val slide = carousel.slides[page]
+                val active = page == pager.currentPage && pager.currentPageOffsetFraction == 0f
+                val titleModifier = Modifier
+                    .semantics { heading() }
+                    .then(if (page == pager.currentPage) Modifier.focusRequester(titleFocus) else Modifier)
+                Box(Modifier.fillMaxWidth().testTag("fst.first-run.slide.${slide.id}")) {
+                    if (sideBySide) {
+                        SideBySideSlide(slide, active, titleModifier)
+                    } else {
+                        StackedSlide(slide, active, titleModifier, textBlockHeight)
+                    }
+                }
+            }
+            // Position is spoken from the dots' state ("Slide 2 of 6"); no visible text.
+            if (!sideBySide) {
+                Dots(
+                    pager.currentPage,
+                    carousel.slides.size,
+                    carousel.position(pager.currentPage),
+                    Modifier.align(Alignment.CenterHorizontally).padding(vertical = 12.dp),
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, top = 8.dp),
+            ) {
+                if (sideBySide) {
+                    Dots(pager.currentPage, carousel.slides.size, carousel.position(pager.currentPage), Modifier.padding(start = 8.dp))
+                }
+                Spacer(Modifier.weight(1f))
+                if (pager.currentPage > 0) {
+                    TextButton(
+                        onClick = onBack,
+                        colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
+                        modifier = Modifier.testTag("fst.first-run.back"),
+                    ) { Text("Back") }
+                }
+                // M3 dialog actions: the confirming action is last, so Next/Done keeps its place when Back appears.
+                Button(
+                    onClick = onNext,
+                    colors = festivalFilledButtonColors(),
+                    modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
+                ) { Text(if (last) "Done" else "Next") }
+            }
+        }
     }
 }
 
@@ -209,34 +245,77 @@ private const val INACTIVE_DOT_ALPHA = 0.35f
  * @param slide Slide to show.
  * @param active Whether the slide is settled on screen (demos animate only then).
  * @param titleModifier Heading semantics and focus for the title.
+ * @param textBlockHeight Height reserved for the title and description: the tallest slide's, so
+ *   every slide (and so the dialog and its footer) keeps one height through the tour.
  */
 @Composable
-private fun StackedSlide(slide: FirstRunSlide, active: Boolean, titleModifier: Modifier) {
+private fun StackedSlide(slide: FirstRunSlide, active: Boolean, titleModifier: Modifier, textBlockHeight: Dp) {
     Column(
-        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = STACKED_PADDING_DP.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().height(FirstRunSlideLayout.DEMO_HEIGHT_DP.dp)) {
             DemoIllustration(slide.id, active, Modifier.fillMaxSize())
         }
         Spacer(Modifier.height(16.dp))
-        Text(
-            slide.title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = BrandTokens.textPrimary,
-            textAlign = TextAlign.Center,
-            modifier = titleModifier,
-        )
-        Text(
-            slide.description,
-            style = MaterialTheme.typography.bodyLarge,
-            color = BrandTokens.textSecondary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 8.dp).heightIn(min = 96.dp),
-        )
+        Column(Modifier.fillMaxWidth().heightIn(min = textBlockHeight), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                slide.title,
+                style = stackedTitleStyle(),
+                color = BrandTokens.textPrimary,
+                textAlign = TextAlign.Center,
+                modifier = titleModifier,
+            )
+            Text(
+                slide.description,
+                style = MaterialTheme.typography.bodyLarge,
+                color = BrandTokens.textSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = STACKED_DESCRIPTION_GAP_DP.dp).heightIn(min = STACKED_DESCRIPTION_MIN_DP.dp),
+            )
+        }
     }
 }
+
+/** Stacked slide title style: Headline Small, bold. */
+@Composable
+private fun stackedTitleStyle(): TextStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+
+/**
+ * Height of the tallest stacked title + description among [slides] at [textWidth] and the
+ * current font scale, so the dialog never resizes between slides and Back/Next/Done stay put
+ * (issue #148: before, the footer jumped up to 66 dp when a slide's text was longer).
+ *
+ * @param slides Slides of the carousel.
+ * @param textWidth Width the slide text is laid out in.
+ * @return Height to reserve below the demo on every slide.
+ */
+@Composable
+private fun stackedTextBlockHeight(slides: List<FirstRunSlide>, textWidth: Dp): Dp {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val titleStyle = stackedTitleStyle()
+    val bodyStyle = MaterialTheme.typography.bodyLarge
+    return remember(slides, textWidth, density, titleStyle, bodyStyle) {
+        with(density) {
+            val constraints = Constraints(maxWidth = textWidth.roundToPx().coerceAtLeast(0))
+            slides.maxOfOrNull { slide ->
+                val title = measurer.measure(slide.title, titleStyle, constraints = constraints).size.height.toDp()
+                val body = measurer.measure(slide.description, bodyStyle, constraints = constraints).size.height.toDp()
+                title + STACKED_DESCRIPTION_GAP_DP.dp + maxOf(body, STACKED_DESCRIPTION_MIN_DP.dp)
+            } ?: 0.dp
+        }
+    }
+}
+
+/** Horizontal padding of the stacked slide. */
+private const val STACKED_PADDING_DP = 24
+
+/** Gap between the stacked title and description. */
+private const val STACKED_DESCRIPTION_GAP_DP = 8
+
+/** Smallest description height on a stacked slide. */
+private const val STACKED_DESCRIPTION_MIN_DP = 96
 
 /**
  * Short-window slide: the demo illustration, scaled down to the page height, at the start and

@@ -1564,7 +1564,7 @@ final class SongsJourneyTests: XCTestCase {
     }
 
     /// A live publication refresh while VoiceOver focus is outside the page (tab bar,
-    /// navigation bar) leaves focus alone (issue #304, load-transition R7): no page anchor
+    /// navigation bar) leaves focus alone (issue #304, load-transition R8): no page anchor
     /// is added at any point, the update is announced (the Debug `fst.publication.announced`
     /// marker) and the page still refreshes in place.
     ///

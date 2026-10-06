@@ -51,6 +51,10 @@
           {
             "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
             "symbol": "ScrollEdgeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "bottomChromeFade"
           }
         ],
         "android": [
@@ -93,9 +97,7 @@
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
           ],
           "debt": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
-            "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
-            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift"
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
         },
@@ -159,7 +161,8 @@
         288,
         297,
         298,
-        301
+        301,
+        305
       ]
     },
     {
@@ -566,6 +569,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
             "symbol": "GlobalSearchEntry"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/TopBarActions.kt",
+            "symbol": "AdaptiveTopBarActions"
           }
         ],
         "windows": [
@@ -621,14 +628,17 @@
         "pages": [
           "songs",
           "shop",
-          "leaderboards"
+          "leaderboards",
+          "suggestions"
         ]
       },
       "supersedes": [],
       "supersededBy": null,
       "issues": [
+        52,
         84,
         92,
+        160,
         300
       ]
     },
@@ -921,7 +931,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -930,7 +940,8 @@
         "fade",
         "stagger",
         "transition",
-        "reduce motion"
+        "reduce motion",
+        "graph card"
       ],
       "web": [
         {
@@ -952,6 +963,10 @@
         {
           "path": "contexts/PublicationBoundary.tsx",
           "symbol": "PublicationBoundary"
+        },
+        {
+          "path": "hooks/chart/useListAnimation.ts",
+          "symbol": "useListAnimation"
         }
       ],
       "canonical": {
@@ -1009,6 +1024,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongPathsViewModel.kt",
             "symbol": "PathSwapPhase"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/GraphListPhase.kt",
+            "symbol": "GraphListPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/GraphCardList.kt",
+            "symbol": "GraphCardList"
           }
         ],
         "windows": [
@@ -1063,7 +1086,7 @@
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "debt": [],
-          "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R7)."
+          "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R8)."
         },
         {
           "id": "android-load-swap",
@@ -1097,6 +1120,17 @@
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
+        },
+        {
+          "id": "android-graph-list",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "GraphCardList\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/GraphCardList.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongHistoryCard.kt"
+          ],
+          "debt": [],
+          "message": "Graph card lists must remain in the shared load-transition inventory (load-transition R7)."
         }
       ],
       "related": {
@@ -1119,6 +1153,7 @@
         60,
         70,
         71,
+        169,
         304
       ]
     },

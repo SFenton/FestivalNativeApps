@@ -14,6 +14,12 @@ Every reachable ``first-run`` contract state (``contracts/product.json``) runs a
   (issue #240) and keeps its Next/Back/Close commands and pips.
 * ``late-catalogue``: with ``/api/songs`` delayed (``--songs-delay``), the guide opens over placeholder demo rows and
   its visible demo fills with catalogue songs once they arrive (issue #240).
+* ``demo-songs``: every page's Settings replay pages through all 42 slides; each demo reports catalogue songs,
+  including Statistics' highest/lowest-rank breakdown (issue #257).
+* ``top-songs-rotation``: with a 110-song catalogue (``--large-catalogue``), Statistics' highest/lowest-rank demo
+  swaps every row's song while its four pills stay 1.2, 3.5, 7.8 and 14.2% (web ``DEMO_PERCENTILES[i]``; issue #257).
+* ``catalogue-unavailable``: with ``/api/songs`` failing (``--songs-unavailable``), the Songs, Statistics, Suggestions
+  and Rivals demos keep placeholder rows instead of inventing songs (issue #257).
 * ``dismissed``: Close, Esc and Done close the carousel and record only the slides actually viewed.
 
 Each phase is one ``drive`` call (a launching phase runs inside the ``launch`` call's desktop-lock hold) and the UIA
@@ -140,6 +146,87 @@ def _demo(slide_id: str, status: str, seconds: float = 0) -> str:
 
 #: Seconds the ``late-catalogue`` fixture holds ``/api/songs``: long enough for the guide to open first.
 SONGS_DELAY = 12
+
+#: Every page's slides in Settings-replay (catalogue) order: each one has a live demo (issue #257).
+PAGE_SLIDES = {
+    "songs": ["songs-song-list", "songs-sort", "songs-navigation", "songs-filter", "songs-icons", "songs-metadata",
+              "songs-shop-highlight", "songs-new-in-shop", "songs-leaving-tomorrow"],
+    "songinfo": ["songinfo-chart", "songinfo-bar-select", "songinfo-view-all", "songinfo-top-scores", "songinfo-paths",
+                 "songinfo-shop-button", "songinfo-new-in-shop", "songinfo-leaving-tomorrow"],
+    "playerhistory": ["playerhistory-score-list", "playerhistory-sort"],
+    "statistics": ["statistics-select-profile", "statistics-drill-down", "statistics-overview",
+                   "statistics-instrument-breakdown", "statistics-percentiles", "statistics-top-songs"],
+    "suggestions": ["suggestions-category-card", "suggestions-global-filter", "suggestions-instrument-filter",
+                    "suggestions-infinite-scroll"],
+    "leaderboards": ["leaderboards-overview", "leaderboards-experimental-metrics", "leaderboards-your-rank"],
+    "compete": ["compete-hub", "compete-leaderboards", "compete-rivals"],
+    "rivals": ["rivals-overview", "rivals-instruments", "rivals-detail"],
+    "shop": ["shop-overview", "shop-highlighting", "shop-new-items", "shop-leaving-tomorrow"],
+}
+
+#: Seconds ``uiwin launch`` waits for the app window (its 30 s default is too short for a cold launch on a busy host).
+LAUNCH_TIMEOUT = 90
+
+#: Seconds the ``catalogue-unavailable`` journey waits before asserting the demos are still placeholders.
+UNAVAILABLE_WAIT = 8
+
+#: Statistics' top-songs pills in slot order (web ``DEMO_PERCENTILES[i]``); songs rotate, the pills never move.
+TOP_SONG_PILLS = ["Top 1.2%", "Top 3.5%", "Top 7.8%", "Top 14.2%"]
+
+#: Rotation ticks (5 s apart, two slots each) until every top-songs slot has swapped its song once; pinned by xUnit
+#: ``TopSongsDemo_RotatesSongsUnderPinnedPills``.
+TOP_SONG_TICKS = 3
+
+
+def _top_song_pills(rotated: bool, seconds: float = 0) -> list[str]:
+    """Steps asserting every top-songs pill's text (issue #257).
+
+    Each pill is a raw-view ``fst.first-run.demo.statistics-top-songs.pill.N`` whose ItemStatus turns from ``initial``
+    to ``rotated`` once its own row's song has swapped, so ``rotated`` checks each pill after a real swap.
+
+    Args:
+        rotated: Wait for each slot's first swap before checking its pill.
+        seconds: How long to wait for it.
+
+    Returns:
+        Per slot, an optional ``assertstatus`` step and one ``assertname`` step.
+    """
+    steps = []
+    for slot, pill in enumerate(TOP_SONG_PILLS):
+        selector = f"raw=fst.first-run.demo.statistics-top-songs.pill.{slot}"
+        if rotated:
+            steps.append(f"assertstatus:{selector}|rotated" + (f"@{seconds:g}" if seconds else ""))
+        steps.append(f"assertname:{selector}|{pill}")
+    return steps
+
+
+def _demo_phases(status: str, pages: list[str] | None = None, settle: float = 0) -> list[Phase]:
+    """Settings replay of each page's guide, paging through every slide and asserting each demo's data status.
+
+    ``catalogue`` proves every demo, including Statistics' highest/lowest-rank songs, shows real catalogue songs
+    (never invented titles); ``placeholder`` proves the demos stay redacted while the catalogue is unavailable.
+
+    Args:
+        status: Expected ``FirstRunDemos.DataStatus`` of every demo.
+        pages: Page keys (default: every page).
+        settle: Seconds to wait after each guide opens before the first check.
+
+    Returns:
+        An open-and-page phase and a close phase per page.
+    """
+    phases = []
+    for index, key in enumerate(pages or list(PAGE_SLIDES)):
+        row = f"id=fst.settings.first-run.{key}"
+        steps = [SETTINGS_READY, "scrollinto:id=fst.settings.licenses", "wait:0.5"] if index == 0 else []
+        steps += [f"scrollinto:{row}", f"invoke:{row}", OPEN, f"wait:{1 + settle:g}"]
+        slides = PAGE_SLIDES[key]
+        for number, slide in enumerate(slides):
+            steps.append(_demo(slide, status, 15))
+            if number < len(slides) - 1:
+                steps += ["invoke:id=PrimaryButton", "wait:0.6"]
+        phases.append(Phase(steps, expect=[_dialog(PAGE_TITLES[key]), _button("PrimaryButton", "Done")]))
+        phases.append(Phase([f"invoke:id={CLOSE}", CLOSED, "wait:0.5"], forbid=[DIALOG]))
+    return phases
 
 
 def _older(slide_id: str) -> Callable[[Seen], Seen]:
@@ -286,6 +373,39 @@ SCENARIOS = [
         ],
     ),
     Scenario(
+        name="demo-songs",
+        state="visible (every demo shows catalogue songs)",
+        tab="settings",
+        phases=_demo_phases("catalogue"),
+    ),
+    Scenario(
+        name="top-songs-rotation",
+        state="visible (Statistics top songs rotate under fixed pills)",
+        tab="settings",
+        # 110 catalogue songs, so the four slots have songs to rotate through.
+        fixture=("--large-catalogue",),
+        phases=[
+            Phase([SETTINGS_READY, "scrollinto:id=fst.settings.licenses", "wait:0.5",
+                   "scrollinto:id=fst.settings.first-run.statistics", "invoke:id=fst.settings.first-run.statistics",
+                   OPEN, "wait:1", *["invoke:id=PrimaryButton", "wait:0.6"] * 5,
+                   _demo("statistics-top-songs", "catalogue", 15), *_top_song_pills(False)],
+                  expect=[_dialog("Statistics"), _slide("Highest and Lowest Rank Breakdown")]),
+            # Every slot swaps its song within three ticks; each pill must keep its slot's percentile (the old
+            # pool-index pill showed 1.2, 35.1, 1.2, 48.9% after swaps).
+            Phase([*_top_song_pills(True, 5 * TOP_SONG_TICKS + 20), _demo("statistics-top-songs", "catalogue")],
+                  expect=[_slide("Highest and Lowest Rank Breakdown")]),
+        ],
+    ),
+    Scenario(
+        name="catalogue-unavailable",
+        state="visible (catalogue unavailable: placeholder demos)",
+        tab="settings",
+        fixture=("--songs-unavailable",),
+        # Song rows (Songs), highest/lowest-rank songs (Statistics) and the one-line song mentions of the Suggestions
+        # card and Rival detail keep redacted placeholders, never invented or untitled songs.
+        phases=_demo_phases("placeholder", ["songs", "statistics", "suggestions", "rivals"], settle=UNAVAILABLE_WAIT),
+    ),
+    Scenario(
         name="keyboard",
         state="dismissed (keyboard)",
         phases=[
@@ -384,7 +504,7 @@ def launch(exe: Path, port: int, scenario: Scenario, settings: Path, data: Path,
         extra += ["--extra", f"FST_DEBUG_PROFILE={scenario.profile}"]
     out = _uiwin("launch", str(exe), "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/", "--arg=--settings-path",
                  f"--arg={settings}", "--arg=--first-run=on", "--arg=--tab", f"--arg={scenario.tab}",
-                 "--preset", scenario.preset, *extra, "--steps", "; ".join(steps))
+                 "--preset", scenario.preset, "--timeout", str(LAUNCH_TIMEOUT), *extra, "--steps", "; ".join(steps))
     match = re.search(r'"pid":\s*(\d+)', out)
     if not match:
         raise RuntimeError(f"no pid in launch output: {out}")

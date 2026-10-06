@@ -7,7 +7,7 @@ import UIKit
 // MARK: - PublicationFocusProbe
 
 /// Tells a ``PublicationRefreshBoundary`` whether VoiceOver focus is inside its page
-/// (issue #304, load-transition R7), so a refresh moves focus to the page anchor only when
+/// (issue #304, load-transition R8), so a refresh moves focus to the page anchor only when
 /// the focused element is about to be hidden, never from the tab bar, navigation bar, a
 /// sheet or another column.
 ///

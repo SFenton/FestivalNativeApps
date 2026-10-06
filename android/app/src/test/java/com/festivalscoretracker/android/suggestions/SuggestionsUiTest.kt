@@ -135,8 +135,12 @@ class SuggestionsUiTest {
 
     @Test
     fun otherPagesStillReadTheirToolbarAfterTheContent() {
-        launch(debug = DebugLaunch(section = FestivalSection.Songs, profile = player, stillBackground = true))
-        waitForTag("fst.songs.list")
+        // Songs reads its toolbar first too (issue #160); Song Detail (Paths, Quick Links) keeps the default.
+        launch()
+        waitForTag("fst.suggestions.list")
+        rule.onAllNodes(hasTestTagPrefix("fst.suggestions.row.")).onFirst().performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.song-detail.list")
+        settle()
         val toolbar = rule.onNodeWithTag("fst.nav.floating-toolbar", useUnmergedTree = true).fetchSemanticsNode()
         val topBar = rule.onNodeWithTag("fst.nav.top-bar", useUnmergedTree = true).fetchSemanticsNode()
         assertEquals(1f, traversalIndex(toolbar))

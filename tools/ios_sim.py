@@ -1785,8 +1785,13 @@ def cmd_uitest(args: argparse.Namespace) -> int:
         else:
             print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(result_bundle)}",
                   file=sys.stderr)
-            log_path.unlink(missing_ok=True)
-            shutil.rmtree(result_bundle, ignore_errors=True)
+            if os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
+                # Keep green evidence too (attachments, per-test results): an all-skipped
+                # or zero-test batch also exits 0.
+                print(f"kept: {log_path} {result_bundle}", file=sys.stderr)
+            else:
+                log_path.unlink(missing_ok=True)
+                shutil.rmtree(result_bundle, ignore_errors=True)
 
     overall_elapsed = time.time() - overall_start
     if failed_batches:

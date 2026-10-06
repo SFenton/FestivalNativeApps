@@ -15,6 +15,11 @@ struct BandRankingsScreen: View {
     /// Ranked-team count and page count for the current size and metric, kept
     /// across page loads (no pager/subtitle flicker); cleared on a size/metric change.
     @State private var board: BoardSummary?
+    /// Top edge of the floating pager bar in ``pageSpace``; nil without one.
+    @State private var bottomChromeTop: CGFloat?
+    /// Height of the rows' bottom fade: the full 36 pt until the last row arrives
+    /// above the bar, then shrinking to nothing (issues #293, #305).
+    @State private var bottomFadeDistance = ScrollEdgeFade.distance
     @Environment(\.deviceLayout) private var layout
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
@@ -35,6 +40,9 @@ struct BandRankingsScreen: View {
         RequestKey(bandType: bandType, rankBy: rankBy, page: page)
     }
 
+    /// Coordinate space shared by the rows' fade mask and the floating pager bar.
+    nonisolated private static let pageSpace = "fst.band-rankings.page"
+
     /// Create the screen.
     ///
     /// - Parameters:
@@ -47,6 +55,11 @@ struct BandRankingsScreen: View {
     }
 
     var body: some View {
+        // Read here, not only inside the reload gate's content or the mask's lazy
+        // `GeometryReader`, so measuring the pinned chrome always rebuilds the mask:
+        // otherwise the first page kept an opaque mask, and rows showed behind the
+        // pager, until something else re-rendered the page (issues #294, #305).
+        let chromeTop = bottomChromeTop
         // Band size, metric and page changes fade the board out, show the spinner and
         // fade the new page in (web LoadGate, issue #71).
         FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading rankings") {
@@ -82,6 +95,11 @@ struct BandRankingsScreen: View {
                     // Each loaded page fades in once (web load-in), not per row on scroll.
                     .festivalFadeInOnAppear()
                 }
+                // Rows fade out above the floating pager bar and are not drawn beneath
+                // it or the tab bar, like every other paginated board (issue #305).
+                .bottomChromeFade(
+                    chromeTop: chromeTop, distance: $bottomFadeDistance, in: Self.pageSpace
+                )
                 // One rank and rating width for the page (issue #37).
                 .leaderboardSectionColumns(.bandRankings(payload.rankings.entries, metric: rankBy))
             }
@@ -96,7 +114,9 @@ struct BandRankingsScreen: View {
             } menu: { showsTitle in
                 bandTypeMenu(showsTitle: showsTitle)
             }
+            .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
         }
+        .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle("\(bandType.label) Rankings")
         // Mac: View › Rank By mirrors the toolbar menu.

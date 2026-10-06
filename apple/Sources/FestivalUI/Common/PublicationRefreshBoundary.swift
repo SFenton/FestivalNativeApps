@@ -15,7 +15,7 @@ import FestivalCore
 /// put; it is never shown again.
 ///
 /// VoiceOver stays where the person left it (``PublicationRefreshFocus``, FestivalCore;
-/// load-transition R7). When ``PublicationFocusProbe`` establishes that VoiceOver focus is
+/// load-transition R8). When ``PublicationFocusProbe`` establishes that VoiceOver focus is
 /// inside this page, a refresh adds a **page anchor**, an invisible heading named with the
 /// page's ``festivalNavigationTitle(_:)`` that lives outside the rebuilt content. Focus
 /// moves to it as the old content is hidden (it reads "*Title*, heading, Loading new
