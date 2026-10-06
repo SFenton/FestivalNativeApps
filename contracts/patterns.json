@@ -779,7 +779,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, and one selected-row rule (jump off-page, open the profile on-page) for players and bands.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -790,7 +790,11 @@
         "pager",
         "pinned player",
         "selected row",
-        "band footer"
+        "band footer",
+        "score footer",
+        "team score",
+        "badges wrap",
+        "large text"
       ],
       "web": [
         {
@@ -808,6 +812,14 @@
         {
           "path": "components/common/MarqueeText.tsx",
           "symbol": "MarqueeText"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "SongBandScoreFooter"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "getSongBandScoreWidth"
         }
       ],
       "canonical": {
@@ -879,6 +891,18 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
+          },
+          {
+            "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "symbol": "BandScoreFooterPanel"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterLayout"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterSection"
           }
         ]
       },
@@ -922,6 +946,17 @@
           ],
           "debt": [],
           "message": "Board pagination belongs to the shared pager (leaderboard-row R5)."
+        },
+        {
+          "id": "windows-score-footer-owner",
+          "glob": "windows/**/*.cs",
+          "regex": "class\\s+(?!\\w*Tests\\b)\\w*ScoreFooter\\w*",
+          "allow": [
+            "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "windows/Festival.Core/Domain/BandScoreFooterLayout.cs"
+          ],
+          "debt": [],
+          "message": "Score footers share one section-wide stack plan; extend BandScoreFooterPanel/BandScoreFooterSection instead (leaderboard-row R8)."
         }
       ],
       "related": {
