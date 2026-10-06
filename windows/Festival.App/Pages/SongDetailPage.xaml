@@ -249,8 +249,8 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
-                                                Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                        <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
                                 </StackPanel>
@@ -300,8 +300,8 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
-                                                Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                        <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
                                 </StackPanel>

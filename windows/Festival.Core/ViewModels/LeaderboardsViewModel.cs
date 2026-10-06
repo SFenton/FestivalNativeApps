@@ -347,7 +347,7 @@ public static class RankingViewAll
     /// <param name="label">Visible button text from <see cref="Label"/>.</param>
     /// <param name="board">Card title, e.g. "Lead" or "Duos".</param>
     /// <returns>"View All Rankings (868,901), Lead".</returns>
-    public static string Name(string label, string board) => $"{label}, {board}";
+    public static string Name(string label, string board) => ViewAllCta.Name(label, board);
 }
 #endregion
 

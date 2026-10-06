@@ -144,7 +144,7 @@ public class SongBandPreviewTests
         Assert.False(first.IsSelected);
         Assert.StartsWith("Rank 1, ", first.Announcement);
         Assert.Equal(new AppRoute.SongBandLeaderboard("s1", "Band_Duets"), duos.FullRoute);
-        Assert.Equal(("fst.song-detail.band-view-all.Band_Duets", "View full Duos leaderboard"), (duos.ViewAllAutomationId, duos.ViewAllName));
+        Assert.Equal(("fst.song-detail.band-view-all.Band_Duets", "View Full Leaderboard", "View Full Leaderboard, Duos"), (duos.ViewAllAutomationId, duos.ViewAllText, duos.ViewAllName));
         Assert.Equal(("fst.song-detail.band-header.Band_Duets", "band-Band_Duets"), (duos.HeaderAutomationId, duos.QuickLinkId));
 
         var quads = vm.BandPreviews[2];

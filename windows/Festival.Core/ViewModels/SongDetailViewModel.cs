@@ -467,8 +467,12 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     /// <summary>Automation ID of the full-leaderboard button.</summary>
     public string ViewAllAutomationId => "fst.song-detail.view-all." + Instrument.ServiceId();
 
-    /// <summary>Accessible name of the full-leaderboard button.</summary>
-    public string ViewAllName => $"View full {Title} leaderboard";
+    /// <summary>Visible text of the full-leaderboard button.</summary>
+    public string ViewAllText => ViewAllCta.FullLeaderboardLabel;
+
+    /// <summary>Accessible name of the full-leaderboard button: the visible label, then the chart (WCAG 2.5.3), e.g.
+    /// "View Full Leaderboard, Lead".</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
 
     /// <summary>Appends the selected player's own score as row eleven when they rank outside the top ten.</summary>
     private void ComposeRows()

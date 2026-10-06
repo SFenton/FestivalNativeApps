@@ -53,8 +53,12 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     /// <summary>Automation ID of the full-leaderboard button.</summary>
     public string ViewAllAutomationId => "fst.song-detail.band-view-all." + TypeId;
 
-    /// <summary>Accessible name of the full-leaderboard button.</summary>
-    public string ViewAllName => $"View full {Title} leaderboard";
+    /// <summary>Visible text of the full-leaderboard button.</summary>
+    public string ViewAllText => ViewAllCta.FullLeaderboardLabel;
+
+    /// <summary>Accessible name of the full-leaderboard button: the visible label, then the band size (WCAG 2.5.3), e.g.
+    /// "View Full Leaderboard, Duos".</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
 
     /// <summary>This song's full band leaderboard for the size.</summary>
     public AppRoute FullRoute => new AppRoute.SongBandLeaderboard(SongId, TypeId);
