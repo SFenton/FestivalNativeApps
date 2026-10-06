@@ -1,0 +1,44 @@
+[
+  {
+    "name": "songs-filter-anonymous-live",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.section-header@30",
+      "wait:1"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.filter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "waitgone:id=fst.songs.filter.score.global",
+      "scrollinto:id=fst.songs.filter.double-bass@5",
+      "expand:id=fst.songs.filter.double-bass",
+      "scrollinto:id=fst.songs.filter.double-bass.unsupported@5",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 10
+  },
+  {
+    "name": "songs-filter-anonymous-double-bass-live",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.section-header@30",
+      "wait:1"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.filter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "waitgone:id=fst.songs.filter.score.global",
+      "scrollinto:id=fst.songs.filter.double-bass@5",
+      "expand:id=fst.songs.filter.double-bass",
+      "scrollinto:id=fst.songs.filter.double-bass.unsupported@5",
+      "toggle:id=fst.songs.filter.double-bass.unsupported",
+      "assertstatus:id=fst.songs.filter|Filters applied@5",
+      "wait:1"
+    ]
+  }
+]
