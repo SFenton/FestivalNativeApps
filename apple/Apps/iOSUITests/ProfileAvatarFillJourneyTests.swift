@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Issue #311: on iOS/iPadOS 26 the selected player's avatar fills its whole top-bar
