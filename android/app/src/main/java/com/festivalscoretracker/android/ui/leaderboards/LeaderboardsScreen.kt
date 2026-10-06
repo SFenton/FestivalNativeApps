@@ -124,15 +124,12 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
             },
         ) { padding ->
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                // Until settings arrive the instrument list is empty; composing the band cards
-                // first would anchor the list on them once instrument rows are inserted above.
-                if (layout == null) return@PullToRefreshBox
-                // Web load phase (operator batch 6, 6.41): a spinner until the first card has
-                // data, then the page fades in and its rows stagger. A Rank By change first fades
-                // the old cards out (issue #71). The list stays composed (hidden) under the
-                // spinner so its cards load meanwhile.
-                val lead = layout.instruments.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
-                val contentReady = lead == null || lead.value !is LoadState.Loading
+                // Web load phase (operator batch 6, 6.41): a spinner until settings are read and
+                // the first card has data, then the page fades in and its rows stagger. A Rank By
+                // change first fades the old cards out (issue #71). The list stays composed
+                // (hidden) under the spinner so its cards load meanwhile.
+                val lead = layout?.instruments?.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
+                val contentReady = layout != null && (lead == null || lead.value !is LoadState.Loading)
                 val swap = rememberLoadSwap(metric, contentReady, key = metric)
                 // Cards still loading (or reloading for a new Rank By) after the list has
                 // scrolled show in place; only what is visible at load fades in. Under the
@@ -144,9 +141,14 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
                     LoadSwapPhase.ContentOut -> swap.contentModifier
                     LoadSwapPhase.Loading, LoadSwapPhase.SpinnerOut -> swap.pinnedContentModifier
                 }
-                Box(Modifier.fillMaxSize().then(pageModifier)) {
-                    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow, LocalHoldCards provides (swap.phase == LoadSwapPhase.ContentOut)) {
-                        OverviewList(viewModel, layout, swap.shown, selected, listState, padding, shell.navigate)
+                // Until settings arrive the instrument list is empty; composing the band cards
+                // first would anchor the list on them once instrument rows are inserted above,
+                // so only the swap's spinner shows (load-transition R1, #178).
+                if (layout != null) {
+                    Box(Modifier.fillMaxSize().then(pageModifier)) {
+                        CompositionLocalProvider(LocalFadeInWindow provides fadeWindow, LocalHoldCards provides (swap.phase == LoadSwapPhase.ContentOut)) {
+                            OverviewList(viewModel, layout, swap.shown, selected, listState, padding, shell.navigate)
+                        }
                     }
                 }
                 if (swap.showsSpinner) {
