@@ -670,9 +670,10 @@ private func renderSongBandPreviews(
     let tree = nativeHostedAccessibility(host)
     #expect(tree.identifiers.contains("fst.player.bands.error"))
     #expect(tree.contains("Retry"))
-    // The title and See All stay usable while the cards are unavailable.
+    // The title and View All stay usable while the cards are unavailable.
     #expect(tree.contains("Fixture Player 1's Bands"))
     #expect(tree.identifiers.contains("fst.player.bands-link"))
+    #expect(tree.contains("View All Fixture Player 1's Bands"))
 }
 
 @Test func playerBandsRouteDefaultsToAllAndCarriesGroup() {

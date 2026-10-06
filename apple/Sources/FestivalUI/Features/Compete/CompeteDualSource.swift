@@ -8,7 +8,7 @@ import FestivalDesign
 /// around the fold (`.agents/design/apple/duo.md`, "Dual-source half-fold layouts").
 ///
 /// - Top: one Top-5 leaderboard card per Settings-visible instrument. Like the web's
-///   `CompetePage`, no link to the Leaderboards overview (no card, no header See All;
+///   `CompetePage`, no link to the Leaderboards overview (no card, no header View All;
 ///   #36): each card's View Full Leaderboard opens that instrument's board.
 /// - Bottom: one rivals card per Settings-visible instrument.
 ///
