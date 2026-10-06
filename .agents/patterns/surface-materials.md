@@ -2,7 +2,7 @@
 
 > **What:** shared policy for translucent content cards, rows and floating controls over artwork. **Read when:** adding or changing a card, row, capsule, sheet fallback or custom glass effect.
 
-Status: **current**, 2026-10-05. Provenance: #291.
+Status: **current**, 2026-10-06. Provenance: #291, #319.
 
 ## Intent
 
@@ -17,7 +17,7 @@ Content must remain legible and cheap to scroll over animated artwork. Use one p
 
 ## Rules
 
-- **R1. Content uses the canonical material surface.** Cards, content rows and non-system floating controls use the shared card/capsule primitive; no feature creates its own frosted, blur or glass stack.
+- **R1. Content uses the canonical material surface.** Cards, content rows and non-system floating controls use the shared card/capsule primitive; no feature creates its own frosted, blur, glass or opaque plate stack. A floating control over rows (board pager, A–Z scrubber, switcher pill) wears the same surface as the rows, so it matches them in every accessibility mode; legibility over scrolling rows comes from the scroll-edge fade, not a thicker control-only plate (#319; web `Paginator` arrows spread `frostedCard`).
 - **R2. Apple Liquid Glass is navigation-only.** Content cards and custom controls do not call `glassEffect`; only `Design/GlassSurface.swift` may implement the drawer and Debug A/B glass. HIG Materials: "Don't use Liquid Glass in the content layer."
 - **R3. Raw standard material stays in the design layer.** Do not add `.ultraThinMaterial`, `.thinMaterial`, `.regularMaterial` or `.thickMaterial` backgrounds outside `Design/`; the explicit approved variants below retain their contrast and pre-26 behavior.
 - **R4. Accessibility replaces translucency.** Reduce Transparency or increased contrast yields an opaque surface with a visible border; text and status information do not rely on the artwork behind them. HIG Accessibility: "If the default does not meet these minimums, provide a higher-contrast scheme when Increase Contrast is on."
@@ -42,3 +42,4 @@ Content must remain legible and cheap to scroll over animated artwork. Use one p
 
 - `surface-materials/apple-glass-effect`
 - `surface-materials/apple-raw-material-background` — approved allows: `PurpleActionButton`, the pre-26 First Run sheet fallback, and First Run's matching purple demo control.
+- `surface-materials/apple-feature-opaque-card` — no feature draws `.background(BrandTokens.cardBackground, in:)`: that opaque plate is `FestivalCardModifier`'s accessibility fallback (#319 removed the pager's private `PagerPlate`).

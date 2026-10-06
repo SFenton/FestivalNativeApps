@@ -168,7 +168,8 @@
         298,
         301,
         305,
-        308
+        308,
+        319
       ]
     },
     {
@@ -520,6 +521,14 @@
           ],
           "debt": [],
           "message": "Raw standard-material backgrounds belong in Design or an approved exception (surface-materials R3)."
+        },
+        {
+          "id": "apple-feature-opaque-card",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\.background\\(\\s*BrandTokens\\.cardBackground\\s*,\\s*in:",
+          "allow": [],
+          "debt": [],
+          "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
         }
       ],
       "related": {
@@ -537,7 +546,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        291
+        291,
+        319
       ]
     },
     {
@@ -1058,7 +1068,8 @@
         292,
         293,
         294,
-        295
+        295,
+        319
       ]
     },
     {
