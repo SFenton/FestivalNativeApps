@@ -347,7 +347,8 @@ def page_env(page: dict, data_dir: Path) -> dict[str, str]:
 
     Args:
         page: Page entry (``profile``, ``tab``, ``route`` and optional ``env`` launch hooks such as
-            ``FST_DEBUG_CONTROL_LAB``; page ``env`` wins over the derived values).
+            ``FST_DEBUG_CONTROL_LAB``; page ``env`` wins over the derived values, and ``{repo}`` in a value becomes the
+            repository root, e.g. ``FST_DEBUG_WHATS_NEW_FILE``).
         data_dir: Isolated app data directory.
 
     Returns:
@@ -359,7 +360,7 @@ def page_env(page: dict, data_dir: Path) -> dict[str, str]:
     else:
         env["FST_DEBUG_ANONYMOUS"] = "1"
     env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
-    env.update({key: str(value) for key, value in page.get("env", {}).items()})
+    env.update({key: str(value).replace("{repo}", str(REPO_ROOT)) for key, value in page.get("env", {}).items()})
     return env
 
 
