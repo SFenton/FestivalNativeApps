@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.presentation.profile
 
+import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -53,6 +54,7 @@ class ProfileActionsTest {
     private var catalogReads = 0
     private var leadMaximum: Int? = null
     private var bandsFailure: Exception? = null
+    private var bandsFailingGroup: PlayerBandGroup? = null
     private val bandReads = mutableListOf<String>()
     private val presets = mutableListOf<SongsPreset>()
     private val selected = mutableListOf<SelectedPlayer?>()
@@ -82,9 +84,9 @@ class ProfileActionsTest {
             catalogFailure?.let { throw it }
             listOf(Song("s-alpha", "Alpha Song", "Alpha Artist", year = 2021, albumArt = "alpha.jpg", maxScores = leadMaximum?.let { mapOf("Solo_Guitar" to it) }))
         },
-        bands = { account ->
-            bandReads += account
-            bandsFailure?.let { throw it }
+        bands = { account, group ->
+            bandReads += "$account:${group.wireId}"
+            bandsFailure?.takeIf { group == bandsFailingGroup || bandsFailingGroup == null }?.let { throw it }
             PlayerBandListResponse(accountId = account, totalCount = 0)
         },
     )
@@ -269,22 +271,31 @@ class ProfileActionsTest {
         assertNull(vm.bands.value)
         settings.value = AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
         advanceUntilIdle()
+        // One failing group fails the whole section (no partial Duos/Trios/Quads preview).
         bandsFailure = IOException("offline")
+        bandsFailingGroup = PlayerBandGroup.Trios
         vm.ensureBands()
         advanceUntilIdle()
         assertTrue(vm.bands.value is BandsLoad.Failed)
         vm.ensureBands()
         advanceUntilIdle()
-        assertEquals(1, bandReads.size)
+        val groups = listOf("duos", "trios", "quads")
+        // A failing group cancels the reads still pending; ensureBands never re-reads a failed section.
+        assertTrue(bandReads.isNotEmpty() && bandReads.all { it in groups.map { g -> "${Fixtures.ACCOUNT_A}:$g" } })
+        val failedReads = bandReads.size
         bandsFailure = null
         vm.retryBands()
         advanceUntilIdle()
-        assertEquals(PlayerBandListResponse(accountId = Fixtures.ACCOUNT_A), (vm.bands.value as BandsLoad.Loaded).bands)
+        assertEquals(groups.map { "${Fixtures.ACCOUNT_A}:$it" }.toSet(), bandReads.drop(failedReads).toSet())
+        val loaded = (vm.bands.value as BandsLoad.Loaded).groups
+        assertEquals(listOf(PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads), loaded.map { it.group })
+        assertTrue(loaded.all { it.page == PlayerBandListResponse(accountId = Fixtures.ACCOUNT_A) })
         // Another selected account resets the preview until its section is shown again.
         settings.value = AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_B, "Other"))
         advanceUntilIdle()
         assertNull(vm.bands.value)
-        assertEquals(listOf(Fixtures.ACCOUNT_A, Fixtures.ACCOUNT_A), bandReads)
+        assertEquals(failedReads + 3, bandReads.size)
+        assertTrue(bandReads.all { it.startsWith(Fixtures.ACCOUNT_A) })
     }
 
     @Test

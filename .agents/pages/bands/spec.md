@@ -9,4 +9,4 @@
 
 ## Parity gaps (from the pre-2026-09-27 parity audit)
 
-- Native acceptance: Band lookup. Band search GET can write server state — blocked; see [service safety](../../platforms/service-safety.md).
+- Native acceptance: Band lookup. Band search is read-only since the #320 service fix and allowlisted under [service safety](../../platforms/service-safety.md) conditions; Apple global search uses it (Bands and All scopes open the band page). Band detail and the bare band team ranking GETs still write and stay blocked.

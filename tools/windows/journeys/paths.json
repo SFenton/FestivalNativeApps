@@ -176,6 +176,11 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
     ]
   },
   {
@@ -197,6 +202,11 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
     ]
   },
   {
@@ -218,6 +228,11 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
     ]
   },
   {
@@ -240,6 +255,11 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
     ]
   },
   {
@@ -253,21 +273,34 @@
       "invoke:id=fst.song-detail.paths",
       "waitfor:id=fst.paths@10",
       "waitfor:id=fst.paths.image@15",
+      "assertstate:id=fst.paths.instrument.compact|value=Lead@5",
       "expand:id=fst.paths.instrument.compact",
-      "waitfor:name=Bass@5",
-      "select:name=Bass",
+      "waitfor:name=Bass&class=ComboBoxItem@5",
+      "select:name=Bass&class=ComboBoxItem",
       "waitfor:id=fst.paths.empty@15",
+      "assertstate:id=fst.paths.instrument.compact|value=Bass@5",
       "expand:id=fst.paths.instrument.compact",
-      "waitfor:name=Lead@5",
-      "select:name=Lead",
+      "waitfor:name=Lead&class=ComboBoxItem@5",
+      "select:name=Lead&class=ComboBoxItem",
       "waitfor:id=fst.paths.image@15",
       "waitfor:name=Lead Expert CHOpt path@5",
+      "assertstate:id=fst.paths.instrument.compact|value=Lead@5",
       "wait:1",
       "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
     "teardown": [
       "key:esc"
-    ]
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "skip_sizes": {
+      "scale-150": [
+        "snap-left"
+      ]
+    }
   },
   {
     "name": "paths-difficulty-switch",
@@ -289,6 +322,11 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
     ]
   },
   {
@@ -307,6 +345,10 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "wide",
+      "maximized"
     ]
   },
   {
@@ -326,6 +368,10 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "wide",
+      "maximized"
     ]
   },
   {
@@ -345,6 +391,10 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "wide",
+      "maximized"
     ]
   },
   {
@@ -365,6 +415,10 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "wide",
+      "maximized"
     ]
   },
   {
@@ -388,6 +442,10 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "wide",
+      "maximized"
     ]
   },
   {
@@ -408,6 +466,10 @@
     ],
     "teardown": [
       "key:esc"
+    ],
+    "sizes": [
+      "wide",
+      "maximized"
     ]
   },
   {
@@ -694,7 +756,12 @@
     ],
     "teardown": [
       "key:esc"
-    ]
+    ],
+    "skip_sizes": {
+      "scale-150": [
+        "snap-left"
+      ]
+    }
   },
   {
     "name": "paths-focus-order-text",
@@ -729,7 +796,12 @@
     ],
     "teardown": [
       "key:esc"
-    ]
+    ],
+    "skip_sizes": {
+      "scale-150": [
+        "snap-left"
+      ]
+    }
   },
   {
     "name": "paths-focus-order-wide",
@@ -808,6 +880,198 @@
     "sizes": [
       "wide",
       "maximized"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-instrument-keyboard",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "listen:announcements",
+      "focus:id=fst.paths.instrument.compact",
+      "assertfocus:id=fst.paths.instrument.compact",
+      "assertstate:id=fst.paths.instrument.compact|value=Lead@5",
+      "key:alt+down",
+      "wait:0.5",
+      "key:down",
+      "key:enter",
+      "assertannounced:Loading Bass Expert path@5",
+      "waitfor:id=fst.paths.empty@15",
+      "assertannounced:No path has been generated for this instrument and difficulty yet.@5",
+      "assertstate:id=fst.paths.instrument.compact|value=Bass@5",
+      "assertfocus:id=fst.paths.instrument.compact",
+      "key:alt+down",
+      "wait:0.5",
+      "key:up",
+      "key:enter",
+      "assertannounced:Loading Lead Expert path@5",
+      "waitfor:name=Lead Expert CHOpt path@15",
+      "assertannounced:Lead Expert path image loaded@5",
+      "assertstate:id=fst.paths.instrument.compact|value=Lead@5",
+      "assertfocus:id=fst.paths.instrument.compact"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "teardown": [
+      "key:esc"
+    ],
+    "skip_sizes": {
+      "scale-150": [
+        "snap-left"
+      ]
+    }
+  },
+  {
+    "name": "paths-instrument-hidden",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": false,
+      "visibleInstruments": [
+        "Lead",
+        "Drums"
+      ]
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitgone:id=fst.paths.warning@1",
+      "waitfor:id=fst.paths.image@15",
+      "assertstate:id=fst.paths.instrument.compact|value=Lead@5",
+      "expand:id=fst.paths.instrument.compact",
+      "waitfor:name=Drums&class=ComboBoxItem@5",
+      "waitgone:name=Bass&class=ComboBoxItem@1",
+      "waitgone:name=Vocals&class=ComboBoxItem@1",
+      "select:name=Drums&class=ComboBoxItem",
+      "waitfor:id=fst.paths.empty@15",
+      "assertstate:id=fst.paths.instrument.compact|value=Drums@5",
+      "wait:1"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "teardown": [
+      "key:esc"
+    ],
+    "skip_sizes": {
+      "scale-150": [
+        "snap-left"
+      ]
+    }
+  },
+  {
+    "name": "paths-instrument-hidden-wide",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": false,
+      "visibleInstruments": [
+        "Lead",
+        "Drums"
+      ]
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitgone:id=fst.paths.warning@1",
+      "waitfor:id=fst.paths.image@15",
+      "waitfor:id=fst.paths.instrument.Solo_Drums@5",
+      "waitgone:id=fst.paths.instrument.Solo_Bass@1",
+      "waitgone:id=fst.paths.instrument.Solo_Vocals@1",
+      "toggle:id=fst.paths.instrument.Solo_Drums",
+      "waitfor:id=fst.paths.empty@15",
+      "assertstate:id=fst.paths.instrument.Solo_Drums|toggle=on@5",
+      "wait:1"
+    ],
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-selectors-one-line",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "assertlevel:id=fst.paths.instrument.compact|id=fst.paths.difficulty.compact",
+      "assertlevel:id=fst.paths.difficulty.compact|id=fst.paths.display.compact",
+      "expand:id=fst.paths.instrument.compact",
+      "waitfor:name=Drums&class=ComboBoxItem@5",
+      "select:name=Drums&class=ComboBoxItem",
+      "waitfor:id=fst.paths.empty@15",
+      "assertlevel:id=fst.paths.instrument.compact|id=fst.paths.difficulty.compact"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left"
+    ],
+    "skip_modes": [
+      "text-200"
+    ],
+    "skip_sizes": {
+      "scale-150": [
+        "snap-left"
+      ]
+    },
+    "teardown": [
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-selectors-reflow",
+    "route": "/songs/fixture-pulse",
+    "settings": {
+      "pathUnavailableWarningDismissed": true
+    },
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "assertbelow:id=fst.paths.difficulty.compact|id=fst.paths.instrument.compact",
+      "assertlevel:id=fst.paths.difficulty.compact|id=fst.paths.display.compact",
+      "focus:id=fst.paths.instrument.compact",
+      "key:tab",
+      "assertfocus:id=fst.paths.difficulty.compact",
+      "key:tab",
+      "assertfocus:id=fst.paths.display.compact",
+      "expand:id=fst.paths.instrument.compact",
+      "waitfor:name=Drums&class=ComboBoxItem@5",
+      "select:name=Drums&class=ComboBoxItem",
+      "waitfor:id=fst.paths.empty@15",
+      "assertbelow:id=fst.paths.difficulty.compact|id=fst.paths.instrument.compact",
+      "wait:1",
+      "shot:{stem}-reflow.png"
+    ],
+    "sizes": [
+      "compact"
+    ],
+    "modes": [
+      "text-200"
     ],
     "teardown": [
       "key:esc"

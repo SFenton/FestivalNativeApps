@@ -39,8 +39,7 @@ extension FestivalAPI {
     /// Request one page of the public per-band-size rankings board.
     ///
     /// `GET /api/rankings/bands/{bandType}?rankBy=&page=&pageSize=` is a pure,
-    /// keyless read (`FSTService/Api/RankingsEndpoints.cs:680`); it never
-    /// registers band activity the way `/api/bands/search`'s fallback can.
+    /// keyless read (`FSTService/Api/RankingsEndpoints.cs:680`).
     ///
     /// - Parameters:
     ///   - bandType: Band size being ranked.

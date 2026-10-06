@@ -47,6 +47,7 @@ class MockServiceTests(unittest.TestCase):
             "metadataEdge": False,
             "largeRankings": False,
             "largeCatalogue": False,
+            "longTitles": False,
             "serviceInfoDiscovery": False,
             "songLeaderboardPaging": False,
         })
@@ -248,6 +249,31 @@ class MockServiceTests(unittest.TestCase):
             large.server_close()
             thread.join(timeout=2)
 
+    def test_long_titles_mode_retitles_only_the_scrollable_song(self):
+        """`--long-titles` widens `fixture-pulse`'s title; its boards still scroll."""
+        with urlopen(self.base + "/api/songs") as response:
+            default = json.load(response)
+        server = FixtureServer(("127.0.0.1", 0), FixtureHandler, long_titles=True)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            with urlopen(base + "/api/songs") as response:
+                etag = response.headers["ETag"]
+                body = json.load(response)
+            self.assertNotEqual(etag, '"fst-fixture-songs-v1"')
+            titles = {song["songId"]: song["title"] for song in body["songs"]}
+            self.assertGreaterEqual(len(titles["fixture-pulse"]), 90)
+            for song in default["songs"]:
+                if song["songId"] != "fixture-pulse":
+                    self.assertEqual(titles[song["songId"]], song["title"])
+            with urlopen(base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25") as response:
+                self.assertGreaterEqual(len(json.load(response)["entries"]), 20)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
     def test_song_leaderboard_paging_mode_slows_later_pages_and_fails_the_last(self):
         """`--song-leaderboard-paging`: four Lead pages, later ones slow, page 4 fails (#316)."""
         from tools import mock_service
@@ -389,11 +415,23 @@ class MockServiceTests(unittest.TestCase):
             ("/api/account/search?q=Fi&limit=x", 400),
             ("/api/account/search?q=F&limit=10", 400),
             ("/api/account/search?q=Fi&q=other&limit=10", 400),
-            ("/api/bands/search?q=fixture", 404),
+            ("/api/bands/search?q=fixture", 400),
+            ("/api/bands/search?q=fixture&page=2&pageSize=10", 400),
+            ("/api/bands/search?q=f&page=1&pageSize=10", 400),
+            ("/api/bands/search?q=fixture&page=1&pageSize=0", 400),
+            ("/api/bands/search?q=busy&page=1&pageSize=10", 503),
         ):
             with self.subTest(route=route), self.assertRaises(HTTPError) as failure:
                 urlopen(self.base + route)
             self.assertEqual(failure.exception.code, expected)
+        with urlopen(self.base + "/api/bands/search?q=Syncing&page=1&pageSize=10") as response:
+            bands = json.load(response)
+        self.assertEqual([band["teamKey"] for band in bands["results"]], ["fixture-team-2"])
+        self.assertEqual(bands["results"][0]["members"][1]["displayName"], "Syncing Player")
+        with urlopen(self.base + "/api/bands/search?q=Fixture&page=1&pageSize=1") as response:
+            self.assertEqual(len(json.load(response)["results"]), 1)
+        with urlopen(self.base + "/api/bands/search?q=zzz&page=1&pageSize=10") as response:
+            self.assertEqual(json.load(response)["results"], [])
         for header in ("X-FST-Selected-Player", "X-FST-Selected-Band-Id", "X-API-Key"):
             with self.subTest(header=header), self.assertRaises(HTTPError) as failure:
                 urlopen(Request(

@@ -20,14 +20,11 @@ struct SoloLeaderboardScreen: View {
     @State private var lastRequest: RequestKey?
     /// First staggered reveal of this page finished; recycled rows then appear instantly.
     @State private var staggerSettled = false
-    /// The in-list song header's own geometry puts it under the bar (operator batch
-    /// 7.2, like Song Detail).
-    @State private var headerGeometryHidden = false
-    /// The List has scrolled past the header's resting bottom edge, which still holds
-    /// when a fling recycled the header's row before it reported itself hidden (#316).
-    @State private var headerScrolledPast = false
-    /// The header's resting edge, read by the scroll reader without a re-render.
-    @State private var headerEdge = HeaderEdge()
+    /// The song header has scrolled under the bar: the bar shows art, title and
+    /// instrument instead (operator batch 7.2, like Song Detail).
+    @State private var headerHidden = false
+    /// Laid-out height of the song header, for the scrolled-away threshold.
+    @State private var headerHeight: CGFloat = 0
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -52,6 +49,8 @@ struct SoloLeaderboardScreen: View {
     nonisolated private static let rowInset: CGFloat = 4
     /// Space between two rows, also kept above the pinned chrome (issue #293).
     nonisolated private static let rowGap: CGFloat = rowInset * 2
+    /// Space between the bar and the song header row.
+    nonisolated private static let headerTopInset: CGFloat = 20
     /// Scroll anchors of the song header and of the result area that replaces the rows
     /// while a page loads or after it failed.
     nonisolated private static let headerAnchor = "fst.song-leaderboard.header-anchor"
@@ -151,15 +150,12 @@ struct SoloLeaderboardScreen: View {
                             // The song header scrolls with the rows (no card behind it);
                             // once it passes under the bar the bar shows it instead.
                             scoreHeader(shownPayload)
-                                .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
+                                .listRowInsets(EdgeInsets(
+                                    top: Self.headerTopInset, leading: 16, bottom: 8, trailing: 16
+                                ))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .id(Self.headerAnchor)
-                                .onGeometryChange(for: CGFloat.self) { proxy in
-                                    proxy.frame(in: .scrollView).maxY
-                                } action: { maxY in
-                                    headerEdge.measure(maxY: maxY)
-                                }
                             if rows == nil {
                                 // A failed page's error, or nothing under the spinner,
                                 // in the rows' place below the header (song-leaderboard-
@@ -212,15 +208,12 @@ struct SoloLeaderboardScreen: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                             listHeight = height
                         }
-                        .onScrollEdgeReading({ [headerEdge] reading in
-                            headerEdge.offset = reading.offset
-                            return SongDetailPinnedTitlePolicy.isHeroHidden(
-                                scrolled: reading.offset,
-                                restingMaxY: headerEdge.restingMaxY(belowInset: reading.inset)
-                            )
-                        }, action: { scrolledPast in
-                            headerScrolledPast = scrolledPast
-                        })
+                        // Read from the List's offset (song-header R4): it recycles the
+                        // header's row as it leaves the screen, before the header could
+                        // report itself under the bar (#315, #316).
+                        .songHeaderScrollAway(headerBottom: Self.headerTopInset + headerHeight) {
+                            headerHidden = $0
+                        }
                         // A page change under a collapsed header starts the new page at
                         // its first row and keeps the header under the bar; otherwise
                         // it returns to the top (web `goToPage('paginate')`, #316).
@@ -304,11 +297,12 @@ struct SoloLeaderboardScreen: View {
         .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
-            SongLeaderboardPinnedTitle(
-                song: song, session: session, boardName: instrument.label,
-                idPrefix: "fst.song-leaderboard", headerHidden: headerHidden
-            )
             #if os(iOS)
+            // iOS and iPadOS: the Mac keeps its window title (song-header R4).
+            SongBarTitleToolbarItem(
+                song: song, session: session, caption: instrument.label, isShown: headerHidden,
+                identifier: "fst.song-leaderboard.pinned-title"
+            )
             if let shownPayload {
                 RankingsPagerToolbarContent(
                     page: page, totalPages: shownPayload.leaderboard.pageCount,
@@ -338,10 +332,6 @@ struct SoloLeaderboardScreen: View {
         if case let .loaded(payload) = state { return payload }
         return nil
     }
-
-    /// The song header is under the bar: the bar shows art, title and instrument
-    /// instead. Either signal suffices; both clear once the header is back in view.
-    private var headerHidden: Bool { headerGeometryHidden || headerScrolledPast }
 
     /// The current page's failure, nil while it loads or once it loaded.
     private var failedIssue: ServiceIssue? {
@@ -536,21 +526,28 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
-    /// Let the source-chart title and totals scroll above rows at large text sizes.
+    /// The song header: art beside the title, artist and instrument (with the entry
+    /// total), scrolling above rows so large text sizes keep a usable list.
+    ///
+    /// The title and artist fill the width beside the art on one marqueeing line each
+    /// (the shared ``SongHeaderRow``, issue #315: the title used to wrap beside empty
+    /// space).
     ///
     /// - Parameter payload: Current chart, including its optional totals disclosure.
-    /// - Returns: The shared song leaderboard header with the instrument's board line.
+    /// - Returns: The shared song header with the instrument's board line.
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
-        SongLeaderboardHeader(
-            song: song, session: session,
-            boardLine: SongLeaderboardBoardLine.text(
-                name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
-                showsTotals: payload.leaderboard.showLeaderboardEntryTotals
-            ),
-            idPrefix: "fst.song-leaderboard", hidden: $headerGeometryHidden
-        ) {
-            InstrumentIcon(instrument, size: 20)
+        SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
+            HStack(spacing: 6) {
+                InstrumentIcon(instrument, size: 20)
+                    .accessibilityHidden(true)
+                MarqueeText(SongLeaderboardBoardLine.text(
+                    name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
+                    showsTotals: payload.leaderboard.showLeaderboardEntryTotals
+                ))
+                .foregroundStyle(FestivalText.primary)
+            }
         }
+        .accessibilityIdentifier("fst.song-leaderboard.header")
     }
 
     /// Load a specific page and reject late responses from a previous selection.
@@ -599,37 +596,4 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
-}
-
-// MARK: - Header edge
-
-/// The Solo song header's bottom edge at the List's resting top and the latest scroll
-/// offset, shared with the scroll reader's transform. It is a reference so a re-measure
-/// reaches that transform (captured once on iOS 17 / macOS 14) without re-rendering the
-/// page on every scroll frame.
-private final class HeaderEdge {
-    /// The header's bottom edge in `.scrollView` space with the List at its resting top.
-    /// A List's `.scrollView` space starts at its frame, which runs under the bar, not
-    /// at the bar's lower edge as Song Detail's `ScrollView` does.
-    private var restingScrollViewMaxY: CGFloat?
-    /// Distance scrolled from the resting top, from the latest scroll reading.
-    var offset: CGFloat = 0
-
-    /// The header's resting bottom edge below the bar's lower edge.
-    ///
-    /// - Parameter inset: The List's top content inset (the bar), from the same reading.
-    /// - Returns: The edge, or nil before the header was measured.
-    func restingMaxY(belowInset inset: CGFloat) -> CGFloat? {
-        restingScrollViewMaxY.map { $0 - max(0, inset) }
-    }
-
-    /// Record the header's current bottom edge. Measured only at the resting top (or
-    /// once, when nothing is known yet), so a scroll reading that lags the geometry by a
-    /// frame cannot skew it.
-    ///
-    /// - Parameter maxY: The header's bottom edge in `.scrollView` space.
-    func measure(maxY: CGFloat) {
-        guard maxY.isFinite, restingScrollViewMaxY == nil || abs(offset) < 1 else { return }
-        restingScrollViewMaxY = maxY + offset
-    }
 }

@@ -81,8 +81,8 @@ struct SongBandLeaderboardContent: View {
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
     /// The page's measured width, for the footer's fitted columns.
     @State private var chartWidth: CGFloat = 0
-    /// The in-list song header has scrolled under the bar: show art, title and band
-    /// size in the bar instead, like the solo board (issue #317).
+    /// The song header has scrolled under the bar: show art, title and band size in the
+    /// bar instead, like the solo board (issues #315, #317).
     @State private var headerHidden = false
     /// Visible height of the scroll view, for the reload gate's spinner area.
     @State private var viewportHeight: CGFloat = 0
@@ -107,6 +107,10 @@ struct SongBandLeaderboardContent: View {
     nonisolated private static let headerAnchor = "fst.song-band-leaderboard.top"
     /// Scroll identity of the reload gate, where the rows start.
     nonisolated private static let rowsAnchor = "fst.song-band-leaderboard.rows"
+    /// Space between the bar and the song header, like the solo board's header row.
+    nonisolated private static let headerTopInset: CGFloat = 20
+    /// Space between the song header and the first card.
+    nonisolated private static let headerBottomGap: CGFloat = 12
 
     private struct RequestKey: Equatable {
         let bandType: BandType
@@ -197,8 +201,8 @@ struct SongBandLeaderboardContent: View {
                     // 20 pt below the bar and 12 pt above the first card, like the solo
                     // board's header row.
                     songHeader
-                        .padding(.top, 20)
-                        .padding(.bottom, 12)
+                        .padding(.top, Self.headerTopInset)
+                        .padding(.bottom, Self.headerBottomGap)
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                             headerHeight = height
                         }
@@ -218,6 +222,11 @@ struct SongBandLeaderboardContent: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, Self.rowGap)
+            }
+            // Read from the scroll offset, like the solo board's `List` (song-header R4):
+            // the header's bottom edge is its padded height less the gap under it.
+            .songHeaderScrollAway(headerBottom: max(0, headerHeight - Self.headerBottomGap)) {
+                headerHidden = $0
             }
             // Cards fade out above the pinned footer and pager like the solo board's
             // rows (issues #305, #306): a sibling pager under the scroll view cut them
@@ -270,10 +279,13 @@ struct SongBandLeaderboardContent: View {
         .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
-            SongLeaderboardPinnedTitle(
-                song: song, session: session, boardName: bandType.label,
-                idPrefix: "fst.song-band-leaderboard", headerHidden: headerHidden
+            // iOS and iPadOS: the Mac keeps its window title (song-header R4).
+            #if os(iOS)
+            SongBarTitleToolbarItem(
+                song: song, session: session, caption: bandType.label, isShown: headerHidden,
+                identifier: "fst.song-band-leaderboard.pinned-title"
             )
+            #endif
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
@@ -422,21 +434,22 @@ struct SongBandLeaderboardContent: View {
 
     // MARK: Song header
 
-    /// The shared song leaderboard header with the band size as its board line.
+    /// The shared song header (``SongHeaderRow``: title and artist on one full-width
+    /// marqueeing line each, issue #315) with the band size as its board line.
     ///
     /// The line names the band size chosen now, so it reads "Trios" the moment Trios is
     /// picked; the entry total joins only once a Trios page has answered (a Duos total
     /// never sits under "Trios").
     private var songHeader: some View {
         let loaded = shown.flatMap { $0.key.bandType == bandType ? $0.payload.leaderboard : nil }
-        return SongLeaderboardHeader(
-            song: song, session: session,
-            boardLine: SongLeaderboardBoardLine.text(
+        return SongHeaderRow(song: song, session: session) {
+            MarqueeText(SongLeaderboardBoardLine.text(
                 name: bandType.label, totalEntries: loaded?.totalEntries,
                 showsTotals: loaded?.showLeaderboardEntryTotals
-            ),
-            idPrefix: "fst.song-band-leaderboard", hidden: $headerHidden
-        )
+            ))
+            .foregroundStyle(FestivalText.primary)
+        }
+        .accessibilityIdentifier("fst.song-band-leaderboard.header")
     }
 
     // MARK: Gated rows
