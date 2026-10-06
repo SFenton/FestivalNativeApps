@@ -75,7 +75,7 @@ enum IPadAuditTextEvidence {
                 var x = fallbackX.map { min(max($0, window.minX + 20), window.maxX - 20) } ?? window.midX
                 // After a drag, follow the target by position: a lazy list drops and adds
                 // repeats as it scrolls, so the ordinal goes stale (Rival Detail's fourth
-                // "See All" became the third and was never found again).
+                // "View All" became the third and was never found again).
                 let index: Int?
                 if let last = lastTarget, !found.isEmpty {
                     let expected = last.frame.minY - last.moved
@@ -99,7 +99,7 @@ enum IPadAuditTextEvidence {
                 // drag that starts on a chart selects a bar instead of scrolling (Song
                 // Detail's score history under the leading pane's bar was never cleared).
                 // Split windows only: in one pane the trailing edge holds the scroll bar
-                // and page tools (a ⅓ window's Rival Detail "See All" was never reached).
+                // and page tools (a ⅓ window's Rival Detail "View All" was never reached).
                 if attempt % 2 == 1, area.topBars.count >= 2 {
                     let pane = area.topBars.first { $0.minX <= x && x <= $0.maxX } ?? window
                     x = pane.maxX - 12
