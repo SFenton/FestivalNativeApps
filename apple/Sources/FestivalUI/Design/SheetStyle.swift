@@ -145,9 +145,11 @@ public extension View {
 /// Colours for text actions inside Festival sheets.
 public enum FestivalSheetActionColor {
     /// Reset / Clear actions: red, as the operator asked for every filter and sort sheet,
-    /// but light enough (#FF6B66) to keep 4.5:1 contrast on the dark sheet surface
-    /// (`BrandTokens.statusRed` is a fill colour and fails as text).
-    public static let destructive = Color(.sRGB, red: 1.0, green: 107.0 / 255, blue: 102.0 / 255)
+    /// but light enough (#FF8C88) to keep 4.5:1 contrast on the sheet surface in every
+    /// mode (`BrandTokens.statusRed` is a fill colour and fails as text). #FF6B66 rendered
+    /// 4.33:1 under Increase Contrast, where the button platter is lighter (iPad audit,
+    /// Lane A11Y3); #FF8C88 gives about 5.4:1 there.
+    public static let destructive = Color(.sRGB, red: 1.0, green: 140.0 / 255, blue: 136.0 / 255)
 }
 
 /// The native Close button every Festival modal carries top-right (operator batch 7):

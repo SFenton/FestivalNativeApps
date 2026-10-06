@@ -1,6 +1,6 @@
 """Run tools/mock_service.py with a song title and artist too long for any song header (Windows UI tests, issue #315).
 
-The song-header-title pattern (``.agents/patterns/song-header-title.md``) draws the song title and its artist line
+The song-header pattern (``.agents/patterns/song-header.md``) draws the song title and its artist line
 on one line each, scrolling when they overflow and ellipsized when motion is off. The demo titles fit every header,
 so this wrapper renames ``fixture-pulse`` to :data:`LONG_TITLE` by :data:`LONG_ARTIST` in the served catalogue (with
 its own ETag). Every route that names the song (Song Detail, Song Leaderboard, Band Song Leaderboard, Player History)

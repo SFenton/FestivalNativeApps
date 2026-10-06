@@ -68,14 +68,18 @@ private struct ScrollEdgeReader<Value: Equatable>: ViewModifier {
                 .accessibilityHidden(true)
             }
         } else if #available(iOS 18.0, macOS 15.0, *) {
+            let relay = relay, action = action
             content.onScrollGeometryChange(for: Value.self) { geometry in
-                transform(.geometry(
+                let value = transform(.geometry(
                     contentOffsetY: geometry.contentOffset.y, topInset: geometry.contentInsets.top,
                     contentHeight: geometry.contentSize.height,
                     containerHeight: geometry.visibleRect.height,
                     bottomInset: geometry.contentInsets.bottom
                 ))
+                relay.reconcile(value, action: action)
+                return value
             } action: { _, value in
+                relay.last = value
                 action(value)
             }
         } else {
@@ -105,6 +109,33 @@ private final class ScrollEdgeReadingRelay {
     /// The last delivered value, so equal values are not re-delivered.
     var last: Any?
     private var lastReading: PlatformScrollObserver.Reading?
+    /// The newest value `onScrollGeometryChange` computed, awaiting ``reconcile(_:action:)``.
+    private var pending: Any?
+    private var reconciling = false
+
+    /// Delivers `value` on the next main-actor turn if `onScrollGeometryChange` has not
+    /// by then. It sometimes records a changed value without calling its action: a
+    /// scroll view that outlived a reload gate's content swap (Song Band's header stays
+    /// through reloads, issue #317) got its taller rows' 0 → 36 pt bottom fade value
+    /// recorded but never delivered, so the rows were cut hard at the pager until the
+    /// next change. A normal change is delivered by the action first, so this does
+    /// nothing then.
+    ///
+    /// - Parameters:
+    ///   - value: The value just computed for the scroll view's geometry.
+    ///   - action: The reader's action.
+    func reconcile<Value: Equatable>(_ value: Value, action: @escaping (Value) -> Void) {
+        pending = value
+        guard (last as? Value) != value, !reconciling else { return }
+        reconciling = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            reconciling = false
+            guard let value = pending as? Value, (last as? Value) != value else { return }
+            last = value
+            action(value)
+        }
+    }
 
     lazy var observer = PlatformScrollObserver { [weak self] reading in
         self?.lastReading = reading

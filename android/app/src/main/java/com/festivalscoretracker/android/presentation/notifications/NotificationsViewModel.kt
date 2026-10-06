@@ -35,16 +35,17 @@ data class NotificationRow(val presentation: NotificationPresentation, val unrea
     val id: String get() = presentation.id
 
     /**
-     * TalkBack text: unread state, title, message, flag and time. The flag pill is drawn
-     * without semantics (the row clears its children), so its name is spoken here and its
-     * meaning never depends on colour; the title's " · " reads as a pause.
+     * TalkBack text: unread state, title, message, flags and time. The flag pills are drawn
+     * without semantics (the row clears its children), so their names are spoken here (per
+     * chart on multi-chart rows) and their meaning never depends on colour; the title's " · "
+     * reads as a pause and statement paragraphs read as sentences.
      */
     val accessibleText: String
         get() = buildString {
             if (unread) append("Unread. ")
             append(presentation.title.replace(" · ", ", ")).append(". ")
-            append(presentation.message.trimEnd('.')).append(". ")
-            presentation.flag?.let { append(it).append(". ") }
+            append(presentation.message.replace("\n\n", " ").trimEnd('.')).append(". ")
+            presentation.spokenFlags.takeIf { it.isNotEmpty() }?.let { append(it.trimEnd('.')).append(". ") }
             append(timeText)
         }
 }

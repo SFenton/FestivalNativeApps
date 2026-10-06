@@ -28,8 +28,8 @@ final class RivalsJourneyTests: XCTestCase {
     // MARK: - Compete -> Rivals -> rival row -> All Rivals -> Rival Detail -> Rivalry
 
     /// A full drill-down: Compete tab, into the Rivals hub, "View All Rivals" on a
-    /// per-instrument section, a row in All Rivals, then "See All" on the first
-    /// (non-empty) rivalry category.
+    /// per-instrument section, a row in All Rivals, then the purple "View All"
+    /// below the first (non-empty) rivalry category (#321).
     @MainActor
     func testCompeteToRivalsToAllRivalsToDetailToRivalryDrillDown() throws {
         continueAfterFailure = false
@@ -64,11 +64,15 @@ final class RivalsJourneyTests: XCTestCase {
         let viewProfile = app.buttons["fst.rival-detail.view-profile"]
         XCTAssertTrue(viewProfile.waitForExistence(timeout: 15))
 
-        // "See All" on the first category (always "Closest Battles" when any
-        // shared songs exist) reaches Rivalry.
-        let seeAll = app.buttons["See All"].firstMatch
-        XCTAssertTrue(seeAll.waitForExistence(timeout: 10))
-        seeAll.tap()
+        // "View All" under the first category (always "Closest Battles" when any
+        // shared songs exist) reaches Rivalry; it speaks the label first, then the card.
+        let categoryViewAll = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "fst.rival-detail.category.", ".view-all"
+        )).firstMatch
+        XCTAssertTrue(categoryViewAll.waitForExistence(timeout: 10))
+        XCTAssertTrue(categoryViewAll.label.hasPrefix("View All, "))
+        XCTAssertFalse(app.buttons["See All"].exists)
+        categoryViewAll.tap()
         XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15))
     }
 

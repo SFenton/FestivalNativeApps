@@ -10,7 +10,7 @@ import FestivalCore
 /// player it shows that player's own profile, the Statistics page, like the drawer
 /// and sidebar footers. Explicit "Select/Switch Profile" commands and in-page "Choose
 /// Profile" buttons keep opening the search sheet; only the avatar routes here.
-/// Natives cannot select a band yet (band search is blocked), so there is no band case.
+/// Natives cannot select a band as the profile yet, so there is no band case.
 enum ProfileButtonAction: Equatable {
     /// No profile is selected: present the profile search sheet.
     case chooseProfile

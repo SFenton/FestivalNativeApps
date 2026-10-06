@@ -20,7 +20,7 @@ enum MacCopyPolicy {
         case let .songDetail(song), let .songLeaderboard(song, _, _, _),
              let .songBandLeaderboard(song, _, _, _), let .playerHistory(song, _):
             text = song.title
-        case let .player(_, name), let .playerBands(_, name):
+        case let .player(_, name), let .playerBands(_, name, _):
             text = name
         case let .band(_, name, _, _):
             text = name

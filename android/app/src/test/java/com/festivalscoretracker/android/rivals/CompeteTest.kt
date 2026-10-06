@@ -13,8 +13,10 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -372,6 +374,41 @@ class CompeteUiTest {
         assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
     }
 
+    @Test
+    fun spinnersGiveWayToEmptyCopyAndRivalsErrors() {
+        val gate = CompletableDeferred<Unit>()
+        // Drums has no ranked accounts and no rivals (empty copy in both cards); Bass rivals fail (inline error).
+        transport.onRaw("/api/rankings/Solo_Drums") {
+            HttpResult(200, RankingsFixtures.rankings("Solo_Drums", "totalscore", 1, 10, total = 0).toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
+        }
+        transport.onRaw("/api/rankings/Solo_Drums/${CompeteFixtures.PLAYER}") { HttpResult(404, "{}".toByteArray()) }
+        transport.on("/api/player/${CompeteFixtures.PLAYER}/rivals/Solo_Drums") { RivalsFixtures.list("Solo_Drums", emptyList(), emptyList()) }
+        transport.beforeRespond = { request ->
+            val path = request.url.substringBefore('?')
+            if ("/api/rankings" in path || "/rivals/" in path) gate.await()
+            if (path.endsWith("/rivals/Solo_Bass")) throw IOException("offline")
+        }
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        awaitInCard("fst.compete.leaderboard-card.Solo_Drums", hasTestTag("fst.compete.leaderboard-card.Solo_Drums.loading"))
+        rule.onNodeWithContentDescription("Loading Drums leaderboard")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.compete.rivals-card.Solo_Bass.loading"))
+        rule.onNodeWithContentDescription("Loading Bass rivals")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        awaitInCard("fst.compete.rivals-card.Solo_Drums", hasTestTag("fst.compete.rivals-card.Solo_Drums.loading"))
+        rule.onNodeWithContentDescription("Loading Drums rivals")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ProgressBarRangeInfo, ProgressBarRangeInfo.Indeterminate))
+        assertTrue(rule.onAllNodesWithText(CompeteText.noRivals("Drums")).fetchSemanticsNodes().isEmpty())
+
+        gate.complete(Unit)
+        awaitInCard("fst.compete.leaderboard-card.Solo_Drums", hasText(CompeteText.noRankings("Drums")))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.leaderboard-card.Solo_Drums.loading").fetchSemanticsNodes().isEmpty())
+        awaitInCard("fst.compete.rivals-card.Solo_Drums", hasText(CompeteText.noRivals("Drums")))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Drums.loading").fetchSemanticsNodes().isEmpty())
+        awaitInCard("fst.compete.rivals-card.Solo_Bass", hasTestTag("fst.service-status.inline"))
+        assertTrue(rule.onAllNodesWithTag("fst.compete.rivals-card.Solo_Bass.loading").fetchSemanticsNodes().isEmpty())
+    }
+
     /** Scrolls the lazy Compete grid to [cardTag] until a descendant matching [child] is composed. */
     private fun awaitInCard(cardTag: String, child: SemanticsMatcher) {
         val matcher = child.and(hasAnyAncestor(hasTestTag(cardTag)))
@@ -420,6 +457,93 @@ class CompeteUiTest {
         assertTrue("Opening the full board reads only its own page", readsAway >= readsBefore)
         // Kept on the back stack, the grid comes back already laid out at the scroll position it had.
         assertTrue("Compete moved on return: $before -> ${positions.distinct()}", positions.all { it == before })
+    }
+
+    /**
+     * Web `CompetePage` has no Leaderboards Overview link (issue #66, revalidated in #174): Quick
+     * Links list only the two groups, no Compete card names an overview, and each
+     * single-instrument board's View Full Leaderboards opens that instrument's Full Rankings.
+     * Combo boards offer no full-board path.
+     */
+    @Test
+    fun competeHasNoOverviewButtonAndEachBoardOpensItsFullRankings() {
+        launch(DebugLaunch(section = FestivalSection.Compete, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        waitForTag("fst.compete.leaderboard-card.0f")
+        val overview = SemanticsMatcher("names an overview") { node ->
+            val config = node.config
+            val words = config.getOrElse(SemanticsProperties.Text) { emptyList() }.map { it.text } +
+                config.getOrElse(SemanticsProperties.ContentDescription) { emptyList() } +
+                config.getOrElse(SemanticsProperties.TestTag) { "" }
+            words.any { it.contains("overview", ignoreCase = true) }
+        }
+        fun assertNoOverview(where: String) =
+            assertTrue("Overview control on Compete ($where)", rule.onAllNodes(overview, useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+
+        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.quick-links.item.leaderboards")
+        val quickLinkItems = rule.onAllNodes(SemanticsMatcher("quick link item") { node ->
+            node.config.getOrElse(SemanticsProperties.TestTag) { "" }.startsWith("fst.quick-links.item.")
+        }).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }.toSet()
+        assertEquals(setOf("fst.quick-links.item.leaderboards", "fst.quick-links.item.rivals"), quickLinkItems)
+        assertNoOverview("Quick Links")
+        rule.onNodeWithTag("fst.quick-links.item.leaderboards").performSemanticsAction(SemanticsActions.OnClick)
+        repeat(5) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+
+        CompeteScopes.resolve(Instrument.entries).forEach { scope ->
+            val card = "fst.compete.leaderboard-card.${scope.key}"
+            val button = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag(card)))
+            val single = (scope as? CompeteScope.Single)?.instrument
+            if (single == null) {
+                // Combo boards stay previews: no native full combo board yet.
+                rule.waitUntil(10_000) {
+                    shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50))
+                    rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag(card))
+                    rule.onAllNodesWithTag("$card.loading").fetchSemanticsNodes().isEmpty()
+                }
+                assertNoOverview(scope.key)
+                assertTrue("${scope.key} offers a full board", rule.onAllNodes(button).fetchSemanticsNodes().isEmpty())
+                assertTrue("${scope.key} offers See All", rule.onAllNodesWithTag("fst.compete.board.see-all.${scope.key}").fetchSemanticsNodes().isEmpty())
+                return@forEach
+            }
+            awaitInCard(card, button)
+            rule.onNodeWithTag("fst.compete.grid").performScrollToNode(button)
+            assertNoOverview(scope.key)
+            rule.onNode(button).performSemanticsAction(SemanticsActions.OnClick)
+            waitForTag("fst.full-rankings.title-icon.${single.wireId}")
+            rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+            waitForTag("fst.compete.grid")
+        }
+
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.section.rivals"))
+        CompeteScopes.resolve(Instrument.entries).forEach { scope ->
+            rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.rivals-card.${scope.key}"))
+            assertNoOverview("rivals ${scope.key}")
+        }
+    }
+
+    @Test
+    fun viewAllRivalsMatchesViewFullLeaderboardsAndOpensTheList() {
+        launch(DebugLaunch(route = CompeteRoute, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true))
+        val boardButton = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag("fst.compete.leaderboard-card.Solo_Guitar")))
+        awaitInCard("fst.compete.leaderboard-card.Solo_Guitar", boardButton)
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(boardButton)
+        val board = rule.onNode(boardButton).fetchSemanticsNode()
+        // Read now: the board card leaves composition once the grid scrolls to the rivals card.
+        val boardSize = board.size
+        val boardLeft = board.boundsInRoot.left
+        // Issues #68/#176: Compete's View All Rivals is the same shared button as View Full Leaderboards.
+        val rivalsButton = hasTestTag("fst.rivals.view-all").and(hasAnyAncestor(hasTestTag("fst.compete.rivals-card.Solo_Guitar")))
+        awaitInCard("fst.compete.rivals-card.Solo_Guitar", rivalsButton)
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(rivalsButton)
+        val rivals = rule.onNode(rivalsButton).fetchSemanticsNode()
+        assertEquals(boardSize, rivals.size)
+        assertEquals(boardLeft, rivals.boundsInRoot.left)
+        assertEquals(androidx.compose.ui.semantics.Role.Button, rivals.config[SemanticsProperties.Role])
+        // view-all-cta R4: both CTAs read their label, then the card.
+        assertEquals(listOf("View All Rivals, Lead"), rivals.config[SemanticsProperties.ContentDescription])
+        assertEquals(listOf("View Full Leaderboards, Lead"), board.config[SemanticsProperties.ContentDescription])
+        rule.onNode(rivalsButton).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
     }
 
     @Test

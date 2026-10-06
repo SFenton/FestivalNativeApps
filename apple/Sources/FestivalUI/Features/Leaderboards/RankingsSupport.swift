@@ -41,6 +41,9 @@ struct AccountRankingRow: View {
     /// Draw the row as its own material card (Leaderboards, Full Rankings). Off where
     /// the row already sits inside a card (Compete previews): no card in a card.
     var cardSurface: Bool = false
+    /// Wrap the row in its profile link. Off for a board's pinned footer, whose caller
+    /// wraps the row in the selected-row action instead (``SelectedRowAction``, #318).
+    var opensProfile: Bool = true
 
     private var displayName: String { Self.displayName(entry) }
 
@@ -77,7 +80,10 @@ struct AccountRankingRow: View {
 
     var body: some View {
         Group {
-            if entry.hasAccount {
+            if !opensProfile {
+                // The caller's button or link is the row's action.
+                rowContent
+            } else if entry.hasAccount {
                 ListDetailLink(
                     value: AppRoute.player(accountId: entry.accountId, displayName: entry.displayName)
                 ) {
@@ -97,7 +103,7 @@ struct AccountRankingRow: View {
                     .accessibilityHint("Profile unavailable")
             }
         }
-        .accessibilityIdentifier("fst.rankings.row.\(entry.id)")
+        .accessibilityIdentifier(opensProfile ? "fst.rankings.row.\(entry.id)" : "fst.rankings.footer-row.\(entry.id)")
         .modifier(SelectedRankAccessibilityLabel(
             isSelected: isSelected, rank: entry.rank(for: metric), name: displayName
         ))
@@ -702,6 +708,13 @@ extension View {
 /// The `page / total` badge is one adjustable VoiceOver element ("Page, 2 of 48"):
 /// swipe up/down to page, as the floating pager allows.
 ///
+/// The arrows and badge sit on the rows' own card surface (``View/festivalCardCapsule()``,
+/// ``View/festivalCard(cornerRadius:)``), like the web `Paginator`'s `frostedCard`
+/// arrows (surface-materials R1, issue #319): same fill, translucency, rim and opaque
+/// Reduce Transparency / Increase Contrast fallback. Rows never draw beneath the pager
+/// (``View/bottomChromeFade(chromeTop:distance:in:legacyScrollTracking:)``), so no
+/// row text sits under its glyphs.
+///
 /// On the iPhone Duo vertical bar this footer alone ran ≈150 of 678 pt (B2,
 /// `.agents/design/apple/duo.md`), so it renders nothing there: the caller also adds
 /// ``RankingsPagerToolbarContent`` to its own `.toolbar { … }`, which shows the same
@@ -735,7 +748,9 @@ struct RankingsPagerView: View {
                     .minimumScaleFactor(0.7)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 44)
-                    .modifier(PagerPlate(cornerRadius: 12))
+                    // The row card itself (12 pt corners like the rows), not a capsule:
+                    // the badge's whole accessibility frame stays on the card (issue #319).
+                    .festivalCard(cornerRadius: 12)
                     .accessibilityElement()
                     .accessibilityLabel("Page")
                     .accessibilityValue(pagerState.accessibilityValue)
@@ -782,28 +797,13 @@ struct RankingsPagerView: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
                 .frame(width: 44, height: 44)
-                .modifier(PagerPlate(cornerRadius: 22))
+                .festivalCardCapsule()
                 .contentShape(Circle())
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)
         .accessibilityLabel(label)
         .accessibilityIdentifier("\(idPrefix).\(id)")
-    }
-}
-
-/// Near-opaque frosted plate (web `frostedCard`) behind the pager's arrows and badge:
-/// rows scroll beneath them, and see-through glass there failed the contrast audit.
-private struct PagerPlate: ViewModifier {
-    /// 22 for the 44 pt arrow circles; the badge uses a rounded rectangle so its whole
-    /// accessibility frame is opaque (capsule corners showed rows through, audit).
-    let cornerRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        content
-            .background(BrandTokens.cardBackground, in: shape)
-            .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
     }
 }
 

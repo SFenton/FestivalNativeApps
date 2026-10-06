@@ -30,7 +30,7 @@
                 <TextBlock Text="{x:Bind ViewModel.Title}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="NoWrap"
                            TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level1"
                            AutomationProperties.AutomationId="fst.history" />
-                <!-- "Song · Lead": one line, scrolling when the song title overflows (song-header-title R1, issue #315). -->
+                <!-- "Song · Lead": one line, scrolling when the song title overflows (song-header R2, issue #315). -->
                 <controls:MarqueeText Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
                                       AutomationProperties.AutomationId="fst.history.subtitle" />
             </StackPanel>

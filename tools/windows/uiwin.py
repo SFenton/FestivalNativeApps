@@ -101,13 +101,15 @@ STEP_VERBS = {
     "toggle": "selector", "select": "selector", "expand": "selector",
     "collapse": "selector", "focus": "selector", "reveal": "selector", "waitfor": "selector", "waitgone": "selector",
     "scrollinto": "selector",
-    "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
+    "type": "text", "key": "keys", "keys": "keyseq", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
-    "assertpinned": "selector", "foreground": "onoff", "assertmarquee": "marquee",
+    "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
+    "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
+    "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
+    "assertannouncedcount": "announcedcount", "assertmarquee": "marquee",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -193,8 +195,8 @@ def parse_step(step: str) -> dict:
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
     Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
     stepping its scroller from the top), with no input, so both work while the console is locked;
-    ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text
-    (``|*<text>``: until it ends with the text, for names that start with a local-time date);
+    ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
+    any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
@@ -205,10 +207,19 @@ def parse_step(step: str) -> dict:
     ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
     element's top edge sits ``<epx>`` (more than 0) effective pixels below the scroller's top within 1 epx: a fixed,
     unclipped list position for scans (a clipped element's UIA top reads as the viewport edge, so a 0 inset proves nothing).
+    ``markspan:<sel>|<sel>|<name>`` records the distance from the first element's top edge to the second's (epx)
+    under ``<name>`` and ``assertspan:<sel>|<sel>|<name>`` fails unless that distance is unchanged within 1 epx
+    in the same drive (a card that must keep its height across a transition, measured top to top so scrolling
+    doesn't matter).
+    ``film:<dir>`` starts a background ``PrintWindow`` capture (frames scaled to at most 1280 px, up to 300) while
+    the following steps run, and ``filmstop:<dir>`` ends it and writes ``f0000.jpg``… and ``frames.json`` (each
+    frame's offset in ms) to ``<dir>``: motion evidence for a short transition such as a fade.
+    ``keys:<chord> <chord>…`` presses space-separated chords (``key:`` syntax) back to back without the per-step
+    pause, e.g. ``keys:left space left space`` for several picks inside one ~400 ms transition.
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
-    ``not-visible`` or ``=background`` is read without bringing the window to the front);
+    ``not-visible``, ``=background`` or ``pulse=held`` is read without bringing the window to the front);
     ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
     visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
     both send ``WM_ACTIVATE`` instead);
@@ -220,7 +231,12 @@ def parse_step(step: str) -> dict:
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
     and its pixels change across three captures 1.2 s apart (a scrolling marquee), and ``assertmarquee:<sel>|static|<epx>``
-    unless it is one line, unchanged across the captures and ends in an ellipsis (song headers, issue #315).
+    unless it is one line, unchanged across the captures and ends in an ellipsis (song headers, issue #315);
+    ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
+    announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
+    (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
+    ``assertannouncedcount:<n>|<text>`` fails unless exactly ``<n>`` recorded announcements match ``<text>`` so far
+    (no wait), e.g. a value announced once and not repeated on later reads.
 
     Args:
         step: A step string.
@@ -268,6 +284,15 @@ def parse_step(step: str) -> dict:
         result["epx"] = float(epx)
         if verb == "scrollinset" and result["epx"] <= 0:
             raise ValueError(f"scrollinset needs a positive inset (a clipped top reads as 0), not {epx!r}")
+    elif shape == "span":
+        first, sep, rest = arg.partition("|")
+        second, sep2, name = rest.rpartition("|")
+        if not sep or not sep2 or not re.fullmatch(r"[A-Za-z0-9_.-]+", name.strip()):
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<selector>|<name>")
+        result["selector"], result["other"] = parse_selector(first), parse_selector(second)
+        if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
+        result["name"] = name.strip()
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")
@@ -315,6 +340,8 @@ def parse_step(step: str) -> dict:
             raise ValueError(f"{verb} needs an element selector, not coordinates")
     elif shape == "keys":
         result["vk"] = parse_keys(arg)
+    elif shape == "keyseq":
+        result["seq"] = [parse_keys(chord) for chord in arg.split()]
     elif shape == "scroll":
         target, _, amount = arg.rpartition(",")
         if target:
@@ -339,6 +366,22 @@ def parse_step(step: str) -> dict:
         if arg.lower() not in ("on", "off"):
             raise ValueError(f"bad {verb} {arg!r}; use on or off")
         result["arg"] = arg.lower()
+    elif shape == "listen":
+        if arg.lower() != "announcements":
+            raise ValueError(f"bad listen {arg!r}; use listen:announcements")
+        result["arg"] = "announcements"
+    elif shape == "announced":
+        text, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        if not text.strip():
+            raise ValueError(f"bad assertannounced {arg!r}; use <text>[@<seconds>]")
+        result["text"] = text.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "announcedcount":
+        count, _, text = arg.partition("|")
+        if not re.fullmatch(r"\d+", count.strip()) or not text.strip():
+            raise ValueError(f"bad assertannouncedcount {arg!r}; use <count>|<text>")
+        result["count"], result["text"] = int(count), text.strip()
     elif shape == "path" and verb == "shot" and arg.endswith("@screen"):
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":

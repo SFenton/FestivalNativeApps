@@ -26,7 +26,7 @@
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                 <TextBlock x:Name="TitleText" Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="WrapWholeWords"
                            AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-band-leaderboard.title" />
-                <!-- Song title link and artist line: one line each, scrolling when they overflow (song-header-title R1,
+                <!-- Song title link and artist line: one line each, scrolling when they overflow (song-header R2,
                      issue #315). The link is named by the title; its marquee is Raw so Narrator reads the title once. -->
                 <HyperlinkButton Click="OnSongTitle" Padding="0" HorizontalContentAlignment="Stretch"
                                  AutomationProperties.Name="{x:Bind ViewModel.SongTitle, Mode=OneWay}"

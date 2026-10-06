@@ -285,8 +285,8 @@ public static class ServiceInfoText
     /// <summary>No publication yet.</summary>
     public const string PublicationUnavailable = "No successful publication yet";
 
-    /// <summary>Unknown-total caption.</summary>
-    public const string ProgressIndeterminate = "In progress — total not yet known";
+    /// <summary>Spoken progress when the total is unknown (web <c>progressUnknownTotal</c>, the bar's <c>aria-valuetext</c>).</summary>
+    public const string ProgressUnknownTotal = "Total not yet known";
 
     /// <summary>Title Case state label.</summary>
     /// <param name="state">State.</param>
@@ -404,13 +404,13 @@ public static class ServiceInfoText
             : $"{head}{completed} completed";
     }
 
-    /// <summary>Percent text for a determinate bar, else the indeterminate sentence.</summary>
+    /// <summary>Spoken progress (web <c>aria-valuetext</c> part): percent for a determinate bar, else "Total not yet known".</summary>
     /// <param name="progress">Bar.</param>
-    /// <returns>"42.5%" or the indeterminate caption.</returns>
+    /// <returns>"42.5%" or <see cref="ProgressUnknownTotal"/>.</returns>
     public static string ProgressText(ServiceBarProgress? progress) =>
         progress is { Kind: ServiceBarKind.Exact, Percent: { } percent }
             ? percent.ToString("0.0", CultureInfo.InvariantCulture) + "%"
-            : ProgressIndeterminate;
+            : ProgressUnknownTotal;
 
     /// <summary>Last successful publication time, e.g. "Sep 28, 2026, 3:04 PM PDT".</summary>
     /// <param name="info">Body.</param>

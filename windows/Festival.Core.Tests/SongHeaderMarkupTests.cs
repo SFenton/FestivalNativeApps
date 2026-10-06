@@ -3,7 +3,7 @@ using System.Xml.Linq;
 namespace Festival.Core.Tests;
 
 /// <summary>
-/// Guards issue #315 (pattern <c>song-header-title</c>) in markup: every song header draws the song title and its artist
+/// Guards issue #315 (pattern <c>song-header</c>) in markup: every song header draws the song title and its artist
 /// line with the shared <c>Controls/MarqueeText</c> (one line across the column, scrolling only when it overflows,
 /// ellipsized when motion is off) instead of a wrapping or clipping <c>TextBlock</c>, like the web <c>SongInfoHeader</c>.
 /// </summary>
