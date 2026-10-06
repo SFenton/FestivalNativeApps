@@ -1145,7 +1145,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1185,6 +1185,10 @@
         {
           "path": "hooks/chart/useListAnimation.ts",
           "symbol": "useListAnimation"
+        },
+        {
+          "path": "hooks/ui/useStaggerRush.ts",
+          "symbol": "useStaggerRush"
         }
       ],
       "canonical": {
@@ -1250,6 +1254,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/GraphCardList.kt",
             "symbol": "GraphCardList"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FadeInOnLoad.kt",
+            "symbol": "FadeInWindow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/SelectedRowRevealEffect.kt",
+            "symbol": "awaitSelectedRowEntrance"
           }
         ],
         "windows": [

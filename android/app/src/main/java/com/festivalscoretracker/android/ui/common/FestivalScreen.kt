@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -143,6 +144,10 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param marqueeTitle The title is a song title pinned once the page's song header scrolls away:
  *   it scrolls through the bar's available width when it overflows ([FestivalMarqueeText], one
  *   line at every text size) instead of tail-truncating (`song-header` R3, issue #315).
+ * @param fadeInWindow The page's fade window ([rememberPageFadeInWindow]), provided to [content]
+ *   as [LocalFadeInWindow] and rushed when the content scrolls (load-transition R5, issue #323).
+ *   Pass one created in the page body when the body itself scrolls (a selected-row reveal,
+ *   Quick Links); by default the screen creates its own.
  * @param content Content given padding that clears the top bar and bottom chrome.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -157,9 +162,12 @@ fun FestivalScreen(
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
     marqueeTitle: Boolean = false,
+    fadeInWindow: FadeInWindow? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val shell = LocalShellActions.current
+    val ownFadeInWindow = rememberPageFadeInWindow()
+    val pageFadeIn = fadeInWindow ?: ownFadeInWindow
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     // Page actions move to a ⋮ overflow menu when the title would truncate at this pane width
     // (a list pane can be far narrower than the window), and return once the pane is wider.
@@ -277,16 +285,19 @@ fun FestivalScreen(
                 .padding(top = inner.calculateTopPadding())
                 .fitInside(WindowInsetsRulers.DisplayCutout.current)
                 .clipToBounds()
+                .fadeInRushOnScroll(pageFadeIn)
                 .testTag("fst.nav.content"),
         ) {
-            content(
-                PaddingValues(
-                    start = inner.calculateStartPadding(direction) + bottom.calculateStartPadding(direction),
-                    top = 0.dp,
-                    end = inner.calculateEndPadding(direction) + bottom.calculateEndPadding(direction),
-                    bottom = inner.calculateBottomPadding() + bottom.calculateBottomPadding(),
-                ),
-            )
+            CompositionLocalProvider(LocalFadeInWindow provides pageFadeIn) {
+                content(
+                    PaddingValues(
+                        start = inner.calculateStartPadding(direction) + bottom.calculateStartPadding(direction),
+                        top = 0.dp,
+                        end = inner.calculateEndPadding(direction) + bottom.calculateEndPadding(direction),
+                        bottom = inner.calculateBottomPadding() + bottom.calculateBottomPadding(),
+                    ),
+                )
+            }
         }
     }
 }
