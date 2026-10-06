@@ -26,7 +26,10 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -207,6 +210,11 @@ class ServiceStatusUiTest {
         rule.onNodeWithTag("fst.service-status.retry").assert(hasText("Retry Now")).assertHeightIsAtLeast(48.dp).performClick()
         assertEquals(1, retries)
         rule.onNode(hasLiveRegion()).assertIsDisplayed()
+            .assert(hasAnyDescendant(hasTestTag("fst.service-status.title")))
+            .assert(hasAnyDescendant(hasText(ServiceIssue.ScrapeInProgress(30).message)))
+        // The ticking countdown and Retry sit outside the live region, so ticks never re-announce.
+        rule.onNodeWithTag("fst.service-status.countdown").assert(!hasAnyAncestor(hasLiveRegion()))
+        rule.onNodeWithTag("fst.service-status.retry").assert(!hasAnyAncestor(hasLiveRegion()))
     }
 
     @Test

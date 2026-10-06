@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.design
 
+import android.util.Log
+import android.view.View
+import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -19,6 +22,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.FontScale
@@ -46,10 +51,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The service status control's reachable states on a real device (issue #140): TalkBack's
- * linear order, the full page's polite live region, inline silence, 48 dp Retry, and at 200%
+ * linear order, the full page's polite live region (announced once: countdown ticks raise no
+ * live-region change), inline silence, 48 dp Retry, and at 200%
  * type every full-page part (title, countdown, Retry) scrolled fully between stand-in app bars
  * in the device's viewport and a landscape phone's ~220 dp one, plus an unclipped, stacked
  * inline row. Nothing crosses a half-open fold (`--posture half`). Run with `device.py test com.festivalscoretracker.android.design.ServiceStatusDeviceTest
@@ -101,6 +108,61 @@ class ServiceStatusDeviceTest {
             h.assertNothingStraddles("fst.service-status.title", "fst.service-status.countdown", "fst.service-status.retry")
         }
         h.assertAccessible()
+    }
+
+    /**
+     * TalkBack speaks a live region when it gets a content-changed event from that region or a
+     * node inside it. The page must announce a new status once, and never again for a countdown
+     * tick: the ticks below must raise no such event, while switching to another status (the
+     * positive control) still does.
+     */
+    @Test
+    fun countdownTicksDoNotReannounceButANewStatusDoes() {
+        var issue by mutableStateOf<ServiceIssue>(ServiceIssue.ScrapeInProgress(30))
+        var countdown by mutableStateOf<Int?>(30)
+        lateinit var root: ViewRootForTest
+        rule.setContent {
+            root = LocalView.current as ViewRootForTest
+            FestivalTheme {
+                Box(Modifier.fillMaxSize().background(BrandTokens.appBackground)) {
+                    ServiceStatusView(issue, fallback, countdown, onRetry = {}, modifier = Modifier.safeDrawingPadding())
+                }
+            }
+        }
+        h.waitForTag("fst.service-status.countdown")
+        awaitLabel(countdownLabel(30))
+        // Compose sends semantic change events only to real services (not UiAutomation) unless forced.
+        rule.runOnUiThread { root.forceAccessibilityForTesting(true) }
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val announced = CopyOnWriteArrayList<String>()
+        val changed = CopyOnWriteArrayList<String>()
+        automation.setOnAccessibilityEventListener { event ->
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                event.source?.let { source ->
+                    val label = "${source.contentDescription ?: source.text}"
+                    changed += label
+                    if (insideLiveRegion(source)) announced += label
+                }
+            }
+        }
+        try {
+            listOf(29, 28, 27).forEach { seconds ->
+                countdown = seconds
+                awaitLabel(countdownLabel(seconds))
+                // Compose batches content-changed events (~100 ms); give late ones time to land.
+                Thread.sleep(600)
+            }
+            Log.i("FST_A11Y", "service-status countdown ticks, changes: $changed, live: $announced")
+            assertTrue("the ticks reach accessibility services: $changed", changed.any { it.startsWith("Trying again automatically in 2") })
+            assertTrue("countdown ticks re-announce the live region: $announced", announced.isEmpty())
+            issue = ServiceIssue.Offline
+            countdown = null
+            rule.waitUntil(5_000) { announced.isNotEmpty() }
+            Log.i("FST_A11Y", "service-status new status, live events: $announced")
+        } finally {
+            automation.setOnAccessibilityEventListener(null)
+            rule.runOnUiThread { root.forceAccessibilityForTesting(false) }
+        }
     }
 
     @Test
@@ -222,6 +284,23 @@ class ServiceStatusDeviceTest {
             from = at!! + 1
         }
     }
+
+    /**
+     * Waits until the window's accessibility tree shows a node labelled [label].
+     *
+     * @param label Content description or text.
+     */
+    private fun awaitLabel(label: String) =
+        rule.waitUntil(5_000) { nodes().any { "${it.contentDescription} ${it.text}".contains(label) } }
+
+    /**
+     * Whether [node] is a live region or sits inside one.
+     *
+     * @param node Event source.
+     * @return True when TalkBack would speak a change there.
+     */
+    private fun insideLiveRegion(node: AccessibilityNodeInfo): Boolean =
+        generateSequence(node) { it.parent }.take(64).any { it.liveRegion != View.ACCESSIBILITY_LIVE_REGION_NONE }
 
     /** Every visible node of the active window, depth-first. */
     private fun nodes(): List<AccessibilityNodeInfo> {

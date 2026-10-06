@@ -242,6 +242,10 @@ private fun rememberHingeSide(origin: Offset, width: Float, height: Float): Hing
 /**
  * The full page's column: icon (unless [compact]), heading, message, countdown and Retry.
  *
+ * Only the icon, heading and message form the polite live region, so TalkBack announces a new
+ * status once; the countdown and Retry are its non-live siblings, so a per-second tick (a
+ * content change inside a live region) never re-announces the page.
+ *
  * @param issue Classified failure.
  * @param fallbackTitle Screen's own "… unavailable" title.
  * @param countdown Seconds until the automatic retry.
@@ -250,20 +254,23 @@ private fun rememberHingeSide(origin: Offset, width: Float, height: Float): Hing
  */
 @Composable
 private fun ServiceStatusContent(issue: ServiceIssue, fallbackTitle: String, countdown: Int?, onRetry: () -> Unit, compact: Boolean) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
-        modifier = Modifier.semantics(mergeDescendants = false) { liveRegion = LiveRegionMode.Polite },
-    ) {
-        if (!compact) ServiceStatusIcon(issue)
-        Text(
-            issue.title ?: fallbackTitle,
-            style = MaterialTheme.typography.titleLarge,
-            color = BrandTokens.textPrimary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.testTag("fst.service-status.title").semantics { heading() },
-        )
-        Text(issue.message, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
+    val spacing = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = spacing) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = spacing,
+            modifier = Modifier.semantics(mergeDescendants = false) { liveRegion = LiveRegionMode.Polite },
+        ) {
+            if (!compact) ServiceStatusIcon(issue)
+            Text(
+                issue.title ?: fallbackTitle,
+                style = MaterialTheme.typography.titleLarge,
+                color = BrandTokens.textPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.testTag("fst.service-status.title").semantics { heading() },
+            )
+            Text(issue.message, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
+        }
         if (countdown != null) {
             Text(
                 "Trying again in ${formatCountdown(countdown)}",
