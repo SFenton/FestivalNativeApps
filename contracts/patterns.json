@@ -1168,6 +1168,14 @@
             "symbol": "LoadSwapVisual"
           },
           {
+            "path": "windows/Festival.App/Controls/LoadSwapGate.cs",
+            "symbol": "LoadSwapGate"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/LoadSwap.cs",
+            "symbol": "PinnedRowGate"
+          },
+          {
             "path": "windows/Festival.App/Controls/FadeIn.cs",
             "symbol": "FadeIn"
           },
