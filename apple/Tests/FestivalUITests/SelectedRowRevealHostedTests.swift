@@ -340,8 +340,10 @@ private struct StaggeredListProbe: View {
                 nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: 60),
                 nativeHostedBrightSamples(in: frame, of: image, hostSize: size, threshold: 200)
             ))
-            // Past the stretched fade, and two samples in a row agree.
+            // Past the stretched fade, fully drawn, and two samples in a row agree (a
+            // loaded host can stall frames mid-fade, which also gives equal samples).
             if let shownAt, clock.now - shownAt > .seconds(2.6), samples.count >= 2,
+               samples[samples.count - 1].bright > 100,
                samples[samples.count - 1] == samples[samples.count - 2] { break }
         }
         try await Task.sleep(for: .milliseconds(30))
