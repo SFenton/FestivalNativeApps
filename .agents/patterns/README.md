@@ -31,3 +31,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [quick-links](quick-links.md) | The Quick Links menu: order, icons, activation line and placement |
 | [section-headers](section-headers.md) | Section titles: style, outside-card placement and pinned/sticky behavior |
 | [chart-date-axis](chart-date-axis.md) | Date labels on history bar charts: centred on their bar, visible bars only |
+| [song-header](song-header.md) | Song page headers: shared art + title block, full-width one-line marquee title, pinned bar song title |
