@@ -1711,6 +1711,109 @@
           "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
         }
       ]
+    },
+    {
+      "id": "song-leaderboard-header",
+      "title": "Song leaderboard header",
+      "status": "current",
+      "doc": ".agents/patterns/song-leaderboard-header.md",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps the bar title empty until that header scrolls away, and sits on the song's static dimmed album art.",
+      "keywords": [
+        "song header",
+        "band leaderboard",
+        "duos",
+        "trios",
+        "quads",
+        "page title",
+        "bar title",
+        "pinned title",
+        "album art background",
+        "song backdrop",
+        "carousel",
+        "entry totals"
+      ],
+      "issues": [
+        93,
+        293,
+        317
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "pages/leaderboard/band/SongBandLeaderboardPage.tsx",
+          "symbol": "PageBackground"
+        },
+        {
+          "path": "pages/leaderboard/global/LeaderboardPage.tsx",
+          "symbol": "showLeaderboardEntryTotals"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift",
+            "symbol": "SoloLeaderboardScreen"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift",
+            "symbol": "SongDetailPinnedTitlePolicy"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SongLeaderboardScreen"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs",
+            "symbol": "SongLeaderboardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml.cs",
+            "symbol": "IBackdropPage"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-board-title",
+          "glob": "windows/Festival.Core/ViewModels/*Song*Leaderboard*ViewModel.cs",
+          "regex": "\\} (Leaderboard|Scores)\"",
+          "allow": [],
+          "debt": [],
+          "message": "Song leaderboards name the song first; the board is the header's board line, never a '{Board} Leaderboard' title (song-leaderboard-header R1)."
+        },
+        {
+          "id": "windows-page-title",
+          "glob": "windows/Festival.App/Pages/*Song*Page.xaml",
+          "regex": "FSTPageTitleStyle",
+          "allow": [
+            "windows/Festival.App/Pages/SongsPage.xaml",
+            "windows/Festival.App/Pages/SongDetailPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows song leaderboards take their title from Controls/SongLeaderboardHeader (song-leaderboard-header R5)."
+        }
+      ],
+      "related": {
+        "pages": [
+          "song-leaderboard",
+          "song-band-leaderboard"
+        ],
+        "controls": [],
+        "patterns": [
+          "page-tools-and-nav-chrome",
+          "surface-materials",
+          "song-header"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

@@ -129,6 +129,39 @@ class BandRankingsScenarioTests(unittest.TestCase):
 ms = f.mock_service
 
 
+class SongBandTotalsTests(unittest.TestCase):
+    """``--song-band-totals`` flags only per-size song band board reads (issue #317)."""
+
+    def test_flags_only_per_size_band_boards(self):
+        for path in ("/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=0",
+                     "/api/leaderboard/fixture-orbit/bands/Band_Quad"):
+            self.assertTrue(f.song_band_totals(path, {"entries": []})["showLeaderboardEntryTotals"], path)
+        for path in ("/api/leaderboard/fixture-pulse/bands/all", "/api/leaderboard/fixture-pulse/Solo_Guitar",
+                     "/api/rankings/bands/Band_Duets"):
+            self.assertNotIn("showLeaderboardEntryTotals", f.song_band_totals(path, {"entries": []}), path)
+        self.assertIsNone(f.song_band_totals("/api/leaderboard/fixture-pulse/bands/Band_Duets", None))
+
+    def test_install_wraps_each_response(self):
+        original = ms.FixtureHandler.do_GET
+        sent = []
+
+        class Handler:
+            path = "/api/leaderboard/fixture-pulse/bands/Band_Trios?top=25"
+
+            def _json(self, status, payload, *, etag=None):
+                sent.append((status, payload, etag))
+
+        ms.FixtureHandler.do_GET = lambda handler: handler._json(200, {"totalEntries": 0}, etag="e")
+        try:
+            f.install_song_band_totals()
+            handler = Handler()
+            ms.FixtureHandler.do_GET(handler)
+        finally:
+            ms.FixtureHandler.do_GET = original
+        self.assertEqual(sent, [(200, {"totalEntries": 0, "showLeaderboardEntryTotals": True}, "e")])
+        self.assertNotIn("_json", vars(handler))
+
+
 class SlowRivalsTests(unittest.TestCase):
     """Slow accounts (issue #265) hold only their rivals list reads."""
 

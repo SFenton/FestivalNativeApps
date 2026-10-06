@@ -4,8 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     IsTabStop="False">
-    <!-- Song-first header of every song leaderboard (web SongInfoHeader): static cover, song title (heading 1), artist,
-         then the board line (instrument icon + name, or the band size) and the optional entry total (issue #317). -->
+    <!-- Song-first header of every song leaderboard (web SongInfoHeader; song-leaderboard-header pattern): static cover,
+         song title (heading 1) and artist as one-line marquees (song-header R2), then the board line (instrument icon +
+         name, or the band size) and the optional entry total (issue #317). -->
     <Grid x:Name="Root" ColumnSpacing="16">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
@@ -15,9 +16,10 @@
             <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
         </Border>
         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-            <TextBlock x:Name="TitleBlock" Text="{x:Bind Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
-                       AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="{x:Bind TitleAutomationId, Mode=OneWay}" />
-            <TextBlock x:Name="ArtistBlock" Text="{x:Bind Artist, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
+            <controls:MarqueeText x:Name="TitleBlock" Text="{x:Bind Title, Mode=OneWay}" TextStyle="{StaticResource FSTPageTitleStyle}"
+                                  AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="{x:Bind TitleAutomationId, Mode=OneWay}" />
+            <controls:MarqueeText x:Name="ArtistBlock" Text="{x:Bind Artist, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
+                                  AutomationProperties.AutomationId="{x:Bind ArtistAutomationId, Mode=OneWay}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <controls:InstrumentIcon x:Name="BoardIcon" File="{x:Bind BoardIconFile, Mode=OneWay}" Width="20" Height="20"
                                          AutomationProperties.AccessibilityView="Raw" />

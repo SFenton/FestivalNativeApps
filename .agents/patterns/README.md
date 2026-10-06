@@ -33,3 +33,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [chart-date-axis](chart-date-axis.md) | Date labels on history bar charts: centred on their bar, visible bars only |
 | [song-header](song-header.md) | Song page headers: shared art + title block, full-width one-line marquee title, pinned bar song title |
 | [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
+| [song-leaderboard-header](song-leaderboard-header.md) | Song leaderboard header: song-first header, board line, entry totals, bar title and song backdrop |

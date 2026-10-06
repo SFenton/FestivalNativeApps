@@ -19,7 +19,8 @@
         <controls:SongLeaderboardHeader x:Name="Header" MaxWidth="1200" HorizontalAlignment="Stretch"
                                         Title="{x:Bind ViewModel.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
                                         BoardLabel="{x:Bind ViewModel.BoardLabel, Mode=OneWay}" TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
-                                        TitleAutomationId="fst.song-band-leaderboard.title" BoardAutomationId="fst.song-band-leaderboard.subtitle"
+                                        TitleAutomationId="fst.song-band-leaderboard.title" ArtistAutomationId="fst.song-band-leaderboard.artist"
+                                        BoardAutomationId="fst.song-band-leaderboard.subtitle"
                                         TotalAutomationId="fst.song-band-leaderboard.total" />
 
         <SelectorBar x:Name="SizeBar" Grid.Row="1" SelectionChanged="OnSizeChanged"

@@ -30,7 +30,8 @@
                                                     Title="{x:Bind ViewModel.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
                                                     BoardIconFile="{x:Bind ViewModel.IconFile, Mode=OneWay}" BoardLabel="{x:Bind ViewModel.InstrumentLabel}"
                                                     TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
-                                                    TitleAutomationId="fst.song-leaderboard.title" BoardAutomationId="fst.song-leaderboard.instrument" />
+                                                    TitleAutomationId="fst.song-leaderboard.title" ArtistAutomationId="fst.song-leaderboard.artist"
+                                                    BoardAutomationId="fst.song-leaderboard.instrument" TotalAutomationId="fst.song-leaderboard.total" />
                     <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7). -->
                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"

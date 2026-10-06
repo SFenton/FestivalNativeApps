@@ -6,9 +6,11 @@ namespace Festival.App.Controls;
 
 #region Song leaderboard header
 /// <summary>
-/// The one song-first header of a song leaderboard (web <c>SongInfoHeader</c>): the solo board names its instrument on
-/// the board line, the band board its band size (issue #317). Pages keep the song's static cover as the shell backdrop
-/// (<c>IBackdropPage</c>); this control only draws the header's own art tile, through the shared artwork caches.
+/// The one song-first header of a song leaderboard (web <c>SongInfoHeader</c>; pattern <c>song-leaderboard-header</c>):
+/// the solo board names its instrument on the board line, the band board its band size (issue #317). Title and artist
+/// are one-line <see cref="MarqueeText"/>s (pattern <c>song-header</c> R2). Pages keep the song's static cover as the
+/// shell backdrop (<c>IBackdropPage</c>); this control only draws the header's own art tile, through the shared artwork
+/// caches.
 /// </summary>
 public sealed partial class SongLeaderboardHeader : UserControl
 {
@@ -38,6 +40,9 @@ public sealed partial class SongLeaderboardHeader : UserControl
 
     /// <summary>Automation ID of the title heading (e.g. <c>fst.song-leaderboard.title</c>).</summary>
     public static readonly DependencyProperty TitleAutomationIdProperty = Register(nameof(TitleAutomationId), null);
+
+    /// <summary>Automation ID of the artist line (e.g. <c>fst.song-leaderboard.artist</c>).</summary>
+    public static readonly DependencyProperty ArtistAutomationIdProperty = Register(nameof(ArtistAutomationId), null);
 
     /// <summary>Automation ID of the board line.</summary>
     public static readonly DependencyProperty BoardAutomationIdProperty = Register(nameof(BoardAutomationId), null);
@@ -76,6 +81,9 @@ public sealed partial class SongLeaderboardHeader : UserControl
 
     /// <inheritdoc cref="TitleAutomationIdProperty" />
     public string TitleAutomationId { get => (string?)GetValue(TitleAutomationIdProperty) ?? ""; set => SetValue(TitleAutomationIdProperty, value ?? ""); }
+
+    /// <inheritdoc cref="ArtistAutomationIdProperty" />
+    public string ArtistAutomationId { get => (string?)GetValue(ArtistAutomationIdProperty) ?? ""; set => SetValue(ArtistAutomationIdProperty, value ?? ""); }
 
     /// <inheritdoc cref="BoardAutomationIdProperty" />
     public string BoardAutomationId { get => (string?)GetValue(BoardAutomationIdProperty) ?? ""; set => SetValue(BoardAutomationIdProperty, value ?? ""); }
