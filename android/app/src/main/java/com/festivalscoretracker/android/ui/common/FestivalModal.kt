@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -110,6 +111,22 @@ internal fun CoversBackdrop(coverage: ModalCoverage = ModalCoverage.shared, cont
  */
 @Composable
 fun coveredByModal(coverage: ModalCoverage = ModalCoverage.shared): Boolean = coverage.covers(LocalModalDepth.current)
+
+/**
+ * Test seam for R10 loops whose motion is otherwise unobservable in Robolectric (a pulse's
+ * alpha): receives `(loop, value)` each time the loop's drawn value changes, and the still
+ * value (1) while it holds. `null` in the app, so production pays nothing.
+ */
+internal val LocalMotionProbe = staticCompositionLocalOf<((String, Float) -> Unit)?> { null }
+
+/** [LocalMotionProbe] loop names. */
+internal object MotionProbes {
+    /** The first-run demo highlight pulse. */
+    const val FIRST_RUN_DEMO_PULSE = "first-run.demo.pulse"
+
+    /** The retrying service-status icon pulse. */
+    const val SERVICE_STATUS_PULSE = "service-status.pulse"
+}
 
 // endregion
 
