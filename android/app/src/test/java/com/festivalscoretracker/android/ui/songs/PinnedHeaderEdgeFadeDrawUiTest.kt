@@ -34,10 +34,12 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Pixels of the Songs pinned section header edge (issues #49, #157): rows scrolling under a
- * pinned header are hidden behind it and fade out over the 28 dp band below it, while the header
- * stays opaque. Increase Contrast, system High contrast text, Reduce Transparency and Remove
- * animations keep a hard edge at the header's bottom.
+ * Pixels of the Songs pinned section header edge (issues #49, #157, #308): rows scrolling under a
+ * pinned header are hidden behind it, clear at its bottom edge and fully drawn 40 dp below it
+ * (linear, the web's `useScrollMask`), while the header stays opaque. The ramp grows with the
+ * scroll, so a section that has just pinned shows its first row unfaded. Increase Contrast,
+ * system High contrast text, Reduce Transparency and Remove animations keep a hard edge at the
+ * header's bottom.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w400dp-h800dp-mdpi")
@@ -91,10 +93,29 @@ class PinnedHeaderEdgeFadeDrawUiTest {
         val shot = list(index = 3, offset = 10)
         assertTrue("the pinned header stays opaque", shot.greenAt(20) > 0.9f)
         assertFalse("no row shows beside the header", (0 until 40).any { shot.redAt(it) > 0.05f })
-        val band = (40 until 68).map { shot.redAt(it) }
-        assertTrue("the band starts nearly clear", band.first() < 0.15f)
-        assertTrue("the band eases in", band.zipWithNext().all { (a, b) -> b >= a - 0.01f })
-        assertTrue("rows below the band are untouched", (70 until 200).all { shot.redAt(it) > 0.95f })
+        val band = (40 until 80).map { shot.redAt(it) }
+        assertTrue("the band starts clear", band.first() < 0.05f)
+        assertTrue("the band ramps in", band.zipWithNext().all { (a, b) -> b >= a - 0.01f })
+        assertTrue("the ramp is linear: half drawn halfway", shot.redAt(60) in 0.4f..0.6f)
+        assertTrue("rows below the band are untouched", (82 until 200).all { shot.redAt(it) > 0.95f })
+    }
+
+    /** R4: the ramp grows with the scroll, 14 dp deep after a 14 dp scroll under the header. */
+    @Test
+    fun rampGrowsWithTheScroll() {
+        val shot = list(index = 0, offset = 14)
+        assertTrue("the pinned header stays opaque", shot.greenAt(20) > 0.9f)
+        assertFalse("no row shows beside the header", (0 until 40).any { shot.redAt(it) > 0.05f })
+        assertTrue("rows are clear at the header's bottom", shot.redAt(40) < 0.1f)
+        assertTrue("rows are opaque 14 dp below it", (56 until 200).all { shot.redAt(it) > 0.95f })
+    }
+
+    /** R8: a section that has just pinned (a Quick Links landing) shows its first row fully opaque. */
+    @Test
+    fun aJustPinnedSectionShowsItsFirstRowOpaque() {
+        val shot = list(index = 11, offset = 0)
+        assertTrue(shot.greenAt(20) > 0.9f)
+        assertTrue("the first row is unfaded", (41 until 200).all { shot.redAt(it) > 0.95f })
     }
 
     @Test

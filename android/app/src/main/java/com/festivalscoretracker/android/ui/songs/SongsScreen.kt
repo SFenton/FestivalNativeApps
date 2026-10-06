@@ -388,7 +388,7 @@ private fun SongList(
     val endPadding = if (showIndex) 28.dp else 16.dp
     val density = LocalDensity.current
     // Rows fade out below the pinned bucket header, or meet it at a hard edge under the contrast,
-    // transparency and motion settings (rememberPinnedHeaderHardEdge). Bucket headers record their
+    // transparency and motion settings (rememberScrollEdgeHardEdge). Bucket headers record their
     // drawing into the edge's layers; the list redraws them over the cut and band (issues #91, #288).
     val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
     val headerEdge = rememberPinnedHeaderEdge(listState, firstHeaderKey, LIST_SPACING, IS_HEADER_KEY)

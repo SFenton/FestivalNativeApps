@@ -75,6 +75,14 @@
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/BoardFooterEdgeFade.kt"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/scrolledge/ScrollEdgeFade.kt",
+            "symbol": "ScrollEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
+            "symbol": "bottomChromeEdgeFade"
           }
         ],
         "windows": [
@@ -121,12 +129,10 @@
           "glob": "android/app/src/main/**/*.kt",
           "regex": "BlendMode\\.DstIn",
           "allow": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt"
           ],
-          "debt": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt"
-          ],
-          "message": "Alpha masks for scroll edges belong to the edge-fade components (scroll-edge R1)."
+          "debt": [],
+          "message": "Alpha masks for scroll edges belong to ui/common/ScrollEdgeFade.kt drawScrollEdgeRamp (scroll-edge R1)."
         },
         {
           "id": "windows-mask",
