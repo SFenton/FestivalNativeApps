@@ -32,9 +32,11 @@
                                  AutomationProperties.Name="{x:Bind ViewModel.SongTitle, Mode=OneWay}"
                                  AutomationProperties.AutomationId="fst.song-band-leaderboard.song">
                     <controls:MarqueeText Text="{x:Bind ViewModel.SongTitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}"
-                                          AutomationProperties.AccessibilityView="Raw" />
+                                          AutomationProperties.AccessibilityView="Raw"
+                                          AutomationProperties.AutomationId="fst.song-band-leaderboard.song-title" />
                 </HyperlinkButton>
-                <controls:MarqueeText Text="{x:Bind ViewModel.SongSubtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
+                <controls:MarqueeText Text="{x:Bind ViewModel.SongSubtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
+                                      AutomationProperties.AutomationId="fst.song-band-leaderboard.artist" />
                 <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                            AutomationProperties.AutomationId="fst.song-band-leaderboard.subtitle" />
             </StackPanel>

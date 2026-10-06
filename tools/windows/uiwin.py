@@ -107,7 +107,7 @@ STEP_VERBS = {
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
-    "assertpinned": "selector", "foreground": "onoff",
+    "assertpinned": "selector", "foreground": "onoff", "assertmarquee": "marquee",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -217,7 +217,10 @@ def parse_step(step: str) -> dict:
     ``IsSelected``: ``true``/``false``, e.g. a list's current item), ``scroll`` (UIA Scroll pattern vertical percent,
     rounded: ``0`` is a list back at its top) or ``name`` equals ``<value>``;
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
-    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls.
+    the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
+    ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
+    and its pixels change across three captures 1.2 s apart (a scrolling marquee), and ``assertmarquee:<sel>|static|<epx>``
+    unless it is one line, unchanged across the captures and ends in an ellipsis (song headers, issue #315).
 
     Args:
         step: A step string.
@@ -276,6 +279,15 @@ def parse_step(step: str) -> dict:
         result["status"] = status.strip()
         if wait:
             result["timeout"] = float(wait)
+    elif shape == "marquee":
+        selector, sep, rest = arg.partition("|")
+        mode, sep2, epx = rest.partition("|")
+        if not sep or not sep2 or mode.strip() not in ("moving", "static") or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):
+            raise ValueError(f"bad assertmarquee {arg!r}; use <selector>|moving|static|<max height epx>")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertmarquee needs an element selector, not coordinates")
+        result["mode"], result["epx"] = mode.strip(), float(epx)
     elif shape == "state":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, assertion = body.partition("|")

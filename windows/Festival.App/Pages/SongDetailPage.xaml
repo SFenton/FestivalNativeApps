@@ -33,7 +33,8 @@
                         <controls:MarqueeText Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" TextStyle="{StaticResource TitleLargeTextBlockStyle}"
                                               AutomationProperties.HeadingLevel="Level1"
                                               AutomationProperties.AutomationId="fst.song-detail.title" />
-                        <controls:MarqueeText Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSongHeaderArtistStyle}" />
+                        <controls:MarqueeText Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSongHeaderArtistStyle}"
+                                              AutomationProperties.AutomationId="fst.song-detail.artist" />
                         <!-- Paths, Item Shop and Quick Links share Fluent's 40 epx touch-target height (FSTMinTargetSize). -->
                         <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="8" Margin="0,8,0,0">
                             <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
@@ -328,8 +329,10 @@
                     <Image x:Name="PinnedArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
-                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeCaptionStyle}" />
+                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}"
+                                          AutomationProperties.AutomationId="fst.song-detail.pinned-title" />
+                    <controls:MarqueeText Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeCaptionStyle}"
+                                          AutomationProperties.AutomationId="fst.song-detail.pinned-artist" />
                 </StackPanel>
                 <Button Grid.Column="2" Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
                         VerticalAlignment="Center" AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.pinned-paths">

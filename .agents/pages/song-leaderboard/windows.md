@@ -60,7 +60,7 @@ Design review (`winui-design`, `winui-code-review`): keep system-colour contrast
 
 ## IDs
 
-`fst.song-leaderboard.title`, `.instrument`, `.list`, `.row.<accountId>`, `.spotlight-footer`, `.spotlight-jump`, `.page-first|page-previous|page-info|page-next|page-last`.
+`fst.song-leaderboard.title`, `.artist`, `.instrument`, `.list`, `.row.<accountId>`, `.spotlight-footer`, `.spotlight-jump`, `.page-first|page-previous|page-info|page-next|page-last`.
 
 ## Open
 

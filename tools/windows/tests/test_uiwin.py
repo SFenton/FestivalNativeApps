@@ -162,6 +162,18 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertmarquee(self):
+        moving = u.parse_step("assertmarquee:id=fst.song-detail.title|moving|44")
+        self.assertEqual(moving["selector"], {"kind": "id", "value": "fst.song-detail.title"})
+        self.assertEqual((moving["mode"], moving["epx"]), ("moving", 44.0))
+        still = u.parse_step("assertmarquee:raw=fst.song-band-leaderboard.song-title|static|28.5")
+        self.assertEqual(still["selector"]["kind"], "raw")
+        self.assertEqual((still["mode"], still["epx"]), ("static", 28.5))
+        for bad in ("assertmarquee:id=x", "assertmarquee:id=x|moving", "assertmarquee:id=x|wrap|44",
+                    "assertmarquee:id=x|static|tall", "assertmarquee:10,20|moving|44"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertinset(self):
         step = u.parse_step("assertinset:name=Show Instruments&class=TextBlock|id=fst.settings|40")
         self.assertEqual(step["verb"], "assertinset")

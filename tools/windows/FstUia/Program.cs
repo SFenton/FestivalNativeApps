@@ -519,7 +519,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
-        foreach (var key in new[] { "focus", "scans", "aligned", "pinned" })
+        foreach (var key in new[] { "focus", "scans", "aligned", "pinned", "marquees" })
         {
             if (response[key] is not JsonArray collected) continue;
             response.Remove(key);
@@ -647,6 +647,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "pin":
             case "assertpinned":
                 Pin(window, step, verb == "pin");
+                break;
+            case "assertmarquee":
+                AssertMarquee(window, step);
                 break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
@@ -1128,6 +1131,136 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"vertical gap {gap:0.#} epx is not {expected:0.#} epx ({(string)step["arg"]!})");
         response["gaps"] ??= new JsonArray();
         response["gaps"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(gap, 1) });
+    }
+
+    /// <summary>
+    /// Single-line marquee check (song headers, issue #315). Fails unless the element is at most <c>epx</c> effective
+    /// pixels high (one line, so a wrapping text view fails) and, for <c>moving</c>, its rendered pixels change between
+    /// some two of three captures 1.2 s apart (the shared marquee's 8 s cycle dwells only 0.8 s at its ends), or, for
+    /// <c>static</c>, all three captures match and the line ends in an ellipsis (see <see cref="EndsInEllipsis"/>).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a <c>selector</c>, <c>mode</c> (<c>moving</c>/<c>static</c>) and <c>epx</c> (maximum height).</param>
+    /// <exception cref="InvalidOperationException">Taller than one line, not moving, moving, or not ellipsized.</exception>
+    private void AssertMarquee(Window window, JsonObject step)
+    {
+        var label = (string)step["arg"]!;
+        var moving = (string)step["mode"]! == "moving";
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var scale = Native.GetDpiForWindow(hwnd) / 96.0;
+        var maxEpx = (double)step["epx"]!;
+        var height = Find(window, step).BoundingRectangle.Height / scale;
+        if (height > maxEpx)
+            throw new InvalidOperationException($"{label} is {height:0.#} epx high, more than one line ({maxEpx:0.#} epx)");
+        var frames = new List<Bitmap>();
+        try
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                if (i > 0) Thread.Sleep(1200);
+                frames.Add(Native.PrintWindow(hwnd, Find(window, step).BoundingRectangle));
+            }
+            var changed = Math.Max(ChangedShare(frames[0], frames[1]), Math.Max(ChangedShare(frames[1], frames[2]), ChangedShare(frames[0], frames[2])));
+            if (moving && changed < 0.005)
+                throw new InvalidOperationException($"{label} did not scroll ({changed:P2} of its pixels changed in 2.4 s)");
+            if (!moving && changed > 0.001)
+                throw new InvalidOperationException($"{label} moved while motion is off ({changed:P2} of its pixels changed)");
+            if (!moving && !EndsInEllipsis(frames[0], out var detail))
+                throw new InvalidOperationException($"{label} is static but not ellipsized: {detail}");
+            response["marquees"] ??= new JsonArray();
+            response["marquees"]!.AsArray().Add(new JsonObject
+            {
+                ["arg"] = label, ["mode"] = moving ? "moving" : "static", ["epx"] = Math.Round(height, 1), ["changed"] = Math.Round(changed, 4),
+            });
+        }
+        finally
+        {
+            foreach (var frame in frames) frame.Dispose();
+        }
+    }
+
+    /// <summary>Share of pixels whose largest channel differs by more than 32 (1 when the sizes differ).</summary>
+    /// <param name="a">First capture.</param>
+    /// <param name="b">Second capture.</param>
+    /// <returns>0 (identical) to 1.</returns>
+    internal static double ChangedShare(Bitmap a, Bitmap b)
+    {
+        if (a.Size != b.Size || a.Width * a.Height == 0) return 1;
+        var changed = 0;
+        for (var y = 0; y < a.Height; y++)
+        {
+            for (var x = 0; x < a.Width; x++)
+            {
+                Color p = a.GetPixel(x, y), q = b.GetPixel(x, y);
+                if (Math.Max(Math.Abs(p.R - q.R), Math.Max(Math.Abs(p.G - q.G), Math.Abs(p.B - q.B))) > 32) changed++;
+            }
+        }
+        return changed / (double)(a.Width * a.Height);
+    }
+
+    /// <summary>
+    /// Whether one rendered text line ends in "…": ink is any pixel whose luminance differs from the line's most common
+    /// (background) luminance by more than 40. In the last third of a line height before the rightmost ink column, an
+    /// ellipsis leaves only a short band of ink (at most a quarter of the line height: dots on the baseline) split into at
+    /// least two separate dots; the last glyph of clipped text is taller or one connected stroke.
+    /// </summary>
+    /// <param name="line">Capture of the text line.</param>
+    /// <param name="detail">Why it is not an ellipsis.</param>
+    /// <returns>Whether the trailing ink is an ellipsis.</returns>
+    internal static bool EndsInEllipsis(Bitmap line, out string detail)
+    {
+        int width = line.Width, height = line.Height;
+        var lum = new int[width, height];
+        var histogram = new int[256];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var c = line.GetPixel(x, y);
+                histogram[lum[x, y] = (c.R * 299 + c.G * 587 + c.B * 114) / 1000]++;
+            }
+        }
+        var background = Array.IndexOf(histogram, histogram.Max());
+        bool Ink(int x, int y) => Math.Abs(lum[x, y] - background) > 40;
+        var right = -1;
+        for (var x = width - 1; x >= 0 && right < 0; x--)
+        {
+            for (var y = 0; y < height; y++) if (Ink(x, y)) { right = x; break; }
+        }
+        if (right < 0)
+        {
+            detail = "no text drawn";
+            return false;
+        }
+        var span = Math.Max(3, (int)Math.Round(height / 3.0));
+        int top = height, bottom = -1, runs = 0;
+        var inRun = false;
+        for (var x = Math.Max(0, right - span + 1); x <= right; x++)
+        {
+            var inked = false;
+            for (var y = 0; y < height; y++)
+            {
+                if (!Ink(x, y)) continue;
+                inked = true;
+                top = Math.Min(top, y);
+                bottom = Math.Max(bottom, y);
+            }
+            if (inked && !inRun) runs++;
+            inRun = inked;
+        }
+        var extent = bottom - top + 1;
+        if (extent > height / 4.0)
+        {
+            detail = $"the last glyph is {extent} px of a {height} px line high (dots are at most a quarter)";
+            return false;
+        }
+        if (runs < 2)
+        {
+            detail = "the trailing ink is one stroke, not separate dots";
+            return false;
+        }
+        detail = "";
+        return true;
     }
 
     /// <summary>

@@ -39,7 +39,8 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                             <controls:MarqueeText Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextStyle="{StaticResource FSTPageTitleStyle}"
                                                   AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
-                            <controls:MarqueeText Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
+                            <controls:MarqueeText Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
+                                                  AutomationProperties.AutomationId="fst.song-leaderboard.artist" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
                                                          AutomationProperties.AccessibilityView="Raw" />
