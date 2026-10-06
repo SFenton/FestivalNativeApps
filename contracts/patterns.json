@@ -1622,11 +1622,91 @@
         "controls": [],
         "patterns": [
           "page-tools-and-nav-chrome",
-          "surface-materials"
+          "surface-materials",
+          "song-header"
         ]
       },
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "song-header",
+      "title": "Song header title",
+      "status": "current",
+      "doc": ".agents/patterns/song-header.md",
+      "summary": "Song pages show the song through one shared header whose title fills the width beside the art on one line and marquees when it overflows (Reduce Motion truncates, large text wraps in-page); the pinned top-bar song title marquees on one line.",
+      "keywords": [
+        "song header",
+        "song title",
+        "marquee",
+        "carousel",
+        "title wraps",
+        "SongInfoHeader",
+        "pinned title",
+        "top bar title"
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "components/common/MarqueeText.tsx",
+          "symbol": "MarqueeText"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/MarqueeText.swift",
+            "symbol": "MarqueeText"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongDetailScreen.swift",
+            "symbol": "SongDetailScreen"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/MarqueeText.kt",
+            "symbol": "FestivalMarqueeText"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
+            "symbol": "SongHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "marqueeTitle"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MarqueeText.cs",
+            "symbol": "MarqueeText"
+          }
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "page-tools-and-nav-chrome",
+          "song-leaderboard-header"
+        ],
+        "controls": [],
+        "pages": [
+          "song-detail",
+          "song-leaderboard",
+          "song-band-leaderboard",
+          "player-history"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        315
+      ]
     }
   ]
 }

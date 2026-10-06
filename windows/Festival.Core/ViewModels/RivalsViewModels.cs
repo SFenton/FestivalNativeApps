@@ -51,10 +51,10 @@ public sealed record RivalRowItem(
     public bool IsWinning => Direction == RivalDirection.Below;
 
     /// <summary><c>{n} songs ahead</c>.</summary>
-    public string AheadText => string.Create(CultureInfo.CurrentCulture, $"{SongsAhead:N0} songs ahead");
+    public string AheadText => RivalRowText.Ahead(SongsAhead);
 
     /// <summary><c>{n} songs behind</c>.</summary>
-    public string BehindText => string.Create(CultureInfo.CurrentCulture, $"{SongsBehind:N0} songs behind");
+    public string BehindText => RivalRowText.Behind(SongsBehind);
 
     /// <summary><c>#rank</c> for leaderboard rivals, else empty.</summary>
     public string RankText => LeaderboardRank is { } rank ? string.Create(CultureInfo.CurrentCulture, $"#{rank:N0}") : "";

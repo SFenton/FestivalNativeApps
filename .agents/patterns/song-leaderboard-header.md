@@ -38,6 +38,8 @@ Apple consumers: `SoloLeaderboardScreen` (instrument + icon) and `SongBandLeader
 | Android `ui/bands/SongBandLeaderboardScreen.kt` titles the bar "${type.label} Leaderboard" and keeps a private `SongHeader` copy | R1, R3, R5 | Android check filed from #317 |
 | Windows `Pages/BandsSongLeaderboardPage.xaml` heads the page "{Band} Leaderboard" with the song as a secondary link | R1 | Windows check filed from #317 |
 
+The song title inside the header and the bar title follows [song-header](song-header.md) (full-width one-line marquee, R2–R4).
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `song-leaderboard-header/apple-song-backdrop`
