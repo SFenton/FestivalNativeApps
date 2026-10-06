@@ -36,8 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.absolutePadding
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
@@ -192,7 +190,7 @@ fun ServiceStatusView(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
-    var origin by remember { mutableStateOf(Offset.Unspecified) }
+    var origin by rememberMeasuredOffset(Offset.Unspecified)
     BoxWithConstraints(modifier.fillMaxSize().padding(contentPadding).onGloballyPositioned { origin = it.positionInWindow() }) {
         val side = rememberHingeSide(origin, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         val density = LocalDensity.current

@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +66,7 @@ import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.flow.distinctUntilChanged
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Screen
 
@@ -251,7 +251,7 @@ private fun SuggestionsGrid(
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    var gridLeft by remember { mutableFloatStateOf(0f) }
+    var gridLeft by rememberMeasuredPx(0f)
     val cardCount = state.cards.size
 
     LaunchedEffect(state.mixId) { if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0) }

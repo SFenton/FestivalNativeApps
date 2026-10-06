@@ -40,10 +40,8 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +86,7 @@ import java.text.NumberFormat
 import androidx.compose.foundation.layout.RowScope
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Rows
 
@@ -154,7 +153,7 @@ val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
  * @return Width state shared by the rows' column plan.
  */
 @Composable
-fun rememberRankingRowWidth(): MutableFloatState = rememberSaveable { mutableFloatStateOf(Float.NaN) }
+fun rememberRankingRowWidth(): MutableFloatState = rememberMeasuredPx(Float.NaN)
 
 /**
  * Measure the widest rank, songs and rating text (bold, as the selected row draws them)

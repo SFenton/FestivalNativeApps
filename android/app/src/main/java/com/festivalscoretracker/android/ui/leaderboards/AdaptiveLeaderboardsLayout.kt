@@ -10,8 +10,6 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Hinge
 
@@ -46,8 +45,8 @@ data class HingeSplit(val start: Dp, val end: Dp)
 fun rememberHingeSplit(): Pair<HingeSplit?, Modifier> {
     val density = LocalDensity.current
     val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    var left by remember { mutableFloatStateOf(Float.NaN) }
-    var width by remember { mutableFloatStateOf(0f) }
+    var left by rememberMeasuredPx(Float.NaN)
+    var width by rememberMeasuredPx(0f)
     val modifier = Modifier.onGloballyPositioned {
         left = it.positionInWindow().x
         width = it.size.width.toFloat()

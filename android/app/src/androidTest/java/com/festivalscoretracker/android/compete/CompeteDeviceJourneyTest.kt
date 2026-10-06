@@ -140,9 +140,14 @@ class CompeteDeviceJourneyTest {
         rule.mainClock.autoAdvance = false
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         val frames = mutableListOf<Int>()
+        val placements = mutableListOf<Any?>()
         repeat(60) {
             rule.mainClock.advanceTimeByFrame()
-            if (rule.onAllNodes(hasTestTag(leadCard)).fetchSemanticsNodes().isNotEmpty()) frames += songsShown()
+            val node = rule.onAllNodes(hasTestTag(leadCard)).fetchSemanticsNodes().firstOrNull()
+            if (node != null) {
+                frames += songsShown()
+                placements += node.boundsInRoot
+            }
         }
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
@@ -150,6 +155,7 @@ class CompeteDeviceJourneyTest {
         h.waitForTag(leadCard)
         assertTrue("Compete never reappeared", frames.isNotEmpty())
         assertTrue("Songs cells changed while returning: $songsBefore before, frames $frames", frames.all { it == songsBefore })
+        assertTrue("The Lead card moved while returning: $boundsBefore before, frames $placements", placements.all { it == boundsBefore })
         assertEquals("The Lead card moved after returning", boundsBefore, cardBounds())
         assertTrue("Compete reloaded the Lead card", !h.exists("$leadCard.loading"))
         h.assertAccessible()

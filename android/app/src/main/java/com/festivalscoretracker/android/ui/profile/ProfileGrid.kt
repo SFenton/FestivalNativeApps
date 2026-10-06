@@ -11,7 +11,6 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,6 +28,7 @@ import com.festivalscoretracker.android.core.profile.ProfileGridSpec
 import com.festivalscoretracker.android.core.rivals.ColumnSpec
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
+import com.festivalscoretracker.android.ui.common.rememberMeasuredBounds
 
 // region Fold-aware grid
 
@@ -80,7 +80,7 @@ fun ProfileGrid(
     val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList
         .filter { it.isSeparating && it.isVertical }
         .map { it.bounds.left.roundToInt() to it.bounds.right.roundToInt() }
-    var bounds by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var bounds by rememberMeasuredBounds()
     val gutter = with(density) { 16.dp.roundToPx() }
     val grid = bounds?.let { (start, width) ->
         ProfileColumns.resolve(start, width, hinges, with(density) { minColumn.roundToPx() }, gutter, maxColumns)

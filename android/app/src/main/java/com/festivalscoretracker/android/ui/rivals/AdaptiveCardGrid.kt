@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -26,6 +25,7 @@ import com.festivalscoretracker.android.core.rivals.ColumnSpec
 import com.festivalscoretracker.android.core.rivals.HingeColumns
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
+import com.festivalscoretracker.android.ui.common.rememberMeasuredBounds
 
 // region Adaptive card grid
 
@@ -77,7 +77,7 @@ fun AdaptiveCardGrid(
 ) {
     val density = LocalDensity.current
     val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    var bounds by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var bounds by rememberMeasuredBounds()
     val gutter = with(density) { 16.dp.roundToPx() }
     val spec = bounds?.let { (start, width) ->
         HingeColumns.resolve(

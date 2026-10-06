@@ -3,14 +3,13 @@ package com.festivalscoretracker.android.ui.settings
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Hinge split
 
@@ -32,8 +31,8 @@ class HingeSplit(val value: Pair<Float, Float>?, val modifier: Modifier)
 @Composable
 fun rememberHingeSplit(keepWhenSingleColumn: Boolean = false): HingeSplit {
     val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    var left by remember { mutableFloatStateOf(0f) }
-    var width by remember { mutableFloatStateOf(0f) }
+    var left by rememberMeasuredPx(0f)
+    var width by rememberMeasuredPx(0f)
     val modifier = Modifier.onGloballyPositioned {
         left = it.positionInWindow().x
         width = it.size.width.toFloat()

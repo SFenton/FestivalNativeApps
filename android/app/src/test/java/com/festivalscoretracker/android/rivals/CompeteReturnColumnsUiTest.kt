@@ -63,7 +63,9 @@ class CompeteReturnColumnsUiTest {
         repeat(20) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
         val cells = songsCell.and(hasAnyAncestor(hasTestTag(card)))
         fun songsShown() = rule.onAllNodes(cells, useUnmergedTree = true).fetchSemanticsNodes().size
+        fun cardBounds() = rule.onAllNodes(hasTestTag(card)).fetchSemanticsNodes().firstOrNull()?.boundsInRoot
         val before = songsShown()
+        val boundsBefore = cardBounds()
         assertTrue("Wide Compete rows should show the songs column", before > 0)
 
         rule.onNode(button).performSemanticsAction(SemanticsActions.OnClick)
@@ -76,14 +78,20 @@ class CompeteReturnColumnsUiTest {
         rule.mainClock.autoAdvance = false
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         val frames = mutableListOf<Int>()
+        val placements = mutableListOf<Any?>()
         repeat(60) {
             rule.mainClock.advanceTimeByFrame()
             shadowOf(Looper.getMainLooper()).idle()
-            if (rule.onAllNodes(button).fetchSemanticsNodes().isNotEmpty()) frames += songsShown()
+            if (rule.onAllNodes(button).fetchSemanticsNodes().isNotEmpty()) {
+                frames += songsShown()
+                placements += cardBounds()
+            }
         }
         rule.mainClock.autoAdvance = true
         assertTrue("Compete never reappeared", frames.isNotEmpty())
         assertTrue("The songs column dropped out while returning: $before before, frames $frames", frames.all { it == before })
+        // The grid keeps its columns: a one-column first frame would widen and move the card.
+        assertTrue("The card moved while returning: $boundsBefore before, frames $placements", placements.all { it == boundsBefore })
     }
 }
 
