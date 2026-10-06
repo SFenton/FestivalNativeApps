@@ -93,21 +93,35 @@ class LeaderboardColumnLayoutTest {
     }
 
     @Test
-    fun largeTextDropsStarsBeforeSeason() {
+    fun largeTextStacksRowsRatherThanDroppingSeasonOrStars() {
+        // Issue #170 (web `resolveTopScoresColumns`: season from 520, stars from the mobile breakpoint, width only).
         val large = scores.copy(rankWidth = 80f, metaWidth = 60f, valueWidth = 140f)
-        // 24 + 80 + 144 + 60 + 140 + 112 + 116 + 20 + 6 × 12 = 768 > 700: stars go, the season stays (640).
+        // 24 + 80 + 144 + 60 + 140 + 112 + 116 + 20 + 6 × 12 = 768 > 700: the row stacks and keeps both.
         val wide = LeaderboardColumnLayout.fit(large, 700f, fontScale = 2f)
-        assertFalse(wide.showStars)
+        assertTrue(wide.showStars)
         assertTrue(wide.showMeta)
+        assertTrue(wide.stacked)
         assertEquals(LeaderboardColumnLayout.ACCURACY_WIDTH * 2f, wide.accuracyWidth)
-        // At 600 the season no longer fits either.
-        val medium = LeaderboardColumnLayout.fit(large, 600f, fontScale = 2f)
-        assertFalse(medium.showStars)
-        assertFalse(medium.showMeta)
-        // The same section at normal text keeps both.
+        // 520 and 600 (no stars): 24 + 80 + 144 + 60 + 140 + 112 + 20 + 5 × 12 = 640 > 600: stacked, season kept.
+        for (width in listOf(520f, 600f)) {
+            val medium = LeaderboardColumnLayout.fit(large, width, fontScale = 2f)
+            assertTrue(medium.showMeta)
+            assertEquals(60f, medium.metaWidth)
+            assertFalse(medium.showStars)
+            assertTrue(medium.stacked)
+        }
+        // Below 520 there's no season to keep, so the row does not stack for it.
+        assertFalse(LeaderboardColumnLayout.fit(large, 519f, fontScale = 2f).stacked)
+        // The same section at normal text fits on one line with both.
         val normal = LeaderboardColumnLayout.fit(large, 700f)
         assertTrue(normal.showStars)
         assertTrue(normal.showMeta)
+        assertFalse(normal.stacked)
+    }
+
+    @Test
+    fun oneLineScoreRowsDoNotStack() {
+        for (width in listOf(Float.NaN, 0f, 200f, 360f, 520f, 900f)) assertFalse(LeaderboardColumnLayout.fit(scores, width).stacked)
     }
 
     @Test

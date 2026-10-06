@@ -56,12 +56,12 @@ class SongHistoryCardUiTest {
      * @param count Rows.
      * @param goldLast The last row is a 100% full combo.
      */
-    private fun rows(chart: String, count: Int, goldLast: Boolean = false) = (1..count).map { day ->
+    private fun rows(chart: String, count: Int, goldLast: Boolean = false, baseScore: Long = 50_000L) = (1..count).map { day ->
         val gold = goldLast && day == count
         ScoreHistoryEntry(
             songId = "s-alpha",
             instrument = chart,
-            newScore = 50_000L + day * 1_000,
+            newScore = baseScore + day * 1_000,
             accuracy = if (gold) 1_000_000.0 else 900_000.0 + day * 1_000,
             isFullCombo = gold,
             season = 9,
@@ -173,7 +173,7 @@ class SongHistoryCardUiTest {
      * Shows three Lead rows in a card exactly [width] wide at [fontScale] (a split pane or
      * hinge half narrower than the window); later calls only resize the card.
      */
-    private fun showAt(width: Int, fontScale: Float = 1f) {
+    private fun showAt(width: Int, fontScale: Float = 1f, baseScore: Long = 50_000L) {
         val first = cardWidth.intValue == 0
         cardWidth.intValue = width
         if (first) {
@@ -182,7 +182,7 @@ class SongHistoryCardUiTest {
                 CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
                     FestivalTheme {
                         Box(Modifier.width(cardWidth.intValue.dp)) {
-                            SongHistoryCard(rows("Solo_Guitar", 3), visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
+                            SongHistoryCard(rows("Solo_Guitar", 3, baseScore = baseScore), visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
                         }
                     }
                 }
@@ -220,6 +220,19 @@ class SongHistoryCardUiTest {
         assertTrue(description("fst.song-detail.history.detail").contains("Season 9"))
         showAt(600, fontScale = 2f)
         assertEquals(3, listSeasons())
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h900dp-xxhdpi")
+    fun largeTextWithLongScoresKeepsTheSeasonFrom520() {
+        // Issue #170 review: 200% text and seven-digit scores at the 520 dp boundary still show every season.
+        showAt(519, fontScale = 2f, baseScore = 1_234_000L)
+        assertEquals(0, listSeasons())
+        for (width in listOf(520, 600)) {
+            showAt(width)
+            assertEquals("season at $width dp", 3, listSeasons())
+            assertTrue(description("fst.song-detail.history.top.0").contains("1,23"))
+        }
     }
 
     /** Advance the paused clock until the selector shows [wireId] selected (the click has landed). */
