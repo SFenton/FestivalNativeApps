@@ -215,7 +215,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         Page(name: "song-board-split", ready: "fst.songs.list", open: { app in
             openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.leaderboard.Solo_Guitar"]) : nil
         }, splitOnly: true),
-        Page(name: "song-history-split", profile: true, ready: "fst.songs.list", open: { app in
+        // More than five Lead scores, so View All Scores shows (issue #324).
+        Page(name: "song-history-split", env: ["FST_DEBUG_PROFILE": "fixture-history-multi:Multi History"],
+             profile: true, ready: "fst.songs.list", open: { app in
             openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.history.view-all"]) : nil
         }, splitOnly: true),
         Page(name: "rivals-split", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals",
