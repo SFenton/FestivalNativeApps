@@ -77,6 +77,9 @@ struct SongScorePreview: View {
                             Task { await load() }
                         }
                         .frame(minHeight: 44)
+                        // The accent tint is a fill colour: as text on the card it is
+                        // below 4.5:1 (as "Check Publication" measured 3.6:1).
+                        .tint(AccentText.blue)
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
