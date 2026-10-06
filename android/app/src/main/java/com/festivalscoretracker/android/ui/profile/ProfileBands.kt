@@ -62,9 +62,8 @@ internal fun ProfileBandsHeading(state: PlayerProfileUiState, bands: BandsLoad?,
             SectionHeader("${state.displayName}'s Bands", Modifier.weight(1f))
             SeeAllButton(
                 onClick = { onNavigate(PlayerBandsRoute(state.accountId, state.displayName)) },
+                section = "${state.displayName}'s Bands",
                 modifier = Modifier.testTag("fst.player.bands-link"),
-                label = "View All",
-                spokenLabel = "View All ${state.displayName}'s Bands",
             )
         }
         when (bands) {

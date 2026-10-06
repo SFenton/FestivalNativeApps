@@ -59,7 +59,7 @@ Operator verdict (2026-10-04): the always-on split layouts on iPad, Duo and Mac 
 | Rivals root, `.rivals`, `.allRivals` | `.rivalDetail` |
 | Leaderboards root, `.leaderboards` | `.player`, `.band` |
 | `.fullRankings` / `.bandRankings` | `.player` / `.band` |
-| `.songDetail` | `.songLeaderboard` ("View full leaderboard", the footer row), `.playerHistory` ("View score history" in the history card, shown as `SongScoreHistoryPage` in the trailing pane) |
+| `.songDetail` | `.songLeaderboard` ("View full leaderboard", the footer row), `.playerHistory` (View All Scores in the history card, more than five scores; the sortable `PlayerHistoryScreen` in the trailing pane, #324) |
 | Settings root | `.licenses` (the only Settings sub-page that is a route; First Run Guides and Service Info are inline sections) |
 
 Songs: full width; two cards per row under each section header in a landscape regular window (`SongGridPolicy`, iPad and Duo; the Mac keeps single-line table rows). Each grid card opens through its own borderless button (`SongGridCardLink`): a `List` row fires every `NavigationLink` it holds on one tap, so both songs of the row were pushed (`IPadShellJourneyTests.testSongsGridCardOpensOnlyItsSong`, 2026-10-05). Every other page pushes full width.

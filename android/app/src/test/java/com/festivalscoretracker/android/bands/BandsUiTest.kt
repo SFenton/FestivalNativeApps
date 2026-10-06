@@ -36,6 +36,7 @@ import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
@@ -191,6 +192,16 @@ class BandsUiTest {
         waitForTag("fst.player-bands.row.band-1")
         rule.onNodeWithText("Quads · 2 bands").assertIsDisplayed()
         assertEquals(false, exists("fst.player-bands.page-next"))
+    }
+
+    @Test
+    fun playerBandsGroupChangeFadesThroughTheSpinner() {
+        launch("playerBands:${BandFixtures.PLAYER}")
+        waitForTag("fst.player-bands.row.${BandFixtures.DUO_ID}")
+        // Issue #71: the old group's cards fade out and the spinner shows before the new group.
+        assertTrue(rule.spinnerShowsDuring("fst.player-bands.loading") { rule.onNodeWithTag("fst.player-bands.group.quads", useUnmergedTree = true).performSemanticsAction(SemanticsActions.OnClick) })
+        waitForTag("fst.player-bands.row.band-1")
+        rule.waitUntil(10_000) { settle(100); !exists("fst.player-bands.loading") }
     }
 
     @Test

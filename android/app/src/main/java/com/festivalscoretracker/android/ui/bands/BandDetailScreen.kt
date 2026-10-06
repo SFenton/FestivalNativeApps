@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -119,10 +120,13 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     // One pane decision drives both the layout and the Quick Links action, so they cannot disagree.
     val separatingHinge = shellPosture().hingeList.any { it.isVertical && it.isSeparating }
     val twoPane = BandLayout.splits(windowWidthDp(), separatingHinge, rememberSingleColumn())
-    val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList())
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList(), fadeIn)
     FestivalScreen(
         title = "Band",
         isRoot = false,
+        fadeInWindow = fadeIn,
         modifier = Modifier.testTag("fst.band.screen"),
         actions = { QuickLinksAction(quickLinks, windowWidthDp().toInt()) },
     ) { padding ->

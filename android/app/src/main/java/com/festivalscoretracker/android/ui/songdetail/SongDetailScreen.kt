@@ -1,5 +1,10 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.CompositionLocalProvider
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.common.fadeInRushOnScroll
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -212,7 +217,9 @@ fun SongDetailScreen(
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     // The revealed page publishes its items so Quick Links (in the top bar) can find them.
     var plan by remember { mutableStateOf(SongDetailPlan()) }
-    val quickLinks = rememberQuickLinks(listState, "Quick Links", plan.sections) { id -> SongDetailLayout.indexOf(plan.items, id) }
+    // The page's fade window, here so Quick Links (in the top bar) rush it and the embedded pane has one too.
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(listState, "Quick Links", plan.sections, fadeInWindow = fadeIn) { id -> SongDetailLayout.indexOf(plan.items, id) }
     val body: @Composable (PaddingValues) -> Unit = { padding ->
         when (val state = songState) {
             LoadState.Loading -> LoadingView("Loading song", Modifier.padding(padding))
@@ -223,7 +230,11 @@ fun SongDetailScreen(
     if (embedded) {
         val shell = LocalShellActions.current
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        body(PaddingValues(top = statusTop + 8.dp, bottom = shell.bottomPadding.calculateBottomPadding()))
+        CompositionLocalProvider(LocalFadeInWindow provides fadeIn) {
+            Box(Modifier.fadeInRushOnScroll(fadeIn)) {
+                body(PaddingValues(top = statusTop + 8.dp, bottom = shell.bottomPadding.calculateBottomPadding()))
+            }
+        }
     } else {
         // Paths lives in the dock (floating toolbar on phones, top bar elsewhere), like the web.
         FestivalScreen(
@@ -239,6 +250,7 @@ fun SongDetailScreen(
                 }
                 QuickLinksAction(quickLinks, windowWidthDp().toInt())
             },
+            fadeInWindow = fadeIn,
             content = body,
         )
     }
@@ -419,11 +431,17 @@ private fun SongDetailContent(
 @Composable
 private fun FocusScroll(focus: Instrument?, items: List<SongDetailItem>, listState: androidx.compose.foundation.lazy.LazyListState, revealed: Boolean) {
     var done by rememberSaveable { mutableStateOf(false) }
+    val fadeIn = LocalFadeInWindow.current
     LaunchedEffect(focus, revealed) {
         if (focus == null || done || !revealed) return@LaunchedEffect
         done = true
         if (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0) return@LaunchedEffect
-        SongDetailLayout.indexOf(items, SongDetailLayout.instrumentId(focus))?.let { listState.scrollToItem(it) }
+        val index = SongDetailLayout.indexOf(items, SongDetailLayout.instrumentId(focus)) ?: return@LaunchedEffect
+        // Let the revealed cards arm their fades, then rush them: the cards the jump reaches fade in
+        // together instead of waiting out their stagger (load-transition R5, issue #323).
+        withFrameNanos { }
+        fadeIn?.rush()
+        listState.scrollToItem(index)
     }
 }
 

@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui.quicklinks
 
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
+import com.festivalscoretracker.android.ui.common.FadeInWindow
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -228,6 +230,9 @@ class QuickLinksController internal constructor(
     /** Whether jumps animate (off under reduce motion). */
     internal var animate: Boolean = true
 
+    /** The page's fade window, rushed by a jump like any scroll (load-transition R5, issue #323). */
+    internal var fadeInWindow: FadeInWindow? = null
+
     /** Active section ID. */
     var activeId: String? by mutableStateOf(null)
         private set
@@ -251,6 +256,8 @@ class QuickLinksController internal constructor(
         val index = indexOf(id) ?: return
         tracker.beginJump(id)
         activeId = tracker.activeId
+        // A jump is a scroll: fades that have not started yet run together (web `useStaggerRush`).
+        fadeInWindow?.rush()
         landing?.cancel()
         landing = scope.launch {
             val px = landingPx.roundToInt()
@@ -327,6 +334,7 @@ class QuickLinksController internal constructor(
  * @param title Quick Links title.
  * @param sections Sections in order (duplicates are dropped).
  * @param pinnedHeaders Section headers are sticky (Songs): jumps land them flush so they pin, with a 16 dp activation line.
+ * @param fadeInWindow The page's fade window, which jumps rush (defaults to the enclosing one).
  * @param indexOf Section ID → list item index.
  * @return Controller.
  */
@@ -336,9 +344,10 @@ fun rememberQuickLinks(
     title: String,
     sections: List<QuickLinkSection>,
     pinnedHeaders: Boolean = false,
+    fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
     indexOf: (String) -> Int?,
 ): QuickLinksController =
-    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, indexOf)
+    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, fadeInWindow, indexOf)
 
 /**
  * Remember a Quick Links controller for a page laid out as a staggered grid.
@@ -346,12 +355,19 @@ fun rememberQuickLinks(
  * @param gridState The page's grid state.
  * @param title Quick Links title.
  * @param sections Sections in order (duplicates are dropped).
+ * @param fadeInWindow The page's fade window, which jumps rush (defaults to the enclosing one).
  * @param indexOf Section ID → grid item index.
  * @return Controller.
  */
 @Composable
-fun rememberQuickLinks(gridState: LazyStaggeredGridState, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController =
-    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, indexOf = indexOf)
+fun rememberQuickLinks(
+    gridState: LazyStaggeredGridState,
+    title: String,
+    sections: List<QuickLinkSection>,
+    fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
+    indexOf: (String) -> Int?,
+): QuickLinksController =
+    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, indexOf = indexOf)
 
 /**
  * Remember a controller over any [QuickLinkScroller].
@@ -366,6 +382,7 @@ internal fun rememberQuickLinks(
     title: String,
     sections: List<QuickLinkSection>,
     pinnedHeaders: Boolean = false,
+    fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
     indexOf: (String) -> Int?,
 ): QuickLinksController {
     val scope = rememberCoroutineScope()
@@ -389,6 +406,7 @@ internal fun rememberQuickLinks(
     // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.
     controller.animate = false
     controller.holdLanding = !pinnedHeaders
+    controller.fadeInWindow = fadeInWindow
     LaunchedEffect(controller) {
         snapshotFlow { scroller.layout() }.collect(controller::onLayout)
     }
