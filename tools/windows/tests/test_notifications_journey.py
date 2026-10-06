@@ -126,6 +126,46 @@ class NotificationsJourneyPhaseTests(unittest.TestCase):
                        "Older notifications", "?reads=0", "feed=slow", "key:esc"):
             self.assertIn(marker, steps)
 
+    def test_media_rows_check_paint_and_bold_for_every_row(self):
+        steps = j.SCENARIOS["media-rows"][2]
+        for row in j.MEDIA_ROWS:
+            paint = next(s for s in steps if s.startswith(f"assertpaint:{j.ROW}fixture-notif-{row}|"))
+            bold = next(s for s in steps if s.startswith(f"assertbold:{j.ROW}fixture-notif-{row}|"))
+            self.assertIn(f"L100,B18={j.MEDIA_FLAGS[row]}~8", paint)
+            self.assertIn(j.UNREAD_DOT, paint)
+            self.assertTrue(bold.endswith("|".join(j.MEDIA_BOLD[row])))
+        grid, first = j.media_paint("grid")[0], j.media_paint("first")[0]
+        self.assertIn("=#FFFFFF~40", grid)
+        self.assertIn("!=#FFFFFF~40", first)
+        self.assertNotIn(j.CARD_STROKE, grid)
+        self.assertIn(j.CARD_STROKE, first)
+
+    def test_media_paint_steps_parse(self):
+        import uiwin  # noqa: PLC0415  (sibling module, path set above)
+        for row in j.MEDIA_ROWS:
+            for step in j.media_paint(row):
+                self.assertTrue(uiwin.parse_step(step)["selector"]["value"].endswith(row))
+
+    def test_matrix_paint_pages_cover_themes_text_and_scale(self):
+        import json  # noqa: PLC0415
+        import uiwin  # noqa: PLC0415
+        path = Path(__file__).resolve().parents[1] / "journeys" / "a11y-notifications.json"
+        pages = {p["name"]: p for p in json.loads(path.read_text(encoding="utf-8"))}
+        exact, text, hc = (pages[f"paint-notifications-media{s}"] for s in ("", "-text", "-hc"))
+        self.assertEqual(set(exact["modes"]), {"light-theme", "dark-theme", "scale-150"})
+        self.assertEqual(text["modes"], ["text-200"])
+        self.assertEqual(set(hc["modes"]), {"hc-night-sky", "hc-desert"})
+        for row in ("grid", "first", "stars"):
+            for step in j.media_paint(row):
+                self.assertIn(step, exact["after_ready"])
+        self.assertIn(j.media_paint("grid")[0], text["after_ready"])
+        self.assertEqual(sum(s.startswith("assertbold:") for s in text["after_ready"]), 2)
+        self.assertEqual(sum(s.startswith("assertpaint:") for s in hc["after_ready"]), 3)
+        self.assertFalse(any("#" in s for s in hc["after_ready"] if s.startswith("assertpaint:")))
+        for page in (exact, text, hc):
+            for step in page["after_ready"]:
+                uiwin.parse_step(step)
+
 
 if __name__ == "__main__":
     unittest.main()

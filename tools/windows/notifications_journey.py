@@ -59,6 +59,46 @@ MEDIA_NAMES = {
     "pb": "Fixture Orbit · Drums. You set a new personal best on Drums for Fixture Orbit with 123,456 points. "
           "New High Score. Jan 2",
 }
+# Each media row's bold message runs (web emphasizeText) and flag pill colour (web FLAG_STYLES via NotificationFlagKind).
+MEDIA_BOLD = {
+    "grid": ("Lead", "Fixture Pulse", "201,234"),
+    "first": ("Bass", "Fixture Orbit", "154,321"),
+    "stars": ("4 to 5 stars", "Drums", "Fixture Pulse"),
+    "gold": ("gold stars", "Tap Vocals", "Fixture Orbit"),
+    "difficulty": ("Lead", "Fixture Pulse", "2", "3"),
+    "pb": ("Drums", "Fixture Orbit", "123,456"),
+}
+MEDIA_FLAGS = {"grid": "#0F766E", "first": "#6D28D9", "stars": "#BE123C", "gold": "#92400E", "difficulty": "#047857",
+               "pb": "#0F766E"}
+# Row card paint in the default (dark) theme: FSTNotificationRowSurfaceBrush / RowStrokeBrush / UnreadDotBrush.
+CARD_FILL, CARD_STROKE, UNREAD_DOT = "#162133", "#1E2A3A", "#FACC15"
+
+
+def media_paint(row: str) -> list[str]:
+    """Steps asserting one media row's #272 visuals: the bold message runs and, from the window's pixels, the card
+    fill, its 1 epx stroke inset 4 epx from the row with a gap to the next card, the media rail (art over a white
+    instrument grid only on the multi-chart row), the flag pill colour and the gold unread dot beside the chevron.
+
+    Probe offsets are effective pixels from the row's UIA bounds (which exclude the 4 epx bottom margin). The first
+    row carries the opening keyboard focus rectangle, so its stroke and gap are checked on the rows below it.
+
+    Args:
+        row: A :data:`MEDIA_ROWS` key.
+
+    Returns:
+        Drive steps.
+    """
+    probes = [f"fill:L8,M0={CARD_FILL}~4"]
+    if row != MEDIA_ROWS[0]:
+        probes += ["L1,M0!=@fill~4", f"L4,M-10,L5,M10={CARD_STROKE}~4", f"C-20,B2.5,C20,B4={CARD_STROKE}~4",
+                   "C-20,B1,C20,B-3!=@fill~4", f"C-20,B1,C20,B-3!={CARD_STROKE}~4"]
+    if row == "grid":
+        probes += ["L40,M-20,L54,M-5!=@fill~6", "L30,M15,L64,M33=#FFFFFF~40"]
+    else:
+        probes += ["L40,M-6,L54,M6!=@fill~6", "L30,M28,L64,M33!=#FFFFFF~40"]
+    probes += [f"L100,B18={MEDIA_FLAGS[row]}~8", f"R23,M-26,R27,M-22={UNREAD_DOT}~40", f"R25,M0!={UNREAD_DOT}~40"]
+    return [f"assertpaint:{ROW}fixture-notif-{row}|" + "|".join(probes),
+            f"assertbold:{ROW}fixture-notif-{row}|" + "|".join(MEDIA_BOLD[row])]
 
 
 def open_flyout() -> list[str]:
@@ -226,6 +266,8 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
     "media-rows": (
         # Issue #272: the web NotificationRow media rail and flag chips. A multi-chart row (art above an instrument grid)
         # names its charts like the web grid's aria-label; one row per remaining flag kind; the time is spoken only.
+        # The art, grid, bold runs, pill colours, card stroke/gap and dot are Raw or paint-only, so media_paint checks
+        # them from the window's pixels and the message's TextPattern rather than the row's UIA name.
         PLAYER, "/songs",
         [
             "@feed=media",
@@ -234,10 +276,13 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
             *[f"waitfor:{ROW}fixture-notif-{row}@10" for row in MEDIA_ROWS[:3]],
             "assertstate:" + BELL + f"|name=Notifications, {len(MEDIA_ROWS)} unread@5",
             *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[:3]],
+            *[step for row in MEDIA_ROWS[:3] for step in media_paint(row)],
             "{shot:notifications-media}",
             f"scrollinto:{ROW}fixture-notif-{MEDIA_ROWS[-1]}",
             *[f"waitfor:{ROW}fixture-notif-{row}@5" for row in MEDIA_ROWS[3:]],
             *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[3:]],
+            "wait:0.5",
+            *[step for row in MEDIA_ROWS[3:] for step in media_paint(row)],
             "{shot:notifications-media-end}",
         ],
         None,

@@ -527,7 +527,9 @@
           "modal-shell",
           "section-headers"
         ],
-        "controls": [],
+        "controls": [
+          "notifications"
+        ],
         "pages": [
           "songs",
           "song-detail",
@@ -537,7 +539,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        291
+        291,
+        272
       ]
     },
     {
