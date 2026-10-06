@@ -1,8 +1,8 @@
 # View all call to action
 
-> **What:** the full-width "View all" button that ends a card of preview rows and opens (or expands) the full list: View Full Leaderboard, View All Rivals, View All (Rival Detail categories), View All Rankings (N), View All Scores. **Read when:** adding a card that previews part of a list, or changing any of these buttons.
+> **What:** the full-width "View all" button that ends a card of preview rows and opens the full list on its own page (never expands the card in place, R8): View Full Leaderboard, View All Rivals, View All (Rival Detail categories), View All Rankings (N), View All Scores. **Read when:** adding a card that previews part of a list, or changing any of these buttons.
 
-Status: **current**, 2026-10-06. Provenance: operator batch 6.29, #41, #68, #207, #264, #268, #321.
+Status: **current**, 2026-10-07. Provenance: operator batch 6.29, #41, #68, #207, #264, #268, #321, #324.
 
 ## Intent
 
@@ -29,6 +29,8 @@ The web places the button **after** the rows and only for non-empty, error-free 
 6. **R6. Not this pattern.** A section title's trailing "View All" link ([section-headers](section-headers.md) R8) and Search's "View All Results" are links, not this CTA. A preview card's own bottom "see the whole list" row is this CTA, never a separate in-card text row: Rival Detail's category cards end with it (owner, #321).
 7. **R7. Bottom rows become the CTA; title-row links stay links.** **Agent decision (#321, 2026-10-06): option A; owner may override with `/choose`.** The owner asked that Rivals' in-card "See All" use the purple button and that every "See All" read "View All". Bottom-of-card "see the whole list" rows become this CTA (labelled "View All" plus the card in the spoken name). Title-row links keep the section-headers R8 link style with "View All" copy. Rationale: HIG Buttons "Keep to one or two prominent buttons per view" (should), the web's header links on Rival Detail and Profile Bands, and the existing R8 pattern. Option B, every link a purple button, was rejected.
 
+8. **R8. Open the full list; never expand the card in place.** Owner decision (#324: "We should go to a sub-page with sorts like web app"; supersedes operator batch 6.39's in-place Score History expansion). The CTA navigates to the full list's page (pushed, or the trailing pane in a split), and the card keeps its preview length. Song Detail's View All Scores opens Player History for the card's instrument (web `ScoreHistoryChart` → `PlayerHistoryPage`). The rule rests on the owner decision and the web and Android precedent (web `ScoreHistoryChart` → `PlayerHistoryPage`, Android `SongHistoryCard` → `PlayerHistoryScreen`), not on an Apple guideline: the HIG Lists and tables "limit the number of rows … a way to view more" advice is a watchOS platform consideration only and is not cited for iOS, iPadOS or macOS. On Apple the page is pushed with the native back button (or shown in the split's trailing pane).
+
 ## Canonical implementation
 
 | Sub-behavior | Apple | Android | Windows |
@@ -40,12 +42,13 @@ Windows consumers (`ViewAllCtaTests` lists them and forbids overrides): Song Det
 
 Android test IDs stay one tag per consumer (`fst.rivals.view-all`, `fst.compete.view-full-leaderboards`, …); each card's CTA is addressed through its card container's tag (`fst.rivals.section[.leaderboard].<id>`, `fst.compete.{leaderboard,rivals}-card.<id>`) with `hasAnyAncestor`, which keeps R4's one-ID-per-card without renaming tags used by connected tests (agent decision, #176).
 
-Apple consumers: `RivalsViewAllButton` (Rivals, Compete; via `PurpleActionLink`), Rival Detail categories (`RivalDetailScreen`, Duo `RivalDualDetailPane`; `PurpleActionLink` "View All", `fst.rival-detail.category.<key>.view-all` / `fst.dual.rivals.category.<key>.view-all`, spoken "View All, <category>"), `PlayerBandsPreviewSection`, `SongScorePreview`, `SongBandPreviewSection`, `SongScoreHistorySection`, `CompeteScreen`, `LeaderboardsScreen`. Android consumers: `RivalComponents`, `CompeteScreen`, `SongDetailScreen`, `SongHistoryCard`, `LeaderboardsScreen`, `ProfileBands`.
+Apple consumers: `RivalsViewAllButton` (Rivals, Compete; via `PurpleActionLink`), Rival Detail categories (`RivalDetailScreen`, Duo `RivalDualDetailPane`; `PurpleActionLink` "View All", `fst.rival-detail.category.<key>.view-all` / `fst.dual.rivals.category.<key>.view-all`, spoken "View All, <category>"), `PlayerBandsPreviewSection`, `SongScorePreview`, `SongBandPreviewSection`, `SongScoreHistorySection` (View All Scores, more than five scores, `ListDetailLink` + `PurpleActionLabel` to `.playerHistory`, spoken "View All Scores, <Instrument> Score History", `fst.song-detail.history.view-all`), `CompeteScreen`, `LeaderboardsScreen`. Android consumers: `RivalComponents`, `CompeteScreen`, `SongDetailScreen`, `SongHistoryCard`, `LeaderboardsScreen`, `ProfileBands`.
 
 ## Known debt
 
 | Debt | Breaks | Plan |
 |---|---|---|
+| Windows Song Detail View All Scores (`HistoryViewAll`) expands the history in place and `AppRoute.PlayerHistory` redirects to Song Detail | R8 | Windows session for #324 |
 | Apple Song Detail cards label the button "View full leaderboard" (sentence case) and speak "View full `<chart>` leaderboard", which splits the visible label | R4 | Apple check; out of #268's Windows scope |
 | Windows Rival Detail category "See All" and other Windows "See All" copy (Android and web now say "View All", #321) | R4, R6, R7 | Windows check of #321 |
 | Android Song Detail instrument/band cards (View Full Leaderboard), View All Scores, Leaderboards View All Rankings (N) and Profile View All Bands pass no `cardName`, so TalkBack reads the label alone (audited in #176; Rivals hub and Compete pass it) | R4 | Pass the card title as `cardName` in each consumer's Android check |

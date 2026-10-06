@@ -38,11 +38,11 @@ Source: `FortniteFestivalWeb/src/pages/leaderboard/player/PlayerHistoryPage.tsx:
 - 202 and 404 are explicit `PlayerHistoryState` cases (`.syncing`, `.unregistered`), not folded into the generic error path — the UI text must not claim "no history" for either.
 - Invalid-score filtering (`useScoreFilter().filterHistory`) is **not** ported natively this wave: the native client shows the server's rows as-is. If Settings later exposes filtered-score display for other surfaces, extend `PlayerHistoryPayload.entries(songId:instrument:)` to filter consistently.
 
-## Gaps and open issues
+## Entry points and gaps
 
-- **No entry point today.** Neither Song Detail nor the solo leaderboard link to this route natively yet (the web reaches it from a per-instrument action on those pages). Route `.playerHistory(Song, Instrument)` and the screen exist and are reachable only via `FST_DEBUG_ROUTE`/hosted tests until Song Detail or Song Leaderboard add a link — flagged for those lanes.
-- Swift Charts score-over-time line chart is a native addition (the web has no chart on this page); it renders only with two or more dated entries.
+- Song Detail's Score History card lists the best five scores and, with more than five, a purple "View all scores" (`ScoreHistoryChart` → `GraphCard viewAllLabel`) that navigates to this page for the card's instrument; notifications and deep links open it directly. Native clients push the page; they never expand the card in place (issue #324).
+- The page has no chart (the web has none); the chart lives on Song Detail.
 
 ## Test matrix
 
-No player selected; 404 unregistered; 202 syncing; empty for this instrument; loaded with 1/many rows; each sort mode × direction; personal-best row tracks sort; stale/offline banner; chart present/absent (0–1 vs 2+ dated rows).
+No player selected; 404 unregistered; 202 syncing; empty for this instrument; loaded with 1/many rows; each sort mode × direction; personal-best row tracks sort; Song Detail shows View all scores only above five rows.
