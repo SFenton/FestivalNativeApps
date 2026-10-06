@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +86,7 @@ import java.text.NumberFormat
 import androidx.compose.foundation.layout.RowScope
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Rows
 
@@ -140,6 +142,18 @@ data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp, val showS
 
 /** Column widths for the rows below, or null for intrinsic widths. */
 val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
+
+/**
+ * The measured inner width (dp) of a rankings card's rows, written from `onSizeChanged` and
+ * passed to [rememberAccountColumns] / [rememberBandColumns]. It is NaN only before the
+ * card's first layout, and it is saved with the destination, so returning to a page on the
+ * back stack (Compete from View Full Leaderboard, issues #82, #185) draws the same column
+ * plan on its first frame instead of a NaN plan that drops or restacks columns for a frame.
+ *
+ * @return Width state shared by the rows' column plan.
+ */
+@Composable
+fun rememberRankingRowWidth(): MutableFloatState = rememberMeasuredPx(Float.NaN)
 
 /**
  * Measure the widest rank, songs and rating text (bold, as the selected row draws them)
@@ -302,7 +316,7 @@ private fun RankingRowLayout(
         val weight = if (isSelected) FontWeight.Bold else null
         val columns = LocalRankingColumns.current
         if (isLargeText() || columns?.stacked == true) {
-            StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null)
+            StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null, columns?.rank)
             return@Row
         }
         Text(
@@ -340,10 +354,17 @@ private fun RankingRowLayout(
 /**
  * [RankingRowLayout]'s content at large font scales: rank and the (wrapping) name on the
  * first line, the songs count and rating on the next, so no column is squeezed or overlaps.
+ * The rank keeps the section's shared width, so names line up down the section (issue #149).
  */
 @Composable
-private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, rating: String, bayesian: String?, weight: FontWeight?, navigable: Boolean) {
-    Text(RankingFormatting.rankLabel(rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary)
+private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, rating: String, bayesian: String?, weight: FontWeight?, navigable: Boolean, rankWidth: Dp?) {
+    Text(
+        RankingFormatting.rankLabel(rank),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = weight,
+        color = BrandTokens.textPrimary,
+        modifier = rankWidth?.let { Modifier.widthIn(min = it) } ?: Modifier,
+    )
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary)
         Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue)

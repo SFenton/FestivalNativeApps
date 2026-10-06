@@ -54,6 +54,17 @@ fun Modifier.festivalSheetTop(): Modifier = this
 val LocalShellPosture = staticCompositionLocalOf<Posture?> { null }
 
 /**
+ * The window posture to lay out against: the shell's ([LocalShellPosture]) when inside it,
+ * otherwise collected here. Pages must read hinges through this, not
+ * `currentWindowAdaptiveInfo()`. That collector starts with an empty hinge list, so a
+ * destination recomposed on Back would draw one frame as if unfolded (issue #185).
+ *
+ * @return The current window posture.
+ */
+@Composable
+fun shellPosture(): Posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+
+/**
  * Keep a `ModalBottomSheet` on one side of a separating fold or hinge ([SheetHinge]): the
  * leading (or wider) half in book posture, the lower half in tabletop posture. Material
  * centres the sheet across the whole window, which on a half-open foldable puts its rows
@@ -64,13 +75,14 @@ val LocalShellPosture = staticCompositionLocalOf<Posture?> { null }
  */
 @Composable
 fun Modifier.festivalSheetHingeSide(): Modifier {
-    val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
+    val posture = shellPosture()
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return this
     val density = LocalDensity.current
-    val windowWidth = LocalView.current.rootView.width.toFloat()
+    val root = LocalView.current.rootView
     val sheetTop = WindowInsets.statusBars.union(WindowInsets.displayCutout).getTop(density) + with(density) { SHEET_TOP_GAP_DP.dp.toPx() }
     val insets = SheetHinge.insets(
-        windowWidthPx = windowWidth,
+        windowWidthPx = root.width.toFloat(),
+        windowHeightPx = root.height.toFloat(),
         left = hinge.bounds.left,
         right = hinge.bounds.right,
         top = hinge.bounds.top,
@@ -81,7 +93,7 @@ fun Modifier.festivalSheetHingeSide(): Modifier {
         sheetTopPx = sheetTop,
         gapPx = with(density) { SHEET_TOP_GAP_DP.dp.toPx() },
     )
-    return with(density) { this@festivalSheetHingeSide.absolutePadding(left = insets.left.toDp(), right = insets.right.toDp(), top = insets.top.toDp()) }
+    return with(density) { this@festivalSheetHingeSide.absolutePadding(left = insets.left.toDp(), right = insets.right.toDp(), top = insets.top.toDp(), bottom = insets.bottom.toDp()) }
 }
 
 // endregion

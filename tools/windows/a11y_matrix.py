@@ -216,6 +216,24 @@ def mode_pages(pages: list[dict], mode: str) -> list[dict]:
             if (not p.get("modes") or parts & set(p["modes"])) and not parts & set(p.get("skip_modes", ()))]
 
 
+def page_sizes(page: dict, sizes: list[str], mode: str) -> list[str]:
+    """Sizes one page runs at in one ``--mode``.
+
+    A page may list ``sizes`` (it runs only at those) and ``skip_sizes``, a map from a mode to the sizes it skips in
+    that mode, e.g. ``{"text-200": ["compact"]}`` when a measured element pair no longer fits on screen together.
+
+    Args:
+        page: Page definition.
+        sizes: ``--sizes`` values, in order.
+        mode: ``--mode`` value; ``+`` joins several modes.
+
+    Returns:
+        The page's sizes, in order.
+    """
+    skipped = {size for part in mode.split("+") for size in page.get("skip_sizes", {}).get(part, ())}
+    return [s for s in sizes if s in page.get("sizes", sizes) and s not in skipped]
+
+
 def page_fixture(page: dict, default: Path = FIXTURE) -> tuple[Path, tuple[str, ...]]:
     """Fixture script and flags for one page.
 
@@ -329,7 +347,8 @@ def page_env(page: dict, data_dir: Path) -> dict[str, str]:
 
     Args:
         page: Page entry (``profile``, ``tab``, ``route`` and optional ``env`` launch hooks such as
-            ``FST_DEBUG_CONTROL_LAB``; page ``env`` wins over the derived values).
+            ``FST_DEBUG_CONTROL_LAB``; page ``env`` wins over the derived values, and ``{repo}`` in a value becomes the
+            repository root, e.g. ``FST_DEBUG_WHATS_NEW_FILE``).
         data_dir: Isolated app data directory.
 
     Returns:
@@ -341,7 +360,7 @@ def page_env(page: dict, data_dir: Path) -> dict[str, str]:
     else:
         env["FST_DEBUG_ANONYMOUS"] = "1"
     env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
-    env.update({key: str(value) for key, value in page.get("env", {}).items()})
+    env.update({key: str(value).replace("{repo}", str(REPO_ROOT)) for key, value in page.get("env", {}).items()})
     return env
 
 
@@ -472,8 +491,7 @@ def main(argv: list[str] | None = None) -> int:
                     if key not in fixtures:
                         fixtures[key] = start_fixture(out / f"fixture-service-{len(fixtures)}.log", key[1], key[0])
                     port = fixtures[key][1]
-                page_sizes = [s for s in sizes if s in page.get("sizes", sizes)]
-                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), port, out,
+                results.extend(run_page(page, args.mode, page_sizes(page, sizes, args.mode), args.exe.resolve(), port, out,
                                         args.scan, args.tabs, args.hold))
     finally:
         for fixture, _ in fixtures.values():

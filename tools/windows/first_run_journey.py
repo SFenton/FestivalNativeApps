@@ -21,6 +21,12 @@ Every reachable ``first-run`` contract state (``contracts/product.json``) runs a
 * ``catalogue-unavailable``: with ``/api/songs`` failing (``--songs-unavailable``), the Songs, Statistics, Suggestions
   and Rivals demos keep placeholder rows instead of inventing songs (issue #257).
 * ``dismissed``: Close, Esc and Done close the carousel and record only the slides actually viewed.
+* ``rotation`` (issue #258, validating #58): the visible rotating demo swaps rows with the web fade, a static neighbour
+  holds still, a paged-away demo pauses, and a minimized window holds the visible demo still until it is restored.
+* ``rotation-reduced``: with Reduce Motion the visible demo keeps rotating but swaps instantly.
+* ``rotation-background``: a window that stays visible and uncovered but loses activation to the taskbar holds its
+  demo still, then resumes once reactivated (rotation runs only while the app is in the foreground). Needs an unlocked
+  console, like ``keyboard``.
 
 Each phase is one ``drive`` call (a launching phase runs inside the ``launch`` call's desktop-lock hold) and the UIA
 tree dumped after it is checked with regular expressions (pips are named "Page N", so the slide count is asserted
@@ -140,8 +146,30 @@ def _slide(title: str) -> str:
 
 
 def _demo(slide_id: str, status: str, seconds: float = 0) -> str:
-    """``assertstatus`` step for a slide's live demo (raw UIA view): ``placeholder`` rows or ``catalogue`` songs."""
-    return f"assertstatus:id=fst.first-run.demo.{slide_id}|{status}" + (f"@{seconds:g}" if seconds else "")
+    """``assertstatus`` step for a slide's live demo (raw UIA view): ``placeholder`` rows or ``catalogue`` songs.
+
+    Rotating demos append their rotation state after the data status, so this matches the leading token.
+    """
+    return _rotation(slide_id, rf"^{status}( |$)", seconds)
+
+
+def _rotation(slide_id: str, pattern: str, seconds: float = 0) -> str:
+    """``assertstatus`` regex step for a demo's ItemStatus (issue #258), e.g.
+    ``catalogue rotation=running swaps=2 swap=fade`` (``FirstRunDemoRotationStatus``)."""
+    return f"assertstatus:id=fst.first-run.demo.{slide_id}|~{pattern}" + (f"@{seconds:g}" if seconds else "")
+
+
+#: A rotating demo that has swapped at least once with the web fade (5 s interval, so allow two intervals).
+SWAPPED_FADE = r"^catalogue rotation=running swaps=[1-9]\d* swap=fade$"
+#: The same with animations off: rotation continues, swaps are instant.
+SWAPPED_INSTANT = r"^catalogue rotation=running swaps=[1-9]\d* swap=instant$"
+#: Exactly one rotation tick so far (three rows swap one at a time).
+FIRST_TICK_FADE = r"^catalogue rotation=running swaps=1 swap=fade$"
+#: The first tick's single swap, held while the visible window is not the foreground window.
+FIRST_TICK_BACKGROUND = r"^catalogue rotation=background swaps=1 swap=fade$"
+#: Rotation resumed after a hold at one swap: at least a second swap, with the fade.
+RESUMED_FADE = r"^catalogue rotation=running swaps=([2-9]|[1-9]\d+) swap=fade$"
+SWAP_WAIT = 15
 
 
 #: Seconds the ``late-catalogue`` fixture holds ``/api/songs``: long enough for the guide to open first.
@@ -414,6 +442,56 @@ SCENARIOS = [
                   expect=[_button("SecondaryButton", "Back"), _slide("Sort Songs")]),
             Phase(["key:esc", CLOSED, "wait:1"], forbid=[DIALOG],
                   seen={"keyboard close records the two viewed slides": lambda s: len(s) == 2}),
+        ],
+    ),
+    Scenario(
+        name="rotation",
+        state="demo rotation (issue #58: visible slide only, paused while hidden)",
+        profile="fixture-player-1:Demo Player",
+        # The demo catalogue has fewer songs than three rows need to rotate (issue #258); rotation needs a real pool.
+        fixture=("--large-catalogue",),
+        phases=[
+            # The visible rotating demo swaps rows with the web fade (one row per tick). Paging
+            # away pauses it: off-screen FlipView items leave the UIA tree, so it is read again on return (one phase, so
+            # no lock wait intervenes). Twelve seconds away would add at least two more ticks if it kept running; back on
+            # its slide, the restarted 5 s clock hasn't ticked yet. The static Sort demo has no rotation state.
+            Phase([OPEN, _rotation("songs-song-list", FIRST_TICK_FADE, SWAP_WAIT),
+                   "invoke:id=PrimaryButton", "wait:1", _rotation("songs-sort", r"^catalogue$"), "wait:11",
+                   "invoke:id=SecondaryButton", _rotation("songs-song-list", FIRST_TICK_FADE)],
+                  expect=[_slide("Song List")]),
+            # Instrument Icons (slide 5) runs once selected, including a container FlipView realizes late.
+            Phase(["invoke:id=PrimaryButton", "wait:0.5", "invoke:id=PrimaryButton", "wait:0.5", "invoke:id=PrimaryButton",
+                   "wait:0.5", "invoke:id=PrimaryButton", "wait:0.5", _rotation("songs-icons", SWAPPED_FADE, SWAP_WAIT)],
+                  expect=[_slide("Instrument Icons")]),
+            # Metadata becomes visible and the window is minimized before its first 5 s swap: it holds still while
+            # hidden (still no swaps 7 s later)...
+            Phase(["invoke:id=PrimaryButton", "wait:0.5", "resize:minimized",
+                   _rotation("songs-metadata", r"^catalogue rotation=not-visible swaps=0 swap=none$", 5), "wait:7",
+                   _rotation("songs-metadata", r"^catalogue rotation=not-visible swaps=0 swap=none$")]),
+            # ...and resumes once the window is restored.
+            Phase(["resize:restored", _rotation("songs-metadata", SWAPPED_FADE, SWAP_WAIT)],
+                  expect=[_slide("Song Metadata")]),
+        ],
+    ),
+    Scenario(
+        name="rotation-reduced",
+        state="demo rotation with Reduce Motion (instant swaps)",
+        settings={"reduceMotion": True},
+        fixture=("--large-catalogue",),
+        phases=[Phase([OPEN, _rotation("songs-song-list", SWAPPED_INSTANT, SWAP_WAIT)], expect=[_slide("Song List")])],
+    ),
+    Scenario(
+        name="rotation-background",
+        state="demo rotation paused while the visible window is inactive (issue #258: foreground only)",
+        fixture=("--large-catalogue",),
+        phases=[
+            # Right after the first tick the taskbar takes activation: the window stays visible and uncovered, yet the
+            # demo holds its one swap for 12 s (two or more ticks if it kept running), then resumes once reactivated.
+            Phase([OPEN, _rotation("songs-song-list", FIRST_TICK_FADE, SWAP_WAIT), "foreground:off",
+                   _rotation("songs-song-list", FIRST_TICK_BACKGROUND), "wait:12",
+                   _rotation("songs-song-list", FIRST_TICK_BACKGROUND), "foreground:on",
+                   _rotation("songs-song-list", RESUMED_FADE, SWAP_WAIT)],
+                  expect=[_slide("Song List")]),
         ],
     ),
 ]

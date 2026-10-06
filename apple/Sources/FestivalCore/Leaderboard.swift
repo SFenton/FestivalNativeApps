@@ -150,6 +150,34 @@ public enum LeaderboardPaging {
         }
         return rank > 0 && self.page(forRank: rank, pageSize: pageSize) == page
     }
+
+    /// Where a song leaderboard's scroll view goes when its rows reload (issue #316).
+    ///
+    /// The web scrolls to the top on a page change but pins its collapsed song header
+    /// (`LeaderboardPage` `goToPage('paginate')`, `headerPinned`), so the header never
+    /// expands between pages. Natively the header scrolls with the rows and the bar
+    /// shows its title once it is under the bar: a page change from there starts the
+    /// new page at its first row with the header still under the bar, and otherwise
+    /// returns to the top like the web. A new board (band size, player) starts at the
+    /// top, with its header in view.
+    ///
+    /// - Parameters:
+    ///   - headerUnderBar: The song header has scrolled under the bar (bar title shown).
+    ///   - boardChanged: The reload shows another board rather than another page of it.
+    /// - Returns: The scroll target for the reload.
+    public static func reloadScroll(headerUnderBar: Bool, boardChanged: Bool) -> LeaderboardReloadScroll {
+        headerUnderBar && !boardChanged ? .firstRow : .top
+    }
+}
+
+// MARK: - Reload scroll
+
+/// Scroll target of a song leaderboard reload (``LeaderboardPaging/reloadScroll(headerUnderBar:boardChanged:)``).
+public enum LeaderboardReloadScroll: Equatable, Sendable {
+    /// Back to the top, with the song header in view (web `scrollTo(0, 0)`).
+    case top
+    /// To the first row, keeping the song header under the bar and the bar title shown.
+    case firstRow
 }
 
 extension FestivalAPI {

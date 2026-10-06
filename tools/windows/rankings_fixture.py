@@ -9,6 +9,9 @@ that the shared mock service does not have:
 - ``GET /api/rankings/Solo_PeripheralCymbals`` is an empty board (``totalAccounts: 0``);
 - ``GET /api/rankings/Solo_PeripheralDrums`` fails with HTTP 500 (the page's failure state).
 
+``--rankings-delay SECONDS`` answers every board read (``/api/rankings/{instrument}``, not the selected player's
+own-rank read) after that delay, so a journey can assert what a reload shows while the spinner is up (issue #270).
+
 Selected-player spotlight states come from the mock's own accounts: ``fixture-rank-40`` (page 2: pinned row and
 Your Page), ``fixture-rank-fail`` (inline failure) and any other unknown ``fixture-*`` ID (404: not ranked).
 
@@ -19,6 +22,7 @@ Usage: ``python tools/windows/rankings_fixture.py --port 0`` (same flags as ``mo
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -91,9 +95,72 @@ def install() -> None:
     mock_service.FixtureHandler.do_GET = do_get
 
 
+def is_board_read(path: str) -> bool:
+    """Whether a path is a solo board read (delayed by ``--rankings-delay``), not an own-rank or band read.
+
+    Args:
+        path: Request path.
+
+    Returns:
+        ``True`` for ``/api/rankings/{instrument}``.
+    """
+    parts = path.split("/")
+    return len(parts) == 4 and path.startswith("/api/rankings/") and parts[3] not in ("", "bands")
+
+
+def install_rankings_delay(seconds: float) -> None:
+    """Answer board reads only after a delay, keeping a reload's spinner up long enough to inspect.
+
+    Args:
+        seconds: Delay before each board response.
+    """
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if is_board_read(urlsplit(self.path).path):
+            time.sleep(seconds)
+        original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+def take_rankings_delay(argv: list[str]) -> tuple[float | None, list[str]]:
+    """Split ``--rankings-delay <seconds>`` (or ``=<seconds>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The delay in seconds (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing, non-numeric or negative delay.
+    """
+    delay, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--rankings-delay":
+            value = next(items, None)
+        elif arg.startswith("--rankings-delay="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        try:
+            delay = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            delay = -1.0
+        if delay < 0:
+            raise SystemExit("--rankings-delay needs a non-negative number of seconds")
+    return delay, rest
+
+
 def main() -> None:
-    """Install the scenarios, force ``--large-rankings`` and hand over to ``rivals_fixture``."""
+    """Install the scenarios and the optional board delay, force ``--large-rankings`` and hand over to ``rivals_fixture``."""
     install()
+    delay, rest = take_rankings_delay(sys.argv[1:])
+    sys.argv[1:] = rest
+    if delay:
+        install_rankings_delay(delay)
     if "--large-rankings" not in sys.argv:
         sys.argv.append("--large-rankings")
     rivals_fixture.main()

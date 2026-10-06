@@ -2,9 +2,11 @@ package com.festivalscoretracker.android.whatsnew
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
@@ -38,6 +40,7 @@ import com.festivalscoretracker.android.core.whatsnew.Changelog
 import com.festivalscoretracker.android.core.whatsnew.ChangelogGroup
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenRecord
 import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenStore
+import com.festivalscoretracker.android.core.whatsnew.InstallChannel
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewBlock
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -232,6 +235,38 @@ class WhatsNewUiTest {
         rule.onNodeWithTag("fst.whats-new.dismiss").performClick()
         assertEquals(1, dismissed)
     }
+
+    /** The host shows the install channel's notes: tester installs the grouped tester block, store installs the release. */
+    @Test
+    fun hostShowsTheInstallChannelsNotes() {
+        val entries = Changelog.decode(
+            """{"entries":[{"version":"2610.02.02","items":["Songs: Rows load faster."],
+              "groups":[{"category":"Songs","items":["Rows load faster."]}],
+              "testflight":{"release":null,"vs_release":["Songs: Rows load faster.","General: Polish."],
+                "groups":[{"category":"Songs","items":["Rows load faster."]},{"category":"General","items":["Polish."]}]}}]}""",
+        )
+        var channel by mutableStateOf(InstallChannel.Tester)
+        rule.setContent {
+            FestivalTheme {
+                val center = remember { FirstRunCenter(FirstRunSeenStore(MemoryBlobStore()), FirstRunMode.Off) }
+                val controller = remember(channel) {
+                    WhatsNewController(ChangelogSeenStore(MemoryBlobStore()), center, WhatsNewMode.Off, "2610.02.02", channel)
+                }
+                LaunchedEffect(controller) { controller.replay() }
+                WhatsNewHost(controller, blocked = false, compact = true, entries = entries)
+            }
+        }
+        waitForTag("fst.whats-new.sheet")
+        rule.onNodeWithText("Changes So Far").assertIsDisplayed()
+        rule.onNodeWithText("General").assertIsDisplayed()
+        rule.onNodeWithText("Polish.").assertIsDisplayed()
+        assertTrue(rule.onAllNodesWithText("Version 2610.02.02").fetchSemanticsNodes().isEmpty())
+        channel = InstallChannel.Store
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Version 2610.02.02").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Songs").assertIsDisplayed()
+        assertTrue(rule.onAllNodesWithText("Polish.").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithText("Changes So Far").fetchSemanticsNodes().isEmpty())
+    }
 }
 
 /** Wider windows present What's New as a dialog. */
@@ -255,5 +290,23 @@ class WhatsNewDialogUiTest {
         rule.onNodeWithTag("fst.whats-new.dismiss").performClick()
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.whats-new.sheet").fetchSemanticsNodes().isEmpty() }
         assertNull(container.whatsNew.shown.value)
+    }
+}
+
+/** Issue #183: a landscape phone (medium width, compact height) shows the 560 dp dialog, not the platform's 320 dp width. */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w891dp-h411dp-land-xxhdpi")
+class WhatsNewLandscapePhoneUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun dialogUsesTheFullModalWidth() {
+        val blocks = listOf(WhatsNewBlock("Changes So Far", listOf(ChangelogGroup("General", listOf("Polish.")))))
+        rule.setContent { FestivalTheme { WhatsNewSheet("What's New · 2610.02.02", blocks, compact = false) {} } }
+        repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
+        val width = with(rule.density) { rule.onNodeWithTag("fst.whats-new.sheet").fetchSemanticsNode().size.width.toDp() }
+        assertEquals(560f, width.value, 1f)
+        rule.onNodeWithText("Polish.").assertIsDisplayed()
     }
 }

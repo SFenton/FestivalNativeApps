@@ -4,7 +4,8 @@ Starts ``rivals_fixture.py`` (anonymized mock service) on a private loopback por
 launches the Debug app with an in-memory debug profile, drives it by ``fst.*`` AutomationIds and fails on the
 first missing element (``waitfor:``). Scenarios cover every Rivals page state: populated hub (both tabs, Jump
 To), Rival Detail -> Rivalry (sort) -> All Rivals navigation, empty lists, a 503 scrape freeze (inline and
-page-level status), no selected player and the ``/compete`` deep link, plus the Rivalry page's own states
+page-level status), no selected player and the ``/compete`` deep link, the per-card loading rings and their
+replacement by rows or the inline freeze (a slow fixture account), plus the Rivalry page's own states
 (deep link with the labelled sort, keyboard row activation to Song Detail and back, unknown category, empty,
 freeze and no player). With ``--shots DIR`` it also captures compact/medium/wide screenshots of the populated
 journey.
@@ -30,6 +31,8 @@ UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
 EXE = journey_exe.DEBUG_EXE
 RIVAL = "f1c749eb07c32578cfa3e59ec38c03a8"
 LEADERBOARD_RIVAL = "f1c71052e0052ae7143f3b3c750f2f49"  # rank 2 in contracts/fixtures/leaderboard-rivals-demo.json
+# Narrator name of RIVAL's row (rivals-list-demo.json, renamed by rivals_fixture.py): ahead/behind, never a shared count (#67, #267).
+RIVAL_NAME = "Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind"
 
 # name -> (environment, route, steps). {shot:NAME} placeholders become screenshots when --shots is given.
 SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
@@ -39,6 +42,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
         [
             "waitfor:id=fst.rivals.section.common@20",
             f"waitfor:id=fst.rivals.row.{RIVAL}@10",
+            f"assertname:id=fst.rivals.row.{RIVAL}|{RIVAL_NAME}",
             "{shot:hub}",
             "select:id=fst.rivals.tab.leaderboard",
             "waitfor:id=fst.rivals.section.leaderboard.Solo_Guitar@10",
@@ -47,11 +51,11 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "{shot:hub-leaderboard}",
             "select:id=fst.rivals.tab.song",
             "waitfor:id=fst.rivals.section.common@10",
-            f"click:id=fst.rivals.row.{RIVAL}",
+            f"invoke:id=fst.rivals.row.{RIVAL}",
             "waitfor:id=fst.rival-detail.category.closest_battles@15",
             "waitfor:id=fst.rival-detail.view-profile@10",
             "{shot:detail}",
-            "click:id=fst.rival-detail.see-all",
+            "invoke:id=fst.rival-detail.see-all",
             "waitfor:id=fst.rivalry.list@15",
             "waitfor:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@10",
             "expand:id=fst.rivalry.sort",
@@ -63,9 +67,10 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rival-detail.title@10",
             "key:alt+left",
             "waitfor:id=fst.rivals.see-all@10",
-            "click:id=fst.rivals.see-all",
+            "invoke:id=fst.rivals.see-all",
             "waitfor:id=fst.all-rivals.list@15",
             f"waitfor:id=fst.all-rivals.row.{RIVAL}@10",
+            f"assertname:id=fst.all-rivals.row.{RIVAL}|{RIVAL_NAME}",
             "{shot:all-rivals}",
         ],
     ),
@@ -104,6 +109,35 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "{shot:quick-links-wide}",
         ],
     ),
+    # View All Rivals is the shared accent View all button (issue #268): a UIA Button whose name starts with its visible
+    # label, one per card with its own ID, on both tabs; it opens All Rivals for the card's scope and Back returns.
+    "view-all": (
+        {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+        "/rivals",
+        [
+            "waitfor:id=fst.rivals.section.common@20",
+            "scrollinto:id=fst.rivals.section.common.view-all@10",
+            "assertstate:id=fst.rivals.section.common.view-all|type=button",
+            "assertstate:id=fst.rivals.section.common.view-all|name=View All Rivals, Common Rivals",
+            "assertstate:id=fst.rivals.section.common.view-all|invoke=true",
+            "assertstate:id=fst.rivals.section.common.view-all|focusable=true",
+            "scrollinto:id=fst.rivals.section.Solo_Guitar.view-all@10",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.view-all|name=View All Rivals, Lead Rivals",
+            "{shot:view-all}",
+            "invoke:id=fst.rivals.section.Solo_Guitar.view-all",
+            "waitfor:id=fst.all-rivals.list@15",
+            f"waitfor:id=fst.all-rivals.row.{RIVAL}@10",
+            "key:alt+left",
+            "waitfor:id=fst.rivals.section.Solo_Guitar.view-all@10",
+            "select:id=fst.rivals.tab.leaderboard",
+            "scrollinto:id=fst.rivals.section.leaderboard.Solo_Guitar.view-all@10",
+            "assertstate:id=fst.rivals.section.leaderboard.Solo_Guitar.view-all|name=View All Rivals, Lead Rivals",
+            "{shot:view-all-leaderboard}",
+            "invoke:id=fst.rivals.section.leaderboard.Solo_Guitar.view-all",
+            "waitfor:id=fst.all-rivals.list@15",
+            "waitfor:name=Ranked by Total Score · You are #1@10",
+        ],
+    ),
     "compete": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
         "/compete",
@@ -114,6 +148,51 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             # Masonry rows share a top: the first card of the row is current, not its right-hand neighbour (#213).
             "waitfor:name=Quick Links, current section Common Rivals@10",
             "{shot:compete}",
+        ],
+    ),
+    # Per-card loading (issues #65/#265): the slow account holds every list read for SLOW_RIVALS_SECONDS, so each
+    # card shows its named ProgressRing (UIA ProgressBar; WinUI prefixes "Busy" to an active ring's name) until rows
+    # replace it, on both tabs.
+    "loading": (
+        {"FST_DEBUG_PROFILE": "fixture-player-slow:Demo Player"},
+        "/compete",
+        [
+            "waitfor:id=fst.rivals.section.common.loading@20",
+            "waitfor:id=fst.rivals.section.Solo_Guitar.loading@5",
+            "assertstate:id=fst.rivals.section.common.loading|name=Busy Loading Common Rivals",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.loading|type=progressbar",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.loading|focusable=false",
+            "assertstate:id=fst.rivals.section.Solo_Guitar.loading|name=Busy Loading Lead Rivals",
+            # assertstate also reads cards scrolled out of view.
+            "assertstate:id=fst.rivals.section.Solo_PeripheralDrums.loading|name=Busy Loading Pro Drums Rivals",
+            "waitgone:id=fst.rivals.section.common.view-all@2",
+            "{shot:loading}",
+            # Four reads run at a time, so Lead (first wave) settles while Common Rivals, which needs every list,
+            # keeps its ring: sections load independently.
+            "waitgone:id=fst.rivals.section.Solo_Guitar.loading@30",
+            f"waitfor:id=fst.rivals.row.{RIVAL}@5",
+            "waitfor:id=fst.rivals.section.common.loading@2",
+            "waitgone:id=fst.rivals.section.common.loading@45",
+            "waitgone:id=fst.service-status.inline@2",
+            "select:id=fst.rivals.tab.leaderboard",
+            "waitfor:id=fst.rivals.section.leaderboard.Solo_Guitar.loading@10",
+            "assertstate:id=fst.rivals.section.leaderboard.Solo_Guitar.loading|name=Busy Loading Lead Rivals",
+            "waitgone:id=fst.rivals.section.leaderboard.Solo_Guitar.loading@30",
+            f"waitfor:id=fst.rivals.row.{LEADERBOARD_RIVAL}@5",
+        ],
+    ),
+    # The ring gives way to the inline freeze status when the slow read finally answers 503.
+    "loading-freeze": (
+        {"FST_DEBUG_PROFILE": "fixture-player-slow-503:Demo Player"},
+        "/rivals",
+        [
+            "waitfor:id=fst.rivals.section.common.loading@20",
+            "waitgone:id=fst.service-status.inline@2",
+            "waitfor:name=Lead Rivals Unavailable@45",
+            "waitgone:id=fst.rivals.section.Solo_Guitar.loading@3",
+            "waitfor:name=Common Rivals Unavailable@45",
+            "waitgone:id=fst.rivals.section.common.loading@3",
+            "{shot:loading-freeze}",
         ],
     ),
     "compete-no-player": (
@@ -209,6 +288,10 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
     ),
 }
 
+#: Timing-sensitive scenarios: their steps run in the launch's own desktop-lock hold, so another lane's queued GUI
+#: work can't outlast the slow fixture's loading window between launch and drive.
+IN_LAUNCH_HOLD = frozenset({"loading", "loading-freeze"})
+
 
 def uiwin(*args: str) -> None:
     """Runs one uiwin.py command, raising on failure.
@@ -265,12 +348,15 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path = EXE) ->
     args.append(f"--arg=--settings-path={isolated}")
     if route:
         args.append(f"--arg=--route={route}")
-    uiwin(*args)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        handle.write("\n".join(expand(steps, shots, size)))
     try:
-        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
-            handle.write("\n".join(expand(steps, shots, size)))
         try:
-            uiwin("drive", "--steps-file", handle.name)
+            if name in IN_LAUNCH_HOLD:
+                uiwin(*args, "--steps-file", handle.name)
+            else:
+                uiwin(*args)
+                uiwin("drive", "--steps-file", handle.name)
         except RuntimeError:
             evidence = shots or Path(tempfile.gettempdir())
             for command, suffix in (("shot", ".png"), ("tree", ".txt")):
@@ -294,7 +380,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=18743)
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--only", help=f"comma-separated scenarios ({', '.join(SCENARIOS)})")
-    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the populated journey")
+    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the populated and view-all journeys")
     journey_exe.add_argument(parser)
     options = parser.parse_args()
     names = options.only.split(",") if options.only else list(SCENARIOS)
@@ -313,7 +399,7 @@ def main() -> int:
         if options.shots:
             options.shots.mkdir(parents=True, exist_ok=True)
         for name in names:
-            sizes = options.sizes.split(",") if name == "populated" else ["medium"]
+            sizes = options.sizes.split(",") if name in ("populated", "view-all") else ["medium"]
             for size in sizes:
                 try:
                     run(name, options.port, options.shots, size, options.exe)

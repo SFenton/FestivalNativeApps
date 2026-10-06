@@ -6,7 +6,12 @@ it by ``fst.*`` AutomationIds and fails on the first missing element. Scenarios 
 window presets, keyboard navigation (Tab per card, Up/Down per row, Esc focus return), the filter flyout (Axe scan
 open), the filtered-empty state and its Reset, incremental loading, the end of a mix and Start New Mix, row ->
 Song Detail -> back, the redirect without a selected player, the loading, syncing (202) and denied (403) states and
-an unreachable service with Retry. Steps are UIA patterns or posted keys, so the journeys also run while the console
+an unreachable service with Retry. ``rival-rows`` (issue #259) checks the dumped UIA tree: single-rival spotlight rows
+draw no rival name pill and name the rival in their Narrator name, mixed-rival rows keep the pill. ``fade`` (issue
+#260) runs with ``--perf-log`` and checks the ``FadeIn`` lines per phase (``fade_trace.py``): the cards on screen at
+load fade, a scroll straight after the load (inside the 1 s window) realizes old cards without a fade, the next generated
+batch fades only its new cards, and scrolling back to the top and down again fades nothing. Steps are UIA patterns or
+posted keys, so the journeys also run while the console
 is locked (screenshots are then black: pass ``--shots`` only on an unlocked desktop). Axe scans must report 0 errors.
 
 Usage: ``python tools/windows/suggestions_journey.py [--port 18767] [--shots DIR] [--only NAME] [--sizes compact,medium,wide]``
@@ -25,6 +30,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module)
+import fade_trace  # noqa: E402  (sibling module)
+import songs_filter_journey  # noqa: E402  (sibling module: shared Axe response parsing)
 
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
@@ -38,6 +45,12 @@ NEXT_CARD_ROW = "id=fst.suggestions.row.s091"
 TENTH_CARD = "id=fst.suggestions.category.unplayed_Solo_PeripheralGuitar"
 RIVAL_CARD = "id=fst.suggestions.category.song_rival_gap_rival-below-0"
 TWELFTH_CARD = RIVAL_CARD
+# Seed 1 rival cards (issue #259): a single-rival spotlight (no name pill; Narrator names the rival in the delta) and a
+# mixed-rival cross-pollination card whose rows keep the pill because each can be about a different rival.
+SPOTLIGHT_CARD = "fst.suggestions.category.song_rival_spotlight_rival-below-1"
+SPOTLIGHT_ROW_NAME = "Track 41, Artist B · 1968, Pro Lead, 2 ranks behind Rival B1"
+MIXED_CARD = "fst.suggestions.category.song_rival_pct_push"
+MIXED_ROW_NAME = "Track 34, Artist O · 1999, Lead, rival Rival B4, behind by 2 ranks"
 TYPES = ("nearFC", "starProgress", "unplayed", "varietyPack", "artistEssentials", "artistDiscover", "sameName",
          "almostElite", "percentilePush", "stale", "pctImprove", "nearMax", "songRivals")
 LOADED = [f"waitfor:{ROW}@30", f"waitfor:{CARD}@5", "waitfor:id=fst.suggestions.filter-button@5"]
@@ -121,6 +134,21 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
         [*LOADED, f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
          "{shot:load-more}"],
     ),
+    # Load-only fades (issue #260): steps run in FADE_PHASES, each judged on the fade lines it appended.
+    "fade": (PROFILE, {}, []),
+    "rival-rows": (
+        PROFILE,
+        {},
+        [
+            *LOADED,
+            # The mixed card comes first in the seed 1 mix; scrolling on loads the batch with the spotlight card.
+            f"scrollinto:id={MIXED_CARD}@30", f"waitfor:id={MIXED_CARD}@10", f"waitfor:name={MIXED_ROW_NAME}@10",
+            "{shot:rival-mixed}", "tree:{scans}/rival-mixed.txt",
+            f"scrollinto:id={SPOTLIGHT_CARD}@30", f"waitfor:id={SPOTLIGHT_CARD}@10",
+            f"waitfor:name={SPOTLIGHT_ROW_NAME}@10",
+            "{shot:rival-spotlight}", "tree:{scans}/rival-spotlight.txt", "scan:{scans}/rival-rows",
+        ],
+    ),
     "end-of-mix": (
         PROFILE,
         {"FST_DEBUG_SUGGESTIONS_LIMIT": "12"},
@@ -178,6 +206,36 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
          "waitfor:id=fst.service-status.retry@45"],
     ),
 }
+
+
+CARD_LIST = "CardList"
+# UI Automation needs a second or more between the list appearing and its first scroll, so the fade scenario
+# lengthens the app's 1 s arm window (Debug/automation FST_DEBUG_FADE_WINDOW_MS): a scroll then lands inside the
+# window, where only the scroll-close rule (not the timeout) can keep the old rows it realizes from fading.
+FADE_WINDOW_MS = 4000
+FADE_PHASES = [
+    # R5: the cards on screen at load fade in, staggered from the first; a scroll straight after the load closes the
+    # window, and the old cards it realizes appear without a fade. Reaching the end may generate the next batch,
+    # whose new cards alone may fade; back at the top, still inside the window, the first screen's recycled cards
+    # (which a time-only window would fade again) come back without a fade.
+    fade_trace.Phase("load-scroll", ["waitfor:id=fst.nav.suggestions@30", "select:id=fst.nav.suggestions",
+                                     f"waitfor:{ROW}@30", "scrollto:id=fst.suggestions.list,100",
+                                     "scrollto:id=fst.suggestions.list,0"],
+                     lambda events: fade_trace.check_load_then_scroll(events, CARD_LIST, FADE_WINDOW_MS)),
+    # Scrolling to the end of the loaded cards generates the next batch: only its new cards fade, from their first.
+    # A batch's cards fade only when realized within its arm's window, which a busy host can miss when the batch
+    # lands beyond the realization cache, so the phase jumps to the end a few times: each jump realizes its batch.
+    fade_trace.Phase("load-more", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10",
+                                   f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
+                                   *["scrollto:id=fst.suggestions.list,100", "wait:0.4"] * 3],
+                     lambda events: fade_trace.check_batch(events, CARD_LIST)),
+    # Back to the top (after the batch window ran out) and down again: cards already shown never fade again.
+    fade_trace.Phase("scroll-back", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10",
+                                     f"wait:{FADE_WINDOW_MS / 1000 + 0.5}",
+                                     f"scrollinto:{TENTH_CARD}", f"waitfor:{TENTH_CARD}@10"],
+                     lambda events: fade_trace.check_only_new(events, CARD_LIST)),
+]
+"""Phases of the ``fade`` scenario."""
 
 
 def uiwin(*args: str) -> str:
@@ -240,14 +298,114 @@ def launch_args(name: str, port: int, size: str, exe: Path) -> list[str]:
     base = env.get("base-url", f"http://127.0.0.1:{port}/")
     # --first-run=off: the first-run carousel is modal and would swallow the scripted input. An isolated data
     # folder gives default settings (all nine charts) and an unfiltered mix on every run.
-    args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", size, "--route", "/suggestions",
+    # The fade scenario starts on Songs and opens Suggestions inside its first drive, so the initial load and the
+    # scroll straight after it run in one drive (a launch can wait on the desktop lock for longer than the window).
+    route = "/songs" if name == "fade" else "/suggestions"
+    args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", size, "--route", route,
             f"--arg=--base-url={base}", "--arg=--first-run=off", f"--arg=--settings-path={data / 'settings.json'}",
             "--extra", f"FST_DEBUG_DATA_DIR={data}", "--extra", "FST_DEBUG_SUGGESTIONS_SEED=1"]
     args += [f"--arg=--profile={profile}:Fixture Player"] if profile else ["--arg=--anonymous"]
+    if name == "fade":
+        args.append(f"--arg=--perf-log={data / 'perf.log'}")
+        args += ["--extra", f"FST_DEBUG_FADE_WINDOW_MS={FADE_WINDOW_MS}"]
     for key, value in env.items():
         if key.startswith("FST_"):
             args += ["--extra", f"{key}={value}"]
     return args
+
+
+def card_subtree(tree: str, card_id: str) -> list[str]:
+    """Returns the first on-screen card with an AutomationId and its descendants from a ``uiwin.py tree`` dump.
+
+    Args:
+        tree: Tree dump text (one element per line, children indented below their parent).
+        card_id: The card's AutomationId.
+
+    Returns:
+        The card's line and its descendants' lines, stripped, or an empty list when no on-screen card matches.
+    """
+    lines = tree.splitlines()
+    for index, line in enumerate(lines):
+        if f" id={card_id} " in line and "[offscreen]" not in line:
+            depth = len(line) - len(line.lstrip())
+            card = [line.strip()]
+            for child in lines[index + 1:]:
+                if child.strip() and len(child) - len(child.lstrip()) <= depth:
+                    break
+                card.append(child.strip())
+            return card
+    return []
+
+
+def rival_card_problems(card: list[str], rival: str, pill: bool) -> list[str]:
+    """Checks a rival card's rows: the name pill (shown or hidden) and that every row's UIA name names the rival.
+
+    Args:
+        card: Lines from :func:`card_subtree`.
+        rival: A rival the card's rows are about.
+        pill: Whether rows should draw the rival name pill (mixed-rival cards) or not (single-rival cards).
+
+    Returns:
+        Readable problems; empty when the card is right.
+    """
+    if not card:
+        return ["card not on screen"]
+    rows = [line for line in card if line.startswith("Button ")]
+    if not rows:
+        return ["card has no rows"]
+    has_pill = any(line.startswith(f'Text "{rival}" ') for line in card)
+    problems = []
+    if has_pill != pill:
+        problems.append(f"name pill {rival!r} {'missing' if pill else 'still drawn'}")
+    if not pill:
+        problems += [f"row does not name {rival!r}: {row[:120]}" for row in rows if rival not in row]
+    elif not any(f"rival {rival}," in row or f'rival {rival}" ' in row for row in rows):
+        problems.append(f"no row is named 'rival {rival}'")
+    return problems
+
+
+RIVAL_CHECKS: dict[str, list[tuple[str, str, str, bool]]] = {
+    "rival-rows": [("rival-mixed.txt", MIXED_CARD, "Rival B4", True),
+                   ("rival-spotlight.txt", SPOTLIGHT_CARD, "Rival B1", False)],
+}
+"""Scenario -> (tree file in the scan folder, card AutomationId, rival, pill expected) checks run after the drive."""
+
+SIZED = {"loaded", "rival-rows"}
+"""Scenarios run at every ``--sizes`` preset; the rest run at medium."""
+
+
+def drive(steps: list[str]) -> str:
+    """Drives the launched app through ``steps``.
+
+    Args:
+        steps: ``uiwin.py drive`` steps.
+
+    Returns:
+        The driver's output.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        handle.write("\n".join(steps))
+    try:
+        return uiwin("drive", "--steps-file", handle.name)
+    finally:
+        Path(handle.name).unlink(missing_ok=True)
+
+
+def run_fade(shots: Path | None, size: str) -> None:
+    """Drives :data:`FADE_PHASES` against the launched ``fade`` scenario and judges each phase's fade lines.
+
+    Args:
+        shots: Screenshot directory, if any (a final screenshot is saved there).
+        size: Window preset name used in file names.
+
+    Raises:
+        RuntimeError: A step or a fade check failed.
+    """
+    failures = fade_trace.run_phases(drive, WORK / "fade" / "perf.log", FADE_PHASES)
+    if shots is not None:
+        uiwin("shot", str(shots / f"fade-{size}.png"))
+    if failures:
+        raise RuntimeError("fade checks failed:\n" + "\n".join(failures))
 
 
 def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
@@ -264,8 +422,13 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
         RuntimeError: A step failed (a failure screenshot and UIA tree are saved).
     """
     scans = (shots or WORK) / "axe" / f"{name}-{size}"
+    scans.mkdir(parents=True, exist_ok=True)
     uiwin(*launch_args(name, port, size, exe))
     try:
+        if name == "fade":
+            run_fade(shots, size)
+            print(f"PASS {name} [{size}]")
+            return
         steps = expand(SCENARIOS[name][2], shots, size, scans)
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
             handle.write("\n".join(steps))
@@ -281,9 +444,15 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
             raise
         finally:
             Path(handle.name).unlink(missing_ok=True)
-        if " error(s)" in output and any(line.startswith("scan ") and not line.endswith(" 0 error(s)")
-                                         for line in output.splitlines()):
-            raise RuntimeError(f"Axe errors:\n{output}")
+        (scans / "drive.json").write_text(output, encoding="utf-8")
+        axe = songs_filter_journey.scan_errors(output)
+        if axe:
+            raise RuntimeError("Axe errors:\n" + "\n".join(axe))
+        problems = [f"{card}: {problem}" for file, card, rival, pill in RIVAL_CHECKS.get(name, [])
+                    for problem in rival_card_problems(
+                        card_subtree((scans / file).read_text(encoding="utf-8", errors="replace"), card), rival, pill)]
+        if problems:
+            raise RuntimeError("Rival rows:\n" + "\n".join(problems))
         print(f"PASS {name} [{size}]")
     finally:
         uiwin("close")
@@ -317,7 +486,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=18767)
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--only", choices=sorted(SCENARIOS), action="append")
-    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the loaded journey")
+    parser.add_argument("--sizes", default="medium", help="comma-separated presets for the loaded and rival-rows journeys")
     journey_exe.add_argument(parser)
     options = parser.parse_args()
     server = subprocess.Popen([sys.executable, str(ROOT / "tools" / "windows" / "suggestions_fixture_server.py"),
@@ -335,7 +504,7 @@ def main() -> int:
         if options.shots:
             options.shots.mkdir(parents=True, exist_ok=True)
         for name in options.only or list(SCENARIOS):
-            for size in options.sizes.split(",") if name == "loaded" else ["medium"]:
+            for size in options.sizes.split(",") if name in SIZED else ["medium"]:
                 for attempt in range(LOCK_RETRIES + 1):
                     try:
                         run(name, options.port, options.shots, size, options.exe)

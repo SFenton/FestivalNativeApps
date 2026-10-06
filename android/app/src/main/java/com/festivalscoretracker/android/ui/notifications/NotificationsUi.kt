@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -66,6 +68,7 @@ import com.festivalscoretracker.android.core.notifications.NotificationDestinati
 import com.festivalscoretracker.android.core.notifications.NotificationFlagKind
 import com.festivalscoretracker.android.core.notifications.NotificationMedia
 import com.festivalscoretracker.android.core.notifications.NotificationMessagePart
+import com.festivalscoretracker.android.core.notifications.NotificationPresentation
 import com.festivalscoretracker.android.presentation.notifications.NotificationRow
 import com.festivalscoretracker.android.presentation.notifications.NotificationsState
 import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
@@ -252,6 +255,12 @@ internal val NotificationMediaKind = SemanticsPropertyKey<String>("NotificationM
 /** Semantics accessor for [NotificationMediaKind]. */
 internal var SemanticsPropertyReceiver.notificationMediaKind by NotificationMediaKind
 
+/** Flags exposed to tests (the row clears its children's semantics). */
+internal val NotificationFlagsKey = SemanticsPropertyKey<String>("NotificationFlags")
+
+/** Semantics accessor for [NotificationFlagsKey]. */
+internal var SemanticsPropertyReceiver.notificationFlags by NotificationFlagsKey
+
 /**
  * One web-style notification card: 64 dp media rail, marquee title, message with bold
  * values, coloured flag pill, and a trailing unread dot above the chevron. The relative time
@@ -278,6 +287,7 @@ private fun NotificationItem(row: NotificationRow, onClick: () -> Unit) {
             .clearAndSetSemantics {
                 contentDescription = row.accessibleText
                 notificationMediaKind = presentation.media.kindName
+                notificationFlags = presentation.flagsTestValue
                 if (navigable) role = Role.Button
             },
     ) {
@@ -285,19 +295,7 @@ private fun NotificationItem(row: NotificationRow, onClick: () -> Unit) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FestivalMarqueeText(presentation.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
             Text(presentation.messageParts.toAnnotated(), style = MaterialTheme.typography.bodySmall, color = Color.White)
-            val kind = presentation.flagKind
-            if (kind != null) {
-                Text(
-                    kind.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    modifier = Modifier
-                        .background(kind.color(), RoundedCornerShape(8.dp))
-                        .border(2.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-            }
+            NotificationFlags(presentation)
         }
         if (row.unread || navigable) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.width(20.dp)) {
@@ -309,6 +307,60 @@ private fun NotificationItem(row: NotificationRow, onClick: () -> Unit) {
         }
     }
 }
+
+/**
+ * Web `NotificationFlags`: per-chart groups (20 dp instrument icon + pills) on multi-chart song
+ * rows, else one wrapping line of pills; 2 dp gaps (web `Gap.xs`). Drawn without semantics: the
+ * row speaks [com.festivalscoretracker.android.core.notifications.NotificationPresentation.spokenFlags].
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NotificationFlags(presentation: NotificationPresentation) {
+    if (presentation.flagGroups.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            presentation.flagGroups.forEach { group ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    InstrumentIcon(group.instrument, size = 20.dp, decorative = true)
+                    FlagPills(group.flags)
+                }
+            }
+        }
+    } else if (presentation.flags.isNotEmpty()) {
+        FlagPills(presentation.flags)
+    }
+}
+
+/** Wrapping pills in the web `FLAG_COLORS`. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FlagPills(flags: List<NotificationFlagKind>) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        flags.forEach { kind ->
+            Text(
+                kind.label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                modifier = Modifier
+                    .background(kind.color(), RoundedCornerShape(8.dp))
+                    .border(2.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
+/** Test-visible flags: "Lead:FirstPlay,FullCombo|Bass:FullCombo" for groups, else "FirstPlay,FullCombo". */
+private val NotificationPresentation.flagsTestValue: String
+    get() = if (flagGroups.isNotEmpty()) {
+        flagGroups.joinToString("|") { group -> group.label + ":" + group.flags.joinToString(",") { it.name } }
+    } else {
+        flags.joinToString(",") { it.name }
+    }
 
 /** Test-visible name of a media kind. */
 private val NotificationMedia.kindName: String

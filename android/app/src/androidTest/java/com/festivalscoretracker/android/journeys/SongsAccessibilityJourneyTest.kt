@@ -19,6 +19,7 @@ import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -94,6 +95,40 @@ class SongsAccessibilityJourneyTest {
         h.tap("fst.songs.filter.done")
         h.waitGone("fst.songs.filter.form")
         h.waitForTag("fst.songs.filter.open")
+        h.assertAccessible()
+    }
+
+    /**
+     * Songs Filter without a profile (issue #181): only General, every group expanded, ATF over
+     * the bucket switches and Select All / Clear All, nothing across a separating hinge
+     * (`--posture half`), and the Filter button speaking its applied state.
+     */
+    @Test
+    fun anonymousFilterShowsOnlyGeneralAndSpeaksItsState() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(stillBackground = true), transport)
+        h.waitForTag("fst.songs.list")
+        rule.onNodeWithTag("fst.songs.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "No filters"))
+        h.tap("fst.songs.filter.open")
+        h.waitForTag("fst.songs.filter.general")
+        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.score-sections").fetchSemanticsNodes().size)
+        for (group in listOf("fst.songs.filter.year", "fst.songs.filter.duration", "fst.songs.filter.shop", "fst.songs.filter.double-bass")) {
+            h.scrollTo("fst.songs.filter.form", group)
+            h.tap(group)
+        }
+        h.scrollTo("fst.songs.filter.form", "fst.songs.filter.double-bass.unsupported")
+        h.tap("fst.songs.filter.double-bass.unsupported")
+        h.readingOrder("songs-filter-anonymous")
+        h.assertNothingStraddles("fst.songs.filter", "fst.songs.filter.form", "fst.songs.filter.done", "fst.songs.filter.double-bass.supported")
+        h.tap("fst.songs.filter.done")
+        h.waitGone("fst.songs.filter.form")
+        rule.onNodeWithTag("fst.songs.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Filters on: Double Bass"))
+        h.readingOrder("songs-filtered-anonymous")
+        h.tap("fst.songs.filter.open")
+        h.waitForTag("fst.songs.filter.reset")
+        h.tap("fst.songs.filter.reset")
+        h.tap("fst.songs.filter.done")
+        h.waitGone("fst.songs.filter.form")
         h.assertAccessible()
     }
 
@@ -182,6 +217,31 @@ class SongsAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the card's
+     * size on the device, selects Bass, drops to one best-score row and stays accessible.
+     */
+    @Test
+    fun songDetailScoreHistorySwitchKeepsTheCardAndSelectsTheNewChart() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
+        h.scrollTo("fst.song-detail.list", "fst.song-detail.history.card")
+        h.waitForTag("fst.song-detail.history.top.1")
+        fun card() = rule.onNodeWithTag("fst.song-detail.history.card").fetchSemanticsNode().size
+        val before = card()
+        h.readingOrder("song-detail-history-lead")
+        val compact = h.exists("fst.song-detail.history.instrument.compact")
+        h.tap(if (compact) "fst.song-detail.history.instrument.next" else "fst.song-detail.history.instrument.Solo_Bass")
+        rule.waitUntil(5_000) { !h.exists("fst.song-detail.history.top.1") }
+        rule.waitForIdle()
+        assertEquals("Score History card size after the switch", before, card())
+        val bass = if (compact) "fst.song-detail.history.instrument.preview" else "fst.song-detail.history.instrument.Solo_Bass"
+        rule.onNodeWithTag(bass).assertIsSelected().assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Bass")))
+        h.waitForTag("fst.song-detail.history.top.0")
+        h.readingOrder("song-detail-history-bass")
+        h.assertAccessible()
+    }
+
     @Test
     fun itemShop() {
         val offers = arrayOf("fst.shop.song.s-alpha", "fst.shop.song.s-x", "fst.shop.song.s-beta", "fst.shop.external.s-alpha", "fst.shop.external.s-beta")
@@ -199,6 +259,7 @@ class SongsAccessibilityJourneyTest {
             h.readingOrder("shop-toggled")
             h.assertNothingStraddles(*offers)
         }
+        rule.onNodeWithTag("fst.shop.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "No filters"))
         h.tap("fst.shop.filter.open")
         h.waitForTag("fst.shop.filter.leaving")
         h.readingOrder("shop-filter")
@@ -207,6 +268,8 @@ class SongsAccessibilityJourneyTest {
         h.tap("fst.shop.filter.done")
         h.waitGone("fst.shop.filter.leaving")
         h.readingOrder("shop-filtered")
+        // Issue #145: TalkBack hears the active filters, not only the gold tint.
+        rule.onNodeWithTag("fst.shop.filter.open").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Filters on: Leaving Tomorrow"))
         h.assertAccessible()
     }
 

@@ -405,6 +405,8 @@ class BandsCoreTest {
         val bare = com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry.copy(accuracy = 0.0, isFullCombo = false, stars = 0, members = entry.members.take(1)))
         assertEquals("Rank 1, Rekayy, Lead, 156,912, band score 931,020", bare)
         assertTrue(com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry.copy(stars = 4)).endsWith(", 4 stars"))
+        // The selected player's band says so first (issue #172; iOS/Windows "Your band, ").
+        assertEquals("Your band, $bare", com.festivalscoretracker.android.ui.bands.bandScoreAnnouncement(entry.copy(accuracy = 0.0, isFullCombo = false, stars = 0, members = entry.members.take(1)), selected = true))
     }
 
     // endregion

@@ -106,8 +106,10 @@ data class ScoreSectionTexts(
  * @property accuracyWidth Accuracy column width (0 when hidden).
  * @property showStars Whether the stars column shows.
  * @property starsWidth Stars column width (0 when hidden).
- * @property stacked Whether rankings rows stack (rank and name, then rating and songs) instead of
- *   squeezing the name ([LeaderboardSection.stackNarrowNames], [LeaderboardSection.keepsNameMinimum]).
+ * @property stacked Whether rows stack instead of squeezing the name: rankings rows (rank and
+ *   name, then rating and songs; [LeaderboardSection.stackNarrowNames],
+ *   [LeaderboardSection.keepsNameMinimum]) and score rows whose shown columns don't fit on one
+ *   line (rank and name, then score, accuracy, season and stars; issue #170).
  */
 data class LeaderboardColumnPlan(
     val gap: Float,
@@ -136,8 +138,10 @@ data class LeaderboardColumnPlan(
  * column always reserved in a section that has accuracy, and the rankings songs label kept
  * unless the section asks it to yield to names ([LeaderboardSection.nameWidth], Compete on
  * portrait phones, issue #38) or, in a known row width, it would leave names narrower than
- * [MIN_RANKING_NAME_WIDTH] (narrow Leaderboards cards beside a hinge, issue #114). When the
- * fixed columns would squeeze a score row's name below its minimum, stars go first, then the season.
+ * [MIN_RANKING_NAME_WIDTH] (narrow Leaderboards cards beside a hinge, issue #114). Score rows
+ * never drop the season or stars to fit: when the fixed columns would squeeze a score row's
+ * name below its minimum, the section's rows stack instead (web `resolveTopScoresColumns`
+ * decides those columns from the width alone; issue #170).
  */
 object LeaderboardColumnLayout {
     /** Row chrome: the 4 dp highlight inset plus 8 dp padding on each side. */
@@ -202,6 +206,16 @@ object LeaderboardColumnLayout {
     fun seasonLabel(season: Int): String = "S$season"
 
     /**
+     * The column gap a score row of this width uses (web `NARROW_BREAKPOINT`): [COMPACT_GAP]
+     * below [COMPACT_BREAKPOINT], else [WIDE_GAP], also before the first layout.
+     *
+     * @param rowWidth Row width in dp, including its chrome; NaN or 0 before the first layout.
+     * @return Gap in dp.
+     */
+    fun gapFor(rowWidth: Float): Float =
+        if (rowWidth.isFinite() && rowWidth > 0f && rowWidth < COMPACT_BREAKPOINT) COMPACT_GAP else WIDE_GAP
+
+    /**
      * Fits a section's columns into a row width.
      *
      * A rankings section with a [LeaderboardSection.nameWidth] shows its songs label only when
@@ -225,12 +239,12 @@ object LeaderboardColumnLayout {
         val known = rowWidth.isFinite() && rowWidth > 0f
         val scale = if (fontScale.isFinite()) maxOf(1f, fontScale) else 1f
         val score = section.kind == LeaderboardRowKind.Score
-        val gap = if (known && rowWidth < COMPACT_BREAKPOINT) COMPACT_GAP else WIDE_GAP
+        val gap = gapFor(rowWidth)
         val minRank = if (score) MIN_SCORE_RANK_WIDTH else MIN_RANKING_RANK_WIDTH
         val rank = if (section.rankWidth <= 0f) 0f else maxOf(section.rankWidth, minRank)
         val accuracy = if (score && section.hasAccuracy) ACCURACY_WIDTH * scale else 0f
         var showMeta = section.hasMeta && (!score || (known && rowWidth >= SEASON_BREAKPOINT))
-        var showStars = score && section.hasStars && known && rowWidth >= STARS_BREAKPOINT
+        val showStars = score && section.hasStars && known && rowWidth >= STARS_BREAKPOINT
         val keepsNamesFromCollapsing = known && !section.stackNarrowNames && !section.keepsNameMinimum
         if (!score && showMeta && (section.nameWidth > 0f || keepsNamesFromCollapsing)) {
             // Compete fits every full name; other plain rankings only keep names from collapsing to an ellipsis.
@@ -254,8 +268,9 @@ object LeaderboardColumnLayout {
             return ROW_CHROME + columns.sum() + gap * (columns.size - 1)
         }
 
-        if (showStars && required() > rowWidth) showStars = false
-        if (score && showMeta && required() > rowWidth) showMeta = false
+        // Score rows keep the web's width-only season and stars (`resolveTopScoresColumns`); rows
+        // that cannot hold them on one line beside a minimum name stack instead (issue #170).
+        if (score && known && (showMeta || showStars) && required() > rowWidth) stacked = true
         if (!score && section.stackNarrowNames && known && rankingNameRoom(section, showMeta, rowWidth) < MIN_NAME_WIDTH) stacked = true
         return LeaderboardColumnPlan(
             gap = gap,

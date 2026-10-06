@@ -38,6 +38,12 @@ class FixtureTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             fixture.split_args(["--shop"])
 
+    def test_mark_double_bass_sets_listed_songs_only(self):
+        catalogue = {"songs": [{"songId": "fixture-pulse"}, {"songId": "fixture-orbit"}, {"songId": "other"}]}
+        fixture.mark_double_bass(catalogue)
+        self.assertEqual([song.get("doubleBassSupported") for song in catalogue["songs"]], [True, False, None])
+        self.assertNotIn("doubleBassSupported", catalogue["songs"][2])
+
 
 class JourneyTests(unittest.TestCase):
     """Tree checks, placeholder compilation and Axe parsing."""

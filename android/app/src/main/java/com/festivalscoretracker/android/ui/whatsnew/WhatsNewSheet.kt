@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.whatsnew.Changelog
+import com.festivalscoretracker.android.core.whatsnew.ChangelogEntry
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewBlock
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewGate
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
@@ -50,9 +52,15 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  * @param controller Process-wide state.
  * @param blocked Another modal owns the screen (profile or notifications sheet, a carousel).
  * @param compact Compact window width (bottom sheet) vs wider (dialog).
+ * @param entries Changelog entries (the bundled `WhatsNew.json`; tests pass their own).
  */
 @Composable
-fun WhatsNewHost(controller: WhatsNewController, blocked: Boolean, compact: Boolean) {
+fun WhatsNewHost(
+    controller: WhatsNewController,
+    blocked: Boolean,
+    compact: Boolean,
+    entries: List<ChangelogEntry> = Changelog.entries,
+) {
     val shown by controller.shown.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     LaunchedEffect(blocked) {
@@ -61,10 +69,11 @@ fun WhatsNewHost(controller: WhatsNewController, blocked: Boolean, compact: Bool
         delay(WhatsNewGate.SETTLE_MS)
         controller.presentIfOwed()
     }
+    val blocks = remember(entries, controller.channel) { Changelog.displayBlocks(entries, controller.channel) }
     if (shown != null) {
         WhatsNewSheet(
             title = WhatsNewGate.title(controller.version),
-            blocks = Changelog.displayBlocks(channel = controller.channel),
+            blocks = blocks,
             compact = compact,
             onDismiss = { scope.launch { controller.dismiss() } },
         )

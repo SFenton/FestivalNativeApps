@@ -13,7 +13,7 @@ enum AccentText {
 }
 
 extension AccentText {
-    /// Darker accent blue for the fill of a prominent button with a white label: the brand
+    /// Darker accent blue for the fill of any prominent button with a white label: the brand
     /// `accentBlue` fill measured 3.86:1 behind white 17 pt text ("Start New Mix", iPad
     /// audit 2026-10-05), below WCAG AA 4.5:1 (HIG Accessibility contrast table). This
     /// same-hue blue gives about 5.2:1.

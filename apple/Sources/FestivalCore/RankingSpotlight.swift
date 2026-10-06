@@ -32,10 +32,12 @@ public enum RankingSpotlightPlacement: Sendable, Equatable {
     case footer(AccountRankingEntry)
 }
 
-/// Pure decision logic for the selected-player spotlight shown on the Leaderboards
-/// overview cards and the Full Rankings board, mirroring the web client's
-/// `RankingCard` (`spotlightFooterRows` filters out any ranking whose account is
-/// already in `topAccountIds`) without any view or networking concerns.
+/// Pure decision logic for the selected-player spotlight: ``placement(selectedAccountId:visibleEntries:source:)``
+/// for the Leaderboards overview cards, mirroring the web client's `RankingCard`
+/// (`spotlightFooterRows` filters out any ranking whose account is already in
+/// `topAccountIds`), and ``pinnedFooter(selectedAccountId:visibleEntries:source:)``
+/// for the Full Rankings board, which always pins the row (issue #318). No view or
+/// networking concerns.
 public enum RankingSpotlight {
     /// Decide how to present the selected player relative to one loaded board.
     ///
@@ -71,6 +73,45 @@ public enum RankingSpotlight {
                 return .pending
             }
             return .footer(entry)
+        }
+    }
+
+    /// Decide the selected player's pinned footer on a paginated full board.
+    ///
+    /// Unlike an overview card, a full board pins the player's row above its pager
+    /// on every page, including the page whose rows already show it, as the song
+    /// leaderboards do (web `FullRankingsPage`: `hasPlayerFooter = !!playerRanking`;
+    /// leaderboard-row R5, R7, issue #318). The per-account row wins; while it is
+    /// still loading, failed or missing, the page's own row for the player stands in.
+    ///
+    /// - Parameters:
+    ///   - selectedAccountId: Currently selected player's account id, or nil/empty
+    ///     when no player is selected.
+    ///   - visibleEntries: The page's loaded rows.
+    ///   - source: What is known about the selected player's own row.
+    /// - Returns: ``RankingSpotlightPlacement/none``, `.pending`, `.unranked` or
+    ///   `.footer(_:)`; never `.inline`.
+    public static func pinnedFooter(
+        selectedAccountId: String?,
+        visibleEntries: [AccountRankingEntry],
+        source: RankingSpotlightSource
+    ) -> RankingSpotlightPlacement {
+        guard let selectedAccountId,
+              !selectedAccountId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .none
+        }
+        func isSelected(_ entry: AccountRankingEntry) -> Bool {
+            entry.accountId.caseInsensitiveCompare(selectedAccountId) == .orderedSame
+        }
+        if case let .available(entry) = source, isSelected(entry) {
+            return .footer(entry)
+        }
+        if let visible = visibleEntries.first(where: isSelected) {
+            return .footer(visible)
+        }
+        switch source {
+        case .unranked: return .unranked
+        case .notLoaded, .available: return .pending
         }
     }
 }

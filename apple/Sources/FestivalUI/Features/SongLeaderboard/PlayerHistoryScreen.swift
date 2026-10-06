@@ -112,7 +112,7 @@ struct SongScoreHistoryPage: View {
                 )
             }
         }
-        .navigationTitle("Score History")
+        .festivalNavigationTitle("Score History")
         .festivalBackground(.song(song.albumArt), session: session)
         .task(id: session.selectedPlayer?.accountId) { await load() }
         // The player-history page root, as on Android and Windows.

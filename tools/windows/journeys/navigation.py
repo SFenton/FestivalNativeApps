@@ -2,7 +2,8 @@
 """App Navigation (``fst.nav.*``) UI journeys for the Windows shell, driven through ``tools/windows/uiwin.py``.
 
 One journey per reachable state of ``.agents/controls/app-navigation/spec.md`` (``songs``, ``leaderboards``,
-``settings``, ``player``, ``band``, ``reselect``) plus the minimal-pane (compact width) and keyboard paths.
+``settings``, ``player``, ``band``, ``reselect``) plus the ``/compete`` deep link (no Compete section or Leaderboards
+Overview button, issue #266), the minimal-pane (compact width) and keyboard paths.
 Each launches this worktree's build against the anonymized loopback fixture (``tools/windows/rivals_fixture.py``)
 with isolated settings, runs UIA step phases (``waitfor`` steps are the assertions) and checks the UIA tree
 dumped after each phase with regular expressions: required, forbidden and in-order patterns. Pane selection is
@@ -106,6 +107,8 @@ PLAYER_ONLY = ["fst.nav.suggestions", "fst.nav.statistics", "fst.nav.rivals"]
 SONGS_READY = "waitfor:id=fst.songs.row.fixture-pulse@20"
 BOARDS_READY = "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
 FIXTURE_PLAYER = _profile("fixture-player-1:Demo Player")
+#: Any element named like a Compete-style "Leaderboards Overview" button (issues #66, #266: the web has none).
+NO_OVERVIEW = r'(?i)"[^"\n]*leaderboards? overview[^"\n]*" id='
 
 JOURNEYS = [
     Journey(
@@ -203,6 +206,24 @@ JOURNEYS = [
             Phase(steps=["key:ctrl+1", SONGS_READY, "invoke:id=fst.shell.profile", "waitfor:id=fst.statistics@10",
                          "waitfor:id=fst.player.deselect@15"],
                   expect=[selected("fst.nav.statistics")], forbid=[present("fst.profile.search")], order=PLAYER_PANE),
+        ],
+    ),
+    Journey(
+        # Issues #66/#266: Windows has no Compete section, so /compete opens the Rivals root with no leaderboard cards
+        # and no "Leaderboards Overview" button; Leaderboards stays its own pane item and each board's View All opens
+        # Full Rankings (web CompetePage "View Full Leaderboards" per section).
+        name="compete",
+        launch=["--route", "/compete", *FIXTURE_PLAYER],
+        phases=[
+            Phase(steps=["waitfor:id=fst.rivals.section.common@20"],
+                  expect=[selected("fst.nav.rivals"), present("fst.rivals.title")],
+                  forbid=[present("fst.nav.compete"), NO_OVERVIEW, r"id=fst\.leaderboards[. ]"], order=PLAYER_PANE),
+            Phase(steps=["select:id=fst.nav.leaderboards", BOARDS_READY,
+                         "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@15"],
+                  expect=[selected("fst.nav.leaderboards"), present("fst.leaderboards.card.Solo_Guitar.view-all")],
+                  forbid=[NO_OVERVIEW]),
+            Phase(steps=["invoke:id=fst.leaderboards.card.Solo_Guitar.view-all", "waitfor:id=fst.full-rankings.list@20"],
+                  expect=[selected("fst.nav.leaderboards"), present("fst.full-rankings.title")]),
         ],
     ),
     Journey(

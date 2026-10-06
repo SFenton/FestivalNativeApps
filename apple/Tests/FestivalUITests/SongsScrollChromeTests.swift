@@ -409,8 +409,9 @@ struct SongsSectionJumpTests {
     @Test func fadeLeavesALandedSectionsFirstRowClear() {
         #expect(SongsScrollChrome.fadeLimit(titleTop: 0, barHeight: bar) == 0)
         #expect(SongsScrollChrome.fadeLimit(titleTop: -10, barHeight: bar) == 10)
-        #expect(SongsScrollChrome.fadeLimit(titleTop: -27.7, barHeight: bar) == 27.5)
-        #expect(SongsScrollChrome.fadeLimit(titleTop: -28, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: -39.7, barHeight: bar) == 39.5)
+        // The shared 40 pt ramp (issue #308): fully grown 40 pt under the bar.
+        #expect(SongsScrollChrome.fadeLimit(titleTop: -40, barHeight: bar) == nil)
         #expect(SongsScrollChrome.fadeLimit(titleTop: -400, barHeight: bar) == nil)
     }
 
@@ -418,10 +419,11 @@ struct SongsSectionJumpTests {
     /// band it ends at the title's own top, so a visible title is never dimmed.
     @Test func fadeStopsAboveAnIncomingTitle() {
         #expect(SongsScrollChrome.fadeLimit(titleTop: 12, barHeight: bar) == 12)
-        #expect(SongsScrollChrome.fadeLimit(titleTop: bar, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: bar, barHeight: bar) == bar)
         #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 0.5, barHeight: bar) == 0.5)
         #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 20, barHeight: bar) == 20)
-        #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 28, barHeight: bar) == nil)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 39, barHeight: bar) == 39)
+        #expect(SongsScrollChrome.fadeLimit(titleTop: bar + 40, barHeight: bar) == nil)
         #expect(SongsScrollChrome.fadeLimit(titleTop: 900, barHeight: bar) == nil)
     }
 
@@ -438,7 +440,7 @@ struct SongsSectionJumpTests {
         for step in stride(from: -40, through: 120, by: 0.5) {
             let top = CGFloat(step)
             let limit = SongsScrollChrome.fadeLimit(titleTop: top, barHeight: bar)
-                ?? SectionBarEdgeFade.height
+                ?? PinnedHeaderEdgeFade.height
             if top > bar { #expect(limit <= top - bar) }
             if top >= 0, top <= bar { #expect(limit <= top) }
         }
@@ -447,14 +449,10 @@ struct SongsSectionJumpTests {
     @Test func rowFadeTakesTheLowestLimitAndWritesOnlyOnChange() {
         let chrome = SongsScrollChrome()
         #expect(chrome.rowFadeLimit == nil)
-        #expect(chrome.rowFadeHeight(fade: 28) == 28)
         #expect(chrome.setFadeLimit("S", limit: 4))
         #expect(!chrome.setFadeLimit("S", limit: 4))
         #expect(!chrome.setFadeLimit("T", limit: 20))
         #expect(chrome.rowFadeLimit == 4)
-        #expect(chrome.rowFadeHeight(fade: 28) == 4)
-        // Reduce Transparency's hard edge stays hard.
-        #expect(chrome.rowFadeHeight(fade: 0) == 0)
         #expect(chrome.setFadeLimit("S", limit: nil))
         #expect(chrome.rowFadeLimit == 20)
         #expect(!chrome.setFadeLimit("U", limit: .nan))

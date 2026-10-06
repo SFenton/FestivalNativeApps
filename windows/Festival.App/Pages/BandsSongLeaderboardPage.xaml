@@ -44,7 +44,7 @@
         </SelectorBar>
 
         <Grid Grid.Row="2" Grid.RowSpan="2">
-            <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56"
+            <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" controls:BandScoreFooterPanel.IsSection="True"
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                       ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ContainerContentChanging="OnContainerContentChanging"
@@ -114,30 +114,29 @@
                             </ItemsRepeater>
                             <FontIcon Grid.Column="2" Grid.RowSpan="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                                       AutomationProperties.AccessibilityView="Raw" />
-                            <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="6" Padding="0,6,0,0" BorderThickness="0,1,0,0"
-                                  BorderBrush="{ThemeResource FSTCardStrokeBrush}" AutomationProperties.AccessibilityView="Raw">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" TextWrapping="NoWrap"
-                                           AutomationProperties.AccessibilityView="Raw" />
-                                <Border Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
-                                        Visibility="{x:Bind IsFullCombo}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                    <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
-                                </Border>
-                                <!-- Contrast themes: ButtonFace fill, ButtonText text and outline (design/windows.md contrast roles). -->
-                                <Border Grid.Column="2" CornerRadius="4" Padding="6,1" BorderThickness="1"
-                                        Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
-                                        Visibility="{x:Bind HasAccuracy}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                    <TextBlock Text="{x:Bind Accuracy}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                            <!-- The score never truncates: the badges move under it when they don't fit (BandScoreFooterPanel, issue #264). -->
+                            <Border Grid.Row="1" Grid.Column="1" Padding="0,6,0,0" BorderThickness="0,1,0,0"
+                                    BorderBrush="{ThemeResource FSTCardStrokeBrush}" AutomationProperties.AccessibilityView="Raw">
+                                <controls:BandScoreFooterPanel Spacing="6" AutomationProperties.AccessibilityView="Raw">
+                                    <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="NoWrap"
                                                AutomationProperties.AccessibilityView="Raw" />
-                                </Border>
-                                <controls:StarRow Grid.Column="3" Stars="{x:Bind StarCount}" StarSize="14"
-                                                  AutomationProperties.AccessibilityView="Raw" />
-                            </Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" AutomationProperties.AccessibilityView="Raw">
+                                        <Border CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
+                                                Visibility="{x:Bind IsFullCombo}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                            <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
+                                        </Border>
+                                        <!-- Contrast themes: ButtonFace fill, ButtonText text and outline (design/windows.md contrast roles). -->
+                                        <Border CornerRadius="4" Padding="6,1" BorderThickness="1"
+                                                Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
+                                                Visibility="{x:Bind HasAccuracy}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                            <TextBlock Text="{x:Bind Accuracy}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                                                       AutomationProperties.AccessibilityView="Raw" />
+                                        </Border>
+                                        <controls:StarRow Stars="{x:Bind StarCount}" StarSize="14" VerticalAlignment="Center"
+                                                          AutomationProperties.AccessibilityView="Raw" />
+                                    </StackPanel>
+                                </controls:BandScoreFooterPanel>
+                            </Border>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
