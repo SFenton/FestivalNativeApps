@@ -33,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -137,12 +136,14 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
                 val contentReady = lead == null || lead.value !is LoadState.Loading
                 val swap = rememberLoadSwap(metric, contentReady, key = metric)
                 // Cards still loading (or reloading for a new Rank By) after the list has
-                // scrolled show in place; only what is visible at load fades in.
+                // scrolled show in place; only what is visible at load fades in. Under the
+                // spinner the hidden list is also silent to TalkBack and ignores touches, so a
+                // tap on the spinner never opens a card nobody can see (load-transition R2, #178).
                 val fadeWindow = rememberFadeInWindow(listState)
                 val pageModifier = when (swap.phase) {
                     LoadSwapPhase.ContentIn -> Modifier.festivalFadeIn(swap.revealed)
                     LoadSwapPhase.ContentOut -> swap.contentModifier
-                    LoadSwapPhase.Loading, LoadSwapPhase.SpinnerOut -> Modifier.alpha(0f)
+                    LoadSwapPhase.Loading, LoadSwapPhase.SpinnerOut -> swap.pinnedContentModifier
                 }
                 Box(Modifier.fillMaxSize().then(pageModifier)) {
                     CompositionLocalProvider(LocalFadeInWindow provides fadeWindow, LocalHoldCards provides (swap.phase == LoadSwapPhase.ContentOut)) {
