@@ -70,7 +70,7 @@ Re-check of #76 against the web `NotificationRow` with the winui plugin. Media r
 
 | Configuration | Findings |
 |---|---|
-| Compact, medium, wide, maximized, snap-left | cards fill the flyout width; the grid row keeps art above its two-column grid; the journey's 11 scenarios pass at C/M/W (`journey2`); 0 Axe errors on all 7 fixture pages at all 5 sizes |
+| Compact, medium, wide, maximized, snap-left | cards fill the flyout width; the grid row keeps art above its two-column grid; the journey's 11 scenarios pass at medium, and the 8 size-sensitive ones (including `media-rows`) also pass at compact and wide; 0 Axe errors on all 7 fixture pages at all 5 sizes |
 | Light / dark system theme | dark brand surface unchanged; 0 Axe errors |
 | Desert, Night sky | cards are Window with a WindowText stroke, the dot is WindowText, pills are outlined ButtonFace; hover/press are Highlight with HighlightText; 0 Axe errors |
 | Text 200% | the title stays one marquee line, the sentence wraps and the card grows; the dot stays above the chevron; the last row scrolls into view; 0 Axe errors |
