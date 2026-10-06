@@ -432,6 +432,8 @@ private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, r
  * @param reveal Scroll the selected row into view when it appears (paginated boards), once its
  *   own entrance has finished, rushing the page's remaining fades (web `navToPlayer`, issue #323).
  * @param revealDelayMillis The row's stagger delay, which the reveal waits out.
+ * @param clickLabel TalkBack action label overriding the route's (a pinned footer that may
+ *   jump to its page instead, `leaderboard-row` R7).
  */
 @Composable
 fun AccountRankingRow(
@@ -443,6 +445,7 @@ fun AccountRankingRow(
     tag: String = "fst.rankings.row.${entry.key}",
     reveal: Boolean = false,
     revealDelayMillis: Int = 0,
+    clickLabel: String? = null,
 ) {
     val requester = remember { BringIntoViewRequester() }
     if (reveal && isSelected) {
@@ -462,7 +465,7 @@ fun AccountRankingRow(
         route = route,
         onOpen = onOpen,
         tag = tag,
-        clickLabel = route?.let(RankingNavigation::actionLabel).orEmpty(),
+        clickLabel = clickLabel ?: route?.let(RankingNavigation::actionLabel).orEmpty(),
         unavailable = "Profile unavailable",
         modifier = Modifier.bringIntoViewRequester(requester),
     )
