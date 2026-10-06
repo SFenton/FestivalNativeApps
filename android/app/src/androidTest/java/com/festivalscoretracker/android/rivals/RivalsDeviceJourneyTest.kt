@@ -5,7 +5,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.onNodeWithText
+import com.festivalscoretracker.android.core.compete.CompeteText
+import com.festivalscoretracker.android.core.rivals.RivalText
+import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
+import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
+import org.junit.Assert.assertEquals
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
@@ -171,6 +184,63 @@ class RivalsDeviceJourneyTest {
         }
         tap(rows[0])
         waitForTag("fst.rival-detail.title")
+    }
+
+    /**
+     * Issues #68/#176: a hub card's View All Rivals is a ≥ 48 dp target that stays off a
+     * separating hinge and opens that card's All Rivals list.
+     */
+    @Test
+    fun viewAllRivalsIsATargetOffTheHingeAndOpensTheList() {
+        launch()
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        val viewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.Solo_Guitar"))
+        rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(viewAll)
+        rule.waitForIdle()
+        // view-all-cta R4: TalkBack reads the visible label, then the card.
+        val node = rule.onNode(viewAll).assertContentDescriptionEquals("${RivalText.VIEW_ALL_RIVALS}, Lead Rivals").fetchSemanticsNode()
+        assertEquals(Role.Button, node.config[SemanticsProperties.Role])
+        val minTargetPx = 48 * rule.activity.resources.displayMetrics.density
+        assertTrue("View All Rivals is ${node.size.height}px tall", node.size.height >= minTargetPx)
+        val box = node.boundsInWindow
+        hinges().forEach { fold -> assertTrue("View All Rivals straddles the fold at ${fold.left}", box.right <= fold.left || box.left >= fold.right) }
+        rule.onNode(viewAll).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.all-rivals.list")
+    }
+
+    /**
+     * Issues #68/#176: with the device's real fonts, View All Rivals and View Full
+     * Leaderboards are the same shared button: same size at the device's font scale and at
+     * 2.0, with the label inside the button.
+     */
+    @Test
+    fun viewAllRivalsMatchesViewFullLeaderboardsWithRealFonts() {
+        val entry = RivalEntry(RivalSummary(ids[0], "Ann", 1.0, sharedSongCount = 10, aheadCount = 6, behindCount = 4), RivalDirection.Above)
+        var fontScale by mutableFloatStateOf(rule.activity.resources.configuration.fontScale)
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                FestivalTheme {
+                    Column {
+                        Box(Modifier.requiredWidth(300.dp)) { RivalPreviewRows(listOf(entry), onRival = {}, onViewAll = {}) }
+                        Box(Modifier.requiredWidth(300.dp)) {
+                            ViewFullLeaderboardButton(onClick = {}, label = CompeteText.VIEW_FULL_LEADERBOARDS, testTag = "fst.compete.view-full-leaderboards")
+                        }
+                    }
+                }
+            }
+        }
+        for (scale in listOf(fontScale, 2f)) {
+            fontScale = scale
+            rule.waitForIdle()
+            val rivals = rule.onNodeWithTag("fst.rivals.view-all").fetchSemanticsNode()
+            val board = rule.onNodeWithTag("fst.compete.view-full-leaderboards").fetchSemanticsNode()
+            assertEquals("same width at font scale $scale", board.size.width, rivals.size.width)
+            assertTrue("48 dp minimum target at $scale", rivals.size.height >= 48 * rule.activity.resources.displayMetrics.density)
+            val label = rule.onNodeWithText(RivalText.VIEW_ALL_RIVALS, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val button = rivals.boundsInRoot
+            assertTrue("label $label inside $button at $scale", label.top >= button.top && label.bottom <= button.bottom && label.left >= button.left && label.right <= button.right)
+        }
     }
 
     /** Issue #107: with real fonts at 2.0 scale, a narrow card wraps its pills and grows to show both. */

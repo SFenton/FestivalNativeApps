@@ -219,8 +219,8 @@ public class SettingsServiceInfoTests
         Assert.Equal("7 Widgets completed", ServiceInfoText.UnitsText(bar with { UnitsKind = "widgets", UnitsCompleted = 7, UnitsTotal = null }));
         Assert.Equal("7 items completed", ServiceInfoText.UnitsText(bar with { UnitsKind = null, UnitsCompleted = 7, UnitsTotal = null }));
         Assert.Null(ServiceInfoText.UnitsText(bar with { UnitsCompleted = null }));
-        Assert.Equal(ServiceInfoText.ProgressIndeterminate, ServiceInfoText.ProgressText(bar with { Kind = ServiceBarKind.Indeterminate }));
-        Assert.Equal(ServiceInfoText.ProgressIndeterminate, ServiceInfoText.ProgressText(null));
+        Assert.Equal("Total not yet known", ServiceInfoText.ProgressText(bar with { Kind = ServiceBarKind.Indeterminate }));
+        Assert.Equal(ServiceInfoText.ProgressUnknownTotal, ServiceInfoText.ProgressText(null));
     }
 
     [Fact]
@@ -308,12 +308,18 @@ public class SettingsServiceInfoTests
         Assert.Equal("Computing Rankings · Calculating Instrument Rankings", vm.PhaseTitle);
         Assert.True(vm.HasPhase && vm.HasBar && !vm.IsIndeterminate && !vm.HasAttempt && vm.HasLastPublished);
         Assert.Equal((25.0, "25.0%", "250 of 1,000 leaderboards completed"), (vm.BarPercent, vm.ProgressText, vm.UnitsText));
-        Assert.Equal("Computing Rankings · Calculating Instrument Rankings. 25.0%. 250 of 1,000 leaderboards completed", vm.PhaseAccessibleName);
+        // Spoken like the web bar's aria-valuetext: phase and subphase are separate sentences, not "Phase · Subphase".
+        Assert.Equal("Computing Rankings. Calculating Instrument Rankings. 25.0%. 250 of 1,000 leaderboards completed", vm.PhaseAccessibleName);
         Assert.Equal("Sep 28, 2026, 3:04 PM UTC", vm.LastPublished);
 
         vm.Apply(new ServiceInfoSnapshot(Info(Updating(sub: Sub(1, 10, 10, final: false))), null));
         Assert.True(vm.IsIndeterminate);
-        Assert.Equal(ServiceInfoText.ProgressIndeterminate, vm.ProgressText);
+        Assert.Equal("Total not yet known", vm.ProgressText);
+        Assert.Equal("Computing Rankings. Calculating Instrument Rankings. Total not yet known", vm.PhaseAccessibleName);
+
+        vm.Apply(new ServiceInfoSnapshot(Info(Updating("scrape.solo", subphaseId: null)), null));
+        Assert.Null(vm.SpokenPhaseTitle);
+        Assert.Equal(vm.PhaseTitle + ". Total not yet known", vm.PhaseAccessibleName);
 
         vm.Apply(new ServiceInfoSnapshot(Info(new ServiceCurrentUpdate("idle")), null));
         Assert.Equal(("Waiting for the Next Update", ServiceProcessState.Idle, false, false), (vm.StateDescription, vm.ProcessState, vm.HasPhase, vm.HasBar));
@@ -321,6 +327,7 @@ public class SettingsServiceInfoTests
         vm.ApplyFailure();
         Assert.Equal(("Failed to load data", ServiceProcessState.Stopped, null, false), (vm.StateDescription, vm.ProcessState, vm.LastPublished, vm.HasLastPublished));
         Assert.Equal("", vm.PhaseAccessibleName);
+        Assert.Null(vm.SpokenPhaseTitle);
     }
 
     [Fact]
@@ -336,6 +343,39 @@ public class SettingsServiceInfoTests
 
         vm.Apply(new ServiceInfoSnapshot(Info(new ServiceCurrentUpdate("idle")), null));
         Assert.False(vm.HasAttempt);
+    }
+
+    [Fact]
+    public void Apply_AnnouncesEachAcceptedAttemptCountOnce()
+    {
+        var vm = new SettingsServiceInfoViewModel(new FakeService().Client(), new FakeTimeProvider(), () => TimeZoneInfo.Utc);
+        var heard = new List<Announcement>();
+        vm.ProgressAnnounced += (_, announcement) => heard.Add(announcement);
+
+        // No attempt line (another phase): nothing to announce.
+        vm.Apply(new ServiceInfoSnapshot(Info(Updating(sub: Sub(250, 1000, 25))), null));
+        Assert.Empty(heard);
+
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(12, 1), at: "2026-09-28T15:00:00Z")), null));
+        Assert.Equal([new Announcement(vm.PhaseAccessibleName, AnnouncementKind.Completed)], heard);
+        Assert.Contains("12 attempted this pass", heard[0].Text, StringComparison.Ordinal);
+
+        // A lower (older) count is kept back and an unchanged one is not repeated.
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(10, 1), at: "2026-09-28T15:00:05Z")), null));
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(12, 1), at: "2026-09-28T15:00:10Z")), null));
+        Assert.Single(heard);
+
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(15, 2), at: "2026-09-28T15:00:15Z")), null));
+        Assert.Equal(2, heard.Count);
+        Assert.Equal(vm.PhaseAccessibleName, heard[1].Text);
+        Assert.Contains("15 attempted this pass · 2 temporarily unavailable", heard[1].Text, StringComparison.Ordinal);
+
+        // Leaving discovery is silent; the line coming back is new again.
+        vm.Apply(new ServiceInfoSnapshot(Info(new ServiceCurrentUpdate("idle")), null));
+        vm.ApplyFailure();
+        Assert.Equal(2, heard.Count);
+        vm.Apply(new ServiceInfoSnapshot(Info(Discovery(Attempts(15, 2), at: "2026-09-28T15:00:20Z")), null));
+        Assert.Equal(3, heard.Count);
     }
 
     [Fact]
@@ -391,6 +431,50 @@ public class SettingsServiceInfoTests
         stop.Cancel();
         await pendingStop;
         Assert.Equal(ServiceProcessState.Loading, cancelled.ProcessState);
+    }
+
+    [Fact]
+    public async Task Poll_StaysLoadingUntilTheReadTimeout()
+    {
+        var hang = new FakeService();
+        hang.Handler.Responder = async (request, token) =>
+        {
+            await Task.Delay(Timeout.Infinite, token);
+            return Wire.Ok("{}");
+        };
+        var time = new FakeTimeProvider();
+        var standard = new SettingsServiceInfoViewModel(hang.Client(), time);
+        Assert.Equal(SettingsServiceInfoViewModel.RequestTimeout, standard.ReadTimeout);
+        var pending = standard.PollOnceAsync(CancellationToken.None);
+        await Async.Advance(time, TimeSpan.FromSeconds(2.9), TimeSpan.FromSeconds(0.1));
+        Assert.Equal(("Loading", ServiceProcessState.Loading, true), (standard.StateDescription, standard.ProcessState, standard.ShowsSpinner));
+        await Async.Advance(time, TimeSpan.FromSeconds(0.2), TimeSpan.FromSeconds(0.1));
+        await pending;
+        Assert.Equal(("Failed to load data", false), (standard.StateDescription, standard.ShowsSpinner));
+
+        var lengthened = new SettingsServiceInfoViewModel(hang.Client(), time) { ReadTimeout = TimeSpan.FromSeconds(15) };
+        pending = lengthened.PollOnceAsync(CancellationToken.None);
+        await Async.Advance(time, TimeSpan.FromSeconds(10));
+        Assert.Equal(ServiceProcessState.Loading, lengthened.ProcessState);
+        await Async.Advance(time, TimeSpan.FromSeconds(6));
+        await pending;
+        Assert.Equal(ServiceProcessState.Stopped, lengthened.ProcessState);
+    }
+
+    [Theory]
+    [InlineData("15000", 15000)]
+    [InlineData("1", 1)]
+    [InlineData("60000", 60000)]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("0", null)]
+    [InlineData("60001", null)]
+    [InlineData("-5", null)]
+    [InlineData("1.5", null)]
+    [InlineData("abc", null)]
+    public void ParseTimeoutOverride_AcceptsWholeMillisecondsUpToAMinute(string? value, int? expected)
+    {
+        Assert.Equal(expected is { } ms ? TimeSpan.FromMilliseconds(ms) : null, SettingsServiceInfoViewModel.ParseTimeoutOverride(value));
     }
 
     [Theory]

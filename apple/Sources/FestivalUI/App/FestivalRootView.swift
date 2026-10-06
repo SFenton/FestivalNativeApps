@@ -745,7 +745,7 @@ public struct FestivalRootView: View {
     private func dismissDrawer() {
         closeDrawer()
         drawerFocus = AccessibilityFocusRequest(
-            target: .identifier("fst.shell.drawer.open"), screenChanged: false,
+            target: .identifier("fst.shell.drawer.open", fallbackLabel: "More"), screenChanged: false,
             token: (drawerFocus?.token ?? 0) + 1
         )
     }

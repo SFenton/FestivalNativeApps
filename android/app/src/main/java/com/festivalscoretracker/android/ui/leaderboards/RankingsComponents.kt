@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -32,12 +33,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.Immutable
+import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AppRoute
@@ -89,6 +91,7 @@ import java.text.NumberFormat
 import androidx.compose.foundation.layout.RowScope
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Rows
 
@@ -175,6 +178,18 @@ data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp, val showS
 
 /** Column widths for the rows below, or null for intrinsic widths. */
 val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
+
+/**
+ * The measured inner width (dp) of a rankings card's rows, written from `onSizeChanged` and
+ * passed to [rememberAccountColumns] / [rememberBandColumns]. It is NaN only before the
+ * card's first layout, and it is saved with the destination, so returning to a page on the
+ * back stack (Compete from View Full Leaderboard, issues #82, #185) draws the same column
+ * plan on its first frame instead of a NaN plan that drops or restacks columns for a frame.
+ *
+ * @return Width state shared by the rows' column plan.
+ */
+@Composable
+fun rememberRankingRowWidth(): MutableFloatState = rememberMeasuredPx(Float.NaN)
 
 /**
  * Measure the widest rank, songs and rating text (bold, as the selected row draws them)
@@ -623,7 +638,7 @@ fun SpotlightUnrankedRow(message: String, tag: String) {
  * « ‹ page / total › » (First, Previous, Next, Last), shared by every paginated board,
  * drawn like the web's floating paginator: each button its own frosted circle and
  * the page label its own frosted pill, in a row the board anchors above the bottom
- * chrome. The page text is a polite live region ("Page 2 of 34,760"); First/Last
+ * chrome. Both are [GlassCard]s, the rows' own surface (issue #319). The page text is a polite live region ("Page 2 of 34,760"); First/Last
  * collapse on very narrow windows. Every target is at least 48 dp.
  *
  * @param page Current one-based page.
@@ -646,12 +661,7 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
             FrostedPagerButton(Icons.Filled.KeyboardDoubleArrowLeft, "First page", "$idPrefix.page-first", page > 1) { onChange(1) }
         }
         FrostedPagerButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous page", "$idPrefix.page-previous", page > 1) { onChange(page - 1) }
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = PagerSurface,
-            border = BorderStroke(1.dp, BrandTokens.glassBorder),
-            shadowElevation = 4.dp,
-        ) {
+        GlassCard(shape = PagerBadgeShape) {
             Text(
                 "${grouping.format(page)} / ${grouping.format(totalPages)}",
                 style = MaterialTheme.typography.labelLarge,
@@ -674,12 +684,14 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
     }
 }
 
-/** Opaque frosted fill for the floating pager, legible over rows scrolling beneath it. */
-private val PagerSurface: Color get() = BrandTokens.cardBackground
+/** The page badge's pill shape (the buttons are circles). */
+private val PagerBadgeShape = RoundedCornerShape(24.dp)
 
 /**
- * One frosted circular pager button (web `PaginatorButton`): 48 dp, dimmed when disabled.
- * Shared by the boards' pager and the Rank History charts' pagers (operator 7.4).
+ * One frosted circular pager button (web `PaginatorButton`, which spreads the rows'
+ * `frostedCard`): a 48 dp [GlassCard] circle, so it has the row cards' fill, border and
+ * Increase Contrast / Reduce Transparency fallback (issue #319); the glyph dims when
+ * disabled. Shared by the boards' pager and the Rank History charts' pagers (operator 7.4).
  *
  * @param icon Glyph.
  * @param label Accessible name.
@@ -689,16 +701,13 @@ private val PagerSurface: Color get() = BrandTokens.cardBackground
  */
 @Composable
 internal fun FrostedPagerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, enabled: Boolean, onClick: () -> Unit) {
-    Surface(
+    GlassCard(
         onClick = onClick,
         enabled = enabled,
         shape = CircleShape,
-        color = PagerSurface,
-        border = BorderStroke(1.dp, BrandTokens.glassBorder),
-        shadowElevation = 4.dp,
         modifier = Modifier.size(48.dp).testTag(tag).semantics { contentDescription = label; role = Role.Button },
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = if (enabled) BrandTokens.textPrimary else BrandTokens.textDisabled)
         }
     }

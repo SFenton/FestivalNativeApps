@@ -13,8 +13,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Alignment
@@ -127,7 +125,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
             } else item(key = "rows") {
                 GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
                     // Rows fill this column; below the roster's minimum width they stack (issue #116).
-                    var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+                    var rowWidth by rememberRankingRowWidth()
                     val density = LocalDensity.current
                     Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }) {
                         when {
