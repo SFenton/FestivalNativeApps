@@ -128,4 +128,33 @@ class RankHistoryWindowTest {
         assertEquals(ChartRect(40f, 50f, 20f, 50f), ChartGeometry.bandBar(ChartBar(0.5f, 0.5f), 4, 100f, 100f, 72f))
         assertEquals(ChartRect(45f, 0f, 10f, 100f), ChartGeometry.bandBar(ChartBar(0.5f, 1f), 1, 100f, 100f, 10f))
     }
+
+    @Test
+    fun bandLabelsCentreUnderTheirBars() {
+        // 4 bands of 100 between 50 px gutters: centres 100, 200, 300, 400.
+        val lefts = ChartGeometry.bandLabelLefts(List(4) { 60f }, 50f, 400f, 500f, 8f)
+        assertEquals(listOf(70f, 170f, 270f, 370f), lefts)
+        // The label centre equals the bar centre from bandBar on the same plot.
+        val bar = ChartGeometry.bandBar(ChartBar(0.125f, 1f), 4, 400f, 100f, 72f)
+        assertEquals(50f + bar.left + bar.width / 2, lefts[0]!! + 30f, 1e-3f)
+        // One bar: its label sits under the middle of the plot.
+        assertEquals(listOf(220f), ChartGeometry.bandLabelLefts(listOf(60f), 50f, 400f, 500f, 8f))
+        assertTrue(ChartGeometry.bandLabelLefts(emptyList(), 0f, 100f, 100f, 8f).isEmpty())
+    }
+
+    @Test
+    fun bandLabelsPinAtEdgesAndHideCollisions() {
+        // Wide end labels pin inside the row instead of clipping.
+        val pinned = ChartGeometry.bandLabelLefts(listOf(120f, 120f), 0f, 200f, 200f, 8f)
+        assertEquals(listOf(null, 80f), pinned)
+        val edges = ChartGeometry.bandLabelLefts(List(4) { 80f }, 0f, 300f, 300f, 8f)
+        assertEquals(listOf(0f, null, null, 220f), edges)
+        // Large text: labels wider than a band keep the newest, the first and whatever fits between.
+        val crowded = ChartGeometry.bandLabelLefts(List(5) { 150f }, 0f, 500f, 500f, 8f)
+        assertEquals(listOf(0f, null, 175f, null, 350f), crowded)
+        val alternate = ChartGeometry.bandLabelLefts(List(5) { 70f }, 0f, 500f, 500f, 40f)
+        assertEquals(listOf(15f, null, 215f, null, 415f), alternate)
+        // Wider than the whole row: pinned at the left edge.
+        assertEquals(listOf(0f), ChartGeometry.bandLabelLefts(listOf(300f), 0f, 200f, 200f, 8f))
+    }
 }

@@ -60,6 +60,15 @@ class SelectedRowNavigationTest {
     }
 
     @Test
+    fun revealWaitsForTheRowsOwnEntrance() {
+        // Web navToPlayer waits out the row's stagger; native waits for its whole fade (#323).
+        assertEquals(400, SelectedRowReveal.entranceWaitMillis(rowDelayMillis = 0, fadeMillis = 400, reduceMotion = false))
+        assertEquals(1_900, SelectedRowReveal.entranceWaitMillis(rowDelayMillis = 1_500, fadeMillis = 400, reduceMotion = false))
+        // Reduce Motion: nothing fades, so the reveal scrolls at once.
+        assertEquals(0, SelectedRowReveal.entranceWaitMillis(rowDelayMillis = 1_500, fadeMillis = 400, reduceMotion = true))
+    }
+
+    @Test
     fun bandFooterEntryReadsAsTheBand() {
         val band = SongBandLeaderboardEntry(
             bandId = "b1", bandType = "Band_Duets", teamKey = "t1",

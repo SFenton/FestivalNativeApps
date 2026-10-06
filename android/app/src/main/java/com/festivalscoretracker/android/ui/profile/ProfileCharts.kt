@@ -142,13 +142,13 @@ fun ScoreHistoryChart(chart: ScoreHistoryChartModel, modifier: Modifier = Modifi
     // score, so the axis labels are not read as separate stops.
     Column(modifier.testTag("fst.history.chart").clearAndSetSemantics { contentDescription = "Score over time. ${chart.summary}" }) {
         Row(Modifier.fillMaxWidth()) {
-            AxisLabels(chart.ticks, Modifier.width(72.dp).height(CHART_HEIGHT.dp))
+            AxisLabels(chart.ticks, Modifier.width(SCORE_AXIS_WIDTH.dp).height(CHART_HEIGHT.dp))
             Canvas(Modifier.weight(1f).height(CHART_HEIGHT.dp)) {
                 gridLines(chart.ticks)
                 line(chart.points, BrandTokens.accentBlue, highlight = BrandTokens.gold)
             }
         }
-        DateAxis(chart.startLabel, chart.endLabel)
+        DateAxis(chart.startLabel, chart.endLabel, Modifier.padding(start = SCORE_AXIS_WIDTH.dp))
     }
 }
 
@@ -157,6 +157,9 @@ fun ScoreHistoryChart(chart: ScoreHistoryChartModel, modifier: Modifier = Modifi
 // region Shared drawing
 
 private const val CHART_HEIGHT = 140
+
+/** Score axis gutter left of the Score Over Time plot, in dp. */
+private const val SCORE_AXIS_WIDTH = 72
 
 /** Axis label line height in dp. */
 private const val AXIS_LABEL_HEIGHT = 14f
@@ -197,9 +200,10 @@ private fun AxisLabels(ticks: List<ChartTick>, modifier: Modifier) {
     }
 }
 
+/** The line chart's range ends, spanning the plot only so each date sits under its end of the line. */
 @Composable
-private fun DateAxis(start: String, end: String) {
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+private fun DateAxis(start: String, end: String, modifier: Modifier) {
+    Row(modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(start, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted)
         Text(end, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted)
     }

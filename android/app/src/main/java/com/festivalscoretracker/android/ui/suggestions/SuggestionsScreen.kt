@@ -259,9 +259,14 @@ private fun SuggestionsGrid(
     // cards already revealed (or scrolled back into view) show at once.
     var revealedCount by remember(state.mixId) { mutableIntStateOf(0) }
     var batchStart by remember(state.mixId) { mutableIntStateOf(0) }
+    // The first batch is the page's entrance, which a scroll rushes (load-transition R5); later
+    // batches arrive while the reader scrolls and keep their own stagger, like the web, whose
+    // `useStaggerRush` fires once per page.
+    var firstBatchEnd by remember(state.mixId) { mutableIntStateOf(-1) }
     LaunchedEffect(state.mixId, cardCount) {
         if (cardCount > revealedCount) {
             batchStart = revealedCount
+            if (revealedCount == 0) firstBatchEnd = cardCount
             withFrameNanos {}
         }
         revealedCount = cardCount
@@ -305,7 +310,11 @@ private fun SuggestionsGrid(
                         columns.narrow,
                         artworkUrl,
                         onSong,
-                        Modifier.festivalFadeIn(index < revealedCount, fadeInStagger(index - batchStart)),
+                        Modifier.festivalFadeIn(
+                            index < revealedCount,
+                            fadeInStagger(index - batchStart),
+                            rushOnScroll = firstBatchEnd < 0 || index < firstBatchEnd,
+                        ),
                     )
                 }
             }

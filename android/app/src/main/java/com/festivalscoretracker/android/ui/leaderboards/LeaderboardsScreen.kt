@@ -113,7 +113,10 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
         val layout = remember(ready, instruments, selected, columns, folded) {
             if (ready) OverviewLayout(instruments, showHistory = selected != null && instruments.isNotEmpty(), columns, pairHistory = folded) else null
         }
-        val quickLinks = rememberQuickLinks(listState, QUICK_LINKS_TITLE, layout?.sections.orEmpty()) { id -> layout?.indexOf(id) }
+        // Cards still loading (or reloading for a new Rank By) after the list has scrolled show
+        // in place; only what is visible at load fades in. Quick Links jumps rush it (load-transition R5).
+        val fadeWindow = rememberFadeInWindow(listState)
+        val quickLinks = rememberQuickLinks(listState, QUICK_LINKS_TITLE, layout?.sections.orEmpty(), fadeInWindow = fadeWindow) { id -> layout?.indexOf(id) }
         FestivalScreen(
             title = "Leaderboards",
             isRoot = isRoot,
@@ -132,11 +135,8 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
                 val lead = layout?.instruments?.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
                 val contentReady = layout != null && (lead == null || lead.value !is LoadState.Loading)
                 val swap = rememberLoadSwap(metric, contentReady, key = metric)
-                // Cards still loading (or reloading for a new Rank By) after the list has
-                // scrolled show in place; only what is visible at load fades in. Under the
-                // spinner the hidden list is also silent to TalkBack and ignores touches, so a
+                // Under the spinner the hidden list is silent to TalkBack and ignores touches, so a
                 // tap on the spinner never opens a card nobody can see (load-transition R2, #178).
-                val fadeWindow = rememberFadeInWindow(listState)
                 val pageModifier = when (swap.phase) {
                     LoadSwapPhase.ContentIn -> Modifier.festivalFadeIn(swap.revealed)
                     LoadSwapPhase.ContentOut -> swap.contentModifier

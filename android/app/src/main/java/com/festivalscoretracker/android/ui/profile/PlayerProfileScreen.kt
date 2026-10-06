@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.profile
 
+import com.festivalscoretracker.android.ui.common.FadeInWindow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -137,7 +138,9 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val bandGroups = (bandsLoad as? BandsLoad.Loaded)?.groups.orEmpty()
     val rows = remember(visible, loaded, showIdentity, bandGroups) { if (loaded) ProfileSections.rows(visible, showIdentity, bandGroups) else emptyList() }
     val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
+    // The grid's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeWindow) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
     }
     val density = LocalDensity.current
@@ -151,7 +154,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
             actions = { QuickLinksAction(quickLinks, windowWidthDp) },
             modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
         ) { padding ->
-            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }) }
+            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }, fadeWindow = fadeWindow) }
         }
     }
 }
@@ -173,6 +176,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * @param gridState Grid state shared with Quick Links.
  * @param rows Rows in page order.
  * @param onSplitChange Receives the grid's fold split (see [rememberProfileGridState]).
+ * @param fadeWindow The grid's fade window when the caller also scrolls it (Quick Links); by default the content creates it.
  */
 @Composable
 fun PlayerProfileContent(
@@ -181,14 +185,15 @@ fun PlayerProfileContent(
     gridState: LazyStaggeredGridState,
     rows: List<ProfileRow>,
     onSplitChange: (Boolean) -> Unit = {},
+    fadeWindow: FadeInWindow? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Rows fade in (staggered) on the frame after the profile finishes loading.
     val revealed = rememberRevealed(state.phase == ProfilePhase.Loaded)
     // Sections that start loading when scrolled to (rank history, bands) show in place
     // once the page has scrolled; only what is visible at load fades in.
-    val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
-    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow) {
+    val window = fadeWindow ?: rememberFadeInWindow(gridState, reset = state.accountId)
+    CompositionLocalProvider(LocalFadeInWindow provides window) {
     when (val phase = state.phase) {
         ProfilePhase.NoAccount -> Message(
             "No Profile Selected",

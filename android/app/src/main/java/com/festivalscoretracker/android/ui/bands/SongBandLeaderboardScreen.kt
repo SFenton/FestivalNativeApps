@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.leaderboards.awaitSelectedRowEntrance
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -175,6 +178,8 @@ fun SongBandLeaderboardScreen(
     }
     var revealPending by rememberSaveable { mutableStateOf(revealSelected) }
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    // The page's fade window, here so the reveal can rush the rows its scroll reaches (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
     val footerRows = remember(footerEntry) { listOfNotNull(footerEntry?.footerLeaderboardEntry) }
     // One plan for the board (`leaderboard-row` R1, R5): the rank column fits the page and the
     // pinned band (an off-page #9,968 too), and the member cards start their rank and names
@@ -188,7 +193,8 @@ fun SongBandLeaderboardScreen(
     // Opened (or jumped) to the band's page: centre its highlighted row once it shows.
     LaunchedEffect(revealPending, pageShown, shown) {
         if (!revealPending || !pageShown) return@LaunchedEffect
-        if (selectedIndex >= 0) {
+        // Like the web's navToBand: scroll once the row's own entrance has finished (issue #323).
+        if (selectedIndex >= 0 && awaitSelectedRowEntrance(fadeIn, fadeInStagger(selectedIndex), reduceMotion)) {
             withFrameNanos { }
             // Single pane: the header and size switcher are the list's first item.
             val index = selectedIndex + if (twoPane) 0 else 1
@@ -208,6 +214,7 @@ fun SongBandLeaderboardScreen(
         scrolled = headerGone,
         marqueeTitle = true,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
+        fadeInWindow = fadeIn,
     ) { padding ->
         var contentLeft by rememberMeasuredPx(0f)
         BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
