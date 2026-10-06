@@ -6,13 +6,9 @@ import FestivalDesign
 
 /// `/bands` — band lookup landing page.
 ///
-/// The web client's `BandLookupPage` searches for a band by member name via
-/// `GET /api/bands/search`. That endpoint's missing-projection fallback deletes
-/// and rebuilds membership rows (`GlobalLeaderboardPersistence.cs:3954-3971`,
-/// `BandLeaderboardPersistence.cs:905-947`) — a write side effect from a GET — so
-/// it is on this app's blocked list (`.agents/platforms/service-safety.md`) and is
-/// never called here. This screen instead offers what remains safely reachable:
-/// the selected player's own bands and links into the public Band Rankings boards.
+/// Band search by member name lives in global search's Bands scope (issue #320, web
+/// `SearchModal`). This screen offers the selected player's own bands and links into
+/// the public Band Rankings boards.
 struct BandsScreen: View {
     let session: FestivalSession
     @Environment(\.deviceLayout) private var layout
@@ -73,12 +69,7 @@ struct BandsScreen: View {
                     }
                 }
                 .festivalFadeIn(isLoaded: true, index: 1)
-                FestivalFootnote(
-                    "Band lookup by name isn't available yet: the service's search "
-                        + "endpoint can register band data as a side effect of a search "
-                        + "read, so this app doesn't call it. Browse Band Rankings or a "
-                        + "selected player's own bands instead."
-                )
+                FestivalFootnote("To find a band by a member's name, use Search.")
                 .padding(.horizontal, 4)
                 .festivalFadeIn(isLoaded: true, index: 2)
             }
@@ -88,7 +79,7 @@ struct BandsScreen: View {
             .padding(16)
         }
         .festivalBackground(.carousel, session: session)
-        .navigationTitle("Bands")
+        .festivalNavigationTitle("Bands")
         .accessibilityIdentifier("fst.bands.screen")
     }
 }

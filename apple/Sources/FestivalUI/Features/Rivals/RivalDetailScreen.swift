@@ -57,7 +57,7 @@ struct RivalDetailScreen: View {
                 content
             }
         }
-        .navigationTitle(displayName ?? "Rival")
+        .festivalNavigationTitle(displayName ?? "Rival")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             if pageTools == nil {
@@ -106,18 +106,23 @@ struct RivalDetailScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         ForEach(Array(categories.enumerated()), id: \.element.id) { index, category in
-                            FestivalGlassSection(category.title, subtitle: category.subtitle) {
-                                ForEach(category.songs.prefix(5)) { song in
-                                    songRow(song, rivalName: detail.rival.displayName ?? name ?? "Rival")
+                            // The card's "View All" sits under it, like the Rivals hub's
+                            // View All Rivals (view-all-cta R1; #321).
+                            VStack(alignment: .leading, spacing: 8) {
+                                FestivalGlassSection(category.title, subtitle: category.subtitle) {
+                                    ForEach(category.songs.prefix(5)) { song in
+                                        songRow(song, rivalName: detail.rival.displayName ?? name ?? "Rival")
+                                    }
                                 }
-                                NavigationLink(
-                                    value: AppRoute.rivalry(
+                                PurpleActionLink(
+                                    title: "View All",
+                                    route: .rivalry(
                                         rivalId: rivalId, mode: category.key,
                                         name: detail.rival.displayName ?? name, scope: scope
-                                    )
-                                ) {
-                                    RivalViewAllRow(title: "See All")
-                                }
+                                    ),
+                                    identifier: "fst.rival-detail.category.\(category.key).view-all",
+                                    card: category.title
+                                )
                             }
                             .padding(.horizontal, 16)
                             .quickLinkSection(

@@ -105,6 +105,7 @@ import com.festivalscoretracker.android.data.feedback.submitFeedback
 import com.festivalscoretracker.android.presentation.feedback.FeedbackFormState
 import com.festivalscoretracker.android.presentation.feedback.FeedbackPhase
 import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
+import com.festivalscoretracker.android.ui.common.CoversBackdrop
 import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalModalHeader
@@ -163,46 +164,50 @@ fun FeedbackDialogHost(viewModel: FeedbackViewModel) {
     // "Never place interactive content or critical information across the hinge area"). Read it
     // from the activity window: inside the new dialog window the root width is still 0 (issue #146).
     val hingeSide = Modifier.festivalSheetHingeSide()
-    Dialog(
-        onDismissRequest = viewModel::requestClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false),
-    ) {
-        BackHandler(onBack = viewModel::requestClose)
-        BoxWithConstraints(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize().then(hingeSide).systemBarsPadding().imePadding(),
+    // The form is the modal-shell R6 exception (its own Dialog), so it registers itself: the
+    // backdrop and page motion kept animating unseen behind the full-screen form (issue #186).
+    CoversBackdrop {
+        Dialog(
+            onDismissRequest = viewModel::requestClose,
+            properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false, decorFitsSystemWindows = false),
         ) {
-            val compact = !AdaptiveLayoutPolicy.isRegularWidth(maxWidth.value.toInt())
-            Surface(
-                shape = if (compact) RectangleShape else MaterialTheme.shapes.extraLarge,
-                color = BrandTokens.cardBackground,
-                modifier = Modifier
-                    .then(if (compact) Modifier.fillMaxSize() else Modifier.padding(24.dp).widthIn(max = 640.dp).fillMaxWidth())
-                    .popupTestTags()
-                    .testTag("fst.settings.feedback.dialog")
-                    .semantics { paneTitle = form.draft.kind.formTitle },
+            BackHandler(onBack = viewModel::requestClose)
+            BoxWithConstraints(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize().then(hingeSide).systemBarsPadding().imePadding(),
             ) {
-                FeedbackForm(form, viewModel)
+                val compact = !AdaptiveLayoutPolicy.isRegularWidth(maxWidth.value.toInt())
+                Surface(
+                    shape = if (compact) RectangleShape else MaterialTheme.shapes.extraLarge,
+                    color = BrandTokens.cardBackground,
+                    modifier = Modifier
+                        .then(if (compact) Modifier.fillMaxSize() else Modifier.padding(24.dp).widthIn(max = 640.dp).fillMaxWidth())
+                        .popupTestTags()
+                        .testTag("fst.settings.feedback.dialog")
+                        .semantics { paneTitle = form.draft.kind.formTitle },
+                ) {
+                    FeedbackForm(form, viewModel)
+                }
             }
-        }
-        if (form.confirmingDiscard) {
-            val noun = form.draft.kind.noun
-            FestivalAlertDialog(
-                title = "Discard this $noun?",
-                text = if (form.phase == FeedbackPhase.Submitting) {
-                    "Sending will stop and everything you entered will be lost."
-                } else {
-                    "Your text and attachments will be lost."
-                },
-                tag = "fst.settings.feedback.discard.dialog",
-                confirmLabel = "Discard",
-                confirmTag = "fst.settings.feedback.discard.confirm",
-                onConfirm = viewModel::confirmDiscard,
-                dismissLabel = "Keep Editing",
-                dismissTag = "fst.settings.feedback.discard.cancel",
-                onDismissRequest = viewModel::keepEditing,
-                destructive = true,
-            )
+            if (form.confirmingDiscard) {
+                val noun = form.draft.kind.noun
+                FestivalAlertDialog(
+                    title = "Discard this $noun?",
+                    text = if (form.phase == FeedbackPhase.Submitting) {
+                        "Sending will stop and everything you entered will be lost."
+                    } else {
+                        "Your text and attachments will be lost."
+                    },
+                    tag = "fst.settings.feedback.discard.dialog",
+                    confirmLabel = "Discard",
+                    confirmTag = "fst.settings.feedback.discard.confirm",
+                    onConfirm = viewModel::confirmDiscard,
+                    dismissLabel = "Keep Editing",
+                    dismissTag = "fst.settings.feedback.discard.cancel",
+                    onDismissRequest = viewModel::keepEditing,
+                    destructive = true,
+                )
+            }
         }
     }
 }

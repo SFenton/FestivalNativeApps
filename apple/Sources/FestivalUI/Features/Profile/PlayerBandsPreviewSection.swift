@@ -7,7 +7,7 @@ import FestivalDesign
 /// The player profile's inline "{name}'s Bands" section (issue #312), porting the web
 /// client's `buildPlayerBandsItems`
 /// (`FortniteFestivalWeb/src/pages/player/components/PlayerBandsSection.tsx`): a section
-/// title with See All, then Duos, Trios and Quads, each with up to six band cards, a
+/// title with View All, then Duos, Trios and Quads, each with up to six band cards, a
 /// "No Bands Yet" card when empty and "View All Bands (N)" when the group has more.
 ///
 /// The section loads on its own (``FestivalSession/playerBandsPreview(accountId:)``,
@@ -110,7 +110,7 @@ struct PlayerBandsPreviewSection: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
             FestivalSectionHeader("\(displayName)'s Bands")
-            SectionSeeAllLink(
+            SectionViewAllLink(
                 route: .playerBands(accountId: accountId, displayName: routeDisplayName ?? displayName),
                 identifier: "fst.player.bands-link",
                 listName: "\(displayName)'s Bands"
@@ -167,12 +167,12 @@ struct PlayerBandsPreviewSection: View {
                 alignment: .leading, spacing: 6
             ) {
                 ForEach(entries) { entry in
-                    PlayerBandRow(entry: entry, card: true)
+                    PlayerBandRow(entry: entry)
                 }
             }
         } else {
             ForEach(entries) { entry in
-                PlayerBandRow(entry: entry, card: true)
+                PlayerBandRow(entry: entry)
             }
         }
     }

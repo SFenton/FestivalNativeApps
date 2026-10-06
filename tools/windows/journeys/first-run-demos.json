@@ -14,7 +14,7 @@
    "ready": ["waitfor:id=fst.settings.show-instrument-icons@30"],
    "after_ready": ["scrollinto:id=fst.settings.licenses", "wait:0.5", "scrollinto:id=fst.settings.first-run.shop",
                    "invoke:id=fst.settings.first-run.shop", "waitfor:id=fst.first-run.dialog@20",
-                   "assertstatus:id=fst.first-run.demo.shop-overview|catalogue@30", "wait:2"], "tabs": 12},
+                   "assertstatus:id=fst.first-run.demo.shop-overview|~^catalogue pulse=running pulse-slides=1$@30", "wait:2"], "tabs": 12},
   {"name": "kb-first-run-top-songs", "tab": "settings", "tabs": 0,
    "ready": ["waitfor:id=fst.settings.show-instrument-icons@30"],
    "after_ready": ["scrollinto:id=fst.settings.licenses", "wait:0.5", "scrollinto:id=fst.settings.first-run.statistics",

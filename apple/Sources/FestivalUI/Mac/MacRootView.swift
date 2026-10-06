@@ -128,14 +128,9 @@ public struct MacRootView: View {
         .onChange(of: visibleDestinations, initial: true) { _, visible in
             navigation.update(visible: visible)
         }
-        // A new publication can leave retained `Song`-valued routes pointing at an older
-        // catalogue (AGENTS.md publication invariants): clear Songs with a notice.
-        .onChange(of: session.publicationRevision) { _, _ in
-            if !(navigation.paths[.songs] ?? []).isEmpty {
-                songsNotice = "Published scores changed. Returned to Songs to avoid outdated details."
-                navigation.paths[.songs] = []
-            }
-        }
+        // A new publication never navigates (issue #304): pages refresh in place
+        // (`PublicationRefreshBoundary`), re-reading `Song`-valued routes.
+        .publicationLiveUpdates(session: session)
         .onChange(of: visibleInstruments) { _, shown in
             if let songsInstrument, !shown.contains(songsInstrument) {
                 songsNotice = "\(songsInstrument.label) was hidden. Showing all instruments."
@@ -249,29 +244,38 @@ public struct MacRootView: View {
         case .rivals:
             listDetail(.rivals, destination: destination) { _ in
                 RivalsScreen(session: session, showsRootTrailingItems: true)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.rivals, session: session)
                     .id(session.selectedPlayer?.accountId)
             }
         case .leaderboards:
             listDetail(.leaderboards, destination: destination) { _ in
-                LeaderboardsScreen(session: session).firstRun(.leaderboards, session: session)
+                LeaderboardsScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.leaderboards, session: session)
             }
         case .suggestions:
             stack(destination) {
                 SuggestionsScreen(session: session, visibleInstruments: visibleInstruments)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.suggestions, session: session)
             }
         case .statistics:
             stack(destination) {
-                StatisticsScreen(session: session).firstRun(.statistics, session: session)
+                StatisticsScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.statistics, session: session)
             }
         case .compete:
             stack(destination) {
-                CompeteScreen(session: session).firstRun(.compete, session: session)
+                CompeteScreen(session: session)
+                    .refreshesOnPublication(session: session)
+                    .firstRun(.compete, session: session)
             }
         case .shop:
             stack(destination) {
                 ShopScreen(session: session, isVisible: navigation.currentPath.isEmpty)
+                    .refreshesOnPublication(session: session)
                     .firstRun(.shop, session: session)
             }
         }
