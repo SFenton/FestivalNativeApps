@@ -75,6 +75,14 @@
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/BoardFooterEdgeFade.kt"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/scrolledge/ScrollEdgeFade.kt",
+            "symbol": "ScrollEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
+            "symbol": "bottomChromeEdgeFade"
           }
         ],
         "windows": [
@@ -121,12 +129,10 @@
           "glob": "android/app/src/main/**/*.kt",
           "regex": "BlendMode\\.DstIn",
           "allow": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt"
           ],
-          "debt": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt"
-          ],
-          "message": "Alpha masks for scroll edges belong to the edge-fade components (scroll-edge R1)."
+          "debt": [],
+          "message": "Alpha masks for scroll edges belong to ui/common/ScrollEdgeFade.kt drawScrollEdgeRamp (scroll-edge R1)."
         },
         {
           "id": "windows-mask",
@@ -314,7 +320,8 @@
         "pinned header",
         "card header",
         "heading",
-        "see all"
+        "see all",
+        "view all link"
       ],
       "web": [
         {
@@ -338,7 +345,7 @@
           },
           {
             "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
-            "symbol": "SectionSeeAllLink"
+            "symbol": "SectionViewAllLink"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
@@ -408,6 +415,14 @@
           ],
           "debt": [],
           "message": "Windows pinned-header copies belong to SongsPage (section-headers R4, R6)."
+        },
+        {
+          "id": "apple-see-all-copy",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\"See [Aa]ll\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Apple 'open the full list' links and buttons read \"View All\", never \"See All\" (section-headers R8, view-all-cta R4; #321). Use SectionViewAllLink or PurpleActionLink."
         }
       ],
       "related": {
@@ -430,7 +445,8 @@
         288,
         291,
         297,
-        312
+        312,
+        321
       ]
     },
     {
@@ -748,6 +764,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
             "symbol": "HingeSide"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "CoversBackdrop"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "coveredByModal"
           }
         ],
         "windows": [
@@ -852,12 +876,14 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
         "score row",
         "row height",
+        "skeleton",
+        "bayesian",
         "columns",
         "marquee",
         "pager",
@@ -939,6 +965,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
             "symbol": "RankingsPager"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "RankingsSkeletonRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "STACKED_RANKING_NAME_LINES"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
@@ -1116,6 +1150,10 @@
         {
           "path": "pages/songinfo/components/path/PathsModal.tsx",
           "symbol": "PathsModal"
+        },
+        {
+          "path": "pages/songinfo/components/path/PathDataTable.tsx",
+          "symbol": "PathDataTable"
         },
         {
           "path": "contexts/PublicationBoundary.tsx",
@@ -1332,6 +1370,7 @@
         71,
         149,
         169,
+        177,
         304,
         316
       ]
@@ -1847,7 +1886,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
+      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -1881,6 +1920,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
             "symbol": "PurpleActionLabel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
+            "symbol": "PurpleActionLink"
           }
         ],
         "android": [
@@ -1944,6 +1987,87 @@
           ],
           "debt": [],
           "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
+        }
+      ]
+    },
+    {
+      "id": "settings-value-row",
+      "title": "Settings value row",
+      "status": "current",
+      "doc": ".agents/patterns/settings-value-row.md",
+      "summary": "A read-only Settings title/value row (Version rows, Service Info state) keeps the value beside the title only when the title's natural width, a 12-unit gap and the value fit; otherwise the value stacks 4 units under the title and supporting text. It is one non-interactive accessibility item, and each platform has one component for it.",
+      "keywords": [
+        "value row",
+        "version row",
+        "settings row",
+        "service state",
+        "stack",
+        "large text",
+        "font scale",
+        "fit",
+        "trailing value"
+      ],
+      "web": [
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "versionRow"
+        },
+        {
+          "path": "pages/settings/SettingsServiceProgress.tsx",
+          "symbol": "ServiceInfoRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsServiceInfoSection.swift",
+            "symbol": "stateRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "symbol": "versionRow"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsValueRow.kt",
+            "symbol": "SettingsValueRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsValueRow.kt",
+            "symbol": "SettingsValueRowMetrics"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SettingValueLayout.cs",
+            "symbol": "SettingValueLayout"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SettingValueGrid.cs",
+            "symbol": "SettingValueGrid"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "surface-materials"
+        ],
+        "pages": [
+          "settings"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-parallel-fit",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/**/*.kt",
+          "regex": "maxIntrinsicWidth\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsValueRow.kt"
+          ],
+          "debt": [],
+          "message": "Settings title/value rows measure their fit in one place: use SettingsValueRow (supporting/trailing slots) instead of another intrinsic-width Layout (settings-value-row R1, R4)."
         }
       ]
     }

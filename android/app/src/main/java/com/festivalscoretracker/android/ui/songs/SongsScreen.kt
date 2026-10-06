@@ -113,6 +113,7 @@ import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
+import com.festivalscoretracker.android.ui.common.coveredByModal
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
@@ -387,7 +388,7 @@ private fun SongList(
     val endPadding = if (showIndex) 28.dp else 16.dp
     val density = LocalDensity.current
     // Rows fade out below the pinned bucket header, or meet it at a hard edge under the contrast,
-    // transparency and motion settings (rememberPinnedHeaderHardEdge). Bucket headers record their
+    // transparency and motion settings (rememberScrollEdgeHardEdge). Bucket headers record their
     // drawing into the edge's layers; the list redraws them over the cut and band (issues #91, #288).
     val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
     val headerEdge = rememberPinnedHeaderEdge(listState, firstHeaderKey, LIST_SPACING, IS_HEADER_KEY)
@@ -474,7 +475,8 @@ private fun SongList(
 @Composable
 internal fun rememberShopPulse(active: Boolean): () -> Float {
     val still = LocalFestivalAccessibility.current.reduceMotion
-    if (!active || still) return STILL_PULSE
+    // Behind a newer modal the outline holds its reduced-motion frame (`modal-shell` R10, issue #186).
+    if (!active || still || coveredByModal()) return STILL_PULSE
     val transition = rememberInfiniteTransition(label = "shopPulse")
     val alpha = transition.animateFloat(
         initialValue = 0f,
@@ -504,7 +506,7 @@ private val STILL_PULSE: () -> Float = { SHOP_PULSE_PEAK }
 @Composable
 internal fun rememberShopBreathe(active: Boolean): () -> Float {
     val still = LocalFestivalAccessibility.current.reduceMotion
-    if (!active || still) return STILL_BREATHE
+    if (!active || still || coveredByModal()) return STILL_BREATHE
     val fraction = rememberInfiniteTransition(label = "shopBreathe").animateFloat(
         initialValue = 0f,
         targetValue = 1f,

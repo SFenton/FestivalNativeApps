@@ -321,6 +321,41 @@ def _player_band_entry(band_id: str, team_key: str, band_type: str, members: int
     }
 
 
+def _band_search_member(account_id: str, name: str, instrument: str) -> dict:
+    """One `PlayerBandMemberDto` inside a band-search result.
+
+    Args:
+        account_id: Synthetic account identifier.
+        name: Synthetic display name.
+        instrument: Charted instrument key.
+
+    Returns:
+        A JSON-ready member object.
+    """
+    return {"accountId": account_id, "displayName": name, "instruments": [instrument]}
+
+
+# `GET /api/bands/search` candidates (issue #320): `fixture-team-1`/`-2` resolve on the
+# band-profile board, so a tapped result opens a band page.
+BAND_SEARCH_CANDIDATES = (
+    {
+        "bandId": "fixture-band-1", "teamKey": "fixture-team-1", "bandType": "Band_Duets",
+        "appearanceCount": 12, "members": [
+            _band_search_member("fixture-player-1", "Fixture Player 1", "Solo_Guitar"),
+            _band_search_member("fixture-player-2", "Fixture Player 2", "Solo_Bass"),
+        ],
+    },
+    {
+        "bandId": "fixture-band-2", "teamKey": "fixture-team-2", "bandType": "Band_Trios",
+        "appearanceCount": 4, "members": [
+            _band_search_member("fixture-player-1", "Fixture Player 1", "Solo_Drums"),
+            _band_search_member("fixture-syncing", "Syncing Player", "Solo_Vocals"),
+            _band_search_member("fixture-empty", "Empty Player", "Solo_Guitar"),
+        ],
+    },
+)
+
+
 def _song_band_leaderboard_entry(rank: int, band_type: str) -> dict:
     """One `SongBandLeaderboardEntry` row for `GET /api/leaderboard/{songId}/bands/{bandType}`.
 
@@ -1111,6 +1146,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     else term in player["displayName"].casefold())
             ]
             self._json(200, {"results": matches[:limit]})
+        elif path == "/api/bands/search":
+            self._band_search(query)
         elif match := PLAYER_HISTORY.fullmatch(path):
             account_id = match.group(1)
             if set(query) - {"songId", "instrument"}:
@@ -2003,6 +2040,39 @@ class FixtureHandler(BaseHTTPRequestHandler):
             return
         job = FEEDBACK_FAILED_JOB if b"fixture-failed" in body else FEEDBACK_FILED_JOB
         self._json(202, {"id": job, "status": "queued"})
+
+    def _band_search(self, query: dict[str, list[str]]) -> None:
+        """Serve `GET /api/bands/search?q=&page=1&pageSize=` (issue #320).
+
+        Mirrors `BandSearchResponseDto`: members whose display name contains the query
+        match; "busy" answers 503 and anything else unmatched an empty envelope. Only
+        the first page with 1–100 rows is accepted, as natives request.
+
+        Args:
+            query: Parsed query string.
+        """
+        terms, pages, sizes = query.get("q", []), query.get("page", []), query.get("pageSize", [])
+        if (set(query) != {"q", "page", "pageSize"} or len(terms) != 1 or pages != ["1"]
+                or len(sizes) != 1 or not sizes[0].isdigit()
+                or not 1 <= int(sizes[0]) <= 100
+                or not 2 <= len(terms[0].strip()) <= 200):
+            self._json(400, {"error": "invalid_band_search"})
+            return
+        term = terms[0].strip().casefold()
+        if term == "busy":
+            self._json(503, {"error": "band_search_unavailable"})
+            return
+        results = [
+            {**band, "ranking": None, "matchedInterpretationIds": [], "matchedAccountIds": []}
+            for band in BAND_SEARCH_CANDIDATES
+            if any(term in member["displayName"].casefold() for member in band["members"])
+        ][:int(sizes[0])]
+        self._json(200, {
+            "query": terms[0], "normalizedQuery": term, "bandType": None, "comboId": None,
+            "rankBy": "adjusted", "page": 1, "pageSize": int(sizes[0]),
+            "totalCount": len(results), "isAmbiguous": False, "needsDisambiguation": False,
+            "interpretations": [], "results": results,
+        })
 
     def _feedback_status(self, job: str) -> None:
         """Fixture for ``GET /api/feedback/{id}``: the filed job reports issue #1, the
