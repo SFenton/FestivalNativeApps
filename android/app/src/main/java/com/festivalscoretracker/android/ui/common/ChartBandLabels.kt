@@ -22,7 +22,8 @@ private val BAND_LABEL_GAP = 8.dp
 /**
  * The date row under a bar chart: one label per bar, each centred under its band
  * ([ChartGeometry.bandLabelLefts]); labels that would collide hide, keeping the newest.
- * The bands span the row minus [plotInset] on each side (the y-axis gutters). The dates
+ * The bands span the row minus [plotInset] on each side (the y-axis gutters). The row is as
+ * tall as its tallest label, so it grows with the text size and never clips a date. The dates
  * are decorative: TalkBack reads them from the chart's own description.
  *
  * @param labels One label per visible bar, left to right.
@@ -52,13 +53,5 @@ fun ChartBandLabels(labels: List<String>, plotInset: Dp, style: TextStyle, color
         }
     }
 }
-
-/**
- * [ChartBandLabels]' gap in pixels, for charts that draw their labels on a canvas.
- *
- * @param density Pixels per dp.
- * @return Gap in pixels.
- */
-fun chartBandLabelGapPx(density: Float): Float = BAND_LABEL_GAP.value * density
 
 // endregion

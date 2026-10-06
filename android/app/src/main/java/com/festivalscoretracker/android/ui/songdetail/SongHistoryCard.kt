@@ -74,7 +74,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
-import com.festivalscoretracker.android.core.profile.ChartGeometry
 import com.festivalscoretracker.android.core.profile.ScoreHistoryEntry
 import com.festivalscoretracker.android.core.songs.ScoreRowSeasonPolicy
 import com.festivalscoretracker.android.core.songs.SongHistoryChart
@@ -82,7 +81,7 @@ import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
 import com.festivalscoretracker.android.core.songs.SongHistorySwap
 import com.festivalscoretracker.android.ui.common.GraphCardList
-import com.festivalscoretracker.android.ui.common.chartBandLabelGapPx
+import com.festivalscoretracker.android.ui.common.ChartBandLabels
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
@@ -256,64 +255,69 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, rese
         val measurer = rememberTextMeasurer()
         val summary = remember(points, chart) { summary(points, chart) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Canvas(
-                Modifier
-                    .fillMaxWidth()
-                    .height(CHART_HEIGHT)
-                    .testTag("fst.song-detail.history.chart")
-                    .semantics { contentDescription = summary }
-                    .pointerInput(page, paging.pageStart) {
-                        detectTapGestures { offset ->
-                            val axis = AXIS_WIDTH.toPx()
-                            val plot = size.width - axis * 2
-                            if (page.isEmpty() || offset.x < axis || offset.x > axis + plot) return@detectTapGestures
-                            val slot = plot / page.size
-                            val index = ((offset.x - axis) / slot).toInt().coerceIn(0, page.lastIndex)
-                            paging = paging.toggle(paging.pageStart + index)
-                        }
-                    },
-            ) {
-                val axis = AXIS_WIDTH.toPx()
-                val bottomAxis = LABEL_HEIGHT.toPx()
-                val plotWidth = size.width - axis * 2
-                val plotHeight = size.height - bottomAxis
-                val topScore = niceMax(page.maxOfOrNull { it.score } ?: 0L)
-                val tick = TextStyle(color = BrandTokens.textMuted, fontSize = 10.sp)
-                // Axis ticks: score (left) and accuracy (right).
-                listOf(0f, 0.5f, 1f).forEach { f ->
-                    val y = plotHeight * (1 - f)
-                    val scoreLabel = measurer.measure(compactScore((topScore * f).toLong()), tick)
-                    drawText(scoreLabel, topLeft = Offset(axis - scoreLabel.size.width - 4f, (y - scoreLabel.size.height / 2).coerceIn(0f, plotHeight)))
-                    val accLabel = measurer.measure("${(100 * f).toInt()}%", tick)
-                    drawText(accLabel, topLeft = Offset(axis + plotWidth + 4f, (y - accLabel.size.height / 2).coerceIn(0f, plotHeight)))
-                }
-                if (page.isEmpty()) return@Canvas
-                val slot = plotWidth / page.size
-                val barWidth = minOf(slot * 0.9f, MAX_BAR.toPx())
-                val radius = CornerRadius(4.dp.toPx())
-                val dates = page.map { measurer.measure(it.dateLabel, tick) }
-                val dateLefts = ChartGeometry.bandLabelLefts(dates.map { it.size.width.toFloat() }, axis, plotWidth, size.width, chartBandLabelGapPx(density))
-                page.forEachIndexed { i, point ->
-                    val x = axis + slot * i + (slot - barWidth) / 2
-                    val h = (plotHeight * (point.accuracyPercent / 100.0)).toFloat().coerceAtLeast(1f)
-                    val color = if (point.isGold) BrandTokens.gold else accuracyColor(point.accuracyPercent)
-                    drawRoundRect(color, Offset(x, plotHeight - h), Size(barWidth, h), radius)
-                    if (paging.selected == paging.pageStart + i) {
-                        drawRoundRect(BrandTokens.accentPurple, Offset(x, plotHeight - h), Size(barWidth, h), radius, style = Stroke(3.dp.toPx()))
+            Column {
+                Canvas(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(PLOT_HEIGHT)
+                        .testTag("fst.song-detail.history.chart")
+                        .semantics { contentDescription = summary }
+                        .pointerInput(page, paging.pageStart) {
+                            detectTapGestures { offset ->
+                                val axis = AXIS_WIDTH.toPx()
+                                val plot = size.width - axis * 2
+                                if (page.isEmpty() || offset.x < axis || offset.x > axis + plot) return@detectTapGestures
+                                val slot = plot / page.size
+                                val index = ((offset.x - axis) / slot).toInt().coerceIn(0, page.lastIndex)
+                                paging = paging.toggle(paging.pageStart + index)
+                            }
+                        },
+                ) {
+                    val axis = AXIS_WIDTH.toPx()
+                    val plotWidth = size.width - axis * 2
+                    val plotHeight = size.height
+                    val topScore = niceMax(page.maxOfOrNull { it.score } ?: 0L)
+                    // Axis ticks: score (left) and accuracy (right), kept inside the plot's height.
+                    listOf(0f, 0.5f, 1f).forEach { f ->
+                        val y = plotHeight * (1 - f)
+                        val scoreLabel = measurer.measure(compactScore((topScore * f).toLong()), TICK_STYLE)
+                        drawText(scoreLabel, topLeft = Offset(axis - scoreLabel.size.width - 4f, (y - scoreLabel.size.height / 2).coerceIn(0f, maxOf(0f, plotHeight - scoreLabel.size.height))))
+                        val accLabel = measurer.measure("${(100 * f).toInt()}%", TICK_STYLE)
+                        drawText(accLabel, topLeft = Offset(axis + plotWidth + 4f, (y - accLabel.size.height / 2).coerceIn(0f, maxOf(0f, plotHeight - accLabel.size.height))))
                     }
-                    dateLefts[i]?.let { left -> drawText(dates[i], topLeft = Offset(left, plotHeight + 4f)) }
+                    if (page.isEmpty()) return@Canvas
+                    val slot = plotWidth / page.size
+                    val barWidth = minOf(slot * 0.9f, MAX_BAR.toPx())
+                    val radius = CornerRadius(4.dp.toPx())
+                    page.forEachIndexed { i, point ->
+                        val x = axis + slot * i + (slot - barWidth) / 2
+                        val h = (plotHeight * (point.accuracyPercent / 100.0)).toFloat().coerceAtLeast(1f)
+                        val color = if (point.isGold) BrandTokens.gold else accuracyColor(point.accuracyPercent)
+                        drawRoundRect(color, Offset(x, plotHeight - h), Size(barWidth, h), radius)
+                        if (paging.selected == paging.pageStart + i) {
+                            drawRoundRect(BrandTokens.accentPurple, Offset(x, plotHeight - h), Size(barWidth, h), radius, style = Stroke(3.dp.toPx()))
+                        }
+                    }
+                    // Score line with dots (web accentBlueBright).
+                    val line = Path()
+                    page.forEachIndexed { i, point ->
+                        val cx = axis + slot * i + slot / 2
+                        val cy = plotHeight * (1 - point.score.toFloat() / topScore)
+                        if (i == 0) line.moveTo(cx, cy) else line.lineTo(cx, cy)
+                    }
+                    drawPath(line, SCORE_BLUE, style = Stroke(2.dp.toPx()))
+                    page.forEachIndexed { i, point ->
+                        drawCircle(SCORE_BLUE, 4.dp.toPx(), Offset(axis + slot * i + slot / 2, plotHeight * (1 - point.score.toFloat() / topScore)))
+                    }
                 }
-                // Score line with dots (web accentBlueBright).
-                val line = Path()
-                page.forEachIndexed { i, point ->
-                    val cx = axis + slot * i + slot / 2
-                    val cy = plotHeight * (1 - point.score.toFloat() / topScore)
-                    if (i == 0) line.moveTo(cx, cy) else line.lineTo(cx, cy)
-                }
-                drawPath(line, SCORE_BLUE, style = Stroke(2.dp.toPx()))
-                page.forEachIndexed { i, point ->
-                    drawCircle(SCORE_BLUE, 4.dp.toPx(), Offset(axis + slot * i + slot / 2, plotHeight * (1 - point.score.toFloat() / topScore)))
-                }
+                // One date centred under each bar; the bars' dates are in the chart's description, so TalkBack skips them.
+                ChartBandLabels(
+                    page.map { it.dateLabel },
+                    plotInset = AXIS_WIDTH,
+                    style = TICK_STYLE,
+                    color = BrandTokens.textMuted,
+                    modifier = Modifier.padding(top = 4.dp).testTag("fst.song-detail.history.dates"),
+                )
             }
             Legend(page)
             AnimatedVisibility(
@@ -499,7 +503,12 @@ internal val PurpleHighlight get() = BrandTokens.purpleHighlight
 internal val PurpleHighlightBorder get() = BrandTokens.purpleHighlightBorder
 
 private val SCORE_BLUE = Color(0xFF4C7DFF)
-private val CHART_HEIGHT = 220.dp
+
+/** Plot height; the date row under it grows with the text size, so dates never clip (#314). */
+private val PLOT_HEIGHT = 202.dp
+
+/** Axis tick and date label style. */
+private val TICK_STYLE = TextStyle(color = BrandTokens.textMuted, fontSize = 10.sp)
 
 /** Pager row height: the 48 dp frosted buttons. */
 private val PAGER_HEIGHT = 48.dp
@@ -508,7 +517,6 @@ private val PAGER_HEIGHT = 48.dp
 private val MAX_BAR = 72.dp
 private val AXIS_WIDTH = 40.dp
 private val AXES_WIDTH = AXIS_WIDTH * 2
-private val LABEL_HEIGHT = 18.dp
 private val ACCURACY_WIDTH = 64.dp
 
 // endregion

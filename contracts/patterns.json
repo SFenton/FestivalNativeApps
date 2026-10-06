@@ -1688,6 +1688,17 @@
           "allow": [],
           "debt": [],
           "message": "Bar-chart date labels are placed by ChartGeometry.bandLabelLefts, not per-chart centring math (chart-date-axis R1, R4-R6)."
+        },
+        {
+          "id": "android-band-labels",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "bandLabelLefts\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerCharts.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartBandLabels.kt"
+          ],
+          "debt": [],
+          "message": "Bar-chart dates are laid out by the ChartBandLabels row, whose height follows the text size; canvases don't draw dates in a fixed band (chart-date-axis R4, R5)."
         }
       ],
       "related": {
