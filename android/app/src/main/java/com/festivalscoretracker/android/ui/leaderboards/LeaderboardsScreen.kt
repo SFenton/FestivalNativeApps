@@ -27,7 +27,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -371,7 +370,7 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
         CardHeader(instrument.label) { InstrumentIcon(instrument, size = 40.dp, decorative = true) }
         GlassCard(Modifier.fillMaxWidth()) {
         // Rows fill this column, so its inner width is the width their names must not collapse in (issue #114).
-        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        var rowWidth by rememberRankingRowWidth()
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
@@ -481,7 +480,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         CardHeader(bandType.label)
         GlassCard(Modifier.fillMaxWidth()) {
-        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        var rowWidth by rememberRankingRowWidth()
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
