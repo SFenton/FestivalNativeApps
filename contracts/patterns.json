@@ -47,8 +47,8 @@
           {
             "path": "apple/Sources/FestivalUI/Common/PlatformScrollObserver.swift",
             "symbol": "PlatformScrollObserver"
-        },
-        {
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/ScrollEdgeReader.swift",
             "symbol": "onScrollEdgeReading"
           },
@@ -312,7 +312,8 @@
         "sticky header",
         "pinned header",
         "card header",
-        "heading"
+        "heading",
+        "see all"
       ],
       "web": [
         {
@@ -322,6 +323,10 @@
         {
           "path": "pages/settings/SettingsPage.tsx",
           "symbol": "SettingsPage"
+        },
+        {
+          "path": "pages/player/components/PlayerBandsSection.tsx",
+          "symbol": "buildPlayerBandsItems"
         }
       ],
       "canonical": {
@@ -329,6 +334,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
             "symbol": "FestivalSectionHeader"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
+            "symbol": "SectionSeeAllLink"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
@@ -343,6 +352,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
             "symbol": "SectionHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt",
+            "symbol": "SeeAllButton"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
@@ -415,7 +428,8 @@
       "issues": [
         288,
         291,
-        297
+        297,
+        312
       ]
     },
     {
@@ -888,6 +902,14 @@
             "symbol": "ScoreRow"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "rememberBandRankWidth"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "bandBoardColumns"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
             "symbol": "SelectedScoreFooterRow"
           },
@@ -1314,7 +1336,8 @@
         65,
         99,
         140,
-        299
+        299,
+        312
       ]
     },
     {
@@ -1507,6 +1530,84 @@
           "debt": [],
           "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
         }
+      ]
+    },
+    {
+      "id": "song-header",
+      "title": "Song header title",
+      "status": "current",
+      "doc": ".agents/patterns/song-header.md",
+      "summary": "Song pages show the song through one shared header whose title fills the width beside the art on one line and marquees when it overflows (Reduce Motion truncates, large text wraps in-page); the pinned top-bar song title marquees on one line.",
+      "keywords": [
+        "song header",
+        "song title",
+        "marquee",
+        "carousel",
+        "title wraps",
+        "SongInfoHeader",
+        "pinned title",
+        "top bar title"
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "components/common/MarqueeText.tsx",
+          "symbol": "MarqueeText"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/MarqueeText.swift",
+            "symbol": "MarqueeText"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongDetailScreen.swift",
+            "symbol": "SongDetailScreen"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/MarqueeText.kt",
+            "symbol": "FestivalMarqueeText"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
+            "symbol": "SongHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "marqueeTitle"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MarqueeText.cs",
+            "symbol": "MarqueeText"
+          }
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "page-tools-and-nav-chrome"
+        ],
+        "controls": [],
+        "pages": [
+          "song-detail",
+          "song-leaderboard",
+          "song-band-leaderboard",
+          "player-history"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        315
       ]
     },
     {

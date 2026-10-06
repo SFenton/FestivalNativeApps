@@ -433,4 +433,124 @@ private func renderSongBandPreviews(
     #expect(response.preview(for: .duets).footerEntry?.rank == 29)
     #expect(response.preview(for: .trios).entries.isEmpty)
 }
+// MARK: - Profile bands preview (issue #312)
+
+@MainActor
+@Test func playerBandsPreviewReadsSixPerGroupWithTotals() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let preview = try await session.playerBandsPreview(accountId: "fixture-player-1")
+    #expect(preview.groups.map(\.group) == [.duos, .trios, .quads])
+    #expect(preview.groups.map(\.entries.count) == [6, 6, 4])
+    #expect(preview.groups.map(\.totalCount) == [18, 8, 4])
+    #expect(preview.groups.map(\.hasMore) == [true, true, false])
+    #expect(preview.groups[0].entries.allSatisfy { $0.bandType == "Band_Duets" })
+
+    let empty = try await session.playerBandsPreview(accountId: "fixture-player-2")
+    #expect(empty.groups.allSatisfy { $0.entries.isEmpty && !$0.hasMore })
+}
+
+@MainActor
+@Test func profileBandsSectionShowsGroupsCardsAndViewAll() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                PlayerBandsPreviewSection(
+                    session: session, accountId: "fixture-player-1", displayName: "Fixture Player 1",
+                    routeDisplayName: nil
+                )
+                .padding(16)
+            }
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 2600)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 2600))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "profile-bands-loaded.png", environment: "FST_BANDS_RENDER_OUT")
+    let tree = nativeHostedAccessibility(host)
+    for id in [
+        "fst.player.bands", "fst.player.bands-link",
+        "fst.player.bands.group.duos", "fst.player.bands.group.trios", "fst.player.bands.group.quads",
+        "fst.player.bands.view-all.duos", "fst.player.bands.view-all.trios",
+        "fst.player-bands.row.fixture-band-1", "fst.player-bands.row.fixture-pband-quad-4",
+    ] {
+        #expect(tree.identifiers.contains(id), "missing \(id)")
+    }
+    // Six cards per group: the seventh Duo waits behind View All; Quads has no View All.
+    #expect(!tree.identifiers.contains("fst.player-bands.row.fixture-pband-duo-7"))
+    #expect(!tree.identifiers.contains("fst.player.bands.view-all.quads"))
+    #expect(!tree.identifiers.contains("fst.player.bands.loading"))
+    #expect(tree.contains("Fixture Player 1's Bands"))
+    #expect(tree.contains("View all 18 duos"))
+    assertRendersContent(host, image: image, containing: ["Duos", "Trios", "Quads"])
+}
+
+@MainActor
+@Test func profileBandsSectionShowsNoBandsYetPerEmptyGroup() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                PlayerBandsPreviewSection(
+                    session: session, accountId: "fixture-player-2", displayName: "Fixture Player 2",
+                    routeDisplayName: nil
+                )
+                .padding(16)
+            }
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 900)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 900))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "profile-bands-empty.png", environment: "FST_BANDS_RENDER_OUT")
+    let tree = nativeHostedAccessibility(host)
+    for group in ["duos", "trios", "quads"] {
+        #expect(tree.identifiers.contains("fst.player.bands.empty.\(group)"))
+        #expect(!tree.identifiers.contains("fst.player.bands.view-all.\(group)"))
+    }
+    #expect(tree.contains("No Bands Yet"))
+    #expect(tree.identifiers.contains("fst.player.bands-link"))
+}
+
+@MainActor
+@Test func profileBandsSectionFailureStaysInlineWithRetry() async throws {
+    let session = FestivalSession(factory: {
+        try FestivalAPI(baseURL: URL(string: "http://127.0.0.1:9")!, transport: URLSessionHTTPTransport())
+    })
+    let host = nativeHostedView(
+        NavigationStack {
+            ScrollView {
+                PlayerBandsPreviewSection(
+                    session: session, accountId: "fixture-player-1", displayName: "Fixture Player 1",
+                    routeDisplayName: nil
+                )
+                .padding(16)
+            }
+        }
+        .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 700)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
+    defer { window.orderOut(nil) }
+    await settle(host)
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains("fst.player.bands.error"))
+    #expect(tree.contains("Retry"))
+    // The title and See All stay usable while the cards are unavailable.
+    #expect(tree.contains("Fixture Player 1's Bands"))
+    #expect(tree.identifiers.contains("fst.player.bands-link"))
+}
+
+@Test func playerBandsRouteDefaultsToAllAndCarriesGroup() {
+    #expect(AppRoute.playerBands(accountId: "a", displayName: nil)
+        == .playerBands(accountId: "a", displayName: nil, group: .all))
+    #expect(AppRoute.playerBands(accountId: "a", displayName: nil, group: .duos)
+        != .playerBands(accountId: "a", displayName: nil))
+}
 #endif
