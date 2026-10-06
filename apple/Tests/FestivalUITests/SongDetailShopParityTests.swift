@@ -19,6 +19,22 @@ import Testing
     #expect(SongDetailPinnedTitlePolicy.isHeroHidden(titleMaxY: -615))
 }
 
+/// A hero in a `List` also hides by scroll offset: a fling can recycle its row before
+/// the row reports the hidden position (issue #316).
+@Test func pinnedTitleFollowsTheScrollPastTheHeroRestingEdge() {
+    // Not measured yet, or unreadable: never show the pinned title.
+    #expect(!SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: 500, restingMaxY: nil))
+    #expect(!SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: .nan, restingMaxY: 120))
+    #expect(!SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: 500, restingMaxY: .infinity))
+    // At rest and pulled down, the header is in view.
+    #expect(!SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: 0, restingMaxY: 120))
+    #expect(!SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: -40, restingMaxY: 120))
+    #expect(!SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: 119, restingMaxY: 120))
+    // Its resting bottom edge reaches the bar, then the rows run far past it.
+    #expect(SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: 120, restingMaxY: 120))
+    #expect(SongDetailPinnedTitlePolicy.isHeroHidden(scrolled: 1_400, restingMaxY: 120))
+}
+
 // MARK: - Gold full-combo badge (gap #7)
 
 /// The FC badge shear matches CSS `skewX(-8deg)` pivoting on the pill's middle.

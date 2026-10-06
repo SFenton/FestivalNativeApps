@@ -659,6 +659,21 @@ enum SongDetailPinnedTitlePolicy {
     static func isHeroHidden(titleMaxY: CGFloat) -> Bool {
         titleMaxY.isFinite && titleMaxY <= 0
     }
+
+    /// The hero counts as scrolled away once the scroll has passed its resting bottom
+    /// edge. A `List` recycles the hero's row when a fling carries it off screen, often
+    /// before the row reports a hidden position, so a hero in a `List` also reads the
+    /// scroll offset (issue #316).
+    ///
+    /// - Parameters:
+    ///   - scrolled: Distance scrolled from the resting top (``PlatformScrollObserver/Reading/offset``).
+    ///   - restingMaxY: The hero's bottom edge below the bar's lower edge with the
+    ///     scroll at its resting top; nil before it was measured.
+    /// - Returns: True when the pinned nav-bar title should be visible.
+    static func isHeroHidden(scrolled: CGFloat, restingMaxY: CGFloat?) -> Bool {
+        guard let restingMaxY, restingMaxY.isFinite, scrolled.isFinite else { return false }
+        return isHeroHidden(titleMaxY: restingMaxY - scrolled)
+    }
 }
 
 /// Load a visible chart's top ten via the same public, publication-aware API as Solo.
