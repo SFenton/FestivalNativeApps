@@ -93,6 +93,9 @@ data class SongsUiState(
     /** Whether a saved filter applies (gold Filter icon; web `isFilterActive`). */
     val filterActive: Boolean get() = prefs.filterActive(hasPlayer, hideShop)
 
+    /** Filter button's spoken state ("No filters" / "Filters on: Year, …"), matching [filterActive]. */
+    val filterStateDescription: String get() = prefs.filterStateDescription(hasPlayer, hideShop)
+
     /** Non-default sort (gold Sort icon). */
     val sortChanged: Boolean get() = sort != SongSortMode.Title || !ascending
 

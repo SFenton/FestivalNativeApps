@@ -79,7 +79,7 @@ class SongDetailPreviewRowsUiTest {
         mapOf(
             row(other) to "Open profile",
             row(Fixtures.ACCOUNT_B) to "Open profile",
-            "fst.song-detail.your-rank.Solo_Guitar" to "Open your page of the full leaderboard",
+            "fst.song-detail.your-rank.Solo_Guitar" to "Jump to your position",
         ).forEach { (tag, label) ->
             val node = rule.onNodeWithTag(tag).fetchSemanticsNode()
             val clickable = if (tag.startsWith("fst.song-detail.your-rank")) node.children.single() else node

@@ -61,7 +61,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -70,19 +69,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -91,6 +89,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -101,7 +100,6 @@ import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
-import com.festivalscoretracker.android.core.shell.FloatingToolbarMinimizer
 import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
@@ -114,8 +112,6 @@ import com.festivalscoretracker.android.presentation.SongsUiState
 import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalScreen
-import com.festivalscoretracker.android.ui.common.LocalShellActions
-import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
@@ -187,30 +183,6 @@ fun SongsScreen(
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
-    // Phones (floating toolbar): search joins Sort/Filter/Quick Links in the bottom toolbar and
-    // minimizes to an icon while the list scrolls down (issue #84); wider windows keep the field
-    // pinned above the list and their actions in the top app bar.
-    val searchInToolbar = LocalShellActions.current.floatingToolbar != null
-    var searchOpenRequested by remember { mutableStateOf(false) }
-    val searchOpen = searchInToolbar && searchOpenRequested
-    LaunchedEffect(searchInToolbar) { if (!searchInToolbar) searchOpenRequested = false }
-    val screenReader = rememberScreenReaderOn()
-    val allowMinimize by rememberUpdatedState(searchInToolbar && !screenReader && !searchOpen)
-    val minimizer = remember(density) { FloatingToolbarMinimizer(with(density) { FloatingToolbarMinimizer.THRESHOLD_DP.dp.toPx() }) }
-    var searchMinimized by remember { mutableStateOf(false) }
-    val minimizeOnScroll = remember(minimizer) {
-        object : NestedScrollConnection {
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                searchMinimized = minimizer.onScroll(consumed.y, allowMinimize)
-                return Offset.Zero
-            }
-        }
-    }
-    // Back at the top (including programmatic jumps), TalkBack on or search open: expanded.
-    LaunchedEffect(listState, minimizer, allowMinimize) {
-        if (!allowMinimize) searchMinimized = minimizer.expand()
-        snapshotFlow { listState.canScrollBackward }.collect { if (!it) searchMinimized = minimizer.expand() }
-    }
     BoxWithConstraints(modifier.fillMaxSize().then(split.modifier)) {
         val hinge = split.value?.takeIf { quickLinks.available }
         FestivalScreen(
@@ -219,24 +191,14 @@ fun SongsScreen(
             scrolled = scrolled,
             // Sort, Filter and Quick Links stay reachable while the list scrolls (issue #52).
             pinActions = true,
-            actionsAboveKeyboard = searchOpen,
-            // TalkBack swipes reach Search, Quick Links, Sort and Filter before the ~700 rows,
+            // TalkBack swipes reach Quick Links, Sort and Filter before the ~700 rows,
             // not after them (issue #160, as Suggestions #112).
             actionsReadFirst = true,
             actions = {
-                // Read the state object here, not the captured Boolean: the toolbar re-runs this
-                // lambda only for state reads inside it.
-                if (searchInToolbar && searchOpenRequested) {
-                    SongsToolbarSearchField(search, viewModel::onSearchChange, onClose = { searchOpenRequested = false })
-                } else {
-                    if (searchInToolbar) {
-                        SongsToolbarSearchButton(search, searchMinimized, onOpen = { searchOpenRequested = true }, onClear = { viewModel.onSearchChange("") })
-                    }
-                    SongsPageTools(state, quickLinks, windowWidthDp, onSort = { showSort = true }, onFilter = { showFilter = true })
-                }
+                SongsPageTools(state, quickLinks, windowWidthDp, onSort = { showSort = true }, onFilter = { showFilter = true })
             },
         ) { padding ->
-            Row(Modifier.fillMaxSize().nestedScroll(minimizeOnScroll)) {
+            Row(Modifier.fillMaxSize()) {
                 val listModifier = if (hinge != null) Modifier.width(with(density) { hinge.first.toDp() }) else Modifier.weight(1f)
                 Box(listModifier.fillMaxHeight()) {
                     when (val catalog = state.catalog) {
@@ -253,8 +215,6 @@ fun SongsScreen(
                                 FirstPaintGate(state, artworkUrl) {
                                     SongList(
                                         state, listState, search, viewModel::onSearchChange, artworkUrl, onSongClick, selectedSongId, padding,
-                                        searchInToolbar = searchInToolbar,
-                                        onOpenToolbarSearch = { searchOpenRequested = true },
                                     ) { warning = it }
                                 }
                             }
@@ -289,8 +249,8 @@ fun SongsScreen(
 }
 
 /**
- * Quick Links, Sort and Filter (selected player only): the page's own tools, in the floating
- * toolbar on phones and the top app bar elsewhere.
+ * Quick Links, Sort and Filter (always; General filters only without a player): the page's own tools, in the floating
+ * toolbar on phones and the top app bar elsewhere. Sort and Filter speak their state, not only their gold tint.
  *
  * @param state Songs state (gold tints for a changed sort / active filters).
  * @param quickLinks Sort-bucket Quick Links.
@@ -305,7 +265,9 @@ private fun SongsPageTools(state: SongsUiState, quickLinks: QuickLinksController
     IconButton(onClick = onSort, modifier = Modifier.testTag("fst.songs.sort.open").semantics { stateDescription = sortState }) {
         Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
     }
-    IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open")) {
+    // The spoken state carries what the gold tint shows (issue #181; Item Shop precedent #145).
+    val filterState = state.filterStateDescription
+    IconButton(onClick = onFilter, modifier = Modifier.testTag("fst.songs.filter.open").semantics { stateDescription = filterState }) {
         Icon(
             Icons.Filled.FilterList,
             contentDescription = "Filter songs",
@@ -400,8 +362,6 @@ private fun SongList(
     onSongClick: (Song) -> Unit,
     selectedSongId: String?,
     padding: PaddingValues,
-    searchInToolbar: Boolean,
-    onOpenToolbarSearch: () -> Unit,
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -416,17 +376,12 @@ private fun SongList(
         if (lastShape != null && lastShape != shape) listState.scrollToItem(0)
         lastShape = shape
     }
-    // Ctrl+F focuses the Songs filter: pinned above the list on wider windows, opened in the
-    // floating toolbar on phones (both always on screen).
+    // Ctrl+F focuses the Songs filter pinned above the list (always on screen).
     val findFocus = remember { FocusRequester() }
     RegisterPageFind {
-        if (searchInToolbar) {
-            onOpenToolbarSearch()
-        } else {
-            scope.launch {
-                withFrameNanos { }
-                runCatching { findFocus.requestFocus() }
-            }
+        scope.launch {
+            withFrameNanos { }
+            runCatching { findFocus.requestFocus() }
         }
     }
     val endPadding = if (showIndex) 28.dp else 16.dp
@@ -437,14 +392,13 @@ private fun SongList(
     val firstHeaderKey = state.headers.firstOrNull()?.let { headerKey(it) }
     val headerEdge = rememberPinnedHeaderEdge(listState, firstHeaderKey, LIST_SPACING, IS_HEADER_KEY)
     val headerStart = with(density) { 16.dp.toPx() }
-    // On wider windows the search field is pinned above the scrolling list (issue #52): it never
-    // scrolls away, so nothing moves or animates between the top and scrolled states. Phones show
-    // it in the floating toolbar instead (issue #84).
+    // The list filter is pinned above the scrolling list on every window size (issue #52; phones
+    // too since issue #309, like the web toolbar and Apple's Filter Songs field): it never scrolls
+    // away, so nothing moves or animates between the top and scrolled states. Global search stays
+    // in the top app bar and Sort/Filter/Quick Links in the page tools.
     Column(Modifier.fillMaxSize()) {
-        if (!searchInToolbar) {
-            Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
-                SearchField(search, onSearchChange, findFocus)
-            }
+        Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
+            SearchField(search, onSearchChange, findFocus)
         }
         Box(Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
@@ -657,13 +611,20 @@ private fun Notice(text: String, tag: String) {
     }
 }
 
+/** Songs filter placeholder (web `songs.searchPlaceholder`). */
+internal const val SONGS_SEARCH_PLACEHOLDER = "Search songs or artists"
+
 @Composable
 private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusRequester) {
+    val focusManager = LocalFocusManager.current
     TextField(
         value = value,
         onValueChange = onChange,
         singleLine = true,
-        // One line like the toolbar field: a wrapped placeholder doubled the pinned field's
+        // The keyboard's Search key only dismisses the keyboard: the list already filters as you type.
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+        // One line: a wrapped placeholder doubled the pinned field's
         // height in a medium-width list pane (issue #101).
         placeholder = { Text(SONGS_SEARCH_PLACEHOLDER, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },

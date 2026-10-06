@@ -20,6 +20,13 @@ enum FestivalDebugLaunch {
         let value = ProcessInfo.processInfo.environment["FST_DEBUG_SONG_BAND"]
         return (value?.isEmpty ?? true) ? nil : value
     }
+
+    /// `FST_DEBUG_SONG_INSTRUMENT=<instrument rawValue>` (e.g. `Solo_Guitar`) with
+    /// `FST_DEBUG_SONG` pushes that song's solo Song Leaderboard (page 1) instead of its
+    /// Detail page, so its song header can be captured directly (issue #315).
+    static var songInstrument: Instrument? {
+        ProcessInfo.processInfo.environment["FST_DEBUG_SONG_INSTRUMENT"].flatMap(Instrument.init(rawValue:))
+    }
 }
 #endif
 
@@ -45,6 +52,8 @@ struct SongsScreen: View {
     @State private var debugPushedSong: Song?
     /// When the catalogue first arrived; rows fade in only shortly after it.
     @State private var fadeLoadedAt: Date?
+    /// The publication revision the list has been prepared for (``preparePublication(_:)``).
+    @State private var shownRevision: Int
     @State private var quickLinks = QuickLinksController()
     /// Scroll-driven chrome state (scrolled away, passed section titles, section bar
     /// edge). Never read in `body`: only the section bar and row mask observe it, so
@@ -322,6 +331,7 @@ struct SongsScreen: View {
         self.isVisible = isVisible
         self.openShop = openShop
         _state = State(initialValue: initialState)
+        _shownRevision = State(initialValue: session.publicationRevision)
         _refreshFailure = State(initialValue: initialRefreshError)
         _searchText = searchText
         _settledSearch = settledSearch
@@ -348,16 +358,22 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.navigation-notice")
             }
 
+            // A new publication refreshes the list in place (issue #304, load-transition
+            // R3/R9): the list fades out, the spinner holds while the new catalogue is
+            // read, and the rebuilt list fades in. The search field, page tools and title
+            // stay outside so they stay put and usable.
+            PublicationRefreshBoundary(
+                session: session, title: "Songs", retainsHiddenContent: false,
+                prepare: { revision in await preparePublication(revision) },
+                onReveal: revealList
+            ) {
             // Sort, filter, instrument and search changes fade the list out, show the
             // spinner (also while a search is typed ahead of its debounce) and stagger the
             // new list in (web `SongsPage` `settingsKey`, issue #71).
             FestivalReloadGate(
                 key: reloadKey, isLoading: state.isLoading || searchText != settledSearch,
                 spinnerLabel: "Loading songs",
-                onReveal: {
-                    fadeLoadedAt = .now
-                    scrollChrome.resetHeaders()
-                }
+                onReveal: revealList
             ) {
             switch state {
             case .loading:
@@ -456,6 +472,7 @@ struct SongsScreen: View {
             }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
@@ -522,6 +539,12 @@ struct SongsScreen: View {
             if let bandType = FestivalDebugLaunch.songBandType {
                 SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
                     .pageTrailingItems()
+            } else if let instrument = FestivalDebugLaunch.songInstrument {
+                SoloLeaderboardScreen(
+                    song: song, instrument: instrument, session: session,
+                    initialPage: 1, path: .constant([])
+                )
+                .pageTrailingItems()
             } else {
                 SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
                     .pageTrailingItems()
@@ -530,7 +553,8 @@ struct SongsScreen: View {
         .task(id: FestivalDebugLaunch.songTitleOrId) {
             guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId
             else { return }
-            for _ in 0..<200 {
+            // Up to 60 s: a live catalogue under screen recording can take longer than 10 s.
+            for _ in 0..<1200 {
                 if case let .loaded(payload) = state,
                    let match = payload.catalog.songs.first(where: {
                        $0.songId == target
@@ -543,15 +567,19 @@ struct SongsScreen: View {
             }
         }
         #endif
+        // Keyed on the generation the list has prepared for, not the session's: a new
+        // publication is read by the refresh boundary's `prepare`, once the old list has
+        // faded out, so the fading list never draws new rows.
         .task(id: CatalogueTaskKey(
-            publicationRevision: session.publicationRevision, visible: isVisible
+            publicationRevision: shownRevision, visible: isVisible
         )) {
             guard isVisible else { return }
             switch state {
             case .loading, .failed:
                 await reload()
             case let .loaded(payload):
-                if let current = session.publicationId,
+                if shownRevision == session.publicationRevision,
+                   let current = session.publicationId,
                    payload.observedPublicationId != current {
                     await reload()
                 }
@@ -1100,7 +1128,7 @@ struct SongsScreen: View {
                 // Before the section bar overlay: applied after it, this identifier
                 // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
                 .accessibilityIdentifier("fst.songs.list")
-                .modifier(SectionBarRowMask(
+                .modifier(SectionBarRowFade(
                     chrome: scrollChrome, enabled: groups != nil && Self.usesSectionBar
                 ))
                 .overlay(alignment: .top) {
@@ -1555,8 +1583,32 @@ struct SongsScreen: View {
     private static let artworkPrimeCount = 12
     private static let artworkPrimeTimeout = Duration.milliseconds(900)
 
+    /// Reopen the row stagger window and reset the section headers as a new list is
+    /// revealed (a reload or a publication refresh).
+    private func revealList() {
+        fadeLoadedAt = .now
+        scrollChrome.resetHeaders()
+    }
+
+    /// Ready the list for a new publication while the refresh boundary hides it (issue
+    /// #304): read the new catalogue. A failed read keeps the old rows with their paused
+    /// notices (never an error page in their place), and the catalogue task retries when
+    /// Songs is next shown. Shop and selected-player reads restart on their own; the
+    /// publication guards keep them off rows from another publication.
+    ///
+    /// - Parameter revision: The session publication revision being prepared for.
+    private func preparePublication(_ revision: Int) async {
+        await reload(publicationRefresh: true)
+        guard !Task.isCancelled else { return }
+        shownRevision = revision
+    }
+
     /// Refresh the public catalogue, preserving the last-viewed process cache.
-    private func reload() async {
+    ///
+    /// - Parameter publicationRefresh: The list is hidden behind the publication refresh
+    ///   spinner: prime the first rows' artwork (the publication cleared it) and swap
+    ///   without animation.
+    private func reload(publicationRefresh: Bool = false) async {
         let prior: CatalogPayload?
         if case let .loaded(payload) = state {
             prior = payload
@@ -1567,12 +1619,12 @@ struct SongsScreen: View {
         do {
             let updated = try await session.catalog()
             try Task.checkCancellation()
-            if prior == nil {
+            if prior == nil || publicationRefresh {
                 await primeFirstArtwork(for: updated)
                 try Task.checkCancellation()
             }
             if prior == nil { fadeLoadedAt = .now }
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(publicationRefresh ? nil : .easeInOut(duration: 0.2)) {
                 state = .loaded(updated)
             }
             refreshFailure = nil
@@ -1722,7 +1774,7 @@ private struct QuickLinksJumpHeaderSync: ViewModifier {
 }
 
 /// iOS 26: the current Songs section title, floating just below the navigation bar once
-/// the List has scrolled. With ``SectionBarRowMask`` rows fade out just below its bottom
+/// the List has scrolled. With ``SectionBarRowFade`` rows fade out just below its bottom
 /// edge (issue #10), with no backing behind the title (operator batch 7).
 ///
 /// Observes ``SongsScrollChrome`` itself, so a passed title or a scroll-away change
@@ -1815,8 +1867,11 @@ private struct SongsSectionBar: View {
 
 /// Everything from a frame's top edge down, reaching far past its bottom and sides.
 private struct BelowTopShape: Shape {
+    /// How far the path reaches past the frame, in points.
+    private static let far: CGFloat = 10_000
+
     func path(in rect: CGRect) -> Path {
-        let far = RowMaskShape.far
+        let far = Self.far
         return Path(CGRect(
             x: rect.minX - far, y: rect.minY, width: rect.width + 2 * far, height: rect.height + far
         ))
@@ -1921,68 +1976,26 @@ private struct SongsInlineSectionTitle: View {
     }
 }
 
-/// Masks the List above the section bar's bottom edge while scrolled, so rows fade out
-/// under the bar (issue #10, ``SectionBarEdgeFade``). Inactive at the top, where no row
-/// is under the bar and the large title shows. Near a section's start the fade is only as
-/// deep as ``SongsScrollChrome/rowFadeLimit`` allows, so a landed section's first row and
-/// an incoming title are never dimmed (issue #298).
+/// Fades the List out under the floating section bar while scrolled (issue #10), with
+/// the shared pinned-header fade (``PinnedHeaderEdgeFade``, issue #308). Inactive at the
+/// top, where no row is under the bar and the large title shows. Near a section's start
+/// the fade is only as deep as ``SongsScrollChrome/rowFadeLimit`` allows, so a landed
+/// section's first row and an incoming title are never dimmed (issue #298).
 ///
-/// The mask is a shape whose path may extend past its frame: inactive it covers far
-/// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
-/// and `ignoresSafeArea` on the mask stalled the scroll view), active it starts at the
-/// end of the fade below the bar's bottom edge, measured against the mask's own global
-/// top. A gradient band fills the fade between the bar's edge and the shape; it sits
-/// under the opaque shape when inactive, so it changes nothing there. The structure is
-/// the same in every state, so toggling a setting never rebuilds the List.
-private struct SectionBarRowMask: ViewModifier {
-    /// Observed here, not by `SongsScreen` (issue #8).
+/// Observes ``SongsScrollChrome`` here, so a scroll re-renders only this modifier, never
+/// the List (issue #8).
+private struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
     /// False when the List has no sections or the OS has no section bar.
     let enabled: Bool
-    @State private var maskTop: CGFloat = 0
-    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
-    @Environment(\.colorSchemeContrast) private var systemContrast
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
 
     func body(content: Content) -> some View {
-        let active = enabled && chrome.listScrolled
-        let fade = chrome.rowFadeHeight(fade: SectionBarEdgeFade.height(
-            reduceTransparency: systemReduceTransparency || lessTransparency,
-            increaseContrast: moreContrast || systemContrast == .increased
-        ))
-        let cut = max(0, chrome.sectionBarBottom - maskTop)
         content
             .environment(\.defaultMinListRowHeight, 0)
-            .mask {
-                ZStack(alignment: .top) {
-                    LinearGradient(
-                        stops: SectionBarEdgeFade.gradientStops, startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: fade)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, -RowMaskShape.far)
-                    .offset(y: cut)
-                    RowMaskShape(cut: active ? cut + fade : nil)
-                }
-                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
-                    maskTop = $0
-                }
-            }
-    }
-}
-
-/// Everything below `cut` (local points), or everything when `cut` is nil.
-private struct RowMaskShape: Shape {
-    /// How far the path reaches past the frame, in points.
-    static let far: CGFloat = 10_000
-
-    let cut: CGFloat?
-
-    func path(in rect: CGRect) -> Path {
-        let far = Self.far
-        let top = cut.map { rect.minY + max(0, $0) } ?? (rect.minY - far)
-        return Path(CGRect(x: rect.minX - far, y: top, width: rect.width + 2 * far, height: rect.maxY + far - top))
+            .pinnedHeaderEdgeFadeMask(
+                edge: chrome.sectionBarBottom, active: enabled && chrome.listScrolled,
+                depthLimit: chrome.rowFadeLimit
+            )
     }
 }
 

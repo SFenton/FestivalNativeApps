@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -47,7 +46,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 /**
  * Layout shared by the paginated boards (Full Rankings, Band Rankings, Song
- * Leaderboard). View options (instrument, band size, Rank By) live in the top app
+ * Leaderboard; the song band board uses its single-pane [RankingsBoardLayout]). View options (instrument, band size, Rank By) live in the top app
  * bar, so the content is the rows plus page-level information.
  *
  * Every width: the "your rank" row and the floating pager are anchored to the
@@ -82,7 +81,7 @@ fun RankingsBoardScaffold(
     rows: LazyListScope.() -> Unit,
 ) {
     val (hinge, measure) = rememberHingeSplit()
-    RankingsBoardLayout(hinge, measure, padding, listState, idPrefix, controls, footer, pager, fadeAboveFooter, rows)
+    RankingsBoardLayout(hinge, measure, padding, listState, idPrefix, controls, footer, pager, fadeAboveFooter, rows = rows)
 }
 
 /**
@@ -98,6 +97,8 @@ fun RankingsBoardScaffold(
  * @param pager Pager.
  * @param fadeAboveFooter Fade rows out above the bottom-anchored footer (single pane only:
  *   around a hinge the footer sits in the other pane, clear of the rows).
+ * @param itemGap Space between list items, also left between the last item and the anchored
+ *   footer (the band score cards keep their 8 dp gap).
  * @param rows Row items.
  */
 @Composable
@@ -111,6 +112,7 @@ internal fun RankingsBoardLayout(
     footer: @Composable ColumnScope.() -> Unit,
     pager: @Composable () -> Unit,
     fadeAboveFooter: Boolean = false,
+    itemGap: Dp = ROW_GAP_DP.dp,
     rows: LazyListScope.() -> Unit,
 ) {
     val bottom = padding.calculateBottomPadding()
@@ -118,7 +120,7 @@ internal fun RankingsBoardLayout(
         if (hinge != null) {
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.width(hinge.start).fillMaxHeight()) {
-                    BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 24.dp), rows = rows)
+                    BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 24.dp), itemGap = itemGap, rows = rows)
                 }
                 Spacer(Modifier.width(hinge.end - hinge.start))
                 Column(
@@ -162,10 +164,11 @@ internal fun RankingsBoardLayout(
                     idPrefix,
                     // The list ends one item gap above the footer, so the pinned row or pager follows
                     // the last row like another item (issue #293).
-                    PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + ROW_GAP_DP.dp),
+                    PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + itemGap),
                     Modifier
                         .then(if (fadeAboveFooter) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
                         .bottomChromeEdgeFade(edge),
+                    itemGap,
                 ) {
                     item(key = "controls") { Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = controls) }
                     rows()
@@ -185,7 +188,12 @@ internal fun RankingsBoardLayout(
 }
 
 /**
- * The bottom-anchored "your rank" row and floating pager.
+ * The bottom-anchored "your rank" row and floating pager; also the band song board's
+ * supporting-pane footer around a hinge.
+ *
+ * The "your rank" row spans the same width as the rows' card (the web's player footer
+ * shares the list's max width), so its columns line up with the rows at every width
+ * (issue #149); the pager keeps its natural width, centred.
  *
  * @param idPrefix Test-tag prefix (`<prefix>.bottom-bar`).
  * @param footer "Your rank" content.
@@ -193,9 +201,9 @@ internal fun RankingsBoardLayout(
  * @param modifier Modifier (alignment and insets).
  */
 @Composable
-private fun AnchoredFooter(idPrefix: String, footer: @Composable ColumnScope.() -> Unit, pager: @Composable () -> Unit, modifier: Modifier = Modifier) {
+internal fun AnchoredFooter(idPrefix: String, footer: @Composable ColumnScope.() -> Unit, pager: @Composable () -> Unit, modifier: Modifier = Modifier) {
     Column(
-        modifier.widthIn(max = MAX_FOOTER_WIDTH_DP.dp).fillMaxWidth().testTag("$idPrefix.bottom-bar"),
+        modifier.fillMaxWidth().testTag("$idPrefix.bottom-bar"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(Modifier.fillMaxWidth().gapBelowIfShown(FOOTER_PAGER_GAP_DP.dp), content = footer)
@@ -233,12 +241,12 @@ fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnSc
         modifier = modifier.fillMaxWidth(),
     ) {
         // Same inset as the rows' card, so the pinned row's columns line up with the list.
-        Column(Modifier.padding(8.dp), content = content)
+        Column(Modifier.padding(ANCHORED_ROW_CARD_PADDING), content = content)
     }
 }
 
-/** Widest the anchored footer grows on large windows (keeps the pager and row centred). */
-private const val MAX_FOOTER_WIDTH_DP = 720
+/** Inset inside [AnchoredRowCard] (the solo boards' row card inset; band boards start their ranks after it). */
+internal val ANCHORED_ROW_CARD_PADDING = 8.dp
 
 /** Space between list items, also left between the last item and the anchored footer. */
 private const val ROW_GAP_DP = 12
@@ -252,12 +260,13 @@ private fun BoardList(
     idPrefix: String,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
+    itemGap: Dp = ROW_GAP_DP.dp,
     rows: LazyListScope.() -> Unit,
 ) {
     LazyColumn(
         state = listState,
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(ROW_GAP_DP.dp),
+        verticalArrangement = Arrangement.spacedBy(itemGap),
         modifier = modifier.fillMaxSize().testTag("$idPrefix.list"),
         content = rows,
     )

@@ -58,6 +58,12 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     /// <summary>Rows/content load-swap gate.</summary>
     public LoadSwap LoadSwap { get; }
 
+    /// <summary>
+    /// Whether the pinned "your score" row follows <see cref="LoadSwap"/>: only for the first load and a change of the
+    /// invalid-score leeway (which can change the row), like the web footer; paging keeps it beside the spinner.
+    /// </summary>
+    public PinnedRowGate PinnedGate { get; } = new();
+
     /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
     public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
@@ -177,6 +183,8 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     {
         var request = ++version;
         var requestedPage = Page;
+        var key = CurrentLeeway;
+        PinnedGate.Begin(key, LoadSwap.Phase);
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
         if (State is LoadState.Idle) State = LoadState.Loading;
         IsRefreshing = true;
@@ -199,6 +207,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 Status.Clear();
+                PinnedGate.Commit(leeway);
                 entries = [.. board.Entries];
                 TotalText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
                     ? string.Create(CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} {Instrument.Label()} entries") : "";
@@ -215,10 +224,19 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 IsRefreshing = false;
+                PinnedGate.Commit(key);
                 Status.Report(error);
                 State = LoadState.Failed;
             }, AnimateLoadSwaps());
         }
+    }
+
+    /// <summary>A pinned row that newly appears joins <see cref="PinnedGate"/> while a reload is in flight.</summary>
+    /// <param name="oldValue">Previous pinned row.</param>
+    /// <param name="newValue">New pinned row.</param>
+    partial void OnSpotlightChanged(SongLeaderboardRowViewModel? oldValue, SongLeaderboardRowViewModel? newValue)
+    {
+        if (oldValue is null && newValue is not null) PinnedGate.Arrived(LoadSwap.Phase);
     }
 
     /// <summary>Jumps to the selected player's page.</summary>
@@ -327,12 +345,21 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>Badge UIA ID (<c>fst.score.accuracy.&lt;accountId&gt;</c>, as on Apple's full Solo chart).</summary>
     public string BadgeAutomationId => "fst.score.accuracy." + Entry.AccountId;
 
-    /// <summary>Screen-reader name.</summary>
-    public string Announcement =>
+    /// <summary>Screen-reader name while the season column is hidden (rows under 520 epx).</summary>
+    public string Announcement => Announce(false);
+
+    /// <summary>Screen-reader name with the season, read while the row shows it (issue #262).</summary>
+    public string SeasonShownAnnouncement => Announce(true);
+
+    /// <summary>Builds the screen-reader name.</summary>
+    /// <param name="season">Whether to read the season.</param>
+    /// <returns>Rank, name, score, accuracy, full combo, season, then stars.</returns>
+    private string Announce(bool season) =>
         (IsSelected && Entry.Rank > 0 ? $"Your rank, {RankingFormatting.Ordinal(Entry.Rank)}. {Name}" :
          IsSelected ? $"Your score. {Name}" : $"Rank {RankText}, {Name}") +
         $", {Score} points" + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
         (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
+        (season && Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $", season {s}") : "") +
         (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }
 #endregion

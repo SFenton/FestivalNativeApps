@@ -146,6 +146,7 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 BayesianText.Visibility = Visibility.Collapsed;
                 PillText.Text = score.BadgeText;
                 AutomationProperties.SetAutomationId(PillText, BadgeAutomationId(score));
+                AutomationProperties.SetAutomationId(MetaText, LeaderboardScoreRowIds.Season(BadgeAutomationId(score)));
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
                 PillText.FontStyle = ScoreBadge.Style(score.IsFullCombo);
                 StarsView.Stars = score.StarCount;
@@ -158,9 +159,9 @@ public sealed partial class LeaderboardEntryRow : UserControl
                 BayesianText.Visibility = ranking.BayesianText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 StarsView.Stars = 0;
                 PillText.ClearValue(AutomationProperties.AutomationIdProperty);
+                MetaText.ClearValue(AutomationProperties.AutomationIdProperty);
                 break;
         }
-        AutomationProperties.SetName(RowButton, row.Announcement);
         AutomationProperties.SetAutomationId(RowButton, string.IsNullOrEmpty(rowAutomationId) ? row.AutomationId : rowAutomationId);
         // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
         // UIA reads them as text rather than an invokable button.
@@ -263,6 +264,9 @@ public sealed partial class LeaderboardEntryRow : UserControl
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.Stacked ? 0 : plan.MetaWidth;
         MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        // The row is one UIA stop with Raw parts, so a season on screen must be in its name (issue #262).
+        AutomationProperties.SetName(RowButton,
+            score is not null && MetaText.Visibility == Visibility.Visible ? score.SeasonShownAnnouncement : row.Announcement);
         ValueColumn.MinWidth = plan.Stacked ? 0 : plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;

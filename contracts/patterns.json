@@ -41,12 +41,20 @@
             "symbol": "ModalTopEdgeFadeModifier"
           },
           {
-            "path": "apple/Sources/FestivalUI/Design/ModalPinnedHeaderFade.swift",
-            "symbol": "ModalPinnedHeaderFade"
+            "path": "apple/Sources/FestivalUI/Design/PinnedHeaderEdgeFade.swift",
+            "symbol": "PinnedHeaderEdgeFade"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/Songs/SectionBarEdgeFade.swift",
-            "symbol": "SectionBarEdgeFade"
+            "path": "apple/Sources/FestivalUI/Common/PlatformScrollObserver.swift",
+            "symbol": "PlatformScrollObserver"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/ScrollEdgeReader.swift",
+            "symbol": "onScrollEdgeReading"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/ScrollEdgeFadeModifiers.swift",
+            "symbol": "ScrollEdgeHardEdge"
           },
           {
             "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
@@ -103,9 +111,6 @@
             "apple/Sources/FestivalUI/Design/**",
             "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
-          ],
-          "debt": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
         },
@@ -168,7 +173,9 @@
         297,
         298,
         301,
-        305
+        305,
+        308,
+        319
       ]
     },
     {
@@ -312,7 +319,8 @@
         "sticky header",
         "pinned header",
         "card header",
-        "heading"
+        "heading",
+        "see all"
       ],
       "web": [
         {
@@ -322,6 +330,10 @@
         {
           "path": "pages/settings/SettingsPage.tsx",
           "symbol": "SettingsPage"
+        },
+        {
+          "path": "pages/player/components/PlayerBandsSection.tsx",
+          "symbol": "buildPlayerBandsItems"
         }
       ],
       "canonical": {
@@ -329,6 +341,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
             "symbol": "FestivalSectionHeader"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
+            "symbol": "SectionSeeAllLink"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
@@ -343,6 +359,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
             "symbol": "SectionHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt",
+            "symbol": "SeeAllButton"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
@@ -415,7 +435,8 @@
       "issues": [
         288,
         291,
-        297
+        297,
+        312
       ]
     },
     {
@@ -506,6 +527,14 @@
           ],
           "debt": [],
           "message": "Raw standard-material backgrounds belong in Design or an approved exception (surface-materials R3)."
+        },
+        {
+          "id": "apple-feature-opaque-card",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\.background\\(\\s*BrandTokens\\.cardBackground\\s*,\\s*in:",
+          "allow": [],
+          "debt": [],
+          "message": "An opaque cardBackground plate is FestivalCardModifier's accessibility fallback, not a feature surface; draw cards, rows and custom floating controls with festivalCard / festivalCardCapsule (surface-materials R1, #319)."
         }
       ],
       "related": {
@@ -523,7 +552,8 @@
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        291
+        291,
+        319
       ]
     },
     {
@@ -540,7 +570,8 @@
         "floating toolbar",
         "global search",
         "quick links",
-        "profile"
+        "profile",
+        "hit target"
       ],
       "web": [
         {
@@ -565,6 +596,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "FestivalRootTrailingItems"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "RootProfileButton"
           }
         ],
         "android": [
@@ -579,6 +614,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/TopBarActions.kt",
             "symbol": "AdaptiveTopBarActions"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "ProfileAvatarButton"
           }
         ],
         "windows": [
@@ -589,6 +628,10 @@
           {
             "path": "windows/Festival.App/Pages/SongsPage.xaml",
             "symbol": "Actions"
+          },
+          {
+            "path": "windows/Festival.App/MainWindow.xaml",
+            "symbol": "ProfileButton"
           }
         ]
       },
@@ -620,6 +663,15 @@
             "windows/Festival.App/MainWindow.xaml"
           ],
           "message": "Global title-bar command content belongs to the main shell (page-tools-and-nav-chrome R5, R6)."
+        },
+        {
+          "id": "apple-profile-item-glass",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "sharedBackgroundVisibility",
+          "allow": [
+            "apple/Sources/FestivalUI/App/Shell/RootChrome.swift"
+          ],
+          "message": "Only the shell's profile item hides its toolbar glass, through profileItemBackground (page-tools-and-nav-chrome R8)."
         }
       ],
       "related": {
@@ -645,7 +697,8 @@
         84,
         92,
         160,
-        300
+        300,
+        309
       ]
     },
     {
@@ -697,6 +750,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalAlertDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
+            "symbol": "HingeSide"
           }
         ],
         "windows": [
@@ -743,6 +800,25 @@
             "apple/Sources/FestivalUI/Design/**"
           ],
           "message": "Modal Close belongs to FestivalSheetCloseItem, not a hand-made toolbar control (modal-shell R4)."
+        },
+        {
+          "id": "android-hinge-side",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fun\\s+(?:Modifier\\.)?\\w*[Hh]inge(?:Side|Insets|Area|Padding)\\w*\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/nav/**",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalSheet.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt"
+          ],
+          "message": "Keep surfaces off a separating hinge through core/nav HingeSide; adapt its result, don't add another side rule (modal-shell R8)."
+        },
+        {
+          "id": "android-dialog-platform-width",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "usePlatformDefaultWidth\\s*=(?!\\s*false\\b)",
+          "allow": [],
+          "message": "Centred dialogs take the window width less 16 dp margins, capped at 560 dp, never the platform dialog width (modal-shell R9)."
         }
       ],
       "related": {
@@ -771,7 +847,10 @@
         24,
         25,
         94,
-        96
+        96,
+        125,
+        139,
+        140
       ]
     },
     {
@@ -779,7 +858,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, and one selected-row rule (jump off-page, open the profile on-page) for players and bands.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -790,7 +869,12 @@
         "pager",
         "pinned player",
         "selected row",
-        "band footer"
+        "band footer",
+        "score footer",
+        "team score",
+        "badges wrap",
+        "large text",
+        "season column"
       ],
       "web": [
         {
@@ -808,6 +892,14 @@
         {
           "path": "components/common/MarqueeText.tsx",
           "symbol": "MarqueeText"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "SongBandScoreFooter"
+        },
+        {
+          "path": "components/bands/SongBandScoreFooter.tsx",
+          "symbol": "getSongBandScoreWidth"
         }
       ],
       "canonical": {
@@ -835,6 +927,10 @@
           {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
+            "symbol": "RankingSpotlight"
           }
         ],
         "android": [
@@ -851,8 +947,28 @@
             "symbol": "RankingsPager"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "rememberRankingRowWidth"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "rememberBandRankWidth"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "bandBoardColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SelectedScoreFooterRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
+            "symbol": "SelectedRowAction"
           }
         ],
         "windows": [
@@ -871,6 +987,18 @@
           {
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
+          },
+          {
+            "path": "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "symbol": "BandScoreFooterPanel"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterLayout"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/BandScoreFooterLayout.cs",
+            "symbol": "BandScoreFooterSection"
           }
         ]
       },
@@ -914,6 +1042,17 @@
           ],
           "debt": [],
           "message": "Board pagination belongs to the shared pager (leaderboard-row R5)."
+        },
+        {
+          "id": "windows-score-footer-owner",
+          "glob": "windows/**/*.cs",
+          "regex": "class\\s+(?!\\w*Tests\\b)\\w*ScoreFooter\\w*",
+          "allow": [
+            "windows/Festival.App/Controls/BandScoreFooterPanel.cs",
+            "windows/Festival.Core/Domain/BandScoreFooterLayout.cs"
+          ],
+          "debt": [],
+          "message": "Score footers share one section-wide stack plan; extend BandScoreFooterPanel/BandScoreFooterSection instead (leaderboard-row R8)."
         }
       ],
       "related": {
@@ -927,7 +1066,8 @@
           "song-detail",
           "song-leaderboard",
           "leaderboards",
-          "compete"
+          "compete",
+          "full-rankings"
         ]
       },
       "supersedes": [],
@@ -936,10 +1076,13 @@
         37,
         38,
         90,
+        170,
         292,
         293,
         294,
-        295
+        295,
+        318,
+        319
       ]
     },
     {
@@ -947,7 +1090,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; entrances never replay while scrolling and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -977,6 +1120,10 @@
           "symbol": "PathsModal"
         },
         {
+          "path": "contexts/PublicationBoundary.tsx",
+          "symbol": "PublicationBoundary"
+        },
+        {
           "path": "hooks/chart/useListAnimation.ts",
           "symbol": "useListAnimation"
         }
@@ -998,6 +1145,26 @@
           {
             "path": "apple/Sources/FestivalCore/PathSwitchTransition.swift",
             "symbol": "PathSwitchTransition"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PublicationRefreshBoundary.swift",
+            "symbol": "PublicationRefreshBoundary"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PublicationRefreshTransition.swift",
+            "symbol": "PublicationRefreshTransition"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PublicationRefreshFocus.swift",
+            "symbol": "PublicationRefreshFocus"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PublicationFocusProbe.swift",
+            "symbol": "PublicationFocusProbe"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "symbol": "festivalNavigationTitle"
           }
         ],
         "android": [
@@ -1036,12 +1203,32 @@
             "symbol": "LoadSwapVisual"
           },
           {
+            "path": "windows/Festival.App/Controls/LoadSwapGate.cs",
+            "symbol": "LoadSwapGate"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/LoadSwap.cs",
+            "symbol": "PinnedRowGate"
+          },
+          {
             "path": "windows/Festival.App/Controls/FadeIn.cs",
             "symbol": "FadeIn"
           },
           {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "StaggerArm"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",
             "symbol": "PathSwapTiming"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/ScoreHistorySwap.cs",
+            "symbol": "ScoreHistorySwapper"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreHistoryViewModel.cs",
+            "symbol": "ShowDetailSlot"
           }
         ]
       },
@@ -1063,6 +1250,22 @@
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
+        },
+        {
+          "id": "apple-page-title",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.navigationTitle\\s*\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "apple/Sources/FestivalUI/App/FestivalRootView.swift",
+            "apple/Sources/FestivalUI/Design/FestivalModal.swift",
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
+            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormSheet.swift",
+            "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
+          ],
+          "debt": [],
+          "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R9)."
         },
         {
           "id": "android-load-swap",
@@ -1129,7 +1332,10 @@
         60,
         70,
         71,
-        169
+        149,
+        169,
+        304,
+        316
       ]
     },
     {
@@ -1181,6 +1387,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
             "symbol": "FestivalLoading"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "ServiceStatusView"
           }
         ],
         "windows": [
@@ -1212,7 +1422,8 @@
       ],
       "related": {
         "patterns": [
-          "load-transition"
+          "load-transition",
+          "modal-shell"
         ],
         "controls": [
           "global-search",
@@ -1230,7 +1441,9 @@
         35,
         65,
         99,
-        299
+        140,
+        299,
+        312
       ]
     },
     {
@@ -1360,7 +1573,380 @@
         12,
         15,
         286,
-        303
+        303,
+        313
+      ]
+    },
+    {
+      "id": "chart-date-axis",
+      "title": "Chart date axis",
+      "status": "current",
+      "doc": ".agents/patterns/chart-date-axis.md",
+      "summary": "History bar charts centre each date label horizontally on its own bar on every page and text size, label only visible bars and keep tick text out of the accessibility tree.",
+      "keywords": [
+        "chart",
+        "x axis",
+        "date label",
+        "axis label",
+        "bar chart",
+        "score history",
+        "rank history"
+      ],
+      "web": [
+        {
+          "path": "pages/songinfo/components/chart/ScoreHistoryChart.tsx",
+          "symbol": "ScoreHistoryChart"
+        },
+        {
+          "path": "pages/leaderboards/components/RankHistoryChart.tsx",
+          "symbol": "RankHistoryChart"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/BarChartDateAxis.swift",
+            "symbol": "barChartDateAxis"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongHistoryCard.kt",
+            "symbol": "SongHistoryCard"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RankHistoryGraph.cs",
+            "symbol": "RankHistoryGraph"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongScoreHistoryChart.xaml.cs",
+            "symbol": "SongScoreHistoryChart"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-x-axis",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.chartXAxis\\s*\\{",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/BarChartDateAxis.swift"
+          ],
+          "debt": [],
+          "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
+        }
+      ]
+    },
+    {
+      "id": "song-leaderboard-header",
+      "title": "Song leaderboard header",
+      "status": "current",
+      "doc": ".agents/patterns/song-leaderboard-header.md",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art.",
+      "keywords": [
+        "song header",
+        "band leaderboard",
+        "duos",
+        "trios",
+        "quads",
+        "page title",
+        "bar title",
+        "pinned title",
+        "album art background",
+        "song backdrop",
+        "carousel"
+      ],
+      "issues": [
+        93,
+        293,
+        315,
+        316,
+        317
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "pages/leaderboard/band/SongBandLeaderboardPage.tsx",
+          "symbol": "PageBackground"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitleToolbarItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
+            "symbol": "SongLeaderboardBoardLine"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SongLeaderboardScreen"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs",
+            "symbol": "LeaderboardsSongPage"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-song-backdrop",
+          "glob": "apple/Sources/FestivalUI/Features/SongLeaderboard/**/*.swift",
+          "regex": "festivalBackground\\(\\s*\\.carousel",
+          "allow": [],
+          "debt": [],
+          "message": "Song leaderboards sit on the song's static album art, festivalBackground(.song) (song-leaderboard-header R4)."
+        },
+        {
+          "id": "apple-principal-title",
+          "glob": "apple/Sources/FestivalUI/Features/SongLeaderboard/**/*.swift",
+          "regex": "ToolbarItem\\(\\s*placement:\\s*\\.principal",
+          "allow": [],
+          "debt": [],
+          "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
+        }
+      ],
+      "related": {
+        "pages": [
+          "song-leaderboard",
+          "song-band-leaderboard"
+        ],
+        "controls": [],
+        "patterns": [
+          "page-tools-and-nav-chrome",
+          "surface-materials",
+          "song-header"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "song-header",
+      "title": "Song header",
+      "status": "current",
+      "doc": ".agents/patterns/song-header.md",
+      "summary": "Song pages show the song through one shared header whose title and artist each fill the width beside the art on one line and marquee only on overflow (Reduce Motion truncates, accessibility sizes wrap in-page); one compact pinned bar title marquees on one line.",
+      "keywords": [
+        "song header",
+        "song title",
+        "marquee",
+        "carousel",
+        "title wraps",
+        "SongInfoHeader",
+        "pinned title",
+        "top bar title",
+        "artist",
+        "hero"
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "components/common/MarqueeText.tsx",
+          "symbol": "MarqueeText"
+        },
+        {
+          "path": "hooks/ui/useMarqueeSync.ts",
+          "symbol": "useMarqueeSync"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/MarqueeText.swift",
+            "symbol": "MarqueeText"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderText"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitleToolbarItem"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/MarqueeText.kt",
+            "symbol": "FestivalMarqueeText"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
+            "symbol": "SongHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "marqueeTitle"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MarqueeText.cs",
+            "symbol": "MarqueeText"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-wrapping-title",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\bText\\(song\\.title\\)",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift"
+          ],
+          "debt": [],
+          "message": "Song headers show the title with the shared SongHeaderText / SongBarTitle (one full-width marqueeing line), not a page-local Text (song-header R1, R5)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "page-tools-and-nav-chrome",
+          "song-leaderboard-header"
+        ],
+        "controls": [],
+        "pages": [
+          "song-detail",
+          "song-leaderboard",
+          "song-band-leaderboard",
+          "player-history"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        315
+      ]
+    },
+    {
+      "id": "view-all-cta",
+      "title": "View all call to action",
+      "status": "current",
+      "doc": ".agents/patterns/view-all-cta.md",
+      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
+      "keywords": [
+        "view all",
+        "view full leaderboard",
+        "view all rivals",
+        "view all rankings",
+        "view all scores",
+        "call to action",
+        "cta",
+        "purple button"
+      ],
+      "web": [
+        {
+          "path": "pages/songinfo/components/ViewFullLeaderboardCta.tsx",
+          "symbol": "ViewFullLeaderboardCta"
+        },
+        {
+          "path": "pages/rivals/useRivalsSharedStyles.ts",
+          "symbol": "viewAllButton"
+        },
+        {
+          "path": "pages/leaderboards/components/RankingCard.tsx",
+          "symbol": "RankingCard"
+        },
+        {
+          "path": "components/common/GraphCard.tsx",
+          "symbol": "viewAllButton"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
+            "symbol": "PurpleActionLabel"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
+            "symbol": "ViewFullLeaderboardButton"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/ViewFullLeaderboardButton.kt",
+            "symbol": "viewAllSpokenName"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTViewAllButtonStyle"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/ViewAllCta.cs",
+            "symbol": "ViewAllCta"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "leaderboard-row"
+        ],
+        "pages": [
+          "song-detail",
+          "rivals",
+          "compete",
+          "leaderboards"
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-label-copy",
+          "glob": "windows/Festival.Core/**/*.cs",
+          "regex": "\"View (All|Full) [A-Z]",
+          "allow": [
+            "windows/Festival.Core/Domain/ViewAllCta.cs"
+          ],
+          "debt": [],
+          "message": "Windows View all labels come from ViewAllCta so every CTA keeps the web copy and the label-first name rule (view-all-cta R4)."
+        },
+        {
+          "id": "windows-xaml-literal",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "Content=\"View (All|Full) ",
+          "allow": [],
+          "debt": [],
+          "message": "Bind a View all CTA's text and name to its view model (ViewAllText/ViewAllName via ViewAllCta) and use FSTViewAllButtonStyle (view-all-cta R3, R4)."
+        },
+        {
+          "id": "windows-parallel-style",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "x:Key=\"[^\"]*ViewAll[^\"]*\"",
+          "allow": [
+            "windows/Festival.App/Themes/Styles.xaml"
+          ],
+          "debt": [],
+          "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
+        }
       ]
     }
   ]

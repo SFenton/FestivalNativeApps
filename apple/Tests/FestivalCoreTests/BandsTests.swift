@@ -135,6 +135,19 @@ private func fixtureURL(_ name: String) -> URL {
     }
 }
 
+/// The per-size board carries the service's entry-total switch for its song header
+/// (issue #317); an older payload without it reads as "no totals".
+@Test func songBandLeaderboardDecodesEntryTotalsSwitch() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    #expect(try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data).showLeaderboardEntryTotals == true)
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    object.removeValue(forKey: "showLeaderboardEntryTotals")
+    let legacy = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    #expect(legacy.showLeaderboardEntryTotals == nil)
+}
+
 @Test func songBandLeaderboardRejectsMismatchedSongOrBandType() throws {
     let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
     let response = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
@@ -351,4 +364,45 @@ private let selectedDuoJSON = """
     #expect(PlayerBandGroup.duos.label == "Duos")
     #expect(PlayerBandGroup.trios.label == "Trios")
     #expect(PlayerBandGroup.quads.label == "Quads")
+}
+
+// MARK: - Player bands preview (profile page, issue #312)
+
+/// A minimal player-band row for preview tests.
+///
+/// - Parameter index: Distinguishes the band's identifiers.
+/// - Returns: A two-member Duos row.
+private func previewEntry(_ index: Int) -> PlayerBandEntry {
+    PlayerBandEntry(
+        bandId: "band-\(index)", teamKey: "team-\(index)", bandType: "Band_Duets", appearanceCount: index,
+        members: []
+    )
+}
+
+@Test func playerBandsPreviewKeepsWebGroupOrderAndPreviewSize() {
+    let duos = PlayerBandListResponse(accountId: "p", totalCount: 18, entries: (1...8).map(previewEntry))
+    let quads = PlayerBandListResponse(accountId: "p", totalCount: 4, entries: (1...4).map(previewEntry))
+    let preview = PlayerBandsPreview(responses: [.quads: quads, .duos: duos])
+
+    #expect(preview.groups.map(\.group) == [.duos, .trios, .quads])
+    let duoGroup = preview.groups[0]
+    #expect(duoGroup.entries.map(\.bandId) == (1...6).map { "band-\($0)" })
+    #expect(duoGroup.totalCount == 18)
+    #expect(duoGroup.hasMore)
+    // A group the service did not return previews as empty ("No Bands Yet"), not a failure.
+    #expect(preview.groups[1].entries.isEmpty)
+    #expect(preview.groups[1].totalCount == 0)
+    #expect(!preview.groups[1].hasMore)
+    #expect(preview.groups[2].entries.count == 4)
+    #expect(!preview.groups[2].hasMore)
+}
+
+@Test func playerBandsPreviewNeverReportsFewerBandsThanItShows() {
+    // A stale total below the page's rows must not hide View All nor under-count.
+    let response = PlayerBandListResponse(accountId: "p", totalCount: 1, entries: (1...3).map(previewEntry))
+    let group = PlayerBandsPreview.Group(group: .trios, response: response)
+    #expect(group.totalCount == 3)
+    #expect(!group.hasMore)
+    #expect(group.id == .trios)
+    #expect(PlayerBandsPreview.previewCount == 6)
 }

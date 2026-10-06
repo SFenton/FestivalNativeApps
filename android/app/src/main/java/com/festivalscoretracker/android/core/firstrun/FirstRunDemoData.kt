@@ -75,7 +75,7 @@ data class FirstRunDemoRanking(val rank: Int, val name: String, val rating: Stri
  *
  * @property name Display name.
  * @property rivalScore Rival score.
- * @property shared Shared songs.
+ * @property shared Shared songs (web demo data; not shown, like the real rival row: issues #40/#67/#175).
  * @property ahead Songs the rival leads.
  * @property behind Songs the rival trails.
  * @property avgDelta Average rank delta.

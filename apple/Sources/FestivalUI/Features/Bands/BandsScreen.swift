@@ -88,7 +88,7 @@ struct BandsScreen: View {
             .padding(16)
         }
         .festivalBackground(.carousel, session: session)
-        .navigationTitle("Bands")
+        .festivalNavigationTitle("Bands")
         .accessibilityIdentifier("fst.bands.screen")
     }
 }

@@ -22,8 +22,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private readonly QuickLinksViewModel quickLinks = new("Quick Links");
     private CancellationTokenSource headerArt = new();
     private long navigatedAt;
-    private long revealedAt;
-    private bool revealing;
+    /// <summary>The board cards' reveal window: closes at the first scroll (pattern load-transition R5, issue #260).</summary>
+    private readonly StaggerArm boardArm = FadeIn.NewArm();
     private readonly ScoreHistorySwapper historySwap;
     private Storyboard? historyRelease;
 
@@ -119,6 +119,9 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         }
         if (e.PropertyName is nameof(SongScoreHistoryViewModel.Instruments) or nameof(SongScoreHistoryViewModel.Selected))
             HistorySelector.Selected = history.Selected;
+        // Raised before the switch clears the row, so the closed row's height is still laid out (issue #261).
+        if (e.PropertyName is nameof(SongScoreHistoryViewModel.ReservesDetail))
+            HistoryDetailSlot.MinHeight = history.ReservesDetail ? Math.Max(HistoryDetail.ActualHeight, HistoryDetailSlot.ActualHeight) : 0;
     }
 
     #region Score history swap
@@ -158,7 +161,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
 
     /// <summary>
     /// Holds the Score History card at its current height while the chart swaps, or releases it (easing down to the new
-    /// content height when motion is allowed), so the card and the content below don't jump.
+    /// content height when motion is allowed). The reserved pager and detail slots keep the natural height equal across
+    /// charts, so the release normally moves nothing.
     /// </summary>
     /// <param name="hold">Hold or release.</param>
     private void HoldHistoryCard(bool hold)
@@ -237,8 +241,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         batch.Completed += (_, _) => DispatcherQueue.TryEnqueue(() =>
         {
             StopSpinner();
-            revealing = true;
-            revealedAt = Stopwatch.GetTimestamp();
+            boardArm.Arm(0, Stopwatch.GetElapsedTime(0));
+            boardArm.Settle(Scroller.HorizontalOffset, Scroller.VerticalOffset);
             FadeIn.Play(FullHeader, SongDetailReveal.Header);
             FadeIn.Play(IntensitySection, SongDetailReveal.Intensity);
             FadeIn.Play(HistorySection, SongDetailReveal.History);
@@ -282,6 +286,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset);
         var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
         if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
@@ -316,7 +321,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private void OnBoardPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (sender.ItemsSourceView?.GetAt(args.Index) is LeaderboardPreviewViewModel card) _ = card.EnsureLoadedAsync();
-        if (revealing && FadeInTiming.WithinWindow(Stopwatch.GetElapsedTime(revealedAt)))
+        boardArm.Scrolled(Scroller.HorizontalOffset, Scroller.VerticalOffset);
+        if (boardArm.IsOpen(Stopwatch.GetElapsedTime(0)))
             FadeIn.Play(args.Element, SongDetailReveal.Card(args.Index, BoardColumns()));
         else
             FadeIn.Reset(args.Element);
