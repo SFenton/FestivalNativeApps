@@ -316,15 +316,7 @@ private struct ScoreHistoryChart: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: visible.map(\.id)) { value in
-                AxisValueLabel {
-                    if let index = value.as(Int.self), data.indices.contains(index) {
-                        Text(data[index].label).foregroundStyle(FestivalText.primary)
-                    }
-                }
-            }
-        }
+        .barChartDateAxis(values: visible.map(\.id)) { data.indices.contains($0) ? data[$0].label : nil }
         .chartPlotFrameReporter()
         .frame(height: 220)
         .accessibilityLabel("\(instrument.label) score history chart")
