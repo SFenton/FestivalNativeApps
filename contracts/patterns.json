@@ -603,6 +603,14 @@
           {
             "path": "windows/Festival.App/Pages/SongsPage.xaml",
             "symbol": "Actions"
+          },
+          {
+            "path": "windows/Festival.App/MainWindow.TitleBar.cs",
+            "symbol": "QueueDragRegionRefresh"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTMinTargetSize"
           }
         ]
       },
@@ -656,9 +664,11 @@
       "supersededBy": null,
       "issues": [
         52,
+        72,
         84,
         92,
         160,
+        271,
         300,
         309
       ]
