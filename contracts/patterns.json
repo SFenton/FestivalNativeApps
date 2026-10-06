@@ -698,6 +698,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalAlertDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
+            "symbol": "HingeSide"
           }
         ],
         "windows": [
@@ -744,6 +748,18 @@
             "apple/Sources/FestivalUI/Design/**"
           ],
           "message": "Modal Close belongs to FestivalSheetCloseItem, not a hand-made toolbar control (modal-shell R4)."
+        },
+        {
+          "id": "android-hinge-side",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fun\\s+(?:Modifier\\.)?\\w*[Hh]inge(?:Side|Insets|Area|Padding)\\w*\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/core/nav/**",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalSheet.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt"
+          ],
+          "message": "Keep surfaces off a separating hinge through core/nav HingeSide; adapt its result, don't add another side rule (modal-shell R8)."
         }
       ],
       "related": {
@@ -772,7 +788,10 @@
         24,
         25,
         94,
-        96
+        96,
+        125,
+        139,
+        140
       ]
     },
     {
@@ -1226,6 +1245,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
             "symbol": "FestivalLoading"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "ServiceStatusView"
           }
         ],
         "windows": [
@@ -1257,7 +1280,8 @@
       ],
       "related": {
         "patterns": [
-          "load-transition"
+          "load-transition",
+          "modal-shell"
         ],
         "controls": [
           "global-search",
@@ -1275,6 +1299,7 @@
         35,
         65,
         99,
+        140,
         299
       ]
     },
