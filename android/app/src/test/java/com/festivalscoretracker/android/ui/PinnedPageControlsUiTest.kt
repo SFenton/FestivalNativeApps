@@ -208,13 +208,14 @@ class PhonePinnedPageControlsUiTest {
         tools.forEach { assertTrue("$it in the toolbar", h.within("fst.nav.floating-toolbar", it)) }
         val atTop = tools.associateWith(h::bounds)
         val toolbarAtTop = h.bounds("fst.nav.floating-toolbar")
-        val searchAtTop = h.bounds("fst.songs.search.open")
+        // The list filter is pinned inline above the list, not in the toolbar (issue #309).
+        assertTrue("filter outside the toolbar", !h.within("fst.nav.floating-toolbar", "fst.songs.search"))
+        val searchAtTop = h.bounds("fst.songs.search")
 
         h.scroll("fst.songs.list", down = true)
         assertTrue("scrolled away from the first row", !h.exists("fst.songs.row.s-1"))
         h.assertSame(atTop, "while scrolled")
-        assertEquals(toolbarAtTop.bottom, h.bounds("fst.nav.floating-toolbar").bottom, 0.5f)
-        assertTrue("search minimized", h.bounds("fst.songs.search.open").width < searchAtTop.width)
+        h.assertSame(mapOf("fst.nav.floating-toolbar" to toolbarAtTop, "fst.songs.search" to searchAtTop), "while scrolled")
         h.opensWhileScrolled("fst.songs.sort.open", "fst.songs.sort.form", "fst.songs.sort.done")
         h.opensWhileScrolled("fst.songs.filter.open", "fst.songs.filter.form", "fst.songs.filter.done")
         h.opensWhileScrolled("fst.quick-links.open", "fst.quick-links.sheet", "fst.quick-links.close")
@@ -222,7 +223,7 @@ class PhonePinnedPageControlsUiTest {
 
         h.scroll("fst.songs.list", down = false, times = 6)
         h.waitForTag("fst.songs.row.s-1")
-        h.assertSame(atTop + mapOf("fst.nav.floating-toolbar" to toolbarAtTop, "fst.songs.search.open" to searchAtTop), "back at the top")
+        h.assertSame(atTop + mapOf("fst.nav.floating-toolbar" to toolbarAtTop, "fst.songs.search" to searchAtTop), "back at the top")
     }
 
     @Test
@@ -244,53 +245,7 @@ class PhonePinnedPageControlsUiTest {
     }
 }
 
-/**
- * Phone with reduced motion (the app's Reduce motion setting, which also follows the system
- * animator scale 0): the search pill swaps between field and icon in one frame instead of
- * animating its width (issue #160).
- */
-@RunWith(AndroidJUnit4::class)
-@Config(qualifiers = "w411dp-h891dp-xxhdpi")
-class ReducedMotionPinnedToolbarUiTest {
-    @get:Rule
-    val rule = createAndroidComposeRule<ComponentActivity>()
-
-    private val h by lazy { PinnedHarness(rule) }
-
-    /** Distinct toolbar widths drawn frame by frame after a drag past the minimize threshold. */
-    private fun widthsDuringMinimize(): Set<Int> {
-        val widths = linkedSetOf(h.bounds("fst.nav.floating-toolbar").width.toInt())
-        rule.mainClock.autoAdvance = false
-        rule.onNodeWithTag("fst.songs.list").performTouchInput {
-            down(center)
-            moveBy(Offset(0f, -300f))
-            up()
-        }
-        repeat(40) {
-            rule.mainClock.advanceTimeByFrame()
-            shadowOf(Looper.getMainLooper()).idle()
-            widths += h.bounds("fst.nav.floating-toolbar").width.toInt()
-        }
-        rule.mainClock.autoAdvance = true
-        return widths
-    }
-
-    @Test
-    fun reducedMotionSwapsTheSearchPillWithoutIntermediateWidths() {
-        h.launchSongs(reduceMotion = true)
-        val widths = widthsDuringMinimize()
-        assertEquals("expanded then minimized, nothing between: $widths", 2, widths.size)
-    }
-
-    @Test
-    fun standardMotionAnimatesTheSearchPillWidth() {
-        h.launchSongs()
-        val widths = widthsDuringMinimize()
-        assertTrue("animated through intermediate widths: $widths", widths.size > 2)
-    }
-}
-
-/** Phone with TalkBack on: the toolbar never hides and search never minimizes while scrolled (issue #160). */
+/** Phone with TalkBack on: the toolbar and the inline filter never move while scrolled (issue #160). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
 class ScreenReaderPinnedToolbarUiTest {
@@ -300,10 +255,10 @@ class ScreenReaderPinnedToolbarUiTest {
     private val h by lazy { PinnedHarness(rule) }
 
     @Test
-    fun searchStaysAFullFieldWhileScrolledUnderTalkBack() {
+    fun toolsAndFilterStayPutWhileScrolledUnderTalkBack() {
         shadowOf(rule.activity.getSystemService(AccessibilityManager::class.java)).setTouchExplorationEnabled(true)
         h.launchSongs()
-        val atTop = (SONG_TOOLS.split('|') + listOf("fst.songs.search.open", "fst.nav.floating-toolbar")).associateWith(h::bounds)
+        val atTop = (SONG_TOOLS.split('|') + listOf("fst.songs.search", "fst.nav.floating-toolbar")).associateWith(h::bounds)
         h.scroll("fst.songs.list", down = true)
         assertTrue("scrolled away from the first row", !h.exists("fst.songs.row.s-1"))
         h.assertSame(atTop, "while scrolled with TalkBack")
@@ -316,12 +271,13 @@ class ScreenReaderPinnedToolbarUiTest {
     @Test
     fun songsToolbarIsReadAfterTheTopBarAndBeforeTheRows() {
         // Issue #160: read after ~700 rows (the shell default), TalkBack swipes never reached
-        // Search, Quick Links, Sort or Filter. Top bar (-2) → toolbar (-1) → rows (0).
+        // Quick Links, Sort or Filter. Top bar (-2) → toolbar (-1) → filter and rows (0).
         shadowOf(rule.activity.getSystemService(AccessibilityManager::class.java)).setTouchExplorationEnabled(true)
         h.launchSongs()
         assertEquals(-2f, traversalIndex("fst.nav.top-bar"))
         assertEquals(-1f, traversalIndex("fst.nav.floating-toolbar"))
-        (SONG_TOOLS.split('|') + "fst.songs.search.open").forEach { assertTrue("$it in the toolbar", h.within("fst.nav.floating-toolbar", it)) }
+        SONG_TOOLS.split('|').forEach { assertTrue("$it in the toolbar", h.within("fst.nav.floating-toolbar", it)) }
+        assertTrue("filter read with the content", !h.within("fst.nav.floating-toolbar", "fst.songs.search"))
         assertEquals(0f, traversalIndex("fst.songs.list"))
     }
 }

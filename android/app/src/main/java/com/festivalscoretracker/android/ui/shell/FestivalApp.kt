@@ -11,9 +11,7 @@ import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fitInside
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
@@ -25,7 +23,6 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -81,7 +78,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.WindowInsetsRulers
-import androidx.compose.ui.layout.findRootCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -89,7 +85,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -127,9 +122,7 @@ import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
-import com.festivalscoretracker.android.core.shell.ChromePrototype
 import com.festivalscoretracker.android.core.shell.DrawerTarget
-import com.festivalscoretracker.android.core.shell.FloatingToolbarLift
 import com.festivalscoretracker.android.core.shell.ListDetailLayout
 import com.festivalscoretracker.android.core.shell.ListDetailPolicy
 import com.festivalscoretracker.android.core.shell.ListHead
@@ -402,7 +395,6 @@ private fun FestivalShell(
         if (rect != null) requester = rect
         searchViewModel.open()
     }
-    val searchExpanded = searchViewModel.state.collectAsStateWithLifecycle().value.expanded
     val pageFind = remember { PageFindRegistry() }
     val latestOpen by rememberUpdatedState(openSearch)
     DisposableEffect(shortcuts, pageFind) {
@@ -429,13 +421,11 @@ private fun FestivalShell(
     val safeEnd = WindowInsets.safeDrawing.asPaddingValues().calculateEndPadding(LocalLayoutDirection.current)
     // Bars sit below the content (they pad the gesture area themselves); rails and the
     // drawer leave the content edge-to-edge, so it clears the system navigation itself.
-    // Compact windows float screen actions + search over the bottom bar (M3 Expressive
-    // floating toolbar, web bottom dock); wider windows keep them in the top app bar.
+    // Compact windows float screen actions over the bottom bar (M3 Expressive floating
+    // toolbar, web bottom dock); wider windows keep them in the top app bar. Global search
+    // stays in the top app bar and page filters inline above the content (issue #309).
     val floatingToolbar = remember { FloatingToolbarHost() }
-    // Issue #309 prototype (debug launches only): compact placement option; A is the shipped one.
-    val chromePrototype = remember(launch) { ChromePrototype.parse(launch.chromePrototype) }
-    val compactChrome = if (!AdaptiveLayoutPolicy.isRegularWidth(widthDp)) chromePrototype else null
-    val usesFloatingToolbar = compactChrome?.floatingToolbar == true
+    val usesFloatingToolbar = !AdaptiveLayoutPolicy.isRegularWidth(widthDp)
     // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
     // when it scrolls back; never hidden under TalkBack or on pages that pin it (Songs and
     // Suggestions keep Sort/Filter/Quick Links reachable while scrolled, issue #52); shown
@@ -484,7 +474,6 @@ private fun FestivalShell(
         // Web: the bell only exists while a profile is selected (operator 2026-09-28).
         notifications = if (settings.selectedPlayer != null) ({ NotificationsBell(notificationsViewModel) { showNotifications = true } }) else null,
         floatingToolbar = if (usesFloatingToolbar) floatingToolbar else null,
-        compactChrome = compactChrome,
     )
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
@@ -496,10 +485,6 @@ private fun FestivalShell(
 
     var contentLeftPx by remember { mutableIntStateOf(0) }
     var contentWidthPx by remember { mutableIntStateOf(windowSize.width) }
-    // Content bottom to window bottom (bottom bar + system navigation): the keyboard covers that
-    // strip before it reaches the floating toolbar (FloatingToolbarLift).
-    var gapBelowContentPx by remember { mutableIntStateOf(0) }
-    val imeInsets = WindowInsets.ime
     val contentWidthDp = with(density) { contentWidthPx.toDp().value.toInt() }
     // The Songs list pane leads the content row: the part of a start-side camera inset it covers.
     val direction = LocalLayoutDirection.current
@@ -563,8 +548,7 @@ private fun FestivalShell(
                         // Large text: five labels cannot fit a phone's bar (they cut to "Sugg",
                         // "Stati"), so the bar shows icons only and each icon carries its name.
                         val iconOnly = isLargeText()
-                        val barSections = if (layout == NavigationLayout.BottomBar && compactChrome != null) compactChrome.barSections(sections) else sections
-                        barSections.forEach { section ->
+                        sections.forEach { section ->
                             NavigationSuiteItem(
                                 selected = section == selected,
                                 onClick = { navController.selectSection(section, selected) },
@@ -572,18 +556,6 @@ private fun FestivalShell(
                                 label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
                                 navigationSuiteType = navigationType,
                                 modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
-                            )
-                        }
-                        if (layout == NavigationLayout.BottomBar && compactChrome?.searchTab == true) {
-                            // Issue #309 prototype B/D: trailing Search destination (Apple's Search tab);
-                            // it opens the full-screen search view and the section underneath stays.
-                            NavigationSuiteItem(
-                                selected = searchExpanded,
-                                onClick = { openSearch(null) },
-                                icon = { Icon(Icons.Filled.Search, contentDescription = if (iconOnly) "Search" else null) },
-                                label = if (iconOnly) null else ({ Text("Search", maxLines = 1) }),
-                                navigationSuiteType = navigationType,
-                                modifier = Modifier.testTag("fst.nav.tab.search"),
                             )
                         }
                     }
@@ -601,7 +573,6 @@ private fun FestivalShell(
                         .onGloballyPositioned {
                             contentLeftPx = it.positionInWindow().x.toInt()
                             contentWidthPx = it.size.width
-                            gapBelowContentPx = it.findRootCoordinates().size.height - (it.positionInWindow().y.toInt() + it.size.height)
                         },
                 ) {
                     FestivalNavHost(
@@ -624,17 +595,12 @@ private fun FestivalShell(
                         Box(Modifier.matchParentSize().clipToBounds()) {
                             // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
                             // the web's mobile FAB dock sits; one shared toolbar per screen. The start
-                            // margin bounds a toolbar that fills the width (Songs search, issue #84),
-                            // and a toolbar holding a focused field rides above the keyboard (read in
-                            // the layout phase, so the keyboard animation never recomposes the shell).
+                            // margin bounds a toolbar that fills the width. It holds page tools only:
+                            // text fields stay inline above the content (issue #309).
                             FloatingToolbar(
                                 floatingToolbar,
                                 Modifier
                                     .align(Alignment.BottomEnd)
-                                    .offset {
-                                        val lift = if (floatingToolbar.aboveKeyboard) FloatingToolbarLift.liftPx(imeInsets.getBottom(this), gapBelowContentPx) else 0
-                                        IntOffset(0, -lift)
-                                    }
                                     .padding(start = FLOATING_TOOLBAR_MARGIN_DP.dp, end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
                                 scroll = toolbarScroll,
                             )
