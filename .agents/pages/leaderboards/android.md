@@ -60,6 +60,29 @@ Real public service, selected player `SFentonX`, `tools/android/device.py drive`
 
 Material 3 review: navigation follows the window class (bar → rail → drawer), cards use the glass surface tokens, touch targets are 48 dp and no interactive content straddles the hinge ("Never place interactive content or critical information across the hinge area"). The dark-only brand theme and the web-matched glass cards (instead of M3 tonal `Card`) are deliberate parity deviations.
 
+## Validation (issue #188, live service)
+
+Row heights across every leaderboard surface ([leaderboard-row](../../patterns/leaderboard-row.md) R2), with the real public service and selected player `SFentonX`. A session driver ran `device.py drive` per AVD and read row bounds from `uiautomator` dumps; rows cut off by the viewport, pager or pinned footer were ignored. Captures stay outside the repo; they are attached to issue #188.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait, font 1.0 | Overview cards, spotlight, Full Rankings, Band Rankings, song board (rows and the pinned #97 footer) and Song Detail previews are all exactly 48.0 dp. Band song-board rows are multi-member cards (101 dp), as on the web. |
+| FST_Phone landscape (light system theme) / font 2.0 | Landscape 1.0: every row 48.0 dp. Landscape 2.0: rows stack (81–96 dp); the content viewport is short because of shell chrome (out of scope). |
+| FST_Phone portrait, font 2.0 | Rows stack and grow to fit, nothing clipped. **Failed, fixed:** the overview skeleton stayed 48 dp per row (248 dp for five rows) while the stacked rows were about 643 dp. Skeleton rows now mirror the stacked lines (`RankingsSkeletonRows`). |
+| FST_Phone, Rank By Adjusted / Weighted | **Failed, fixed:** one-line percentile rows ("Top N%" plus the Bayesian line) were 52 dp with 6 dp padding, and 48.4 dp with 4 dp at 420 dpi (10.5 px rounded to 11 px per side). With 3 dp padding they are 48.0 dp on Full Rankings and the overview, spotlight included. At font 2.0 they stack to four lines (171.8 dp), the same for every row. |
+| FST_Tablet natural, font 1.0 / rotated, font 2.0 | 1.0: every row 48.0 dp in the grid. Rotated 2.0: rows stack and share one height per page (rankings 137.5 dp, song board 95.5 dp); the pinned footer matches its rows. |
+| FST_Resizable foldable (medium) / tablet (expanded) / desktop, font 1.0 and 2.0 | Medium and expanded: every row 48.0 dp. Desktop 1.0: four-column grid, every row 48.0 dp, including the selected rows, Full Rankings and the song-board footer. Desktop 2.0: rows stack (Full Rankings 138.0 dp; song board, footer, Song Detail previews and "Your rank" 96.0 dp); the overview keeps four 354 dp columns, where a name too long for the line wraps and its row grows (180 vs 138 dp) rather than cut it off. Compact width is the FST_Phone row above. |
+| FST_Book_Fold half-open, font 1.0 | Overview: History left, Lead right, rows 48.0 dp. Full Rankings and Band Rankings beside the hinge (281 dp) stack under the name-minimum rule (#115/#116); every Full Rankings row is 84.9 dp, the selected row included. Song board and previews 48.0 dp; the band board footer is 48.0 dp. |
+| FST_Book_Fold unfolded, font 2.0 | Rows stack and share one height per surface: overview and Full Rankings rows 138.3 dp (selected row included), song board rows, the pinned footer, Song Detail previews and "Your rank" 96.0 dp. |
+| FST_Passport_Fold half-open, font 1.0 | Overview cards, spotlight, song board and Song Detail preview rows 48.0 dp; Full Rankings beside the hinge (277 dp) stack to 84.2 dp each, the selected row included (#115), as on the Book Fold. |
+| FST_TriFold folded / partial / unfolded | Folded (312 dp): overview, Full Rankings, song board and previews 48.0 dp; Band Rankings stack (#116) and a two-line roster makes its row taller (108 vs 84 dp), because stacked rows wrap the name rather than cut it off. Partial: every row 48.0 dp; band song cards 72 dp. Unfolded: overview grid, Full Rankings, song board (928 dp, footer included) and previews 48.0 dp. |
+| Theme | Dark-only by design ([design/android.md](../../design/android.md)); a light system theme renders the same. |
+| Reduced motion | Animator scale 0 (the AVD default) shows rows without fades. Rows and skeletons have fixed heights, so nothing jumps when data arrives. |
+| TalkBack (FST_Phone, `talkback_walk.py`) | Rank History heading → tabs → chart summary → page buttons → history rows → "Lead. Heading" → rows as single Buttons ("#1. xd Creeper1040. 108,382,873. 730 / 731 songs.. Button") → "Your rank, #4. SFentonX. …". Rows are 48 dp touch targets. |
+| Connected tests | `LeaderboardsDeviceJourneyTest` on FST_Book_Fold, 2/2. Robolectric `LeaderboardRowHeightUiTest` covers loaded, selected, pinned, percentile (including 420 dpi) and skeleton rows at 1.0 and 2.0. Unit coverage: logic 98.1%, UI 96.6%. |
+
+Material 3 review (Compose): rows are 48 dp touch targets ("touch targets (~48dp)"), and layouts follow the window class ("Layouts transform across 5 window size classes"). These deviations are deliberate: 48 dp web `entryRow` rows instead of the 56 dp M3 one-line `ListItem` ("In Compose, prefer Material3 list patterns"), the dark-only brand theme and the glass cards, all for web parity.
+
 ## IDs
 
 `fst.leaderboards` (list), `fst.leaderboards.loading`, `fst.leaderboards.rank-history` (`.picker`, `.picker.<instrument>`, `.loading`, `.empty`), `fst.quick-links.open|sheet|menu|item.<id>` (ids `rank-history`, `instrument:<wire>`, `band:<wire>`), `fst.leaderboards.card.<instrument>`, `.view-all`, `.spotlight`, `.spotlight.loading`, `.spotlight.unranked`, `fst.leaderboards.band-card.<bandType>`, `.view-all`, `fst.leaderboards.bands-link`, `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId|anonymous-…>`, `fst.band-rankings.row.<teamKey>`. Screens set `testTagsAsResourceId` so `device.py drive` can use `id=`.
