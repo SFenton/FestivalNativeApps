@@ -99,7 +99,7 @@ public interface ILeaderboardScoreRow : ILeaderboardEntryRow
 
     /// <summary>
     /// UIA name while the row shows its season column: the season is on screen, so Narrator reads it too (issue #262).
-    /// Rows whose <see cref="ILeaderboardEntryRow.Announcement"/> already reads the season at every width return it unchanged.
+    /// <see cref="ILeaderboardEntryRow.Announcement"/> leaves the season out, so a hidden season is not read.
     /// </summary>
     string SeasonShownAnnouncement => Announcement;
 }

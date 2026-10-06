@@ -97,12 +97,17 @@ public class LeaderboardUnifyTests
         Assert.DoesNotContain("season", board.Announcement, StringComparison.Ordinal);
         Assert.Equal(board.Announcement.Replace(", 5 stars", ", season 12, 5 stars", StringComparison.Ordinal), board.SeasonShownAnnouncement);
 
-        // History rows already read the season at every width.
+        // History list rows read the season only while it shows (from 520 epx); the detail row always shows and reads it.
         var point = new ScoreHistoryPoint(new ScoreHistoryEntry { NewScore = 5000, Accuracy = 990000, Season = 4, ChangedAt = "x" },
             new DateTimeOffset(2026, 3, 30, 12, 5, 9, TimeSpan.Zero));
-        ILeaderboardScoreRow history = new ScoreHistoryListRow(point, false);
-        Assert.Contains("season 4", history.Announcement, StringComparison.Ordinal);
-        Assert.Equal(history.Announcement, history.SeasonShownAnnouncement);
+        ILeaderboardScoreRow history = new ScoreHistoryListRow(point, true);
+        Assert.Equal($"{point.LongDate}, score 5,000, accuracy 99%, personal best", history.Announcement);
+        Assert.Equal($"{point.LongDate}, score 5,000, accuracy 99%, season 4, personal best", history.SeasonShownAnnouncement);
+        ILeaderboardScoreRow detail = new ScoreHistoryListRow(point, false) { IsDetail = true };
+        Assert.True(detail.PinsSeason);
+        Assert.Equal($"{point.LongDate}, score 5,000, accuracy 99%, season 4", detail.SeasonShownAnnouncement);
+        var seasonless = new ScoreHistoryListRow(new ScoreHistoryPoint(new ScoreHistoryEntry { NewScore = 1, ChangedAt = "x" }, point.Date), false);
+        Assert.Equal(seasonless.Announcement, seasonless.SeasonShownAnnouncement);
     }
 
     [Fact]
