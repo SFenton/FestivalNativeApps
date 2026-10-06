@@ -6,13 +6,16 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,12 +46,22 @@ object FestivalMarquee {
      * @return Velocity in dp per second (at least 1).
      */
     fun velocityDp(textWidthDp: Float): Float = ((textWidthDp + GAP_DP) / ((CYCLE_MS - 2 * PAUSE_MS) / 1_000f)).coerceAtLeast(1f)
+
+    /**
+     * Whether a marquee's one-line text is wider than the width it was given (it scrolls).
+     *
+     * @param textWidthPx Full one-line text width.
+     * @param boxWidthPx Width the marquee occupies.
+     * @return `true` once both are measured and the text is wider.
+     */
+    fun overflows(textWidthPx: Int, boxWidthPx: Int): Boolean = boxWidthPx > 0 && textWidthPx > boxWidthPx
 }
 
 /**
  * Single-line text that scrolls like the web's `MarqueeText` when it overflows and stays still
  * when it fits. Under Remove animations / Reduce Motion it truncates with an ellipsis instead;
- * at large font scales ([isLargeText]) it wraps.
+ * at large font scales ([isLargeText]) it wraps unless [wrapAtLargeText] is off (a one-line
+ * top app bar title keeps scrolling, like Apple's `marqueeWrapsAtAccessibilitySizes = false`).
  * `basicMarquee` animates in the draw phase, so scrolling never recomposes the row.
  *
  * @param text Text.
@@ -56,6 +69,9 @@ object FestivalMarquee {
  * @param style Text style.
  * @param color Text color.
  * @param fontWeight Optional weight override.
+ * @param wrapAtLargeText Wrap instead of scrolling at large font scales (in-page text).
+ * @param onOverflowChange Told whether the text doesn't fit on one line in its width
+ *   (scrolling, tail-truncated or wrapped), e.g. so the top app bar can move actions to ⋮.
  */
 @Composable
 fun FestivalMarqueeText(
@@ -64,23 +80,35 @@ fun FestivalMarqueeText(
     style: TextStyle = LocalTextStyle.current,
     color: Color = Color.Unspecified,
     fontWeight: FontWeight? = null,
+    wrapAtLargeText: Boolean = true,
+    onOverflowChange: ((Boolean) -> Unit)? = null,
 ) {
+    val reportLayout: (TextLayoutResult) -> Unit = { layout ->
+        onOverflowChange?.invoke(layout.hasVisualOverflow || layout.lineCount > 1 || (layout.lineCount > 0 && layout.isLineEllipsized(0)))
+    }
     // Large text: wrap so the whole name stays readable without motion (a 200% title
     // scrolling through a quarter of the row, or an ellipsis, hid most of it).
-    if (isLargeText()) {
-        Text(text, modifier, color = color, style = style, fontWeight = fontWeight)
+    if (wrapAtLargeText && isLargeText()) {
+        Text(text, modifier, color = color, style = style, fontWeight = fontWeight, onTextLayout = reportLayout)
         return
     }
     if (LocalFestivalAccessibility.current.reduceMotion) {
-        Text(text, modifier, color = color, style = style, fontWeight = fontWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, modifier, color = color, style = style, fontWeight = fontWeight, maxLines = 1, overflow = TextOverflow.Ellipsis, onTextLayout = reportLayout)
         return
     }
     val density = LocalDensity.current
     var widthPx by remember(text) { mutableIntStateOf(0) }
+    var boxPx by remember { mutableIntStateOf(0) }
     val velocity = with(density) { FestivalMarquee.velocityDp(widthPx.toDp().value) }
+    if (onOverflowChange != null) {
+        val overflowing = FestivalMarquee.overflows(widthPx, boxPx)
+        LaunchedEffect(overflowing) { onOverflowChange(overflowing) }
+    }
     Text(
         text,
-        modifier.basicMarquee(
+        // basicMarquee measures the text unbounded and takes the offered width, so the size
+        // seen outside it is the visible box and the layout width is the full text.
+        modifier.then(if (onOverflowChange != null) Modifier.onSizeChanged { boxPx = it.width } else Modifier).basicMarquee(
             iterations = Int.MAX_VALUE,
             animationMode = MarqueeAnimationMode.Immediately,
             repeatDelayMillis = 2 * FestivalMarquee.PAUSE_MS,

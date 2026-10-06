@@ -226,6 +226,7 @@ fun SongDetailScreen(
             title = if (headerGone && song != null) song.title else "",
             isRoot = false,
             scrolled = headerGone,
+            marqueeTitle = true,
             actions = {
                 if (song != null && extras.pathInstruments.isNotEmpty()) {
                     IconButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {
@@ -428,17 +429,37 @@ private val PAGE_GUTTER = 16.dp
 /**
  * The song header (web `SongInfoHeader`; operator 6.40: like iOS it scrolls away with
  * the page): album art, title and "artist · year · length", marqueeing when they
- * overflow. One heading stop.
+ * overflow, plus an optional third line. The text column takes all the width beside the art
+ * (`song-header` R1–R2, issue #315). One heading stop; with [onTitleClick] the art and text
+ * are one button (web `onTitleClick`).
+ *
+ * @param song Song.
+ * @param artUrl Album art URL.
+ * @param artSize Album art side.
+ * @param subtitle2 Optional third line (web `subtitle2`, e.g. the band board's entry count).
+ * @param onTitleClick Optional action for the art and text (opens Song Detail).
+ * @param tag Test tag.
+ * @param subtitle2Tag Optional test tag for [subtitle2].
  */
 @Composable
-internal fun SongHeader(song: Song, artUrl: String?, artSize: Dp = HEADER_ART) {
+internal fun SongHeader(
+    song: Song,
+    artUrl: String?,
+    artSize: Dp = HEADER_ART,
+    subtitle2: String? = null,
+    onTitleClick: (() -> Unit)? = null,
+    tag: String = "fst.song-detail.header",
+    subtitle2Tag: String? = null,
+) {
+    val semantics = Modifier.semantics(mergeDescendants = true) { heading() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onTitleClick != null) Modifier.clickable(onClickLabel = "Open song", role = Role.Button, onClick = onTitleClick).then(semantics) else Modifier)
             .padding(vertical = 8.dp)
-            .testTag("fst.song-detail.header"),
+            .testTag(tag),
     ) {
         AsyncImage(
             model = artUrl,
@@ -446,9 +467,10 @@ internal fun SongHeader(song: Song, artUrl: String?, artSize: Dp = HEADER_ART) {
             contentScale = ContentScale.Crop,
             modifier = Modifier.size(artSize).clip(RoundedCornerShape(12.dp)).background(BrandTokens.surfaceMuted),
         )
-        Column(Modifier.weight(1f).semantics(mergeDescendants = true) { heading() }) {
+        Column(Modifier.weight(1f).then(if (onTitleClick == null) semantics else Modifier)) {
             FestivalMarqueeText(song.title, style = MaterialTheme.typography.headlineSmall, color = BrandTokens.textPrimary, fontWeight = FontWeight.Bold)
             FestivalMarqueeText(song.subtitle, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textSecondary)
+            subtitle2?.let { FestivalMarqueeText(it, Modifier.then(if (subtitle2Tag != null) Modifier.testTag(subtitle2Tag) else Modifier), style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textSecondary) }
         }
     }
 }

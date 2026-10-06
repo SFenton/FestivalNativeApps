@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -204,13 +205,14 @@ internal fun HistoryLoaded(instrument: Instrument, state: PlayerHistoryUiState, 
  */
 private fun LazyListScope.historySummary(instrument: Instrument, state: PlayerHistoryUiState, revealed: Boolean) {
     item(key = "subtitle") {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.festivalFadeIn(revealed).testTag("fst.history.subtitle")) {
+        // `song-header` R2 (issue #315): the title takes the row's width and marquees instead of wrapping.
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().festivalFadeIn(revealed).testTag("fst.history.subtitle")) {
             InstrumentIcon(instrument, keyboard = state.keyboard, size = 28.dp, decorative = true)
-            Text(
+            FestivalMarqueeText(
                 listOfNotNull(state.songTitle, instrument.label).joinToString(" · "),
+                Modifier.weight(1f).padding(start = 12.dp),
                 style = MaterialTheme.typography.titleMedium,
                 color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(start = 12.dp),
             )
         }
     }
