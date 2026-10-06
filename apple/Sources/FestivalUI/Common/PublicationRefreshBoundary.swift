@@ -54,7 +54,6 @@ struct PublicationRefreshBoundary<Content: View>: View {
     @State private var probe = PublicationFocusProbe()
     /// Whether the page is on screen (not under a pushed page or in another tab).
     @State private var onScreen = false
-    @AccessibilityFocusState private var focusedElement: PublicationRefreshFocus.Element?
     /// The page's last published title (kept across the rebuild and its own load).
     @State private var pageTitle: String?
     /// The publication revision this boundary last announced (UI-test marker only).
@@ -108,17 +107,20 @@ struct PublicationRefreshBoundary<Content: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityHidden(true)
             }
-            if transition.showsSpinner {
-                FestivalLoadingView(accessibilityLabel: Self.loadingLabel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("fst.publication.refreshing")
-                    .accessibilityFocused($focusedElement, equals: .spinner)
-                    .transition(.opacity)
-            }
         }
         .background { PublicationFocusProbeView(probe: probe) }
-        .overlay(alignment: .top) {
-            if showsPageAnchor { pageAnchor }
+        // The spinner, the page anchor and VoiceOver focus live in their own view: the
+        // focus store can invalidate its owner while a list scrolls, and here that re-ran
+        // `content()`, rebuilding a whole Songs list mid-gesture (issue #325).
+        .overlay {
+            PublicationRefreshFocusLayer(
+                showsSpinner: transition.showsSpinner,
+                isRefreshing: transition.isRefreshing,
+                showsAnchor: showsPageAnchor,
+                pageTitle: pageTitle,
+                voiceOverEnabled: voiceOverEnabled,
+                focus: $focus
+            )
         }
         .overlay(alignment: .bottom) {
             if Self.forcedFocusInPage == false, let announcedRevision {
@@ -136,17 +138,6 @@ struct PublicationRefreshBoundary<Content: View>: View {
         }
         .onChange(of: anchorsFocus) { _, anchors in
             if !anchors { focus = PublicationRefreshFocus() }
-        }
-        .onChange(of: focusedElement) { old, new in
-            focus.focusChanged(from: old, to: new, refreshing: transition.isRefreshing)
-        }
-        .task(id: focus.anchorFocusRequest) {
-            guard focus.anchorFocusRequest > 0, voiceOverEnabled, focus.showsAnchor else { return }
-            // Let the anchor (and, after a rebuild, the new content) enter the
-            // accessibility tree before VoiceOver is pointed at it.
-            try? await Task.sleep(for: .milliseconds(100))
-            guard !Task.isCancelled else { return }
-            focusedElement = .pageAnchor
         }
         .task(id: focus.announcementRequest) {
             guard focus.announcementRequest > 0, anchorsFocus, onScreen else { return }
@@ -194,22 +185,6 @@ struct PublicationRefreshBoundary<Content: View>: View {
 
     /// Whether the page anchor is in the accessibility tree.
     private var showsPageAnchor: Bool { focus.showsAnchor && anchorsFocus }
-
-    /// An invisible heading across the top of the page, named with the page's title; it
-    /// takes no touches and draws nothing.
-    private var pageAnchor: some View {
-        Rectangle()
-            .fill(.clear)
-            .frame(maxWidth: .infinity)
-            .frame(height: 44)
-            .allowsHitTesting(false)
-            .accessibilityElement()
-            .accessibilityLabel(pageTitle ?? "Current page")
-            .accessibilityValue(transition.isRefreshing ? Self.loadingLabel : "")
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("fst.publication.page-anchor")
-            .accessibilityFocused($focusedElement, equals: .pageAnchor)
-    }
 
     /// Debug UI-test marker (`FST_UI_TEST_PAGE_ANCHOR=outside` only): XCUITest cannot hear
     /// announcements, so the boundary that posted one exposes it with the revision as its
@@ -295,6 +270,77 @@ struct PublicationRefreshBoundary<Content: View>: View {
     /// - Returns: The duration in seconds.
     private static func seconds(_ duration: Duration) -> Double {
         Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
+    }
+}
+
+// MARK: - Focus layer
+
+/// The ``PublicationRefreshBoundary`` spinner and VoiceOver page anchor, drawn over the
+/// page, and the `@AccessibilityFocusState` that points VoiceOver at them.
+///
+/// The focus state lives here, not in the boundary, because SwiftUI invalidates the view
+/// that owns an `@AccessibilityFocusState` whenever the accessibility focus store updates,
+/// which happens repeatedly while a `List` scrolls whenever the accessibility runtime is
+/// active (measured under XCUITest, without VoiceOver running). Owned by the
+/// boundary, each update re-ran the page's `content()` closure: on Songs, the whole
+/// filter/sort pipeline and every visible row, on the main thread during the large-title
+/// transition, so the title and first rows jumped (issue #325). Here an update redraws
+/// only this layer.
+private struct PublicationRefreshFocusLayer: View {
+    /// Whether the refresh spinner shows.
+    let showsSpinner: Bool
+    /// Whether a refresh is under way (the anchor's value speaks the loading state).
+    let isRefreshing: Bool
+    /// Whether the page anchor is in the accessibility tree.
+    let showsAnchor: Bool
+    /// The page's title, the anchor's label.
+    let pageTitle: String?
+    /// Whether VoiceOver runs (focus is only moved for it).
+    let voiceOverEnabled: Bool
+    /// The boundary's focus model, told about focus changes and read for focus requests.
+    @Binding var focus: PublicationRefreshFocus
+
+    @AccessibilityFocusState private var focusedElement: PublicationRefreshFocus.Element?
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            if showsSpinner {
+                FestivalLoadingView(accessibilityLabel: PublicationPageAnchor.loadingLabel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("fst.publication.refreshing")
+                    .accessibilityFocused($focusedElement, equals: .spinner)
+                    .transition(.opacity)
+            }
+            if showsAnchor { pageAnchor }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onChange(of: focusedElement) { old, new in
+            focus.focusChanged(from: old, to: new, refreshing: isRefreshing)
+        }
+        .task(id: focus.anchorFocusRequest) {
+            guard focus.anchorFocusRequest > 0, voiceOverEnabled, focus.showsAnchor else { return }
+            // Let the anchor (and, after a rebuild, the new content) enter the
+            // accessibility tree before VoiceOver is pointed at it.
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled else { return }
+            focusedElement = .pageAnchor
+        }
+    }
+
+    /// An invisible heading across the top of the page, named with the page's title; it
+    /// takes no touches and draws nothing.
+    private var pageAnchor: some View {
+        Rectangle()
+            .fill(.clear)
+            .frame(maxWidth: .infinity)
+            .frame(height: 44)
+            .allowsHitTesting(false)
+            .accessibilityElement()
+            .accessibilityLabel(pageTitle ?? "Current page")
+            .accessibilityValue(isRefreshing ? PublicationPageAnchor.loadingLabel : "")
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("fst.publication.page-anchor")
+            .accessibilityFocused($focusedElement, equals: .pageAnchor)
     }
 }
 
