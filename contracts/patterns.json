@@ -47,8 +47,8 @@
           {
             "path": "apple/Sources/FestivalUI/Common/PlatformScrollObserver.swift",
             "symbol": "PlatformScrollObserver"
-        },
-        {
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/ScrollEdgeReader.swift",
             "symbol": "onScrollEdgeReading"
           },
@@ -312,7 +312,8 @@
         "sticky header",
         "pinned header",
         "card header",
-        "heading"
+        "heading",
+        "see all"
       ],
       "web": [
         {
@@ -322,6 +323,10 @@
         {
           "path": "pages/settings/SettingsPage.tsx",
           "symbol": "SettingsPage"
+        },
+        {
+          "path": "pages/player/components/PlayerBandsSection.tsx",
+          "symbol": "buildPlayerBandsItems"
         }
       ],
       "canonical": {
@@ -329,6 +334,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
             "symbol": "FestivalSectionHeader"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
+            "symbol": "SectionSeeAllLink"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
@@ -343,6 +352,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
             "symbol": "SectionHeader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/SeeAllButton.kt",
+            "symbol": "SeeAllButton"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
@@ -415,7 +428,8 @@
       "issues": [
         288,
         291,
-        297
+        297,
+        312
       ]
     },
     {
@@ -814,7 +828,8 @@
         "score footer",
         "team score",
         "badges wrap",
-        "large text"
+        "large text",
+        "season column"
       ],
       "web": [
         {
@@ -885,6 +900,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "rememberBandRankWidth"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
+            "symbol": "bandBoardColumns"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
@@ -999,6 +1022,7 @@
         37,
         38,
         90,
+        170,
         292,
         293,
         294,
@@ -1010,7 +1034,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; entrances never replay while scrolling and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -1133,6 +1157,14 @@
           {
             "path": "windows/Festival.Core/ViewModels/SongPathsViewModel.cs",
             "symbol": "PathSwapTiming"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/ScoreHistorySwap.cs",
+            "symbol": "ScoreHistorySwapper"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreHistoryViewModel.cs",
+            "symbol": "ShowDetailSlot"
           }
         ]
       },
@@ -1169,7 +1201,7 @@
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "debt": [],
-          "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R8)."
+          "message": "Pages inside PublicationRefreshBoundary set their title with festivalNavigationTitle so the VoiceOver page anchor can name them during a publication refresh (load-transition R9)."
         },
         {
           "id": "android-load-swap",
@@ -1345,7 +1377,8 @@
         65,
         99,
         140,
-        299
+        299,
+        312
       ]
     },
     {
@@ -1476,6 +1509,68 @@
         15,
         286,
         303
+      ]
+    },
+    {
+      "id": "chart-date-axis",
+      "title": "Chart date axis",
+      "status": "current",
+      "doc": ".agents/patterns/chart-date-axis.md",
+      "summary": "History bar charts centre each date label horizontally on its own bar on every page and text size, label only visible bars and keep tick text out of the accessibility tree.",
+      "keywords": [
+        "chart",
+        "x axis",
+        "date label",
+        "axis label",
+        "bar chart",
+        "score history",
+        "rank history"
+      ],
+      "web": [
+        {
+          "path": "pages/songinfo/components/chart/ScoreHistoryChart.tsx",
+          "symbol": "ScoreHistoryChart"
+        },
+        {
+          "path": "pages/leaderboards/components/RankHistoryChart.tsx",
+          "symbol": "RankHistoryChart"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/BarChartDateAxis.swift",
+            "symbol": "barChartDateAxis"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongHistoryCard.kt",
+            "symbol": "SongHistoryCard"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RankHistoryGraph.cs",
+            "symbol": "RankHistoryGraph"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongScoreHistoryChart.xaml.cs",
+            "symbol": "SongScoreHistoryChart"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-x-axis",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.chartXAxis\\s*\\{",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/BarChartDateAxis.swift"
+          ],
+          "debt": [],
+          "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
+        }
       ]
     }
   ]

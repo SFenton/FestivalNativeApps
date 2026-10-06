@@ -1569,7 +1569,7 @@ final class SongsJourneyTests: XCTestCase {
     }
 
     /// A live publication refresh while VoiceOver focus is outside the page (tab bar,
-    /// navigation bar) leaves focus alone (issue #304, load-transition R8): no page anchor
+    /// navigation bar) leaves focus alone (issue #304, load-transition R9): no page anchor
     /// is added at any point, the update is announced (the Debug `fst.publication.announced`
     /// marker) and the page still refreshes in place.
     ///
@@ -1618,7 +1618,7 @@ final class SongsJourneyTests: XCTestCase {
 
     /// A live publication refresh while the Songs list itself is on screen refreshes the
     /// list in place through the shared publication boundary (issue #304, load-transition
-    /// R3/R8): the list is hidden from VoiceOver behind the spinner while a page anchor
+    /// R3/R9): the list is hidden from VoiceOver behind the spinner while a page anchor
     /// named "Songs" holds focus, the search field and page tools stay put, and the
     /// rebuilt list returns with focus still on the anchor. No notice, no navigation.
     ///

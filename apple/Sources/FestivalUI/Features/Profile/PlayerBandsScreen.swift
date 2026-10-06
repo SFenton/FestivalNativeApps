@@ -16,7 +16,7 @@ struct PlayerBandsScreen: View {
     let accountId: String
     let displayName: String?
 
-    @State private var group: PlayerBandGroup = .all
+    @State private var group: PlayerBandGroup
     @State private var page = 1
     @State private var state: RankLoadState<PlayerBandListPayload> = .loading
     /// The loaded page's first stagger finished: rows the List rebuilds after that
@@ -42,10 +42,12 @@ struct PlayerBandsScreen: View {
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - accountId: Player whose bands to list.
     ///   - displayName: Player name for the title.
-    init(session: FestivalSession, accountId: String, displayName: String?) {
+    ///   - group: Band size the list opens on (the profile's per-group View All).
+    init(session: FestivalSession, accountId: String, displayName: String?, group: PlayerBandGroup = .all) {
         self.session = session
         self.accountId = accountId
         self.displayName = displayName
+        _group = State(initialValue: group)
     }
 
     var body: some View {
@@ -158,39 +160,80 @@ struct PlayerBandsScreen: View {
 
 /// One player-band card: member names with their instrument icons and appearance
 /// count, matching the web client's `PlayerBandCard`.
+///
+/// In the Player Bands `List` the row takes the list's own background and disclosure;
+/// on the profile's inline bands section (`card`, issue #312) it draws the shared band
+/// card surface and chevron like Song Detail's band previews (``SongBandPreviewRow``).
 struct PlayerBandRow: View {
     let entry: PlayerBandEntry
+    /// Draw a standalone card (scroll-view content) instead of a `List` row.
+    var card = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        NavigationLink(
-            value: AppRoute.band(
-                bandId: entry.bandId, name: entry.membersLabel,
-                bandType: entry.bandType, teamKey: entry.teamKey
-            )
-        ) {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(entry.members) { member in
-                    HStack(spacing: 8) {
-                        Text(member.resolvedName)
-                            .font(.body)
-                            .foregroundStyle(BrandTokens.textPrimary)
-                            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        HStack(spacing: 4) {
-                            ForEach(member.chartedInstruments) { instrument in
-                                InstrumentIcon(instrument, size: 22)
-                            }
+        if card {
+            NavigationLink(value: route) {
+                HStack(spacing: 8) {
+                    details
+                    Image(systemName: "chevron.forward")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(FestivalText.deemphasized)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight, alignment: .leading)
+                .modifier(RankingRowSurface(isSelected: false))
+                .contentShape(Rectangle())
+            }
+            .festivalRowButtonStyle()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(PlayerBandRow.spokenLabel(entry))
+            .accessibilityHint("Opens band")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("fst.player-bands.row.\(entry.id)")
+        } else {
+            NavigationLink(value: route) {
+                details
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityIdentifier("fst.player-bands.row.\(entry.id)")
+        }
+    }
+
+    private var route: AppRoute {
+        .band(bandId: entry.bandId, name: entry.membersLabel, bandType: entry.bandType, teamKey: entry.teamKey)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(entry.members) { member in
+                HStack(spacing: 8) {
+                    Text(member.resolvedName)
+                        .font(.body)
+                        .foregroundStyle(BrandTokens.textPrimary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 4) {
+                        ForEach(member.chartedInstruments) { instrument in
+                            InstrumentIcon(instrument, size: 22)
                         }
                     }
                 }
-                Text("\(entry.appearanceCount.formatted()) songs together")
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
             }
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
+            Text("\(entry.appearanceCount.formatted()) songs together")
+                .font(.caption)
+                .foregroundStyle(FestivalText.primary)
         }
-        .accessibilityIdentifier("fst.player-bands.row.\(entry.id)")
+    }
+
+    /// One spoken label for a band card: its members and shared song count.
+    ///
+    /// - Parameter entry: Player band row.
+    /// - Returns: For example "A + B, 12 songs together".
+    static func spokenLabel(_ entry: PlayerBandEntry) -> String {
+        let members = entry.membersLabel.isEmpty ? "Band" : entry.membersLabel
+        return "\(members), \(entry.appearanceCount.formatted()) songs together"
     }
 }

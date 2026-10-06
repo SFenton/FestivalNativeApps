@@ -352,7 +352,7 @@ struct SongsScreen: View {
             }
 
             // A new publication refreshes the list in place (issue #304, load-transition
-            // R3/R8): the list fades out, the spinner holds while the new catalogue is
+            // R3/R9): the list fades out, the spinner holds while the new catalogue is
             // read, and the rebuilt list fades in. The search field, page tools and title
             // stay outside so they stay put and usable.
             PublicationRefreshBoundary(

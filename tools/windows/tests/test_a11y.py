@@ -162,6 +162,14 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual([p["name"] for p in m.mode_pages(journey, "text-200") if p["name"].startswith("qll-song")],
                          ["qll-song-menu-text-200"])
 
+    def test_page_sizes(self):
+        sizes = ["compact", "medium", "wide"]
+        page = {"name": "p", "skip_sizes": {"text-200": ["compact"], "text-225": ["compact", "medium"]}}
+        self.assertEqual(m.page_sizes(page, sizes, "normal"), sizes)
+        self.assertEqual(m.page_sizes(page, sizes, "text-200"), ["medium", "wide"])
+        self.assertEqual(m.page_sizes(page, sizes, "hc-desert+text-225"), ["wide"])
+        self.assertEqual(m.page_sizes({"name": "q", "sizes": ["wide", "compact"]}, sizes, "normal"), ["compact", "wide"])
+
     def test_songs_scroll_pages(self):
         import json
         pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "songs-scroll.json").read_text(encoding="utf-8"))}
