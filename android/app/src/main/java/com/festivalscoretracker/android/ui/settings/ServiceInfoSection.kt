@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -33,7 +32,6 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -104,61 +102,17 @@ internal fun ServiceInfoSection(poller: ServiceInfoPoller) {
 // region Rows
 
 /**
- * "Leaderboard Service State" with its description and the trailing process state, laid out like
- * the Version section's value rows (issue #121 `ValueRow`): the process state sits at the end of
- * the row when the title fits beside it at its natural width (the description wraps under the
- * title), otherwise it stacks 4 dp under the description, so the title is never squeezed into a
- * narrow column beside "Updating" and the spinner (large text, narrow covers), while wide windows
- * at large text keep the row inline (issue #184).
+ * "Leaderboard Service State" with its description and the trailing process state: the shared
+ * Settings value row (pattern `settings-value-row`), so "Updating" stacks under the description
+ * by the same fit rule as the Version values (issue #184).
  */
 @Composable
 private fun StateRow(rows: ServiceInfoRows) {
-    Layout(
-        content = {
-            Text(ServiceInfoText.SERVICE_STATE_TITLE, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
-            Text(rows.stateDescription, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
-            ProcessState(rows)
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .testTag("fst.settings.service-info.state")
-            .semantics(mergeDescendants = true) {},
-    ) { measurables, constraints ->
-        val (titleText, descriptionText, process) = measurables
-        val width = constraints.maxWidth
-        val gap = 12.dp.roundToPx()
-        val lineGap = 4.dp.roundToPx()
-        val processWidth = process.maxIntrinsicWidth(Constraints.Infinity)
-        if (titleText.maxIntrinsicWidth(Constraints.Infinity) + gap + processWidth <= width) {
-            val processPlaceable = process.measure(Constraints(maxWidth = processWidth))
-            val labelWidth = width - gap - processPlaceable.width
-            val titlePlaceable = titleText.measure(Constraints(maxWidth = labelWidth))
-            val descriptionPlaceable = descriptionText.measure(Constraints(maxWidth = labelWidth))
-            val labelHeight = titlePlaceable.height + lineGap + descriptionPlaceable.height
-            val height = maxOf(constraints.minHeight, labelHeight, processPlaceable.height)
-            layout(width, height) {
-                val top = (height - labelHeight) / 2
-                titlePlaceable.placeRelative(0, top)
-                descriptionPlaceable.placeRelative(0, top + titlePlaceable.height + lineGap)
-                processPlaceable.placeRelative(width - processPlaceable.width, (height - processPlaceable.height) / 2)
-            }
-        } else {
-            val loose = Constraints(maxWidth = width)
-            val titlePlaceable = titleText.measure(loose)
-            val descriptionPlaceable = descriptionText.measure(loose)
-            val processPlaceable = process.measure(loose)
-            val descriptionTop = titlePlaceable.height + lineGap
-            val processTop = descriptionTop + descriptionPlaceable.height + lineGap
-            val height = maxOf(constraints.minHeight, processTop + processPlaceable.height)
-            layout(width, height) {
-                titlePlaceable.placeRelative(0, 0)
-                descriptionPlaceable.placeRelative(0, descriptionTop)
-                processPlaceable.placeRelative(0, processTop)
-            }
-        }
-    }
+    SettingsValueRow(
+        ServiceInfoText.SERVICE_STATE_TITLE,
+        tag = "fst.settings.service-info.state",
+        supporting = rows.stateDescription,
+    ) { ProcessState(rows) }
 }
 
 @Composable
