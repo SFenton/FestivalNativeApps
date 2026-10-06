@@ -148,6 +148,22 @@ class LeaderboardRowHeightUiTest {
         listOf("adjusted", "weighted", "band-adjusted", "skeleton").forEach(::assertRowHeight)
     }
 
+    /**
+     * Issue #188: at a fractional density (420 dpi, 2.625×, Pixel phones) percentile rows stay
+     * exactly the 48 dp entry row; padding that rounds up per side must not add a pixel.
+     */
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-420dpi")
+    fun percentileRowsKeepTheEntryRowHeightAtFractionalDensity() {
+        val rated = ranking.copy(adjustedSkillRating = 0.0123, adjustedSkillRank = 1)
+        show {
+            Tagged("adjusted") { AccountRankingRow(rated, RankingMetric.Adjusted, isSelected = false, route = null, onOpen = {}) }
+            Tagged("total") { AccountRankingRow(ranking, RankingMetric.TotalScore, isSelected = false, route = null, onOpen = {}) }
+        }
+        assertEquals(height("total").value, height("adjusted").value, 0.1f)
+        assertEquals(LEADERBOARD_ROW_MIN_HEIGHT.value, height("adjusted").value, 0.2f)
+    }
+
     @Test
     fun largeTextStillGrowsRows() {
         show(fontScale = 2f) {

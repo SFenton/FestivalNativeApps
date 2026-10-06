@@ -128,8 +128,9 @@ internal val LEADERBOARD_ROW_GAP = 2.dp
 /**
  * Vertical inset of a one-line ranking row: the percentile metrics' two-line rating
  * (bodyLarge value over a labelSmall Bayesian value, 40 dp) still fits the 48 dp row (issue #188).
+ * 3 dp, not 4: 4 dp rounds up to 11 px per side at 2.625× density, making the row 1 px taller.
  */
-private val RANKING_ROW_VERTICAL_PADDING = 4.dp
+private val RANKING_ROW_VERTICAL_PADDING = 3.dp
 
 /** Vertical inset of a stacked (large-text or narrow) ranking row and its skeleton. */
 private val STACKED_RANKING_ROW_VERTICAL_PADDING = 6.dp
