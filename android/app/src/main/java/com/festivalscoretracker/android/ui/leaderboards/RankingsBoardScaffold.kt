@@ -28,14 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -45,8 +37,10 @@ import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.rankings.BoardFooterEdgeFade
 import com.festivalscoretracker.android.core.rankings.FooterFade
+import com.festivalscoretracker.android.core.scrolledge.ScrollEdgeFade
+import com.festivalscoretracker.android.ui.common.bottomChromeEdgeFade
+import com.festivalscoretracker.android.ui.common.rememberScrollEdgeHardEdge
 import com.festivalscoretracker.android.ui.theme.BrandTokens
-import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 
 // region Board scaffold
 
@@ -70,9 +64,9 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * @param footer Anchored "your rank" content (may emit nothing).
  * @param pager Pager.
  * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out just
- *   above it ([BoardFooterEdgeFade], the web's scroll mask; issue #93); hidden rows also leave
- *   touch and TalkBack (issue #104). With Increase Contrast or Reduce Transparency the fade
- *   becomes a hard cut at the footer's top (issue #190).
+ *   above it ([BoardFooterEdgeFade], the web's `useScrollFade`; issues #93, #308), with a hard cut
+ *   in the contrast, transparency and motion modes; hidden rows also leave touch and TalkBack
+ *   (issue #104).
  * @param rows Row items.
  */
 @Composable
@@ -101,9 +95,8 @@ fun RankingsBoardScaffold(
  * @param controls Page information shown above the rows.
  * @param footer Anchored "your rank" content.
  * @param pager Pager.
- * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out above it
- *   (single pane only: around a hinge the footer sits in the other pane, clear of the rows).
- *   Increase Contrast or Reduce Transparency keep the cut without the fade.
+ * @param fadeAboveFooter Fade rows out above the bottom-anchored footer (single pane only:
+ *   around a hinge the footer sits in the other pane, clear of the rows).
  * @param itemGap Space between list items, also left between the last item and the anchored
  *   footer (the band score cards keep their 8 dp gap).
  * @param rows Row items.
@@ -145,14 +138,11 @@ internal fun RankingsBoardLayout(
             val density = LocalDensity.current
             var anchoredHeight by remember { mutableIntStateOf(0) }
             val anchoredDp = with(density) { anchoredHeight.toDp() }
-            val accessibility = LocalFestivalAccessibility.current
-            // Increase Contrast / Reduce Transparency drop the ramp, never the cut: rows still end at
-            // the footer's top edge ([scroll-edge] R7: a hard edge, never a leak; issue #190).
-            val fades = fadeAboveFooter && BoardFooterEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency)
-            val depth = with(density) { BoardFooterEdgeFade.DEPTH_DP.dp.toPx() }
+            // R7: a hard edge drops the ramp but still cuts rows at the footer's top.
+            val depth = if (rememberScrollEdgeHardEdge()) 0f else with(density) { ScrollEdgeFade.BOTTOM_DP.dp.toPx() }
             // Read in the draw phase only, so scrolling never recomposes.
             val edge: () -> FooterFade? = {
-                if (!fades) {
+                if (!fadeAboveFooter) {
                     null
                 } else {
                     val info = listState.layoutInfo
@@ -177,7 +167,7 @@ internal fun RankingsBoardLayout(
                     PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + itemGap),
                     Modifier
                         .then(if (fadeAboveFooter) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
-                        .footerEdgeFade(edge, depth),
+                        .bottomChromeEdgeFade(edge),
                     itemGap,
                 ) {
                     item(key = "controls") { Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = controls) }
@@ -283,9 +273,8 @@ private fun BoardList(
 }
 
 /**
- * Clips the full-height list at the floating footer's top edge, where [footerEdgeFade] already
- * hides the rows (or, with Increase Contrast or Reduce Transparency, the hard cut that replaces
- * the fade): the list keeps its full viewport (scrolling, padding and the fade are
+ * Clips the full-height list at the floating footer's top edge, where [bottomChromeEdgeFade]
+ * already hides the rows: the list keeps its full viewport (scrolling, padding and the fade are
  * unchanged) but reports the shorter size, so rows beneath the footer and pager leave touch and
  * the accessibility tree. Otherwise TalkBack skips a row fully covered by the footer and focuses
  * hidden rows peeking around the pager instead of scrolling (issue #104).
@@ -298,37 +287,6 @@ private fun Modifier.clipAboveFooter(footerHeight: () -> Int): Modifier = this
         val placeable = measurable.measure(constraints)
         val visible = (placeable.height - footerHeight()).coerceIn(0, placeable.height)
         layout(placeable.width, visible) { placeable.place(0, 0) }
-    }
-
-/**
- * Hides rows beneath the floating footer and fades them out over a linear 36 dp band ending at its
- * top edge ([BoardFooterEdgeFade]), so the footer and pager float over the page background
- * with no row showing behind or between them. On an offscreen layer it masks the band with a
- * vertical gradient (`BlendMode.DstIn`) and clears everything below the cut. Drawing only: hit
- * testing, semantics and TalkBack order are unchanged. Without an edge it draws nothing extra
- * and skips the offscreen layer.
- *
- * @param edge Reads the current edge (draw phase only).
- * @param depth Band depth in px.
- */
-private fun Modifier.footerEdgeFade(edge: () -> FooterFade?, depth: Float): Modifier = this
-    .graphicsLayer { compositingStrategy = if (edge() != null) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
-    .drawWithContent {
-        drawContent()
-        val fade = edge() ?: return@drawWithContent
-        val top = (fade.cut - depth).coerceAtLeast(0f)
-        if (fade.cut > top) {
-            val stops = BoardFooterEdgeFade.STOPS
-                .map { (t, alpha) -> t to Color.Black.copy(alpha = BoardFooterEdgeFade.maskAlpha(alpha, fade.strength)) }
-                .toTypedArray()
-            drawRect(
-                Brush.verticalGradient(*stops, startY = fade.cut - depth, endY = fade.cut),
-                topLeft = Offset(0f, top),
-                size = Size(size.width, fade.cut - top),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-        drawRect(Color.Transparent, topLeft = Offset(0f, fade.cut), size = Size(size.width, size.height - fade.cut), blendMode = BlendMode.Clear)
     }
 
 // endregion

@@ -1,39 +1,11 @@
 package com.festivalscoretracker.android.core.rankings
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BoardFooterEdgeFadeTest {
-    private val depth = 40f
-
-    @Test
-    fun depthMatchesTheWebScrollFade() {
-        assertEquals(36f, BoardFooterEdgeFade.DEPTH_DP)
-    }
-
-    @Test
-    fun rampIsLinearFromOpaqueToClearAtTheFooter() {
-        assertEquals(listOf(0f to 1f, 1f to 0f), BoardFooterEdgeFade.STOPS)
-    }
-
-    @Test
-    fun maskAlphaScalesTheRampByStrength() {
-        assertEquals(0f, BoardFooterEdgeFade.maskAlpha(0f, 1f))
-        assertEquals(1f, BoardFooterEdgeFade.maskAlpha(1f, 1f))
-        assertEquals(0.5f, BoardFooterEdgeFade.maskAlpha(0f, 0.5f))
-        assertEquals(1f, BoardFooterEdgeFade.maskAlpha(0f, 0f))
-        assertEquals(0f, BoardFooterEdgeFade.maskAlpha(-1f, 2f))
-    }
-
-    @Test
-    fun accessibilityModesKeepAHardEdge() {
-        assertTrue(BoardFooterEdgeFade.isEnabled(increaseContrast = false, reduceTransparency = false))
-        assertFalse(BoardFooterEdgeFade.isEnabled(increaseContrast = true, reduceTransparency = false))
-        assertFalse(BoardFooterEdgeFade.isEnabled(increaseContrast = false, reduceTransparency = true))
-    }
+    private val depth = 36f
 
     @Test
     fun remainingScrollIsUnboundedUntilTheLastItemIsLaidOut() {
@@ -50,20 +22,24 @@ class BoardFooterEdgeFadeTest {
     }
 
     @Test
-    fun strengthEasesOutOverTheLastDepth() {
-        assertEquals(1f, BoardFooterEdgeFade.strength(Float.POSITIVE_INFINITY, depth))
-        assertEquals(1f, BoardFooterEdgeFade.strength(80f, depth))
-        assertEquals(0.5f, BoardFooterEdgeFade.strength(20f, depth))
-        assertEquals(0f, BoardFooterEdgeFade.strength(0f, depth))
-        assertEquals(0f, BoardFooterEdgeFade.strength(Float.NaN, depth))
-        assertEquals(0f, BoardFooterEdgeFade.strength(80f, 0f))
+    fun edgeSitsAtTheFooterTopWithTheFullRampMidList() {
+        assertEquals(FooterFade(1700f, 36f), BoardFooterEdgeFade.edge(2000, 300, Float.POSITIVE_INFINITY, depth))
+        assertEquals(FooterFade(1700f, 36f), BoardFooterEdgeFade.edge(2000, 300, 500f, depth))
+        assertEquals(FooterFade(0f, 36f), BoardFooterEdgeFade.edge(200, 300, 500f, depth))
     }
 
+    /** R4: the ramp shrinks 1:1 with the remaining scroll, so the last row is never faded. */
     @Test
-    fun edgeSitsAtTheFooterTop() {
-        assertEquals(FooterFade(1700f, 1f), BoardFooterEdgeFade.edge(2000, 300, 500f, depth))
-        assertEquals(FooterFade(1700f, 0.25f), BoardFooterEdgeFade.edge(2000, 300, 10f, depth))
-        assertEquals(FooterFade(0f, 1f), BoardFooterEdgeFade.edge(200, 300, 500f, depth))
+    fun rampShrinksToNothingAtTheEndOfTheList() {
+        assertEquals(FooterFade(1700f, 10f), BoardFooterEdgeFade.edge(2000, 300, 10f, depth))
+        assertEquals(FooterFade(1700f, 0f), BoardFooterEdgeFade.edge(2000, 300, 0f, depth))
+        assertEquals(FooterFade(1700f, 0f), BoardFooterEdgeFade.edge(2000, 300, Float.NaN, depth))
+    }
+
+    /** R7: a hard edge still cuts the rows at the footer's top (no leak), with no ramp. */
+    @Test
+    fun hardEdgeKeepsTheCut() {
+        assertEquals(FooterFade(1700f, 0f), BoardFooterEdgeFade.edge(2000, 300, 500f, 0f))
     }
 
     @Test
