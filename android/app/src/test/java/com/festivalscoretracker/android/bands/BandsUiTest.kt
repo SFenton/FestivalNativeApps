@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.bands
 
+import androidx.compose.ui.semantics.getOrNull
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -298,7 +299,7 @@ class BandsUiTest {
         assertTrue(rule.onAllNodesWithText("FC", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         assertTrue(rule.onAllNodesWithContentDescription("Accuracy 97.5%", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         waitForTag("fst.song-band-leaderboard.song")
-        scrollTo("fst.song-band-leaderboard.list", "fst.song-band-leaderboard.page-last")
+        // The pager floats in the bottom bar, outside the list (shared RankingsBoardLayout, issue #307).
         click("fst.song-band-leaderboard.page-last")
         waitForTag("fst.song-band-leaderboard.row.band-26:26")
         rule.onNodeWithTag("fst.song-band-leaderboard.list").performScrollToNode(hasTestTag("fst.song-band-leaderboard.band-type.Band_Quad"))
@@ -310,6 +311,73 @@ class BandsUiTest {
         waitForTag("fst.band.screen")
     }
 
+    // region Selected band (leaderboard-row R7, issue #307)
+
+    private fun clickLabel(tag: String) =
+        rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().config.getOrNull(SemanticsActions.OnClick)?.label
+
+    private fun bounds(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true)[0].fetchSemanticsNode().boundsInRoot
+
+    /** Whether a row sits wholly in the list's area above the pinned footer and pager. */
+    private fun inView(tag: String): Boolean {
+        val row = bounds(tag)
+        return row.top >= bounds("fst.song-band-leaderboard.list").top && row.bottom <= bounds("fst.song-band-leaderboard.bottom-bar").top
+    }
+
+    /** Puts the selected player's Duos band at [rank] on a 60-band board. */
+    private fun selectedDuoAt(rank: Int) {
+        transport.on("/api/leaderboard/s-alpha/bands/Band_Duets", headers = mapOf("X-FST-Publication-Id" to "7")) { request ->
+            val top = Regex("top=(\\d+)").find(request.url)!!.groupValues[1].toInt()
+            val offset = Regex("offset=(\\d+)").find(request.url)!!.groupValues[1].toInt()
+            BandFixtures.songBoard("s-alpha", "Band_Duets", 60, offset, top, rank.takeIf { "accountId=${BandFixtures.PLAYER}" in request.url })
+        }
+    }
+
+    @Test
+    fun songBandLeaderboardPinsTheSelectedBandWhichOpensItWhenOnScreen() {
+        launch("songBandLeaderboard:s-alpha:Band_Duets", player)
+        waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        // Read with the allowlisted `accountId=` query only (no selected-profile headers).
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").all { "accountId=${BandFixtures.PLAYER}" in it.url })
+        assertTrue(transport.requests.none { request -> request.headers.keys.any { it.startsWith("X-FST-Selected", ignoreCase = true) } })
+        // Rank 12 is on page 1: the footer opens the Band page, like the in-place row.
+        assertEquals("Open band", clickLabel("fst.song-band-leaderboard.spotlight-footer"))
+        click("fst.song-band-leaderboard.spotlight-footer")
+        waitForTag("fst.band.screen")
+    }
+
+    @Test
+    fun songBandLeaderboardWithoutAPlayerPinsNothing() {
+        launch("songBandLeaderboard:s-alpha:Band_Duets")
+        waitForTag("fst.song-band-leaderboard.row.band-1:1")
+        assertTrue(!exists("fst.song-band-leaderboard.spotlight-footer"))
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").none { "accountId" in it.url })
+    }
+
+    @Test
+    fun songBandLeaderboardFooterJumpsToTheBandsPageAndRevealsIt() {
+        selectedDuoAt(40)
+        launch("songBandLeaderboard:s-alpha:Band_Duets", player)
+        waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        assertEquals("Jump to your band's position", clickLabel("fst.song-band-leaderboard.spotlight-footer"))
+        click("fst.song-band-leaderboard.spotlight-footer")
+        waitForTag("fst.song-band-leaderboard.row.band-40:40")
+        rule.waitUntil(10_000) { settle(100); inView("fst.song-band-leaderboard.row.band-40:40") }
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").any { "offset=25" in it.url })
+        // Now on screen: the same footer opens the Band page.
+        assertEquals("Open band", clickLabel("fst.song-band-leaderboard.spotlight-footer"))
+    }
+
+    @Test
+    fun songBandLeaderboardOpenedForTheBandRevealsItsRow() {
+        selectedDuoAt(47)
+        launch("songBandLeaderboard:s-alpha:Band_Duets:2:reveal", player)
+        waitForTag("fst.song-band-leaderboard.row.band-47:47")
+        rule.waitUntil(10_000) { settle(100); inView("fst.song-band-leaderboard.row.band-47:47") }
+        assertEquals("Open band", clickLabel("fst.song-band-leaderboard.spotlight-footer"))
+    }
+
+    // endregion
     @Test
     fun songBandLeaderboardFailureAndSongLink() {
         transport.onRaw("/api/leaderboard/s-alpha/bands/Band_Duets") { HttpResult(500, ByteArray(0)) }
@@ -332,5 +400,9 @@ class BandsUiTest {
         val board = DebugLaunch.parseRoute("songBandLeaderboard:s-1") as com.festivalscoretracker.android.core.nav.SongBandLeaderboardRoute
         assertEquals("Band_Duets", board.bandType)
         assertEquals(null, DebugLaunch.parseRoute("songBandLeaderboard"))
+        val jump = DebugLaunch.parseRoute("songBandLeaderboard:s-1:Band_Trios:3:reveal") as com.festivalscoretracker.android.core.nav.SongBandLeaderboardRoute
+        assertEquals(3, jump.page)
+        assertTrue(jump.navToBand)
+        assertEquals(1, board.page)
     }
 }
