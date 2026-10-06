@@ -202,6 +202,20 @@ extension ToolbarContent {
 }
 #endif
 
+#if os(iOS)
+@available(iOS 26.0, *)
+extension ToolbarContent {
+    /// Hides the profile item's shared Liquid Glass while it shows the monogram, so the
+    /// avatar circle is the whole button with no glass ring around it (issue #311).
+    ///
+    /// - Parameter presentation: The profile button's current presentation.
+    /// - Returns: The toolbar content with the matching shared-background visibility.
+    func profileItemBackground(_ presentation: RootProfileButton.Presentation) -> some ToolbarContent {
+        sharedBackgroundVisibility(presentation.sharedBackground)
+    }
+}
+#endif
+
 // MARK: - Shared tab-root chrome
 
 extension View {
@@ -338,16 +352,27 @@ struct FestivalRootTrailingItems: ToolbarContent {
     }
 
     #if os(iOS)
+    /// How the profile button currently draws (monogram, add-profile or rail symbol).
+    private var profilePresentation: RootProfileButton.Presentation {
+        .resolve(displayName: session.selectedPlayer?.displayName, chrome: layout.sectionChrome)
+    }
+
     /// With the tab-bar accessory (iPhone, iOS 26.1+), Profile alone as the navigation
     /// bar's trailing-most item, its own glass group: the accessory keeps only the page
     /// tools and the bell, so its items never change while the system morphs it (issue
-    /// #300; HIG Toolbars: "Trailing: important always-available items").
+    /// #300; HIG Toolbars: "Trailing: important always-available items"). The monogram
+    /// hides the group's glass (issue #311).
     @ToolbarContentBuilder private var accessoryProfileItem: some ToolbarContent {
         if #available(iOS 26.0, *) {
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
-        }
-        ToolbarItem(placement: .topBarTrailing) {
-            RootProfileButton(session: session) { profileButtonAction() }
+            ToolbarItem(placement: .topBarTrailing) {
+                RootProfileButton(session: session) { profileButtonAction() }
+            }
+            .profileItemBackground(profilePresentation)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) {
+                RootProfileButton(session: session) { profileButtonAction() }
+            }
         }
     }
 
@@ -376,6 +401,12 @@ struct FestivalRootTrailingItems: ToolbarContent {
                 RootProfileButton(session: session) { profileButtonAction() }
             }
             .railVisibilityPriority(.profile)
+            .profileItemBackground(profilePresentation)
+        } else if #available(iOS 26.0, *) {
+            ToolbarItem(placement: .topBarTrailing) {
+                RootProfileButton(session: session) { profileButtonAction() }
+            }
+            .profileItemBackground(profilePresentation)
         } else {
             ToolbarItem(placement: .topBarTrailing) {
                 RootProfileButton(session: session) { profileButtonAction() }
@@ -615,6 +646,7 @@ struct RootProfileButton: View {
     let action: () -> Void
     @Environment(\.deviceLayout) private var layout
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.layoutDirection) private var layoutDirection
 
     /// VoiceOver hint describing where the button goes.
     ///
@@ -644,6 +676,67 @@ struct RootProfileButton: View {
             if case .verticalBar = chrome { return .symbol(title: "Profile: \(displayName)") }
             return .monogram(displayName)
         }
+
+        /// The toolbar item's shared Liquid Glass background (iOS 26+) for this
+        /// presentation.
+        ///
+        /// The monogram is its own filled circle, so it hides the system glass that
+        /// would otherwise show as a ring around it (issue #311; web `HeaderActions`
+        /// profile button: `background: 'none'`, `border: 'none'`). The add-profile and
+        /// vertical-bar symbols keep the system glass like every other bar glyph.
+        var sharedBackground: Visibility {
+            if case .monogram = self { return .hidden }
+            return .automatic
+        }
+    }
+
+    /// How the monogram avatar is drawn in a horizontal bar.
+    struct MonogramMetrics: Equatable {
+        /// Avatar diameter in points.
+        let diameter: CGFloat
+        /// Whether the avatar keeps its 1 pt `glassBorder` rim.
+        let outlined: Bool
+        /// Points the circle draws past its layout (alignment) rect on the trailing side.
+        let trailingOverhang: CGFloat
+
+        /// Create metrics.
+        ///
+        /// - Parameters:
+        ///   - diameter: Avatar diameter in points.
+        ///   - outlined: Whether the avatar keeps its rim.
+        ///   - trailingOverhang: Trailing overhang past the layout rect, in points.
+        init(diameter: CGFloat, outlined: Bool, trailingOverhang: CGFloat = 0) {
+            self.diameter = diameter
+            self.outlined = outlined
+            self.trailingOverhang = trailingOverhang
+        }
+
+        /// The extra trailing inset a bar gives an item whose shared glass is hidden,
+        /// compared with where that item's glass circle sat (measured on iOS/iPadOS 26.5:
+        /// a background-less 44 pt image ended 10 pt short of the trailing glass circle's
+        /// edge, a 26 pt margin instead of the leading drawer's 16 pt).
+        static let hiddenGlassTrailingInset: CGFloat = 10
+
+        /// Resolve the metrics for the bar the avatar sits in.
+        ///
+        /// - Parameter liquidGlassBar: The bar draws a glass circle per item (iOS 26+).
+        /// - Returns: With Liquid Glass, the 44 pt diameter of a bar item's glass circle
+        ///   (the Back button and drawer) with no rim, overhanging the hidden-glass inset so
+        ///   the avatar fills exactly the circle the glass drew (issue #311); before that,
+        ///   the 30 pt outlined avatar of a classic bar and the macOS toolbar.
+        static func resolve(liquidGlassBar: Bool) -> MonogramMetrics {
+            liquidGlassBar
+                ? MonogramMetrics(diameter: 44, outlined: false, trailingOverhang: hiddenGlassTrailingInset)
+                : MonogramMetrics(diameter: 30, outlined: true)
+        }
+
+        /// Metrics for the running system.
+        static var current: MonogramMetrics {
+            #if os(iOS)
+            if #available(iOS 26.0, *) { return resolve(liquidGlassBar: true) }
+            #endif
+            return resolve(liquidGlassBar: false)
+        }
     }
 
     var body: some View {
@@ -654,7 +747,10 @@ struct RootProfileButton: View {
             case .choose:
                 Label("Choose Profile", systemImage: "person.crop.circle")
             case let .monogram(name):
-                MonogramLabel(name: name, size: 30, scale: displayScale)
+                MonogramLabel(
+                    name: name, scale: displayScale, metrics: .current,
+                    rightToLeft: layoutDirection == .rightToLeft
+                )
             case let .symbol(title):
                 Label(title, systemImage: "person.crop.circle.fill")
             }
@@ -682,6 +778,8 @@ struct RootProfileButton: View {
 struct ProfileAvatar: View {
     let name: String
     let size: CGFloat
+    /// Draw the 1 pt `glassBorder` rim; the Liquid Glass bar avatar has none (issue #311).
+    var outlined: Bool = true
 
     /// First letter or digit of the display name, upper-cased.
     nonisolated static func initial(for name: String) -> String {
@@ -701,7 +799,7 @@ struct ProfileAvatar: View {
                 ),
                 in: Circle()
             )
-            .overlay(Circle().stroke(BrandTokens.glassBorder, lineWidth: 1))
+            .overlay(Circle().stroke(outlined ? BrandTokens.glassBorder : .clear, lineWidth: 1))
             .accessibilityHidden(true)
     }
 }
@@ -744,12 +842,18 @@ struct ProfileAvatarImage: View {
 /// image cannot be rendered and on platforms without UIKit.
 struct MonogramLabel: View {
     let name: String
-    let size: CGFloat
     let scale: CGFloat
+    /// Diameter, rim and trailing overhang (``RootProfileButton/MonogramMetrics``).
+    let metrics: RootProfileButton.MonogramMetrics
+    /// Right-to-left layout puts the trailing overhang on the left.
+    var rightToLeft = false
 
     var body: some View {
         #if canImport(UIKit)
-        if let image = MonogramImageCache.shared.image(name: name, size: size, scale: scale) {
+        if let image = MonogramImageCache.shared.image(
+            name: name, size: metrics.diameter, scale: scale, outlined: metrics.outlined,
+            trailingOverhang: metrics.trailingOverhang, rightToLeft: rightToLeft
+        ) {
             // Titled like the vertical-bar symbol item, for the overflow menu.
             Label {
                 Text("Profile: \(name)")
@@ -757,7 +861,7 @@ struct MonogramLabel: View {
                 Image(uiImage: image).renderingMode(.original)
             }
         } else {
-            ProfileAvatar(name: name, size: size)
+            ProfileAvatar(name: name, size: metrics.diameter, outlined: metrics.outlined)
         }
         #else
         // Titled, so the Mac toolbar item has a label (overflow menu, Icon and Text
@@ -765,7 +869,7 @@ struct MonogramLabel: View {
         Label {
             Text("Profile: \(name)")
         } icon: {
-            ProfileAvatar(name: name, size: size)
+            ProfileAvatar(name: name, size: metrics.diameter, outlined: metrics.outlined)
         }
         #endif
     }
@@ -779,6 +883,9 @@ struct MonogramImageKey: Hashable {
     let initial: String
     let size: CGFloat
     let scale: CGFloat
+    let outlined: Bool
+    let trailingOverhang: CGFloat
+    let rightToLeft: Bool
 
     /// Create the key for a player.
     ///
@@ -786,10 +893,19 @@ struct MonogramImageKey: Hashable {
     ///   - name: Player display name.
     ///   - size: Avatar diameter in points.
     ///   - scale: Display scale; values below 1 (an unset environment) render at 1x.
-    init(name: String, size: CGFloat, scale: CGFloat) {
+    ///   - outlined: Whether the avatar draws its 1 pt rim.
+    ///   - trailingOverhang: Points the circle draws past its alignment rect, trailing.
+    ///   - rightToLeft: Whether trailing is the left edge.
+    init(
+        name: String, size: CGFloat, scale: CGFloat, outlined: Bool = true,
+        trailingOverhang: CGFloat = 0, rightToLeft: Bool = false
+    ) {
         initial = ProfileAvatar.initial(for: name)
         self.size = size
         self.scale = max(scale, 1)
+        self.outlined = outlined
+        self.trailingOverhang = max(trailingOverhang, 0)
+        self.rightToLeft = rightToLeft
     }
 }
 
@@ -808,13 +924,30 @@ final class MonogramImageCache {
     ///   - name: Player display name.
     ///   - size: Avatar diameter in points.
     ///   - scale: Display scale; the image is rendered at this scale.
+    ///   - outlined: Whether the avatar draws its 1 pt rim.
+    ///   - trailingOverhang: Points the circle draws past its alignment rect on the
+    ///     trailing side (``RootProfileButton/MonogramMetrics/trailingOverhang``).
+    ///   - rightToLeft: Whether trailing is the left edge.
     /// - Returns: An original-colour image `size` points square, or nil if rendering fails.
-    func image(name: String, size: CGFloat, scale: CGFloat) -> UIImage? {
-        let key = MonogramImageKey(name: name, size: size, scale: scale)
+    func image(
+        name: String, size: CGFloat, scale: CGFloat, outlined: Bool = true,
+        trailingOverhang: CGFloat = 0, rightToLeft: Bool = false
+    ) -> UIImage? {
+        let key = MonogramImageKey(
+            name: name, size: size, scale: scale, outlined: outlined,
+            trailingOverhang: trailingOverhang, rightToLeft: rightToLeft
+        )
         if let cached = images[key] { return cached }
-        let renderer = ImageRenderer(content: ProfileAvatar(name: name, size: size))
+        let renderer = ImageRenderer(content: ProfileAvatar(name: name, size: size, outlined: outlined))
         renderer.scale = key.scale
-        guard let image = renderer.uiImage?.withRenderingMode(.alwaysOriginal) else { return nil }
+        guard var image = renderer.uiImage?.withRenderingMode(.alwaysOriginal) else { return nil }
+        if key.trailingOverhang > 0 {
+            // Layout uses the alignment rect; the circle draws past it on the trailing side.
+            let inset = key.trailingOverhang
+            image = image.withAlignmentRectInsets(key.rightToLeft
+                ? UIEdgeInsets(top: 0, left: inset, bottom: 0, right: 0)
+                : UIEdgeInsets(top: 0, left: 0, bottom: 0, right: inset))
+        }
         images[key] = image
         return image
     }
