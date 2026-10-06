@@ -1,5 +1,9 @@
 package com.festivalscoretracker.android.ui.search
 
+import androidx.compose.runtime.CompositionLocalProvider
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.common.fadeInRushOnScroll
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
 import android.os.Build
 import android.view.View
 import android.window.OnBackInvokedCallback
@@ -547,12 +551,36 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
     val signature = remember(ui.songs, ui.players) { ui.songs.map { it.songId } to ui.players.map { it.accountId } }
     var settled by remember { mutableStateOf<Any?>(null) }
     LaunchedEffect(signature) { settled = signature }
-    val revealed = rememberRevealed(settled == signature)
+    // The results' own fade window (web SearchModal `useStaggerRush`): scrolling the results
+    // mid-entrance fades the rest in together (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    CompositionLocalProvider(LocalFadeInWindow provides fadeIn) {
+        ResultsList(ui, rememberRevealed(settled == signature), Modifier.fadeInRushOnScroll(fadeIn), artworkUrl, onOpen)
+    }
+}
+
+/**
+ * The results list, inside the results' fade window.
+ *
+ * @param ui Search state.
+ * @param revealed Whether the current result set may show ([rememberRevealed]).
+ * @param modifier Modifier for the list.
+ * @param artworkUrl Artwork URL resolver.
+ * @param onOpen Opens a result.
+ */
+@Composable
+private fun ResultsList(
+    ui: GlobalSearchUiState,
+    revealed: Boolean,
+    modifier: Modifier,
+    artworkUrl: (String?) -> String?,
+    onOpen: (SearchDestination) -> Unit,
+) {
     val playersOffset = if (ui.showSongsSection) ui.songs.size else 0
     // A new scope or query starts at the top: a kept state would pin the previously first
     // visible key (the first player after Players → All) and hide the songs above it.
     val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
-    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), state = listState) {
+    LazyColumn(modifier.fillMaxSize().testTag("fst.global-search.results"), state = listState) {
         if (ui.showSongsSection) {
             if (ui.songsPhase == SectionPhase.Failed) {
                 item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }

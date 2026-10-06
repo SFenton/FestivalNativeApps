@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.compete
 
+import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -91,7 +92,9 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     val rivalsIndex = 1 + content.sections.size
     // Web: the two groups once the page has content (no full-page failure).
     val sections = if (content.fullPageIssue == null) RivalQuickLinks.compete() else emptyList()
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
+    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn) { id ->
         when (id) {
             RivalQuickLinks.COMPETE_LEADERBOARDS -> 0
             RivalQuickLinks.COMPETE_RIVALS -> rivalsIndex
@@ -101,6 +104,7 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     FestivalScreen(
         title = CompeteText.TITLE,
         isRoot = isRoot,
+        fadeInWindow = fadeIn,
         actions = { QuickLinksAction(quickLinks, windowWidthDp().toInt()) },
     ) { padding ->
         val issue = content.fullPageIssue
