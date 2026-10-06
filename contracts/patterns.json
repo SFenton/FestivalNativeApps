@@ -1615,7 +1615,7 @@
       "title": "Chart date axis",
       "status": "current",
       "doc": ".agents/patterns/chart-date-axis.md",
-      "summary": "History bar charts centre each date label horizontally on its own bar on every page and text size, pin end labels inside the chart instead of clipping, hide colliding labels (newest kept), label only visible bars and keep tick text out of the accessibility tree.",
+      "summary": "History bar charts centre each date label on its own bar on every page and text size, keep labels horizontal rather than the web's angled ticks (agent decision #314), pin end labels inside the chart instead of clipping, hide colliding labels (newest kept), label only visible bars and keep tick text out of the accessibility tree.",
       "keywords": [
         "chart",
         "x axis",
