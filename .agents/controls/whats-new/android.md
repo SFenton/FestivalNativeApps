@@ -58,13 +58,14 @@ Checked on the live public service on every FST AVD, light/dark system theme, fo
 | Configuration | Finding |
 |---|---|
 | FST_Phone portrait | Full-height sheet. Tester: "Changes So Far" with category headings in the web changelog's order and Other last, bullets word for word. Store: "Version …" with its release bullet only. Dark and light system theme, font 1.0 and 2.0, scrolled to the end; Dismiss stays pinned |
-| FST_Phone landscape | **Defect:** the dialog was 320 dp wide in a 923 dp window (about 1.5 note lines at font 2.0), because `FestivalModalDialog` used the platform's preferred dialog width. **Fixed** in the shared shell ([modal-shell](../../patterns/modal-shell.md) R9): 560 dp at font 1.0 and 2.0. Privacy Policy had the same defect and the same fix |
+| FST_Phone landscape | **Defect:** the dialog was 320 dp wide in a 923 dp window (about 1.5 note lines at font 2.0), because `FestivalModalDialog` used the platform's preferred dialog width. **Fixed** in the shared shell ([modal-shell](../../patterns/modal-shell.md) R9): 560 dp at font 1.0 and 2.0. Privacy Policy opens the same dialog on wider windows, so the fix covers it too (verified by its Robolectric tests, not on the emulator) |
 | FST_Tablet landscape/portrait | 560 dp centred dialog, tester and store, font 2.0 |
 | FST_Resizable | Sheet at the phone preset; 560 dp dialog at the foldable, tablet and desktop presets (desktop also at font 2.0) |
 | FST_Book_Fold / FST_Passport_Fold | Folded: compact sheet. Unfolded: dialog. Half-open (separating hinge): the sheet sits on one side of the hinge, also at font 2.0 |
 | FST_TriFold | Folded: sheet; partially unfolded (flat, not separating) and unfolded: dialog; unfolded at font 2.0 |
 | Settings → What's New → Show | Replays the same channel's notes; Dismiss closes it |
 | Animator scale 0 | Connected tests run with scales 0; the sheet and dialog appear without motion |
+| Connected `WhatsNewDeviceTest` | FST_Phone and FST_Tablet 5/5 each (ATF labels/contrast/48 dp, TalkBack order, font 2.0, new 560 dp dialog check) |
 
 - Channel: Android resolves the installer synchronously in `AppContainer`, so there is no pending state (unlike Apple's AppTransaction).
 - M3: unchanged from #142. Block headings are Title Medium, category subheadings Title Small and bullets Body Medium. The shared Title Large header is the documented deviation.
