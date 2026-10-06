@@ -63,6 +63,10 @@
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/BoardFooterEdgeFade.kt"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "AnchoredBoardList"
           }
         ],
         "windows": [
@@ -159,7 +163,8 @@
         288,
         297,
         298,
-        301
+        301,
+        306
       ]
     },
     {

@@ -300,6 +300,13 @@ class RankingsCoreTest {
         assertEquals(Int.MAX_VALUE, bareFooter.score)
         assertEquals(BandRoute("band-mine", "Me + Friend", "Band_Duets", "$me:$friend"), SongBandSpotlight.route(mine))
         assertEquals("$me:$friend", SongBandSpotlight.route(bare).bandId)
+
+        // The footer's columns fit the whole page plus the footer (web widthEntries).
+        val rows = SongBandSpotlight.columnRows(onPage, footer)
+        assertEquals(listOf(SongBandSpotlight.scoreRow(other), SongBandSpotlight.scoreRow(mine), footer), rows)
+        assertEquals(listOf(1, 510, 510), rows.map { it.rank })
+        assertEquals("band-other", rows[0].accountId)
+        assertTrue(SongBandSpotlight.columnRows(onPage, null).isEmpty())
     }
 
     @Test

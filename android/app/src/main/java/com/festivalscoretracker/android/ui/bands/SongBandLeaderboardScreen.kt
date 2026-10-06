@@ -135,7 +135,10 @@ fun SongBandLeaderboardScreen(
     // place on its own page (web SongBandLeaderboardPage hasSelectedFooter, issue #306).
     val selectedBand = shown?.let { SongBandSpotlight.selected(it, accountId) }
     val footer = shown?.let { SongBandSpotlight.footer(it, accountId) }
-    val footerColumns = rememberScoreColumns(listOfNotNull(footer))
+    // One section plan fitted to the page's rows plus the footer, so the pinned row follows the
+    // board's shared fit (web widthEntries; the solo SongLeaderboardScreen does the same).
+    val footerRows = remember(shown, footer) { shown?.let { SongBandSpotlight.columnRows(it, footer) }.orEmpty() }
+    val footerColumns = rememberScoreColumns(footerRows)
     // The pager keeps its place while the next page loads (issue #93).
     val loadedPages = (board as? LoadState.Loaded)?.value?.pageCount(BandPaging.PAGE_SIZE)
     val lastPages = remember(type) { mutableIntStateOf(1) }

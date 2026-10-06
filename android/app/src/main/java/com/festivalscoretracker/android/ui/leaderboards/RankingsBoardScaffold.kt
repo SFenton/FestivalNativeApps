@@ -73,7 +73,8 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * @param pager Pager.
  * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out just
  *   above it ([BoardFooterEdgeFade], the web's scroll mask; issue #93); hidden rows also leave
- *   touch and TalkBack (issue #104).
+ *   touch and TalkBack (issue #104). With Increase Contrast or Reduce Transparency the ramp
+ *   becomes a hard cut at the footer's top edge, still hiding the covered rows (scroll-edge R7).
  * @param rows Row items.
  */
 @Composable
@@ -168,7 +169,8 @@ internal fun RankingsBoardLayout(
  * @param bottomInset Shell bottom inset the footer sits above.
  * @param footer Anchored "your rank" content (may emit nothing).
  * @param pager Pager (may emit nothing).
- * @param fadeAboveFooter Hide and fade rows beneath and above the footer ([BoardFooterEdgeFade]).
+ * @param fadeAboveFooter Hide rows beneath the footer and fade them out above it
+ *   ([BoardFooterEdgeFade]); accessibility modes keep the cut without the ramp (scroll-edge R7).
  * @param modifier Modifier.
  * @param rowGap Space between list items, also left above the footer.
  * @param rows Row items.
@@ -216,7 +218,9 @@ internal fun AnchoredBoardList(
             idPrefix,
             PaddingValues(start = 16.dp, end = 16.dp, top = contentTop, bottom = anchoredDp + rowGap),
             Modifier
-                .then(if (fades) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
+                // The clip is the edge itself: accessibility modes only drop the ramp, never the
+                // cut, so covered rows leave sight, touch and TalkBack in every mode (scroll-edge R7).
+                .then(if (fadeAboveFooter) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
                 .footerEdgeFade(edge, depth),
             rowGap,
             rows,
@@ -314,8 +318,9 @@ private fun BoardList(
 }
 
 /**
- * Clips the full-height list at the floating footer's top edge, where [footerEdgeFade] already
- * hides the rows: the list keeps its full viewport (scrolling, padding and the fade are
+ * Clips the full-height list at the floating footer's top edge, where [footerEdgeFade] ends its
+ * ramp (under Increase Contrast or Reduce Transparency the clip is the hard edge itself, scroll-edge
+ * R7): the list keeps its full viewport (scrolling, padding and the fade are
  * unchanged) but reports the shorter size, so rows beneath the footer and pager leave touch and
  * the accessibility tree. Otherwise TalkBack skips a row fully covered by the footer and focuses
  * hidden rows peeking around the pager instead of scrolling (issue #104).

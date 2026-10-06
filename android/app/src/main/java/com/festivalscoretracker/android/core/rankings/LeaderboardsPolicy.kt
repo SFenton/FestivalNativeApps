@@ -196,9 +196,33 @@ object SongBandSpotlight {
      */
     fun footer(response: SongBandLeaderboardResponse, selectedAccountId: String?): LeaderboardEntry? {
         val band = selected(response, selectedAccountId) ?: return null
-        return LeaderboardEntry(
+        return scoreRow(band, selectedAccountId.orEmpty())
+    }
+
+    /**
+     * The rows the pinned footer's score columns are fitted to: every row on the page, shaped
+     * like the footer, plus the footer itself (web `widthEntries = [...entries, selectedEntry]`;
+     * the solo board fits its footer the same way). Empty when nothing is pinned.
+     *
+     * @param response Page.
+     * @param footer [footer] for the page, or null.
+     * @return Section rows, or an empty list without a footer.
+     */
+    fun columnRows(response: SongBandLeaderboardResponse, footer: LeaderboardEntry?): List<LeaderboardEntry> =
+        if (footer == null) emptyList() else response.entries.map { scoreRow(it) } + footer
+
+    /**
+     * A band row shaped like a solo score row (rank, joined member names, score, season,
+     * accuracy, FC, stars), as the web passes a band to the solo `LeaderboardEntry`.
+     *
+     * @param band Band row.
+     * @param fallbackId Identity used when the band has neither ID nor team key.
+     * @return Score row.
+     */
+    fun scoreRow(band: SongBandLeaderboardEntry, fallbackId: String = ""): LeaderboardEntry =
+        LeaderboardEntry(
             // Non-empty, so the row shows the names rather than "Unknown User".
-            accountId = band.bandId.ifEmpty { band.teamKey }.ifEmpty { selectedAccountId.orEmpty() },
+            accountId = band.bandId.ifEmpty { band.teamKey }.ifEmpty { fallbackId },
             displayName = band.membersLabel,
             score = band.score.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt(),
             rank = band.rank,
@@ -208,7 +232,6 @@ object SongBandSpotlight {
             stars = band.stars?.takeIf { it > 0 },
             season = band.season,
         )
-    }
 
     /**
      * Band Detail for a band row (web `getBandProfileRoute`): carries size and team key so the

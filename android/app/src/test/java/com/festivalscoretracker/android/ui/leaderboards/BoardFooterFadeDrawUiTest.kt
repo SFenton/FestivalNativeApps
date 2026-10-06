@@ -34,8 +34,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Pixels of the board's footer edge (issue #93): rows are hidden beneath a transparent floating
- * footer and fade out above it, unless the board opts out or an accessibility mode keeps the
- * old hard edge.
+ * footer and fade out above it, unless the board opts out; an accessibility mode keeps the cut
+ * without the ramp (scroll-edge R7).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w400dp-h800dp-mdpi")
@@ -97,10 +97,43 @@ class BoardFooterFadeDrawUiTest {
         assertTrue(board(fade = false).redIn(700 until 800))
     }
 
-    @Test
-    fun reduceTransparencyKeepsTheHardEdge() {
-        assertTrue(board(fade = true, FestivalAccessibility(reduceTransparency = true)).redIn(700 until 800))
+    /**
+     * Scroll-edge R7: Reduce Transparency and Increase Contrast turn the ramp into a hard cut at
+     * the footer's top edge. No row shows beneath the footer, and rows right above the cut are
+     * drawn at full strength (no ramp).
+     */
+    private fun assertHardEdge(accessibility: FestivalAccessibility) {
+        val image = board(fade = true, accessibility)
+        val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
+        assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
+        assertTrue("no ramp above the cut", (cut - 40 until cut - 1).all { image.redAt(it) > 0.9f || image.redAt(it) < 0.01f })
+        assertTrue("rows reach the cut", image.redIn(cut - 12 until cut))
     }
+
+    @Test
+    fun reduceTransparencyKeepsAHardCutAtTheFooter() = assertHardEdge(FestivalAccessibility(reduceTransparency = true))
+
+    @Test
+    fun increaseContrastKeepsAHardCutAtTheFooter() = assertHardEdge(FestivalAccessibility(increaseContrast = true))
+
+    /**
+     * Rows covered by the bottom bar are neither visible nor reachable under each accessibility
+     * hard-edge setting (scroll-edge R7, issue #306): the list still ends at the footer's top.
+     */
+    private fun assertCoveredRowsLeaveTalkBack(accessibility: FestivalAccessibility) {
+        board(fade = true, accessibility)
+        rule.onNodeWithTag("row.0").assertIsDisplayed()
+        rule.onNodeWithTag("row.14").assertIsNotDisplayed()
+        val list = rule.onNodeWithTag("fst.t.list").fetchSemanticsNode().boundsInRoot
+        val footer = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().boundsInRoot
+        assertTrue("the list ends at the footer's top", list.bottom <= footer.top + 1f)
+    }
+
+    @Test
+    fun reduceTransparencyHidesCoveredRowsFromTalkBack() = assertCoveredRowsLeaveTalkBack(FestivalAccessibility(reduceTransparency = true))
+
+    @Test
+    fun increaseContrastHidesCoveredRowsFromTalkBack() = assertCoveredRowsLeaveTalkBack(FestivalAccessibility(increaseContrast = true))
 
     /**
      * Rows hidden beneath the footer leave the accessibility tree (issue #104): TalkBack would

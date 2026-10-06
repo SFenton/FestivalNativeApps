@@ -4,6 +4,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
@@ -27,6 +28,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.settings.AppSettings
+import kotlinx.coroutines.runBlocking
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.data.HttpResult
@@ -61,9 +64,10 @@ class BandsUiTest {
     private val player = SelectedPlayer(BandFixtures.PLAYER, "Synthetic Player")
     private val duoRoute = "band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}"
 
-    private fun launch(route: String, profile: SelectedPlayer? = null) {
+    private fun launch(route: String, profile: SelectedPlayer? = null, settings: ((AppSettings) -> AppSettings)? = null) {
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
+        if (settings != null) runBlocking { container.settings.update(settings) }
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -357,6 +361,34 @@ class BandsUiTest {
         click("fst.song-band-leaderboard.spotlight-footer")
         waitForTag("fst.band.screen")
     }
+
+    /**
+     * Scroll-edge R7 (issue #306): with Reduce Transparency or Increase Contrast the footer edge
+     * becomes a hard cut, and rows covered by the pinned band and pager are neither visible nor
+     * reachable by TalkBack or touch.
+     */
+    private fun assertCoveredBandRowsHidden(settings: (AppSettings) -> AppSettings) {
+        launch("songBandLeaderboard:s-alpha:Band_Duets", player, settings)
+        waitForTag("fst.song-band-leaderboard.row.band-1:1")
+        waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        val bar = rule.onNodeWithTag("fst.song-band-leaderboard.bottom-bar", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val list = rule.onNodeWithTag("fst.song-band-leaderboard.list").fetchSemanticsNode().boundsInRoot
+        assertTrue("the rows end at the bottom bar", list.bottom <= bar.top + 1f)
+        val isRow = SemanticsMatcher("band row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.song-band-leaderboard.row.") == true }
+        val covered = rule.onAllNodes(isRow, useUnmergedTree = true).fetchSemanticsNodes()
+            .filter { it.positionInRoot.y >= bar.top }
+            .map { it.config[SemanticsProperties.TestTag] }
+        assertTrue("some rows are composed beneath the bottom bar", covered.isNotEmpty())
+        covered.forEach { rule.onNodeWithTag(it, useUnmergedTree = true).assertIsNotDisplayed() }
+    }
+
+    @Test
+    fun songBandLeaderboardHidesCoveredRowsUnderReduceTransparency() =
+        assertCoveredBandRowsHidden { it.copy(reduceTransparency = true) }
+
+    @Test
+    fun songBandLeaderboardHidesCoveredRowsUnderIncreaseContrast() =
+        assertCoveredBandRowsHidden { it.copy(increaseContrast = true) }
 
     @Test
     fun songBandLeaderboardFailureAndSongLink() {
