@@ -58,7 +58,7 @@ struct AllRivalsScreen: View {
                 content
             }
         }
-        .navigationTitle(title)
+        .festivalNavigationTitle(title)
         .festivalBackground(.carousel, session: session)
         .task(id: scope) { await load() }
     }

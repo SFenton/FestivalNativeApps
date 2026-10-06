@@ -66,6 +66,9 @@ public struct ReloadTransition: Equatable, Sendable {
         public static let minimumSpinnerDuration: Duration = .milliseconds(400)
         /// Web `SPINNER_FADE_MS`.
         public static let spinnerOutDuration: Duration = .milliseconds(500)
+        /// Web `CONTENT_OUT_MS`: a page's content fade-out where the old content may keep
+        /// drawing (``PublicationRefreshTransition``); a selector reload removes it at once.
+        public static let contentOutDuration: Duration = .milliseconds(300)
 
         /// The page timing.
         ///

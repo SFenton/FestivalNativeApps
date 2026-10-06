@@ -196,7 +196,7 @@ struct SongBandLeaderboardScreen: View {
         }
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
-        .navigationTitle("\(bandType.label) Scores")
+        .festivalNavigationTitle("\(bandType.label) Scores")
         .toolbar {
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }

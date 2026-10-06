@@ -34,7 +34,7 @@ struct CompeteScreen: View {
                 hub
             }
         }
-        .navigationTitle("Compete")
+        .festivalNavigationTitle("Compete")
         .festivalBackground(.carousel, session: session)
         .toolbar {
             QuickLinksToolbarItem(quickLinks)
