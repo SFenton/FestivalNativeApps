@@ -32,3 +32,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [section-headers](section-headers.md) | Section titles: style, outside-card placement and pinned/sticky behavior |
 | [chart-date-axis](chart-date-axis.md) | Date labels on history bar charts: centred on their bar, visible bars only |
 | [song-header](song-header.md) | Song page headers: shared art + title block, full-width one-line marquee title, pinned bar song title |
+| [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
