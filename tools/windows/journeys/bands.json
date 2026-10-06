@@ -116,9 +116,8 @@
       "waitfor:id=fst.band.member.fixture-band-2-b@10",
       "shot:{shots}\\band-detail-from-song.png",
       "invoke:id=PART_BackButton",
-      "waitfor:id=fst.song-band-leaderboard.song@10",
-      "invoke:id=fst.song-band-leaderboard.song",
-      "waitfor:id=fst.song-detail.title@10"
+      "waitfor:id=fst.song-band-leaderboard.title@10",
+      "waitfor:id=fst.song-band-leaderboard.subtitle@5"
     ]
   },
   {
@@ -128,7 +127,7 @@
     "steps": [
       "waitfor:name=Failed to load band leaderboard@15",
       "waitfor:id=fst.service-status.retry@5",
-      "waitfor:id=fst.song-band-leaderboard.title@5",
+      "waitfor:id=fst.song-band-leaderboard.subtitle@5",
       "shot:{shots}\\song-band-leaderboard-error.png"
     ]
   },

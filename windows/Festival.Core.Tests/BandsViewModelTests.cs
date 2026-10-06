@@ -374,14 +374,19 @@ public class SongBandLeaderboardViewModelTests
         var bands = new BandService();
         var vm = new SongBandLeaderboardViewModel(bands.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Trios"));
         Assert.Equal(BandType.Trios, vm.BandType);
-        Assert.Equal("Trios Leaderboard", vm.Title);
-        Assert.Equal("Trios", vm.Subtitle);
-        Assert.Equal("", vm.SongTitle);
+        // Song-first header like the solo board (issue #317): the band size sits where the solo board names its instrument.
+        Assert.Equal("", vm.Title);
+        Assert.Equal("", vm.Subtitle);
+        Assert.Equal("Trios", vm.BoardLabel);
+        Assert.Equal("Trios leaderboard", vm.LeaderboardName);
         await vm.LoadAsync();
         Assert.True(vm.ShowRows);
-        Assert.Equal("Pulse", vm.SongTitle);
-        Assert.Equal("Fixture Artist · 2024 · 3:20", vm.SongSubtitle);
-        Assert.Equal("Trios · 60 entries", vm.Subtitle);
+        Assert.Equal("Pulse", vm.Title);
+        Assert.Equal("Fixture Artist", vm.Subtitle);
+        Assert.Equal("Pulse, Trios leaderboard", vm.LeaderboardName);
+        // No showLeaderboardEntryTotals: no entry total, as on the solo board.
+        Assert.Equal("", vm.TotalText);
+        Assert.False(vm.HasTotal);
         Assert.Equal("1 / 3", vm.Pager.PageText);
         var row = vm.Rows[0];
         Assert.Equal("#1", row.Rank);
@@ -416,6 +421,8 @@ public class SongBandLeaderboardViewModelTests
         await Async.Until(() => vm.ShowRows && vm.Pager.Page == 1);
         Assert.Equal(BandType.Quad, vm.BandType);
         Assert.Equal(2, vm.BandTypeIndex);
+        Assert.Equal("Quads", vm.BoardLabel);
+        Assert.Equal("Pulse", vm.Title);
         Assert.Equal("Band size: Quads", vm.SwitcherName);
         Assert.Contains(bands.Service.Handler.Requests, r => r.Uri.AbsolutePath.EndsWith("/Band_Quad", StringComparison.Ordinal) && r.Uri.Query == "?top=25&offset=0");
         vm.BandTypeIndex = -1;
@@ -434,18 +441,35 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal(BandType.Duets, vm.BandType);
         await vm.LoadAsync();
         Assert.True(vm.ShowEmpty);
-        Assert.Equal("", vm.SongTitle);
-        Assert.Equal("Duos · 0 entries", vm.Subtitle);
+        Assert.Equal("", vm.Title);
+        Assert.Equal("Duos leaderboard", vm.LeaderboardName);
+        Assert.Equal("Duos", vm.BoardLabel);
+        Assert.Equal("", vm.TotalText);
         Assert.Equal("No Duos scores have been recorded for this song yet.", vm.EmptyMessage);
         Assert.False(vm.Pager.IsVisible);
 
-        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 1)) : null;
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 1, showTotals: true)) : null;
         vm.Pager.PageCount = 5;
         vm.Pager.Page = 5;
         await vm.LoadAsync();
         Assert.Equal(1, vm.Pager.Page);
         Assert.True(vm.ShowRows);
-        Assert.Equal("Duos · 1 entry", vm.Subtitle);
+        Assert.Equal("1 Duos entry", vm.TotalText);
+        Assert.True(vm.HasTotal);
+
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 2, showTotals: true)) : null;
+        await vm.LoadAsync();
+        Assert.Equal("2 Duos entries", vm.TotalText);
+
+        // The live service sends false for band boards today: the header then names only the band size.
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 1, 2, showTotals: false)) : null;
+        await vm.LoadAsync();
+        Assert.Equal("", vm.TotalText);
+
+        bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? BandService.Ok(BandWire.SongBands("s1", "Band_Duets", 0, 0, showTotals: true)) : null;
+        await vm.LoadAsync();
+        Assert.True(vm.ShowEmpty);
+        Assert.Equal("", vm.TotalText);
 
         bands.Band = (p, _) => p.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.NotFound) : null;
         await vm.LoadAsync();

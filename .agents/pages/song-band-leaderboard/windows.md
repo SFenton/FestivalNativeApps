@@ -5,7 +5,8 @@
 ## Implemented
 
 - Route `AppRoute.SongBandLeaderboard(songId, bandType)`; an unknown band type falls back to Duos. Read `GET /api/leaderboard/{songId}/bands/{bandType}?top=25&offset=` (pure `SELECT`s), validated against the requested song/size and page size.
-- Header: 72 px song art (the shell background switches to the static song cover), `<Size> Leaderboard` (heading 1), song title as a link to Song Detail, `artist · year · duration`, `<Size> · N entries`.
+- Header (issue #317): the shared song leaderboard header `Controls/SongLeaderboardHeader`, the same control as the solo board (80 epx static cover, 56 below a 760 epx window; the shell background switches to the static song cover). It shows the song title (heading 1), the artist, the band size (`Duos`/`Trios`/`Quads`) where the solo board shows the instrument, and "N <Size> entries" only when the response's `showLeaderboardEntryTotals` is true and the total is above zero (web `SongBandLeaderboardPage` `SongInfoHeader` subtitle; the solo rule). It used to be a `<Size> Leaderboard` heading with the song as a secondary link and the count always shown. Switching the size updates only the band line. The page change announcement names the board (`<Song>, <Size> leaderboard`).
+- Agent decisions (issue #317; the owner may override): the header stays fixed above the size switcher instead of scrolling away like the solo board, because the band rows' load gate hides the `ListView` (and any `ListView.Header`) during size swaps and the row UIA from #196 relies on the `ListView`. The song-title link to Song Detail was dropped to match the solo board (web has no title link either); Back returns to Song Detail. The page now uses the solo compaction (smaller art below 760 epx, page-title style always) instead of its own 560 epx rule.
 - Band size switcher: Fluent `SelectorBar` (Duos · Trios · Quads) switching in place and returning to page 1.
 - Rows (`ListView`, virtualized): rank, each member's instrument icons + name + per-song member score, then the team score footer (web `SongBandScoreFooter`) with team score, FC badge (gold outline), accuracy pill and star images (`StarRow`), and a trailing chevron (`E76C`, decorative) because the card navigates. The footer is `Controls/BandScoreFooterPanel`, shared with the Song Detail preview row: the badges move to a line under the score when they don't fit (once for the whole list, `BandScoreFooterPanel.IsSection`; [leaderboard-row R8](../../patterns/leaderboard-row.md)), so the score never truncates (at 200% text in narrow windows it had truncated; issue #264). A row opens `AppRoute.Band(bandId, bandType, teamKey)`.
 - Row accessibility (issue #196): each `ListViewItem` is one Narrator stop. `ContainerContentChanging` sets its UIA name to `SongBandRow.PageAnnouncement` (`Rank N. <member>, <instruments>, <score> points. … Team score X points, full combo, A% accuracy, N gold stars`) and its AutomationId to `.row.<bandId>:<rank>`. Every template part, including `InstrumentIcon`'s inner `Image`, is `AccessibilityView.Raw`, because Raw on a parent does not hide its children in WinUI. The Song Detail preview keeps the shorter `Announcement`.
@@ -15,7 +16,7 @@
 
 ## Evidence
 
-Fixture screenshots (mock service, compact/medium/wide): `windows/reports/screenshots/song-band-leaderboard-{compact,medium,wide}.png`. At compact (500 epx) the shell keeps the navigation pane open, leaving ~340 epx of content; pages switch to a smaller title below 560 epx page width.
+Fixture screenshots (mock service, compact/medium/wide): `windows/reports/screenshots/song-band-leaderboard-{compact,medium,wide}.png`. At compact (500 epx) the shell keeps the navigation pane open, leaving ~340 epx of content; the header art shrinks to 56 epx below a 760 epx window.
 
 Validation pass (issue #196, 2026-10-03; live public service plus fixtures):
 
@@ -33,7 +34,7 @@ Journeys `song-band-leaderboard-switch-and-detail` (rows, Trios empty, Quads, ro
 
 ## IDs
 
-`fst.song-band-leaderboard.screen`, `.title`, `.song`, `.subtitle`, `.band-type-menu`, `.band-type.<bandType>`, `.list`, `.row.<bandId>:<rank>` (on the `ListViewItem`), `.empty` (on the empty heading `TextBlock`; panels have no UIA peer), `.page-first|page-previous|page-info|page-next|page-last`. The failure state is found through the shared `fst.service-status.title` / `fst.service-status.retry` IDs (the `.error` name on the `ServiceStatusView` UserControl never reaches UIA).
+`fst.song-band-leaderboard.screen`, `.title` (song title; collapsed when the song is missing), `.subtitle` (band size line), `.total` (entry total, only when shown), `.band-type-menu`, `.band-type.<bandType>`, `.list`, `.row.<bandId>:<rank>` (on the `ListViewItem`), `.empty` (on the empty heading `TextBlock`; panels have no UIA peer), `.page-first|page-previous|page-info|page-next|page-last`. The failure state is found through the shared `fst.service-status.title` / `fst.service-status.retry` IDs (the `.error` name on the `ServiceStatusView` UserControl never reaches UIA).
 
 ## Open
 

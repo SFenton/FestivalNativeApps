@@ -1,0 +1,50 @@
+<UserControl
+    x:Class="Festival.App.Controls.SongLeaderboardHeader"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    IsTabStop="False">
+    <!-- Song-first header of every song leaderboard (web SongInfoHeader): static cover, song title (heading 1), artist,
+         then the board line (instrument icon + name, or the band size) and the optional entry total (issue #317). -->
+    <Grid x:Name="Root" ColumnSpacing="16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Border x:Name="ArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
+            <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
+        </Border>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+            <TextBlock x:Name="TitleBlock" Text="{x:Bind Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
+                       AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="{x:Bind TitleAutomationId, Mode=OneWay}" />
+            <TextBlock x:Name="ArtistBlock" Text="{x:Bind Artist, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <controls:InstrumentIcon x:Name="BoardIcon" File="{x:Bind BoardIconFile, Mode=OneWay}" Width="20" Height="20"
+                                         AutomationProperties.AccessibilityView="Raw" />
+                <TextBlock x:Name="BoardBlock" Text="{x:Bind BoardLabel, Mode=OneWay}" VerticalAlignment="Center"
+                           AutomationProperties.AutomationId="{x:Bind BoardAutomationId, Mode=OneWay}" />
+            </StackPanel>
+            <TextBlock x:Name="TotalBlock" Text="{x:Bind TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
+                       AutomationProperties.AutomationId="{x:Bind TotalAutomationId, Mode=OneWay}" />
+        </StackPanel>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="760" />
+                    </VisualState.StateTriggers>
+                </VisualState>
+                <VisualState x:Name="Compact">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="ArtHost.Width" Value="56" />
+                        <Setter Target="ArtHost.Height" Value="56" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+    </Grid>
+</UserControl>
