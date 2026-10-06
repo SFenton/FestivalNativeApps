@@ -920,6 +920,10 @@
           {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
+            "symbol": "RankingSpotlight"
           }
         ],
         "android": [
@@ -1055,7 +1059,8 @@
           "song-detail",
           "song-leaderboard",
           "leaderboards",
-          "compete"
+          "compete",
+          "full-rankings"
         ]
       },
       "supersedes": [],
@@ -1069,6 +1074,7 @@
         293,
         294,
         295,
+        318,
         319
       ]
     },

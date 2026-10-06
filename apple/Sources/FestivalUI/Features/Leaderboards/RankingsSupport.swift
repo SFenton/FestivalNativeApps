@@ -41,6 +41,9 @@ struct AccountRankingRow: View {
     /// Draw the row as its own material card (Leaderboards, Full Rankings). Off where
     /// the row already sits inside a card (Compete previews): no card in a card.
     var cardSurface: Bool = false
+    /// Wrap the row in its profile link. Off for a board's pinned footer, whose caller
+    /// wraps the row in the selected-row action instead (``SelectedRowAction``, #318).
+    var opensProfile: Bool = true
 
     private var displayName: String { Self.displayName(entry) }
 
@@ -77,7 +80,10 @@ struct AccountRankingRow: View {
 
     var body: some View {
         Group {
-            if entry.hasAccount {
+            if !opensProfile {
+                // The caller's button or link is the row's action.
+                rowContent
+            } else if entry.hasAccount {
                 ListDetailLink(
                     value: AppRoute.player(accountId: entry.accountId, displayName: entry.displayName)
                 ) {
@@ -97,7 +103,7 @@ struct AccountRankingRow: View {
                     .accessibilityHint("Profile unavailable")
             }
         }
-        .accessibilityIdentifier("fst.rankings.row.\(entry.id)")
+        .accessibilityIdentifier(opensProfile ? "fst.rankings.row.\(entry.id)" : "fst.rankings.footer-row.\(entry.id)")
         .modifier(SelectedRankAccessibilityLabel(
             isSelected: isSelected, rank: entry.rank(for: metric), name: displayName
         ))
