@@ -416,7 +416,8 @@ public class SongScoreHistoryViewModelTests
         Assert.Equal("No score history for Lead", vm.EmptyMessage);
         Assert.Equal("Score ↓", vm.SortLabel);
         Assert.Equal("Sort scores by Score, descending", vm.SortAnnouncement);
-        Assert.Equal(("Score History", "View All Scores"), (vm.Title, vm.ViewAllLabel));
+        Assert.Equal(("Score History", "View All Scores"), (vm.Title, vm.ViewAllText));
+        Assert.Equal(("View All Scores, Lead", "fst.history.view-all"), (vm.ViewAllName, vm.ViewAllAutomationId));
         Assert.StartsWith("Select a bar", vm.Subtitle);
         Assert.False(vm.KeyboardLead);
 
@@ -431,7 +432,11 @@ public class SongScoreHistoryViewModelTests
         vm.ResetSort();
         Assert.Equal(600, vm.Rows[0].Point.Score);
 
+        var named = new List<string?>();
+        vm.PropertyChanged += (_, e) => named.Add(e.PropertyName);
         vm.SelectInstrument(Instrument.Bass);
+        Assert.Contains(nameof(vm.ViewAllName), named); // View All Scores' UIA name follows the chart (view-all-cta R4)
+        Assert.Equal("View All Scores, Bass", vm.ViewAllName);
         Assert.Single(vm.Points);
         Assert.False(vm.ShowAll);
         Assert.False(vm.CanViewAll);

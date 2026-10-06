@@ -339,8 +339,8 @@ public static class RankingViewAll
     /// <param name="total">Ranked accounts or teams.</param>
     /// <returns>Label.</returns>
     public static string Label(int total) => total > 0
-        ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"View All Rankings ({total:N0})")
-        : "View All Rankings";
+        ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{ViewAllCta.RankingsLabel} ({total:N0})")
+        : ViewAllCta.RankingsLabel;
 
     /// <summary>Accessible name that starts with the visible label so voice control and Narrator match it (WCAG 2.5.3),
     /// then names the board so equal buttons in different cards stay distinct.</summary>

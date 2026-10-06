@@ -5,8 +5,9 @@ using Festival.Core.ViewModels;
 namespace Festival.Core.Tests;
 
 /// <summary>
-/// Issue #268 (check of #68/#41): every "View all" call to action below a card's rows (Song Detail's View Full
-/// Leaderboard, the Rivals hub's View All Rivals, Leaderboards' View All Rankings) is the same button: one shared style
+/// Issue #268 (check of #68/#41), pattern <c>view-all-cta</c>: every "View all" call to action below a card's rows
+/// (Song Detail's View Full Leaderboard and View All Scores, the Rivals hub's View All Rivals, Leaderboards' View All
+/// Rankings) is the same button: one shared style
 /// with no per-page layout overrides, a Fluent 40 epx minimum target, and a UIA name that starts with its visible label.
 /// </summary>
 public class ViewAllCtaTests
@@ -36,6 +37,11 @@ public class ViewAllCtaTests
                 .Select(e => (Path.GetFileName(path), e)))
             .ToList();
 
+    /// <summary>An x:Bind to a view model property (a card's own or a page's section path), optionally OneWay.</summary>
+    /// <param name="property">Final property name.</param>
+    /// <returns>Anchored pattern.</returns>
+    private static string BindingTo(string property) => $@"^\{{x:Bind (\w+\.)*{property}(, Mode=OneWay)?\}}$";
+
     #endregion
 
     [Theory]
@@ -57,14 +63,17 @@ public class ViewAllCtaTests
     {
         Assert.Equal("View Full Leaderboard", ViewAllCta.FullLeaderboardLabel);
         Assert.Equal("View All Rivals", ViewAllCta.RivalsLabel);
+        Assert.Equal("View All Rankings", ViewAllCta.RankingsLabel);
+        Assert.Equal("View All Scores", ViewAllCta.ScoresLabel);
     }
 
     [Fact]
     public void RivalsAndSongDetail_UseTheSharedButton()
     {
         var consumers = Consumers();
-        // Song Detail instrument + band cards, Leaderboards solo + band cards, the Rivals hub cards.
-        Assert.Equal(["LeaderboardsPage.xaml", "LeaderboardsPage.xaml", "RivalsPage.xaml", "SongDetailPage.xaml", "SongDetailPage.xaml"],
+        // Song Detail Score History + instrument + band cards, Leaderboards solo + band cards, the Rivals hub cards.
+        Assert.Equal(["LeaderboardsPage.xaml", "LeaderboardsPage.xaml", "RivalsPage.xaml", "SongDetailPage.xaml", "SongDetailPage.xaml",
+            "SongDetailPage.xaml"],
             consumers.Select(c => c.File).Order(StringComparer.Ordinal));
     }
 
@@ -78,9 +87,9 @@ public class ViewAllCtaTests
             foreach (var property in styled)
                 Assert.True(Attr(button, property) is null, $"{file}: {property} overrides FSTViewAllButtonStyle");
             // Visible text and UIA name come from the card's view model so the name always starts with the label.
-            Assert.StartsWith("{x:Bind ViewAllText", Attr(button, "Content"), StringComparison.Ordinal);
-            Assert.StartsWith("{x:Bind ViewAllName", Attr(button, "AutomationProperties.Name"), StringComparison.Ordinal);
-            Assert.Equal("{x:Bind ViewAllAutomationId}", Attr(button, "AutomationProperties.AutomationId"));
+            Assert.Matches(BindingTo("ViewAllText"), Attr(button, "Content"));
+            Assert.Matches(BindingTo("ViewAllName"), Attr(button, "AutomationProperties.Name"));
+            Assert.Matches(BindingTo("ViewAllAutomationId"), Attr(button, "AutomationProperties.AutomationId"));
         }
     }
 

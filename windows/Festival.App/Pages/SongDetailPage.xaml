@@ -199,10 +199,10 @@
                             <StackLayout Spacing="8" />
                         </ItemsRepeater.Layout>
                     </ItemsRepeater>
-                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllLabel}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
-                            Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}" HorizontalAlignment="Stretch" MinHeight="48"
-                            FontWeight="SemiBold" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-                            CornerRadius="8" AutomationProperties.AutomationId="fst.history.view-all" />
+                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllText}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
+                            Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}"
+                            AutomationProperties.Name="{x:Bind ViewModel.History.ViewAllName, Mode=OneWay}"
+                            AutomationProperties.AutomationId="{x:Bind ViewModel.History.ViewAllAutomationId}" />
                 </StackPanel>
 
                 <StackPanel x:Name="LeaderboardsSection">
