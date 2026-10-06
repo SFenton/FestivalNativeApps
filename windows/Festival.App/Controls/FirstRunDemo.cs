@@ -1043,11 +1043,10 @@ public sealed partial class FirstRunDemo : UserControl
         return 0;
     }
 
-    /// <summary>Builds a rival row projection.</summary>
+    /// <summary>Builds a rival row projection (the real row's ahead/behind counts, no shared count; issue #267).</summary>
     /// <param name="rival">Rival.</param>
     /// <returns>Text row.</returns>
-    private static FirstRunDemoRow RivalRow(FirstRunDemoRival rival) =>
-        new(rival.DisplayName, $"{rival.SharedSongCount} shared · {rival.AheadCount}/{rival.BehindCount}", rival.AvgSignedDelta >= 0 ? $"▲ {rival.AvgSignedDelta}" : $"▼ {Math.Abs(rival.AvgSignedDelta)}");
+    private static FirstRunDemoRow RivalRow(FirstRunDemoRival rival) => rival.Row;
 
     /// <summary>Builds a titled rival group with a setter.</summary>
     /// <param name="title">Group title.</param>
@@ -1061,7 +1060,7 @@ public sealed partial class FirstRunDemo : UserControl
         {
             stack.Children.Clear();
             stack.Children.Add(Text(title, 13, true));
-            foreach (var rival in rows) stack.Children.Add(Text($"{rival.DisplayName} · {rival.SharedSongCount} songs", 12, false));
+            foreach (var rival in rows) stack.Children.Add(Text(rival.GroupLine, 12, false));
         }
         Set(initial);
         return (border, Set);

@@ -97,17 +97,36 @@ enum IPadAuditPageEvidence {
         // Contrast floor over every static text in the region; texts the bars or the
         // screen edge cut are measured later, scrolled clear.
         let texts = nodes.filter { $0.elementType == .staticText && !$0.label.isEmpty }
-        for node in texts {
+        // Buttons and links carry text too: a drawer's rows are buttons with combined
+        // labels and no static-text children, which left its floor unmeasured.
+        let measurable = nodes.filter {
+            [.staticText, .button, .link].contains($0.elementType) && !$0.label.isEmpty
+        }
+        for node in measurable {
             let frame = node.frame
             let centre = CGPoint(x: frame.midX, y: frame.midY)
             guard frame.width >= 4, frame.height >= 8, region.intersects(frame), window.intersects(frame),
                   !systemRegions.contains(where: { $0.contains(centre) }) else { continue }
-            let locator = IPadAuditTextEvidence.Locator.make(node, among: texts)
+            let isText = node.elementType == .staticText
+            if !isText {
+                // A button or link counts only where its label is drawn as text (an icon
+                // button's glyph is not text): a recognized word of its label inside it.
+                let label = String(IPadAuditTextEvidence.normalized(node.label))
+                let drawn = lines.contains { line in
+                    line.words.contains { word in
+                        let seen = String(IPadAuditTextEvidence.normalized(word.text))
+                        return frame.contains(CGPoint(x: word.frame.midX, y: word.frame.midY))
+                            && seen.count >= 3 && label.contains(seen)
+                    }
+                }
+                guard drawn, content.contains(frame) else { continue }
+            }
+            let locator = IPadAuditTextEvidence.Locator.make(node, among: isText ? texts : measurable)
             guard content.contains(frame) else {
                 visible.obscured.append(locator)
                 continue
             }
-            visible.texts.append((locator, frame))
+            if isText { visible.texts.append((locator, frame)) }
             guard let measurement = reading(for: frame, label: node.label, lines: lines, capture: capture),
                   measurement.glyphPixels >= 40 else { continue }
             visible.evidence.add(label: node.label, ratio: measurement.ratio)
@@ -230,7 +249,9 @@ enum IPadAuditPageEvidence {
             if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
         }
         var area = ContentArea(rect: CGRect(x: window.minX, y: window.minY, width: window.width, height: bottom - window.minY))
-        guard let root = try? app.snapshot() else { return area }
+        // The open drawer sits in front of the page's bars and pagers: its rows are
+        // measurable wherever they are (the page's large-title bar reached y 198 behind it).
+        guard !drawerOpen, let root = try? app.snapshot() else { return area }
         func walk(_ node: XCUIElementSnapshot, inBar: Bool) {
             let isBar = node.elementType == .navigationBar && node.frame.maxY < window.midY && node.frame.height > 0
             if isBar { area.topBars.append(node.frame) }

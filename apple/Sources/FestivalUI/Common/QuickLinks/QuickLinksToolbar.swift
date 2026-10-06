@@ -76,7 +76,7 @@ public struct QuickLinksMenu: View {
                 Section(controller.title) {
                     Picker(controller.title, selection: selection) {
                         ForEach(controller.sections) { section in
-                            QuickLinkLabel(section: section)
+                            QuickLinkLabel(section: section, presentation: .menu)
                                 .tag(Optional(section.id))
                                 .accessibilityIdentifier("fst.quick-links.item.\(section.id)")
                         }
@@ -105,7 +105,7 @@ public struct QuickLinksMenu: View {
         let controller = controller
         return controller.sections.map { section in
             PageToolMenuChoice(
-                id: "fst.quick-links.item.\(section.id)", label: AnyView(QuickLinkLabel(section: section)),
+                id: "fst.quick-links.item.\(section.id)", label: AnyView(QuickLinkLabel(section: section, presentation: .list)),
                 isSelected: section.id == controller.activeID, action: { controller.jump(to: section.id) }
             )
         }
@@ -123,23 +123,92 @@ public struct QuickLinksMenu: View {
 
 /// One quick link's icon and title, indented by depth.
 ///
-/// Instrument artwork is pre-sized to the adjacent SF Symbols (issue #303): menus and
-/// the iPhone accessory sheet draw a plain image at its 144 pt intrinsic size.
+/// Instrument artwork is pre-sized to the visual weight of the adjacent SF Symbols
+/// (issues #303, #313): menus and the iPhone accessory sheet draw a plain image at its
+/// 144 pt intrinsic size.
 struct QuickLinkLabel: View {
     let section: QuickLinkSection
+    /// Where the row is shown; menus draw smaller symbols than list rows.
+    let presentation: Presentation
 
-    /// Instrument icon side at the default text size: the 20 pt of an enclosed-circle SF
-    /// Symbol (`globe`, `star.circle`) beside 17 pt body text on iOS/iPadOS, 16 pt beside
-    /// macOS's 13 pt menu text (HIG Icons: "Keep all icons consistent in size").
-    #if os(macOS)
-    static let instrumentIconBaseSide: CGFloat = 16
-    #else
-    static let instrumentIconBaseSide: CGFloat = 20
-    #endif
+    /// The chooser that shows the row.
+    enum Presentation {
+        /// The iPhone tab-bar accessory sheet's `List` (``PageToolMenu``).
+        case list
+        /// The native `Menu` (iPad, iPhone Duo, Mac).
+        case menu
+    }
 
-    /// Scales with Dynamic Type like the row text (HIG Typography: "Increase the size of
-    /// meaningful interface icons as font size increases").
-    @ScaledMetric(relativeTo: .body) private var instrumentIconSide = QuickLinkLabel.instrumentIconBaseSide
+    /// Instrument icon side at the default text size, sized for visual weight (#313).
+    ///
+    /// The artwork is a full-bleed disc whose black outer ring disappears on the dark
+    /// sheet and menus, so only 81–86 % of the side reads: the visible disc, not the
+    /// frame, matches ``adjacentSymbolSide(_:)`` (HIG Icons: "Adjust dimensions for
+    /// visual weight so they look consistent, rather than forcing equal geometry").
+    /// iOS list rows use 24 pt (``InstrumentIcon/menuIconSide``) beside 20 pt-tall symbols
+    /// and iOS menus 17 pt beside 13.5 pt symbols. macOS menus keep 16 pt (#303).
+    ///
+    /// - Parameter presentation: The chooser showing the row.
+    /// - Returns: The side in points at the default text size.
+    static func instrumentIconBaseSide(_ presentation: Presentation) -> CGFloat {
+        #if os(macOS)
+        return 16
+        #else
+        switch presentation {
+        case .list: return InstrumentIcon.menuIconSide
+        case .menu: return 17
+        }
+        #endif
+    }
+
+    /// Height of the SF Symbols in neighbouring rows at the default text size, measured
+    /// on iOS 26: 20 pt in list rows beside 17 pt body text, 13.5 pt in menus beside
+    /// 15 pt menu text. macOS menus aren't measured (no GUI automation).
+    ///
+    /// - Parameter presentation: The chooser showing the row.
+    /// - Returns: The symbol height in points.
+    static func adjacentSymbolSide(_ presentation: Presentation) -> CGFloat {
+        switch presentation {
+        case .list: 20
+        case .menu: 13.5
+        }
+    }
+
+    /// Text sizes over which list-row SF Symbols hold their xxxLarge size while body text
+    /// keeps growing (measured on iOS 26 List rows: 20 pt tall at Large, 27 at xxxLarge,
+    /// 25.5 at AX1, 28 at AX3, then 38 at AX5, growing with body text again).
+    static let symbolPlateau = DynamicTypeSize.xxxLarge...DynamicTypeSize.accessibility3
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// The instrument icon side for a text size, following the row symbols' curve so the
+    /// visible disc keeps matching them (HIG Typography: "Increase the size of meaningful
+    /// interface icons as font size increases").
+    ///
+    /// Scales like body text up to xxxLarge, holds across ``symbolPlateau``, then scales
+    /// with body text from there. macOS menus don't scale.
+    ///
+    /// - Parameters:
+    ///   - size: The environment's Dynamic Type size.
+    ///   - presentation: The chooser showing the row.
+    /// - Returns: The side in points before ``InstrumentIcon/menuSide(_:)`` snapping.
+    static func instrumentIconSide(for size: DynamicTypeSize, in presentation: Presentation) -> CGFloat {
+        let base = instrumentIconBaseSide(presentation)
+        #if canImport(UIKit)
+        let metrics = UIFontMetrics(forTextStyle: .body)
+        func scaled(_ value: CGFloat, at size: DynamicTypeSize) -> CGFloat {
+            metrics.scaledValue(
+                for: value, compatibleWith: UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(size))
+            )
+        }
+        if size <= symbolPlateau.lowerBound { return scaled(base, at: size) }
+        let plateau = scaled(base, at: symbolPlateau.lowerBound)
+        if size <= symbolPlateau.upperBound { return plateau }
+        return plateau * scaled(17, at: size) / scaled(17, at: symbolPlateau.upperBound)
+        #else
+        return base
+        #endif
+    }
 
     var body: some View {
         Label {
@@ -149,7 +218,9 @@ struct QuickLinkLabel: View {
             case let .system(name):
                 Image(systemName: name)
             case let .instrument(instrument):
-                InstrumentIcon.menuImage(for: instrument, keyboard: false, side: instrumentIconSide)
+                InstrumentIcon.menuImage(
+                    for: instrument, keyboard: false, side: Self.instrumentIconSide(for: dynamicTypeSize, in: presentation)
+                )
             case nil:
                 EmptyView()
             }

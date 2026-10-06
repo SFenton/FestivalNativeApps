@@ -127,7 +127,7 @@ struct LeaderboardsScreen: View {
             loadedScroll
         }
         .festivalBackground(.carousel, session: session)
-        .navigationTitle("Leaderboards")
+        .festivalNavigationTitle("Leaderboards")
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands(rankByBinding)
         .toolbar {

@@ -232,41 +232,13 @@ struct SoloLeaderboardScreen: View {
         .onChange(of: loadedRowsKey) { _, _ in staggerSettled = false }
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
-        .navigationTitle(song.title)
+        .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                // Built only once the header has scrolled away: a hidden (opacity 0)
-                // copy was still audited, and its fixed-size icon failed Dynamic Type.
-                // Until then an empty, unspoken placeholder holds the slot: an empty
-                // principal item let the bar fall back to `navigationTitle`, so the
-                // title showed above the in-page header before any scroll (issue #93).
-                if headerHidden {
-                    HStack(spacing: 8) {
-                        ArtworkTile(raw: song.albumArt, session: session, size: 28)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 0) {
-                            MarqueeText(song.title)
-                                .font(.headline)
-                                .foregroundStyle(FestivalText.primary)
-                                .lineLimit(1)
-                            Text(instrument.label)
-                                .font(.caption)
-                                .foregroundStyle(FestivalText.primary)
-                        }
-                    }
-                    .frame(maxWidth: 240)
-                    // A bar title stays on one line at every text size.
-                    .environment(\.marqueeWrapsAtAccessibilitySizes, false)
-                    .transition(.opacity)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
-                } else {
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                        .accessibilityHidden(true)
-                }
-            }
+            SongLeaderboardPinnedTitle(
+                song: song, session: session, boardName: instrument.label,
+                idPrefix: "fst.song-leaderboard", headerHidden: headerHidden
+            )
             #if os(iOS)
             if let shownPayload {
                 RankingsPagerToolbarContent(
@@ -462,41 +434,17 @@ struct SoloLeaderboardScreen: View {
     /// Let the source-chart title and totals scroll above rows at large text sizes.
     ///
     /// - Parameter payload: Current chart, including its optional totals disclosure.
-    /// - Returns: A wrapping native song summary over the page backdrop.
+    /// - Returns: The shared song leaderboard header with the instrument's board line.
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
-        HStack(spacing: 12) {
-            ArtworkTile(raw: song.albumArt, session: session, size: 80)
-                .id(song.albumArt)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(song.title)
-                    .font(.title3.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(song.artist)
-                    .foregroundStyle(FestivalText.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 6) {
-                    InstrumentIcon(instrument, size: 20)
-                        .accessibilityHidden(true)
-                    Text(payload.leaderboard.showLeaderboardEntryTotals == true
-                        ? "\(instrument.label) · \(payload.leaderboard.totalEntries.formatted()) entries"
-                        : instrument.label)
-                        .foregroundStyle(FestivalText.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer()
-        }
-        .foregroundStyle(FestivalText.primary)
-        // No card or band behind the header, like Song Detail's (operator batch 7.2,
-        // issue #293): the shared dimmed song backdrop keeps the text legible.
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isHeader)
-        .onGeometryChange(for: Bool.self) { proxy in
-            SongDetailPinnedTitlePolicy.isHeroHidden(titleMaxY: proxy.frame(in: .scrollView).maxY)
-        } action: { hidden in
-            headerHidden = hidden
+        SongLeaderboardHeader(
+            song: song, session: session,
+            boardLine: SongLeaderboardBoardLine.text(
+                name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
+                showsTotals: payload.leaderboard.showLeaderboardEntryTotals
+            ),
+            idPrefix: "fst.song-leaderboard", hidden: $headerHidden
+        ) {
+            InstrumentIcon(instrument, size: 20)
         }
     }
 

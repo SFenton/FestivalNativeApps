@@ -675,7 +675,8 @@ struct SettingsScreen: View {
                     .padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
-            .tint(.red)
+            // The brand red (≈ 5.6:1 behind white); the dark system red measured ≈ 3.4:1.
+            .tint(BrandTokens.statusRed)
             .foregroundStyle(.white)
             .accessibilityIdentifier("fst.settings.reset")
         }

@@ -1742,7 +1742,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
             total = len(all_entries)
             entries = all_entries[offset:offset + top]
             self._json(200, {
-                "songId": song_id, "bandType": band_type, "count": len(entries),
+                "songId": song_id, "bandType": band_type, "showLeaderboardEntryTotals": True,
+                "count": len(entries),
                 "totalEntries": total, "localEntries": total, "entries": entries,
                 "selectedPlayerEntry": selected, "selectedBandEntry": None,
             })
