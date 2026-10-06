@@ -41,12 +41,20 @@
             "symbol": "ModalTopEdgeFadeModifier"
           },
           {
-            "path": "apple/Sources/FestivalUI/Design/ModalPinnedHeaderFade.swift",
-            "symbol": "ModalPinnedHeaderFade"
+            "path": "apple/Sources/FestivalUI/Design/PinnedHeaderEdgeFade.swift",
+            "symbol": "PinnedHeaderEdgeFade"
           },
           {
-            "path": "apple/Sources/FestivalUI/Features/Songs/SectionBarEdgeFade.swift",
-            "symbol": "SectionBarEdgeFade"
+            "path": "apple/Sources/FestivalUI/Common/PlatformScrollObserver.swift",
+            "symbol": "PlatformScrollObserver"
+        },
+        {
+            "path": "apple/Sources/FestivalUI/Common/ScrollEdgeReader.swift",
+            "symbol": "onScrollEdgeReading"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/ScrollEdgeFadeModifiers.swift",
+            "symbol": "ScrollEdgeHardEdge"
           },
           {
             "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
@@ -95,9 +103,6 @@
             "apple/Sources/FestivalUI/Design/**",
             "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
-          ],
-          "debt": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
         },
@@ -162,7 +167,8 @@
         297,
         298,
         301,
-        305
+        305,
+        308
       ]
     },
     {
@@ -847,6 +853,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SelectedScoreFooterRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
+            "symbol": "SelectedRowAction"
           }
         ],
         "windows": [

@@ -1100,7 +1100,7 @@ struct SongsScreen: View {
                 // Before the section bar overlay: applied after it, this identifier
                 // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
                 .accessibilityIdentifier("fst.songs.list")
-                .modifier(SectionBarRowMask(
+                .modifier(SectionBarRowFade(
                     chrome: scrollChrome, enabled: groups != nil && Self.usesSectionBar
                 ))
                 .overlay(alignment: .top) {
@@ -1722,7 +1722,7 @@ private struct QuickLinksJumpHeaderSync: ViewModifier {
 }
 
 /// iOS 26: the current Songs section title, floating just below the navigation bar once
-/// the List has scrolled. With ``SectionBarRowMask`` rows fade out just below its bottom
+/// the List has scrolled. With ``SectionBarRowFade`` rows fade out just below its bottom
 /// edge (issue #10), with no backing behind the title (operator batch 7).
 ///
 /// Observes ``SongsScrollChrome`` itself, so a passed title or a scroll-away change
@@ -1815,8 +1815,11 @@ private struct SongsSectionBar: View {
 
 /// Everything from a frame's top edge down, reaching far past its bottom and sides.
 private struct BelowTopShape: Shape {
+    /// How far the path reaches past the frame, in points.
+    private static let far: CGFloat = 10_000
+
     func path(in rect: CGRect) -> Path {
-        let far = RowMaskShape.far
+        let far = Self.far
         return Path(CGRect(
             x: rect.minX - far, y: rect.minY, width: rect.width + 2 * far, height: rect.height + far
         ))
@@ -1921,68 +1924,26 @@ private struct SongsInlineSectionTitle: View {
     }
 }
 
-/// Masks the List above the section bar's bottom edge while scrolled, so rows fade out
-/// under the bar (issue #10, ``SectionBarEdgeFade``). Inactive at the top, where no row
-/// is under the bar and the large title shows. Near a section's start the fade is only as
-/// deep as ``SongsScrollChrome/rowFadeLimit`` allows, so a landed section's first row and
-/// an incoming title are never dimmed (issue #298).
+/// Fades the List out under the floating section bar while scrolled (issue #10), with
+/// the shared pinned-header fade (``PinnedHeaderEdgeFade``, issue #308). Inactive at the
+/// top, where no row is under the bar and the large title shows. Near a section's start
+/// the fade is only as deep as ``SongsScrollChrome/rowFadeLimit`` allows, so a landed
+/// section's first row and an incoming title are never dimmed (issue #298).
 ///
-/// The mask is a shape whose path may extend past its frame: inactive it covers far
-/// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
-/// and `ignoresSafeArea` on the mask stalled the scroll view), active it starts at the
-/// end of the fade below the bar's bottom edge, measured against the mask's own global
-/// top. A gradient band fills the fade between the bar's edge and the shape; it sits
-/// under the opaque shape when inactive, so it changes nothing there. The structure is
-/// the same in every state, so toggling a setting never rebuilds the List.
-private struct SectionBarRowMask: ViewModifier {
-    /// Observed here, not by `SongsScreen` (issue #8).
+/// Observes ``SongsScrollChrome`` here, so a scroll re-renders only this modifier, never
+/// the List (issue #8).
+private struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
     /// False when the List has no sections or the OS has no section bar.
     let enabled: Bool
-    @State private var maskTop: CGFloat = 0
-    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
-    @Environment(\.colorSchemeContrast) private var systemContrast
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
 
     func body(content: Content) -> some View {
-        let active = enabled && chrome.listScrolled
-        let fade = chrome.rowFadeHeight(fade: SectionBarEdgeFade.height(
-            reduceTransparency: systemReduceTransparency || lessTransparency,
-            increaseContrast: moreContrast || systemContrast == .increased
-        ))
-        let cut = max(0, chrome.sectionBarBottom - maskTop)
         content
             .environment(\.defaultMinListRowHeight, 0)
-            .mask {
-                ZStack(alignment: .top) {
-                    LinearGradient(
-                        stops: SectionBarEdgeFade.gradientStops, startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: fade)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, -RowMaskShape.far)
-                    .offset(y: cut)
-                    RowMaskShape(cut: active ? cut + fade : nil)
-                }
-                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
-                    maskTop = $0
-                }
-            }
-    }
-}
-
-/// Everything below `cut` (local points), or everything when `cut` is nil.
-private struct RowMaskShape: Shape {
-    /// How far the path reaches past the frame, in points.
-    static let far: CGFloat = 10_000
-
-    let cut: CGFloat?
-
-    func path(in rect: CGRect) -> Path {
-        let far = Self.far
-        let top = cut.map { rect.minY + max(0, $0) } ?? (rect.minY - far)
-        return Path(CGRect(x: rect.minX - far, y: top, width: rect.width + 2 * far, height: rect.maxY + far - top))
+            .pinnedHeaderEdgeFadeMask(
+                edge: chrome.sectionBarBottom, active: enabled && chrome.listScrolled,
+                depthLimit: chrome.rowFadeLimit
+            )
     }
 }
 

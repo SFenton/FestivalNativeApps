@@ -237,10 +237,10 @@ final class IPadShellAccessibilityTests: XCTestCase {
             if let song = page.song {
                 XCTAssertTrue(IPadAccessibilityAuditTests.openSong(app, song), "\(page.name): Song Detail opens")
             }
-            XCTAssertFalse(element(app, "fst.split.trailing").exists, "\(page.name) starts full width")
-            guard let opened = IPadAccessibilityAuditTests.openSplit(
+            XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name) starts full width")
+            guard IPadAccessibilityAuditTests.openSplit(
                 app, ids: page.exact ? [page.row] : [], prefix: page.exact ? nil : page.row
-            ) else {
+            ) != nil, let paneFrame = IPadAccessibilityAuditTests.trailingPane(app) else {
                 XCTFail("\(page.name): the trailing pane did not open")
                 if let dir = ProcessInfo.processInfo.environment["FST_AUDIT_OUT"] {
                     try? XCUIScreen.main.screenshot().pngRepresentation
@@ -252,7 +252,6 @@ final class IPadShellAccessibilityTests: XCTestCase {
                 app.terminate()
                 continue
             }
-            let trailing = element(app, opened)
             // The same item can be listed more than once (Leaderboards: one row per
             // instrument card; Full Rankings: the selected-profile footer): every selected
             // row is the opened item's.
@@ -264,26 +263,31 @@ final class IPadShellAccessibilityTests: XCTestCase {
 
             let nodes = try order(app)
             let rowIndex = nodes.firstIndex { $0.identifier == rowID }
+            // The pane's container, or (iOS 27.1, no container identifier) its first element.
             let paneIndex = nodes.firstIndex { $0.identifier == "fst.split.trailing" }
+                ?? nodes.firstIndex { paneFrame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) && $0.frame.width > 0
+                    && $0.frame.width < paneFrame.width + 1 }
             if let rowIndex, let paneIndex {
                 XCTAssertLessThan(rowIndex, paneIndex, "\(page.name): the leading pane reads before the trailing pane")
             } else {
                 XCTFail("\(page.name): row \(rowID) or trailing pane missing from the tree")
             }
-            XCTAssertEqual(trailing.frame.minX, window.midX, accuracy: 30, "\(page.name): trailing half")
+            XCTAssertEqual(paneFrame.minX, window.midX, accuracy: 30, "\(page.name): trailing half")
 
             // Focus: the trailing pane's top heading.
             let focus = waitForTrace(app) { $0.hasPrefix("heading: ") }
             let title = String(focus.dropFirst("heading: ".count))
             XCTAssertTrue(focus.hasPrefix("heading: ") && !title.isEmpty, "\(page.name): focus moves into the pane (\(focus))")
             let paneHeadings = nodes.filter {
-                IPadAccessibilityAuditTests.isHeader($0) && trailing.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+                IPadAccessibilityAuditTests.isHeader($0) && paneFrame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
             }.map(\.label)
             XCTAssertTrue(paneHeadings.contains(title), "\(page.name): focus target '\(title)' is a heading in the pane \(paneHeadings)")
 
             // Close: full width, no selection, focus back to the row.
             element(app, "fst.split.close").tap()
-            XCTAssertTrue(waitForDisappearance(of: trailing, timeout: 10), "\(page.name): Close returns to full width")
+            let deadline = Date.now.addingTimeInterval(10)
+            while IPadAccessibilityAuditTests.trailingPane(app) != nil, Date.now < deadline { Thread.sleep(forTimeInterval: 0.3) }
+            XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "\(page.name): Close returns to full width")
             let back = waitForTrace(app) { $0.hasPrefix("row: ") }
             XCTAssertTrue(back.hasPrefix("row: "), "\(page.name): focus returns to the opened row (\(back))")
             XCTAssertEqual(
