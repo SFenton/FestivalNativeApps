@@ -51,6 +51,10 @@
           {
             "path": "apple/Sources/FestivalCore/ScrollEdgeFade.swift",
             "symbol": "ScrollEdgeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "bottomChromeFade"
           }
         ],
         "android": [
@@ -93,9 +97,7 @@
             "apple/Sources/FestivalUI/Features/FirstRun/Demo/**"
           ],
           "debt": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
-            "apple/Sources/FestivalUI/Features/Leaderboards/FullRankingsScreen.swift",
-            "apple/Sources/FestivalUI/Features/SongLeaderboard/SoloLeaderboardScreen.swift"
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
           ],
           "message": "Scroll-content masks belong to the canonical edge-fade components (scroll-edge R1)."
         },
@@ -159,7 +161,8 @@
         288,
         297,
         298,
-        301
+        301,
+        305
       ]
     },
     {
@@ -566,6 +569,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
             "symbol": "GlobalSearchEntry"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/TopBarActions.kt",
+            "symbol": "AdaptiveTopBarActions"
           }
         ],
         "windows": [
@@ -621,14 +628,17 @@
         "pages": [
           "songs",
           "shop",
-          "leaderboards"
+          "leaderboards",
+          "suggestions"
         ]
       },
       "supersedes": [],
       "supersededBy": null,
       "issues": [
+        52,
         84,
         92,
+        160,
         300
       ]
     },
@@ -763,7 +773,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, and one selected-row rule (jump off-page, open the profile on-page) for players and bands.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -772,7 +782,9 @@
         "columns",
         "marquee",
         "pager",
-        "pinned player"
+        "pinned player",
+        "selected row",
+        "band footer"
       ],
       "web": [
         {
@@ -809,6 +821,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
             "symbol": "RankingsPagerView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
+            "symbol": "SelectedScoreFooterRow"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
+            "symbol": "SelectedRowAction"
           }
         ],
         "android": [
@@ -921,7 +941,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; entrances never replay while scrolling and reduced motion removes fades.",
+      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner; graph card lists run the web out/height/in list sequence; entrances never replay while scrolling and reduced motion removes fades.",
       "keywords": [
         "loading",
         "spinner",
@@ -930,7 +950,8 @@
         "fade",
         "stagger",
         "transition",
-        "reduce motion"
+        "reduce motion",
+        "graph card"
       ],
       "web": [
         {
@@ -948,6 +969,10 @@
         {
           "path": "pages/songinfo/components/path/PathsModal.tsx",
           "symbol": "PathsModal"
+        },
+        {
+          "path": "hooks/chart/useListAnimation.ts",
+          "symbol": "useListAnimation"
         }
       ],
       "canonical": {
@@ -985,6 +1010,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongPathsViewModel.kt",
             "symbol": "PathSwapPhase"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/GraphListPhase.kt",
+            "symbol": "GraphListPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/GraphCardList.kt",
+            "symbol": "GraphCardList"
           }
         ],
         "windows": [
@@ -1057,6 +1090,17 @@
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
+        },
+        {
+          "id": "android-graph-list",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "GraphCardList\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/GraphCardList.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongHistoryCard.kt"
+          ],
+          "debt": [],
+          "message": "Graph card lists must remain in the shared load-transition inventory (load-transition R7)."
         }
       ],
       "related": {
@@ -1079,7 +1123,8 @@
         60,
         70,
         71,
-        149
+        149,
+        169
       ]
     },
     {

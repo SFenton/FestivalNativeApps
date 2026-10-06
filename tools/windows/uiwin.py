@@ -106,14 +106,15 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
+    "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state", "pin": "selector",
     "assertpinned": "selector",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
-#: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits).
+#: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
+#: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable).
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
-              "name": None, "scroll": None}
+              "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false")}
 
 # endregion
 
@@ -199,7 +200,10 @@ def parse_step(step: str) -> dict:
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
     edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
-    pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top.
+    pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top;
+    ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
+    element's top edge sits ``<epx>`` (more than 0) effective pixels below the scroller's top within 1 epx: a fixed,
+    unclipped list position for scans (a clipped element's UIA top reads as the viewport edge, so a 0 inset proves nothing).
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
@@ -253,6 +257,8 @@ def parse_step(step: str) -> dict:
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
         result["epx"] = float(epx)
+        if verb == "scrollinset" and result["epx"] <= 0:
+            raise ValueError(f"scrollinset needs a positive inset (a clipped top reads as 0), not {epx!r}")
     elif shape == "status":
         body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
         selector, sep, status = body.partition("|")
@@ -270,7 +276,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|scroll|type|invoke|focusable=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -279,7 +285,7 @@ def parse_step(step: str) -> dict:
         result["selector"] = parse_selector(selector)
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertstate needs an element selector, not coordinates")
-        result["key"], result["value"] = key, value if allowed is None else value.lower()
+        result["key"], result["value"] = key, value if allowed is None and key != "type" else value.lower()
         if wait:
             result["timeout"] = float(wait)
     elif shape == "selector":

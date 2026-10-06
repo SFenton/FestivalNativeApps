@@ -17,8 +17,8 @@ enum MacCopyPolicy {
     static func text(for route: AppRoute) -> String? {
         let text: String?
         switch route {
-        case let .songDetail(song), let .songLeaderboard(song, _, _),
-             let .songBandLeaderboard(song, _), let .playerHistory(song, _):
+        case let .songDetail(song), let .songLeaderboard(song, _, _, _),
+             let .songBandLeaderboard(song, _, _, _), let .playerHistory(song, _):
             text = song.title
         case let .player(_, name), let .playerBands(_, name):
             text = name

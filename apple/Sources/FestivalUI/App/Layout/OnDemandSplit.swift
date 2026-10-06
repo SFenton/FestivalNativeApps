@@ -26,6 +26,16 @@ extension EnvironmentValues {
     @Entry var splitOpenReporter: SplitOpenReporter?
     /// The root `TabView`'s bar is hidden on every page (the iPad flyout shell).
     @Entry var hidesRootTabBar = false
+    /// The row to give assistive-technology focus back to after the trailing pane closed.
+    @Entry var listDetailFocusReturn: ListDetailFocusReturn?
+}
+
+/// Asks the leading pane's row for `route` to take assistive-technology focus: the
+/// trailing pane just closed (Close, Escape, Back), so focus goes back to the item the
+/// person opened rather than the top of the window. A new `token` asks again.
+struct ListDetailFocusReturn: Equatable, Sendable {
+    let route: AppRoute
+    let token: Int
 }
 
 extension View {
@@ -119,10 +129,12 @@ struct SplitPaneContext: Equatable {
     var select: ListDetailSelectAction?
     /// The split's shared top-scrim height (iOS), or nil.
     var topScrim: SplitTopScrim?
+    /// The row to refocus after the trailing pane closed (leading pane only).
+    var focusReturn: ListDetailFocusReturn?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.paneWidth == rhs.paneWidth && lhs.role == rhs.role && lhs.selection == rhs.selection
-            && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim
+            && lhs.select == rhs.select && lhs.topScrim === rhs.topScrim && lhs.focusReturn == rhs.focusReturn
     }
 }
 
@@ -156,6 +168,9 @@ private struct SplitPaneContextModifier: ViewModifier {
             }
             .transformEnvironment(\.listDetailSelect) { select in
                 if let context { select = context.select }
+            }
+            .transformEnvironment(\.listDetailFocusReturn) { focusReturn in
+                if let context { focusReturn = context.focusReturn }
             }
             // One backdrop behind both panes: the page draws none and its navigation
             // container is clear (`SplitPaneChrome`).
@@ -314,6 +329,13 @@ struct OnDemandSplitStack<Root: View>: View {
     @State private var container: CGRect = .zero
     /// The leading page's top-scrim height, shared with the trailing pane and the band.
     @State private var topScrim = SplitTopScrim()
+    /// Assistive-technology focus moves: into the trailing pane when it opens, back to
+    /// the opened row when it closes (`voiceover.md`).
+    @State private var trailingFocus: AccessibilityFocusRequest?
+    @State private var focusReturn: ListDetailFocusReturn?
+    @State private var focusToken = 0
+    /// The item most recently open in the trailing pane (the row to refocus on close).
+    @State private var lastSelection: AppRoute?
 
     /// Create a section stack.
     ///
@@ -366,8 +388,19 @@ struct OnDemandSplitStack<Root: View>: View {
         .onGeometryChange(for: CGRect.self, of: { $0.frame(in: .global) }) { frame in
             if frame != container { container = frame }
         }
-        .onChange(of: open, initial: true) { _, open in
+        .onChange(of: open, initial: true) { wasOpen, open in
             if isVisible { openReporter?(section, isOpen: open) }
+            guard wasOpen != open else { return }
+            focusToken += 1
+            if open {
+                trailingFocus = AccessibilityFocusRequest(target: .topHeading, token: focusToken)
+            } else if geometry != nil, let lastSelection {
+                // Closed in place (not a rotation to a push): back to the opened row.
+                focusReturn = ListDetailFocusReturn(route: lastSelection, token: focusToken)
+            }
+        }
+        .onChange(of: cut?.selection, initial: true) { _, selection in
+            if let selection { lastSelection = selection }
         }
         .onChange(of: isVisible) { _, visible in
             if visible { openReporter?(section, isOpen: open) }
@@ -390,7 +423,8 @@ struct OnDemandSplitStack<Root: View>: View {
                 paneWidth: paneWidth, role: .leading,
                 selection: cut.selection,
                 select: ListDetailSelectAction(section: section, page: cut.page) { route in open(route) },
-                topScrim: topScrim
+                topScrim: topScrim,
+                focusReturn: focusReturn
             )
         }
         return FestivalTabStack(
@@ -454,6 +488,9 @@ struct OnDemandSplitStack<Root: View>: View {
                         .menuBarColumn(isTop: isVisible && cut.detail.last == route)
                 }
         }
+        // Focus lands on the pane's title once it slides in (HIG VoiceOver: inform
+        // VoiceOver of layout changes).
+        .accessibilityFocusMove(trailingFocus)
         // A container, so the identifier names the pane without replacing its rows' own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.split.trailing")
@@ -519,6 +556,8 @@ extension View {
 private struct ListDetailSelectableRow: ViewModifier {
     let route: AppRoute
     @Environment(\.listDetailSelection) private var selection
+    @Environment(\.listDetailFocusReturn) private var focusReturn
+    @AccessibilityFocusState private var focused: Bool
     #if os(macOS)
     @Environment(\.macKeyboardNavigator) private var keyboard
     #endif
@@ -526,28 +565,41 @@ private struct ListDetailSelectableRow: ViewModifier {
     func body(content: Content) -> some View {
         let selected = selection == route
         content
-            // An overlay, not a background: Song rows are opaque material cards. The
-            // translucent fill keeps the row's own Shop highlight stroke readable.
+            #if os(macOS)
+            // An overlay: Mac Song rows are opaque material cards. Accent while the list
+            // has keyboard focus, gray otherwise (HIG Focus and selection, `NSTableView`).
             .overlay {
-                #if os(macOS)
-                // Accent while the list has keyboard focus, gray otherwise
-                // (HIG Focus and selection, `NSTableView`).
                 if selected {
                     MacSelectionHighlight(cornerRadius: 12, focused: keyboard?.hasFocus ?? true)
                 }
-                #else
+            }
+            #else
+            // Behind the row's text: drawn over it, the translucent fill washed the rivals
+            // pills down to 4.0–4.3:1 (iPad audit, Lane A11Y3). iOS split rows are clear
+            // (Songs, the opaque cards, never splits); the accent bar stays on top.
+            .background {
                 if selected {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(BrandTokens.accentBlue.opacity(0.22))
-                        .overlay(alignment: .leading) {
-                            Capsule().fill(BrandTokens.accentBlue).frame(width: 3).padding(.vertical, 8)
-                        }
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                #endif
             }
+            .overlay(alignment: .leading) {
+                if selected {
+                    Capsule().fill(BrandTokens.accentBlue).frame(width: 3).padding(.vertical, 8)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            #endif
             .accessibilityAddTraits(selected ? .isSelected : [])
+            .accessibilityFocused($focused)
+            .onChange(of: focusReturn) { _, request in
+                guard let request, request.route == route else { return }
+                focused = true
+                AccessibilityFocusTrace.shared.record("row: \(route.focusTraceName)")
+            }
     }
 }
 

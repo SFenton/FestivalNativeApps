@@ -340,7 +340,9 @@ enum SongPreviewSpotlightPolicy {
     /// Where tapping a preview row goes, mirroring the web `InstrumentCard` links:
     /// a top-ten row opens that player's profile (the selected player's own row opens
     /// Statistics, like `getPlayerRoute`); the selected player's footer row opens the
-    /// full chart at the page that contains their rank (web `navToPlayer`).
+    /// full chart at the page that contains their rank with their row brought into
+    /// view (web `navToPlayer`). The band previews follow the same rule
+    /// (``SelectedRowAction``, issue #307).
     ///
     /// - Parameters:
     ///   - entry: Tapped preview row.
@@ -354,12 +356,12 @@ enum SongPreviewSpotlightPolicy {
         song: Song, instrument: Instrument, isFooter: Bool
     ) -> AppRoute? {
         guard !entry.accountId.isEmpty else { return nil }
-        if isFooter {
-            return .songLeaderboard(
-                song, instrument, LeaderboardPaging.page(forRank: entry.rank, pageSize: 25)
-            )
+        if isFooter, case let .jump(page) = SelectedRowAction.preview(
+            rank: entry.rank, isAppended: true, pageSize: 25
+        ) {
+            return .songLeaderboard(song, instrument, page, focusSelected: true)
         }
-        if isSelected(entry, selected: selected) { return .statistics }
+        if isFooter || isSelected(entry, selected: selected) { return .statistics }
         return .player(accountId: entry.accountId, displayName: entry.displayName)
     }
 
@@ -370,7 +372,7 @@ enum SongPreviewSpotlightPolicy {
     static func hint(for route: AppRoute) -> String {
         switch route {
         case .statistics: "Opens your statistics"
-        case .songLeaderboard: "Opens your page of the full leaderboard"
+        case .songLeaderboard: "Jumps to your position in the full leaderboard"
         default: "Opens player profile"
         }
     }
