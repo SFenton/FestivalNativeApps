@@ -171,6 +171,51 @@ enum PinnedHeaderEdgeFade {
         let cut = edge - rowTop
         return cut > -max(depth, 0) && (cut > 0 || depth > 0) ? cut : nil
     }
+
+    /// Thickness of a row separator, in points: the system List separator's (1 pt on iOS
+    /// 26 and macOS 26 alike, measured on both).
+    static let separatorThickness: CGFloat = 1
+
+    /// Where a row's separator runs across its row background, in the background's own
+    /// coordinates (issue #322).
+    ///
+    /// The system List draws the separator from the row's separator-leading guide (the
+    /// leading edge of its text) to its separator-trailing guide (the content's trailing
+    /// edge) on iOS, and on to the row's own trailing edge on macOS. The row draws it the
+    /// same way, inside its masked background, so the separator fades with its row instead
+    /// of passing under a pinned title.
+    ///
+    /// - Parameters:
+    ///   - leading: Global x of the row content's `.listRowSeparatorLeading` guide.
+    ///   - trailing: Global x of its `.listRowSeparatorTrailing` guide.
+    ///   - background: Global frame of the row background (the whole cell).
+    ///   - toRowEdge: Whether the separator runs on to the row's trailing edge (macOS).
+    ///   - rightToLeft: Whether the row lays out right to left (its trailing edge is the
+    ///     background's left edge).
+    /// - Returns: The separator's left and right ends in the background's coordinates
+    ///   (left to right in either layout direction), or nil for non-finite or empty
+    ///   readings.
+    static func separatorSpan(
+        leading: CGFloat, trailing: CGFloat, background: CGRect,
+        toRowEdge: Bool = false, rightToLeft: Bool = false
+    ) -> ClosedRange<CGFloat>? {
+        guard leading.isFinite, trailing.isFinite, background.minX.isFinite, background.width.isFinite
+        else { return nil }
+        let end = toRowEdge ? (rightToLeft ? background.minX : background.maxX) : trailing
+        let left = min(leading, end) - background.minX
+        let right = max(leading, end) - background.minX
+        return right - left >= 1 ? left...right : nil
+    }
+
+    /// Whether this platform's List runs a row separator on to the row's trailing edge
+    /// (AppKit table rows do; UIKit list cells stop at the content's trailing edge).
+    static var separatorRunsToRowEdge: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
 }
 
 // MARK: - Shared state
@@ -397,8 +442,13 @@ extension View {
         modifier(PinnedSectionHeaderModifier(state: state, first: first))
     }
 
-    /// Fade this row out before it reaches the List's pinned section header, and set its
-    /// row background.
+    /// Fade this row, its row background and its separator out before they reach the
+    /// List's pinned section header.
+    ///
+    /// The system separator is drawn outside any SwiftUI mask, so it would pass under the
+    /// pinned header (issue #322). The row hides it and draws the same line, from its
+    /// `.listRowSeparatorLeading` to its `.listRowSeparatorTrailing` guide at the bottom
+    /// of its cell, in its masked row background.
     ///
     /// - Parameters:
     ///   - state: Readings shared with the List and its headers.
@@ -410,18 +460,119 @@ extension View {
     func pinnedHeaderEdgeFadeRow(
         _ state: PinnedHeaderEdgeFadeState, first: Bool = false, background: some View = Color.clear
     ) -> some View {
-        modifier(PinnedHeaderRowMask(state: state))
+        modifier(PinnedHeaderRowModifier(state: state, first: first, background: background))
+    }
+}
+
+/// One row of a pinned-header sheet list: masks the row content and its background (with
+/// the row's own separator) under the pinned header.
+private struct PinnedHeaderRowModifier<Background: View>: ViewModifier {
+    let state: PinnedHeaderEdgeFadeState
+    let first: Bool
+    let background: Background
+    /// Global x of the content's `.listRowSeparatorLeading` guide.
+    @State private var leadingGuide: CGFloat?
+    /// Global x of the content's `.listRowSeparatorTrailing` guide.
+    @State private var trailingGuide: CGFloat?
+    /// Global frame of the row background (the whole cell).
+    @State private var backgroundFrame: CGRect?
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    func body(content: Content) -> some View {
+        let span = leadingGuide.flatMap { leading in
+            trailingGuide.flatMap { trailing in
+                backgroundFrame.flatMap {
+                    PinnedHeaderEdgeFade.separatorSpan(
+                        leading: leading, trailing: trailing, background: $0,
+                        toRowEdge: PinnedHeaderEdgeFade.separatorRunsToRowEdge,
+                        rightToLeft: layoutDirection == .rightToLeft
+                    )
+                }
+            }
+        }
+        content
+            .overlay(alignment: Alignment(horizontal: .listRowSeparatorLeading, vertical: .top)) {
+                SeparatorGuideMarker { leadingGuide = $0 }
+            }
+            .overlay(alignment: Alignment(horizontal: .listRowSeparatorTrailing, vertical: .top)) {
+                SeparatorGuideMarker { trailingGuide = $0 }
+            }
+            .modifier(PinnedHeaderRowMask(state: state))
+            .listRowSeparator(.hidden)
             .listRowBackground(
-                background.background {
-                    if first {
+                background
+                    .overlay(alignment: .bottomLeading) { PinnedHeaderRowSeparator(span: span) }
+                    .modifier(PinnedHeaderRowMask(state: state, locatesScrollView: false))
+                    .background {
                         Color.clear
-                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
-                                state.setFirstRowTop($0)
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                                backgroundFrame = $0
                             }
                             .accessibilityHidden(true)
                     }
-                }
+                    .background {
+                        if first {
+                            Color.clear
+                                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
+                                    state.setFirstRowTop($0)
+                                }
+                                .accessibilityHidden(true)
+                        }
+                    }
             )
+    }
+}
+
+/// A zero-width marker that reports its global x: placed on one of a row's separator
+/// guides, it reads where the List would start or end the row's separator. The x does
+/// not change while scrolling, so it settles once per row layout.
+private struct SeparatorGuideMarker: View {
+    let onChange: (CGFloat) -> Void
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minX } action: { onChange($0) }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The row separator drawn inside a pinned-header row's masked background.
+private struct PinnedHeaderRowSeparator: View {
+    /// Left and right ends in the background's coordinates; nil draws nothing.
+    let span: ClosedRange<CGFloat>?
+
+    var body: some View {
+        PinnedHeaderRowSeparatorShape(span: span)
+            .fill(Self.color)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// The system separator color (the List's own separator color).
+    static var color: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .separator)
+        #else
+        Color(nsColor: .separatorColor)
+        #endif
+    }
+}
+
+/// A ``PinnedHeaderEdgeFade/separatorThickness`` line along the bottom of its frame,
+/// across `span`. Shapes are not mirrored in right-to-left layouts, so the span's
+/// left-to-right ends stay true in both directions.
+private struct PinnedHeaderRowSeparatorShape: Shape {
+    let span: ClosedRange<CGFloat>?
+
+    func path(in rect: CGRect) -> Path {
+        guard let span else { return Path() }
+        let thickness = PinnedHeaderEdgeFade.separatorThickness
+        return Path(CGRect(
+            x: rect.minX + span.lowerBound, y: rect.maxY - thickness,
+            width: span.upperBound - span.lowerBound, height: thickness
+        ))
     }
 }
 
@@ -517,10 +668,27 @@ private struct PinnedSectionHeaderModifier: ViewModifier {
                 state.setHeaderHeight(reading.height)
                 if let top = reading.top { state.setFirstHeaderTop(top) }
             }
+            .modifier(MacHeaderSeparator())
     }
 }
 
-/// Masks one row above the pinned header's bottom edge, with the fade below it.
+/// Keeps the full-width line an AppKit List draws under each section header (#322).
+///
+/// The table draws that line only while some row in it shows a separator; pinned-header
+/// rows hide theirs (they draw their own inside the fade), so the header asks for it.
+/// UIKit headers never draw one, so iOS and iPadOS are unchanged.
+private struct MacHeaderSeparator: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.listRowSeparator(.visible)
+        #else
+        content
+        #endif
+    }
+}
+
+/// Masks one row (its content, or its background with the row's separator) above the
+/// pinned header's bottom edge, with the fade below it.
 ///
 /// The row reports its global top only while it is near the edge
 /// (``PinnedHeaderEdgeFadeState/rowLimit``, read from a lock box because SwiftUI may keep
@@ -530,6 +698,9 @@ private struct PinnedSectionHeaderModifier: ViewModifier {
 /// so a row crossing the edge never rebuilds.
 private struct PinnedHeaderRowMask: ViewModifier {
     let state: PinnedHeaderEdgeFadeState
+    /// Whether this view hands the List's platform scroll view to the state on the legacy
+    /// path (the row content does; its background need not).
+    var locatesScrollView = true
     @State private var rowTop: CGFloat?
 
     func body(content: Content) -> some View {
@@ -547,7 +718,7 @@ private struct PinnedHeaderRowMask: ViewModifier {
             }
             .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
             .background {
-                if state.legacyScrollTracking {
+                if locatesScrollView && state.legacyScrollTracking {
                     ListScrollViewLocator { state.attachLegacyScrollView($0) }
                         .accessibilityHidden(true)
                 }

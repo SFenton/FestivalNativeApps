@@ -282,7 +282,7 @@ def parse_steps(steps: str | None, steps_file: str | None) -> list[str]:
 
 
 def output_paths(steps: list[str]) -> list[str]:
-    """Collect the host paths a ``shot:``/``tree:`` step will write.
+    """Collect the host paths a ``shot:``/``tree:``/``audit:`` step will write.
 
     Args:
         steps: Parsed step strings.
@@ -293,7 +293,7 @@ def output_paths(steps: list[str]) -> list[str]:
     paths = []
     for step in steps:
         verb, _, arg = step.partition(":")
-        if verb in ("shot", "tree", "systemTree", "windowFrame") and arg:
+        if verb in ("shot", "tree", "audit", "systemTree", "windowFrame") and arg:
             paths.append(arg)
         elif verb == "appTree" and "|" in arg:
             paths.append(arg.split("|", 1)[1])

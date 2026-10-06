@@ -66,6 +66,7 @@ import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.ProfileRow
 import com.festivalscoretracker.android.core.profile.ProfileSections
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import com.festivalscoretracker.android.presentation.profile.BandsLoad
 import com.festivalscoretracker.android.presentation.profile.PlayerIdentityAction
 import com.festivalscoretracker.android.presentation.profile.PlayerInstrumentSection
 import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiState
@@ -132,7 +133,9 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val loaded = state.phase == ProfilePhase.Loaded
     val visible = state.instruments.map { it.instrument }
     val showIdentity = state.showsIdentityRow
-    val rows = remember(visible, loaded, showIdentity) { if (loaded) ProfileSections.rows(visible, showIdentity) else emptyList() }
+    val bandsLoad by viewModel.bands.collectAsStateWithLifecycle()
+    val bandGroups = (bandsLoad as? BandsLoad.Loaded)?.groups.orEmpty()
+    val rows = remember(visible, loaded, showIdentity, bandGroups) { if (loaded) ProfileSections.rows(visible, showIdentity, bandGroups) else emptyList() }
     val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
     val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
@@ -162,7 +165,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * notices, only when they apply; no avatar or name, the top bar names the page),
  * Overview, one card
  * per Settings-visible chart (stats, global rank, rank history, percentiles), top and
- * bottom five songs per chart and the Bands link. Select/Switch never
+ * bottom five songs per chart and the player's bands (Duos, Trios, Quads previews). Select/Switch never
  * navigate away; stat tiles and song rows do (web `withProfileSwitch`).
  *
  * @param viewModel Page model.
@@ -223,6 +226,8 @@ private fun LoadedProfile(
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
     val histories by viewModel.rankHistories.collectAsStateWithLifecycle()
     val bands by viewModel.bands.collectAsStateWithLifecycle()
+    // Band rows join the grid when the preview loads; they fade in (staggered per group) like the web's cards.
+    val bandsRevealed = rememberRevealed(bands is BandsLoad.Loaded)
     var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
     var pendingAction by remember { mutableStateOf<PlayerTileAction?>(null) }
     val scope = rememberCoroutineScope()
@@ -273,7 +278,15 @@ private fun LoadedProfile(
                     }
                     ProfileRow.Bands -> {
                         LaunchedEffect(state.accountId) { viewModel.ensureBands() }
-                        ProfileBandsSection(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
+                        ProfileBandsHeading(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
+                    }
+                    is ProfileRow.BandGroupHeader -> ProfileBandGroupHeader(row.group)
+                    is ProfileRow.BandCard -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(row.index))) {
+                        ProfileBandCard(row.entry, onNavigate = shell.navigate)
+                    }
+                    is ProfileRow.BandsEmpty -> Box(Modifier.festivalFadeIn(bandsRevealed)) { ProfileBandsEmpty(row.group) }
+                    is ProfileRow.BandsViewAll -> Box(Modifier.festivalFadeIn(bandsRevealed)) {
+                        ProfileBandsViewAll(state, row.group, row.total, onNavigate = shell.navigate)
                     }
                 }
                 }
@@ -319,7 +332,7 @@ private fun LoadedProfile(
  * @param onReload Re-read the viewed profile.
  */
 @Composable
-private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
+internal fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("fst.player.identity"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (state.identity) {
             PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(

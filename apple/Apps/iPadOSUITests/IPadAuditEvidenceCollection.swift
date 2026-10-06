@@ -149,6 +149,7 @@ extension IPadAccessibilityAuditTests {
                 guard let element = locator.resolve(in: app, within: content),
                       let shot = IPadAuditRenderedContrast.Capture.screen() else {
                     visible?.evidence.textsUnmeasured += 1
+                    visible?.evidence.unmeasured.append("\(locator.label.prefix(40)) (not scrolled clear)")
                     continue
                 }
                 let shotLines = IPadAuditPageEvidence.recognizedLines(in: shot)
@@ -159,9 +160,11 @@ extension IPadAccessibilityAuditTests {
                     visible?.evidence.add(label: locator.label, ratio: reading.ratio)
                 } else {
                     visible?.evidence.textsUnmeasured += 1
+                    visible?.evidence.unmeasured.append("\(locator.label.prefix(40)) (no glyphs read)")
                 }
             }
             visible?.evidence.textsUnmeasured += max(0, obscured.count - 16)
+            visible?.evidence.unmeasured += obscured.dropFirst(16).map { "\($0.label.prefix(40)) (over 16)" }
         }
         app.terminate()
 
