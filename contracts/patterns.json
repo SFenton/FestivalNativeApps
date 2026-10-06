@@ -313,7 +313,8 @@
         "pinned header",
         "card header",
         "heading",
-        "see all"
+        "see all",
+        "view all link"
       ],
       "web": [
         {
@@ -337,7 +338,7 @@
           },
           {
             "path": "apple/Sources/FestivalUI/Design/SectionHeader.swift",
-            "symbol": "SectionSeeAllLink"
+            "symbol": "SectionViewAllLink"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
@@ -407,6 +408,14 @@
           ],
           "debt": [],
           "message": "Windows pinned-header copies belong to SongsPage (section-headers R4, R6)."
+        },
+        {
+          "id": "apple-see-all-copy",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\"See [Aa]ll\\b",
+          "allow": [],
+          "debt": [],
+          "message": "Apple 'open the full list' links and buttons read \"View All\", never \"See All\" (section-headers R8, view-all-cta R4; #321). Use SectionViewAllLink or PurpleActionLink."
         }
       ],
       "related": {
@@ -429,7 +438,8 @@
         288,
         291,
         297,
-        312
+        312,
+        321
       ]
     },
     {
@@ -1831,7 +1841,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
+      "summary": "A card of preview rows ends with one full-width brand-purple button below the rows (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours.",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -1865,6 +1875,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
             "symbol": "PurpleActionLabel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/PurpleActionButton.swift",
+            "symbol": "PurpleActionLink"
           }
         ],
         "android": [

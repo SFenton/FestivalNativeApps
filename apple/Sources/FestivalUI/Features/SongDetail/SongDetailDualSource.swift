@@ -10,7 +10,7 @@ import FestivalDesign
 ///
 /// Reads only the allowlisted score-history endpoint (`FestivalSession.playerHistory`,
 /// see `.agents/platforms/service-safety.md`), lazily per card, and never player stats.
-/// Each card's "See All" opens the full Player History page for that chart.
+/// Each card's "View All" (the shared `SectionViewAllLink`) opens the full Player History page for that chart.
 struct SongHistoryCarouselPane: View {
     let session: FestivalSession
     let song: Song
@@ -102,12 +102,12 @@ private struct SongHistoryCard: View {
             HStack(spacing: 8) {
                 InstrumentIcon(instrument, size: 20)
                 FestivalSectionHeader(instrument.label)
-                NavigationLink(value: AppRoute.playerHistory(song, instrument)) {
-                    Text("See All").font(.subheadline.weight(.semibold))
-                }
-                .tint(BrandTokens.accentBlue)
+                SectionViewAllLink(
+                    route: .playerHistory(song, instrument),
+                    identifier: "fst.dual.song.history.\(instrument.rawValue).view-all",
+                    listName: "\(instrument.label) Score History"
+                )
                 .fixedSize()
-                .accessibilityIdentifier("fst.dual.song.history.\(instrument.rawValue).see-all")
             }
             .padding(.horizontal, 4)
             FestivalGlassSection {

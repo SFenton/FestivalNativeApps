@@ -10,8 +10,9 @@ import FestivalDesign
 ///
 /// Rows in the top region select instead of pushing (`dualSourceSelection`), so the
 /// list stays put while this pane swaps rivals. Each themed category of shared songs
-/// (Closest Battles, Almost Passed, …) is one swipeable card, as on `RivalDetailScreen`;
-/// "See All" opens the full Rival Detail page.
+/// (Closest Battles, Almost Passed, …) is one swipeable card ending in its "View All"
+/// button, as on `RivalDetailScreen`; the pane header's "View All" opens the full Rival
+/// Detail page.
 struct RivalDualDetailPane: View {
     let session: FestivalSession
     /// The selected `.rivalDetail` route, or nil before the first selection.
@@ -100,20 +101,25 @@ private struct RivalDualDetailContent: View {
     }
 
     private func categoryCard(_ category: RivalCategory, rivalName: String) -> some View {
-        FestivalGlassSection(category.title, subtitle: category.subtitle) {
-            ForEach(category.songs.prefix(5)) { song in
-                let row = RivalSongRowContent(
-                    song: song, playerName: session.selectedPlayer?.displayName ?? "You", rivalName: rivalName
-                )
-                if let match = songsById[song.songId] {
-                    NavigationLink(value: AppRoute.songDetail(match)) { row }
-                } else {
-                    row
+        VStack(alignment: .leading, spacing: 8) {
+            FestivalGlassSection(category.title, subtitle: category.subtitle) {
+                ForEach(category.songs.prefix(5)) { song in
+                    let row = RivalSongRowContent(
+                        song: song, playerName: session.selectedPlayer?.displayName ?? "You", rivalName: rivalName
+                    )
+                    if let match = songsById[song.songId] {
+                        NavigationLink(value: AppRoute.songDetail(match)) { row }
+                    } else {
+                        row
+                    }
                 }
             }
-            NavigationLink(value: AppRoute.rivalry(rivalId: rivalId, mode: category.key, name: rivalName, scope: scope)) {
-                RivalViewAllRow(title: "See All")
-            }
+            PurpleActionLink(
+                title: "View All",
+                route: .rivalry(rivalId: rivalId, mode: category.key, name: rivalName, scope: scope),
+                identifier: "fst.dual.rivals.category.\(category.key).view-all",
+                card: category.title
+            )
         }
         .accessibilityIdentifier("fst.dual.rivals.category.\(category.key)")
     }
