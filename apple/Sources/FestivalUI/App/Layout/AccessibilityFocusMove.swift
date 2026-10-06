@@ -267,7 +267,7 @@ extension AppRoute {
         case .player(let accountId, _): "player:\(accountId)"
         case .rivalDetail(let rivalId, _, _): "rivalDetail:\(rivalId)"
         case .band(let bandId, _, _, _): "band:\(bandId)"
-        case .songLeaderboard(let song, let instrument, _): "songLeaderboard:\(song.songId):\(instrument.rawValue)"
+        case .songLeaderboard(let song, let instrument, _, _): "songLeaderboard:\(song.songId):\(instrument.rawValue)"
         case .playerHistory(let song, let instrument): "playerHistory:\(song.songId):\(instrument.rawValue)"
         case .licenses: "licenses"
         default: String(describing: self).prefix(40).description
