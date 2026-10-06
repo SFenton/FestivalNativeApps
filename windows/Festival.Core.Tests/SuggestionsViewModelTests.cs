@@ -156,7 +156,8 @@ public sealed class SuggestionsViewModelTests
         await model.LoadAsync();
         Assert.DoesNotContain(model.Cards, c => c.Category.Type == SuggestionCategoryType.SongRivals);
         harness.RivalsGate.SetResult();
-        await Async.Settle();
+        // Wait for the splice itself: a fixed settle raced the rivals continuation under a loaded test host.
+        await model.RivalsTask!.WaitAsync(TimeSpan.FromSeconds(10));
         for (var i = 0; i < 20 && !model.Cards.Any(c => c.Category.Type == SuggestionCategoryType.SongRivals); i++) model.LoadMore();
         Assert.Contains(model.Cards, c => c.Category.Type == SuggestionCategoryType.SongRivals &&
             c.Rows.Any(r => r.Presentation.Layout == SuggestionRowLayout.Rival));
@@ -318,6 +319,42 @@ public sealed class SuggestionsViewModelTests
         await model.LoadAsync();
         Assert.True(model.ShowList);
         Assert.True(model.ShowHeader);
+    }
+
+    [Fact]
+    public async Task CardsAddedReportsWhereEachNewBatchStarts()
+    {
+        var harness = new Harness { RivalsStatus = HttpStatusCode.NotFound };
+        var model = harness.Model();
+        var starts = new List<int>();
+        model.CardsAdded += (_, start) => starts.Add(start);
+
+        await model.LoadAsync();
+        Assert.Equal([0], starts);
+
+        // A scroll-triggered batch starts after the cards already shown.
+        model.LoadMore();
+        Assert.Equal([0, SuggestionsViewModel.InitialBatch], starts);
+
+        // A filter change rebuilds every card (and may generate more): one announcement from 0.
+        starts.Clear();
+        var unplayed = SuggestionCategoryTypeInfo.All.Where(t => t != SuggestionCategoryType.Unplayed)
+            .Aggregate(SuggestionFilterSettings.Default, (f, t) => f.WithGlobalType(t, false));
+        model.ApplyFilter(unplayed);
+        Assert.Equal([0], starts);
+
+        // Nothing visible: no announcement.
+        starts.Clear();
+        var none = SuggestionCategoryTypeInfo.All.Aggregate(SuggestionFilterSettings.Default, (f, t) => f.WithGlobalType(t, false));
+        model.ApplyFilter(none);
+        model.LoadMore();
+        Assert.Empty(starts);
+
+        // A new mix is all new cards.
+        model.ApplyFilter(SuggestionFilterSettings.Default);
+        starts.Clear();
+        model.StartNewMixCommand.Execute(null);
+        Assert.Equal([0], starts);
     }
 
     [Fact]

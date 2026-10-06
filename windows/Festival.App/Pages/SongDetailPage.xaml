@@ -116,10 +116,15 @@
                             </StackPanel>
                             <!-- The chart's plot carries fst.history.chart (a UserControl has no UIA peer). -->
                             <controls:SongScoreHistoryChart x:Name="HistoryChart" Model="{x:Bind ViewModel.History}" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" />
-                            <!-- Selected bar's detail row (web detail card; half width on desktop); the row itself is fst.history.detail. -->
+                            <!-- Selected bar's detail row (web detail card; half width on desktop); the row itself is fst.history.detail.
+                                 Stretch, centred by MaxWidth: a Center host arranged the row at its content width after it
+                                 planned its columns for the wider measure width, so large text drew the season over the score.
+                                 The slot keeps the row's height (empty) after a chart switch closes it, so the card keeps its size (issue #261). -->
+                            <Grid x:Name="HistoryDetailSlot" Visibility="{x:Bind ViewModel.History.ShowDetailSlot, Mode=OneWay}">
                             <ContentControl x:Name="HistoryDetail" Content="{x:Bind ViewModel.History.SelectedRow, Mode=OneWay}" ContentTemplate="{StaticResource HistoryRowTemplate}"
-                                            HorizontalContentAlignment="Stretch" HorizontalAlignment="Center" MaxWidth="560" MinWidth="280"
+                                            HorizontalContentAlignment="Stretch" HorizontalAlignment="Stretch" MaxWidth="560" MinWidth="280"
                                             Visibility="{x:Bind ViewModel.History.HasSelectedPoint, Mode=OneWay}" IsTabStop="False" />
+                            </Grid>
                             <!-- Pager row: kept (empty) while another chart pages, so switching charts keeps the card's size (issue #61). -->
                             <Grid x:Name="HistoryPagerSlot" MinHeight="40" Visibility="{x:Bind ViewModel.History.ShowPagerSlot, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center"
@@ -194,10 +199,10 @@
                             <StackLayout Spacing="8" />
                         </ItemsRepeater.Layout>
                     </ItemsRepeater>
-                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllLabel}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
-                            Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}" HorizontalAlignment="Stretch" MinHeight="48"
-                            FontWeight="SemiBold" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-                            CornerRadius="8" AutomationProperties.AutomationId="fst.history.view-all" />
+                    <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllText}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
+                            Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}"
+                            AutomationProperties.Name="{x:Bind ViewModel.History.ViewAllName, Mode=OneWay}"
+                            AutomationProperties.AutomationId="{x:Bind ViewModel.History.ViewAllAutomationId}" />
                 </StackPanel>
 
                 <StackPanel x:Name="LeaderboardsSection">
@@ -249,8 +254,8 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="{x:Bind vm:LeaderboardPreviewViewModel.ViewAllText}" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
-                                                Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                        <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
                                 </StackPanel>
@@ -301,8 +306,8 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="{x:Bind vm:LeaderboardPreviewViewModel.ViewAllText}" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
-                                                Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                        <Button Content="{x:Bind ViewAllText}" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
                                 </StackPanel>

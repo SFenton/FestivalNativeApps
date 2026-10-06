@@ -28,8 +28,9 @@ enum AppRoute: Hashable {
     // MARK: Players and bands
     /// `/player/:accountId`
     case player(accountId: String, displayName: String?)
-    /// `/bands/player/:accountId`
-    case playerBands(accountId: String, displayName: String?)
+    /// `/bands/player/:accountId?group=`: `group` is the band size the list opens on
+    /// (the profile's per-group View All, issue #312).
+    case playerBands(accountId: String, displayName: String?, group: PlayerBandGroup = .all)
     /// `/bands`
     case bands
     /// `/bands/:bandId`.

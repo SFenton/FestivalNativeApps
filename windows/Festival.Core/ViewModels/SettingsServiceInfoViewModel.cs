@@ -9,7 +9,7 @@ namespace Festival.Core.ViewModels;
 /// the web's 3 s request timeout, and reduces each read through <see cref="ServiceProgressReducer"/>. A failure after a
 /// success shows the failure rather than silently keeping old progress. Like the web card, percent and units are spoken
 /// on the phase row rather than printed, band discovery adds its attempt line, and the publication row only shows once
-/// a read succeeded.
+/// a read succeeded. Each newly accepted attempt line is announced once (<see cref="ProgressAnnounced"/>).
 /// </summary>
 public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 {
@@ -21,6 +21,16 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 
     /// <summary>Web <c>SERVICE_INFO_TIMEOUT_MS</c>.</summary>
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Parses the Debug/automation <c>FST_DEBUG_SERVICE_INFO_TIMEOUT_MS</c> hook, which lengthens the request timeout so a UI
+    /// Automation journey can open Settings, scroll to the card and scan it while a held first read keeps it Loading.
+    /// </summary>
+    /// <param name="milliseconds">Hook value.</param>
+    /// <returns>The timeout, or <see langword="null"/> unless it is a whole number of milliseconds from 1 to 60,000.</returns>
+    public static TimeSpan? ParseTimeoutOverride(string? milliseconds) =>
+        int.TryParse(milliseconds, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ms)
+        && ms is > 0 and <= 60_000 ? TimeSpan.FromMilliseconds(ms) : null;
 
     private readonly FestivalApiClient api;
     private readonly TimeProvider time;
@@ -56,6 +66,11 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasPhase), nameof(PhaseAccessibleName))]
     private string? phaseTitle;
 
+    /// <summary>Spoken phase title: phase and subphase as separate sentences (web <c>aria-valuetext</c>), not "Phase · Subphase".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PhaseAccessibleName))]
+    private string? spokenPhaseTitle;
+
     /// <summary>Whether the bar shows.</summary>
     [ObservableProperty]
     private bool hasBar;
@@ -68,7 +83,7 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     [ObservableProperty]
     private double barPercent;
 
-    /// <summary>"42.5%" or the indeterminate sentence; spoken on the phase row, not printed (web parity).</summary>
+    /// <summary>"42.5%" or "Total not yet known"; spoken on the phase row, not printed (web parity).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PhaseAccessibleName))]
     private string? progressText;
@@ -103,12 +118,25 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     /// <summary>Whether the publication row shows.</summary>
     public bool HasLastPublished => LastPublished is not null;
 
-    /// <summary>Narrator name for the phase row: title, progress, units and attempts.</summary>
+    /// <summary>
+    /// Narrator name for the phase row, joined like the web bar's <c>aria-valuetext</c>: phase, subphase, progress, units
+    /// and attempts.
+    /// </summary>
     public string PhaseAccessibleName =>
-        string.Join(". ", new[] { PhaseTitle, HasBar ? ProgressText : null, UnitsText, AttemptText }.Where(s => s is not null));
+        string.Join(". ", new[] { SpokenPhaseTitle ?? PhaseTitle, HasBar ? ProgressText : null, UnitsText, AttemptText }.Where(s => s is not null));
 
     /// <summary>Whether polling is running.</summary>
     public bool IsPolling => polling is not null;
+
+    /// <summary>Per-read timeout: <see cref="RequestTimeout"/> unless an automation hook lengthens it (<see cref="ParseTimeoutOverride"/>).</summary>
+    public TimeSpan ReadTimeout { get; set; } = RequestTimeout;
+
+    /// <summary>
+    /// Raised once each time a read shows a new band-discovery attempt line (the first one, or a higher count the reducer
+    /// accepted), with the phase row's complete spoken progress (<see cref="PhaseAccessibleName"/>) for Narrator. A read
+    /// whose lower or equal count is kept back, or that leaves the line unchanged, raises nothing (issue #275).
+    /// </summary>
+    public event EventHandler<Announcement>? ProgressAnnounced;
     #endregion
 
     #region Polling
@@ -165,12 +193,12 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         }
     }
 
-    /// <summary>One read with the web's timeout.</summary>
+    /// <summary>One read with the web's timeout (<see cref="ReadTimeout"/>).</summary>
     /// <param name="token">Stop token.</param>
     /// <returns>Task.</returns>
     internal async Task PollOnceAsync(CancellationToken token)
     {
-        using var timeout = new CancellationTokenSource(RequestTimeout, time);
+        using var timeout = new CancellationTokenSource(ReadTimeout, time);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, timeout.Token);
         try
         {
@@ -193,6 +221,7 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     internal void Apply(ServiceInfoSnapshot snapshot)
     {
         var info = snapshot.Info;
+        var previousAttempt = AttemptText;
         var (display, next) = ServiceProgressReducer.Reduce(memory, info);
         memory = next;
         var updating = info.CurrentUpdate?.Status == "updating";
@@ -211,8 +240,13 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         ProgressText = showBar ? ServiceInfoText.ProgressText(bar) : null;
         UnitsText = showBar ? ServiceInfoText.UnitsText(bar) : null;
         AttemptText = showBar ? ServiceInfoText.DiscoveryAttemptText(display) : null;
-        PhaseTitle = showPhase ? ServiceInfoText.PhaseTitle(phaseLabel, ServiceInfoText.SubphaseLabel(info, display)) : null;
+        var subphaseLabel = showPhase ? ServiceInfoText.SubphaseLabel(info, display) : null;
+        var phaseTitle = showPhase ? ServiceInfoText.PhaseTitle(phaseLabel, subphaseLabel) : null;
+        SpokenPhaseTitle = phaseTitle is null || phaseTitle == phaseLabel ? null : $"{phaseLabel}. {subphaseLabel}";
+        PhaseTitle = phaseTitle;
         LastPublished = ServiceInfoText.LastPublished(info, zone());
+        if (AttemptText is not null && AttemptText != previousAttempt)
+            ProgressAnnounced?.Invoke(this, new Announcement(PhaseAccessibleName, AnnouncementKind.Completed));
     }
 
     /// <summary>Shows the failed state (web "Failed to load data"): the state row only.</summary>
@@ -226,6 +260,7 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         ProgressText = null;
         UnitsText = null;
         AttemptText = null;
+        SpokenPhaseTitle = null;
         PhaseTitle = null;
         LastPublished = null;
     }

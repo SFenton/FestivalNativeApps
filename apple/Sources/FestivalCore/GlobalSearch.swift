@@ -24,10 +24,10 @@ public enum GlobalSearchScope: String, CaseIterable, Sendable, Identifiable {
         }
     }
 
-    /// Result sections shown for this scope, in the web's fixed order. "All" omits Bands:
-    /// band search is never sent natively, so it has no results to group.
+    /// Result sections shown for this scope, in the web's fixed order (songs, players,
+    /// bands; issue #320 added bands to "All").
     public var sections: [GlobalSearchScope] {
-        self == .all ? [.songs, .players] : [self]
+        self == .all ? [.songs, .players, .bands] : [self]
     }
 }
 
@@ -37,8 +37,8 @@ public enum GlobalSearchScope: String, CaseIterable, Sendable, Identifiable {
 /// (`FortniteFestivalWeb/src/hooks/data/useUnifiedSearch.ts`).
 ///
 /// Songs filter the local catalogue; players use the allowlisted
-/// `GET /api/account/search`. Band search is never sent: its server fallback writes
-/// (`.agents/platforms/service-safety.md`), so the Bands scope explains that instead.
+/// `GET /api/account/search` and bands `GET /api/bands/search` (read-only since issue
+/// #320, `.agents/platforms/service-safety.md`).
 public enum GlobalSearch {
     /// Queries shorter than this show the hint and fetch nothing.
     public static let minimumQueryLength = 2
@@ -48,6 +48,8 @@ public enum GlobalSearch {
     public static let songLimit = 20
     /// Web player result limit (also the account-search maximum).
     public static let playerLimit = 10
+    /// Web band result limit (`useUnifiedSearch` `bandLimit`, `pageSize=10`).
+    public static let bandLimit = 10
 
     /// The trimmed query when it is long enough to search.
     ///
@@ -83,8 +85,7 @@ public enum GlobalSearch {
     /// - Returns: The English prompt.
     public static func prompt(for scope: GlobalSearchScope) -> String {
         switch scope {
-        // Bands are never searched natively, so "All" names only the live scopes.
-        case .all: "Search songs or players"
+        case .all: "Search songs, players, or bands"
         case .songs: "Search songs"
         case .players: "Search players"
         case .bands: "Search bands"
@@ -95,8 +96,7 @@ public enum GlobalSearch {
     /// it names what the active scope searches.
     ///
     /// - Parameter scope: Active scope.
-    /// - Returns: The English hint; Bands names bands even though band search is never
-    ///   sent (its explanation replaces the hint once the query is long enough).
+    /// - Returns: The English hint.
     public static func enterQueryHint(for scope: GlobalSearchScope) -> String {
         let prefix = "Enter at least two characters to search for"
         return switch scope {
@@ -110,28 +110,23 @@ public enum GlobalSearch {
     /// Fallback title for a failed section whose issue has no title of its own: with no
     /// section headings (issue #299), the row names what failed.
     ///
-    /// - Parameter section: `.songs` or `.players`.
-    /// - Returns: "Songs unavailable" or "Players unavailable" (the announcement's words).
+    /// - Parameter section: `.songs`, `.players` or `.bands`.
+    /// - Returns: "Songs unavailable", "Players unavailable" or "Bands unavailable" (the
+    ///   announcement's words).
     public static func unavailableTitle(for section: GlobalSearchScope) -> String {
         "\(section.title) unavailable"
     }
 
     /// Whether the one centred spinner shows instead of results (issue #299, web
-    /// `SearchModal` parity): All waits until Songs and Players have both settled; the
-    /// Songs scope never waits for Players. Bands is never searched.
+    /// `SearchModal` parity): All waits until Songs, Players and Bands have all settled;
+    /// a single scope waits only for itself (Songs never waits for the network).
     ///
     /// - Parameters:
     ///   - scope: Active scope.
-    ///   - songs: Songs section outcome.
-    ///   - players: Players section outcome.
+    ///   - outcomes: Every section's outcome.
     /// - Returns: True while any section the scope shows is still pending.
-    public static func isSearching(
-        scope: GlobalSearchScope, songs: SectionOutcome, players: SectionOutcome
-    ) -> Bool {
-        guard scope != .bands else { return false }
-        let shown = scope.sections
-        return (shown.contains(.songs) && songs == .pending)
-            || (shown.contains(.players) && players == .pending)
+    public static func isSearching(scope: GlobalSearchScope, outcomes: Outcomes) -> Bool {
+        scope.sections.contains { outcomes[$0] == .pending }
     }
 
     /// Whether pressing Search on the keyboard re-runs the current query.
@@ -143,16 +138,18 @@ public enum GlobalSearch {
     ///
     /// - Parameters:
     ///   - scope: Active scope.
-    ///   - songs: Songs section outcome.
-    ///   - players: Players section outcome.
-    /// - Returns: True when a shown section failed, or players finished empty.
-    public static func submitReruns(
-        scope: GlobalSearchScope, songs: SectionOutcome, players: SectionOutcome
-    ) -> Bool {
-        let shown = scope.sections
-        if shown.contains(.songs) && songs == .failed { return true }
-        if shown.contains(.players) && (players == .failed || players == .found(0)) { return true }
-        return false
+    ///   - outcomes: Every section's outcome.
+    /// - Returns: True when a shown section failed, or players or bands finished empty.
+    public static func submitReruns(scope: GlobalSearchScope, outcomes: Outcomes) -> Bool {
+        scope.sections.contains { section in
+            switch outcomes[section] {
+            case .failed: true
+            // A network section's empty envelope may be a server timeout; local song
+            // matches are exact.
+            case .found(0): section != .songs
+            default: false
+            }
+        }
     }
 
     // MARK: - Empty state
@@ -180,17 +177,19 @@ public enum GlobalSearch {
     ///   - scope: Active scope.
     ///   - query: Raw query text; a query under two characters has no empty state.
     /// - Returns: The copy (subtitles are the cross-platform contract text in
-    ///   `.agents/controls/global-search/spec.md`), or nil for Bands (never searched)
-    ///   and short queries.
+    ///   `.agents/controls/global-search/spec.md`), or nil for short queries.
     public static func emptyState(scope: GlobalSearchScope, query: String) -> EmptyState? {
         guard effectiveQuery(query) != nil else { return nil }
         switch scope {
         case .bands:
-            return nil
+            return EmptyState(
+                title: "No Bands Found",
+                subtitle: "Check the spelling or try a different band member's name."
+            )
         case .all:
             return EmptyState(
                 title: "No Results Found",
-                subtitle: "Check the spelling or try a different song, artist or player."
+                subtitle: "Check the spelling or try a different song, artist, player or band."
             )
         case .songs:
             return EmptyState(
@@ -217,39 +216,55 @@ public enum GlobalSearch {
         case found(Int)
     }
 
+    /// The outcome of each result section for one query.
+    public struct Outcomes: Equatable, Sendable {
+        public var songs: SectionOutcome
+        public var players: SectionOutcome
+        public var bands: SectionOutcome
+
+        /// Create the outcomes.
+        ///
+        /// - Parameters:
+        ///   - songs: Songs section outcome.
+        ///   - players: Players section outcome.
+        ///   - bands: Bands section outcome.
+        public init(songs: SectionOutcome, players: SectionOutcome, bands: SectionOutcome) {
+            self.songs = songs
+            self.players = players
+            self.bands = bands
+        }
+
+        /// One section's outcome; `.all` is not a section and reads as pending.
+        public subscript(section: GlobalSearchScope) -> SectionOutcome {
+            switch section {
+            case .songs: songs
+            case .players: players
+            case .bands: bands
+            case .all: .pending
+            }
+        }
+    }
+
     /// What VoiceOver announces once the results for a query settle (web live region
-    /// equivalent): nil while a section the scope shows is still pending, and for
-    /// Bands (never searched).
+    /// equivalent): nil while a section the scope shows is still pending.
     ///
     /// - Parameters:
     ///   - scope: Active scope.
-    ///   - songs: Songs section outcome.
-    ///   - players: Players section outcome.
-    /// - Returns: "3 songs, 1 player", "No results found.", …, or nil.
-    public static func resultAnnouncement(
-        scope: GlobalSearchScope, songs: SectionOutcome, players: SectionOutcome
-    ) -> String? {
-        func count(_ outcome: SectionOutcome, _ one: String, _ many: String) -> String? {
-            switch outcome {
-            case .pending: nil
-            case .failed: "\(many.capitalized) unavailable"
-            case let .found(value): "\(value) \(value == 1 ? one : many)"
+    ///   - outcomes: Every section's outcome.
+    /// - Returns: "3 songs, 1 player, 2 bands", "No results found.", …, or nil.
+    public static func resultAnnouncement(scope: GlobalSearchScope, outcomes: Outcomes) -> String? {
+        let shown = scope.sections
+        guard !isSearching(scope: scope, outcomes: outcomes) else { return nil }
+        if shown.allSatisfy({ outcomes[$0] == .found(0) }) {
+            return scope == .all ? "No results found." : "No \(scope.title.lowercased()) found."
+        }
+        return shown.compactMap { section -> String? in
+            let many = section.title.lowercased()
+            switch outcomes[section] {
+            case .pending: return nil
+            case .failed: return "\(section.title) unavailable"
+            case let .found(value): return "\(value) \(value == 1 ? String(many.dropLast()) : many)"
             }
-        }
-        switch scope {
-        case .bands:
-            return nil
-        case .songs:
-            if songs == .found(0) { return "No songs found." }
-            return count(songs, "song", "songs")
-        case .players:
-            if players == .found(0) { return "No players found." }
-            return count(players, "player", "players")
-        case .all:
-            guard songs != .pending, players != .pending else { return nil }
-            if songs == .found(0) && players == .found(0) { return "No results found." }
-            return [count(songs, "song", "songs"), count(players, "player", "players")]
-                .compactMap { $0 }.joined(separator: ", ")
-        }
+        }.joined(separator: ", ")
     }
 }

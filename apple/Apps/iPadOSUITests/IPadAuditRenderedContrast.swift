@@ -20,6 +20,8 @@ enum IPadAuditRenderedContrast {
     /// iPhone Duo: the quarter turn that reads upright, found once by text recognition
     /// (Device Hub decides the inner display's rotation, so `XCUIDevice` cannot say).
     @MainActor static var duoClockwise: Bool?
+    /// iPhone Duo: static texts of the page (label, frame) that pick the upright turn.
+    @MainActor static var duoReferences: [(label: String, frame: CGRect)] = []
 
     // MARK: - Capture
 
@@ -90,18 +92,24 @@ enum IPadAuditRenderedContrast {
     static func duoUpright(_ raw: CGImage, scale: CGFloat) -> CGImage? {
         func turned(_ clockwise: Bool) -> CGImage? { rotate(raw, clockwise: clockwise) }
         if let known = duoClockwise { return turned(known) }
-        // Upside-down text is also "recognized" (equal line counts on the inner display,
-        // 2026-10-05), so score by confidence-weighted characters: upright text reads
-        // with high confidence, flipped text as low-confidence fragments.
-        let scores = [true, false].map { clockwise -> Double in
-            guard let image = turned(clockwise) else { return 0 }
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            guard (try? VNImageRequestHandler(cgImage: image, options: [:]).perform([request])) != nil else { return 0 }
-            return (request.results ?? []).compactMap { $0.topCandidates(1).first }
-                .reduce(0) { $0 + Double($1.confidence) * Double($1.string.count) }
+        // Vision reads upside-down text too (equal line counts and confidence on the inner
+        // display, 2026-10-05/06: both picks came out flipped), so the turn is the one
+        // where the page's own labels are recognized at their element frames.
+        let scores = [true, false].map { clockwise -> Int in
+            guard let image = turned(clockwise), let pixels = try? bitmapPixels(image) else { return 0 }
+            let capture = Capture(pixels: pixels, width: image.width, height: image.height,
+                                  screen: CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale),
+                                  image: image, rotated: true)
+            let lines = IPadAuditPageEvidence.recognizedLines(in: capture)
+            return duoReferences.filter { reference in
+                let label = String(IPadAuditTextEvidence.normalized(reference.label))
+                return lines.contains { line in
+                    reference.frame.insetBy(dx: -4, dy: -4).contains(CGPoint(x: line.frame.midX, y: line.frame.midY))
+                        && label.contains(String(IPadAuditTextEvidence.normalized(line.text)).prefix(4))
+                }
+            }.count
         }
+        guard scores[0] != scores[1] else { return turned(false) }
         duoClockwise = scores[0] > scores[1]
         return turned(duoClockwise ?? false)
     }

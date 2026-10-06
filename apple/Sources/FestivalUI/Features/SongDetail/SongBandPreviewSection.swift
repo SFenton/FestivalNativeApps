@@ -67,6 +67,8 @@ struct SongBandPreviewSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Retry \(bandType.label) scores", action: onRetry)
                         .frame(minHeight: 44)
+                        // Readable accent text on the card (the fill tint is below 4.5:1).
+                        .tint(AccentText.blue)
                         .accessibilityIdentifier("fst.song-detail.band-retry.\(bandType.rawValue)")
                 }
                 .padding(14)

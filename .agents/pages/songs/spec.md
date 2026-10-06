@@ -54,7 +54,7 @@ Header profile, search, notifications → page title → search, Sort, condition
 
 ## Test matrix
 
-Control-to-control propagation; modal draft confirm and focus restore; filtered-row deep link; screen-reader labels; narrow/regular widths; actual motion; publication change clearing routes/filters; retry of a failed list when the tab becomes visible again. Profile POSTs are fixture-only.
+Control-to-control propagation; modal draft confirm and focus restore; filtered-row deep link; screen-reader labels; narrow/regular widths; actual motion; publication change refreshing routes in place (no pop, no notice; issue #304) and clearing filters; retry of a failed list when the tab becomes visible again. Profile POSTs are fixture-only.
 
 ## Open gaps (all platforms)
 

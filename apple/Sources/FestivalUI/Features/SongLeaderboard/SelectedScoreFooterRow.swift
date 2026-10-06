@@ -18,8 +18,6 @@ struct SelectedScoreFooterRow: View {
     /// Draw the stars right after the score when the columns show stars: the band
     /// footer (issue #306, web `starsAfterScore`); the Solo footer never draws stars.
     var starsAfterScore = false
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         HStack(spacing: 8) {
@@ -35,15 +33,27 @@ struct SelectedScoreFooterRow: View {
         .padding(.horizontal, 14)
         .frame(minHeight: LeaderboardRowMetrics.minHeight)
         .modifier(RankingRowSurface(isSelected: true))
-        // The footer floats over artwork with no band behind it (issue #93): with
-        // Reduce Transparency or Increase Contrast its translucent purple gets an
-        // opaque backing, as the pager's plates already have.
-        .background {
+        .modifier(PinnedFooterBacking())
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Pinned footer backing
+
+/// The opaque backing of a board's pinned selected row (song boards and Full
+/// Rankings, issue #318). The footer floats over artwork with no band behind it
+/// (issue #93): with Reduce Transparency or Increase Contrast its translucent purple
+/// gets an opaque backing, as the pager's plates already have.
+struct PinnedFooterBacking: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        content.background {
             if reduceTransparency || contrast == .increased {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(BrandTokens.appBackground)
             }
         }
-        .contentShape(Rectangle())
     }
 }
