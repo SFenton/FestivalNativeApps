@@ -59,6 +59,13 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
+    /// Identity of a pending selected-row reveal: re-runs when the request or the
+    /// revealed rows change.
+    private struct FocusRequest: Equatable {
+        let pending: Bool
+        let rows: String?
+    }
+
     private struct RequestKey: Hashable {
         let page: Int
         let publicationRevision: Int
@@ -111,28 +118,32 @@ struct SoloLeaderboardScreen: View {
         // otherwise the first page kept an opaque mask, and rows showed behind the
         // pager, until something else re-rendered the page (issues #294, #305).
         let chromeTop = bottomChromeTop
-        // Page changes fade the rows out, show the spinner and fade the new page in
-        // (web LoadGate, issue #71).
-        FestivalReloadGate(key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard") {
-            switch state {
-            case .loading:
-                EmptyView()
-            case let .failed(issue):
+        // Page changes remove the rows, show the spinner and fade the new page in (web
+        // LoadGate, issue #71). The song header and its list stay from the first load on
+        // and only the rows swap (web keeps `SongInfoHeader` outside its LoadGate and
+        // skips its stagger on 'paginate', issue #316).
+        FestivalReloadGate(
+            key: requestKey, isLoading: state.isLoading, spinnerLabel: "Loading leaderboard"
+        ) { reveal in
+            if case let .failed(issue) = state, reveal.showsResult {
                 ServiceStatusView(issue, title: "Leaderboard unavailable") {
                     Task { await loadPage() }
                 }
-            case let .loaded(payload):
+            } else if let shownPayload {
+                // The rows of the page being revealed; nil while the next page loads.
+                let rows = reveal.showsResult ? loadedPayload : nil
+                let revealedRowsKey = reveal.showsResult ? loadedRowsKey : nil
                 VStack(spacing: 0) {
-                    scoreBanner(payload)
+                    scoreBanner(shownPayload)
                     ScrollViewReader { proxy in
                         List {
                             // The song header scrolls with the rows (no card behind it);
                             // once it passes under the bar the bar shows it instead.
-                            scoreHeader(payload)
+                            scoreHeader(shownPayload)
                                 .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
-                            ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
+                            ForEach(Array((rows?.leaderboard.entries ?? []).enumerated()), id: \.element.id) { index, entry in
                                 let isSelectedRow = isSelectedAccount(entry.accountId)
                                 // One design with every leaderboard (web `entryRow`): each row
                                 // its own material card, the player's purple, with the chevron
@@ -176,9 +187,10 @@ struct SoloLeaderboardScreen: View {
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
                         // Opened for the selected player's row: scroll it into view once
-                        // (web `navToPlayer`, issue #307).
-                        .task(id: focusPending) {
-                            guard focusPending, let target = payload.leaderboard.entries.first(where: {
+                        // its page is revealed (web `navToPlayer`, issue #307).
+                        .task(id: FocusRequest(pending: focusPending, rows: revealedRowsKey)) {
+                            guard focusPending, let rows else { return }
+                            guard let target = rows.leaderboard.entries.first(where: {
                                 isSelectedAccount($0.accountId)
                             }) else {
                                 focusPending = false
@@ -202,8 +214,10 @@ struct SoloLeaderboardScreen: View {
                         )
                     }
                 }
-                .task {
-                    await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
+                // The settle timer runs from each page's reveal, not from its load.
+                .task(id: revealedRowsKey) {
+                    guard let rows else { return }
+                    await FadeStagger.settle(afterRevealing: rows.leaderboard.entries.count) {
                         staggerSettled = true
                     }
                 }
