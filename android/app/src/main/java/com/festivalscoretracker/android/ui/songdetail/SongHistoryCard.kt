@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.profile.ChartGeometry
 import com.festivalscoretracker.android.core.profile.ScoreHistoryEntry
 import com.festivalscoretracker.android.core.songs.ScoreRowSeasonPolicy
 import com.festivalscoretracker.android.core.songs.SongHistoryChart
@@ -81,6 +82,7 @@ import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
 import com.festivalscoretracker.android.core.songs.SongHistorySwap
 import com.festivalscoretracker.android.ui.common.GraphCardList
+import com.festivalscoretracker.android.ui.common.chartBandLabelGapPx
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
@@ -289,6 +291,8 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, rese
                 val slot = plotWidth / page.size
                 val barWidth = minOf(slot * 0.9f, MAX_BAR.toPx())
                 val radius = CornerRadius(4.dp.toPx())
+                val dates = page.map { measurer.measure(it.dateLabel, tick) }
+                val dateLefts = ChartGeometry.bandLabelLefts(dates.map { it.size.width.toFloat() }, axis, plotWidth, size.width, chartBandLabelGapPx(density))
                 page.forEachIndexed { i, point ->
                     val x = axis + slot * i + (slot - barWidth) / 2
                     val h = (plotHeight * (point.accuracyPercent / 100.0)).toFloat().coerceAtLeast(1f)
@@ -297,8 +301,7 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument, rese
                     if (paging.selected == paging.pageStart + i) {
                         drawRoundRect(BrandTokens.accentPurple, Offset(x, plotHeight - h), Size(barWidth, h), radius, style = Stroke(3.dp.toPx()))
                     }
-                    val label = measurer.measure(point.dateLabel, tick)
-                    drawText(label, topLeft = Offset(axis + slot * i + (slot - label.size.width) / 2, plotHeight + 4f))
+                    dateLefts[i]?.let { left -> drawText(dates[i], topLeft = Offset(left, plotHeight + 4f)) }
                 }
                 // Score line with dots (web accentBlueBright).
                 val line = Path()

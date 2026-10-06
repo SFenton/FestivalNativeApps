@@ -1438,6 +1438,96 @@
         286,
         303
       ]
+    },
+    {
+      "id": "chart-axis-labels",
+      "title": "Chart axis labels",
+      "status": "current",
+      "doc": ".agents/patterns/chart-axis-labels.md",
+      "summary": "Bar-chart date labels are centred under their own bars, pinned inside the chart edges rather than clipped, and hidden on collision (newest kept, web preserveStartEnd); decorative for assistive technology.",
+      "keywords": [
+        "chart",
+        "graph",
+        "x axis",
+        "date label",
+        "axis label",
+        "bar label",
+        "tick",
+        "rank history",
+        "score history"
+      ],
+      "web": [
+        {
+          "path": "pages/leaderboards/components/RankHistoryChart.tsx",
+          "symbol": "RankHistoryChart"
+        },
+        {
+          "path": "pages/songinfo/components/chart/ScoreHistoryChart.tsx",
+          "symbol": "ScoreHistoryChart"
+        },
+        {
+          "path": "components/common/chartVisuals.ts",
+          "symbol": "CHART_X_AXIS_TICK"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerProfileCharts.swift",
+            "symbol": "RankHistoryCharts"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongScoreHistorySection.swift",
+            "symbol": "SongScoreHistorySection"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerCharts.kt",
+            "symbol": "bandLabelLefts"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartBandLabels.kt",
+            "symbol": "ChartBandLabels"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RankHistoryGraph.cs",
+            "symbol": "RankHistoryGraph"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SongScoreHistoryChart.xaml.cs",
+            "symbol": "SongScoreHistoryChart"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-local-centring",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\(slot\\s*-\\s*\\w+\\.size\\.width\\)\\s*/\\s*2",
+          "allow": [],
+          "debt": [],
+          "message": "Bar-chart labels are placed by ChartGeometry.bandLabelLefts, not per-chart centring math (chart-axis-labels R1-R3)."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "load-transition"
+        ],
+        "controls": [],
+        "pages": [
+          "player-profile",
+          "leaderboards",
+          "song-detail"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        314
+      ]
     }
   ]
 }

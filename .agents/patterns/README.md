@@ -30,3 +30,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [empty-error-states](empty-error-states.md) | Empty, no-results, unavailable and error states: layout, copy and retry |
 | [quick-links](quick-links.md) | The Quick Links menu: order, icons, activation line and placement |
 | [section-headers](section-headers.md) | Section titles: style, outside-card placement and pinned/sticky behavior |
+| [chart-axis-labels](chart-axis-labels.md) | Bar-chart date labels: centred under their bars, edge pinning, collision hiding |
