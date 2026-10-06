@@ -160,6 +160,13 @@ private func song(_ id: String, title: String) throws -> Song {
     #expect(AppRoute.playerHistory(old, .bass).replacingSong(fresh) == .playerHistory(fresh, .bass))
     #expect(AppRoute.songBandLeaderboard(old, bandType: "Band_Duets").replacingSong(fresh)
         == .songBandLeaderboard(fresh, bandType: "Band_Duets"))
+    #expect(AppRoute.songLeaderboard(old, .drums, 3, focusSelected: true).replacingSong(fresh)
+        == .songLeaderboard(fresh, .drums, 3, focusSelected: true), "the selected-row jump survives")
+    let focus = SongBandRowFocus(bandId: "band-14", bandType: "Band_Trios", teamKey: "team-14")
+    #expect(AppRoute.songBandLeaderboard(old, bandType: "Band_Trios", page: 2, focus: focus)
+        .replacingSong(fresh)
+        == .songBandLeaderboard(fresh, bandType: "Band_Trios", page: 2, focus: focus),
+        "the band board keeps its page and selected-band focus")
     #expect(AppRoute.bands.replacingSong(fresh) == .bands)
 
     #expect(RouteSongRefresh.resolve(songId: "only-7", in: current, publicationId: session.publicationId)
