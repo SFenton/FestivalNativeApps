@@ -218,6 +218,30 @@ class RankingsCoreTest {
         assertFalse(RankingSpotlight.isSelected(selected, ""))
     }
 
+    @Test
+    fun fullBoardPinsTheSelectedRowEvenOnItsOwnPage() {
+        val top = (1..10).map { entry(it) }
+        val own = entry(RankingsFixtures.SELECTED_RANK)
+        val selected = RankingsFixtures.SELECTED
+        val onPage = top[3]
+        assertEquals(RankingSpotlightPlacement.None, RankingSpotlight.pinnedPlacement(null, top, RankingSpotlightSource.Available(own)))
+        assertEquals(RankingSpotlightPlacement.None, RankingSpotlight.pinnedPlacement(" ", top, RankingSpotlightSource.NotLoaded))
+        // Issue #318: the player's own page still pins their row (never Inline), from the own-row read.
+        val ownOnPage = onPage.copy(displayName = "From the own-row read")
+        assertEquals(RankingSpotlightPlacement.Footer(ownOnPage), RankingSpotlight.pinnedPlacement(onPage.accountId.uppercase(), top, RankingSpotlightSource.Available(ownOnPage)))
+        // The page's own row stands in while the own-row read is pending or stale.
+        assertEquals(RankingSpotlightPlacement.Footer(onPage), RankingSpotlight.pinnedPlacement(onPage.accountId, top, RankingSpotlightSource.NotLoaded))
+        assertEquals(RankingSpotlightPlacement.Footer(onPage), RankingSpotlight.pinnedPlacement(onPage.accountId, top, RankingSpotlightSource.Unranked))
+        assertEquals(RankingSpotlightPlacement.Footer(onPage), RankingSpotlight.pinnedPlacement(onPage.accountId, top, RankingSpotlightSource.Available(top[0])))
+        // Off-page: the same states as the overview cards.
+        assertEquals(RankingSpotlightPlacement.Footer(own), RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.Available(own)))
+        assertEquals(RankingSpotlightPlacement.Pending, RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.NotLoaded))
+        assertEquals(RankingSpotlightPlacement.Unranked, RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.Unranked))
+        assertEquals(RankingSpotlightPlacement.Pending, RankingSpotlight.pinnedPlacement(selected, top, RankingSpotlightSource.Available(top[0])))
+        // The overview cards keep hiding a visible player.
+        assertEquals(RankingSpotlightPlacement.Inline, RankingSpotlight.placement(onPage.accountId, top, RankingSpotlightSource.Available(onPage)))
+    }
+
     // endregion
 
     // region Navigation and layout
