@@ -72,3 +72,16 @@ Checked against the `winui-design` skill (Fluent layout, theming, brushes, acces
 | Narrator / UIA | Each row is one stop with a full name; there are no unnamed `Image` peers |
 
 Host limits: at 300% the `wide` and `maximized` presets clamp to 1280 epx, so the Quick Links pane (≥ 1150 epx of page area) can't appear and the `quick-links` journey's `resize:wide` step fails on this host only.
+
+## Validation pass (issue #267, 2026-10)
+
+The #67 change ("N shared songs" removed from the rival rows and their Narrator names) was checked on the live public service with SFentonX (`a11y_matrix.py --live --scan`, Debug build, 3840×2160 at 300% host) and in fixture journeys. It held on the hub and All Rivals. **Defect found and fixed:** the First Run Rivals and Compete demos still showed the count ("140 shared · 78/62", "KeyDrifter · 148 songs"). They now share `RivalRowText` with the row (see the No-shared-count rule above).
+
+| Configuration | Result |
+|---|---|
+| Compact, medium, wide, maximized, snap left/right (normal) | Hub (both tabs), All Rivals and the three rival demos loaded with 0 Axe errors in every cell. Rows show only the ahead/behind pills. Tab walks: hub 10 stops, Leaderboard tab 5, All Rivals 6–8, none outside the app, no repeats. A few cells first failed to launch under shared-host contention ("no top-level window within 30 s") and passed on retry |
+| Light / dark theme | The app is dark-only by design. 0 Axe errors (hub, All Rivals, instruments demo) |
+| High contrast (Desert compact/medium, Night sky) | System colours, outlined pills, text never colour-only. 0 Axe errors |
+| Text 200% (compact, medium) | Pills wrap onto two lines in the compact hub. The demo rows fit their frame. 0 Axe errors |
+| Display scaling 150% / 100% | `scale-*` modes: 0 Axe errors (the hub at `scale-100` timed out at launch once; All Rivals and the demo passed) |
+| Narrator / UIA | `rivals_journey.py populated` asserts the exact name of a hub and an All Rivals row ("…, ahead of you, 128 songs ahead, 243 songs behind") at compact, medium and wide. The demos stay Raw (decorative) |
