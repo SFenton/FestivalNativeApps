@@ -45,8 +45,12 @@
             "symbol": "PinnedHeaderEdgeFade"
           },
           {
-            "path": "apple/Sources/FestivalUI/Common/ListScrollOffsetObserver.swift",
-            "symbol": "ListScrollOffsetObserver"
+            "path": "apple/Sources/FestivalUI/Common/PlatformScrollObserver.swift",
+            "symbol": "PlatformScrollObserver"
+        },
+        {
+            "path": "apple/Sources/FestivalUI/Common/ScrollEdgeReader.swift",
+            "symbol": "onScrollEdgeReading"
           },
           {
             "path": "apple/Sources/FestivalUI/Design/ScrollEdgeFadeModifiers.swift",
