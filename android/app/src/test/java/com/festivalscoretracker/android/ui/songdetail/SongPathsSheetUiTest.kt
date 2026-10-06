@@ -233,8 +233,8 @@ class SongPathsSheetUiTest {
         return sum / ((b.right.toInt() - b.left.toInt()) * (bottom - top))
     }
 
-    /** Release a gated text load with the clock paused and step to the frame the table commits. */
-    private fun commitGatedTable(gate: CompletableDeferred<Unit>, loaded: String) {
+    /** Release a gated load with the clock paused and step to the frame its content commits. */
+    private fun commitGated(gate: CompletableDeferred<Unit>, loaded: String) {
         rule.mainClock.autoAdvance = false
         gate.complete(Unit)
         var frames = 0
@@ -250,7 +250,7 @@ class SongPathsSheetUiTest {
         assertEquals(listOf(0, 60, 120, 600), listOf(0, 1, 2, 10).map(PathSwapTiming::rowStagger))
         val gate = CompletableDeferred<Unit>()
         show(viewModel(display = PathDisplayMode.Text, loadText = { _, _ -> gate.await(); text() }))
-        commitGatedTable(gate, "Lead Expert path loaded, 3 activations")
+        commitGated(gate, "Lead Expert path loaded, 3 activations")
         // The table mounts with every row hidden (no container fade, no stale rows).
         rule.mainClock.advanceTimeByFrame()
         val hidden = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
@@ -269,12 +269,45 @@ class SongPathsSheetUiTest {
     fun reducedMotionShowsTextRowsWithoutStagger() {
         val gate = CompletableDeferred<Unit>()
         show(viewModel(display = PathDisplayMode.Text, loadText = { _, _ -> gate.await(); text() }), reduceMotion = true)
-        commitGatedTable(gate, "Lead Expert path loaded, 3 activations")
+        commitGated(gate, "Lead Expert path loaded, 3 activations")
         rule.mainClock.advanceTimeByFrame()
         val first = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
         rule.mainClock.advanceTimeBy(1_500)
         val later = listOf("fst.paths.row.1", "fst.paths.row.2").map(::brightness)
         (0..1).forEach { assertEquals("row ${it + 1} fully shown on its first frame", later[it], first[it], 0.01f) }
+    }
+
+    /**
+     * The image fades in, and out on a switch, on web `opacity 300ms ease` (Compose [androidx.compose.animation.core.Ease],
+     * load-transition R3, #177 decision): halfway through the fade CSS `ease` is ~80% done (75–85% within
+     * a frame either way) where linear would be 50%, so a regression to `LinearEasing` fails.
+     */
+    @Test
+    fun imageSwitchFadesOnTheWebEaseCurve() {
+        val expert = CompletableDeferred<Unit>()
+        val hard = CompletableDeferred<Unit>()
+        val vm = viewModel(loadImage = { _, difficulty -> (if (difficulty == PathDifficulty.Expert) expert else hard).await(); image() })
+        show(vm)
+        commitGated(expert, "Lead Expert path image loaded")
+        // The decoded chart commits fully transparent (no spinner, no stale image), then eases in.
+        rule.mainClock.advanceTimeByFrame()
+        val hidden = brightness("fst.paths.image")
+        rule.mainClock.advanceTimeBy(PathSwapTiming.FADE_MILLIS / 2)
+        val mid = brightness("fst.paths.image")
+        rule.mainClock.advanceTimeBy(1_000)
+        val shown = brightness("fst.paths.image")
+        assertTrue("the chart draws once faded in ($hidden → $shown)", shown > hidden + 0.02f)
+        val fadedIn = (mid - hidden) / (shown - hidden)
+        assertTrue("fade-in at 150 ms follows CSS ease, not linear ($fadedIn)", fadedIn in 0.68f..0.95f)
+
+        // Difficulty switch: the old chart fades out on the same curve before the spinner.
+        vm.selectDifficulty(PathDifficulty.Hard)
+        shadowOf(Looper.getMainLooper()).idle()
+        rule.mainClock.advanceTimeByFrame()
+        assertEquals("Loading Lead Hard path", status())
+        rule.mainClock.advanceTimeBy(PathSwapTiming.FADE_MILLIS / 2)
+        val left = (brightness("fst.paths.image") - hidden) / (shown - hidden)
+        assertTrue("fade-out at 150 ms follows CSS ease, not linear ($left)", left in 0.05f..0.32f)
     }
 
     @Test
