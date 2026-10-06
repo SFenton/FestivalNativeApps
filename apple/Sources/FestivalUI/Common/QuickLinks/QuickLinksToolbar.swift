@@ -151,23 +151,34 @@ struct QuickLinkLabel: View {
     static let adjacentSymbolSide: CGFloat = 20
     #endif
 
-    /// The text size the adjacent row symbols stop growing at: in the accessibility sizes
-    /// list-row SF Symbols stay at their xxxLarge size (20 pt → 28 pt tall measured at
-    /// Accessibility XL) while body text keeps growing.
-    static let symbolScaleLimit = DynamicTypeSize.xxxLarge
+    /// Text sizes over which list-row SF Symbols hold their xxxLarge size while body text
+    /// keeps growing (measured on iOS 26 List rows: 20 pt tall at Large, 27 at xxxLarge,
+    /// 25.5 at AX1, 28 at AX3, then 38 at AX5, growing with body text again).
+    static let symbolPlateau = DynamicTypeSize.xxxLarge...DynamicTypeSize.accessibility3
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// The instrument icon side for a text size: scaled like body text (HIG Typography:
-    /// "Increase the size of meaningful interface icons as font size increases") up to
-    /// ``symbolScaleLimit``, so it keeps matching the symbols. macOS menus don't scale.
+    /// The instrument icon side for a text size, following the row symbols' curve so the
+    /// visible disc keeps matching them (HIG Typography: "Increase the size of meaningful
+    /// interface icons as font size increases").
+    ///
+    /// Scales like body text up to xxxLarge, holds across ``symbolPlateau``, then scales
+    /// with body text from there. macOS menus don't scale.
     ///
     /// - Parameter size: The environment's Dynamic Type size.
     /// - Returns: The side in points before ``InstrumentIcon/menuSide(_:)`` snapping.
     static func instrumentIconSide(for size: DynamicTypeSize) -> CGFloat {
         #if canImport(UIKit)
-        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(size, symbolScaleLimit)))
-        return UIFontMetrics(forTextStyle: .body).scaledValue(for: instrumentIconBaseSide, compatibleWith: traits)
+        let metrics = UIFontMetrics(forTextStyle: .body)
+        func scaled(_ value: CGFloat, at size: DynamicTypeSize) -> CGFloat {
+            metrics.scaledValue(
+                for: value, compatibleWith: UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(size))
+            )
+        }
+        if size <= symbolPlateau.lowerBound { return scaled(instrumentIconBaseSide, at: size) }
+        let plateau = scaled(instrumentIconBaseSide, at: symbolPlateau.lowerBound)
+        if size <= symbolPlateau.upperBound { return plateau }
+        return plateau * scaled(17, at: size) / scaled(17, at: symbolPlateau.upperBound)
         #else
         return instrumentIconBaseSide
         #endif
