@@ -45,3 +45,5 @@ Android consumers of `SongHeader`: Song Detail, Song Leaderboard and Song Band L
 ## Guards (`tools/pattern_guard.py`)
 
 None yet: song titles in list rows legitimately use plain one-line text, so a regex can't separate header titles from row titles. Review against R1–R4.
+
+Regression journeys instead: every `FestivalMarqueeText` publishes what it draws as the semantics property `FestivalMarquee.ModeKey` (`Static`, `Scrolling`, `Truncated`, `Wrapped`; not read by TalkBack). Android `ui/songdetail/SongHeaderTitleUiTest` launches the whole shell on Song Detail, Song Leaderboard, Song Band Leaderboard and Player History with a synthetic overflowing title and asserts R2 (one `Scrolling` line whose box ends at the header's edge), R3 (Reduce Motion `Truncated` with an ellipsis; 200% text `Wrapped` in-page; one heading stop that reads the title once), R4 (after scrolling, the bar title is one `Scrolling` line up to the first action, also at 200%) and that short titles stay `Static`. A plain `Text` title has no mode and fails them. Add a page here when it gains a song header.

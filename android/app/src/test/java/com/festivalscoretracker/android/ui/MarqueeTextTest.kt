@@ -62,6 +62,13 @@ class MarqueeTextTest {
         assertFalse(FestivalMarquee.overflows(textWidthPx = 300, boxWidthPx = 0))
     }
 
+    @Test
+    fun fallbackModeNamesWrappedTruncatedOrStill() {
+        assertEquals(FestivalMarquee.Mode.Wrapped, FestivalMarquee.fallbackMode(lineCount = 2, ellipsized = false))
+        assertEquals(FestivalMarquee.Mode.Truncated, FestivalMarquee.fallbackMode(lineCount = 1, ellipsized = true))
+        assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.fallbackMode(lineCount = 1, ellipsized = false))
+    }
+
     /** Issue #315: the top app bar learns whether a marquee title overflows, in motion and Reduce Motion. */
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
