@@ -2,7 +2,7 @@
 
 > **What:** first-load gates, reload swaps, graph card list swaps and row entrances for pages, boards and data-backed modal content. **Read when:** a load, refresh, selector, page or modal switch changes visible data.
 
-Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71, #149, #169.
+Status: **current**, 2026-10-05. Provenance: #30, #60, #70, #71, #149, #169, #260.
 
 ## Intent
 
@@ -32,7 +32,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| First-load gate | `FestivalUI/Common/FestivalReloadGate.swift` `FestivalReloadGate`; `Common/FadeInOnLoad.swift` `FestivalFadeInScope` | `ui/common/LoadGate.kt` `FestivalLoadGate`; `core/shell/LoadGatePhase.kt` `LoadGatePolicy` | `Festival.App/Controls/FadeIn.cs` `FadeIn` |
+| First-load gate | `FestivalUI/Common/FestivalReloadGate.swift` `FestivalReloadGate`; `Common/FadeInOnLoad.swift` `FestivalFadeInScope` | `ui/common/LoadGate.kt` `FestivalLoadGate`; `core/shell/LoadGatePhase.kt` `LoadGatePolicy` | `Festival.App/Controls/FadeIn.cs` `FadeIn`; `Festival.Core/Domain/MotionPolicy.cs` `StaggerArm` |
 | Reload swap | `FestivalCore/ReloadTransition.swift` `ReloadTransition`; `Common/FestivalReloadGate.swift` | `ui/common/LoadSwap.kt` `rememberLoadSwap`; `core/shell/LoadSwapPhase.kt` `LoadSwapPolicy` | `Festival.Core/Domain/LoadSwap.cs` `LoadSwap`; `Festival.App/Controls/LoadSwapVisual.cs` `LoadSwapVisual` |
 | Paths swap | `FestivalCore/PathSwitchTransition.swift` `PathSwitchTransition` | `presentation/songs/SongPathsViewModel.kt` `PathSwapPhase` | `Festival.Core/ViewModels/SongPathsViewModel.cs` `PathSwapTiming` |
 | Graph card list (R7) | Not mirrored yet (see debt) | `ui/common/GraphCardList.kt` `GraphCardList`; `core/shell/GraphListPhase.kt` `GraphListPolicy` | Not mirrored yet (see debt) |
@@ -49,3 +49,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 - `load-transition/android-load-swap`
 - `load-transition/windows-load-swap`
 - `load-transition/android-graph-list`
+
+Windows R5 window (#260, agent decision after the PR #274 review; the owner may override): the stagger arm lives in `Festival.Core/Domain/MotionPolicy.cs` `StaggerArm`, shared by `FadeIn` and Song Detail's board cards. A load arm (`Restagger` start 0) closes on the first scroll movement of at least 1 DIP from the offset settled after the arm's first layout, or after its 1 s window, whichever comes first; rows realized after that appear without a fade. An appended Suggestions batch (start > 0) stays open while the reader scrolls to it, so only newly generated cards fade. A batch appended while the load arm is still open is merged into it; the first scroll then drops the load rows and keeps the batch.
+
+Windows R5 behavior check (#260): with `--perf-log`, `FadeIn` writes a `fade-arm` line per stagger arm, a `fade-play` line per played entrance, a `fade-close` line when scrolling closes an arm and a `fade-skip` line for a row realized inside the window that a purely time-based window would have faded but the scroll close kept still (other rows that simply appear write nothing). `tools/windows/suggestions_journey.py --only fade` lengthens the window (Debug/automation `FST_DEBUG_FADE_WINDOW_MS`, since UI Automation can't scroll within 1 s), opens Suggestions, scrolls to the end straight after the list is ready and back to the top. It asserts that the scroll closed the load window inside that window, that only the new batch the scroll kept faded, and that the recycled first-screen cards came back without a fade (`fade-skip`). It then asserts that a generated batch fades only its new cards and that scrolling back replays nothing; `tools/windows/search_journey.py --only fade-delayed-results` asserts that results arriving after the spinner fade once. `tools/windows/tests/test_fade_trace.py` runs in CI and fails if the Suggestions `CardsAdded`, Search `SectionShown`, `FadeIn` scroll-close or Song Detail board-arm wiring is removed, since CI cannot run WinUI journeys.

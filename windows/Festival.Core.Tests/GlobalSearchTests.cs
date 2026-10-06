@@ -254,6 +254,52 @@ public class GlobalSearchViewModelTests
     }
 
     [Fact]
+    public async Task SectionShown_RaisedWhenEachSectionAppears_NotOnEveryRefresh()
+    {
+        var release = new TaskCompletionSource();
+        var (service, time, session) = Create();
+        await session.LoadCatalogAsync();
+        var inner = service.Handler.Responder;
+        service.Handler.Responder = async (r, t) =>
+        {
+            if (r.RequestUri!.AbsolutePath == SearchPath) await release.Task;
+            return await inner(r, t);
+        };
+        var vm = new GlobalSearchViewModel(session);
+        var shown = new List<SearchScope>();
+        vm.SectionShown += (_, section) => shown.Add(section);
+
+        // Song rows are ready at once but stay behind the spinner until the delayed players settle (issue #260).
+        vm.Query = "alph";
+        await Async.Settle();
+        time.Advance(GlobalSearchViewModel.Debounce);
+        await Async.Until(() => vm.PlayersLoading);
+        Assert.NotEmpty(vm.Songs);
+        Assert.Empty(shown);
+        release.SetResult();
+        await Async.Until(() => vm.IsSettled);
+        Assert.Equal([SearchScope.Songs, SearchScope.Players], shown);
+
+        // Unrelated refreshes while both stay on screen raise nothing.
+        shown.Clear();
+        vm.Scope = SearchScope.All;
+        Assert.Empty(shown);
+
+        // Each scope switch that reveals a hidden section raises it once.
+        vm.Scope = SearchScope.Songs;
+        Assert.Empty(shown);
+        vm.Scope = SearchScope.Players;
+        Assert.Equal([SearchScope.Players], shown);
+        vm.Scope = SearchScope.All;
+        Assert.Equal([SearchScope.Players, SearchScope.Songs], shown);
+
+        // A new query hides both behind the spinner, then shows them again.
+        shown.Clear();
+        await Type(vm, time, "alp");
+        Assert.Equal([SearchScope.Songs, SearchScope.Players], shown);
+    }
+
+    [Fact]
     public async Task LateResultsAreDropped()
     {
         var first = new TaskCompletionSource<HttpResponseMessage>();
