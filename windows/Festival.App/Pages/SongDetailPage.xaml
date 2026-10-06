@@ -27,12 +27,13 @@
                     <Border Width="128" Height="128" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
                         <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                     </Border>
+                    <!-- Song header title and artist line: one line each across the column, scrolling when they overflow
+                         (song-header-title R1, web SongInfoHeader MarqueeText; issue #315). -->
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                        <TextBlock Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" Style="{StaticResource TitleLargeTextBlockStyle}"
-                                   TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
-                                   AutomationProperties.AutomationId="fst.song-detail.title" />
-                        <TextBlock Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" Style="{StaticResource BodyLargeTextBlockStyle}"
-                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
+                        <controls:MarqueeText Text="{x:Bind ViewModel.Song.Title, Mode=OneWay}" TextStyle="{StaticResource TitleLargeTextBlockStyle}"
+                                              AutomationProperties.HeadingLevel="Level1"
+                                              AutomationProperties.AutomationId="fst.song-detail.title" />
+                        <controls:MarqueeText Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSongHeaderArtistStyle}" />
                         <!-- Paths, Item Shop and Quick Links share Fluent's 40 epx touch-target height (FSTMinTargetSize). -->
                         <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="8" Margin="0,8,0,0">
                             <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"

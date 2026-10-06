@@ -34,10 +34,12 @@
                         <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
                             <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                         </Border>
+                        <!-- Song title and artist: one line each across the column, scrolling when they overflow
+                             (song-header-title R1, web SongInfoHeader MarqueeText; issue #315). -->
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
-                                       AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
-                            <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                            <controls:MarqueeText Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextStyle="{StaticResource FSTPageTitleStyle}"
+                                                  AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
+                            <controls:MarqueeText Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
                                                          AutomationProperties.AccessibilityView="Raw" />

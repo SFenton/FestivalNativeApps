@@ -30,8 +30,9 @@
                 <TextBlock Text="{x:Bind ViewModel.Title}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="NoWrap"
                            TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level1"
                            AutomationProperties.AutomationId="fst.history" />
-                <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                           AutomationProperties.AutomationId="fst.history.subtitle" />
+                <!-- "Song · Lead": one line, scrolling when the song title overflows (song-header-title R1, issue #315). -->
+                <controls:MarqueeText Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
+                                      AutomationProperties.AutomationId="fst.history.subtitle" />
             </StackPanel>
             <DropDownButton Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Left" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                             MinHeight="{StaticResource FSTMinTargetSize}"

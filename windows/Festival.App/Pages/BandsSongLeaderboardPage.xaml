@@ -26,9 +26,15 @@
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                 <TextBlock x:Name="TitleText" Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="WrapWholeWords"
                            AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-band-leaderboard.title" />
-                <HyperlinkButton Content="{x:Bind ViewModel.SongTitle, Mode=OneWay}" Click="OnSongTitle" Padding="0"
-                                 FontWeight="SemiBold" AutomationProperties.AutomationId="fst.song-band-leaderboard.song" />
-                <TextBlock Text="{x:Bind ViewModel.SongSubtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                <!-- Song title link and artist line: one line each, scrolling when they overflow (song-header-title R1,
+                     issue #315). The link is named by the title; its marquee is Raw so Narrator reads the title once. -->
+                <HyperlinkButton Click="OnSongTitle" Padding="0" HorizontalContentAlignment="Stretch"
+                                 AutomationProperties.Name="{x:Bind ViewModel.SongTitle, Mode=OneWay}"
+                                 AutomationProperties.AutomationId="fst.song-band-leaderboard.song">
+                    <controls:MarqueeText Text="{x:Bind ViewModel.SongTitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}"
+                                          AutomationProperties.AccessibilityView="Raw" />
+                </HyperlinkButton>
+                <controls:MarqueeText Text="{x:Bind ViewModel.SongSubtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                 <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                            AutomationProperties.AutomationId="fst.song-band-leaderboard.subtitle" />
             </StackPanel>
