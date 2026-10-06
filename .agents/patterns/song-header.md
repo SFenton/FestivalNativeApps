@@ -38,7 +38,7 @@ Android consumers of `SongHeader`: Song Detail, Song Leaderboard and Song Band L
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| Apple `SoloLeaderboardScreen` score header draws a wrapping `Text(song.title)`; Song Leaderboard/Full Rankings bar titles are capped at 240/260 pt | R2, R4 | Apple session for #315 |
+| Apple song leaderboard header (`SongLeaderboardHeader`, shared by `SoloLeaderboardScreen` and `SongBandLeaderboardScreen` since #317) draws a wrapping `Text(song.title)`; Song Leaderboard/Full Rankings bar titles are capped at 240/260 pt | R2, R4 | Apple session for #315 |
 | Windows `LeaderboardsSongPage`, `SongDetailPage`, `BandsSongLeaderboardPage` and `PlayerHistoryPage` header titles are wrapping or non-marquee `TextBlock`s | R1, R2 | Windows session for #315 |
 | Android Player History shows instrument icon + title without the art and artist line of web `SongInfoHeader` | R1 | Follow-up; the title itself complies with R2–R3 |
 
@@ -47,3 +47,5 @@ Android consumers of `SongHeader`: Song Detail, Song Leaderboard and Song Band L
 None yet: song titles in list rows legitimately use plain one-line text, so a regex can't separate header titles from row titles. Review against R1–R4.
 
 Regression journeys instead: every `FestivalMarqueeText` publishes what it draws as the semantics property `FestivalMarquee.ModeKey` (`Static`, `Scrolling`, `Truncated`, `Wrapped`; not read by TalkBack). Android `ui/songdetail/SongHeaderTitleUiTest` launches the whole shell on Song Detail, Song Leaderboard, Song Band Leaderboard and Player History with a synthetic overflowing title and asserts R2 (one `Scrolling` line whose box ends at the header's edge), R3 (Reduce Motion `Truncated` with an ellipsis; 200% text `Wrapped` in-page; one heading stop that reads the title once), R4 (after scrolling, the bar title is one `Scrolling` line up to the first action, also at 200%) and that short titles stay `Static`. A plain `Text` title has no mode and fails them. Add a page here when it gains a song header.
+
+Song-scoped leaderboards also follow [song-leaderboard-header](song-leaderboard-header.md) (song-first header, board line, bar title after scroll, album-art backdrop); this pattern owns how the title itself is drawn.

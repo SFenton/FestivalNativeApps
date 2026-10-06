@@ -1576,6 +1576,104 @@
       ]
     },
     {
+      "id": "song-leaderboard-header",
+      "title": "Song leaderboard header",
+      "status": "current",
+      "doc": ".agents/patterns/song-leaderboard-header.md",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art.",
+      "keywords": [
+        "song header",
+        "band leaderboard",
+        "duos",
+        "trios",
+        "quads",
+        "page title",
+        "bar title",
+        "pinned title",
+        "album art background",
+        "song backdrop",
+        "carousel"
+      ],
+      "issues": [
+        93,
+        293,
+        316,
+        317
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "pages/leaderboard/band/SongBandLeaderboardPage.tsx",
+          "symbol": "PageBackground"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
+            "symbol": "SongLeaderboardHeader"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift",
+            "symbol": "SongLeaderboardPinnedTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongDetailScreen.swift",
+            "symbol": "SongDetailPinnedTitlePolicy"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt",
+            "symbol": "SongLeaderboardScreen"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs",
+            "symbol": "LeaderboardsSongPage"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-song-backdrop",
+          "glob": "apple/Sources/FestivalUI/Features/SongLeaderboard/**/*.swift",
+          "regex": "festivalBackground\\(\\s*\\.carousel",
+          "allow": [],
+          "debt": [],
+          "message": "Song leaderboards sit on the song's static album art, festivalBackground(.song) (song-leaderboard-header R4)."
+        },
+        {
+          "id": "apple-principal-title",
+          "glob": "apple/Sources/FestivalUI/Features/SongLeaderboard/**/*.swift",
+          "regex": "ToolbarItem\\(\\s*placement:\\s*\\.principal",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift"
+          ],
+          "debt": [],
+          "message": "Song leaderboard bar titles come from SongLeaderboardPinnedTitle (song-leaderboard-header R3, R5)."
+        }
+      ],
+      "related": {
+        "pages": [
+          "song-leaderboard",
+          "song-band-leaderboard"
+        ],
+        "controls": [],
+        "patterns": [
+          "page-tools-and-nav-chrome",
+          "surface-materials",
+          "song-header"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
       "id": "song-header",
       "title": "Song header title",
       "status": "current",
@@ -1637,7 +1735,8 @@
       "related": {
         "patterns": [
           "leaderboard-row",
-          "page-tools-and-nav-chrome"
+          "page-tools-and-nav-chrome",
+          "song-leaderboard-header"
         ],
         "controls": [],
         "pages": [
