@@ -83,8 +83,8 @@
                 </ItemsRepeater>
             </ScrollViewer>
         </Grid>
-        <!-- Paints BoardFadeSource with its rows faded above the pager while the fade is on; never hit-testable. -->
-        <Border x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="2" IsHitTestVisible="False" />
+        <!-- Paints BoardFadeSource with its rows faded above the pager (or cut hard at its top with reduced transparency); never hit-testable. Raw-view ItemStatus names the edge state for UI tests (hidden, fading, end, hard-edge, plate). -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="2" AutomationProperties.AutomationId="fst.band-rankings.footer-edge" />
         <TextBlock Grid.Row="1" Text="{x:Bind ViewModel.EmptyText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"
                    AutomationProperties.AutomationId="fst.band-rankings.empty"

@@ -95,8 +95,8 @@
                 </ItemsRepeater>
             </ScrollViewer>
         </Grid>
-        <!-- Paints BoardFadeSource with its rows faded above the footer while the fade is on; never hit-testable. -->
-        <Border x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" IsHitTestVisible="False" />
+        <!-- Paints BoardFadeSource with its rows faded above the footer (or cut hard at its top with reduced transparency); never hit-testable. Raw-view ItemStatus names the edge state for UI tests (hidden, fading, end, hard-edge, plate). -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="1" Grid.RowSpan="3" AutomationProperties.AutomationId="fst.full-rankings.footer-edge" />
         <TextBlock Grid.Row="1" Text="No ranked players yet." Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"

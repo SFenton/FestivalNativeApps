@@ -32,7 +32,7 @@ Debug build, 3840×2160 at 300%, `a11y_matrix.py --scan --tabs 30` on the four f
 Fixed:
 - **Pager focus:** the pager was hidden while the next page loaded (`ShowContent` waited for the load swap), so keyboard focus fell to Back after the first arrow key. It now stays mounted like the song leaderboard's (#93).
 - **Contrast pager:** a window-colour `FooterPlate` behind the pager, only under contrast themes.
-- **Footer edge (issue #305):** rows ran straight under the floating pager with no fade. They now fade out over 40 epx above it, as on every board ([scroll-edge](../../patterns/scroll-edge.md) R9). `BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Footer, Scroller, FooterPlate)` also drives the contrast `FooterPlate` above.
+- **Footer edge (issue #305):** rows ran straight under the floating pager with no fade. They now fade out over 40 epx above it, as on every board ([scroll-edge](../../patterns/scroll-edge.md) R9). `BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Footer, Scroller, FooterPlate)` also drives the contrast `FooterPlate` above. Windows transparency effects off, Less Transparency and Increase Contrast cut the rows hard at the footer's top instead (scroll-edge R7: nothing shows between the pager buttons). Journey: `a11y-board-footer-edge.json` (`fst.band-rankings.footer-edge`).
 - **Column alignment:** a row without a band page (no `teamKey`) dropped its chevron, which shifted its songs and rating columns. The chevron slot is now reserved section-wide (`LeaderboardSection.HasRoutes`), and unopenable rows draw it transparent.
 - **Empty state:** the empty text gained `fst.band-rankings.empty`, wraps and is centred.
 

@@ -8,7 +8,7 @@
       "title": "Scroll edge: content under pinned chrome",
       "status": "current",
       "doc": ".agents/patterns/scroll-edge.md",
-      "summary": "Content is clear at any pinned edge (page/sheet header, pinned section title, bottom chrome) and ramps opaque over 40 (top) / 36 (bottom) units; pinned titles are never dimmed; one mechanism per edge kind per platform.",
+      "summary": "Content is clear at any pinned edge (page/sheet header, pinned section title, bottom chrome) and ramps opaque over 40 units (top edges and board footers: web Page useScrollMask) or 36 (per-row useScrollFade bottom chrome); accessibility settings give a hard cut, never content behind chrome; pinned titles are never dimmed; one mechanism per edge kind per platform.",
       "keywords": [
         "fade",
         "mask",
@@ -161,7 +161,8 @@
         288,
         297,
         298,
-        301
+        301,
+        305
       ]
     },
     {

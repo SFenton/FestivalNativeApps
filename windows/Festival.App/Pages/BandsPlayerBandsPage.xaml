@@ -71,8 +71,8 @@
             </StackPanel>
         </Grid>
 
-        <!-- Paints BoardFadeSource with its cards faded above the pager while the fade is on; never hit-testable. -->
-        <Border x:Name="BoardFadeHost" Grid.Row="2" Grid.RowSpan="2" IsHitTestVisible="False" />
+        <!-- Paints BoardFadeSource with its cards faded above the pager (or cut hard at its top with reduced transparency); never hit-testable. Raw-view ItemStatus names the edge state for UI tests (hidden, fading, end, hard-edge, plate). -->
+        <controls:EdgeFadeLayer x:Name="BoardFadeHost" Grid.Row="2" Grid.RowSpan="2" AutomationProperties.AutomationId="fst.player-bands.footer-edge" />
         <!-- Contrast themes turn the fade off: a window-colour plate (pager height plus its margin, sized by BoardFooterFade)
              hides the cards between and behind the pager's buttons. Never hit-testable. -->
         <Border x:Name="FooterPlate" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" IsHitTestVisible="False"

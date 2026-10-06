@@ -12,6 +12,9 @@ whose second has no band identity and blank member names (shown as "Unknown User
 ``--songs-delay SECONDS`` (issue #240) answers ``/api/songs`` only after the delay, so a first-run guide opened at
 launch shows its placeholder demo rows before the catalogue arrives.
 
+``--song-band-rows N`` (issue #305) serves every fixture song's band leaderboards with ``N`` entries, so the band
+song board scrolls under its floating pager.
+
 Usage: ``python tools/windows/rivals_fixture.py --port 8765`` (same flags as mock_service.py), then launch the
 app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-player-1:Demo Player``.
 """
@@ -179,6 +182,90 @@ def take_songs_delay(argv: list[str]) -> tuple[float | None, list[str]]:
 
 # endregion
 
+# region Long song band board
+
+#: Song band leaderboard route lengthened by ``--song-band-rows``.
+SONG_BAND_BOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)/bands/(Band_[A-Za-z]+)$")
+
+
+def song_band_board_response(path: str, rows: int) -> dict | None:
+    """A ``rows``-entry song band leaderboard page, or ``None`` to defer to the mock service.
+
+    Args:
+        path: Request path with query (``top``/``offset`` paging).
+        rows: Total entries on the board.
+
+    Returns:
+        The page body, or ``None`` for any other request or invalid paging (the mock service answers those).
+    """
+    parsed = urlsplit(path)
+    match = SONG_BAND_BOARD.fullmatch(parsed.path)
+    if not match or match.group(2) not in mock_service.BAND_TYPES:
+        return None
+    query = parse_qs(parsed.query)
+    try:
+        top = int(query.get("top", ["25"])[0])
+        offset = int(query.get("offset", ["0"])[0])
+    except ValueError:
+        return None
+    if not 1 <= top <= 100 or offset < 0:
+        return None
+    band_type = match.group(2)
+    entries = [mock_service._song_band_leaderboard_entry(rank, band_type)
+               for rank in range(offset + 1, min(rows, offset + top) + 1)]
+    return {"songId": match.group(1), "bandType": band_type, "count": len(entries),
+            "totalEntries": rows, "localEntries": rows, "entries": entries}
+
+
+def install_song_band_rows(rows: int) -> None:
+    """Serve every fixture song's band leaderboards with ``rows`` entries (a board long enough to scroll).
+
+    Args:
+        rows: Total entries on each board.
+    """
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        body = song_band_board_response(self.path, rows)
+        if body is None:
+            original(self)
+        else:
+            self._json(200, body)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+
+def take_song_band_rows(argv: list[str]) -> tuple[int | None, list[str]]:
+    """Split ``--song-band-rows <count>`` (or ``=<count>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+
+    Returns:
+        The row count (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing, non-numeric or non-positive count.
+    """
+    count, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == "--song-band-rows":
+            value = next(items, None)
+        elif arg.startswith("--song-band-rows="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        try:
+            count = int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            count = 0
+        if count < 1:
+            raise SystemExit("--song-band-rows needs a positive row count")
+    return count, rest
+
+# endregion
+
 
 def name_detail_bodies(names: dict[str, str]) -> None:
     """Make each rival detail body carry the requested rival's demo name.
@@ -206,11 +293,14 @@ def main() -> None:
     """Anonymize the Rivals fixtures, then hand over to the mock service's own CLI."""
     scenario, rest = take_band_rankings(sys.argv[1:])
     songs_delay, rest = take_songs_delay(rest)
+    song_band_rows, rest = take_song_band_rows(rest)
     sys.argv[1:] = rest
     if scenario:
         install_band_rankings(scenario)
     if songs_delay:
         install_songs_delay(songs_delay)
+    if song_band_rows:
+        install_song_band_rows(song_band_rows)
     names: dict[str, str] = {}
     for payload in (
         mock_service.RIVALS_LIST_DEMO,
