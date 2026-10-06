@@ -319,7 +319,7 @@ private fun LoadedProfile(
  * @param onReload Re-read the viewed profile.
  */
 @Composable
-private fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
+internal fun IdentityActions(state: PlayerProfileUiState, onSelect: () -> Unit, onReload: () -> Unit) {
     Column(Modifier.fillMaxWidth().testTag("fst.player.identity"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (state.identity) {
             PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
