@@ -17,6 +17,10 @@ placeholder rows rather than invent songs.
 ``--song-leaderboard anonymous`` (issue #263) blanks the account ID and display name of the rank-3 row in every song's
 Lead (``Solo_Guitar``) chart read, the production case of a top-ten row with no player to open.
 
+A selected account containing ``-slow`` (``fixture-player-slow``, ``fixture-player-slow-503``; issue #265) gets its
+song and leaderboard rivals lists only after ``SLOW_RIVALS_SECONDS``, so the Rivals hub's per-card loading rings stay
+on screen for UIA checks and scans before rows (or the ``-503`` inline freeze) replace them.
+
 Usage: ``python tools/windows/rivals_fixture.py --port 8765`` (same flags as mock_service.py), then launch the
 app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-player-1:Demo Player``.
 """
@@ -270,6 +274,47 @@ def take_song_leaderboard(argv: list[str]) -> tuple[str | None, list[str]]:
 
 # endregion
 
+# region Slow rivals lists
+
+#: A viewing account ID containing this marker (``fixture-player-slow``, ``fixture-player-slow-503``) gets slow lists.
+SLOW_MARKER = "-slow"
+#: Delay before a slow account's rivals list answers (issue #265). The app sends four Rivals reads at a time
+#: (``FestivalSession.RivalsConcurrency``), so nine charts settle in three waves (12/24/36 s) and Common Rivals, which
+#: needs every list, keeps its ring longest. Each read stays under the 30 s request timeout (``RequestGate.DefaultTimeout``).
+SLOW_RIVALS_SECONDS = 12.0
+
+
+def rivals_list_delay(path: str) -> float:
+    """Delay for a song or leaderboard rivals list read whose viewing account is a slow fixture player.
+
+    The account's other suffixes still select the mock scenario after the delay (``-503`` freezes).
+
+    Args:
+        path: Request path with query.
+
+    Returns:
+        :data:`SLOW_RIVALS_SECONDS` for a slow account's list read, else ``0``.
+    """
+    route = urlsplit(path).path
+    for pattern in (mock_service.RIVALS_LIST, mock_service.LEADERBOARD_RIVALS_LIST):
+        if (match := pattern.fullmatch(route)) and SLOW_MARKER in match.group(1):
+            return SLOW_RIVALS_SECONDS
+    return 0.0
+
+
+def install_slow_rivals() -> None:
+    """Hold slow accounts' rivals list reads, so the Rivals hub stays in its per-card loading state."""
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        if delay := rivals_list_delay(self.path):
+            time.sleep(delay)
+        original(self)
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+# endregion
+
 
 def name_detail_bodies(names: dict[str, str]) -> None:
     """Make each rival detail body carry the requested rival's demo name.
@@ -309,6 +354,7 @@ def main() -> None:
         install_song_leaderboard(song_board)
     if songs_unavailable:
         install_songs_unavailable()
+    install_slow_rivals()
     names: dict[str, str] = {}
     for payload in (
         mock_service.RIVALS_LIST_DEMO,

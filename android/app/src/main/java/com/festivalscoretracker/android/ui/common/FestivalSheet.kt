@@ -67,10 +67,11 @@ fun Modifier.festivalSheetHingeSide(): Modifier {
     val posture = LocalShellPosture.current ?: currentWindowAdaptiveInfo().windowPosture
     val hinge = posture.hingeList.firstOrNull { it.isSeparating } ?: return this
     val density = LocalDensity.current
-    val windowWidth = LocalView.current.rootView.width.toFloat()
+    val root = LocalView.current.rootView
     val sheetTop = WindowInsets.statusBars.union(WindowInsets.displayCutout).getTop(density) + with(density) { SHEET_TOP_GAP_DP.dp.toPx() }
     val insets = SheetHinge.insets(
-        windowWidthPx = windowWidth,
+        windowWidthPx = root.width.toFloat(),
+        windowHeightPx = root.height.toFloat(),
         left = hinge.bounds.left,
         right = hinge.bounds.right,
         top = hinge.bounds.top,
@@ -81,7 +82,7 @@ fun Modifier.festivalSheetHingeSide(): Modifier {
         sheetTopPx = sheetTop,
         gapPx = with(density) { SHEET_TOP_GAP_DP.dp.toPx() },
     )
-    return with(density) { this@festivalSheetHingeSide.absolutePadding(left = insets.left.toDp(), right = insets.right.toDp(), top = insets.top.toDp()) }
+    return with(density) { this@festivalSheetHingeSide.absolutePadding(left = insets.left.toDp(), right = insets.right.toDp(), top = insets.top.toDp(), bottom = insets.bottom.toDp()) }
 }
 
 // endregion

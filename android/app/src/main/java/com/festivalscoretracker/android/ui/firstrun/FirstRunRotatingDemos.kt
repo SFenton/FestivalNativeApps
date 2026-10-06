@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,6 +44,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -68,6 +71,7 @@ import com.festivalscoretracker.android.core.songs.SongInstrumentBadge
 import com.festivalscoretracker.android.core.songs.SongInstrumentStatus
 import com.festivalscoretracker.android.core.songs.SongMetadataPill
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.rivals.RivalColors
 import com.festivalscoretracker.android.ui.songs.MetadataPill
 import com.festivalscoretracker.android.ui.songs.StatusChips
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -456,9 +460,25 @@ private fun ExperimentalMetricsDemo(running: Boolean) {
     }
 }
 
-/** A compact rivals/rankings row. */
+/**
+ * A compact rivals/rankings row.
+ *
+ * @param leading Rank or direction marker.
+ * @param name Player name.
+ * @param trailing Trailing text (rankings), ignored when [trailingContent] is set.
+ * @param highlight Purple player row.
+ * @param leadingColor Marker colour.
+ * @param trailingContent Trailing content in place of [trailing] (rival ahead/behind counts).
+ */
 @Composable
-private fun DemoNameRow(leading: String, name: String, trailing: String, highlight: Boolean = false, leadingColor: Color = BrandTokens.textSecondary) {
+private fun DemoNameRow(
+    leading: String,
+    name: String,
+    trailing: String = "",
+    highlight: Boolean = false,
+    leadingColor: Color = BrandTokens.textSecondary,
+    trailingContent: (@Composable () -> Unit)? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -467,7 +487,25 @@ private fun DemoNameRow(leading: String, name: String, trailing: String, highlig
     ) {
         Text(leading, color = leadingColor, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 10.dp))
         Text(name, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).testTag("fst.first-run.demo.name"))
-        Text(trailing, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+        if (trailingContent != null) trailingContent() else Text(trailing, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/**
+ * A demo rival's ahead/behind counts from the player's side, green then red like the real
+ * `RivalRow` pills. Like that row it never shows the shared-song count (owner decision,
+ * issues #40/#67/#175): the count is always ahead + behind. Wraps to two lines in narrow columns.
+ *
+ * @param rival Demo rival ([FirstRunDemoRival.ahead] counts the songs the rival leads).
+ * @param style Text style.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DemoRivalCounts(rival: FirstRunDemoRival, style: TextStyle) {
+    val format = NumberFormat.getIntegerInstance()
+    FlowRow(Modifier.testTag("fst.first-run.demo.rival-counts"), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("${format.format(rival.behind)} ahead", color = RivalColors.winText, style = style, maxLines = 1)
+        Text("${format.format(rival.ahead)} behind", color = RivalColors.loseText, style = style, maxLines = 1)
     }
 }
 
@@ -475,7 +513,11 @@ private fun DemoNameRow(leading: String, name: String, trailing: String, highlig
 private fun RivalRows(title: String, rivals: List<FirstRunDemoRival>, above: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(title, color = if (above) BrandTokens.statusGreen else BrandTokens.statusRed, style = MaterialTheme.typography.labelMedium)
-        rivals.forEach { DemoNameRow(if (above) "▲" else "▼", it.name, "${it.shared} songs", leadingColor = if (above) BrandTokens.statusGreen else BrandTokens.statusRed) }
+        rivals.forEach {
+            DemoNameRow(if (above) "▲" else "▼", it.name, leadingColor = if (above) BrandTokens.statusGreen else BrandTokens.statusRed) {
+                DemoRivalCounts(it, MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }
 
@@ -540,7 +582,7 @@ private fun RivalsInstrumentsDemo(running: Boolean) {
                         ) {
                             Text(if (above) "▲ Above" else "▼ Below", color = if (above) BrandTokens.statusGreen else BrandTokens.statusRed, style = MaterialTheme.typography.labelSmall)
                             Text(rival.name, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("fst.first-run.demo.name"))
-                            Text("${rival.shared} songs", color = BrandTokens.textSecondary, style = MaterialTheme.typography.labelSmall)
+                            DemoRivalCounts(rival, MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
