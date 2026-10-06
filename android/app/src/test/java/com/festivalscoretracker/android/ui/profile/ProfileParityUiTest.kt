@@ -49,6 +49,7 @@ import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
+import com.festivalscoretracker.android.ui.design.SeeAllVisibleLabelKey
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import kotlinx.coroutines.flow.first
@@ -328,10 +329,17 @@ class ProfileParityUiTest {
     }
 
     @Test
-    fun bandsPreviewSeeAllOpensEveryBand() {
+    fun bandsPreviewViewAllOpensEveryBand() {
         installGroupedBands()
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
+        // `section-headers` R8: the title-row link shows "View All" and TalkBack hears "View All {name}'s Bands".
+        val spoken = rule.onNodeWithTag("fst.player.bands-link").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
+        assertTrue(spoken, Regex("View All .+'s Bands").matches(spoken))
+        rule.onNodeWithText(spoken.removePrefix("View All ")).assertIsDisplayed()
+        rule.onNodeWithTag("fst.player.bands-link").assert(SemanticsMatcher.expectValue(SeeAllVisibleLabelKey, "View All"))
+        assertTrue(rule.onAllNodes(hasText("See All", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodes(hasContentDescription("See All", substring = true)).fetchSemanticsNodes().isEmpty())
         journey.tap("fst.player.bands-link")
         journey.waitForTag("fst.player-bands.screen")
         rule.onNodeWithText("All Bands · 30 bands").assertIsDisplayed()
@@ -362,7 +370,7 @@ class ProfileParityUiTest {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
         journey.waitForTag("fst.player.bands.retry")
-        // The failure stays inside the section; the heading and See All remain usable.
+        // The failure stays inside the section; the heading and View All remain usable.
         rule.onNodeWithTag("fst.player.bands-link").assertIsDisplayed()
         assertTrue(rule.onAllNodesWithTag("fst.player.bands.header.duos").fetchSemanticsNodes().isEmpty())
         fail = false

@@ -42,7 +42,7 @@ The web has no sticky section header. Native sticky behavior is an approved addi
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| Android `SeeAllButton`, Windows `RivalsPage`/`RivalDetailPage` links and the web still say "See All" | R8 | Android, Windows and web checks of #321 |
+| Android `SeeAllButton`'s default label (every consumer except Profile Bands, which passes "View All", #312), Windows `RivalsPage`/`RivalDetailPage` links and the web still say "See All" | R8 | Android, Windows and web checks of #321 |
 
 ## Guards (`tools/pattern_guard.py`)
 

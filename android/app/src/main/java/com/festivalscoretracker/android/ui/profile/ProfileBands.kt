@@ -39,7 +39,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 // region Bands
 
 /*
- * "{name}'s Bands" (web `PlayerBandsSection` / `buildPlayerBandsItems`): a heading with See All, then
+ * "{name}'s Bands" (web `PlayerBandsSection` / `buildPlayerBandsItems`): a heading with View All (`section-headers` R8), then
  * Duos, Trios and Quads, each with up to six band cards from the keyless
  * `GET /api/player/{id}/bands?group=` (the web fills them from player-stats, which natives must not
  * call), "No Bands Yet" when empty and "View All Bands (N)" when the group has more. Each part is
@@ -47,7 +47,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  */
 
 /**
- * The section heading row: "{name}'s Bands" outside any card (`section-headers` R2) with See All,
+ * The section heading row: "{name}'s Bands" outside any card (`section-headers` R2) with View All (R8),
  * then the preview's loading or inline failure state, which never blocks the rest of the page.
  *
  * @param state Page state.
@@ -63,8 +63,8 @@ internal fun ProfileBandsHeading(state: PlayerProfileUiState, bands: BandsLoad?,
             SeeAllButton(
                 onClick = { onNavigate(PlayerBandsRoute(state.accountId, state.displayName)) },
                 modifier = Modifier.testTag("fst.player.bands-link"),
-                label = "See All",
-                spokenLabel = "See All ${state.displayName}'s Bands",
+                label = "View All",
+                spokenLabel = "View All ${state.displayName}'s Bands",
             )
         }
         when (bands) {
