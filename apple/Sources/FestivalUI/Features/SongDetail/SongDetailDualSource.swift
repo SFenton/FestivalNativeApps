@@ -114,6 +114,8 @@ private struct SongHistoryCard: View {
                 content
             }
         }
+        // `.contain` keeps the header View All link's identifier reachable.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.dual.song.history.\(instrument.rawValue)")
         .task(id: LoadKey(
             accountId: session.selectedPlayer?.accountId,

@@ -498,6 +498,42 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     #expect(!tree.contains("See All"))
 }
 
+/// iPhone Duo Rivals pane (#321): the pane header's "View All" link and each category
+/// card's purple "View All" keep their own identifiers. The pane and card containers
+/// carry identifiers too, so without `.accessibilityElement(children: .contain)` those
+/// would shadow every descendant's (see `LeaderboardsJourneyTests`).
+@MainActor
+@Test func rivalDualDetailPaneExposesViewAllIdentifiers() async throws {
+    let (session, storage, suite) = try await rivalsFixtureSession(accountId: "fixture-riv")
+    defer { storage.removePersistentDomain(forName: suite) }
+    let selection = AppRoute.rivalDetail(
+        rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "Fixture Rival Golf",
+        scope: .song(instruments: ["Solo_Guitar"])
+    )
+    let size = CGSize(width: 402, height: 700)
+    let host = nativeHostedView(
+        NavigationStack { RivalDualDetailPane(session: session, selection: selection) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Closest Battles"])
+    _ = try nativeHostedPNG(image, filename: "rival-dual-detail-pane.png", environment: "FST_RIVALS_RENDER_OUT")
+    assertRendersContent(host, image: image, containing: ["Closest Battles"])
+    let tree = nativeHostedAccessibility(host)
+    for identifier in [
+        "fst.dual.rivals.detail", "fst.dual.rivals.detail.view-all",
+        "fst.dual.rivals.category.closest_battles", "fst.dual.rivals.category.closest_battles.view-all",
+    ] {
+        #expect(tree.identifiers.contains(identifier), "\(identifier) unreachable: \(tree.identifiers)")
+    }
+    #expect(tree.contains("View All Fixture Rival Golf"))
+    #expect(tree.contains("View All, Closest Battles"))
+    #expect(!tree.contains("See All"))
+}
+
 @MainActor
 @Test func rivalDetailScreenRendersNoSharedSongsState() async throws {
     let (session, storage, suite) = try await rivalsFixtureSession(accountId: "fixture-riv-empty")

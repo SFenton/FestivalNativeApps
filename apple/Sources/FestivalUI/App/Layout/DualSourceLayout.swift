@@ -157,6 +157,8 @@ struct DualSourcePane<Content: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .padding(.top, 8)
+        // `.contain` keeps the header link's own identifier reachable under the pane's.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.dual.\(identifier)")
     }
 }
