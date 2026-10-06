@@ -5,7 +5,7 @@ namespace Festival.Core.Domain;
 /// Line plan for a band row's team score footer (web <c>SongBandScoreFooter</c>: score on the left, FC, accuracy and stars
 /// on the right). The score is the row's key value, so it never truncates: when the badges don't fit beside it (half-width
 /// Song Detail cards, four-member rows, 200% text) they move to a second line under it (WCAG 1.4.4, issue #264). The plan
-/// is decided once per section (<see cref="BandScoreFooterSection{TKey}"/>, leaderboard-row R1): one row that needs two
+/// is decided once per section (<see cref="BandScoreFooterSection{TKey}"/>, leaderboard-row R8): one row that needs two
 /// lines stacks every row in its section.
 /// </summary>
 public static class BandScoreFooterLayout

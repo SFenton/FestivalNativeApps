@@ -12,7 +12,7 @@ namespace Festival.App.Controls;
 /// Two-child panel for a band row's team score footer: the score (first child) on the left and the badges (second child:
 /// FC, accuracy, stars) on the right, or on a second line under the score when they don't fit
 /// (<see cref="BandScoreFooterLayout.Stacks"/>). Rows under the same <see cref="IsSectionProperty"/> ancestor share one plan
-/// (<see cref="BandScoreFooterSection{TKey}"/>, leaderboard-row R1). Deciding at measure time reports the stacked height at
+/// (<see cref="BandScoreFooterSection{TKey}"/>, leaderboard-row R8). Deciding at measure time reports the stacked height at
 /// once, so virtualized rows never keep a one-line height (as <c>LeaderboardEntryRow</c>, issue #220).
 /// </summary>
 public sealed partial class BandScoreFooterPanel : Panel
