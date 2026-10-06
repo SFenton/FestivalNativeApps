@@ -291,7 +291,8 @@ def parse_step(step: str) -> dict:
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
     and its pixels change across three captures 1.2 s apart (a scrolling marquee), and ``assertmarquee:<sel>|static|<epx>``
-    unless it is one line, unchanged across the captures and ends in an ellipsis (song headers, issue #315);
+    unless it is one line, unchanged across the captures and ends in an ellipsis, and ``assertmarquee:<sel>|wrapped|<epx>``
+    unless it is at least ``<epx>`` high (wrapped onto more lines) and unchanged (song headers, issue #315; R3 large text);
     ``listen:announcements`` starts recording the window's UIA notification events (the app's screen-reader
     announcements, what Narrator speaks) and a later ``assertannounced:<text>[@<seconds>]`` in the same ``drive`` waits
     (default 5 s) until one equals ``<text>`` (or matches it as a .NET regex when it starts with ``~``);
@@ -374,8 +375,8 @@ def parse_step(step: str) -> dict:
     elif shape == "marquee":
         selector, sep, rest = arg.partition("|")
         mode, sep2, epx = rest.partition("|")
-        if not sep or not sep2 or mode.strip() not in ("moving", "static") or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):
-            raise ValueError(f"bad assertmarquee {arg!r}; use <selector>|moving|static|<max height epx>")
+        if not sep or not sep2 or mode.strip() not in ("moving", "static", "wrapped") or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):
+            raise ValueError(f"bad assertmarquee {arg!r}; use <selector>|moving|static|wrapped|<height epx: max, or min for wrapped>")
         result["selector"] = parse_selector(selector)
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertmarquee needs an element selector, not coordinates")

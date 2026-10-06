@@ -262,6 +262,8 @@ class StepTests(unittest.TestCase):
         still = u.parse_step("assertmarquee:raw=fst.song-band-leaderboard.song-title|static|28.5")
         self.assertEqual(still["selector"]["kind"], "raw")
         self.assertEqual((still["mode"], still["epx"]), ("static", 28.5))
+        wrapped = u.parse_step("assertmarquee:id=fst.song-detail.title|wrapped|90")
+        self.assertEqual((wrapped["mode"], wrapped["epx"]), ("wrapped", 90.0))
         for bad in ("assertmarquee:id=x", "assertmarquee:id=x|moving", "assertmarquee:id=x|wrap|44",
                     "assertmarquee:id=x|static|tall", "assertmarquee:10,20|moving|44"):
             with self.assertRaises(ValueError):

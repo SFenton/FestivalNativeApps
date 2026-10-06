@@ -1353,21 +1353,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// Single-line marquee check (song headers, issue #315). Fails unless the element is at most <c>epx</c> effective
     /// pixels high (one line, so a wrapping text view fails) and, for <c>moving</c>, its rendered pixels change between
     /// some two of three captures 1.2 s apart (the shared marquee's 8 s cycle dwells only 0.8 s at its ends), or, for
-    /// <c>static</c>, all three captures match and the line ends in an ellipsis (see <see cref="EndsInEllipsis"/>).
+    /// <c>static</c>, all three captures match and the line ends in an ellipsis (see <see cref="EndsInEllipsis"/>). For
+    /// <c>wrapped</c> (song-header R3, in-page titles at 150%+ text) <c>epx</c> is instead the minimum height (two or
+    /// more lines) and all three captures must match: the full text wraps with no marquee.
     /// </summary>
     /// <param name="window">App window.</param>
-    /// <param name="step">Step with a <c>selector</c>, <c>mode</c> (<c>moving</c>/<c>static</c>) and <c>epx</c> (maximum height).</param>
-    /// <exception cref="InvalidOperationException">Taller than one line, not moving, moving, or not ellipsized.</exception>
+    /// <param name="step">Step with a <c>selector</c>, <c>mode</c> (<c>moving</c>/<c>static</c>/<c>wrapped</c>) and <c>epx</c> (maximum height, or minimum for <c>wrapped</c>).</param>
+    /// <exception cref="InvalidOperationException">Taller than one line, not wrapped, not moving, moving, or not ellipsized.</exception>
     private void AssertMarquee(Window window, JsonObject step)
     {
         var label = (string)step["arg"]!;
-        var moving = (string)step["mode"]! == "moving";
+        var mode = (string)step["mode"]!;
+        var moving = mode == "moving";
+        var wrapped = mode == "wrapped";
         var hwnd = window.Properties.NativeWindowHandle.Value;
         var scale = Native.GetDpiForWindow(hwnd) / 96.0;
         var maxEpx = (double)step["epx"]!;
         var height = Find(window, step).BoundingRectangle.Height / scale;
-        if (height > maxEpx)
+        if (!wrapped && height > maxEpx)
             throw new InvalidOperationException($"{label} is {height:0.#} epx high, more than one line ({maxEpx:0.#} epx)");
+        if (wrapped && height < maxEpx)
+            throw new InvalidOperationException($"{label} is {height:0.#} epx high, not wrapped ({maxEpx:0.#} epx minimum)");
         var frames = new List<Bitmap>();
         try
         {
@@ -1381,12 +1387,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"{label} did not scroll ({changed:P2} of its pixels changed in 2.4 s)");
             if (!moving && changed > 0.001)
                 throw new InvalidOperationException($"{label} moved while motion is off ({changed:P2} of its pixels changed)");
-            if (!moving && !EndsInEllipsis(frames[0], out var detail))
+            if (mode == "static" && !EndsInEllipsis(frames[0], out var detail))
                 throw new InvalidOperationException($"{label} is static but not ellipsized: {detail}");
             response["marquees"] ??= new JsonArray();
             response["marquees"]!.AsArray().Add(new JsonObject
             {
-                ["arg"] = label, ["mode"] = moving ? "moving" : "static", ["epx"] = Math.Round(height, 1), ["changed"] = Math.Round(changed, 4),
+                ["arg"] = label, ["mode"] = mode, ["epx"] = Math.Round(height, 1), ["changed"] = Math.Round(changed, 4),
             });
         }
         finally
