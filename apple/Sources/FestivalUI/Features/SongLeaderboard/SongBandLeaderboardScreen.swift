@@ -40,6 +40,8 @@ struct SongBandLeaderboardScreen: View {
     /// The in-page song header has scrolled under the bar: show art, title and band
     /// size in the navigation bar instead, like the Solo board (issue #315).
     @State private var headerHidden = false
+    /// The song header's height, for when it has scrolled away.
+    @State private var headerHeight: CGFloat = 0
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -48,6 +50,8 @@ struct SongBandLeaderboardScreen: View {
     /// Space between two band cards, between the last card and the footer or pager,
     /// and below the last card in the list (issues #293, #305).
     nonisolated private static let rowGap: CGFloat = 6
+    /// Space above the song header, at the top of the scroll content.
+    nonisolated private static let headerTopInset: CGFloat = 20
     /// Coordinate space shared by the rows' fade mask and the pinned chrome.
     nonisolated private static let pageSpace = "fst.song-band-leaderboard.page"
 
@@ -149,7 +153,7 @@ struct SongBandLeaderboardScreen: View {
                             // The song header scrolls with the cards, like the Solo
                             // board's; once it passes under the bar the bar shows it.
                             songHeader(payload.leaderboard)
-                                .padding(.top, 20)
+                                .padding(.top, Self.headerTopInset)
                                 .padding(.bottom, 12)
                             LazyVStack(spacing: Self.rowGap) {
                                 if payload.leaderboard.entries.isEmpty {
@@ -169,6 +173,9 @@ struct SongBandLeaderboardScreen: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, Self.rowGap)
+                    }
+                    .songHeaderScrollAway(headerBottom: Self.headerTopInset + headerHeight) {
+                        headerHidden = $0
                     }
                     // Opened for one band's row: scroll it into view once (web
                     // `navToPlayer`, issue #307).
@@ -204,16 +211,20 @@ struct SongBandLeaderboardScreen: View {
             chartWidth = width
         }
         .coordinateSpace(.named(Self.pageSpace))
-        // The song's dimmed cover behind its header, like the Solo board and the web
-        // page's `PageBackground` (Android and Windows switch to it too).
+        // The song's dimmed cover behind its header, like the Solo board, the web page's
+        // `PageBackground` and the Android and Windows boards (song-header agent decision).
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle("\(bandType.label) Scores")
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
+            #if os(iOS)
+            // The Mac keeps its leading window title: a centred toolbar item takes its
+            // ideal width there and pushed trailing actions into overflow (song-header R4).
             SongBarTitleToolbarItem(
                 song: song, session: session, caption: bandType.label, isShown: headerHidden,
                 identifier: "fst.song-band-leaderboard.pinned-title"
             )
+            #endif
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
@@ -251,7 +262,7 @@ struct SongBandLeaderboardScreen: View {
     /// - Parameter leaderboard: The loaded page.
     /// - Returns: The header over the song backdrop.
     private func songHeader(_ leaderboard: SongBandLeaderboardResponse) -> some View {
-        SongHeaderRow(song: song, session: session, onScrolledAway: { headerHidden = $0 }) {
+        SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
             MarqueeText(leaderboard.headerDetail(label: bandType.label))
                 .foregroundStyle(FestivalText.primary)
         }

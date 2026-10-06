@@ -23,6 +23,8 @@ struct SoloLeaderboardScreen: View {
     /// The in-list song header has scrolled under the bar: show art, title and
     /// instrument in the navigation bar instead (operator batch 7.2, like Song Detail).
     @State private var headerHidden = false
+    /// The song header's height, for when it has scrolled away.
+    @State private var headerHeight: CGFloat = 0
     /// The chart's measured width, for the section's fitted columns (issue #37).
     @State private var chartWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,6 +43,8 @@ struct SoloLeaderboardScreen: View {
 
     /// Row insets: two rows sit ``rowGap`` apart.
     nonisolated private static let rowInset: CGFloat = 4
+    /// Space above the song header, at the top of the list.
+    nonisolated private static let headerTopInset: CGFloat = 20
     /// Space between two rows, also kept above the pinned chrome (issue #293).
     nonisolated private static let rowGap: CGFloat = rowInset * 2
 
@@ -129,7 +133,9 @@ struct SoloLeaderboardScreen: View {
                             // The song header scrolls with the rows (no card behind it);
                             // once it passes under the bar the bar shows it instead.
                             scoreHeader(payload)
-                                .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
+                                .listRowInsets(EdgeInsets(
+                                    top: Self.headerTopInset, leading: 16, bottom: 8, trailing: 16
+                                ))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                             ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
@@ -175,6 +181,11 @@ struct SoloLeaderboardScreen: View {
                         }
                         .listStyle(.plain)
                         .scrollContentBackground(.hidden)
+                        // Read from the List's offset: it recycles the header's row as
+                        // it leaves the screen, before the header could report it.
+                        .songHeaderScrollAway(headerBottom: Self.headerTopInset + headerHeight) {
+                            headerHidden = $0
+                        }
                         // Opened for the selected player's row: scroll it into view once
                         // (web `navToPlayer`, issue #307).
                         .task(id: focusPending) {
@@ -235,11 +246,13 @@ struct SoloLeaderboardScreen: View {
         .navigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
+            #if os(iOS)
+            // The Mac keeps its leading window title: a centred toolbar item takes its
+            // ideal width there and pushed trailing actions into overflow (song-header R4).
             SongBarTitleToolbarItem(
                 song: song, session: session, caption: instrument.label, isShown: headerHidden,
                 identifier: "fst.song-leaderboard.pinned-title"
             )
-            #if os(iOS)
             if let shownPayload {
                 RankingsPagerToolbarContent(
                     page: page, totalPages: shownPayload.leaderboard.pageCount,
@@ -442,7 +455,7 @@ struct SoloLeaderboardScreen: View {
     /// - Parameter payload: Current chart, including its optional totals disclosure.
     /// - Returns: The native song summary over the page backdrop.
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
-        SongHeaderRow(song: song, session: session, onScrolledAway: { headerHidden = $0 }) {
+        SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
             HStack(spacing: 6) {
                 InstrumentIcon(instrument, size: 20)
                     .accessibilityHidden(true)
