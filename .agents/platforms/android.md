@@ -60,7 +60,7 @@ No official tri-fold profile ships with emulator 37.1 or cmdline-tools 23.0. `FS
 | `boot <AVD>` | Boot exclusively (gracefully powers off any other FST emulator) and print metadata |
 | `shutdown` | Power off FST emulators (never foreign ones) and reap orphaned FST qemu processes |
 | `posture <name\|angles\|preset> [--avd]` | Hinge posture or resizable preset |
-| `install <apk>` | `adb install -r -t -g` |
+| `install <apk>` | `adb install -r -t -g`; on `INSTALL_FAILED_VERSION_DOWNGRADE` or `INSTALL_FAILED_UPDATE_INCOMPATIBLE` (another lane left a release-coded or differently signed build) it uninstalls the app and retries. `drive --apk`/`launch --apk` share it, and `test` uninstalls an app whose `versionCode` exceeds the debug build's `1` before Gradle installs (issue #190) |
 | `launch [--tab] [--route] [--extra K=V] [--apk] [--posture]` | Cold start (`am start -W -S --activity-clear-task --display 0`) with string intent extras `FST_DEBUG_TAB`/`FST_DEBUG_ROUTE`/any `FST_*`. Right after `install`, `-S` alone could hand the intent to the old instance and drop the extras; `--activity-clear-task` plus one force-stop retry makes the launch fresh, and the launch fails if it still isn't |
 | `shot <out.png>… [--no-launch] [launch options]` | Launch, then screenshot the physical display backing logical display 0, plus a `.json` sidecar |
 | `drive --steps "…" [--steps-file] [--launch]` | UIAutomator/`adb input` steps (below) |
