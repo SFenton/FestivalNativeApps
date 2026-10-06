@@ -232,6 +232,29 @@ public class WhatsNewTests
     }
 
     [Fact]
+    public void ResolveEntries_ReadsTheDebugDocumentOnlyWithHooks()
+    {
+        string? Env(string name) => name == Changelog.DocumentVariable ? " grouped.json " : null;
+        Stream Open(string path) => path == "grouped.json"
+            ? new MemoryStream(Encoding.UTF8.GetBytes(GroupedDocument))
+            : throw new FileNotFoundException(path);
+        Assert.Equal(["2610.02.02", "2610.01.03"], Changelog.ResolveEntries(Env, true, Open).Select(e => e.Version));
+        Assert.Same(Changelog.Entries, Changelog.ResolveEntries(Env, false, Open));
+        Assert.Same(Changelog.Entries, Changelog.ResolveEntries(_ => "  ", true, Open));
+        // A missing, unreadable or invalid file means an empty changelog (never presented), not a crash.
+        Assert.Empty(Changelog.ResolveEntries(_ => "missing.json", true, Open));
+        Assert.Empty(Changelog.ResolveEntries(Env, true, _ => throw new UnauthorizedAccessException()));
+        Assert.Empty(Changelog.ResolveEntries(Env, true, _ => new MemoryStream("{}"u8.ToArray())));
+        Assert.Empty(Changelog.ResolveEntries(_ => Path.Combine(Path.GetTempPath(), $"fst-missing-{Guid.NewGuid():N}.json"), true));
+        // The dialog (launch and Settings replay) presents only when there are blocks: an empty changelog has none on
+        // either channel, and its hash is the never-pending EmptyHash.
+        var empty = Changelog.ResolveEntries(_ => "missing.json", true, Open);
+        Assert.Empty(Changelog.DisplayBlocks(InstallChannel.Store, empty));
+        Assert.Empty(Changelog.DisplayBlocks(InstallChannel.Tester, empty));
+        Assert.Equal(Changelog.EmptyHash, Changelog.Hash(empty));
+    }
+
+    [Fact]
     public void InstallChannel_StoreSignatureOnlyWithADebugOverride()
     {
         Assert.Equal(InstallChannel.Store, InstallChannels.FromSignatureKind("Store"));
