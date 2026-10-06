@@ -190,31 +190,46 @@ struct PlayerBandsScreen: View {
 /// Player Bands and the profile's inline bands section (issue #312) both draw it on
 /// the shared row card with an in-card chevron, like Song Detail's band previews
 /// (``SongBandPreviewRow``) and the leaderboard rows beside the pager (issue #319).
+/// Global search (issue #320) shows the same card with an `open` action, because a
+/// result closes Search before the band page pushes on the section stack.
 struct PlayerBandRow: View {
     let entry: PlayerBandEntry
+    /// Open the band through this action instead of a `NavigationLink`.
+    var open: ((AppRoute) -> Void)?
+    /// Accessibility identifier override (default `fst.player-bands.row.<id>`).
+    var identifier: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        NavigationLink(value: route) {
-            HStack(spacing: 8) {
-                details
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
+        Group {
+            if let open {
+                Button { open(route) } label: { cardLabel }
+            } else {
+                NavigationLink(value: route) { cardLabel }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight, alignment: .leading)
-            .modifier(RankingRowSurface(isSelected: false))
-            .contentShape(Rectangle())
         }
         .festivalRowButtonStyle()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(PlayerBandRow.spokenLabel(entry))
         .accessibilityHint("Opens band")
         .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("fst.player-bands.row.\(entry.id)")
+        .accessibilityIdentifier(identifier ?? "fst.player-bands.row.\(entry.id)")
+    }
+
+    /// The card: details, chevron and the shared band-row surface.
+    private var cardLabel: some View {
+        HStack(spacing: 8) {
+            details
+            Image(systemName: "chevron.forward")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(FestivalText.deemphasized)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight, alignment: .leading)
+        .modifier(RankingRowSurface(isSelected: false))
+        .contentShape(Rectangle())
     }
 
     private var route: AppRoute {

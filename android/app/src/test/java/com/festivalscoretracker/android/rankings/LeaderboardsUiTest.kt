@@ -189,13 +189,20 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun fullRankingsPinsTheSelectedRowUntilItsPageIsShown() {
+    fun fullRankingsPinsTheSelectedRowOnEveryPage() {
         launch("fullRankings:Solo_Guitar", selected)
-        waitForTag("fst.full-rankings.spotlight-footer")
-        click("fst.full-rankings.page-next")
+        val footer = "fst.full-rankings.spotlight-footer"
+        waitForTag(footer)
+        // Leaderboard-row R7: off this page, the pinned row jumps to the player's page.
+        assertEquals("Jump to your position", clickLabel(footer))
+        click(footer)
         waitForDescription("Page 2 of 3")
         waitForTag("fst.rankings.row.${RankingsFixtures.SELECTED}")
-        rule.waitUntil(5_000) { settle(100); !exists("fst.full-rankings.spotlight-footer") }
+        // Issue #318: on the player's own page the row stays pinned (like the song boards) and opens Statistics.
+        rule.waitUntil(5_000) { settle(100); clickLabel(footer) == "Open your statistics" }
+        assertTrue(exists(footer))
+        click(footer)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.full-rankings.list") }
     }
 
     @Test

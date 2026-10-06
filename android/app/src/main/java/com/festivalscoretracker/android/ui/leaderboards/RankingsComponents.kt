@@ -46,6 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -123,6 +127,37 @@ internal val LEADERBOARD_ROW_MIN_HEIGHT = 48.dp
 
 /** Vertical gap between the rows of a Leaderboards overview card (skeleton and loaded). */
 internal val LEADERBOARD_ROW_GAP = 2.dp
+
+/**
+ * Vertical inset of a one-line ranking row: the percentile metrics' two-line rating
+ * (bodyLarge value over a labelSmall Bayesian value, 40 dp) still fits the 48 dp row (issue #188).
+ * 3 dp, not 4: 4 dp rounds up to 11 px per side at 2.625× density, making the row 1 px taller.
+ */
+private val RANKING_ROW_VERTICAL_PADDING = 3.dp
+
+/** Vertical inset of a stacked (large-text or narrow) ranking row and its skeleton. */
+private val STACKED_RANKING_ROW_VERTICAL_PADDING = 6.dp
+
+/** Gap between the lines of a stacked ranking row and its skeleton. */
+private val STACKED_RANKING_LINE_GAP = 2.dp
+
+/**
+ * Name lines a large-text (stacked) player ranking row and its skeleton reserve (issue #188):
+ * an Epic display name (at most 16 characters) wraps to at most two lines at font scale 2.0,
+ * so one-line and wrapped names give rows of one height and the loading skeleton predicts it.
+ * A minimum, never a cap: a longer name still wraps rather than being cut off.
+ */
+internal const val STACKED_RANKING_NAME_LINES = 2
+
+/**
+ * Name lines a large-text band ranking row and its skeleton reserve: one per member (a
+ * roster's typical wrapped length), never fewer than a player row's [STACKED_RANKING_NAME_LINES].
+ * A roster with a member name wider than the column still wraps past it rather than clipping.
+ *
+ * @param memberCount Players in the band.
+ * @return Minimum name lines.
+ */
+internal fun stackedBandNameLines(memberCount: Int): Int = maxOf(STACKED_RANKING_NAME_LINES, memberCount)
 
 /**
  * Fixed column widths shared by every row of one board or card, so the selected
@@ -276,6 +311,7 @@ fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetr
  * @param tag Test tag.
  * @param clickLabel TalkBack action label ("Double-tap to …") for a navigable row.
  * @param unavailable TalkBack state for a row without a destination.
+ * @param nameLines Name lines a large-text row reserves (the skeleton reserves the same).
  * @param modifier Modifier.
  */
 @Composable
@@ -291,6 +327,7 @@ private fun RankingRowLayout(
     tag: String,
     clickLabel: String,
     unavailable: String,
+    nameLines: Int = STACKED_RANKING_NAME_LINES,
     modifier: Modifier = Modifier,
 ) {
     val description = RankingFormatting.rowDescription(rank, name, rating, songs, isSelected)
@@ -302,11 +339,14 @@ private fun RankingRowLayout(
     // Same selected-player treatment as the song boards (web `playerEntryRow`, 7.7).
     if (isSelected) rowModifier = rowModifier.background(BrandTokens.purpleHighlight).border(BorderStroke(1.dp, BrandTokens.purpleHighlightBorder), shape)
     if (route != null) rowModifier = rowModifier.clickable(role = Role.Button, onClickLabel = clickLabel) { onOpen(route) }
+    val columns = LocalRankingColumns.current
+    val largeText = isLargeText()
+    val stacked = largeText || columns?.stacked == true
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = rowModifier
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 8.dp, vertical = if (stacked) STACKED_RANKING_ROW_VERTICAL_PADDING else RANKING_ROW_VERTICAL_PADDING)
             .testTag(tag)
             .clearAndSetSemantics {
                 contentDescription = description
@@ -315,9 +355,9 @@ private fun RankingRowLayout(
     ) {
         // Web `RankingEntry` `isPlayer`: every text in the selected player's row is bold.
         val weight = if (isSelected) FontWeight.Bold else null
-        val columns = LocalRankingColumns.current
-        if (isLargeText() || columns?.stacked == true) {
-            StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null, columns?.rank)
+        if (stacked) {
+            // Narrow rows at normal text (#115, #116) have no skeleton and keep names at their own length.
+            StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null, columns?.rank, if (largeText) nameLines else 1)
             return@Row
         }
         Text(
@@ -356,9 +396,11 @@ private fun RankingRowLayout(
  * [RankingRowLayout]'s content at large font scales: rank and the (wrapping) name on the
  * first line, the songs count and rating on the next, so no column is squeezed or overlaps.
  * The rank keeps the section's shared width, so names line up down the section (issue #149).
+ * The name reserves [nameLines] lines, as [RankingsSkeletonRows] does, so a wrapped name
+ * doesn't make its row taller than the others or than the skeleton (issue #188).
  */
 @Composable
-private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, rating: String, bayesian: String?, weight: FontWeight?, navigable: Boolean, rankWidth: Dp?) {
+private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, rating: String, bayesian: String?, weight: FontWeight?, navigable: Boolean, rankWidth: Dp?, nameLines: Int) {
     Text(
         RankingFormatting.rankLabel(rank),
         style = MaterialTheme.typography.labelLarge,
@@ -366,8 +408,8 @@ private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, r
         color = BrandTokens.textPrimary,
         modifier = rankWidth?.let { Modifier.widthIn(min = it) } ?: Modifier,
     )
-    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary)
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(STACKED_RANKING_LINE_GAP)) {
+        Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary, minLines = nameLines)
         Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue)
         if (bayesian != null) Text(bayesian, style = MaterialTheme.typography.labelSmall, fontWeight = weight, color = BrandTokens.textSecondary)
         Text(songs, style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = BrandTokens.textSecondary)
@@ -386,6 +428,8 @@ private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, r
  * @param onOpen Navigation callback.
  * @param tag Test tag; defaults to `fst.rankings.row.<key>`.
  * @param reveal Scroll the selected row into view when it appears (paginated boards).
+ * @param clickLabel TalkBack action label overriding the route's (a pinned footer that may
+ *   jump to its page instead, `leaderboard-row` R7).
  */
 @Composable
 fun AccountRankingRow(
@@ -396,6 +440,7 @@ fun AccountRankingRow(
     onOpen: (AppRoute) -> Unit,
     tag: String = "fst.rankings.row.${entry.key}",
     reveal: Boolean = false,
+    clickLabel: String? = null,
 ) {
     val requester = remember { BringIntoViewRequester() }
     if (reveal && isSelected) {
@@ -411,7 +456,7 @@ fun AccountRankingRow(
         route = route,
         onOpen = onOpen,
         tag = tag,
-        clickLabel = route?.let(RankingNavigation::actionLabel).orEmpty(),
+        clickLabel = clickLabel ?: route?.let(RankingNavigation::actionLabel).orEmpty(),
         unavailable = "Profile unavailable",
         modifier = Modifier.bringIntoViewRequester(requester),
     )
@@ -440,6 +485,7 @@ fun BandRankingRow(entry: BandRankingEntry, metric: BandRankingMetric, isSelecte
         tag = "fst.band-rankings.row.${entry.key}",
         clickLabel = "Open band",
         unavailable = "Band unavailable",
+        nameLines = stackedBandNameLines(entry.teamMembers.size),
     )
 }
 
@@ -464,12 +510,21 @@ fun RowSeparator(modifier: Modifier = Modifier) {
 
 /**
  * Static skeleton rows (no shimmer, so no per-frame work while loading). Each row has the
- * loaded rows' height, inset and gap, so rows don't jump when data arrives (issue #90).
+ * loaded rows' height, inset and gap, so rows don't jump when data arrives (issue #90). At
+ * large text the rows take the stacked rows' shape, one bar per text line in the same
+ * styles, so they grow with the loaded rows (issue #188); the name reserves the loaded rows'
+ * [nameLines], so wrapped names don't make the card jump either.
  *
  * @param count Rows.
+ * @param bayesian Whether the loaded rows draw a Bayesian value line (percentile metrics),
+ *   which adds a line to stacked rows.
+ * @param nameLines Name lines the loaded large-text rows reserve: [STACKED_RANKING_NAME_LINES]
+ *   for players, [stackedBandNameLines] for bands.
  */
 @Composable
-fun RankingsSkeletonRows(count: Int) {
+fun RankingsSkeletonRows(count: Int, bayesian: Boolean = false, nameLines: Int = STACKED_RANKING_NAME_LINES) {
+    val stacked = isLargeText()
+    val typography = MaterialTheme.typography
     Column(
         verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP),
         modifier = Modifier
@@ -481,12 +536,26 @@ fun RankingsSkeletonRows(count: Int) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT).padding(horizontal = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT)
+                    .padding(horizontal = 8.dp, vertical = if (stacked) STACKED_RANKING_ROW_VERTICAL_PADDING else 0.dp),
             ) {
-                SkeletonBar(32)
-                SkeletonBar(128)
-                Spacer(Modifier.weight(1f))
-                SkeletonBar(56)
+                if (stacked) {
+                    SkeletonLine(typography.labelLarge, 32)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(STACKED_RANKING_LINE_GAP)) {
+                        SkeletonLine(typography.bodyLarge, 128, lines = nameLines)
+                        SkeletonLine(typography.bodyLarge, 72)
+                        if (bayesian) SkeletonLine(typography.labelSmall, 48)
+                        SkeletonLine(typography.bodyMedium, 72)
+                    }
+                    Spacer(Modifier.width(20.dp))
+                } else {
+                    SkeletonBar(32)
+                    SkeletonBar(128)
+                    Spacer(Modifier.weight(1f))
+                    SkeletonBar(56)
+                }
             }
         }
     }
@@ -501,6 +570,31 @@ private fun SkeletonBar(widthDp: Int) {
             .clip(RoundedCornerShape(7.dp))
             .background(BrandTokens.surfaceMuted),
     )
+}
+
+/**
+ * A skeleton bar per text line in [style]: blank text of that style and line count sizes it,
+ * so it scales with the font exactly as the loaded row's text does.
+ *
+ * @param style Loaded text style.
+ * @param widthDp Bar width.
+ * @param lines Text lines to cover, one bar each.
+ */
+@Composable
+private fun SkeletonLine(style: TextStyle, widthDp: Int, lines: Int = 1) {
+    Box(
+        Modifier
+            .width(widthDp.dp)
+            .drawBehind {
+                val line = size.height / lines
+                val bar = line * 0.6f
+                repeat(lines) { index ->
+                    drawRoundRect(BrandTokens.surfaceMuted, topLeft = Offset(0f, line * index + (line - bar) / 2), size = Size(size.width, bar), cornerRadius = CornerRadius(bar / 2))
+                }
+            },
+    ) {
+        Text(" ", style = style, minLines = lines, maxLines = lines)
+    }
 }
 
 /**

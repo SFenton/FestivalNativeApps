@@ -3,7 +3,6 @@ package com.festivalscoretracker.android.ui.profile
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.festivalscoretracker.android.AppContainer
-import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.PlayerHistoryRoute
 import com.festivalscoretracker.android.data.bands.playerBands
@@ -40,7 +39,7 @@ fun profileViewModel(container: AppContainer, shell: ShellViewModel, accountId: 
                 ranking = { instrument, account -> api.playerInstrumentRanking(instrument, account) },
                 rankHistory = { instrument, account -> api.playerRankHistory(instrument, account) },
                 catalog = { api.catalog().catalog.songs },
-                bands = { account -> api.playerBands(account, PlayerBandGroup.All, 1, PlayerProfileViewModel.BANDS_PREVIEW_SIZE) },
+                bands = { account, group -> api.playerBands(account, group, 1, PlayerProfileViewModel.BANDS_PREVIEW_SIZE) },
             ),
             store = container.selectedProfile,
             settings = shell.settings,
