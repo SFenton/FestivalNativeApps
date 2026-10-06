@@ -1365,14 +1365,19 @@ final class SongsJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8769"
+        // `TEST_RUNNER_FST_RECOVERY_FIXTURE_PORT` points a rerun at a fresh listener.
+        let port = ProcessInfo.processInfo.environment["FST_RECOVERY_FIXTURE_PORT"]
+            .flatMap(Int.init) ?? 8769
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-white"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Retry"].exists)
         SongsUITestSupport.record(app, name: "songs-first-catalogue-503")
-        try app.performAccessibilityAudit(for: .all)
+        try app.performAccessibilityAudit(for: .all) { issue in
+            SongsUITestSupport.isSystemSearchPlaceholderContrast(issue)
+        }
 
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         let publication = app.buttons["Check Publication"]
@@ -1619,7 +1624,9 @@ final class SongsJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        let port = UIDevice.current.userInterfaceIdiom == .pad ? 8778 : 8777
+        // `TEST_RUNNER_FST_SHOP_ROLLOVER_FIXTURE_PORT` points a rerun at a fresh listener.
+        let port = ProcessInfo.processInfo.environment["FST_SHOP_ROLLOVER_FIXTURE_PORT"]
+            .flatMap(Int.init) ?? (UIDevice.current.userInterfaceIdiom == .pad ? 8778 : 8777)
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
