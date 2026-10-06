@@ -46,7 +46,6 @@ import androidx.compose.material3.SearchBarState
 import androidx.compose.material3.SearchBarValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -78,7 +77,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
@@ -106,6 +104,7 @@ import com.festivalscoretracker.android.presentation.search.GlobalSearchUiState
 import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
 import com.festivalscoretracker.android.presentation.search.SearchEmptyState
 import com.festivalscoretracker.android.presentation.search.SectionPhase
+import com.festivalscoretracker.android.ui.bands.PlayerBandCard
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
@@ -139,7 +138,7 @@ object GlobalSearchTags {
     /** Short-query hint. */
     const val HINT = "fst.global-search.hint"
 
-    /** Centred title-and-subtitle empty state (all empty, Songs empty, Players empty). */
+    /** Centred title-and-subtitle empty state (all empty, Songs, Players or Bands empty). */
     const val EMPTY = "fst.global-search.empty"
 
     /** Polite result-count status. */
@@ -148,17 +147,14 @@ object GlobalSearchTags {
     /** Whole-panel progress, centred in the results region under the scope chips. */
     const val LOADING = "fst.global-search.loading"
 
-    /** Band explanation block. */
-    const val BANDS_UNAVAILABLE = "fst.global-search.bands-unavailable"
-
-    /** Band explanation's Band Rankings button. */
-    const val BANDS_RANKINGS = "fst.global-search.bands-unavailable.rankings"
-
     /** Song result row. */
     const val RESULT_SONG = "fst.global-search.result.song"
 
     /** Player result row. */
     const val RESULT_PLAYER = "fst.global-search.result.player"
+
+    /** Band result card (the player-bands card). */
+    const val RESULT_BAND = "fst.global-search.result.band"
 
     /**
      * Scope chip tag.
@@ -173,6 +169,9 @@ object GlobalSearchTags {
 
     /** Players failure status (no Retry). */
     const val PLAYERS_ERROR = "fst.global-search.players-error"
+
+    /** Bands failure status (no Retry). */
+    const val BANDS_ERROR = "fst.global-search.bands-error"
 }
 
 // endregion
@@ -224,7 +223,6 @@ private class BoundsHolder {
  * @param anchor Where the surface sits (window px) and the docked height cap.
  * @param artworkUrl Artwork resolver.
  * @param onOpen Navigate to a result's destination (after collapsing).
- * @param onBandRankings Open Band Rankings from the Bands explanation.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -235,7 +233,6 @@ fun GlobalSearchHost(
     anchor: SearchAnchor,
     artworkUrl: (String?) -> String?,
     onOpen: (SearchDestination) -> Unit,
-    onBandRankings: () -> Unit,
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -295,7 +292,6 @@ fun GlobalSearchHost(
             artworkUrl = artworkUrl,
             onToggleScope = viewModel::toggleScope,
             onOpen = { destination -> collapseThen { onOpen(destination) } },
-            onBandRankings = { collapseThen(onBandRankings) },
         )
     }
     // The expanded bar lives in its own dialog/popup window, so it re-enables resource-id tags there.
@@ -431,7 +427,6 @@ private fun SearchField(
  * @param artworkUrl Artwork resolver.
  * @param onToggleScope Toggle a scope chip.
  * @param onOpen Open a result.
- * @param onBandRankings Open Band Rankings.
  */
 @Composable
 fun GlobalSearchContent(
@@ -439,7 +434,6 @@ fun GlobalSearchContent(
     artworkUrl: (String?) -> String?,
     onToggleScope: (SearchScope) -> Unit,
     onOpen: (SearchDestination) -> Unit,
-    onBandRankings: () -> Unit,
 ) {
     // Fills the surface: every state (hint, progress, results) shares one full-height region,
     // so nothing resizes while typing.
@@ -447,7 +441,7 @@ fun GlobalSearchContent(
         ScopePills(ui.scope, onToggleScope)
         // Result counts are spoken, not shown (operator batch 6): an undrawn polite live region.
         val announcement = ui.announcement
-        if (announcement != null && !ui.isBandsScope && !ui.isShortQuery) {
+        if (announcement != null && !ui.isShortQuery) {
             Box(
                 Modifier
                     .size(1.dp)
@@ -461,7 +455,6 @@ fun GlobalSearchContent(
         Box(Modifier.fillMaxWidth().weight(1f)) {
             when {
                 ui.hint != null -> CenteredMessage(ui.hint!!)
-                ui.isBandsScope -> BandsUnavailable(onBandRankings)
                 ui.emptyState != null -> EmptyResults(ui.emptyState!!)
                 // The one spinner, centred in the region between the scope chips and the bottom
                 // edge (the docked surface already sits above the keyboard), like the web panel
@@ -544,11 +537,14 @@ private fun ScopePills(selected: SearchScope, onToggle: (SearchScope) -> Unit) {
 private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onOpen: (SearchDestination) -> Unit) {
     // Web SearchModal restaggers once per content signature: hide for a frame when the result
     // set changes, then fade rows in (web fadeInUp, 125 ms stagger).
-    val signature = remember(ui.songs, ui.players) { ui.songs.map { it.songId } to ui.players.map { it.accountId } }
+    val signature = remember(ui.songs, ui.players, ui.bands) {
+        Triple(ui.songs.map { it.songId }, ui.players.map { it.accountId }, ui.bands.map { it.key })
+    }
     var settled by remember { mutableStateOf<Any?>(null) }
     LaunchedEffect(signature) { settled = signature }
     val revealed = rememberRevealed(settled == signature)
     val playersOffset = if (ui.showSongsSection) ui.songs.size else 0
+    val bandsOffset = playersOffset + if (ui.showPlayersSection) ui.players.size else 0
     // A new scope or query starts at the top: a kept state would pin the previously first
     // visible key (the first player after Players → All) and hide the songs above it.
     val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
@@ -578,6 +574,25 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
             itemsIndexed(ui.players, key = { _, player -> "p-${player.accountId}" }) { index, player ->
                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index))) {
                     PlayerResultRow(player) { onOpen(player.destination) }
+                }
+            }
+        }
+        if (ui.showBandsSection) {
+            if (ui.bandsPhase == SectionPhase.Failed) {
+                item(key = "bands-failed") {
+                    ServiceStatusInline(
+                        issue = ui.bandsIssue ?: return@item,
+                        fallbackTitle = GlobalSearchResults.BANDS_UNAVAILABLE,
+                        countdown = ui.bandsCountdown,
+                        onRetry = null,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(GlobalSearchTags.BANDS_ERROR),
+                    )
+                }
+            }
+            // Web SearchModal renders band results with the same PlayerBandCard as a player's Bands.
+            itemsIndexed(ui.bands, key = { _, band -> "b-${band.key}" }) { index, band ->
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(bandsOffset + index)).padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    PlayerBandCard(band.entry, onClick = { onOpen(band.destination) }, tag = GlobalSearchTags.RESULT_BAND)
                 }
             }
         }
@@ -673,23 +688,6 @@ private fun EmptyResults(empty: SearchEmptyState) {
         Box(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = viewport), contentAlignment = Alignment.Center) {
             FestivalEmptyState(title = empty.title, subtitle = empty.subtitle, modifier = Modifier.fillMaxWidth())
         }
-    }
-}
-
-@Composable
-private fun BandsUnavailable(onBandRankings: () -> Unit) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .background(BrandTokens.surfaceSubtle, RoundedCornerShape(12.dp))
-            .padding(16.dp)
-            .testTag(GlobalSearchTags.BANDS_UNAVAILABLE),
-    ) {
-        Text("Band search unavailable", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-        Text(GlobalSearchResults.BANDS_UNAVAILABLE, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-        TextButton(onClick = onBandRankings, modifier = Modifier.heightIn(min = 48.dp).testTag(GlobalSearchTags.BANDS_RANKINGS)) { Text("Band Rankings") }
     }
 }
 

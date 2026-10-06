@@ -33,6 +33,9 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.bands.BandMember
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
+import com.festivalscoretracker.android.core.search.GlobalBandResult
 import com.festivalscoretracker.android.core.search.GlobalPlayerResult
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
 import com.festivalscoretracker.android.core.search.GlobalSongResult
@@ -62,12 +65,24 @@ class GlobalSearchContentUiTest {
 
     private val song = GlobalSongResult("s-the", "The Song", "Band One", null)
     private val player = GlobalPlayerResult("0123456789abcdef0123456789abcdef", "The Player", isSelected = false)
+    private val band = GlobalBandResult(
+        PlayerBandEntry(
+            bandId = "band-the",
+            teamKey = "0123456789abcdef0123456789abcdef:fedcba9876543210fedcba9876543210",
+            bandType = "Band_Duets",
+            appearanceCount = 3,
+            members = listOf(
+                BandMember("0123456789abcdef0123456789abcdef", "The Lead", listOf("Solo_Guitar")),
+                BandMember("fedcba9876543210fedcba9876543210", "The Bass", listOf("Solo_Bass")),
+            ),
+        ),
+    )
 
     private fun show(ui: GlobalSearchUiState) {
         rule.setContent {
             FestivalTheme {
                 Box(Modifier.fillMaxWidth().height(600.dp)) {
-                    GlobalSearchContent(ui, { null }, {}, {}, {})
+                    GlobalSearchContent(ui, { null }, {}, {})
                 }
             }
         }
@@ -148,7 +163,7 @@ class GlobalSearchContentUiTest {
 
     @Test
     fun allEmptyAndSongsEmptyHaveNoRetry() {
-        show(GlobalSearchUiState(query = "zzzz", settledQuery = "zzzz", songsPhase = SectionPhase.Empty, playersPhase = SectionPhase.Empty))
+        show(GlobalSearchUiState(query = "zzzz", settledQuery = "zzzz", songsPhase = SectionPhase.Empty, playersPhase = SectionPhase.Empty, bandsPhase = SectionPhase.Empty))
         rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_TITLE).assertIsDisplayed()
         rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_SUBTITLE).assertIsDisplayed()
         assertNoRetryOrSectionTitle()
@@ -198,22 +213,78 @@ class GlobalSearchContentUiTest {
         var ui by mutableStateOf(GlobalSearchUiState(query = "a"))
         rule.setContent {
             FestivalTheme {
-                Box(Modifier.fillMaxWidth().height(600.dp)) { GlobalSearchContent(ui, { null }, {}, {}, {}) }
+                Box(Modifier.fillMaxWidth().height(600.dp)) { GlobalSearchContent(ui, { null }, {}, {}) }
             }
         }
         expected.forEach { (scope, hint) ->
             ui = GlobalSearchUiState(query = "a", scope = scope)
             rule.waitForIdle()
             rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(hint))
-            rule.onNodeWithTag(GlobalSearchTags.BANDS_UNAVAILABLE).assertDoesNotExist()
         }
     }
 
     @Test
-    fun bandsScopeExplainsOnceTheQueryIsLongEnough() {
-        show(GlobalSearchUiState(query = "alpha", scope = SearchScope.Bands))
-        rule.onNodeWithTag(GlobalSearchTags.BANDS_UNAVAILABLE).assertIsDisplayed()
+    fun allScopeWaitsForBandsBehindTheOneSpinner() {
+        show(GlobalSearchUiState(query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded, players = listOf(player), playersPhase = SectionPhase.Loaded, bandsPhase = SectionPhase.Loading))
+        rule.onNodeWithTag(GlobalSearchTags.LOADING).assertIsDisplayed()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertDoesNotExist()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_BAND).assertDoesNotExist()
+    }
+
+    @Test
+    fun bandsFollowSongsAndPlayersAsPlayerBandCards() {
+        show(
+            GlobalSearchUiState(
+                query = "The", settledQuery = "The", songs = listOf(song), songsPhase = SectionPhase.Loaded,
+                players = listOf(player), playersPhase = SectionPhase.Loaded, bands = listOf(band), bandsPhase = SectionPhase.Loaded,
+            ),
+        )
+        val playerRow = rule.onNodeWithTag(GlobalSearchTags.RESULT_PLAYER).fetchSemanticsNode().boundsInRoot
+        val bandCard = rule.onNodeWithTag(GlobalSearchTags.RESULT_BAND).performScrollTo().assertIsDisplayed()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("The Lead + The Bass, Duos, 3 appearances")))
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue(bandCard.top >= playerRow.bottom - 1f)
+        assertNoRetryOrSectionTitle()
+    }
+
+    @Test
+    fun bandsScopeShowsOnlyBands() {
+        show(
+            GlobalSearchUiState(
+                query = "The", settledQuery = "The", scope = SearchScope.Bands, songs = listOf(song), songsPhase = SectionPhase.Loaded,
+                players = listOf(player), playersPhase = SectionPhase.Loading, bands = listOf(band), bandsPhase = SectionPhase.Loaded,
+            ),
+        )
+        // Bands scope waits only for bands: a pending players read draws no spinner here.
+        rule.onNodeWithTag(GlobalSearchTags.LOADING).assertDoesNotExist()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_BAND).assertIsDisplayed()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).assertDoesNotExist()
+        rule.onNodeWithTag(GlobalSearchTags.RESULT_PLAYER).assertDoesNotExist()
         rule.onNodeWithTag(GlobalSearchTags.HINT).assertDoesNotExist()
+        assertNoRetryOrSectionTitle()
+    }
+
+    @Test
+    fun bandsScopeEmptyIsNoBandsFoundWithoutRetry() {
+        show(GlobalSearchUiState(query = "zzzz", settledQuery = "zzzz", scope = SearchScope.Bands, songsPhase = SectionPhase.Empty, playersPhase = SectionPhase.Empty, bandsPhase = SectionPhase.Empty))
+        rule.onNodeWithTag(GlobalSearchTags.EMPTY).assertIsDisplayed()
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_BANDS_TITLE).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_BANDS_SUBTITLE).assertIsDisplayed()
+        assertNoRetryOrSectionTitle()
+    }
+
+    @Test
+    fun bandsFailureIsNotEmptyAndHasNoRetry() {
+        show(
+            GlobalSearchUiState(
+                query = "The", settledQuery = "The", scope = SearchScope.Bands, songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Loaded,
+                bandsPhase = SectionPhase.Failed, bandsIssue = ServiceIssue.Offline,
+            ),
+        )
+        rule.onNodeWithTag(GlobalSearchTags.BANDS_ERROR).assertIsDisplayed()
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_BANDS_TITLE).assertDoesNotExist()
+        rule.onNodeWithTag(GlobalSearchTags.EMPTY).assertDoesNotExist()
+        assertNoRetryOrSectionTitle()
     }
 
     @Test
@@ -224,7 +295,7 @@ class GlobalSearchContentUiTest {
                     Box(Modifier.fillMaxWidth().height(220.dp)) {
                         GlobalSearchContent(
                             GlobalSearchUiState(query = "The", settledQuery = "The", scope = SearchScope.Players, songsPhase = SectionPhase.Loaded, playersPhase = SectionPhase.Empty),
-                            { null }, {}, {}, {},
+                            { null }, {}, {},
                         )
                     }
                 }
@@ -238,7 +309,7 @@ class GlobalSearchContentUiTest {
             FestivalTheme {
                 CompositionLocalProvider(LocalDensity provides Density(1f, fontScale = fontScale)) {
                     Box(Modifier.width(widthDp.dp).height(400.dp)) {
-                        GlobalSearchContent(GlobalSearchUiState(), { null }, {}, {}, {})
+                        GlobalSearchContent(GlobalSearchUiState(), { null }, {}, {})
                     }
                 }
             }
@@ -254,7 +325,7 @@ class GlobalSearchContentUiTest {
         var ui by mutableStateOf(all.copy(scope = SearchScope.Players))
         rule.setContent {
             FestivalTheme {
-                Box(Modifier.fillMaxWidth().height(400.dp)) { GlobalSearchContent(ui, { null }, {}, {}, {}) }
+                Box(Modifier.fillMaxWidth().height(400.dp)) { GlobalSearchContent(ui, { null }, {}, {}) }
             }
         }
         rule.onNodeWithText("Daft 1").assertIsDisplayed()

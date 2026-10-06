@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.core.bands
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
+import com.festivalscoretracker.android.core.profile.ProfileText
 import kotlinx.serialization.Serializable
 
 // region Members
@@ -126,6 +127,86 @@ data class PlayerBandListResponse(
     fun validate(accountId: String, pageSize: Int) {
         if (this.accountId != accountId || totalCount < 0 || entries.size > pageSize || entries.any { it.teamKey.isEmpty() }) {
             throw FestivalApiException.InvalidResponse()
+        }
+    }
+}
+
+// endregion
+
+// region Band search
+
+/**
+ * One row of `GET /api/bands/search` (`BandSearchResultDto`). The optional
+ * `ranking` and match-explanation fields are ignored: global search shows the
+ * web's `PlayerBandCard` projection (members, band size, appearances).
+ *
+ * @property bandId One-way band hash.
+ * @property teamKey Member-account roster key.
+ * @property bandType Band size service ID.
+ * @property appearanceCount Songs this lineup has played.
+ * @property members Members with observed instruments.
+ */
+@Serializable
+data class BandSearchResult(
+    val bandId: String = "",
+    val teamKey: String = "",
+    val bandType: String = "",
+    val appearanceCount: Int = 0,
+    val members: List<BandMember> = emptyList(),
+) {
+    /** The player-band card row (web `toPlayerBandEntry`). */
+    fun toPlayerBandEntry(): PlayerBandEntry = PlayerBandEntry(bandId, teamKey, bandType, appearanceCount, members)
+
+    /**
+     * Whether the row can be shown and opened: a known band size, a URL-safe team key and
+     * band ID, a non-negative count, and at least one member, each with a safe account ID
+     * and display name (Apple `BandSearchResponse.validate`).
+     */
+    val isValid: Boolean
+        get() = BandType.fromWireId(bandType) != null &&
+            BandText.isValidTeamKey(teamKey) &&
+            bandId.length <= MAX_BAND_ID && '/' !in bandId &&
+            appearanceCount >= 0 &&
+            members.isNotEmpty() &&
+            members.all { BandText.isValidMemberId(it.accountId) && !ProfileText.containsUnsafe(it.displayName.orEmpty()) }
+
+    private companion object {
+        const val MAX_BAND_ID = 200
+    }
+}
+
+/**
+ * Page from `GET /api/bands/search?q=&page=&pageSize=` (`BandSearchResponseDto`).
+ * The service makes it a pure read on every path (FortniteFestivalLeaderboardScraper#170).
+ *
+ * @property page One-based page.
+ * @property pageSize Rows per page the service used.
+ * @property totalCount Matches across all pages.
+ * @property results This page.
+ */
+@Serializable
+data class BandSearchResponse(
+    val page: Int = 1,
+    val pageSize: Int = 0,
+    val totalCount: Int = 0,
+    val results: List<BandSearchResult> = emptyList(),
+) {
+    /**
+     * The page as player-band entries. Like every platform (global-search spec, Band scope),
+     * a malformed page is rejected whole rather than silently dropping rows: an invalid row,
+     * a repeated band or more rows than requested fails the read.
+     *
+     * @param requested Rows requested (`pageSize`).
+     * @return The entries in service order.
+     * @throws FestivalApiException.InvalidResponse for an unusable page.
+     */
+    fun entries(requested: Int): List<PlayerBandEntry> {
+        if (totalCount < 0 || page < 1 || results.size > requested) throw FestivalApiException.InvalidResponse()
+        val seen = HashSet<String>()
+        return results.map { row ->
+            val entry = row.toPlayerBandEntry()
+            if (!row.isValid || !seen.add(entry.key)) throw FestivalApiException.InvalidResponse()
+            entry
         }
     }
 }
