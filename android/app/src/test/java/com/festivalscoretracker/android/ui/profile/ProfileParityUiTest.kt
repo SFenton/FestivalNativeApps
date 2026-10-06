@@ -5,16 +5,21 @@ import android.graphics.Canvas
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -25,6 +30,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Instrument
@@ -286,6 +292,12 @@ class ProfileParityUiTest {
         assertTrue(rule.onAllNodesWithTag("fst.player-bands.row.band-6").fetchSemanticsNodes().isEmpty())
         journey.scrollTo("fst.player.bands.view-all.duos")
         rule.onNodeWithText("View All Bands (8)").assertIsDisplayed()
+        // Web `BandViewAllCard`: one 48 dp frosted card button whose label is its name (not the purple CTA).
+        rule.onNodeWithTag("fst.player.bands.view-all.duos")
+            .assertHeightIsAtLeast(48.dp)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(hasText("View All Bands (8)"))
+            .assertHasClickAction()
         // Trios: "No Bands Yet" and no View all.
         journey.scrollTo("fst.player.bands.header.trios")
         journey.scrollTo("fst.player.bands.empty.trios")

@@ -431,7 +431,8 @@
         "frosted card",
         "card surface",
         "ultraThinMaterial",
-        "transparency"
+        "transparency",
+        "view all"
       ],
       "web": [
         {
@@ -441,6 +442,10 @@
         {
           "path": "pages/leaderboards/components/RankingCard.tsx",
           "symbol": "RankingCard"
+        },
+        {
+          "path": "pages/player/components/PlayerBandsSection.tsx",
+          "symbol": "BandViewAllCard"
         }
       ],
       "canonical": {
@@ -466,6 +471,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
             "symbol": "BrandTokens"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileBands.kt",
+            "symbol": "ProfileBandsViewAll"
           }
         ],
         "windows": [
@@ -517,13 +526,15 @@
         "pages": [
           "songs",
           "song-detail",
-          "leaderboards"
+          "leaderboards",
+          "player-profile"
         ]
       },
       "supersedes": [],
       "supersededBy": null,
       "issues": [
-        291
+        291,
+        312
       ]
     },
     {

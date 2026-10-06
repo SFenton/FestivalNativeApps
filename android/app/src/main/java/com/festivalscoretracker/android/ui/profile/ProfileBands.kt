@@ -1,8 +1,10 @@
 package com.festivalscoretracker.android.ui.profile
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -10,9 +12,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
@@ -26,9 +31,9 @@ import com.festivalscoretracker.android.ui.bands.bandRouteFor
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.SeeAllButton
-import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Bands
@@ -110,7 +115,11 @@ internal fun ProfileBandsEmpty(group: PlayerBandGroup) {
 }
 
 /**
- * "View All Bands (N)": the full list opened on [group].
+ * "View All Bands (N)" (web `BandViewAllCard`): a full-width frosted card on the canonical
+ * [GlassCard] (`surface-materials` R1/R5), 48 dp tall (web `Layout.entryRowHeight`), with a
+ * centred white semibold label and the in-card chevron, opening the full list on [group].
+ * Not the purple `ViewFullLeaderboardButton`: that operator variant (6.29) is for leaderboard
+ * and rivals cards; the web frosts this card (issue #312 design review).
  *
  * @param state Page state.
  * @param group Group.
@@ -119,11 +128,26 @@ internal fun ProfileBandsEmpty(group: PlayerBandGroup) {
  */
 @Composable
 internal fun ProfileBandsViewAll(state: PlayerProfileUiState, group: PlayerBandGroup, total: Int, onNavigate: (AppRoute) -> Unit) {
-    ViewFullLeaderboardButton(
+    GlassCard(
+        modifier = Modifier.fillMaxWidth().semantics { role = Role.Button }.testTag("fst.player.bands.view-all.${group.wireId}"),
         onClick = { onNavigate(PlayerBandsRoute(state.accountId, state.displayName, group.wireId)) },
-        label = "View All Bands (${ProfileFormatting.count(total.toLong())})",
-        testTag = "fst.player.bands.view-all.${group.wireId}",
-    )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "View All Bands (${ProfileFormatting.count(total.toLong())})",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = BrandTokens.textPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            RowChevron()
+        }
+    }
 }
 
 // endregion
