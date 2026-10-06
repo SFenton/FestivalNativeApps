@@ -36,6 +36,7 @@
 - Label "Difficulty" (web), not "Game Difficulty" (batch 6.13).
 - Filter Invalid Scores (batch 6.12) is applied by the service through the leaderboard `leeway` query. Pages that pass it must re-read when the effective leeway (0.1 steps) changes, including when returning to a cached page: the song leaderboard does (`FilterInvalidScoresTests`). Live read-only check: `python tools/windows/tests/live_filter_invalid_scores.py` (Winterfest Wish Lead: 10,009 local entries unfiltered, 7 at +1.0%, 2026-09-28).
 - Quick Links: header menu or wide pane, see [quick-links/windows.md](../../controls/quick-links/windows.md).
+- Back from Licenses keeps Settings' scroll position and returns focus to the Licenses row ([back-keeps-place](../../patterns/back-keeps-place.md); journey `back-settings-licenses`, #276).
 - Not ported: profile name refresh (POST), ZIP export, mouse light trails / mobile header buttons (no equivalent chrome).
 
 ## Open

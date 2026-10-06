@@ -34,3 +34,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [song-leaderboard-header](song-leaderboard-header.md) | Song-scoped leaderboards (instrument or band size): song-first header, bar title after scroll, song album-art backdrop |
 | [song-header](song-header.md) | Song page headers: shared art + title block, full-width one-line marquee title, pinned bar song title |
 | [view-all-cta](view-all-cta.md) | The full-width purple "View all" button below a card's rows: look, placement, copy and accessible name |
+| [back-keeps-place](back-keeps-place.md) | Back to a cached page: no reload, no movement or replayed fade-in, focus back on the opener |
