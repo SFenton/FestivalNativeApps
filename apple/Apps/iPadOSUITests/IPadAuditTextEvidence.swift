@@ -84,7 +84,9 @@ enum IPadAuditTextEvidence {
                 // Every other drag starts at the trailing margin of the element's pane: a
                 // drag that starts on a chart selects a bar instead of scrolling (Song
                 // Detail's score history under the leading pane's bar was never cleared).
-                if attempt % 2 == 1 {
+                // Split windows only: in one pane the trailing edge holds the scroll bar
+                // and page tools (a ⅓ window's Rival Detail "See All" was never reached).
+                if attempt % 2 == 1, area.topBars.count >= 2 {
                     let pane = area.topBars.first { $0.minX <= x && x <= $0.maxX } ?? window
                     x = pane.maxX - 12
                 }

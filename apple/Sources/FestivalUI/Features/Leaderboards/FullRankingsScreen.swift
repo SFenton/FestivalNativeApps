@@ -205,7 +205,7 @@ struct FullRankingsScreen: View {
         )
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
-        .navigationTitle(Self.title(for: instrument))
+        .festivalNavigationTitle(Self.title(for: instrument))
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showsPinnedTitle)
         // Mac: View › Rank By and View › Instrument mirror the toolbar menus.
         .macRankByCommands($rankBy)

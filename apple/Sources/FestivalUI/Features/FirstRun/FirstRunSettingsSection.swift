@@ -39,7 +39,7 @@ struct FirstRunSettingsSection: View {
                             .padding(.horizontal, 6)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(BrandTokens.accentBlue)
+                    .tint(AccentText.prominentFill)
                     .foregroundStyle(.white)
                     .accessibilityLabel("Show \(Self.rowLabel(page)) guide")
                     .accessibilityIdentifier("fst.settings.first-run.\(page.rawValue)")

@@ -135,6 +135,19 @@ private func fixtureURL(_ name: String) -> URL {
     }
 }
 
+/// The per-size board carries the service's entry-total switch for its song header
+/// (issue #317); an older payload without it reads as "no totals".
+@Test func songBandLeaderboardDecodesEntryTotalsSwitch() throws {
+    let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
+    #expect(try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data).showLeaderboardEntryTotals == true)
+    var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    object.removeValue(forKey: "showLeaderboardEntryTotals")
+    let legacy = try JSONDecoder().decode(
+        SongBandLeaderboardResponse.self, from: JSONSerialization.data(withJSONObject: object)
+    )
+    #expect(legacy.showLeaderboardEntryTotals == nil)
+}
+
 @Test func songBandLeaderboardRejectsMismatchedSongOrBandType() throws {
     let data = try Data(contentsOf: fixtureURL("song-band-leaderboard-demo.json"))
     let response = try JSONDecoder().decode(SongBandLeaderboardResponse.self, from: data)
