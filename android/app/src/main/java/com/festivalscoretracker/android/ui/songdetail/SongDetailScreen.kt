@@ -88,6 +88,10 @@ import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.PlayerHistoryRoute
 import com.festivalscoretracker.android.core.nav.SongBandLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
+import com.festivalscoretracker.android.core.bands.BandPaging
+import com.festivalscoretracker.android.core.rankings.SelectedRowAction
+import com.festivalscoretracker.android.core.rankings.SelectedRowSubject
+import com.festivalscoretracker.android.core.rankings.label
 import com.festivalscoretracker.android.core.profile.PlayerHistoryPayload
 import com.festivalscoretracker.android.core.profile.PlayerHistoryState
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
@@ -571,7 +575,19 @@ private fun BandPreview(
                             ) { open(entry) }
                         }
                         outside?.let { entry ->
-                            BandScoreRow(entry, song, selected = true, tag = "fst.song-detail.band-selected.${type.wireId}") { open(entry) }
+                            // `leaderboard-row` R7 (issue #307): like the solo spotlight row, the band shown apart
+                            // from the preview jumps to its page of the full band board and reveals its row.
+                            val action = SelectedRowAction.preview(entry.rank, BandPaging.PAGE_SIZE)
+                            BandScoreRow(
+                                entry, song, selected = true,
+                                tag = "fst.song-detail.band-selected.${type.wireId}",
+                                actionLabel = action.label(SelectedRowSubject.Band),
+                            ) {
+                                when (action) {
+                                    is SelectedRowAction.Jump -> navigate(SongBandLeaderboardRoute(song.songId, type.wireId, action.page, navToBand = true))
+                                    else -> open(entry)
+                                }
+                            }
                         }
                         ViewFullLeaderboardButton(
                             onClick = { navigate(SongBandLeaderboardRoute(song.songId, type.wireId)) },
@@ -639,14 +655,14 @@ private fun InstrumentCard(
                                         onOpen = navigate,
                                     )
                                 }
-                                // The selected player outside the top ten follows (web spotlight footer); it opens their page.
+                                // The selected player outside the top ten follows (web spotlight footer); it jumps to their page and reveals the row (`leaderboard-row` R7).
                                 mine?.let { row ->
                                     RowSeparator()
                                     Box(Modifier.testTag("fst.song-detail.your-rank.${instrument.wireId}")) {
                                         PreviewRow(
                                             entry = row,
                                             isSelected = true,
-                                            route = SongLeaderboardRoute(song.songId, instrument.wireId, LeaderboardPaging.pageForRank(row.rank)),
+                                            route = SongLeaderboardRoute(song.songId, instrument.wireId, LeaderboardPaging.pageForRank(row.rank), navToPlayer = true),
                                             instrument = instrument,
                                             columns = columns.plan,
                                             onOpen = navigate,
