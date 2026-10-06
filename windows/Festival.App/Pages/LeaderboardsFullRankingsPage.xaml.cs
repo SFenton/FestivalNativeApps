@@ -173,7 +173,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
 
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your rank" row
-    /// entering alongside the first row (issue #270, as the song board's #295).
+    /// entering alongside the first row when it was gated (issue #270, as the song board's #295); paging keeps it in place.
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
@@ -182,7 +182,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
-            if (ViewModel.Spotlight.IsVisible) FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay);
+            if (ViewModel.Spotlight.IsVisible && ViewModel.PinnedGate.IsGated) FadeIn.Play(FooterSpotlight, PinnedRowReveal.RevealDelay);
         });
         RevealSelected();
     }

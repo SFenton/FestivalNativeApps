@@ -15,6 +15,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     private readonly FestivalSession session;
     private readonly OwnRankingReader? reader;
     private Instrument spotlightInstrument;
+    private bool spotlightShown;
     private int version;
     private List<AccountRankingEntry> entries = [];
 
@@ -51,6 +52,12 @@ public sealed partial class FullRankingsViewModel : ObservableObject
 
     /// <summary>Rows/content load-swap gate.</summary>
     public LoadSwap LoadSwap { get; }
+
+    /// <summary>
+    /// Whether the pinned "your rank" row follows <see cref="LoadSwap"/>: only for the first load and an instrument or
+    /// Rank By change, like the web footer (keyed on instrument and metric); paging keeps it beside the spinner.
+    /// </summary>
+    public PinnedRowGate PinnedGate { get; } = new();
 
     /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
     public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
@@ -170,6 +177,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     {
         var request = ++version;
         var (requestedInstrument, requestedMetric, requestedPage) = (Instrument, Metric, Page);
+        var key = (requestedInstrument, requestedMetric);
+        PinnedGate.Begin(key, LoadSwap.Phase);
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
         if (State is LoadState.Idle) State = LoadState.Loading;
         IsRefreshing = true;
@@ -187,6 +196,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 Status.Clear();
+                PinnedGate.Commit(key);
                 if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
                 entries = board.Entries;
                 TotalText = $"{board.TotalAccounts:N0} ranked players";
@@ -205,6 +215,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 IsRefreshing = false;
+                PinnedGate.Commit(key);
                 if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
                 Status.Report(error);
                 State = LoadState.Failed;
@@ -247,8 +258,21 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         created.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareColumns(Rows, created.Row);
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.IsVisible) && ReferenceEquals(created, Spotlight)) PinnedRowShown(created.IsVisible);
         };
         return created;
+    }
+
+    /// <summary>Starts tracking a replacement spotlight's visibility (a new instrument's board committed).</summary>
+    /// <param name="value">New spotlight.</param>
+    partial void OnSpotlightChanged(RankingSpotlightViewModel value) => spotlightShown = value.IsVisible;
+
+    /// <summary>Tracks the current spotlight's visibility; a row that newly appears joins <see cref="PinnedGate"/>.</summary>
+    /// <param name="shown">Whether the pinned row is now shown.</param>
+    private void PinnedRowShown(bool shown)
+    {
+        if (shown && !spotlightShown) PinnedGate.Arrived(LoadSwap.Phase);
+        spotlightShown = shown;
     }
 }
 #endregion

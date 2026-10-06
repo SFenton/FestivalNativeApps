@@ -673,6 +673,44 @@ public sealed class FullRankingsViewModelTests
     }
 
     [Fact]
+    public async Task PinnedRowGatesOnInstrumentAndRankByButNotOnPaging()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(60, "acct60") };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct60")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        Assert.True(vm.PinnedGate.IsGated);
+        Assert.True(vm.Spotlight.IsVisible);
+
+        // Web PaginatedLeaderboard keys the footer on instrument and metric (footerAnimKey), not the page.
+        var gated = new List<bool>();
+        vm.PinnedGate.PropertyChanged += (_, _) => gated.Add(vm.PinnedGate.IsGated);
+        var paging = vm.GoToPageAsync(2);
+        Assert.False(vm.PinnedGate.IsGated);
+        await paging;
+        await vm.LoadAsync();
+        Assert.False(vm.PinnedGate.IsGated);
+        Assert.DoesNotContain(true, gated);
+        Assert.True(vm.Spotlight.IsVisible);
+
+        var metric = vm.SelectMetricAsync(RankingMetric.FcRate);
+        Assert.True(vm.PinnedGate.IsGated);
+        await metric;
+        await vm.GoToPageAsync(2);
+        Assert.False(vm.PinnedGate.IsGated);
+        var instrument = vm.SelectInstrumentAsync(Instrument.Bass);
+        Assert.True(vm.PinnedGate.IsGated);
+        await instrument;
+
+        // Paging off the player's own page brings the pinned row back mid-reload: it joins the gate.
+        await vm.GoToPageAsync(3);
+        Assert.False(vm.Spotlight.IsVisible);
+        await vm.GoToPageAsync(1);
+        Assert.True(vm.Spotlight.IsVisible);
+        Assert.True(vm.PinnedGate.IsGated);
+    }
+
+    [Fact]
     public async Task RefreshSelectionFollowsDeselection()
     {
         var fake = new RankingsFake();
@@ -925,6 +963,7 @@ public sealed class SongLeaderboardViewModelTests
         Assert.False(vm.ShowRows);
         Assert.True(vm.ShowContent);
         Assert.True(vm.ShowSpotlight);
+        Assert.False(vm.PinnedGate.IsGated);
         Assert.Equal(1, vm.Pager.Page);
         Assert.DoesNotContain(nameof(SongLeaderboardViewModel.ShowContent), changes);
 
@@ -933,6 +972,11 @@ public sealed class SongLeaderboardViewModelTests
         Assert.True(vm.ShowRows);
         Assert.True(vm.ShowContent);
         Assert.Equal(2, vm.Pager.Page);
+
+        // A new invalid-score leeway can change the pinned score: that reload gates it (issue #270).
+        session.UpdateSettings(s => s with { FilterInvalidScores = true });
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.ShowRows);
         vm.Deactivate();
     }
 
