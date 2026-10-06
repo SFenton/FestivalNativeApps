@@ -78,7 +78,7 @@ class MarqueeTextTest {
         assertEquals(FestivalMarquee.Mode.Static, FestivalMarquee.scrollingMode(overflowing = false, held = false))
     }
 
-    /** Issue #186 (`modal-shell` R9): an overflowing marquee stops scrolling while a modal covers it. */
+    /** Issue #186 (`modal-shell` R10): an overflowing marquee stops scrolling while a modal covers it. */
     @Test
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     fun overflowingMarqueeHoldsWhileAModalCoversIt() {

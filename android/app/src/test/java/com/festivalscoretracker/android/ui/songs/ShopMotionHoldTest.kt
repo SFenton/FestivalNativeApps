@@ -9,7 +9,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Issue #186 (`modal-shell` R9): the Shop pulse and breathe hold their still frame behind a modal. */
+/** Issue #186 (`modal-shell` R10): the Shop pulse and breathe hold their still frame behind a modal. */
 @RunWith(AndroidJUnit4::class)
 class ShopMotionHoldTest {
     @get:Rule

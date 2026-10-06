@@ -2,7 +2,7 @@
 
 > **What:** the song header, bar title and backdrop of a song-scoped leaderboard (one instrument or one band size of one song). **Read when:** adding or changing a song leaderboard, or any page that opens a board for one song.
 
-Status: **current**, 2026-10-06. Provenance: operator batch 7.2, #93, #293, #317.
+Status: **current**, 2026-10-06. Provenance: operator batch 7.2, #93, #293, #315, #316, #317.
 
 ## Intent
 
@@ -19,7 +19,7 @@ Every leaderboard for one song looks like the same page: the song is named first
 
 1. **R1. Song first.** The page's header is the song (art, title, artist), with the board's name on the line below: the instrument (with its icon) or the band size ("Duos", "Trios", "Quads"; no icon, like the web). Never a "<Board> Scores" or "<Board> Leaderboard" page title.
 2. **R2. Entry totals only when asked.** The board line adds " · N entries" only when the response's `showLeaderboardEntryTotals` is true.
-3. **R3. Bar title after scroll.** The header scrolls with the rows; the bar's title slot stays empty until the header passes under the bar, then shows small art, the song title (single-line marquee) and the board name. HIG Toolbars (should): "Give each window a useful title… you can omit it when content supplies context."
+3. **R3. Bar title after scroll.** The header scrolls with the rows; the bar's title slot stays empty until the header passes under the bar, then shows small art, the song title (single-line marquee) and the board name. HIG Toolbars (should): "Give each window a useful title… you can omit it when content supplies context." A page change keeps that state: under the bar, the new page starts at its first row with the header still under it and the bar title kept, never flashing the header back while the rows reload; otherwise the page returns to the top. A new board (band size, player) starts at the top with its header in view. Web: `goToPage('paginate')` scrolls to the top but pins the collapsed header (`headerPinned`) until the reader scrolls; natively the header is in the scroll content, so keeping it collapsed means keeping it scrolled away (agent decision, #316 review; the owner may override). Apple: `LeaderboardPaging.reloadScroll(headerUnderBar:boardChanged:)`.
 4. **R4. Song backdrop.** A song-scoped page uses the song's static, dimmed album art (Apple `festivalBackground(.song)`), never the animated carousel, which belongs to pages not tied to one song (Bands, Band Rankings, Band Detail).
 5. **R5. One header per platform, kept through reloads.** Song leaderboards get the header and bar title from the canonical component below, not a feature-local copy. The header sits above the reload gate (web: `SongInfoHeader` in `Page`'s `before` slot, outside its `LoadGate`), so changing the board (band size, instrument), page or selected player keeps the header and backdrop while only the rows reload. The board line names the chosen board at once and adds its total only after that board's response arrives; it never shows another board's total.
 
@@ -27,16 +27,15 @@ Every leaderboard for one song looks like the same page: the song is named first
 
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
-| Header, board line, bar title | `apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift` `SongLeaderboardHeader`, `SongLeaderboardBoardLine`, `SongLeaderboardPinnedTitle` (`SongDetailPinnedTitlePolicy` decides when the header is under the bar) | `android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt` `SongLeaderboardScreen` (Song Detail's `SongHeader`) | `windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs` `LeaderboardsSongPage` |
+| Header, board line, bar title | `apple/Sources/FestivalUI/Common/SongHeaderText.swift` `SongHeaderRow`, `SongBarTitleToolbarItem` and `songHeaderScrollAway` ([song-header](song-header.md)), with `apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardHeader.swift` `SongLeaderboardBoardLine` | `android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongLeaderboardScreen.kt` `SongLeaderboardScreen` (Song Detail's `SongHeader`) | `windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs` `LeaderboardsSongPage` |
 
-Apple consumers: `SoloLeaderboardScreen` (instrument + icon) and `SongBandLeaderboardScreen` (band size), on iPhone, iPad, iPhone Duo and Mac. `SongBandLeaderboardContent` puts the header first in its `ScrollView` with the `FestivalReloadGate` below it, sized to the rest of the visible page so the spinner centres under the header (#317 review). Identifiers: `<page>.header` and `<page>.pinned-title` with `fst.song-leaderboard` / `fst.song-band-leaderboard`.
+Apple consumers: `SoloLeaderboardScreen` (instrument + icon) and `SongBandLeaderboardScreen` (band size), on iPhone, iPad, iPhone Duo and Mac. `SongBandLeaderboardContent` puts the header first in its `ScrollView` with the `FestivalReloadGate` below it, sized to the rest of the visible page so the spinner centres under the header (#317 review). `SoloLeaderboardScreen` keeps the header as the first row of the rows' `List` (it scrolls with them) and holds it through page changes with `FestivalReloadGate`'s retained-frame form: the header and banner render from the last loaded page while only the rows swap (#316; see [load-transition](load-transition.md) R4). While a page loads or after it failed, one result row as tall as the visible list stands in for the rows (empty under the spinner, or the `ServiceStatusView` with Retry), so the header stays and the List cannot clamp a collapsed header back into view. `SongBandLeaderboardContent` grows its gate to the whole visible page for the same case (`rowsAtTop`) until the new rows are revealed. Both use `LeaderboardPaging.reloadScroll` (R3). Both boards decide that the header is under the bar from their scroll view's offset alone (`songHeaderScrollAway(headerBottom:)`: offset ≥ space above the header + its height), never from the header's own geometry: a fling recycles a `List` header row before its geometry reports the hidden position, and a `List`'s `.scrollView` space starts at its frame under the bar, so the Solo bar stayed empty with the header gone (#315, #316 reviews). The bar title is iOS/iPadOS only and uses the bar's full title width ([song-header](song-header.md) R4); the Mac keeps the window title. Identifiers: `<page>.header` and `<page>.pinned-title` with `fst.song-leaderboard` / `fst.song-band-leaderboard`.
 
 ## Known debt
 
 | Debt | Breaks | Plan |
 |---|---|---|
 | Android `ui/bands/SongBandLeaderboardScreen.kt` titles the bar "${type.label} Leaderboard" (its header wraps the shared `SongHeader` since #315) | R1, R3 | Android check filed from #317 |
-| Apple `SoloLeaderboardScreen` builds its header inside the reload gate (first `List` row), so a page change drops the header until the page loads. No board change happens in place there. | R5 | Move the header above the gate (as `SongBandLeaderboardContent` does) when the solo board's `List` is next reworked |
 | Windows `Pages/BandsSongLeaderboardPage.xaml` heads the page "{Band} Leaderboard" with the song as a secondary link | R1 | Windows check filed from #317 |
 
 The song title inside the header and the bar title follows [song-header](song-header.md) (full-width one-line marquee, R2–R4).

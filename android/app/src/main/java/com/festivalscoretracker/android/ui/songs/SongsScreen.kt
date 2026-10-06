@@ -475,7 +475,7 @@ private fun SongList(
 @Composable
 internal fun rememberShopPulse(active: Boolean): () -> Float {
     val still = LocalFestivalAccessibility.current.reduceMotion
-    // Behind a newer modal the outline holds its reduced-motion frame (`modal-shell` R9, issue #186).
+    // Behind a newer modal the outline holds its reduced-motion frame (`modal-shell` R10, issue #186).
     if (!active || still || coveredByModal()) return STILL_PULSE
     val transition = rememberInfiniteTransition(label = "shopPulse")
     val alpha = transition.animateFloat(

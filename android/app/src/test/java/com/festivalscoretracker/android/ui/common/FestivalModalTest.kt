@@ -106,17 +106,31 @@ class FestivalModalTest {
     }
 
     @Test
-    fun compactDialogCloseDismisses() {
+    fun paneTitleDialogCloseDismisses() {
         var dismissed = 0
         rule.setContent {
             FestivalTheme {
-                FestivalModalDialog(title = "Songs", closeTag = "c.close", onDismissRequest = { dismissed++ }, compact = true, paneTitle = "Feature tour: Songs") {
+                FestivalModalDialog(title = "Songs", closeTag = "c.close", onDismissRequest = { dismissed++ }, paneTitle = "Feature tour: Songs") {
                     Text("Slide")
                 }
             }
         }
         rule.onNodeWithTag("c.close").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, dismissed)
+    }
+
+    /** Issue #183: a compact window gets the window width less the 16 dp margins. */
+    @Test
+    fun dialogTakesTheWindowWidthLessMargins() {
+        rule.setContent {
+            FestivalTheme {
+                FestivalModalDialog(title = "What's New", closeTag = "w.close", onDismissRequest = {}, modifier = Modifier.testTag("w.dialog")) {
+                    Text("Notes")
+                }
+            }
+        }
+        val width = with(rule.density) { rule.onNodeWithTag("w.dialog").fetchSemanticsNode().size.width.toDp() }
+        assertEquals(411f - 32f, width.value, 1f)
     }
 
     @Test
@@ -195,7 +209,7 @@ class FestivalModalTest {
     }
 
     /**
-     * Issue #186 (`modal-shell` R9): content behind the newest modal is covered and holds its
+     * Issue #186 (`modal-shell` R10): content behind the newest modal is covered and holds its
      * decorative motion, while the newest modal's own content is not.
      */
     @Test

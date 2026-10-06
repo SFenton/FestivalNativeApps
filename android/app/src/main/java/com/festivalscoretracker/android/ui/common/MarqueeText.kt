@@ -82,7 +82,7 @@ object FestivalMarquee {
      * Mode of the scrolling (`basicMarquee`) branch.
      *
      * @param overflowing The text is wider than its box.
-     * @param held A newer modal covers the marquee (`modal-shell` R9).
+     * @param held A newer modal covers the marquee (`modal-shell` R10).
      * @return [Mode.Static], [Mode.Held] or [Mode.Scrolling].
      */
     fun scrollingMode(overflowing: Boolean, held: Boolean): Mode = when {
@@ -163,7 +163,7 @@ fun FestivalMarqueeText(
     var boxPx by remember { mutableIntStateOf(0) }
     val velocity = with(density) { FestivalMarquee.velocityDp(widthPx.toDp().value) }
     val overflowing = FestivalMarquee.overflows(widthPx, boxPx)
-    // Behind a newer modal the text holds at its start (`modal-shell` R9): the marquee never
+    // Behind a newer modal the text holds at its start (`modal-shell` R10): the marquee never
     // gets focus, so WhileFocused stops it without changing its layout (issue #186).
     val held = coveredByModal()
     if (onOverflowChange != null) {
