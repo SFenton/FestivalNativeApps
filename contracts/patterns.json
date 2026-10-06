@@ -1508,6 +1508,72 @@
           "message": "Apple chart date axes come from the shared barChartDateAxis, which centres each date on its bar (chart-date-axis R1, R4)."
         }
       ]
+    },
+    {
+      "id": "song-header",
+      "title": "Song header",
+      "status": "current",
+      "doc": ".agents/patterns/song-header.md",
+      "summary": "Song pages show the song title and artist on one line each that fills the width beside the album art and marquees only on overflow (Reduce Motion truncates, accessibility sizes wrap), with one compact pinned bar title.",
+      "keywords": [
+        "song header",
+        "song title",
+        "artist",
+        "marquee",
+        "hero",
+        "pinned title",
+        "SongInfoHeader"
+      ],
+      "web": [
+        {
+          "path": "components/songs/headers/SongInfoHeader.tsx",
+          "symbol": "SongInfoHeader"
+        },
+        {
+          "path": "components/common/MarqueeText.tsx",
+          "symbol": "MarqueeText"
+        },
+        {
+          "path": "hooks/ui/useMarqueeSync.ts",
+          "symbol": "useMarqueeSync"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongHeaderText"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
+            "symbol": "SongBarTitle"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
+            "symbol": "SongHeader"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MarqueeText.cs",
+            "symbol": "MarqueeText"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-wrapping-title",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\bText\\(song\\.title\\)",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift"
+          ],
+          "debt": [],
+          "message": "Song headers show the title with the shared SongHeaderText / SongBarTitle (one full-width marqueeing line), not a page-local Text (song-header R1, R5)."
+        }
+      ]
     }
   ]
 }

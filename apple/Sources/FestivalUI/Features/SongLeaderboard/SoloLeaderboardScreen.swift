@@ -242,25 +242,9 @@ struct SoloLeaderboardScreen: View {
                 // principal item let the bar fall back to `navigationTitle`, so the
                 // title showed above the in-page header before any scroll (issue #93).
                 if headerHidden {
-                    HStack(spacing: 8) {
-                        ArtworkTile(raw: song.albumArt, session: session, size: 28)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 0) {
-                            MarqueeText(song.title)
-                                .font(.headline)
-                                .foregroundStyle(FestivalText.primary)
-                                .lineLimit(1)
-                            Text(instrument.label)
-                                .font(.caption)
-                                .foregroundStyle(FestivalText.primary)
-                        }
-                    }
-                    .frame(maxWidth: 240)
-                    // A bar title stays on one line at every text size.
-                    .environment(\.marqueeWrapsAtAccessibilitySizes, false)
-                    .transition(.opacity)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
+                    SongBarTitle(song: song, session: session, caption: instrument.label)
+                        .transition(.opacity)
+                        .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
                 } else {
                     Color.clear
                         .frame(width: 1, height: 1)
@@ -459,33 +443,29 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
-    /// Let the source-chart title and totals scroll above rows at large text sizes.
+    /// The song header: art beside the title, artist and instrument (with the entry
+    /// total), scrolling above rows so large text sizes keep a usable list.
+    ///
+    /// The title and artist fill the width beside the art on one marqueeing line each
+    /// (``SongHeaderText``, issue #315: the title used to wrap beside empty space).
     ///
     /// - Parameter payload: Current chart, including its optional totals disclosure.
-    /// - Returns: A wrapping native song summary over the page backdrop.
+    /// - Returns: The native song summary over the page backdrop.
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
         HStack(spacing: 12) {
             ArtworkTile(raw: song.albumArt, session: session, size: 80)
                 .id(song.albumArt)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(song.title)
-                    .font(.title3.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(song.artist)
-                    .foregroundStyle(FestivalText.primary)
-                    .fixedSize(horizontal: false, vertical: true)
+            SongHeaderText(title: song.title, artist: song.artist, titleFont: .title3.bold(), spacing: 4) {
                 HStack(spacing: 6) {
                     InstrumentIcon(instrument, size: 20)
                         .accessibilityHidden(true)
-                    Text(payload.leaderboard.showLeaderboardEntryTotals == true
+                    MarqueeText(payload.leaderboard.showLeaderboardEntryTotals == true
                         ? "\(instrument.label) · \(payload.leaderboard.totalEntries.formatted()) entries"
                         : instrument.label)
                         .foregroundStyle(FestivalText.primary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer()
         }
         .foregroundStyle(FestivalText.primary)
         // No card or band behind the header, like Song Detail's (operator batch 7.2,

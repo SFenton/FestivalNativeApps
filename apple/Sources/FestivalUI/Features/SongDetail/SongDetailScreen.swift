@@ -320,23 +320,15 @@ struct SongDetailScreen: View {
                     ArtworkTile(raw: song.albumArt, session: session, size: 96)
                         .id(song.albumArt)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 8) {
-                        MarqueeText(song.title, font: .title.bold())
-                            .onGeometryChange(for: Bool.self) { proxy in
-                                SongDetailPinnedTitlePolicy.isHeroHidden(
-                                    titleMaxY: proxy.frame(in: .scrollView).maxY
-                                )
-                            } action: { hidden in
-                                heroTitleHidden = hidden
-                            }
-                        MarqueeText(song.artist, font: .body)
-                            .foregroundStyle(FestivalText.primary)
+                    SongHeaderText(
+                        title: song.title, artist: song.artist, titleFont: .title.bold(), spacing: 8,
+                        onTitleScrolledAway: { heroTitleHidden = $0 }
+                    ) {
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))
                                 .foregroundStyle(FestivalText.primary)
                         }
                     }
-                    .marqueeSync()
                 }
                 .accessibilityElement(children: .combine)
                 // The page's h1 (spec "Accessibility order"): the rotor's first heading.
@@ -572,34 +564,15 @@ extension SongDetailScreen {
     /// layout from jumping as the title appears.
     private var pinnedTitle: some View {
         ZStack(alignment: .leading) {
-            Text(song.title)
-                .font(.headline)
-                .lineLimit(1)
-                .padding(.leading, 36)
-                .hidden()
+            SongBarTitle.layoutPlaceholder(song.title)
             if heroTitleHidden {
-                HStack(spacing: 8) {
-                    ArtworkTile(raw: song.albumArt, session: session, size: 28)
-                        .accessibilityHidden(true)
-                    MarqueeText(song.title)
-                        .font(.headline)
-                        .foregroundStyle(FestivalText.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-                .transition(.opacity)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
-                // The bar caps its text size at accessibility sizes: a long press shows
-                // the title in the Large Content Viewer, as system bar titles do.
-                .accessibilityShowsLargeContentViewer()
-                .accessibilityIdentifier("fst.song-detail.pinned-title")
+                SongBarTitle(song: song, session: session)
+                    .transition(.opacity)
+                    .accessibilityIdentifier("fst.song-detail.pinned-title")
             }
         }
-        .frame(maxWidth: 240)
+        .frame(maxWidth: SongBarTitle.maxWidth)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
-        // A bar title stays on one line at every text size.
-        .environment(\.marqueeWrapsAtAccessibilitySizes, false)
     }
 }
 
