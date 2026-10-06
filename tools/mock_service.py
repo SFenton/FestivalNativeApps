@@ -174,6 +174,13 @@ def _large_catalogue_songs() -> list[dict]:
 
 LARGE_CATALOGUE_SONGS = _large_catalogue_songs()
 
+# `--long-titles`: `fixture-pulse` (scrollable Song Detail, Lead and Duos boards) with a
+# title wider than any navigation bar, so pinned-title width journeys can measure it.
+LONG_TITLE = (
+    "Fixture Pulse: An Extraordinarily Long Synthetic Encore Title "
+    "That Keeps Going Well Past Any Navigation Bar"
+)
+
 
 def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
     """One deterministic `/api/rankings/{instrument}` row for the UX-test fixtures.
@@ -597,6 +604,7 @@ class FixtureServer(ThreadingHTTPServer):
         metadata_edge: bool = False,
         large_rankings: bool = False,
         large_catalogue: bool = False,
+        long_titles: bool = False,
         service_info_discovery: bool = False,
     ) -> None:
         """Create a deterministic, bounded service fixture.
@@ -617,6 +625,7 @@ class FixtureServer(ThreadingHTTPServer):
                 `fixture-team-{n}` rows so pagers have many pages; ranks 1–3 are unchanged.
             large_catalogue: Append 108 synthetic `fixture-song-{n}` songs (#, A–Z) to the
                 demo catalogue; their Lead charts serve the generic fixture leaderboard.
+            long_titles: Retitle `fixture-pulse` with ``LONG_TITLE`` (wider than any bar).
             service_info_discovery: Serve ``SERVICE_INFO_DISCOVERY`` (an update in the
                 registered-band discovery phase) instead of the idle Service Info body.
         """
@@ -639,6 +648,7 @@ class FixtureServer(ThreadingHTTPServer):
         self.metadata_edge = metadata_edge
         self.large_rankings = large_rankings
         self.large_catalogue = large_catalogue
+        self.long_titles = long_titles
         self.service_info_discovery = service_info_discovery
         self.rollover_on_read = rollover_on_read
         self.rollover_on_command = rollover_on_command
@@ -656,6 +666,7 @@ class FixtureServer(ThreadingHTTPServer):
             "metadataEdge": metadata_edge,
             "largeRankings": large_rankings,
             "largeCatalogue": large_catalogue,
+            "longTitles": long_titles,
             "serviceInfoDiscovery": service_info_discovery,
         }
         self._publication_reads = 0
@@ -1646,6 +1657,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 rows = DEMO_SONGS["songs"] + LARGE_CATALOGUE_SONGS
                 songs = {**DEMO_SONGS, "count": len(rows), "songs": rows}
                 etag = '"fst-fixture-large-catalogue-v1"'
+            elif self.fixture.long_titles:
+                rows = [
+                    {**song, "title": LONG_TITLE} if song["songId"] == "fixture-pulse" else song
+                    for song in DEMO_SONGS["songs"]
+                ]
+                songs = {**DEMO_SONGS, "songs": rows}
+                etag = '"fst-fixture-long-titles-v1"'
             else:
                 songs, etag = DEMO_SONGS, SONGS_ETAG
             pin = self.headers.get("X-FST-Publication-Id")
@@ -2029,6 +2047,10 @@ def main() -> None:
         help="append 108 synthetic songs (#, A-Z) for scrolling/section-index captures",
     )
     parser.add_argument(
+        "--long-titles", action="store_true",
+        help="retitle fixture-pulse wider than any bar for pinned-title width journeys",
+    )
+    parser.add_argument(
         "--service-info-discovery", action="store_true",
         help="serve an updating Service Info body in the registered-band discovery phase",
     )
@@ -2066,6 +2088,7 @@ def main() -> None:
         metadata_edge=args.metadata_edge,
         large_rankings=args.large_rankings,
         large_catalogue=args.large_catalogue,
+        long_titles=args.long_titles,
         service_info_discovery=args.service_info_discovery,
     ) as server:
         print(f"Local test fixture service on 127.0.0.1:{server.server_port}", flush=True)
