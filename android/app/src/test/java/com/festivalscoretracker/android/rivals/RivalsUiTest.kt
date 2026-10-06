@@ -5,11 +5,11 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -31,7 +31,6 @@ import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes
-import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -157,7 +156,9 @@ class RivalsUiTest {
         val leadViewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.Solo_Guitar"))
         rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(leadViewAll)
         settle(100)
-        rule.onNode(leadViewAll).assertIsDisplayed().assertTextEquals(RivalText.VIEW_ALL_RIVALS)
+        // view-all-cta R4: TalkBack reads the visible label, then the card.
+        rule.onNode(leadViewAll).assertIsDisplayed()
+        rule.onNode(leadViewAll).assertContentDescriptionEquals("View All Rivals, Lead Rivals")
         rule.onNode(leadViewAll).performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.all-rivals.list")
         rule.onNode(hasText("Lead Rivals") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
@@ -168,7 +169,8 @@ class RivalsUiTest {
         val boardViewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.leaderboard.Solo_Guitar"))
         rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(boardViewAll)
         settle(100)
-        rule.onNode(boardViewAll).assertIsDisplayed().assertTextEquals(RivalText.VIEW_ALL_RIVALS)
+        rule.onNode(boardViewAll).assertIsDisplayed()
+        rule.onNode(boardViewAll).assertContentDescriptionEquals("View All Rivals, Lead Rivals")
         rule.onNode(boardViewAll).performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.all-rivals.list")
     }

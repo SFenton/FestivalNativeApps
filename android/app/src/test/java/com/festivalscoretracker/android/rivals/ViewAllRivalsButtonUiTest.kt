@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -28,7 +29,9 @@ import com.festivalscoretracker.android.core.rivals.RivalEntry
 import com.festivalscoretracker.android.core.rivals.RivalSummary
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.testing.RivalsFixtures
+import com.festivalscoretracker.android.ui.design.VIEW_FULL_LEADERBOARD
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
+import com.festivalscoretracker.android.ui.design.viewAllSpokenName
 import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
@@ -152,5 +155,37 @@ class ViewAllRivalsButtonUiTest {
     fun noViewAllWithoutAnAction() {
         rule.setContent { FestivalTheme { RivalPreviewRows(listOf(entry), onRival = {}, onViewAll = null) } }
         assertEquals(0, rule.onAllNodesWithTag("fst.rivals.view-all").fetchSemanticsNodes().size)
+    }
+
+    /** `view-all-cta` R4: TalkBack reads the visible label first, then the card; the visible label is unchanged. */
+    @Test
+    fun spokenNameStartsWithTheLabelThenNamesTheCard() {
+        rule.setContent {
+            FestivalTheme {
+                Column {
+                    RivalPreviewRows(listOf(entry), onRival = {}, onViewAll = {}, cardName = "Lead")
+                    ViewFullLeaderboardButton(onClick = {}, label = CompeteText.VIEW_FULL_LEADERBOARDS, testTag = "fst.compete.view-full-leaderboards", cardName = "Lead")
+                    ViewFullLeaderboardButton(onClick = {}, testTag = "fst.unnamed")
+                }
+            }
+        }
+        val rivals = rule.onNodeWithTag("fst.rivals.view-all").fetchSemanticsNode().config
+        assertEquals(listOf("View All Rivals, Lead"), rivals[SemanticsProperties.ContentDescription])
+        // TalkBack hears the name once: the visible label stays on screen but leaves the merged semantics (as SeeAllButton).
+        assertFalse("label not read twice", rivals.contains(SemanticsProperties.Text))
+        rule.onNodeWithTag("fst.rivals.view-all.label", useUnmergedTree = true).assertIsDisplayed()
+        val board = rule.onNodeWithTag("fst.compete.view-full-leaderboards").fetchSemanticsNode().config
+        assertEquals(listOf("View Full Leaderboards, Lead"), board[SemanticsProperties.ContentDescription])
+        assertEquals(Role.Button, board[SemanticsProperties.Role])
+        val unnamed = rule.onNodeWithTag("fst.unnamed").fetchSemanticsNode().config
+        assertFalse("no card: the label alone", unnamed.contains(SemanticsProperties.ContentDescription))
+        assertEquals(VIEW_FULL_LEADERBOARD, unnamed[SemanticsProperties.Text].joinToString())
+    }
+
+    @Test
+    fun spokenNameFallsBackToTheLabel() {
+        assertEquals("View All Rivals", viewAllSpokenName("View All Rivals", null))
+        assertEquals("View All Rivals", viewAllSpokenName("View All Rivals", "  "))
+        assertEquals("View All Rivals, Lead Guitar", viewAllSpokenName("View All Rivals", " Lead Guitar "))
     }
 }

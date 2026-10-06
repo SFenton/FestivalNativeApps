@@ -11,7 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.onNodeWithText
 import com.festivalscoretracker.android.core.compete.CompeteText
@@ -197,7 +197,8 @@ class RivalsDeviceJourneyTest {
         val viewAll = hasTestTag("fst.rivals.view-all") and hasAnyAncestor(hasTestTag("fst.rivals.section.Solo_Guitar"))
         rule.onNodeWithTag("fst.rivals.grid").performScrollToNode(viewAll)
         rule.waitForIdle()
-        val node = rule.onNode(viewAll).assertTextEquals(RivalText.VIEW_ALL_RIVALS).fetchSemanticsNode()
+        // view-all-cta R4: TalkBack reads the visible label, then the card.
+        val node = rule.onNode(viewAll).assertContentDescriptionEquals("${RivalText.VIEW_ALL_RIVALS}, Lead Rivals").fetchSemanticsNode()
         assertEquals(Role.Button, node.config[SemanticsProperties.Role])
         val minTargetPx = 48 * rule.activity.resources.displayMetrics.density
         assertTrue("View All Rivals is ${node.size.height}px tall", node.size.height >= minTargetPx)

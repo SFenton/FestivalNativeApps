@@ -539,7 +539,9 @@ class CompeteUiTest {
         assertEquals(boardSize, rivals.size)
         assertEquals(boardLeft, rivals.boundsInRoot.left)
         assertEquals(androidx.compose.ui.semantics.Role.Button, rivals.config[SemanticsProperties.Role])
-        assertEquals(CompeteText.VIEW_ALL_RIVALS, rivals.config[SemanticsProperties.Text].joinToString())
+        // view-all-cta R4: both CTAs read their label, then the card.
+        assertEquals(listOf("View All Rivals, Lead"), rivals.config[SemanticsProperties.ContentDescription])
+        assertEquals(listOf("View Full Leaderboards, Lead"), board.config[SemanticsProperties.ContentDescription])
         rule.onNode(rivalsButton).performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.all-rivals.list")
     }
