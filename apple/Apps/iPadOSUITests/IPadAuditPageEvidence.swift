@@ -222,8 +222,10 @@ enum IPadAuditPageEvidence {
         let window = app.windows.firstMatch.frame
         var bottom = window.maxY
         // Only bars on screen: a sheet covering the tab bar leaves it in the tree but not hittable.
+        // An open drawer covers the bottom bars (they stay in the tree, behind it).
+        let drawerOpen = app.descendants(matching: .any)[IPadAuditWaivers.drawerContainer].exists
         for element in [app.tabBars.firstMatch, app.descendants(matching: .any)["fst.page-tools"]]
-            where element.exists && element.isHittable {
+            where !drawerOpen && element.exists && element.isHittable {
             let frame = element.frame
             if frame.minY > window.midY { bottom = min(bottom, frame.minY) }
         }

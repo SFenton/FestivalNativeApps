@@ -2,7 +2,7 @@
 
 > **What:** shared score and ranking row geometry, columns, name overflow, pager and selected-player behavior. **Read when:** adding or changing any leaderboard, score preview, ranking card, spotlight or board footer.
 
-Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #172, #264, #292, #293, #294, #295, #306, #307.
+Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #170, #172, #264, #292, #293, #294, #295, #306, #307.
 
 ## Intent
 
@@ -20,7 +20,7 @@ Every row in one leaderboard section must read as one aligned, accessible data t
 
 ## Rules
 
-- **R1. Fit columns once per section.** Rank, score, rating and songs widths include spotlight and pinned rows; individual rows never choose their own plan. Use measured row/card width, not device identity. HIG Layout: "Choose layout from size classes, not device type/idiom or orientation."
+- **R1. Fit columns once per section.** Rank, score, rating and songs widths include spotlight and pinned rows; individual rows never choose their own plan. Use measured row/card width, not device identity. Score sections show the season from a 520-unit row and stars from 700 by width alone (web `resolveTopScoresColumns`); when those columns don't fit on one line beside a minimum name (large text), the section's rows stack (R2) instead of dropping them (#170). HIG Layout: "Choose layout from size classes, not device type/idiom or orientation."
 - **R2. Use a 48-unit minimum.** Loaded rows, selected and pinned rows, skeletons and spotlight placeholders share the web baseline; accessibility layouts may grow and stack. HIG Layout: "rows/containers may grow to avoid clipping/overlap and allow multiple lines."
 - **R3. Keep names inside their column.** Overflowing normal-size names marquee through the shared text component; Reduce Motion, inactive/off-screen rows and motion-disabled systems tail-truncate, while accessibility text wraps and assistive technology receives the full name. HIG Motion: "When Reduce Motion is on, reduce automatic and repetitive animation."
 - **R4. Decide Compete songs once per card.** Hide songs played/total on every row only when the longest drawn name cannot fit; keep it in the accessibility value. Other ranking sections keep their shared songs column.
@@ -45,12 +45,26 @@ Agent decision (2026-10-06, owner may override with `/choose`): Android pins the
 
 ### Agent decision: Android band board columns (#172)
 
-Agent decision (2026-10-06, owner may override with `/choose`): on the full song band board, the member cards adopt the pinned footer row's geometry instead of the footer adopting the cards'. `bandBoardColumns` builds one plan from the page rows and the pinned band (rank width measured in both rank styles), fits the footer's `SelectedScoreFooterRow` with it (`rememberScoreColumns(minRankWidth)`) and starts the cards' rank at the footer's 20 dp inset with the footer's gap, so an off-page "#9,968" lines up with the page (R1, R5). R7 keeps the solo-style footer row, which the web also uses (`SongBandLeaderboardPage` renders `LeaderboardEntry` in its footer, although it sizes that rank column separately). Rejected: drawing the footer as a full member card (a four-member card pinned over the list costs most of a phone screen at 2.0 text and breaks R7), and shrinking the footer's insets to the card's 12 dp (the purple highlight would touch the card edge). Song Detail's band cards keep their 12 dp inset and 10 dp gap, as Song Detail's solo cards keep theirs. `StackedScoreRow` now puts its 8 dp gap outside the shared rank width, so names start at the same x on every large-text row. MD3 Lists: "In Compose, prefer Material3 list patterns".
+Agent decision (2026-10-06, owner may override with `/choose`): on the full song band board, the member cards adopt the pinned footer row's geometry instead of the footer adopting the cards'. `bandBoardColumns` builds one plan from the page rows and the pinned band (rank width measured in both rank styles), fits the footer's `SelectedScoreFooterRow` with it (`rememberScoreColumns(minRankWidth)`) and starts the cards' rank at the footer's 20 dp inset with the footer's gap, so an off-page "#9,968" lines up with the page (R1, R5). R7 keeps the solo-style footer row, which the web also uses (`SongBandLeaderboardPage` renders `LeaderboardEntry` in its footer, although it sizes that rank column separately). Rejected: drawing the footer as a full member card (a four-member card pinned over the list costs most of a phone screen at 2.0 text and breaks R7), and shrinking the footer's insets to the card's 12 dp (the purple highlight would touch the card edge). Song Detail's band cards keep their 12 dp inset and 10 dp gap, as Song Detail's solo cards keep theirs. `StackedScoreRow` puts its 8 dp gap (`STACKED_RANK_GAP`) outside the shared rank width (as #149 also found), so names start at the same x on every large-text row. MD3 Lists: "In Compose, prefer Material3 list patterns".
+
+### Agent decision: score rows stack instead of dropping the season (#170)
+
+Agent decision (#170, 2026-10-05, owner may override with `/choose`): Android score sections (Song Detail instrument cards, the song board and its pinned rows, the band board footer) keep the season from a 520 dp row and stars from 700 dp, as the web's `resolveTopScoresColumns` does (`showSeason: width >= 520`, `showStars: width >= MOBILE_BREAKPOINT`, no fit exception). When those columns plus a minimum name don't fit on one line, which in practice happens only at large text, `LeaderboardColumnLayout.fit` sets `stacked` for the whole section and `ScoreRow` draws its existing `StackedScoreRow` (rank and wrapping name, then score, accuracy, season and stars in a `FlowRow`). Rows without a season or stars never stack for fit, so narrow phones are unchanged.
+
+| Option | Result | Guidance and precedent |
+|---|---|---|
+| A. Keep the fit-based drop (stars, then season) | 520–640 dp cards at 200% hide the season, unlike the web. | A native copy with no web precedent. |
+| **B. Stack the rows and keep the columns (chosen)** | Every row at least 520 dp shows the season at every text size; the rows grow taller. | Web `resolveTopScoresColumns` (width only); R2 "accessibility layouts may grow and stack"; WCAG 1.4.4 Resize text; MD3 Lists: "In Compose, prefer Material3 list patterns" (consider). |
+| C. Keep the season and squeeze the name | The name marquees in a sliver of the row at 200%. | R3 wants names readable, and accessibility text wraps. |
+
+B wins under the precedence table: web behavior beats an undocumented native copy, and it reuses the large-text layout that already exists instead of adding a new one. Windows' `LeaderboardColumnLayout.Fit` still drops the season on fit (see Known debt). Apple's `LeaderboardRowColumns` decides it from width alone.
+
 ## Known debt
 
 | Debt | Breaks | Plan |
 |---|---|---|
 | Apple’s fitter decides difficulty and stars, but Apple score rows do not yet render them. | Full web metadata parity on Apple score rows. | `TODO(orchestrator): scope the missing Apple score metadata columns.` |
+| Windows `Festival.Core/Domain/LeaderboardColumnLayout.cs` `Fit` still drops stars and then an unpinned row's season when the one-line row overflows (large text), unlike R1 and the web (#170). | R1 season/stars rule on Windows at large text. | Windows lane: stack the score rows instead (it already computes `stacked`), as Android does. |
 
 ## Guards (`tools/pattern_guard.py`)
 

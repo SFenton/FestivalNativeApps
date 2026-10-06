@@ -336,6 +336,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         var pageEvidence: IPadAuditPageEvidence.Evidence?
         /// Growth and read-back evidence for Dynamic Type heuristics (``IPadAuditTextEvidence``).
         var text: IPadAuditTextEvidence.Evidence?
+        /// Absent from the accessibility snapshot (hidden by a modal panel), when checked.
+        var outsideTree: Bool?
         /// The waiver that accepted this issue (``IPadAuditWaivers``), if any.
         var waiver: String?
     }
@@ -403,7 +405,8 @@ final class IPadAccessibilityAuditTests: XCTestCase {
                         containers: finding.frame.isEmpty ? [] : Set(containers.compactMap { id, frame in
                             let rect = NSCoder.cgRect(for: finding.frame)
                             return frame.contains(CGPoint(x: rect.midX, y: rect.midY)) ? id : nil
-                        })
+                        }),
+                        outsideTree: finding.outsideTree ?? false
                     ),
                     page: page.name, mode: mode.rawValue
                 )?.id

@@ -498,6 +498,40 @@ public class SongScoreHistoryViewModelTests
     }
 
     [Fact]
+    public async Task DetailSlot_StaysReservedAfterASwitchUntilABarIsToggled()
+    {
+        var (_, session, _, _) = Setup();
+        var vm = new SongScoreHistoryViewModel(session, "s1", null);
+        await vm.LoadAsync(Song(), [Instrument.Lead, Instrument.Bass]);
+        Assert.False(vm.ShowDetailSlot);
+        vm.SelectInstrument(Instrument.Bass); // no bar open: nothing to reserve
+        Assert.False(vm.ReservesDetail || vm.ShowDetailSlot);
+        vm.SelectInstrument(Instrument.Lead);
+        vm.ToggleBar(vm.Bars[^1].Index);
+        Assert.True(vm.HasSelectedPoint && vm.ShowDetailSlot);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        vm.SelectInstrument(Instrument.Bass); // web: the new chart opens with no bar selected; the row's space stays
+        Assert.False(vm.HasSelectedPoint);
+        Assert.True(vm.ReservesDetail && vm.ShowDetailSlot);
+        // The view reads the closed row's height when the reservation starts, so it must come before the row clears.
+        Assert.True(changed.IndexOf(nameof(vm.ReservesDetail)) < changed.IndexOf(nameof(vm.SelectedRow)));
+        vm.SelectInstrument(Instrument.Lead); // rapid switches keep it
+        vm.SelectInstrument(Instrument.Bass);
+        Assert.True(vm.ShowDetailSlot);
+        vm.ToggleBar(vm.Bars[0].Index); // picking a bar fills the slot
+        Assert.True(vm.HasSelectedPoint && vm.ShowDetailSlot);
+        Assert.False(vm.ReservesDetail);
+        vm.ToggleBar(vm.Bars[0].Index); // clearing it closes the row, as with no switch
+        Assert.False(vm.ShowDetailSlot);
+        vm.ToggleBar(vm.Bars[0].Index);
+        vm.SelectInstrument(Instrument.Lead);
+        Assert.True(vm.ReservesDetail);
+        await vm.LoadAsync(Song(), [Instrument.Lead, Instrument.Bass]); // a reload starts clean
+        Assert.False(vm.ReservesDetail || vm.ShowDetailSlot);
+    }
+
+    [Fact]
     public async Task InvalidScoresAreFiltered_AndNoVisibleChartHides()
     {
         var (_, session, _, _) = Setup(settings: new AppSettings { FilterInvalidScores = true, Leeway = 0 });
