@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -119,6 +118,7 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 
 // region Screen
 
@@ -199,7 +199,7 @@ fun SongBandLeaderboardScreen(
     }
 
     FestivalScreen(title = "${type.label} Leaderboard", isRoot = false, modifier = Modifier.testTag("fst.song-band-leaderboard.screen")) { padding ->
-        var contentLeft by remember { mutableFloatStateOf(0f) }
+        var contentLeft by rememberMeasuredPx(0f)
         BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
             val split = BandLayout.listSplit(rememberBandHinge(contentLeft, maxWidth))
             SideEffect { twoPane = split.twoPane && split.leadingWidth != null }

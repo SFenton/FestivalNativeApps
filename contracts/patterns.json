@@ -930,6 +930,10 @@
             "symbol": "RankingsPager"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "rememberRankingRowWidth"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
           },
