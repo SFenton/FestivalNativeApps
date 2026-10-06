@@ -30,6 +30,8 @@ UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
 EXE = journey_exe.DEBUG_EXE
 RIVAL = "f1c749eb07c32578cfa3e59ec38c03a8"
 LEADERBOARD_RIVAL = "f1c71052e0052ae7143f3b3c750f2f49"  # rank 2 in contracts/fixtures/leaderboard-rivals-demo.json
+# Narrator name of RIVAL's row (rivals-list-demo.json, renamed by rivals_fixture.py): ahead/behind, never a shared count (#67, #267).
+RIVAL_NAME = "Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind"
 
 # name -> (environment, route, steps). {shot:NAME} placeholders become screenshots when --shots is given.
 SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
@@ -39,6 +41,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
         [
             "waitfor:id=fst.rivals.section.common@20",
             f"waitfor:id=fst.rivals.row.{RIVAL}@10",
+            f"assertname:id=fst.rivals.row.{RIVAL}|{RIVAL_NAME}",
             "{shot:hub}",
             "select:id=fst.rivals.tab.leaderboard",
             "waitfor:id=fst.rivals.section.leaderboard.Solo_Guitar@10",
@@ -47,11 +50,11 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "{shot:hub-leaderboard}",
             "select:id=fst.rivals.tab.song",
             "waitfor:id=fst.rivals.section.common@10",
-            f"click:id=fst.rivals.row.{RIVAL}",
+            f"invoke:id=fst.rivals.row.{RIVAL}",
             "waitfor:id=fst.rival-detail.category.closest_battles@15",
             "waitfor:id=fst.rival-detail.view-profile@10",
             "{shot:detail}",
-            "click:id=fst.rival-detail.see-all",
+            "invoke:id=fst.rival-detail.see-all",
             "waitfor:id=fst.rivalry.list@15",
             "waitfor:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@10",
             "expand:id=fst.rivalry.sort",
@@ -63,9 +66,10 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rival-detail.title@10",
             "key:alt+left",
             "waitfor:id=fst.rivals.see-all@10",
-            "click:id=fst.rivals.see-all",
+            "invoke:id=fst.rivals.see-all",
             "waitfor:id=fst.all-rivals.list@15",
             f"waitfor:id=fst.all-rivals.row.{RIVAL}@10",
+            f"assertname:id=fst.all-rivals.row.{RIVAL}|{RIVAL_NAME}",
             "{shot:all-rivals}",
         ],
     ),

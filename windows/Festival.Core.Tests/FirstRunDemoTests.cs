@@ -1,3 +1,6 @@
+using System.Globalization;
+using Festival.Core.ViewModels;
+
 namespace Festival.Core.Tests;
 
 public class FirstRunDemoTests
@@ -281,5 +284,38 @@ public class FirstRunDemoTests
         Assert.Equal(6, FirstRunDemos.RivalsBelow.Count);
         Assert.Equal(3, FirstRunDemos.InstrumentRivals.Count);
         Assert.Equal(6, FirstRunDemos.RivalDetailCategories.Count);
+    }
+
+    [Fact]
+    public void RivalDemos_ShowTheRowsAheadAndBehindWithoutSharedCount()
+    {
+        // Issue #267 (Windows check of #67/#40): the Rivals/Compete demos repeat the real row's pills, never "shared".
+        var culture = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        try
+        {
+            var keyDrifter = FirstRunDemos.RivalsAbove[0];
+            Assert.Equal("66 songs ahead · 82 songs behind", keyDrifter.CountsText);
+            Assert.Equal("KeyDrifter · 66 songs ahead · 82 songs behind", keyDrifter.GroupLine);
+            Assert.Equal(new FirstRunDemoRow("KeyDrifter", "66 songs ahead · 82 songs behind", "▲ 12"), keyDrifter.Row);
+            Assert.Equal("▼ 10", FirstRunDemos.RivalsBelow[0].Row.Value);
+            var all = FirstRunDemos.RivalsAbove.Concat(FirstRunDemos.RivalsBelow)
+                .Concat(FirstRunDemos.InstrumentRivals.Values.SelectMany(p => p.Above.Concat(p.Below)));
+            foreach (var rival in all)
+            {
+                var row = new RivalRowItem(rival.AccountId, rival.DisplayName, RivalDirection.Above, rival.BehindCount, rival.AheadCount, null,
+                    new AppRoute.RivalDetail(rival.AccountId));
+                Assert.Equal($"{row.AheadText} · {row.BehindText}", rival.CountsText);
+                foreach (var text in new[] { rival.GroupLine, rival.Row.Title, rival.Row.Detail, rival.Row.Value })
+                {
+                    Assert.DoesNotContain("shared", text, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain(rival.SharedSongCount.ToString(CultureInfo.InvariantCulture), text, StringComparison.Ordinal);
+                }
+            }
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = culture;
+        }
     }
 }
