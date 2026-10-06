@@ -156,6 +156,12 @@ public class SongPathsViewModelTests
         Assert.Equal(expected, SongPathsViewModel.FitImageWidth(viewport, pixels, scale));
 
     [Theory]
+    [InlineData(true, false)] // Windows default: bars auto-hide, so the chart shows none
+    [InlineData(false, true)] // "Always show scrollbars" turned on
+    public void ShowChartScrollBars_OnlyWhenTheSystemAlwaysShowsThem(bool autoHide, bool expected) =>
+        Assert.Equal(expected, SongPathsViewModel.ShowChartScrollBars(autoHide));
+
+    [Theory]
     [InlineData(1.0003, 1)] // DPI-snapped float just past fit: "100%" must disable Zoom out
     [InlineData(1.0049, 1)]
     [InlineData(0.9997, 1)]

@@ -37,6 +37,7 @@ public sealed partial class SongPathsView : UserControl
     private bool stacked;
     private Festival.Core.Data.PathImage? preparedFor;
     private BitmapImage? prepared;
+    private readonly Windows.UI.ViewManagement.UISettings scrollBarSettings = new();
 
     /// <summary>Creates the view for a Paths session.</summary>
     /// <param name="viewModel">Paths model.</param>
@@ -57,6 +58,7 @@ public sealed partial class SongPathsView : UserControl
             if (IsLoaded) ScreenReader.Announce(this, announcement);
         };
         ApplySwapTransitions();
+        ApplyScrollBars();
         Loaded += (_, _) => ApplySwapTransitions();
     }
 
@@ -69,6 +71,7 @@ public sealed partial class SongPathsView : UserControl
     {
         Motion.Changed += OnMotionChanged;
         ContrastTheme.Changed += OnColorsChanged;
+        scrollBarSettings.AutoHideScrollBarsChanged += OnAutoHideScrollBarsChanged;
     }
 
     /// <summary>Stops following system changes once the dialog has closed.</summary>
@@ -76,7 +79,25 @@ public sealed partial class SongPathsView : UserControl
     {
         Motion.Changed -= OnMotionChanged;
         ContrastTheme.Changed -= OnColorsChanged;
+        scrollBarSettings.AutoHideScrollBarsChanged -= OnAutoHideScrollBarsChanged;
     }
+
+    /// <summary>
+    /// Hides the chart's scroll bars, scroll modes and zoom unchanged, unless Windows always shows scroll bars
+    /// (<see cref="SongPathsViewModel.ShowChartScrollBars"/>; issues #87, #279).
+    /// </summary>
+    private void ApplyScrollBars()
+    {
+        var visibility = SongPathsViewModel.ShowChartScrollBars(scrollBarSettings.AutoHideScrollBars)
+            ? ScrollBarVisibility.Auto
+            : ScrollBarVisibility.Hidden;
+        ImageScroller.HorizontalScrollBarVisibility = visibility;
+        ImageScroller.VerticalScrollBarVisibility = visibility;
+    }
+
+    /// <summary>Re-applies the chart's scroll bars when "Always show scrollbars" changes (raised off the UI thread).</summary>
+    private void OnAutoHideScrollBarsChanged(Windows.UI.ViewManagement.UISettings sender, Windows.UI.ViewManagement.UISettingsAutoHideScrollBarsChangedEventArgs args) =>
+        DispatcherQueue.TryEnqueue(ApplyScrollBars);
 
     /// <summary>Paths model.</summary>
     public SongPathsViewModel ViewModel { get; }

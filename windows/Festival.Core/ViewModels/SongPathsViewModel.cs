@@ -79,6 +79,17 @@ public sealed partial class SongPathsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Whether the chart scroller shows scroll bars (issues #87, #279). The owner asked for no scroll bar or indicator beside
+    /// the path image, so the bars are hidden while Windows auto-hides scroll bars (the default); wheel, Ctrl+wheel, pinch,
+    /// touch, touchpad and arrow/Page keys still scroll and zoom. Turning off Settings › Accessibility › Visual effects ›
+    /// "Always show scrollbars" is an explicit request for visible bars, so they show then (the macOS Paths precedent:
+    /// hidden indicators that still appear when System Settings asks to always show scroll bars).
+    /// </summary>
+    /// <param name="systemAutoHidesScrollBars"><c>UISettings.AutoHideScrollBars</c>.</param>
+    /// <returns><see langword="true"/> only when the system always shows scroll bars.</returns>
+    public static bool ShowChartScrollBars(bool systemAutoHidesScrollBars) => !systemAutoHidesScrollBars;
+
+    /// <summary>
     /// Zoom factor reported by the image scroller, as a model zoom: clamped to <see cref="MinZoom"/>–<see cref="MaxZoom"/>
     /// and snapped onto a bound within half a displayed percent. The scroller returns a float that DPI snapping can leave
     /// just past a bound (1.0003 at 150% display scale), which read "100%" while Zoom out stayed enabled (issue #279).

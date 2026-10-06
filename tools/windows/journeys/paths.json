@@ -95,6 +95,7 @@
       "wait:1",
       "scrollto:id=fst.paths.image-scroller,100",
       "wait:0.5",
+      "assertnoscrollbar:id=fst.paths.image-scroller",
       "assertstate:id=fst.paths.image-scroller|scroll=100",
       "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"
     ],
@@ -120,6 +121,7 @@
       "waitfor:name=225%@5",
       "scrollto:id=fst.paths.image-scroller,50",
       "wait:0.5",
+      "assertnoscrollbar:id=fst.paths.image-scroller",
       "invoke:id=fst.paths.zoom-out",
       "invoke:id=fst.paths.zoom-out",
       "waitfor:name=100%@5",

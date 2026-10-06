@@ -77,6 +77,13 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertnoscrollbar_takes_an_element_selector(self):
+        step = u.parse_step("assertnoscrollbar:id=fst.paths.image-scroller")
+        self.assertEqual((step["verb"], step["selector"]), ("assertnoscrollbar", {"kind": "id", "value": "fst.paths.image-scroller"}))
+        for bad in ("assertnoscrollbar:5,6", "assertnoscrollbar:"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_paths_resize_and_errors(self):
         shot = u.parse_step("shot:out/a.png@screen")
         self.assertEqual(shot["mode"], "screen")
