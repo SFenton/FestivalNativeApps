@@ -60,6 +60,7 @@
       "shot:{stem}-bass.png"
     ],
     "tabs": 0,
+    "skip_modes": ["no-animations", "app-reduced"],
     "skip_sizes": {
       "text-150": [
         "compact"
