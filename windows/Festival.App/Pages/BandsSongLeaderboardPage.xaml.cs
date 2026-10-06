@@ -19,6 +19,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         InitializeComponent();
         Controls.BoardFooter.Inset(Footer, Rows);
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Rows, Footer);
         SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
     }
 

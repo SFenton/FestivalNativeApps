@@ -32,5 +32,33 @@ public static class BoardFooterEdgeFade
     /// </summary>
     public static IReadOnlyList<(float Offset, float Alpha)> Stops { get; } =
         [.. SongHeaderEdgeFade.Stops.Select(s => (s.Offset, 1 - s.Alpha))];
+
+    #region UI Automation state
+    /// <summary>UIA ItemStatus while no mask is drawn: no rows (loading, empty, error) or no floating footer.</summary>
+    public const string StatusHidden = "hidden";
+
+    /// <summary>UIA ItemStatus for the accessibility hard cut at the footer's top (R7).</summary>
+    public const string StatusHardEdge = "hard-edge";
+
+    /// <summary>UIA ItemStatus with nothing left below (the end of the list, or rows that fit): nothing is dimmed (R4).</summary>
+    public const string StatusEnd = "end";
+
+    /// <summary>Prefix of the UIA ItemStatus while rows fade above the footer; the drawn ramp depth in whole epx follows.</summary>
+    public const string StatusFadingPrefix = "fading:";
+
+    /// <summary>
+    /// The board footer edge state that the fade layer publishes to UI Automation, from the mask actually drawn, so a
+    /// UI test can tell the 36 epx ramp, the end state and the R7 hard cut apart without reading pixels.
+    /// </summary>
+    /// <param name="drawn">Whether the mask is drawn (rows and a floating footer are shown).</param>
+    /// <param name="enabled">Whether the settings allow the ramp (<see cref="SongHeaderEdgeFade.IsEnabled"/>).</param>
+    /// <param name="drawnDepth">The drawn gradient's span above the footer's top, epx.</param>
+    /// <returns><see cref="StatusHidden"/>, <see cref="StatusHardEdge"/>, <see cref="StatusEnd"/> or <c>fading:&lt;epx&gt;</c>.</returns>
+    public static string Status(bool drawn, bool enabled, double drawnDepth) =>
+        !drawn ? StatusHidden
+        : !enabled ? StatusHardEdge
+        : !(drawnDepth >= 1) ? StatusEnd
+        : StatusFadingPrefix + Math.Round(drawnDepth).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    #endregion
 }
 #endregion

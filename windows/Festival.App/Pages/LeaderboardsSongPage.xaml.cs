@@ -15,21 +15,13 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     private CancellationTokenSource headerArt = new();
     private int shownPage;
     private bool spotlightShown;
-    private readonly BoardFooterFade footerFade;
-    private readonly Windows.UI.ViewManagement.UISettings fadeUiSettings = new();
 
     /// <summary>Creates the page.</summary>
     public LeaderboardsSongPage()
     {
         InitializeComponent();
         BoardFooter.Inset(Footer, ScrollContent);
-        footerFade = new BoardFooterFade(BoardFadeSource, BoardFadeHost);
-        Scroller.ViewChanged += (_, _) => UpdateFooterFade();
-        Footer.SizeChanged += (_, _) => UpdateFooterFade();
-        BoardFadeSource.SizeChanged += (_, _) => UpdateFooterFade();
-        BoardFadeSource.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => UpdateFooterFade());
-        Loaded += (_, _) => AttachFooterFadeSettings();
-        Unloaded += (_, _) => DetachFooterFadeSettings();
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
     }
 
     /// <summary>Page model (set on navigation).</summary>
@@ -132,57 +124,5 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         args.Handled = true;
         _ = ViewModel.LoadAsync();
     }
-
-    #region Footer fade
-    /// <summary>
-    /// Fades rows out above the floating "your score" row and pager while more rows lie below, and hides them beneath
-    /// the footer (scroll-edge R2–R4, issues #93, #308, web <c>useScrollFade</c>). A contrast theme, Windows transparency
-    /// effects off or the in-app Increase Contrast or Less Transparency setting turns the ramp into a hard cut at the
-    /// footer's top (R7), so no row text shows between or behind the footer's controls; under a contrast theme a
-    /// window-colour plate also backs the footer. Runs on scroll and size changes only.
-    /// </summary>
-    private void UpdateFooterFade()
-    {
-        var settings = App.Session.Settings;
-        var contrast = ContrastTheme.IsOn;
-        var shown = BoardFadeSource.Visibility == Visibility.Visible && Footer.ActualHeight > 0;
-        FooterPlate.Visibility = contrast && shown ? Visibility.Visible : Visibility.Collapsed;
-        if (contrast && shown) FooterPlate.Height = Footer.ActualHeight;
-        var enabled = SongHeaderEdgeFade.IsEnabled(contrast, fadeUiSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
-        double? top = shown ? Footer.TransformToVisual(BoardFadeSource).TransformPoint(default).Y : null;
-        footerFade.Update(top, BoardFooterEdgeFade.FadeDepth(Scroller.ScrollableHeight, Scroller.VerticalOffset, enabled));
-    }
-
-    /// <summary>Follows appearance changes that switch the fade on or off while the page is shown.</summary>
-    private void AttachFooterFadeSettings()
-    {
-        App.Session.PropertyChanged += OnFooterFadeSettingsChanged;
-        fadeUiSettings.AdvancedEffectsEnabledChanged += OnFooterFadeSystemChanged;
-        // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
-        fadeUiSettings.ColorValuesChanged += OnFooterFadeSystemChanged;
-        UpdateFooterFade();
-    }
-
-    /// <summary>Stops following appearance changes.</summary>
-    private void DetachFooterFadeSettings()
-    {
-        App.Session.PropertyChanged -= OnFooterFadeSettingsChanged;
-        fadeUiSettings.AdvancedEffectsEnabledChanged -= OnFooterFadeSystemChanged;
-        fadeUiSettings.ColorValuesChanged -= OnFooterFadeSystemChanged;
-    }
-
-    /// <summary>Re-evaluates the fade when the in-app settings change.</summary>
-    /// <param name="sender">Session.</param>
-    /// <param name="e">Changed property.</param>
-    private void OnFooterFadeSettingsChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == "Settings") DispatcherQueue.TryEnqueue(UpdateFooterFade);
-    }
-
-    /// <summary>Re-evaluates the fade when Windows transparency effects or the contrast theme change (any thread).</summary>
-    /// <param name="sender">Settings source.</param>
-    /// <param name="args">Ignored.</param>
-    private void OnFooterFadeSystemChanged(object sender, object args) => DispatcherQueue.TryEnqueue(UpdateFooterFade);
-    #endregion
 }
 #endregion
