@@ -1,0 +1,264 @@
+[
+  {
+    "name": "back-leaderboards-instrument",
+    "route": "/leaderboards",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.leaderboards.card.Solo_Drums.view-all@15",
+      "scrollinset:id=fst.leaderboards.card.Solo_Drums|id=fst.leaderboards|8",
+      "wait:1",
+      "focus:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "wait:1",
+      "pin:id=fst.leaderboards.card.Solo_Drums",
+      "pin:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "key:enter",
+      "waitfor:id=fst.full-rankings.list@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.leaderboards.card.Solo_Drums@15",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "wait:1.5",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "assertfocus:id=fst.leaderboards.card.Solo_Drums.view-all@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-leaderboards-band",
+    "route": "/leaderboards",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.leaderboards.band-card.Band_Duets.view-all@15",
+      "wait:1",
+      "focus:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "wait:1",
+      "pin:id=fst.leaderboards.band-card.Band_Duets",
+      "pin:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "key:enter",
+      "waitfor:id=fst.band-rankings.list@20",
+      "wait:1",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.leaderboards.band-card.Band_Duets@15",
+      "assertpinned:id=fst.leaderboards.band-card.Band_Duets",
+      "assertpinned:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "wait:1.5",
+      "assertpinned:id=fst.leaderboards.band-card.Band_Duets",
+      "assertpinned:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "assertfocus:id=fst.leaderboards.band-card.Band_Duets.view-all@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-leaderboards-selected",
+    "route": "/leaderboards",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "waitgone:name=Loading your rank@10"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.leaderboards.card.Solo_Drums.view-all@15",
+      "scrollinset:id=fst.leaderboards.card.Solo_Drums|id=fst.leaderboards|8",
+      "wait:1",
+      "focus:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "wait:1",
+      "pin:id=fst.leaderboards.card.Solo_Drums",
+      "pin:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "key:enter",
+      "waitfor:id=fst.full-rankings.list@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.leaderboards.card.Solo_Drums@15",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "wait:1.5",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "assertfocus:id=fst.leaderboards.card.Solo_Drums.view-all@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-rivals-view-all",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rivals.title@25"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.rivals.section.Solo_Guitar.view-all@25",
+      "wait:1",
+      "focus:id=fst.rivals.section.Solo_Guitar.view-all",
+      "wait:1",
+      "pin:id=fst.rivals.section.Solo_Guitar.view-all",
+      "key:enter",
+      "waitfor:id=fst.all-rivals.list@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.rivals.section.Solo_Guitar.view-all@15",
+      "assertpinned:id=fst.rivals.section.Solo_Guitar.view-all",
+      "wait:1.5",
+      "assertpinned:id=fst.rivals.section.Solo_Guitar.view-all",
+      "assertfocus:id=fst.rivals.section.Solo_Guitar.view-all@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-rivals-row",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rivals.title@25"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@25",
+      "wait:1",
+      "focus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "wait:1",
+      "pin:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "key:enter",
+      "waitfor:id=fst.rival-detail.title@20",
+      "wait:1",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@15",
+      "assertpinned:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "wait:1.5",
+      "assertpinned:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "assertfocus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-songs-row",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact",
+      "medium",
+      "snap-left",
+      "snap-right"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.songs.row.fixture-pulse",
+      "wait:1",
+      "pin:id=fst.songs.row.fixture-pulse",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.songs.row.fixture-pulse@15",
+      "assertpinned:id=fst.songs.row.fixture-pulse",
+      "wait:1.5",
+      "assertpinned:id=fst.songs.row.fixture-pulse",
+      "assertfocus:id=fst.songs.row.fixture-pulse@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-shop-song",
+    "route": "/shop",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.shop.song.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shop.song.fixture-pulse",
+      "wait:1",
+      "pin:id=fst.shop.song.fixture-pulse",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.shop.song.fixture-pulse@15",
+      "assertpinned:id=fst.shop.song.fixture-pulse",
+      "wait:1.5",
+      "assertpinned:id=fst.shop.song.fixture-pulse",
+      "assertfocus:id=fst.shop.song.fixture-pulse@3",
+      "shot:{stem}-back.png"
+    ]
+  },
+  {
+    "name": "back-leaderboards-live",
+    "route": "/leaderboards",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar@40",
+      "waitgone:name=Loading your rank@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.leaderboards.card.Solo_Drums.view-all@15",
+      "scrollinset:id=fst.leaderboards.card.Solo_Drums.view-all|id=fst.leaderboards|8",
+      "wait:1",
+      "focus:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "wait:1",
+      "pin:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "key:enter",
+      "waitfor:id=fst.full-rankings.list@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.leaderboards.card.Solo_Drums.view-all@15",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "wait:1.5",
+      "assertpinned:id=fst.leaderboards.card.Solo_Drums.view-all",
+      "assertfocus:id=fst.leaderboards.card.Solo_Drums.view-all@3",
+      "shot:{stem}-back.png",
+      "scrollinto:id=fst.leaderboards.band-card.Band_Duets.view-all@15",
+      "wait:1",
+      "focus:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "wait:1",
+      "pin:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "key:enter",
+      "waitfor:id=fst.band-rankings.list@20",
+      "wait:1",
+      "invoke:id=PART_BackButton",
+      "waitfor:id=fst.leaderboards.band-card.Band_Duets.view-all@15",
+      "assertpinned:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "wait:1.5",
+      "assertpinned:id=fst.leaderboards.band-card.Band_Duets.view-all",
+      "assertfocus:id=fst.leaderboards.band-card.Band_Duets.view-all@3",
+      "shot:{stem}-band-back.png"
+    ]
+  },
+  {
+    "name": "back-rivals-live",
+    "route": "/rivals",
+    "profile": "195e93ef108143b2975ee46662d4d0e1:SFentonX",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rivals.title@40"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.rivals.section.Solo_Drums.view-all@60",
+      "wait:1",
+      "focus:id=fst.rivals.section.Solo_Drums.view-all",
+      "wait:1",
+      "pin:id=fst.rivals.section.Solo_Drums.view-all",
+      "key:enter",
+      "waitfor:id=fst.all-rivals.list@20",
+      "wait:1",
+      "key:alt+left",
+      "waitfor:id=fst.rivals.section.Solo_Drums.view-all@15",
+      "assertpinned:id=fst.rivals.section.Solo_Drums.view-all",
+      "wait:1.5",
+      "assertpinned:id=fst.rivals.section.Solo_Drums.view-all",
+      "assertfocus:id=fst.rivals.section.Solo_Drums.view-all@3",
+      "shot:{stem}-back.png"
+    ]
+  }
+]

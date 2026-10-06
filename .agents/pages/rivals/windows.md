@@ -51,7 +51,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 
 ## Back navigation
 
-Back from a cached page keeps its scroll position: `Services/CachedPageScroll` pauses focus-follow scrolling while the page leaves (#82; see [Compete Windows notes](../compete/windows.md)).
+Back from a cached page keeps its scroll position: `Services/CachedPageScroll` pauses focus-follow scrolling while the page leaves (#82) and returns focus to the View All or rival row that was opened, without scrolling (#276); see [Compete Windows notes](../compete/windows.md).
 
 ## Open
 
