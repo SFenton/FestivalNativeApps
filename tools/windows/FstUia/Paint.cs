@@ -107,7 +107,7 @@ internal sealed partial class Driver
                         if (Near(pixels[px, py], expected!.Value, tolerance)) count++;
                 samples.Add(new JsonObject { ["probe"] = text, ["area"] = new JsonArray(area.X, area.Y, area.Width, area.Height), ["matches"] = count, ["centre"] = Hex(centre) });
                 if ((count >= minimum) != (op == "="))
-                    failures.Add($"{text}: {count} px within {tolerance} of {Hex(expected.Value)} in {area} (need {(op == "=" ? "at least" : "fewer than")} {minimum}; centre {Hex(centre)})");
+                    failures.Add($"{text}: {count} px within {tolerance} of {Hex(expected!.Value)} in {area} (need {(op == "=" ? "at least" : "fewer than")} {minimum}; centre {Hex(centre)})");
             }
         }
         return (failures, samples);
