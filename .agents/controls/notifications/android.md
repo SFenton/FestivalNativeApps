@@ -75,6 +75,26 @@ Emulator API 37, debug build, live public service (keyless `GET /api/player/{id}
 | no-profile | `noProfileAsksForAPlayerWithoutReading` |
 | (extras) | `rowWithoutADestinationOnlyMarksItSeen`, `failedReadOffersRetry`; connected `NotificationsDeviceTest` |
 
+## Validation (issue #180, 2026-10-06)
+
+Re-checks the #76 web row design (media rail, bold values, colour-coded flags) with the same setup as #136: emulator API 37, debug build, live public service, SFentonX (11 live rows). **Found:** Android ported only web's single-event copy and one pill per row. Live coalesced rows (`player_first_score` carrying `player_fc_achieved` and `player_gold_stars_achieved`, personal bests with rank climbs) dropped the Full Combo, gold-star and rank clauses and chips. Aggregate and multi-rank statements and per-chart flag groups were also missing. **Fixed:** `NotificationTextEngine.kt` ports the whole web `notificationText.ts`. Live rows now read e.g. "You set a new personal best on **Lead** for **Take Me Higher** with **171,030** points, got a **Full Combo**, earned **gold stars**, and climbed from **#4,223** to **#97**." with New High Score / Full Combo / Gold Stars / Rank Up pills.
+
+| Configuration | Result |
+|---|---|
+| FST_Phone portrait and landscape, font 1.0 and 2.0 | OK: album art rail, bold values, every coalesced pill. At 2.0 the text and pills wrap with no clipping. |
+| FST_Tablet portrait and landscape, font 1.0 and 2.0 | OK: centred 640 dp sheet; at 2.0 four pills wrap to two lines. |
+| FST_Resizable medium / expanded / desktop (desktop also at font 2.0) | OK: rail at medium and expanded, centred sheet. Compact width is covered by FST_Phone. |
+| FST_Book_Fold folded / unfolded / half-open (half also at font 2.0) | OK: half-open puts the sheet in the start pane beside the hinge. |
+| FST_Passport_Fold folded / unfolded / half-open at font 2.0 | OK. |
+| FST_TriFold folded / partial / unfolded (`--display 0`) | OK. |
+
+- Accessibility:
+  - TalkBack reads "Unread. Title. Message. Flags. Time", naming every pill in words (per chart for flag groups). Album art is decorative.
+  - White text on every flag colour is at least 4.5:1 (`flagColoursMatchTheWeb`).
+  - Connected `NotificationsDeviceTest` passes 3/3 on FST_Phone and on FST_Book_Fold half-open: ATF checks, reading order, 48 dp targets and the hinge.
+- The AVDs are shared: other lanes install their own builds, and one older build showed the pre-fix rows. Always drive evidence with `device.py drive --apk …`. When a higher `versionCode` is installed, uninstall it first in a separate `shell:pm uninstall` drive (`INSTALL_FAILED_VERSION_DOWNGRADE`).
+- M3 deviations (deliberate; web parity): Label Medium pills instead of the chip's Label Large; non-interactive pills instead of `AssistChip`. Otherwise as in #136.
+
 ## Open
 
 - Band feeds and combo copy (not read natively); scroll-visibility seen marking.
