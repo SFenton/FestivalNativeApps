@@ -876,7 +876,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -997,6 +997,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/RankingFormatting.kt",
+            "symbol": "RankingSpotlight"
           }
         ],
         "windows": [
