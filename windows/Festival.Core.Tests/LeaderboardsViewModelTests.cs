@@ -620,6 +620,59 @@ public sealed class FullRankingsViewModelTests
     }
 
     [Fact]
+    public async Task InstrumentSwitchKeepsThePinnedRowUntilTheNewBoardCommits()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(30, "acct30") };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/rankings/Solo_Bass") await gate.Task;
+            return await respond(request, token);
+        };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct30")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        var old = vm.Spotlight;
+        Assert.True(old.ShowRow);
+
+        // Issue #270 (load-transition R2): the old pinned row stays in its gated slot and fades out with the old rows,
+        // rather than vanishing when the switch starts; the new board's spotlight replaces it at the commit.
+        var switching = vm.SelectInstrumentAsync(Instrument.Bass);
+        await Async.Until(() => vm.IsLoading);
+        Assert.Same(old, vm.Spotlight);
+        Assert.True(old.IsVisible);
+        gate.SetResult();
+        await switching;
+        Assert.NotSame(old, vm.Spotlight);
+        Assert.True(vm.Spotlight.ShowRow);
+        Assert.Equal(Instrument.Bass, reader.Calls[^1].Item1);
+    }
+
+    [Fact]
+    public async Task FailedInstrumentSwitchDropsTheOldBoardsPinnedRow()
+    {
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(30, "acct30") };
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct30")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        await vm.LoadAsync();
+        var old = vm.Spotlight;
+        fake.Failing.Add("/api/rankings/Solo_Bass");
+
+        await vm.SelectInstrumentAsync(Instrument.Bass);
+        Assert.True(vm.ShowError);
+        Assert.NotSame(old, vm.Spotlight);
+        Assert.False(vm.Spotlight.IsVisible);
+
+        // Same-instrument reloads keep the spotlight (its own read is per instrument).
+        fake.Failing.Clear();
+        await vm.LoadAsync();
+        var bass = vm.Spotlight;
+        await vm.SelectMetricAsync(RankingMetric.FcRate);
+        Assert.Same(bass, vm.Spotlight);
+    }
+
+    [Fact]
     public async Task RefreshSelectionFollowsDeselection()
     {
         var fake = new RankingsFake();

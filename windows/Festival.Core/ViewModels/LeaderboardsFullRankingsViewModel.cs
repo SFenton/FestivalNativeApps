@@ -14,6 +14,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private readonly OwnRankingReader? reader;
+    private Instrument spotlightInstrument;
     private int version;
     private List<AccountRankingEntry> entries = [];
 
@@ -30,7 +31,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         page = Math.Max(1, route.Page);
         Pager = new RankingsPagerViewModel("fst.full-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("full-rankings", "Rankings unavailable", LoadAsync, session.Time);
-        spotlight = NewSpotlight();
+        spotlight = NewSpotlight(instrument);
         LoadSwap = new LoadSwap(session.Time);
         LoadSwap.PropertyChanged += (_, _) =>
         {
@@ -84,7 +85,10 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     [ObservableProperty]
     private List<RankingRowViewModel> rows = [];
 
-    /// <summary>Selected-player spotlight (rebuilt per instrument).</summary>
+    /// <summary>
+    /// Selected-player spotlight, rebuilt when a board for another instrument commits: the old pinned row fades out
+    /// with the old rows instead of vanishing when the switch starts (issue #270, load-transition R2).
+    /// </summary>
     [ObservableProperty]
     private RankingSpotlightViewModel spotlight;
 
@@ -126,7 +130,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// </summary>
     public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
-    /// <summary>Switches instrument (resets to page 1 and the spotlight).</summary>
+    /// <summary>Switches instrument (resets to page 1; the spotlight is rebuilt when the new board commits).</summary>
     /// <param name="value">Instrument.</param>
     /// <returns>Load task.</returns>
     [RelayCommand]
@@ -134,7 +138,6 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     {
         if (value == Instrument) return Task.CompletedTask;
         Instrument = value;
-        Spotlight = NewSpotlight();
         Page = 1;
         return LoadAsync();
     }
@@ -184,6 +187,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 Status.Clear();
+                if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
                 entries = board.Entries;
                 TotalText = $"{board.TotalAccounts:N0} ranked players";
                 Pager.Update(requestedPage, board.PageCount);
@@ -201,6 +205,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 IsRefreshing = false;
+                if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
                 Status.Report(error);
                 State = LoadState.Failed;
             }, AnimateLoadSwaps());
@@ -231,11 +236,13 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
     }
 
-    /// <summary>Creates the spotlight for the current instrument with a jump back into this board.</summary>
+    /// <summary>Creates the spotlight for a board's instrument with a jump back into this board.</summary>
+    /// <param name="board">Instrument of the board it pins to.</param>
     /// <returns>Spotlight.</returns>
-    private RankingSpotlightViewModel NewSpotlight()
+    private RankingSpotlightViewModel NewSpotlight(Instrument board)
     {
-        var created = new RankingSpotlightViewModel(Instrument, reader, session.Time, "full-rankings.spotlight." + Instrument.ServiceId(), GoToPageAsync);
+        spotlightInstrument = board;
+        var created = new RankingSpotlightViewModel(board, reader, session.Time, "full-rankings.spotlight." + board.ServiceId(), GoToPageAsync);
         // The pinned row arrives after the page: widen every rank column to fit it (operator batch 7.9).
         created.PropertyChanged += (_, e) =>
         {

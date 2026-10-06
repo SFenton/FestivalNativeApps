@@ -2,7 +2,7 @@
 
 > **What:** first-load gates, reload swaps, graph card list swaps and row entrances for pages, boards and data-backed modal content. **Read when:** a load, refresh, selector, page or modal switch changes visible data.
 
-Status: **current**, 2026-10-05. Provenance: #30, #60, #61, #70, #71, #149, #169, #260, #261.
+Status: **current**, 2026-10-05. Provenance: #30, #60, #61, #70, #71, #149, #169, #260, #261, #270.
 
 ## Intent
 
@@ -21,7 +21,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 ## Rules
 
 - **R1. Separate first load from reload.** A first-load gate shows one spinner until the initial content is ready; a selector, page or retry reload uses the shared swap rather than a local Boolean or skeleton implementation.
-- **R2. Reloads are latest-wins.** Hide or fade the old result, show the spinner while the newest request settles, fade the spinner, then reveal the committed result and its row stagger. Apple’s immediate old-content removal is the approved #71 variant that prevents new labels on stale rows. Stale content never shows under the spinner: content that keeps its slot beside the spinner (a pinned "your score" row whose slot holds the pager in place, #93) is invisible, absent from the accessibility tree and ignores touches until the new result commits, with or without reduced motion (Android `LoadSwap.pinnedContentModifier`, opt-in for pinned rows only: the song and song band leaderboards, #149).
+- **R2. Reloads are latest-wins.** Hide or fade the old result, show the spinner while the newest request settles, fade the spinner, then reveal the committed result and its row stagger. Apple’s immediate old-content removal is the approved #71 variant that prevents new labels on stale rows. Stale content never shows under the spinner: content that keeps its slot beside the spinner (a pinned "your score" row whose slot holds the pager in place, #93) is invisible, absent from the accessibility tree and ignores touches until the new result commits, with or without reduced motion (Android `LoadSwap.pinnedContentModifier`, opt-in for pinned rows only: the song and song band leaderboards, #149; Windows `SpotlightGate` + `PinnedRowReveal` on the song leaderboard, #295, and Full Rankings, #270).
 - **R3. Use the shared timings.** Board/page swaps use 300 ms content-out and 500 ms spinner-out; Apple gates retain the web 150 ms spinner-in and 400 ms minimum spinner. Paths uses 300 ms fades with a 400 ms image or 500 ms text minimum.
 - **R4. Keep controls usable.** Pickers, pagers and modal selectors live outside the gated result area; a new selection supersedes pending work instead of waiting for it. A pager stays visible and tappable while the next page loads, showing the last loaded page count until the new one commits (web `placeholderData: (previous) => previous`); it hides only for the first load and on failure. The stale-content hiding of R2 never applies to controls (Android band pagers, #149).
 - **R5. Do not replay entry motion while scrolling.** A page-level fade window closes after scroll movement; already-running fades finish, but lazily realized old content appears immediately. Suggestions alone reveals newly generated batches.
@@ -52,6 +52,8 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 - `load-transition/android-load-swap`
 - `load-transition/windows-load-swap`
 - `load-transition/android-graph-list`
+
+Windows R2 pinned rows (#270, agent decision; the owner may override): a board's pinned "your rank" row sits in a `SpotlightGate` that shares the rows' `LoadSwap` (opacity, hit testing and UIA view; the entrance `FadeIn` plays on the inner row, never on the gated element, 0xc000027b). The row fades in with the first row (`PinnedRowReveal.RevealDelay`), a row that arrives after the reveal fades in on its own (`PinnedRowReveal.FadesOnArrival`), and the view model replaces it only when the new board commits. The gate also hides it while paging, although the web keeps the Full Rankings footer on a page change (its query key ignores the page). This keeps one behavior across the song leaderboard and Full Rankings and keeps the pager outside the gate (R4).
 
 Windows R5 window (#260, agent decision after the PR #274 review; the owner may override): the stagger arm lives in `Festival.Core/Domain/MotionPolicy.cs` `StaggerArm`, shared by `FadeIn` and Song Detail's board cards. A load arm (`Restagger` start 0) closes on the first scroll movement of at least 1 DIP from the offset settled after the arm's first layout, or after its 1 s window, whichever comes first; rows realized after that appear without a fade. An appended Suggestions batch (start > 0) stays open while the reader scrolls to it, so only newly generated cards fade. A batch appended while the load arm is still open is merged into it; the first scroll then drops the load rows and keeps the batch.
 

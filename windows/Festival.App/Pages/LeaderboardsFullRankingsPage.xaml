@@ -109,13 +109,18 @@
         <Border x:Name="FooterPlate" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
 
-        <!-- Web fixed footer: the pinned "your rank" row, then the pager, floating over the rows. -->
+        <!-- Web fixed footer: the pinned "your rank" row, then the pager, floating over the rows. The pinned row shares the
+             rows' load gate (song board SpotlightGate, load-transition R2, issue #270): it fades out with the old page so
+             a Rank By or instrument switch never shows the old value beside the spinner, and enters with the first row.
+             The gate (opacity) and the entrance (composition) sit on separate elements (0xc000027b, issue #295). -->
         <StackPanel x:Name="Footer" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
-            <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
-                                            FocusedJump="OnFocusedJump"
-                                            IdPrefix="fst.full-rankings.spotlight-footer"
-                                            JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True"
-                                            Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}" />
+            <Grid x:Name="SpotlightGate" Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}"
+                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content">
+                <controls:LeaderboardsSpotlight x:Name="FooterSpotlight" Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
+                                                FocusedJump="OnFocusedJump"
+                                                IdPrefix="fst.full-rankings.spotlight-footer"
+                                                JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True" />
+            </Grid>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}"
                                         Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
         </StackPanel>
