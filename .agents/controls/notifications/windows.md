@@ -57,4 +57,4 @@ Deliberate deviations from the winui-design/code-review skills: the dark-only th
 
 ## Open
 
-Band feeds, multi-event coalescing copy and flag groups (Android lacks them too; Apple ports them, issue #76); scroll-visibility seen marking.
+Band feeds, multi-event coalescing copy and flag groups (Apple ports them, issue #76; Android, issue #180); scroll-visibility seen marking.
