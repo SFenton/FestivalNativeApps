@@ -224,8 +224,28 @@ private func fixtureSong(_ session: FestivalSession, songId: String) async throw
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-loaded.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
+    let tree = nativeHostedAccessibility(host)
     // No selected player: no pinned band footer (issue #306).
-    #expect(!nativeHostedAccessibility(host).identifiers.contains(songBandFooterID))
+    #expect(!tree.identifiers.contains(songBandFooterID))
+    // The solo board's song header, with the band size where the instrument goes, and
+    // no "<Band> Scores" title (issue #317).
+    #expect(tree.identifiers.contains(songBandHeaderID))
+    #expect(tree.contains(song.title))
+    #expect(tree.contains("Duos · 29 entries"))
+    #expect(!tree.contains("Duos Scores"))
+    // The bar stays empty until the header scrolls away.
+    #expect(!tree.identifiers.contains("fst.song-band-leaderboard.pinned-title"))
+}
+
+private let songBandHeaderID = "fst.song-band-leaderboard.header"
+
+/// The header's board line names the board and adds the entry total only when the
+/// service asks for totals, for the solo and band boards alike (issue #317).
+@Test func songLeaderboardBoardLineAddsTotalsOnlyWhenAsked() {
+    #expect(SongLeaderboardBoardLine.text(name: "Duos", totalEntries: 1234, showsTotals: true)
+        == "Duos · \(1234.formatted()) entries")
+    #expect(SongLeaderboardBoardLine.text(name: "Quads", totalEntries: 1234, showsTotals: false) == "Quads")
+    #expect(SongLeaderboardBoardLine.text(name: "Lead", totalEntries: 7, showsTotals: nil) == "Lead")
 }
 
 private let songBandFooterID = "fst.song-band-leaderboard.spotlight-footer"
@@ -316,6 +336,10 @@ func songBandLeaderboardScreenPinsTheSelectedPlayersBand(size: CGSize) async thr
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "song-band-leaderboard-trios.png", environment: "FST_BANDS_RENDER_OUT")
     #expect(image.width > 0 && image.height > 0)
+    // Another band size keeps the song header with its own label (issue #317).
+    let tree = nativeHostedAccessibility(host)
+    #expect(tree.identifiers.contains(songBandHeaderID))
+    #expect(tree.contains("Trios · 0 entries"))
 }
 
 /// The selected player's band is pinned above the pager like the Solo footer (issue

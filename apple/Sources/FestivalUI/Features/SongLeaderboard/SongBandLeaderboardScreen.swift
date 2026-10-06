@@ -37,6 +37,9 @@ struct SongBandLeaderboardScreen: View {
     @State private var bottomFadeDistance = ScrollEdgeFade.distance
     /// The page's measured width, for the footer's fitted columns.
     @State private var chartWidth: CGFloat = 0
+    /// The in-list song header has scrolled under the bar: show art, title and band
+    /// size in the bar instead, like the solo board (issue #317).
+    @State private var headerHidden = false
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
@@ -143,6 +146,13 @@ struct SongBandLeaderboardScreen: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: Self.rowGap) {
+                            // The solo board's song header, with the band size where the
+                            // instrument goes (web `SongInfoHeader`, issue #317). It sits
+                            // 20 pt below the bar and 12 pt above the first card, like the
+                            // solo board's header row.
+                            songHeader(payload)
+                                .padding(.top, 12)
+                                .padding(.bottom, 12 - Self.rowGap)
                             if payload.leaderboard.entries.isEmpty {
                                 Text("No \(bandType.label.lowercased()) scores yet.")
                                     .foregroundStyle(FestivalText.primary)
@@ -195,9 +205,18 @@ struct SongBandLeaderboardScreen: View {
             chartWidth = width
         }
         .coordinateSpace(.named(Self.pageSpace))
-        .festivalBackground(.carousel, session: session)
-        .navigationTitle("\(bandType.label) Scores")
+        // A song-scoped page: the song's static, dimmed art like the solo board and
+        // Song Detail (web `PageBackground src={song.albumArt}`, issue #317).
+        .festivalBackground(.song(song.albumArt), session: session)
+        // Kept for the back menu and window title; the principal item below holds the
+        // bar empty until the header scrolls away (issue #93).
+        .navigationTitle(song.title)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
+            SongLeaderboardPinnedTitle(
+                song: song, session: session, boardName: bandType.label,
+                idPrefix: "fst.song-band-leaderboard", headerHidden: headerHidden
+            )
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { bandTypeMenu }
             }
@@ -212,6 +231,9 @@ struct SongBandLeaderboardScreen: View {
             }
             #endif
         }
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         // iPhone tab-bar accessory (issue #92): Band Size.
         .festivalPageTool(token: bandType, order: PageToolOrder.primary) {
             bandTypeMenu
@@ -339,6 +361,23 @@ struct SongBandLeaderboardScreen: View {
         .padding(.horizontal, 16)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
+    }
+
+    // MARK: Song header
+
+    /// The shared song leaderboard header with the band size as its board line.
+    ///
+    /// - Parameter payload: The loaded page, for the entry total.
+    /// - Returns: Art, title, artist and "Duos" (or "Duos · 1,234 entries").
+    private func songHeader(_ payload: SongBandLeaderboardPayload) -> some View {
+        SongLeaderboardHeader(
+            song: song, session: session,
+            boardLine: SongLeaderboardBoardLine.text(
+                name: bandType.label, totalEntries: payload.leaderboard.totalEntries,
+                showsTotals: payload.leaderboard.showLeaderboardEntryTotals
+            ),
+            idPrefix: "fst.song-band-leaderboard", hidden: $headerHidden
+        )
     }
 
     // MARK: Band size
