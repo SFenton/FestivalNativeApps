@@ -15,11 +15,12 @@ enum SongLeaderboardBoardLine {
     ///
     /// - Parameters:
     ///   - name: Board name, e.g. "Lead" or "Duos".
-    ///   - totalEntries: Ranked entries on the board.
+    ///   - totalEntries: Ranked entries on the board; nil while this board's first
+    ///     response is still loading (a band size just picked).
     ///   - showsTotals: The response's `showLeaderboardEntryTotals`.
     /// - Returns: "Duos · 1,234 entries" with totals, otherwise "Duos".
-    static func text(name: String, totalEntries: Int, showsTotals: Bool?) -> String {
-        guard showsTotals == true else { return name }
+    static func text(name: String, totalEntries: Int?, showsTotals: Bool?) -> String {
+        guard showsTotals == true, let totalEntries else { return name }
         return "\(name) · \(totalEntries.formatted()) entries"
     }
 }
