@@ -75,6 +75,14 @@
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/BoardFooterEdgeFade.kt"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/scrolledge/ScrollEdgeFade.kt",
+            "symbol": "ScrollEdgeFade"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt",
+            "symbol": "bottomChromeEdgeFade"
           }
         ],
         "windows": [
@@ -121,12 +129,10 @@
           "glob": "android/app/src/main/**/*.kt",
           "regex": "BlendMode\\.DstIn",
           "allow": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ScrollEdgeFade.kt"
           ],
-          "debt": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt"
-          ],
-          "message": "Alpha masks for scroll edges belong to the edge-fade components (scroll-edge R1)."
+          "debt": [],
+          "message": "Alpha masks for scroll edges belong to ui/common/ScrollEdgeFade.kt drawScrollEdgeRamp (scroll-edge R1)."
         },
         {
           "id": "windows-mask",
@@ -768,6 +774,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
             "symbol": "HingeSide"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "CoversBackdrop"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "coveredByModal"
           }
         ],
         "windows": [
@@ -872,12 +886,14 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
         "score row",
         "row height",
+        "skeleton",
+        "bayesian",
         "columns",
         "marquee",
         "pager",
@@ -959,6 +975,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
             "symbol": "RankingsPager"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "RankingsSkeletonRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "STACKED_RANKING_NAME_LINES"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
@@ -1969,6 +1993,87 @@
           ],
           "debt": [],
           "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
+        }
+      ]
+    },
+    {
+      "id": "settings-value-row",
+      "title": "Settings value row",
+      "status": "current",
+      "doc": ".agents/patterns/settings-value-row.md",
+      "summary": "A read-only Settings title/value row (Version rows, Service Info state) keeps the value beside the title only when the title's natural width, a 12-unit gap and the value fit; otherwise the value stacks 4 units under the title and supporting text. It is one non-interactive accessibility item, and each platform has one component for it.",
+      "keywords": [
+        "value row",
+        "version row",
+        "settings row",
+        "service state",
+        "stack",
+        "large text",
+        "font scale",
+        "fit",
+        "trailing value"
+      ],
+      "web": [
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "versionRow"
+        },
+        {
+          "path": "pages/settings/SettingsServiceProgress.tsx",
+          "symbol": "ServiceInfoRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsServiceInfoSection.swift",
+            "symbol": "stateRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsScreen.swift",
+            "symbol": "versionRow"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsValueRow.kt",
+            "symbol": "SettingsValueRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsValueRow.kt",
+            "symbol": "SettingsValueRowMetrics"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SettingValueLayout.cs",
+            "symbol": "SettingValueLayout"
+          },
+          {
+            "path": "windows/Festival.App/Controls/SettingValueGrid.cs",
+            "symbol": "SettingValueGrid"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "surface-materials"
+        ],
+        "pages": [
+          "settings"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-parallel-fit",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/**/*.kt",
+          "regex": "maxIntrinsicWidth\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsValueRow.kt"
+          ],
+          "debt": [],
+          "message": "Settings title/value rows measure their fit in one place: use SettingsValueRow (supporting/trailing slots) instead of another intrinsic-width Layout (settings-value-row R1, R4)."
         }
       ]
     }

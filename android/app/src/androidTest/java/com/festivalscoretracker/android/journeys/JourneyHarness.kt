@@ -8,6 +8,8 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeAccessibilityValidator
 import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.DeviceConfigurationOverride
+import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -71,10 +73,23 @@ class JourneyHarness(private val rule: JourneyRule) {
      * @param debug Debug launch (route, profile, …).
      * @param transport Fixture transport.
      * @param preferences Settings store.
+     * @param fontScale Font scale to render the app at, read in composition so a test can switch
+     *   it in place (backed by snapshot state); `null` keeps the device's own.
      */
-    fun launch(debug: DebugLaunch, transport: FakeTransport, preferences: DataStore<Preferences> = MemoryPreferences()) {
+    fun launch(
+        debug: DebugLaunch,
+        transport: FakeTransport,
+        preferences: DataStore<Preferences> = MemoryPreferences(),
+        fontScale: (() -> Float)? = null,
+    ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
-        rule.setContent { FestivalApp(container, debug) }
+        rule.setContent {
+            if (fontScale == null) {
+                FestivalApp(container, debug)
+            } else {
+                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale())) { FestivalApp(container, debug) }
+            }
+        }
     }
 
     /** Distinct ATF findings so far (`TYPE | Check | element | message`). */
