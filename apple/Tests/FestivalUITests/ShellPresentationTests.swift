@@ -263,21 +263,21 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
 }
 
 /// With Liquid Glass the avatar fills a bar item's 44 pt glass circle with no rim and
-/// overhangs the hidden-glass inset, so it sits where the glass circle was; classic
+/// overhangs the hidden-glass padding, so it sits where the glass circle was; classic
 /// bars and the Mac toolbar keep the 30 pt outlined avatar (issue #311).
 @Test func profileMonogramFillsGlassItem() {
     typealias Metrics = RootProfileButton.MonogramMetrics
     #expect(Metrics.resolve(liquidGlassBar: true)
-        == Metrics(diameter: 44, outlined: false, trailingOverhang: Metrics.hiddenGlassTrailingInset))
-    #expect(Metrics.hiddenGlassTrailingInset == 10)
+        == Metrics(diameter: 44, outlined: false, overhang: Metrics.hiddenGlassPadding))
+    #expect(Metrics.hiddenGlassPadding == 10)
     #expect(Metrics.resolve(liquidGlassBar: false) == Metrics(diameter: 30, outlined: true))
-    #expect(Metrics.resolve(liquidGlassBar: false).trailingOverhang == 0)
+    #expect(Metrics.resolve(liquidGlassBar: false).overhang == 0)
     #if os(macOS)
     #expect(Metrics.current == Metrics(diameter: 30, outlined: true))
     #endif
 }
 
-/// The rim, overhang and direction are part of the cached image's identity, so the
+/// The rim and overhang are part of the cached image's identity, so the
 /// drawer's outlined avatar and the bar's borderless one never share a cache entry.
 @Test func monogramImageKeyDistinguishesRim() {
     let outlined = MonogramImageKey(name: "Fixture", size: 44, scale: 3)
@@ -286,13 +286,10 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
     #expect(outlined != borderless)
     #expect(borderless == MonogramImageKey(name: "Fable", size: 44, scale: 3, outlined: false))
     let overhanging = MonogramImageKey(
-        name: "Fixture", size: 44, scale: 3, outlined: false, trailingOverhang: 10
+        name: "Fixture", size: 44, scale: 3, outlined: false, overhang: 10
     )
     #expect(overhanging != borderless)
-    #expect(overhanging != MonogramImageKey(
-        name: "Fixture", size: 44, scale: 3, outlined: false, trailingOverhang: 10, rightToLeft: true
-    ))
-    #expect(MonogramImageKey(name: "F", size: 44, scale: 3, trailingOverhang: -4).trailingOverhang == 0)
+    #expect(MonogramImageKey(name: "F", size: 44, scale: 3, overhang: -4).overhang == 0)
 }
 
 /// Shelved dual-source path: inner portrait would keep the compact set (Compete).

@@ -646,7 +646,6 @@ struct RootProfileButton: View {
     let action: () -> Void
     @Environment(\.deviceLayout) private var layout
     @Environment(\.displayScale) private var displayScale
-    @Environment(\.layoutDirection) private var layoutDirection
 
     /// VoiceOver hint describing where the button goes.
     ///
@@ -696,37 +695,37 @@ struct RootProfileButton: View {
         let diameter: CGFloat
         /// Whether the avatar keeps its 1 pt `glassBorder` rim.
         let outlined: Bool
-        /// Points the circle draws past its layout (alignment) rect on the trailing side.
-        let trailingOverhang: CGFloat
+        /// Points the circle draws past its layout (alignment) rect on each side.
+        let overhang: CGFloat
 
         /// Create metrics.
         ///
         /// - Parameters:
         ///   - diameter: Avatar diameter in points.
         ///   - outlined: Whether the avatar keeps its rim.
-        ///   - trailingOverhang: Trailing overhang past the layout rect, in points.
-        init(diameter: CGFloat, outlined: Bool, trailingOverhang: CGFloat = 0) {
+        ///   - overhang: Overhang past the layout rect on each side, in points.
+        init(diameter: CGFloat, outlined: Bool, overhang: CGFloat = 0) {
             self.diameter = diameter
             self.outlined = outlined
-            self.trailingOverhang = trailingOverhang
+            self.overhang = overhang
         }
 
-        /// The extra trailing inset a bar gives an item whose shared glass is hidden,
-        /// compared with where that item's glass circle sat (measured on iOS/iPadOS 26.5:
-        /// a background-less 44 pt image ended 10 pt short of the trailing glass circle's
-        /// edge, a 26 pt margin instead of the leading drawer's 16 pt).
-        static let hiddenGlassTrailingInset: CGFloat = 10
+        /// The padding a bar puts on each side of an item whose shared glass is hidden
+        /// (measured on iOS/iPadOS 26.5: a background-less 44 pt image sat 10 pt in from
+        /// where its glass circle had been, and 22 pt instead of the 12 pt group gap from
+        /// the bell's glass beside it).
+        static let hiddenGlassPadding: CGFloat = 10
 
         /// Resolve the metrics for the bar the avatar sits in.
         ///
         /// - Parameter liquidGlassBar: The bar draws a glass circle per item (iOS 26+).
         /// - Returns: With Liquid Glass, the 44 pt diameter of a bar item's glass circle
-        ///   (the Back button and drawer) with no rim, overhanging the hidden-glass inset so
+        ///   (the Back button and drawer) with no rim, overhanging the hidden-glass padding so
         ///   the avatar fills exactly the circle the glass drew (issue #311); before that,
         ///   the 30 pt outlined avatar of a classic bar and the macOS toolbar.
         static func resolve(liquidGlassBar: Bool) -> MonogramMetrics {
             liquidGlassBar
-                ? MonogramMetrics(diameter: 44, outlined: false, trailingOverhang: hiddenGlassTrailingInset)
+                ? MonogramMetrics(diameter: 44, outlined: false, overhang: hiddenGlassPadding)
                 : MonogramMetrics(diameter: 30, outlined: true)
         }
 
@@ -747,10 +746,7 @@ struct RootProfileButton: View {
             case .choose:
                 Label("Choose Profile", systemImage: "person.crop.circle")
             case let .monogram(name):
-                MonogramLabel(
-                    name: name, scale: displayScale, metrics: .current,
-                    rightToLeft: layoutDirection == .rightToLeft
-                )
+                MonogramLabel(name: name, scale: displayScale, metrics: .current)
             case let .symbol(title):
                 Label(title, systemImage: "person.crop.circle.fill")
             }
@@ -843,16 +839,14 @@ struct ProfileAvatarImage: View {
 struct MonogramLabel: View {
     let name: String
     let scale: CGFloat
-    /// Diameter, rim and trailing overhang (``RootProfileButton/MonogramMetrics``).
+    /// Diameter, rim and overhang (``RootProfileButton/MonogramMetrics``).
     let metrics: RootProfileButton.MonogramMetrics
-    /// Right-to-left layout puts the trailing overhang on the left.
-    var rightToLeft = false
 
     var body: some View {
         #if canImport(UIKit)
         if let image = MonogramImageCache.shared.image(
             name: name, size: metrics.diameter, scale: scale, outlined: metrics.outlined,
-            trailingOverhang: metrics.trailingOverhang, rightToLeft: rightToLeft
+            overhang: metrics.overhang
         ) {
             // Titled like the vertical-bar symbol item, for the overflow menu.
             Label {
@@ -884,8 +878,7 @@ struct MonogramImageKey: Hashable {
     let size: CGFloat
     let scale: CGFloat
     let outlined: Bool
-    let trailingOverhang: CGFloat
-    let rightToLeft: Bool
+    let overhang: CGFloat
 
     /// Create the key for a player.
     ///
@@ -894,18 +887,15 @@ struct MonogramImageKey: Hashable {
     ///   - size: Avatar diameter in points.
     ///   - scale: Display scale; values below 1 (an unset environment) render at 1x.
     ///   - outlined: Whether the avatar draws its 1 pt rim.
-    ///   - trailingOverhang: Points the circle draws past its alignment rect, trailing.
-    ///   - rightToLeft: Whether trailing is the left edge.
+    ///   - overhang: Points the circle draws past its alignment rect on each side.
     init(
-        name: String, size: CGFloat, scale: CGFloat, outlined: Bool = true,
-        trailingOverhang: CGFloat = 0, rightToLeft: Bool = false
+        name: String, size: CGFloat, scale: CGFloat, outlined: Bool = true, overhang: CGFloat = 0
     ) {
         initial = ProfileAvatar.initial(for: name)
         self.size = size
         self.scale = max(scale, 1)
         self.outlined = outlined
-        self.trailingOverhang = max(trailingOverhang, 0)
-        self.rightToLeft = rightToLeft
+        self.overhang = max(overhang, 0)
     }
 }
 
@@ -925,28 +915,24 @@ final class MonogramImageCache {
     ///   - size: Avatar diameter in points.
     ///   - scale: Display scale; the image is rendered at this scale.
     ///   - outlined: Whether the avatar draws its 1 pt rim.
-    ///   - trailingOverhang: Points the circle draws past its alignment rect on the
-    ///     trailing side (``RootProfileButton/MonogramMetrics/trailingOverhang``).
-    ///   - rightToLeft: Whether trailing is the left edge.
+    ///   - overhang: Points the circle draws past its alignment rect on each side
+    ///     (``RootProfileButton/MonogramMetrics/overhang``).
     /// - Returns: An original-colour image `size` points square, or nil if rendering fails.
     func image(
-        name: String, size: CGFloat, scale: CGFloat, outlined: Bool = true,
-        trailingOverhang: CGFloat = 0, rightToLeft: Bool = false
+        name: String, size: CGFloat, scale: CGFloat, outlined: Bool = true, overhang: CGFloat = 0
     ) -> UIImage? {
         let key = MonogramImageKey(
-            name: name, size: size, scale: scale, outlined: outlined,
-            trailingOverhang: trailingOverhang, rightToLeft: rightToLeft
+            name: name, size: size, scale: scale, outlined: outlined, overhang: overhang
         )
         if let cached = images[key] { return cached }
         let renderer = ImageRenderer(content: ProfileAvatar(name: name, size: size, outlined: outlined))
         renderer.scale = key.scale
         guard var image = renderer.uiImage?.withRenderingMode(.alwaysOriginal) else { return nil }
-        if key.trailingOverhang > 0 {
-            // Layout uses the alignment rect; the circle draws past it on the trailing side.
-            let inset = key.trailingOverhang
-            image = image.withAlignmentRectInsets(key.rightToLeft
-                ? UIEdgeInsets(top: 0, left: inset, bottom: 0, right: 0)
-                : UIEdgeInsets(top: 0, left: 0, bottom: 0, right: inset))
+        if key.overhang > 0 {
+            // The bar lays out the alignment rect; the circle draws into its padding.
+            image = image.withAlignmentRectInsets(
+                UIEdgeInsets(top: 0, left: key.overhang, bottom: 0, right: key.overhang)
+            )
         }
         images[key] = image
         return image
