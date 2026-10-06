@@ -171,10 +171,21 @@ public sealed partial class PlayerProfileView : UserControl
         if (await ConfirmDeselectAsync(XamlRoot)) ViewModel.DeselectCommand.Execute(null);
     }
 
-    /// <summary>Opens the player's bands.</summary>
+    /// <summary>See All: opens the player's bands on All.</summary>
     /// <param name="sender">Link.</param>
     /// <param name="e">Unused.</param>
-    private void OnBandsClick(object sender, RoutedEventArgs e) => MainWindow.Instance?.Navigate(ViewModel.BandsRoute);
+    private void OnBandsSeeAllClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Bands is { } bands) MainWindow.Instance?.Navigate(bands.SeeAllRoute);
+    }
+
+    /// <summary>View All Bands (N): opens the player's bands on that group.</summary>
+    /// <param name="sender">Button tagged with the group's route.</param>
+    /// <param name="e">Unused.</param>
+    private void OnBandsViewAllClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: AppRoute route }) MainWindow.Instance?.Navigate(route);
+    }
 
     /// <summary>Starts a section's rank and history reads when it is realized.</summary>
     /// <param name="sender">Repeater.</param>

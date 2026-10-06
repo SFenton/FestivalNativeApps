@@ -36,7 +36,8 @@ public static class AppRouteParser
             ["songs", var id, var chart] when InstrumentInfo.TryParse(chart, out var i) =>
                 new AppRoute.SongLeaderboard(id, i, Page(query.GetValueOrDefault("page"))),
             ["player", var account] when ProfileText.IsValidAccountId(account) => new AppRoute.Player(account),
-            ["bands", "player", var account] when ProfileText.IsValidAccountId(account) => new AppRoute.PlayerBands(account),
+            ["bands", "player", var account] when ProfileText.IsValidAccountId(account) =>
+                new AppRoute.PlayerBands(account, BandGroup(query.GetValueOrDefault("group")), query.GetValueOrDefault("name")),
             ["bands"] => new AppRoute.Bands(),
             ["bands", var band] => new AppRoute.Band(band, query.GetValueOrDefault("bandType"), query.GetValueOrDefault("teamKey")),
             ["leaderboards"] => new AppRoute.Leaderboards(),
@@ -92,6 +93,12 @@ public static class AppRouteParser
     /// <param name="value">Query value.</param>
     /// <returns>Chart or <see langword="null"/>.</returns>
     private static Instrument? Chart(string? value) => InstrumentInfo.TryParse(value, out var i) ? i : null;
+
+    /// <summary>Parses a player-bands <c>group</c> query value, defaulting to All.</summary>
+    /// <param name="value">Query value (<c>all</c>, <c>duos</c>, <c>trios</c>, <c>quads</c>).</param>
+    /// <returns>Group.</returns>
+    private static PlayerBandGroup BandGroup(string? value) =>
+        PlayerBandGroupInfo.All.FirstOrDefault(g => string.Equals(g.ServiceId(), value, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Parses a positive page, defaulting to one.</summary>
     /// <param name="value">Query value.</param>

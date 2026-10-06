@@ -22,6 +22,17 @@ public sealed class PlayerFakeService
         PlayerWire.HistoryEntry("s1", score: 1000, acc: 970000, season: 10, achieved: "2026-09-03T10:00:00Z"));
     public bool Header { get; set; } = true;
 
+    /// <summary>Player-bands request queries, in arrival order.</summary>
+    public System.Collections.Concurrent.ConcurrentQueue<string> BandRequests { get; } = new();
+
+    /// <summary>Player-bands answer per account and group: 8 Duos (6 shown), 2 Trios, no Quads by default.</summary>
+    public Func<string, string, HttpResponseMessage> BandsResponse { get; set; } = (account, group) => group switch
+    {
+        "duos" => Wire.Response(HttpStatusCode.OK, BandWire.PlayerBands(account, 8, 6)),
+        "trios" => Wire.Response(HttpStatusCode.OK, BandWire.PlayerBands(account, 2, 2, 10)),
+        _ => Wire.Response(HttpStatusCode.OK, BandWire.PlayerBands(account, 0, 0)),
+    };
+
     public PlayerFakeService()
     {
         Service.Override = request =>
@@ -39,6 +50,12 @@ public sealed class PlayerFakeService
             }
             if (path.EndsWith("/history", StringComparison.Ordinal))
                 return Wire.Response(HistoryStatus, HistoryBody, pub);
+            if (path.EndsWith("/bands", StringComparison.Ordinal))
+            {
+                var group = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["group"] ?? "all";
+                BandRequests.Enqueue(request.RequestUri.Query);
+                return BandsResponse(parts[3], group);
+            }
             if (path.StartsWith("/api/player/", StringComparison.Ordinal))
                 return Profiles.TryGetValue(parts[3], out var r) ? Wire.Response(r.Status, r.Body, headers) : Wire.Response(HttpStatusCode.NotFound, "{}", headers);
             return null;
@@ -81,8 +98,9 @@ public class PlayerProfileViewModelTests
         Assert.Equal("bands", vm.QuickLinkSections[^1].Id);
         // The view leads a Bands jump in through the last instrument card (#246), so the ID must match its anchor.
         Assert.Equal(PlayerProfileViewModel.BandsQuickLinkId, vm.QuickLinkSections[^1].Id);
-        Assert.Equal(new AppRoute.PlayerBands(PlayerWire.Id), vm.BandsRoute);
-        Assert.Equal("View Fixture One's Bands", vm.BandsLabel);
+        Assert.NotNull(vm.Bands);
+        Assert.Equal(new AppRoute.PlayerBands(PlayerWire.Id, PlayerBandGroup.All, "Fixture One"), vm.Bands.SeeAllRoute);
+        Assert.Equal("Fixture One's Bands", vm.Bands.Title);
         Assert.Contains("Fixture One", vm.SwitchMessage);
         Assert.Contains("Fixture One", vm.SyncingMessage);
         Assert.Equal("Songs Played: 3", vm.Overview[0].Announcement);
@@ -100,6 +118,103 @@ public class PlayerProfileViewModelTests
         Assert.Equal(PlayerIdentityAction.Select, vm.IdentityAction);
     }
 
+    [Fact]
+    public async Task Bands_LoadInlineGroupsAfterProfile()
+    {
+        var fake = new PlayerFakeService();
+        var session = fake.Session();
+        using var vm = new PlayerProfileViewModel(session, PlayerWire.Id, "Route Name");
+        Assert.Null(vm.Bands);
+        await vm.LoadAsync();
+        var bands = vm.Bands!;
+        await Async.Until(() => bands.ShowGroups);
+        Assert.False(bands.IsLoading);
+        Assert.False(bands.ShowError);
+        Assert.Equal("Fixture One's Bands", bands.Title);
+        Assert.Equal("See All, Fixture One's Bands", bands.SeeAllName);
+        Assert.Equal(["duos", "trios", "quads"], bands.Groups.Select(g => g.Key));
+        Assert.Equal(["Duos", "Trios", "Quads"], bands.Groups.Select(g => g.Title));
+        Assert.Equal(3, fake.BandRequests.Count);
+        Assert.All(fake.BandRequests, q => Assert.Contains("page=1&pageSize=6", q));
+        foreach (var key in (string[])["duos", "trios", "quads"])
+            Assert.Single(fake.BandRequests, q => q.Contains("group=" + key, StringComparison.Ordinal));
+
+        var duos = bands.Groups[0];
+        Assert.Equal(6, duos.Cards.Count);
+        Assert.True(duos.HasCards);
+        Assert.False(duos.IsEmpty);
+        Assert.True(duos.HasMore);
+        Assert.Equal("View All Bands (8)", duos.ViewAllText);
+        Assert.Equal("View All Bands (8), Duos", duos.ViewAllName);
+        Assert.Equal(new AppRoute.PlayerBands(PlayerWire.Id, PlayerBandGroup.Duos, "Fixture One"), duos.ViewAllRoute);
+        Assert.Equal("fst.player.bands.header.duos", duos.HeaderAutomationId);
+        Assert.Equal("fst.player.bands.view-all.duos", duos.ViewAllAutomationId);
+        Assert.IsType<AppRoute.Band>(duos.Cards[0].Route);
+
+        var trios = bands.Groups[1];
+        Assert.Equal(2, trios.Cards.Count);
+        Assert.False(trios.HasMore);
+
+        var quads = bands.Groups[2];
+        Assert.True(quads.IsEmpty);
+        Assert.False(quads.HasMore);
+        Assert.Equal("fst.player.bands.empty.quads", quads.EmptyAutomationId);
+        Assert.Equal("No Bands Yet", PlayerProfileBandGroup.EmptyTitle);
+
+        // A rename carries into the routes without another read.
+        bands.PlayerName = "Renamed";
+        Assert.Equal("Renamed's Bands", bands.Title);
+        Assert.Equal(new AppRoute.PlayerBands(PlayerWire.Id, PlayerBandGroup.Trios, "Renamed"), bands.Groups[1].ViewAllRoute);
+        Assert.Equal(3, fake.BandRequests.Count);
+    }
+
+    [Fact]
+    public async Task Bands_FailureShowsRetryWithoutBlockingProfile()
+    {
+        var fake = new PlayerFakeService();
+        var healthy = fake.BandsResponse;
+        fake.BandsResponse = (account, group) => group == "trios"
+            ? Wire.Response(HttpStatusCode.InternalServerError, "{}")
+            : healthy(account, group);
+        var session = fake.Session();
+        using var vm = new PlayerProfileViewModel(session, PlayerWire.Id);
+        await vm.LoadAsync();
+        Assert.True(vm.ShowContent);
+        var bands = vm.Bands!;
+        await Async.Until(() => bands.ShowError);
+        Assert.True(bands.Status.HasIssue);
+        Assert.False(bands.ShowGroups);
+        Assert.False(bands.IsLoading);
+        Assert.Empty(bands.Groups);
+        Assert.True(vm.ShowContent);
+
+        fake.BandsResponse = healthy;
+        await bands.Status.RetryCommand.ExecuteAsync(null);
+        Assert.True(bands.ShowGroups);
+        Assert.False(bands.Status.HasIssue);
+        Assert.Equal(3, bands.Groups.Count);
+    }
+
+    [Fact]
+    public async Task Bands_KeptAcrossChartChangesAndDroppedWithTheProfile()
+    {
+        var fake = new PlayerFakeService();
+        var session = fake.Session();
+        using var vm = new PlayerProfileViewModel(session, PlayerWire.Id);
+        await vm.LoadAsync();
+        var bands = vm.Bands!;
+        await Async.Until(() => bands.ShowGroups);
+
+        session.UpdateSettings(s => s.WithInstrumentVisible(Instrument.Drums, false));
+        await Async.Until(() => vm.Instruments.Count == 8);
+        Assert.Same(bands, vm.Bands);
+        Assert.Equal(3, fake.BandRequests.Count);
+
+        fake.Profiles[PlayerWire.Id] = (HttpStatusCode.InternalServerError, "{}");
+        await vm.LoadAsync();
+        Assert.True(vm.ShowError);
+        Assert.Null(vm.Bands);
+    }
     [Fact]
     public async Task Viewed_SwitchUnverifiedChangedAndActionError()
     {

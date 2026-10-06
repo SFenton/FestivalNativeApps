@@ -4,8 +4,8 @@
 
 ## Implemented
 
-- Route `AppRoute.PlayerBands(accountId)`; read `GET /api/player/{accountId}/bands?group=&page=&pageSize=25` (pure: `GetPlayerBandsList` returns an empty page instead of rebuilding its projection).
-- Title `<Name>'s Bands` from the selected player (same account) or the account's own member row; otherwise `Player Bands`. Subtitle `<Group> · N bands`.
+- Route `AppRoute.PlayerBands(accountId, group, name)` (`/player/{id}/bands?group=duos|trios|quads&name=`; the group preselects the picker before the first read, `name` titles the page for a viewed player); read `GET /api/player/{accountId}/bands?group=&page=&pageSize=25` (pure: `GetPlayerBandsList` returns an empty page instead of rebuilding its projection).
+- Title `<Name>'s Bands` from the selected player (same account), the route's `name` (passed by the profile's Bands section) or the account's own member row; otherwise `Player Bands`. Subtitle `<Group> · N bands`.
 - Group filter: Fluent `SelectorBar` (All Bands · Duos · Trios · Quads) instead of the web's filter sheet; changing it returns to page 1.
 - Cards (`BandCardView` in `LeaderboardsCardGridLayout`, min 320 epx, at most 3 columns; each row is as tall as its tallest card, non-virtualizing): distinct members with name and 28 px instrument icons, band-size pill, `N appearances`, chevron. The card opens `AppRoute.Band(bandId, bandType, teamKey)`. It is one Narrator stop named `View band: <member>, <instruments>; …. <Size>, N appearances`; its parts are Raw.
 - Paging: the shared board pager (`LeaderboardsPager` over `IBoardPager`, operator batch 7.4; floating over the cards), hidden for one page; a page past the end (list shrank) reloads the last page. Late responses for an older group/page are discarded.
@@ -40,5 +40,4 @@ Journeys: `player-bands-mixed-sizes`, `player-bands-empty`, `player-bands-error`
 
 ## Open
 
-- No `?name=` title carry-through (band search is blocked, so no safe source).
-- Entry point from the player profile page is owned by the Profile lane (`AppRoute.PlayerBands`).
+- Entry points: the profile's Bands section See All (All) and View All Bands (its group); see [player-profile/windows.md](../player-profile/windows.md).
