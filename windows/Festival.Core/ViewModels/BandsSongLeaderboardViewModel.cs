@@ -75,7 +75,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
 
     /// <summary>Shown band size.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Title), nameof(Subtitle), nameof(EmptyMessage), nameof(BandTypeIndex), nameof(SwitcherName))]
+    [NotifyPropertyChangedFor(nameof(BoardLabel), nameof(LeaderboardName), nameof(EmptyMessage), nameof(BandTypeIndex), nameof(SwitcherName))]
     private BandType bandType;
 
     /// <summary>Load lifecycle.</summary>
@@ -85,7 +85,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
 
     /// <summary>Resolved song (header and backdrop), once the catalogue is loaded.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SongTitle), nameof(SongSubtitle))]
+    [NotifyPropertyChangedFor(nameof(Title), nameof(Subtitle), nameof(LeaderboardName))]
     private Song? song;
 
     /// <summary>Score rows.</summary>
@@ -106,21 +106,30 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
 
     /// <summary>Paging population, once known.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Subtitle))]
     private int? population;
 
-    /// <summary><c>Duos Leaderboard</c>.</summary>
-    public string Title => $"{BandType.Label()} Leaderboard";
+    /// <summary>
+    /// Header entry-total line (<c>1,234 Duos entries</c>), only when the response asks for totals and the board has
+    /// entries, as on the solo board (issue #317); empty otherwise.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTotal))]
+    private string totalText = "";
 
-    /// <summary>Song title, or the ID until resolved.</summary>
-    public string SongTitle => Song?.Title ?? "";
+    /// <summary>Header title: the song (the solo board's song-first header), empty until the catalogue resolves it.</summary>
+    public string Title => Song?.Title ?? "";
 
-    /// <summary>Artist · year · duration.</summary>
-    public string SongSubtitle => Song?.Subtitle ?? "";
+    /// <summary>Header subtitle (artist), as on the solo board.</summary>
+    public string Subtitle => Song?.Artist ?? "";
 
-    /// <summary><c>Duos · 1,234 entries</c>.</summary>
-    public string Subtitle => Population is { } count
-        ? $"{BandType.Label()} · {BandFormatting.Count(count)} {(count == 1 ? "entry" : "entries")}" : BandType.Label();
+    /// <summary>The board line under the artist, where the solo board names its instrument: <c>Duos</c>.</summary>
+    public string BoardLabel => BandType.Label();
+
+    /// <summary>Whether the entry-total line shows.</summary>
+    public bool HasTotal => TotalText.Length > 0;
+
+    /// <summary>Spoken page name: <c>Pulse, Duos leaderboard</c> (just the board until the song resolves).</summary>
+    public string LeaderboardName => Title.Length > 0 ? $"{Title}, {BoardLabel} leaderboard" : $"{BoardLabel} leaderboard";
 
     /// <summary>Empty-state body.</summary>
     public string EmptyMessage => $"No {BandType.Label()} scores have been recorded for this song yet.";
@@ -150,10 +159,14 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     /// <summary>Whether the failure is shown.</summary>
     public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
-    /// <summary>Switching size returns to page one.</summary>
+    /// <summary>
+    /// Switching size returns to page one and drops the old size's entry total at once: the board line names the new size
+    /// immediately, and its total appears only when that size's response commits (song-leaderboard-header R5).
+    /// </summary>
     /// <param name="value">New size.</param>
     partial void OnBandTypeChanged(BandType value)
     {
+        TotalText = "";
         Pager.Page = 1;
         RevealSelected = false;
         _ = LoadAsync();
@@ -199,6 +212,8 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
                 Status.Clear();
                 PinnedGate.Commit(type);
                 Population = board.Population;
+                TotalText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
+                    ? $"{BandFormatting.Count(board.TotalEntries)} {type.Label()} {(board.TotalEntries == 1 ? "entry" : "entries")}" : "";
                 Pager.PageCount = pages;
                 Rows = [.. board.Entries.Select(e => new SongBandRow(e) { IsSelected = board.IsSelected(e) })];
                 Spotlight = board.SelectedEntry is { } selected

@@ -99,6 +99,9 @@ class OutputPathsTests(unittest.TestCase):
     def test_collects_system_tree_paths(self):
         self.assertEqual(output_paths(["systemTree:/tmp/sb.txt", "systemTap:window-controls"]), ["/tmp/sb.txt"])
 
+    def test_collects_audit_paths(self):
+        self.assertEqual(output_paths(["audit:/tmp/a.txt", "tap:x"]), ["/tmp/a.txt"])
+
 
 class SelectProductTests(unittest.TestCase):
     """The iPad alias runs the iPad journeys; everything else the iPhone journeys. Both

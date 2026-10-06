@@ -10,14 +10,13 @@ import FestivalDesign
 /// Like the web `SongDetailPage`, only a spinner shows until every visible chart's top
 /// ten and (with a selected player) the song's score history have loaded; then the
 /// page fades in and its sections stagger (operator batch 6.41). The selected player's
-/// score history is a section of this page (batch 6.39), after Intensity.
+/// score history is a section of this page (batch 6.39), after Intensity: the best five
+/// scores, with View All Scores opening the separate ``PlayerHistoryScreen`` (issue #324).
 struct SongDetailScreen: View {
     let song: Song
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
-    /// Deep link to `/songs/:id/:instrument/history`: open scrolled to Score History on
-    /// this instrument, every score listed.
-    let historyFocus: Instrument?
+    /// Settings → Filter invalid scores: hide over-threshold scores in the previews.
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
     /// Every card's first read (and the history) finished: the page may appear.
@@ -25,7 +24,6 @@ struct SongDetailScreen: View {
     @State private var previewPreloads: [Instrument: SongScorePreview.LoadState] = [:]
     @State private var historyEntries: [ScoreHistoryEntry] = []
     @State private var historyInstrument: Instrument?
-    @State private var historyExpanded = false
     @State private var loadedGate: GateKey?
     /// Duos/Trios/Quads previews from the one `/bands/all` read.
     @State private var bandPreviews: SongBandPreviewState = .loading
@@ -51,9 +49,6 @@ struct SongDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
     @Environment(\.deviceLayout) private var deviceLayout
-    /// Set while Song Detail can split: its full boards and score history open in the
-    /// trailing pane (`OnDemandSplitPolicy`).
-    @Environment(\.listDetailSelect) private var splitSelect
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
 
@@ -79,14 +74,6 @@ struct SongDetailScreen: View {
     }
 
     private var previewInstruments: [Instrument] { charted.filter(visibleInstruments.contains) }
-
-    /// Opens an instrument's score history in the trailing pane while Song Detail can
-    /// split, else nil (the section expands in place).
-    private var openFullHistory: ((Instrument) -> Void)? {
-        guard let splitSelect, splitSelect.accepts(.playerHistory(song, .lead)) else { return nil }
-        let song = song
-        return { instrument in splitSelect(.playerHistory(song, instrument)) }
-    }
 
     /// Whether the Score History section is drawn (a selected player with rows).
     private var showsScoreHistory: Bool { session.selectedPlayer != nil && !historyEntries.isEmpty }
@@ -154,18 +141,13 @@ struct SongDetailScreen: View {
     ///   - song: Catalog record opened from the Songs route.
     ///   - session: Process-lifetime client and artwork state.
     ///   - visibleInstruments: Solo charts enabled in Settings.
-    ///   - historyFocus: Open scrolled to Score History on this instrument (deep link).
     init(
         song: Song, session: FestivalSession,
-        visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
-        historyFocus: Instrument? = nil
+        visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
     ) {
         self.song = song
         self.session = session
         self.visibleInstruments = visibleInstruments
-        self.historyFocus = historyFocus
-        _historyInstrument = State(initialValue: historyFocus)
-        _historyExpanded = State(initialValue: historyFocus != nil)
     }
 
     var body: some View {
@@ -318,7 +300,6 @@ struct SongDetailScreen: View {
     /// The loaded page: header, Intensity, Score History, then the chart cards, fading
     /// in with the web's stagger.
     private var loadedScroll: some View {
-        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .top, spacing: 16) {
@@ -378,11 +359,9 @@ struct SongDetailScreen: View {
 
                 if showsScoreHistory {
                     SongScoreHistorySection(
-                        entries: historyEntries, pool: previewInstruments,
-                        keyboardIcon: song.usesKeyboardIcon,
-                        instrument: $historyInstrument, expanded: $historyExpanded,
-                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason,
-                        openFullHistory: openFullHistory
+                        song: song, entries: historyEntries, pool: previewInstruments,
+                        instrument: $historyInstrument,
+                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason
                     )
                     .festivalFadeIn(isLoaded: true, index: 2)
                     .id(SongScoreHistorySection.anchor)
@@ -442,15 +421,6 @@ struct SongDetailScreen: View {
         .songHeaderScrollAway(headerBottom: heroTitleBottom) { heroTitleHidden = $0 }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
             pageWidth = width
-        }
-        .onAppear {
-            // Deep link (`/history`): land on the Score History section.
-            guard historyFocus != nil, !historyEntries.isEmpty else { return }
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(150))
-                proxy.scrollTo(SongScoreHistorySection.anchor, anchor: .top)
-            }
-        }
         }
     }
 

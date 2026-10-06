@@ -19,12 +19,14 @@ public static class BandWire
     }
 
     /// <summary>Per-size song board page; <paramref name="selected"/> appends a <c>selectedPlayerEntry</c> (the
-    /// <c>accountId</c> read's pinned band, pattern leaderboard-row R7).</summary>
-    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, int? selected = null)
+    /// <c>accountId</c> read's pinned band, pattern leaderboard-row R7) and <paramref name="showTotals"/> sets
+    /// <c>showLeaderboardEntryTotals</c>.</summary>
+    public static string SongBands(string songId, string bandType, int count, int total, int offset = 0, int? selected = null, bool? showTotals = null)
     {
         var entries = string.Join(",", Enumerable.Range(offset + 1, count).Select(i => SongBandEntry(i, bandType)));
         var pinned = selected is { } rank ? ",\"selectedPlayerEntry\":" + SongBandEntry(rank, bandType) : "";
-        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}","count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]{{pinned}}}""";
+        var totals = showTotals is { } show ? "\"showLeaderboardEntryTotals\":" + (show ? "true," : "false,") : "";
+        return $$"""{"songId":"{{songId}}","bandType":"{{bandType}}",{{totals}}"count":{{count}},"totalEntries":{{total}},"localEntries":{{total}},"entries":[{{entries}}]{{pinned}}}""";
     }
 
     /// <summary>The band ranked <paramref name="i"/> on a synthetic per-size song board.</summary>

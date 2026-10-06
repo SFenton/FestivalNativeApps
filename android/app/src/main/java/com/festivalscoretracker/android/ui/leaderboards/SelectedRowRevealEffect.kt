@@ -10,6 +10,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onPlaced
 import com.festivalscoretracker.android.core.rankings.SelectedRowReveal
+import com.festivalscoretracker.android.ui.common.FADE_IN_MILLIS
+import com.festivalscoretracker.android.ui.common.FadeInWindow
 
 // region Selected-row reveal
 
@@ -71,6 +73,36 @@ internal suspend fun LazyListState.revealSelectedRow(itemKey: Any, itemIndex: In
         if (animate) animateScrollBy(delta) else scrollBy(delta)
     }
     return true
+}
+
+/**
+ * Wait for the selected row's own entrance before revealing it (web `navToPlayer` /
+ * `navToBand`; load-transition R5, issue #323), then rush the page's remaining fades so the
+ * rows the reveal's scroll reaches fade in together instead of popping in.
+ *
+ * @param window The page's fade window, if any.
+ * @param rowDelayMillis The selected row's stagger delay.
+ * @param reduceMotion Remove animations / Reduce Motion (no wait).
+ * @return False when the reader scrolled during the wait (the reveal then leaves the list
+ *   where they put it, like the web's `userScrolledRef`).
+ */
+internal suspend fun awaitSelectedRowEntrance(window: FadeInWindow?, rowDelayMillis: Int, reduceMotion: Boolean): Boolean {
+    val scrolls = window?.userScrolls
+    awaitFrameMillis(SelectedRowReveal.entranceWaitMillis(rowDelayMillis, FADE_IN_MILLIS, reduceMotion))
+    if (window != null && window.userScrolls != scrolls) return false
+    window?.rush()
+    return true
+}
+
+/**
+ * Suspend for [millis] on the frame clock (so tests' paused clocks drive it).
+ *
+ * @param millis Milliseconds; nothing to wait for at 0.
+ */
+internal suspend fun awaitFrameMillis(millis: Int) {
+    if (millis <= 0) return
+    val start = withFrameNanos { it }
+    while (withFrameNanos { it } - start < millis * 1_000_000L) Unit
 }
 
 // endregion

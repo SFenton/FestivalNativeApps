@@ -42,9 +42,10 @@ object BandFixtures {
      * @param pageSize Page size.
      * @param group Group echoed.
      * @param accountId Account echoed.
+     * @param idPrefix Prefix for band IDs, so several groups' pages on one screen keep distinct row tags.
      * @return JSON.
      */
-    fun playerBands(total: Int, page: Int, pageSize: Int, group: String = "all", accountId: String = PLAYER): String {
+    fun playerBands(total: Int, page: Int, pageSize: Int, group: String = "all", accountId: String = PLAYER, idPrefix: String = ""): String {
         val start = (page - 1) * pageSize
         val rows = (start until minOf(total, start + pageSize)).joinToString(",") { index ->
             val (type, members) = when {
@@ -53,7 +54,7 @@ object BandFixtures {
                 else -> "Band_Quad" to duoMembers + member("0000000000000000000000000000000$index".takeLast(32), "Synthetic Drums $index", listOf("Solo_Drums")) + member("", null)
             }
             val key = if (index == 0) DUO_KEY else "${Fixtures.ACCOUNT_A}:team$index"
-            val id = if (index == 0) DUO_ID else "band-$index"
+            val id = idPrefix + if (index == 0) DUO_ID else "band-$index"
             """{"bandId":"$id","teamKey":"$key","bandType":"$type","appearanceCount":${10 + index},"members":[${members.joinToString(",")}]}"""
         }
         return """{"accountId":"$accountId","group":"$group","totalCount":$total,"entries":[$rows]}"""

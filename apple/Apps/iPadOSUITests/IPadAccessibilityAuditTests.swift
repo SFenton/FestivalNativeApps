@@ -151,15 +151,10 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             return "fst.paths.display"
         }, sheet: true),
         Page(name: "item-shop", env: ["FST_DEBUG_ROUTE": "shop"], ready: "Item Shop"),
+        // iPhone Duo: the Search tab opens at launch (`FST_DEBUG_TAB=search`); its rail
+        // button is not hittable on the inner display in landscape (Lane A11Y3).
+        runningOnDuo ? Page(name: "search", env: ["FST_DEBUG_TAB": "search"], ready: "Search") :
         Page(name: "search", ready: "fst.songs.list", open: { app in
-            // iPhone Duo: the Search tab sits in the vertical rail as a plain button.
-            let railSearch = app.buttons.matching(NSPredicate(
-                format: "identifier == 'magnifyingglass' AND label == 'Search'"
-            )).firstMatch
-            if runningOnDuo, railSearch.waitForExistence(timeout: 5), railSearch.isHittable {
-                railSearch.tap()
-                return "Search"
-            }
             // Regular width: the flyout's Search row (no persistent sidebar, 2026-10-04).
             if anyElement(app, "fst.shell.drawer.open").waitForExistence(timeout: 5),
                !app.tabBars.buttons["Search"].exists {
@@ -183,13 +178,18 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         Page(name: "settings", env: ["FST_DEBUG_TAB": "settings"], ready: "Settings"),
         Page(name: "licenses", env: ["FST_DEBUG_ROUTE": "licenses"], ready: "Licenses"),
         Page(name: "profile-sheet", env: ["FST_DEBUG_SHEET": "profile"], ready: "fst.profile.scope", sheet: true),
-        Page(name: "whats-new", env: ["FST_DEBUG_WHATS_NEW": "force"], ready: "fst.whats-new.dismiss", sheet: true),
+        // Close, not Dismiss: beside the iPhone Duo vertical bar the sheet has no Dismiss bar
+        // (`/duo` M1), which left What's New unreached there (Lane A11Y3).
+        Page(name: "whats-new", env: ["FST_DEBUG_WHATS_NEW": "force"], ready: "fst.whats-new.close", sheet: true),
     ]
 
     /// Pages that need a selected player.
     static let profile: [Page] = [
         // The overview section, not the title: the iPhone Duo bar does not expose it.
-        Page(name: "statistics", env: ["FST_DEBUG_TAB": "statistics"], profile: true, ready: "fst.player.overview"),
+        // iPhone Duo has no Statistics tab: the route pushes the same page (Lane A11Y4).
+        Page(name: "statistics",
+             env: runningOnDuo ? ["FST_DEBUG_ROUTE": "statistics"] : ["FST_DEBUG_TAB": "statistics"],
+             profile: true, ready: "fst.player.overview"),
         Page(name: "suggestions", env: ["FST_DEBUG_TAB": "suggestions"], profile: true, ready: "Suggestions"),
         Page(name: "rivals", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals"),
         Page(name: "rival-detail",
@@ -215,7 +215,9 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         Page(name: "song-board-split", ready: "fst.songs.list", open: { app in
             openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.leaderboard.Solo_Guitar"]) : nil
         }, splitOnly: true),
-        Page(name: "song-history-split", profile: true, ready: "fst.songs.list", open: { app in
+        // More than five Lead scores, so View All Scores shows (issue #324).
+        Page(name: "song-history-split", env: ["FST_DEBUG_PROFILE": "fixture-history-multi:Multi History"],
+             profile: true, ready: "fst.songs.list", open: { app in
             openSong(app, "fixture-pulse") ? openSplit(app, ids: ["fst.song-detail.history.view-all"]) : nil
         }, splitOnly: true),
         Page(name: "rivals-split", env: ["FST_DEBUG_ROUTE": "rivals"], profile: true, ready: "Rivals",
@@ -366,7 +368,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         var findings: [Finding] = []
         var unreached: [String] = []
         var skipped: [String] = []
-        for page in pages {
+        for page in pages where Self.pageSelected(page.name) {
             if page.splitOnly, !splitPossible(mode) {
                 skipped.append(page.name)
                 continue
@@ -496,11 +498,13 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let skipped: [String]
             /// The app window of the last page reached (iPhone Duo pose, ⅓ tile).
             let window: String
+            /// The `FST_AUDIT_PAGES` filter, when the run audited only some pages.
+            let pages: [String]?
             let findings: [Finding]
         }
         let summary = Summary(
             mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped,
-            window: lastWindow, findings: findings
+            window: lastWindow, pages: Self.pageFilter.map { $0.sorted() }, findings: findings
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -517,6 +521,20 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// `FST_AUDIT_PAGES` (comma-separated page names, `TEST_RUNNER_FST_AUDIT_PAGES` through
+    /// xcodebuild): audit only those pages of the group, for re-checking one fix. Unset
+    /// audits every page; a filtered run's JSON lists the filter in `pages`.
+    static var pageFilter: Set<String>? {
+        guard let raw = ProcessInfo.processInfo.environment["FST_AUDIT_PAGES"], !raw.isEmpty else { return nil }
+        return Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) })
+    }
+
+    /// Whether `FST_AUDIT_PAGES` leaves this page in the run.
+    ///
+    /// - Parameter name: The page's audit name.
+    /// - Returns: True when unfiltered or listed.
+    static func pageSelected(_ name: String) -> Bool { pageFilter?.contains(name) ?? true }
 
     /// A configured, not-yet-launched app for a page and mode.
     @MainActor
@@ -638,12 +656,47 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     /// A slow vertical drag between two screen points (no flick momentum).
     @MainActor
     static func slowDrag(_ app: XCUIApplication, x: CGFloat, fromY: CGFloat, toY: CGFloat) {
-        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let origin = screenOrigin(app)
         origin.withOffset(CGVector(dx: x, dy: fromY)).press(
             forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: x, dy: toY)),
             withVelocity: .slow, thenHoldForDuration: 0.2
         )
         Thread.sleep(forTimeInterval: 0.5)
+    }
+
+    /// Width of the iPhone Duo system vertical bar at the window's trailing edge (inner
+    /// display, measured ≈ 80 pt), kept clear of scroll drags.
+    static let duoVerticalBarClearance: CGFloat = 96
+
+    /// A drag's x, moved left of the iPhone Duo vertical bar: a drag starting on the bar
+    /// pressed its tab buttons (Leaderboards' split row was never opened, Lane A11Y4).
+    ///
+    /// - Parameters:
+    ///   - x: The wanted x in screen points.
+    ///   - app: The running app.
+    /// - Returns: `x`, or on iPhone Duo at most the window's trailing edge minus the bar.
+    @MainActor
+    static func dragX(_ x: CGFloat, in app: XCUIApplication) -> CGFloat {
+        guard runningOnDuo else { return x }
+        return min(x, app.windows.firstMatch.frame.maxX - duoVerticalBarClearance)
+    }
+
+    /// The coordinate of screen point (0, 0) for gestures given in screen points.
+    ///
+    /// On iPhone Duo the app's own coordinates do not land on the inner display (taps and
+    /// drags from `app.coordinate` went nowhere, Lane A11Y3), while gestures on an element
+    /// do: there the origin is taken from the app window, offset back by the window's
+    /// frame. iPad keeps the app's coordinate space.
+    ///
+    /// - Parameter app: The running app.
+    /// - Returns: A coordinate at screen point (0, 0).
+    @MainActor
+    static func screenOrigin(_ app: XCUIApplication) -> XCUICoordinate {
+        guard runningOnDuo else { return app.coordinate(withNormalizedOffset: .zero) }
+        let window = app.windows.firstMatch
+        let frame = window.frame
+        return window.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: -frame.minX, dy: -frame.minY))
     }
 
     /// Open a split page's trailing pane from a row (an identifier, or the first row
@@ -682,7 +735,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
                 return waitForTrailingPane(app) ? "fst.split.opened" : nil
             }
             // The trailing margin: a drag that starts on a chart selects a bar.
-            slowDrag(app, x: window.maxX - 10, fromY: window.minY + window.height * 0.75,
+            slowDrag(app, x: dragX(window.maxX - 10, in: app), fromY: window.minY + window.height * 0.75,
                      toY: window.minY + window.height * 0.35)
         }
         return nil

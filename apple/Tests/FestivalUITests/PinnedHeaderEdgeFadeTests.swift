@@ -84,6 +84,37 @@ func pinnedHeaderAccessibilitySettingsKeepAHardEdge(reduceTransparency: Bool, in
     #expect(PinnedHeaderEdgeFade.cut(rowTop: .nan, edge: 100, depth: 28) == nil)
 }
 
+/// Issue #322: the row's own separator runs between its separator guides in its
+/// background's coordinates (on to the row edge on macOS), left to right in either
+/// layout direction, and is 1 pt
+/// thick like the system List separator.
+@Test func pinnedHeaderRowSeparatorSpansTheSeparatorGuides() {
+    // iPhone: text at 90 pt, content trailing at 386 pt, cell from 0.
+    typealias Fade = PinnedHeaderEdgeFade
+    let phone = CGRect(x: 0, y: 300, width: 402, height: 72)
+    #expect(Fade.separatorSpan(leading: 90, trailing: 386, background: phone) == 90...386)
+    // A cell that starts inside the window (sheet on iPad / Mac).
+    #expect(Fade.separatorSpan(leading: 190, trailing: 486, background: phone.offsetBy(dx: 100, dy: 0)) == 90...386)
+    // Right to left: leading is the right end.
+    #expect(Fade.separatorSpan(leading: 312, trailing: 16, background: phone) == 16...312)
+    // macOS runs it on to the row's trailing edge: the right edge, or the left one in RTL.
+    let mac = CGRect(x: 0, y: 300, width: 402.5, height: 93)
+    #expect(Fade.separatorSpan(leading: 82, trailing: 393.5, background: mac, toRowEdge: true) == 82...402.5)
+    #expect(Fade.separatorSpan(leading: 320.5, trailing: 9, background: mac, toRowEdge: true, rightToLeft: true)
+        == 0...320.5)
+    // Empty or unreadable spans draw nothing.
+    #expect(Fade.separatorSpan(leading: 90, trailing: 90.5, background: phone) == nil)
+    #expect(Fade.separatorSpan(leading: .nan, trailing: 386, background: phone) == nil)
+    #expect(Fade.separatorSpan(leading: 90, trailing: .infinity, background: phone) == nil)
+    #expect(Fade.separatorSpan(leading: 90, trailing: 386, background: CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 1)) == nil)
+    #if os(macOS)
+    #expect(Fade.separatorRunsToRowEdge)
+    #else
+    #expect(!Fade.separatorRunsToRowEdge)
+    #endif
+    #expect(PinnedHeaderEdgeFade.separatorThickness == 1)
+}
+
 /// Header height counts only while the List shows headers, and a measurement made while
 /// they were hidden still applies once they return.
 @MainActor @Test func pinnedHeaderStateDropsTheHeaderWhenHidden() {

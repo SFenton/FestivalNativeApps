@@ -31,6 +31,8 @@ enum IPadAuditPageEvidence {
         /// Static texts partly under the bars or the screen edge that could not be scrolled
         /// clear and measured.
         var textsUnmeasured = 0
+        /// The labels of those texts (first 40 characters), for locating them.
+        var unmeasured: [String] = []
         /// Lowest rendered contrast among them.
         var contrastFloor: Double?
         /// Texts below 4.5:1 (label and reading), if any.
