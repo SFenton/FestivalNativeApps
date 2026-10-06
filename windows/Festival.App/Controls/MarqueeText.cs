@@ -17,7 +17,9 @@ namespace Festival.App.Controls;
 /// the web <c>MarqueeText</c> (8 s cycle, 5% dwell at each end, 28 px gap, phase-aligned across instances from one
 /// epoch so neighbouring rows move together). Text that fits is drawn plainly. Motion off (Windows Animation effects,
 /// in-app or launch Reduce Motion), a hidden/minimized window or an unloaded row stops it and shows the ellipsized
-/// text instead. Screen readers always get the full text.
+/// text instead. In-page text that opts in with <see cref="WrapsAtLargeText"/> wraps onto as many lines as it needs at
+/// large Windows text sizes (<see cref="Festival.Core.Domain.LargeText"/>) instead of scrolling or ellipsizing (Apple's in-page
+/// <c>marqueeWrapsAtAccessibilitySizes</c>, Android <c>wrapAtLargeText</c>). Screen readers always get the full text.
 /// </summary>
 public sealed partial class MarqueeText : Panel
 {
@@ -28,6 +30,13 @@ public sealed partial class MarqueeText : Panel
     /// <summary>TextBlock style for both copies.</summary>
     public static readonly DependencyProperty TextStyleProperty = DependencyProperty.Register(
         nameof(TextStyle), typeof(Style), typeof(MarqueeText), new PropertyMetadata(null, (d, _) => ((MarqueeText)d).OnStyleChanged()));
+
+    /// <summary>
+    /// Wrap instead of scrolling at large Windows text sizes (in-page song header lines, pattern <c>song-header</c> R3).
+    /// Off by default: rows, cards and bar titles stay on one line at every text size.
+    /// </summary>
+    public static readonly DependencyProperty WrapsAtLargeTextProperty = DependencyProperty.Register(
+        nameof(WrapsAtLargeText), typeof(bool), typeof(MarqueeText), new PropertyMetadata(false, (d, _) => ((MarqueeText)d).OnWrapsAtLargeTextChanged()));
 
     /// <summary>Seconds for one scroll-and-dwell cycle (web default 8).</summary>
     public static double CycleSeconds { get; set; } = 8;
@@ -44,6 +53,8 @@ public sealed partial class MarqueeText : Panel
     private static readonly DateTimeOffset Epoch = DateTimeOffset.UnixEpoch;
     private double naturalWidth;
     private bool playing;
+    private bool wrapped;
+    private bool listeningToTextScale;
 
     /// <summary>Creates the control.</summary>
     public MarqueeText()
@@ -54,9 +65,57 @@ public sealed partial class MarqueeText : Panel
         primary.IsTextTrimmedChanged += (_, _) => IsTextTrimmedChanged?.Invoke(this, EventArgs.Empty);
         IsHitTestVisible = false;
         SizeChanged += (_, _) => { UpdateClip(); QueueUpdate(); };
-        Loaded += (_, _) => { Services.Motion.Changed += OnMotionChanged; QueueUpdate(); };
-        Unloaded += (_, _) => { Services.Motion.Changed -= OnMotionChanged; Stop(); };
+        Loaded += (_, _) => { Services.Motion.Changed += OnMotionChanged; SyncTextScaleListener(true); UpdateWrap(); QueueUpdate(); };
+        Unloaded += (_, _) => { Services.Motion.Changed -= OnMotionChanged; SyncTextScaleListener(false); Stop(); };
     }
+
+    #region Large text wrap
+    /// <inheritdoc cref="WrapsAtLargeTextProperty" />
+    public bool WrapsAtLargeText
+    {
+        get => (bool)GetValue(WrapsAtLargeTextProperty);
+        set => SetValue(WrapsAtLargeTextProperty, value);
+    }
+
+    /// <summary>Whether the text currently wraps (large text with <see cref="WrapsAtLargeText"/> on); it never scrolls then.</summary>
+    public bool IsWrapped => wrapped;
+
+    /// <summary>Re-evaluates the wrap mode and whether to follow text size changes.</summary>
+    private void OnWrapsAtLargeTextChanged()
+    {
+        SyncTextScaleListener(IsLoaded);
+        UpdateWrap();
+    }
+
+    /// <summary>Follows Windows text size changes only while loaded and opted in (rows stay unsubscribed).</summary>
+    /// <param name="loaded">Whether the control is (being) loaded.</param>
+    private void SyncTextScaleListener(bool loaded)
+    {
+        var listen = loaded && WrapsAtLargeText;
+        if (listen == listeningToTextScale) return;
+        listeningToTextScale = listen;
+        if (listen) SystemSettings.TextScaleFactorChanged += OnTextScaleChanged;
+        else SystemSettings.TextScaleFactorChanged -= OnTextScaleChanged;
+    }
+
+    /// <summary>Text size changed (raised off the UI thread).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="args">Unused.</param>
+    private void OnTextScaleChanged(UISettings sender, object args) => DispatcherQueue?.TryEnqueue(UpdateWrap);
+
+    /// <summary>Switches between the one-line marquee and the wrapped full text.</summary>
+    private void UpdateWrap()
+    {
+        var wrap = WrapsAtLargeText && Festival.Core.Domain.LargeText.Applies(SystemSettings.TextScaleFactor);
+        if (wrap == wrapped) return;
+        Stop();
+        wrapped = wrap;
+        primary.TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        primary.TextTrimming = wrap ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+        InvalidateMeasure();
+        QueueUpdate();
+    }
+    #endregion
 
     /// <summary>Re-evaluates when motion settings or window visibility change.</summary>
     /// <param name="sender">Unused.</param>
@@ -69,7 +128,7 @@ public sealed partial class MarqueeText : Panel
     /// <summary>Scrolls while loaded, overflowing and allowed to move; otherwise shows the static ellipsized text.</summary>
     private void UpdatePlayback()
     {
-        var animate = IsLoaded && Overflows && MotionAllowed && Services.Motion.Allowed && !Services.Motion.Paused;
+        var animate = IsLoaded && !wrapped && Overflows && MotionAllowed && Services.Motion.Allowed && !Services.Motion.Paused;
         if (animate == playing) return;
         if (animate) Play();
         else Stop();
@@ -138,7 +197,7 @@ public sealed partial class MarqueeText : Panel
     /// <summary>Starts scrolling if the text overflows and motion is allowed (normally driven automatically).</summary>
     public void Play()
     {
-        if (playing || !Overflows || !MotionAllowed || !SystemSettings.AnimationsEnabled) return;
+        if (playing || wrapped || !Overflows || !MotionAllowed || !SystemSettings.AnimationsEnabled) return;
         playing = true;
         primary.TextTrimming = TextTrimming.None;
         copy.Visibility = Visibility.Visible;
@@ -185,6 +244,13 @@ public sealed partial class MarqueeText : Panel
     /// <inheritdoc />
     protected override Size MeasureOverride(Size availableSize)
     {
+        if (wrapped)
+        {
+            // Large text: the whole text on as many lines as it needs, never wider than the column.
+            primary.Measure(availableSize);
+            naturalWidth = primary.DesiredSize.Width;
+            return primary.DesiredSize;
+        }
         primary.Measure(new Size(double.PositiveInfinity, availableSize.Height));
         naturalWidth = primary.DesiredSize.Width;
         copy.Measure(new Size(double.PositiveInfinity, availableSize.Height));
@@ -231,7 +297,7 @@ public sealed partial class MarqueeText : Panel
     private void OnStyleChanged()
     {
         primary.Style = copy.Style = TextStyle;
-        primary.TextTrimming = playing ? TextTrimming.None : TextTrimming.CharacterEllipsis;
+        primary.TextTrimming = playing || wrapped ? TextTrimming.None : TextTrimming.CharacterEllipsis;
         InvalidateMeasure();
         QueueUpdate();
     }
