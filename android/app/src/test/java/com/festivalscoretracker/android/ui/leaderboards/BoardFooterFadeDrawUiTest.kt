@@ -97,9 +97,24 @@ class BoardFooterFadeDrawUiTest {
         assertTrue(board(fade = false).redIn(700 until 800))
     }
 
+    /**
+     * Scroll-edge R7 (issue #190): Reduce Transparency and Increase Contrast swap the fade for a
+     * hard cut at the footer's top. Rows stay fully opaque right up to the cut and never show
+     * beneath the footer or between the pager's buttons, and the hidden rows leave TalkBack.
+     */
     @Test
-    fun reduceTransparencyKeepsTheHardEdge() {
-        assertTrue(board(fade = true, FestivalAccessibility(reduceTransparency = true)).redIn(700 until 800))
+    fun reduceTransparencyCutsRowsHardAtTheFooter() = assertHardCut(FestivalAccessibility(reduceTransparency = true))
+
+    @Test
+    fun increaseContrastCutsRowsHardAtTheFooter() = assertHardCut(FestivalAccessibility(increaseContrast = true))
+
+    private fun assertHardCut(accessibility: FestivalAccessibility) {
+        val image = board(fade = true, accessibility)
+        val cut = rule.onNodeWithTag("fst.t.bottom-bar").fetchSemanticsNode().positionInWindow.y.toInt() - image.y
+        assertFalse("no row shows beneath the footer", image.redIn(cut + 1 until 800))
+        assertTrue("no ramp: rows are opaque up to the cut", (cut - 40 until cut - 1).all { image.redAt(it) > 0.99f || image.redAt(it) < 0.01f })
+        assertTrue("rows reach the cut", image.redIn(cut - 12 until cut))
+        rule.onNodeWithTag("row.14").assertIsNotDisplayed()
     }
 
     /**

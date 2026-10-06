@@ -72,7 +72,8 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * @param pager Pager.
  * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out just
  *   above it ([BoardFooterEdgeFade], the web's scroll mask; issue #93); hidden rows also leave
- *   touch and TalkBack (issue #104).
+ *   touch and TalkBack (issue #104). With Increase Contrast or Reduce Transparency the fade
+ *   becomes a hard cut at the footer's top (issue #190).
  * @param rows Row items.
  */
 @Composable
@@ -101,8 +102,9 @@ fun RankingsBoardScaffold(
  * @param controls Page information shown above the rows.
  * @param footer Anchored "your rank" content.
  * @param pager Pager.
- * @param fadeAboveFooter Fade rows out above the bottom-anchored footer (single pane only:
- *   around a hinge the footer sits in the other pane, clear of the rows).
+ * @param fadeAboveFooter Hide rows beneath the bottom-anchored footer and fade them out above it
+ *   (single pane only: around a hinge the footer sits in the other pane, clear of the rows).
+ *   Increase Contrast or Reduce Transparency keep the cut without the fade.
  * @param itemGap Space between list items, also left between the last item and the anchored
  *   footer (the band score cards keep their 8 dp gap).
  * @param rows Row items.
@@ -145,6 +147,8 @@ internal fun RankingsBoardLayout(
             var anchoredHeight by remember { mutableIntStateOf(0) }
             val anchoredDp = with(density) { anchoredHeight.toDp() }
             val accessibility = LocalFestivalAccessibility.current
+            // Increase Contrast / Reduce Transparency drop the ramp, never the cut: rows still end at
+            // the footer's top edge ([scroll-edge] R7: a hard edge, never a leak; issue #190).
             val fades = fadeAboveFooter && BoardFooterEdgeFade.isEnabled(accessibility.increaseContrast, accessibility.reduceTransparency)
             val depth = with(density) { BoardFooterEdgeFade.DEPTH_DP.dp.toPx() }
             // Read in the draw phase only, so scrolling never recomposes.
@@ -173,7 +177,7 @@ internal fun RankingsBoardLayout(
                     // the last row like another item (issue #293).
                     PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = anchoredDp + itemGap),
                     Modifier
-                        .then(if (fades) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
+                        .then(if (fadeAboveFooter) Modifier.clipAboveFooter { anchoredHeight } else Modifier)
                         .footerEdgeFade(edge, depth),
                     itemGap,
                 ) {
@@ -281,7 +285,8 @@ private fun BoardList(
 
 /**
  * Clips the full-height list at the floating footer's top edge, where [footerEdgeFade] already
- * hides the rows: the list keeps its full viewport (scrolling, padding and the fade are
+ * hides the rows (or, with Increase Contrast or Reduce Transparency, the hard cut that replaces
+ * the fade): the list keeps its full viewport (scrolling, padding and the fade are
  * unchanged) but reports the shorter size, so rows beneath the footer and pager leave touch and
  * the accessibility tree. Otherwise TalkBack skips a row fully covered by the footer and focuses
  * hidden rows peeking around the pager instead of scrolling (issue #104).
