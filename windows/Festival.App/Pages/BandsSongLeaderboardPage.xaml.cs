@@ -17,6 +17,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         InitializeComponent();
         Controls.BoardFooter.Inset(Footer, Rows);
+        BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Rows, Footer);
     }
 
     /// <summary>Page model (set on navigation).</summary>

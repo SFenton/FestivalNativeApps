@@ -2,40 +2,63 @@ namespace Festival.Core.Domain;
 
 #region Board footer edge fade
 /// <summary>
-/// The soft edge above a leaderboard's floating footer (the pinned "your score" row and the pager, issue #93). The web
-/// ends the scroll viewport at the footer's top (<c>useLeaderboardFooterScrollMargin</c>) and masks its bottom
-/// <see cref="Depth"/> px while more rows lie below (<c>useScrollMask</c>), so rows fade out just above the footer instead
-/// of running on underneath it. The band eases out over the last <see cref="Depth"/> epx of scroll, so the last row is
-/// fully clear at the end. Contrast themes, Windows transparency effects off and the in-app Increase Contrast / Less
-/// Transparency settings keep the plain list under the footer's solid surfaces (<see cref="SongHeaderEdgeFade.IsEnabled"/>).
+/// The one bottom-chrome ramp above a leaderboard's floating footer (the pinned "your score" row and the pager; issues
+/// #93, #308). Like the web's <c>useScrollFade</c>, rows are fully clear at the footer's top and fully opaque
+/// <see cref="Depth"/> epx above it, linear (<see cref="SongHeaderEdgeFade.Stops"/> reversed), and nothing shows beneath
+/// the footer. The ramp's depth is <c>min(scroll left, Depth)</c> (<see cref="FadeDepth"/>), so at the end of the list
+/// the last row is fully opaque. Contrast themes, Windows transparency effects off and the in-app Increase Contrast /
+/// Less Transparency settings (<see cref="SongHeaderEdgeFade.IsEnabled"/>) get depth 0: a hard cut at the footer's top,
+/// with no row text between or behind the footer's controls (scroll-edge R7).
 /// </summary>
 public static class BoardFooterEdgeFade
 {
-    /// <summary>Band depth in epx (web <c>useScrollMask</c> <c>DEFAULT_SIZE</c>: 40 px).</summary>
-    public const double Depth = 40;
+    /// <summary>Ramp depth in epx (web <c>useScrollFade</c> <c>DEFAULT_DISTANCE</c>: 36 px). The only bottom-ramp constant.</summary>
+    public const double Depth = 36;
 
-    /// <summary>Fade strength for the scroll left below the viewport: 0 at the end (nothing more below) to 1.</summary>
+    /// <summary>The ramp's depth for the scroll left below the viewport: 0 at the end (nothing more below) up to <see cref="Depth"/>.</summary>
     /// <param name="scrollableHeight">Scroll extent minus viewport, epx.</param>
     /// <param name="verticalOffset">Current offset, epx.</param>
-    /// <returns>Strength in [0, 1].</returns>
-    public static double Strength(double scrollableHeight, double verticalOffset)
+    /// <param name="enabled">Whether the settings allow the ramp; <see langword="false"/> gives the hard cut (0).</param>
+    /// <returns>Depth in [0, <see cref="Depth"/>].</returns>
+    public static double FadeDepth(double scrollableHeight, double verticalOffset, bool enabled = true)
     {
         var remaining = scrollableHeight - verticalOffset;
-        return double.IsNaN(remaining) ? 0 : Math.Clamp(remaining / Depth, 0, 1);
+        return !enabled || double.IsNaN(remaining) ? 0 : Math.Clamp(remaining, 0, Depth);
     }
 
     /// <summary>
-    /// Mask stops for a gradient from <see cref="Depth"/> epx above the footer's top to 1 epx below it: opaque above the
-    /// band, the reversed smoothstep through the band (scaled by <paramref name="strength"/>), then clear from the
-    /// footer's top down so no row shows beneath the footer.
+    /// Mask stops for a gradient from <c>depth</c> epx above the footer's top to the footer's top (clamped beyond both
+    /// ends): opaque above the ramp, clear from the footer's top down.
     /// </summary>
-    /// <param name="strength">Fade strength from <see cref="Strength"/>.</param>
-    /// <returns>Offsets along that gradient with their mask alpha.</returns>
-    public static IReadOnlyList<(float Offset, float Alpha)> Stops(double strength)
-    {
-        var scale = (float)(Depth / (Depth + 1));
-        var band = SongHeaderEdgeFade.Stops.Select(s => (s.Offset * scale, SongHeaderEdgeFade.MaskAlpha(1 - s.Alpha, strength)));
-        return [.. band, (1f, 0f)];
-    }
+    public static IReadOnlyList<(float Offset, float Alpha)> Stops { get; } =
+        [.. SongHeaderEdgeFade.Stops.Select(s => (s.Offset, 1 - s.Alpha))];
+
+    #region UI Automation state
+    /// <summary>UIA ItemStatus while no mask is drawn: no rows (loading, empty, error) or no floating footer.</summary>
+    public const string StatusHidden = "hidden";
+
+    /// <summary>UIA ItemStatus for the accessibility hard cut at the footer's top (R7).</summary>
+    public const string StatusHardEdge = "hard-edge";
+
+    /// <summary>UIA ItemStatus with nothing left below (the end of the list, or rows that fit): nothing is dimmed (R4).</summary>
+    public const string StatusEnd = "end";
+
+    /// <summary>Prefix of the UIA ItemStatus while rows fade above the footer; the drawn ramp depth in whole epx follows.</summary>
+    public const string StatusFadingPrefix = "fading:";
+
+    /// <summary>
+    /// The board footer edge state that the fade layer publishes to UI Automation, from the mask actually drawn, so a
+    /// UI test can tell the 36 epx ramp, the end state and the R7 hard cut apart without reading pixels.
+    /// </summary>
+    /// <param name="drawn">Whether the mask is drawn (rows and a floating footer are shown).</param>
+    /// <param name="enabled">Whether the settings allow the ramp (<see cref="SongHeaderEdgeFade.IsEnabled"/>).</param>
+    /// <param name="drawnDepth">The drawn gradient's span above the footer's top, epx.</param>
+    /// <returns><see cref="StatusHidden"/>, <see cref="StatusHardEdge"/>, <see cref="StatusEnd"/> or <c>fading:&lt;epx&gt;</c>.</returns>
+    public static string Status(bool drawn, bool enabled, double drawnDepth) =>
+        !drawn ? StatusHidden
+        : !enabled ? StatusHardEdge
+        : !(drawnDepth >= 1) ? StatusEnd
+        : StatusFadingPrefix + Math.Round(drawnDepth).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    #endregion
 }
 #endregion
