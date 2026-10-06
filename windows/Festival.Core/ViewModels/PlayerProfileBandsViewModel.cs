@@ -6,7 +6,7 @@ namespace Festival.Core.ViewModels;
 #region Player profile bands
 /// <summary>
 /// The profile's inline "{name}'s Bands" section (web <c>PlayerBandsSection.buildPlayerBandsItems</c>, issue #312): a
-/// heading with See All, then Duos, Trios and Quads groups, each with up to <see cref="PreviewSize"/> band cards, a
+/// heading with a View All link, then Duos, Trios and Quads groups, each with up to <see cref="PreviewSize"/> band cards, a
 /// "No Bands Yet" card when empty and "View All Bands (N)" when the group has more. The web fills it from player-stats
 /// (blocked); natives read one keyless <c>GET /api/player/{id}/bands?group=&amp;page=1&amp;pageSize=6</c> per group.
 /// The section loads after the profile and never holds the page spinner; any failed group fails the section with one
@@ -17,7 +17,7 @@ public sealed partial class PlayerProfileBandsViewModel : ObservableObject
     /// <summary>Cards per group (the service's player-stats <c>GetPlayerBands</c> <c>previewCount</c>).</summary>
     public const int PreviewSize = 6;
 
-    /// <summary>Groups the profile previews, in web order (All is only reachable through See All).</summary>
+    /// <summary>Groups the profile previews, in web order (All is only reachable through the title-row View All).</summary>
     public static IReadOnlyList<PlayerBandGroup> PreviewGroups { get; } = [PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads];
 
     private readonly FestivalSession session;
@@ -43,7 +43,7 @@ public sealed partial class PlayerProfileBandsViewModel : ObservableObject
 
     /// <summary>Profile display name (updated when the profile read renames the player).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Title), nameof(SeeAllName), nameof(SeeAllRoute))]
+    [NotifyPropertyChangedFor(nameof(Title), nameof(ListLinkName), nameof(ListLinkRoute))]
     private string playerName;
 
     /// <summary>Load lifecycle (Loading, Loaded or Failed).</summary>
@@ -58,11 +58,14 @@ public sealed partial class PlayerProfileBandsViewModel : ObservableObject
     /// <summary><c>{name}'s Bands</c> (web <c>player.bands</c>).</summary>
     public string Title => $"{PlayerName}'s Bands";
 
-    /// <summary>Accessible name of See All: the visible label first (WCAG 2.5.3), then the section.</summary>
-    public string SeeAllName => $"See All, {Title}";
+    /// <summary>Title-row link text (section-headers R8: "View All", never "See All", owner #321).</summary>
+    public static string ListLinkText => ViewAllCta.ListLabel;
+
+    /// <summary>Accessible name of the title-row link: the visible label first (WCAG 2.5.3), then the section.</summary>
+    public string ListLinkName => ViewAllCta.Name(ListLinkText, Title);
 
     /// <summary>Player Bands on All (web <c>Routes.playerBands(id, 'all', 1, name)</c>).</summary>
-    public AppRoute SeeAllRoute => new AppRoute.PlayerBands(AccountId, PlayerBandGroup.All, PlayerName);
+    public AppRoute ListLinkRoute => new AppRoute.PlayerBands(AccountId, PlayerBandGroup.All, PlayerName);
 
     /// <summary>Whether the section spinner shows.</summary>
     public bool IsLoading => State is LoadState.Loading or LoadState.Idle;
@@ -145,10 +148,10 @@ public sealed record PlayerProfileBandGroup(string AccountId, string PlayerName,
     public bool HasMore => Page.TotalCount > Cards.Count;
 
     /// <summary><c>View All Bands (12)</c> (web <c>player.viewAllBands</c>, Title Case like the native View All buttons).</summary>
-    public string ViewAllText => string.Create(CultureInfo.CurrentCulture, $"View All Bands ({Page.TotalCount:N0})");
+    public string ViewAllText => string.Create(CultureInfo.CurrentCulture, $"{ViewAllCta.BandsLabel} ({Page.TotalCount:N0})");
 
     /// <summary>Accessible name of View All: the visible label, then the group (WCAG 2.5.3, like the ranking cards).</summary>
-    public string ViewAllName => RankingViewAll.Name(ViewAllText, Title);
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
 
     /// <summary>Player Bands filtered to this group.</summary>
     public AppRoute ViewAllRoute => new AppRoute.PlayerBands(AccountId, Group, PlayerName);

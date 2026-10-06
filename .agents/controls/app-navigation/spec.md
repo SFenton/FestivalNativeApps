@@ -19,7 +19,8 @@ Source: `FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:45-100`, 
 
 - System navigation owns chrome and safe areas; keep accessible tab names, selected state, keyboard focus and per-tab path history.
 - Never port the web's Duo pixel detector or guess fold/camera positions.
-- A verified publication change or identity switch must not leave routes pointing at stale data: resolve routes by song ID against the new catalogue, or clear them with a persistent visible explanation.
+- A publication change keeps every route where it is and refreshes it in place, like the web `PublicationBoundary` (issue #304): fade the page out, show the spinner, fade the rebuilt page in (instant swap under Reduce Motion). Never pop to a root or show a "returned to …" notice for it. Routes that carry a song re-resolve it by ID against the new catalogue; a song that left shows a not-found state on that page. An identity switch must still not leave routes pointing at stale data.
+- Pick up new publications without user action: Apple opens the anonymous `/api/ws` socket the web uses ([service safety](../../platforms/service-safety.md)).
 - The `fst.nav.*` family reserves each semantic section (the source scanner requires every literal ID family to be registered).
 
 ## Cross-cutting shell controls (no own route)

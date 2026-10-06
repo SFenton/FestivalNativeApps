@@ -171,14 +171,14 @@
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
 
-                <!-- Bands (web PlayerBandsSection, issue #312): "{name}'s Bands" with See All, then Duos/Trios/Quads groups of
+                <!-- Bands (web PlayerBandsSection, issue #312): "{name}'s Bands" with a View All link, then Duos/Trios/Quads groups of
                      up to six band cards (BandCardView, as on Player Bands), a No Bands Yet card when empty and View All Bands (N)
                      when the group has more. Read per group after the profile shows; never holds the page spinner. -->
                 <controls:AccessibleGroup Margin="0,8,0,0" controls:QuickLinkAnchor.Id="bands"
                                           AutomationProperties.Name="{x:Bind ViewModel.Bands.Title, Mode=OneWay}"
                                           AutomationProperties.AutomationId="fst.player.bands-section">
                     <StackPanel Spacing="12">
-                        <!-- Header (web section header with See All; same as the Rivals hub sections). -->
+                        <!-- Header with the title-row View All link (section-headers R8; same link as the Rivals hub sections). -->
                         <Grid ColumnSpacing="10" MinHeight="40">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -187,9 +187,9 @@
                             <TextBlock Text="{x:Bind ViewModel.Bands.Title, Mode=OneWay}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
                                        VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2"
                                        AutomationProperties.AutomationId="fst.player.bands" />
-                            <HyperlinkButton Grid.Column="1" Content="See All" Click="OnBandsSeeAllClick" VerticalAlignment="Center"
+                            <HyperlinkButton Grid.Column="1" Content="{x:Bind vm:PlayerProfileBandsViewModel.ListLinkText}" Click="OnBandsListLinkClick" VerticalAlignment="Center"
                                              MinHeight="{StaticResource FSTMinTargetSize}"
-                                             AutomationProperties.Name="{x:Bind ViewModel.Bands.SeeAllName, Mode=OneWay}"
+                                             AutomationProperties.Name="{x:Bind ViewModel.Bands.ListLinkName, Mode=OneWay}"
                                              AutomationProperties.AutomationId="fst.player.bands-link" />
                         </Grid>
 

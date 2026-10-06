@@ -173,16 +173,22 @@ public static class FirstRunDemoRotationStatus
     /// one appends <c>rotation=running|inactive|not-visible|background</c>, the swaps drawn since it was built and how the last swap
     /// was drawn (<c>none</c>, <c>fade</c> or <c>instant</c> with animations off), e.g.
     /// <c>catalogue rotation=running swaps=2 swap=fade</c> (space-separated: UI test steps split on semicolons).
-    /// <c>not-visible</c> matches the backdrop's hidden token.
+    /// <c>not-visible</c> matches the backdrop's hidden token. A demo with Shop pulses ends with <c>pulse=held</c> or
+    /// <c>pulse=running pulse-slides=N</c> (<see cref="PulseState"/>; N counts the realized demos whose pulses run, so a
+    /// UI test can prove that off-screen slides, which UI Automation can't reach, hold still: N is 1), e.g.
+    /// <c>catalogue pulse=running pulse-slides=1</c>.
     /// </summary>
     /// <param name="dataStatus">Data status.</param>
     /// <param name="state">Rotation state.</param>
     /// <param name="swaps">Rows or panels swapped since the demo was built (a tick with nothing to swap adds none).</param>
     /// <param name="lastSwapFaded">Whether the last swap faded (ignored before the first swap).</param>
+    /// <param name="pulse">Shop pulse token from <see cref="PulseState"/>, or <see langword="null"/> without pulses.</param>
+    /// <param name="pulseSlides">Realized demos whose Shop pulses run (reported only with <c>pulse=running</c>).</param>
     /// <returns>Status text.</returns>
-    public static string Format(string dataStatus, FirstRunDemoRotationState state, int swaps, bool lastSwapFaded)
+    public static string Format(string dataStatus, FirstRunDemoRotationState state, int swaps, bool lastSwapFaded, string? pulse = null, int pulseSlides = 0)
     {
-        if (state == FirstRunDemoRotationState.Static) return dataStatus;
+        var suffix = pulse is null ? "" : pulse == PulseRunning ? $" pulse={pulse} pulse-slides={pulseSlides}" : $" pulse={pulse}";
+        if (state == FirstRunDemoRotationState.Static) return dataStatus + suffix;
         var rotation = state switch
         {
             FirstRunDemoRotationState.Running => "running",
@@ -191,8 +197,28 @@ public static class FirstRunDemoRotationStatus
             _ => "inactive",
         };
         var swap = swaps == 0 ? "none" : lastSwapFaded ? "fade" : "instant";
-        return $"{dataStatus} rotation={rotation} swaps={swaps} swap={swap}";
+        return $"{dataStatus} rotation={rotation} swaps={swaps} swap={swap}{suffix}";
     }
+
+    /// <summary>Pulse token while a demo's Shop pulses animate.</summary>
+    public const string PulseRunning = "running";
+
+    /// <summary>Pulse token while a demo's Shop pulses hold a still frame.</summary>
+    public const string PulseHeld = "held";
+
+    /// <summary>
+    /// Whether a demo's Shop pulse rings and breathing fills animate (issue #83): only on the selected, loaded slide
+    /// while motion is allowed and the window can be seen; otherwise they hold a still frame. Unlike data rotation it
+    /// ignores window activation (pulses follow visibility, like the backdrop).
+    /// </summary>
+    /// <param name="hasPulses">The demo hosts at least one Shop pulse ring or fill.</param>
+    /// <param name="active">The slide is the carousel's selected one.</param>
+    /// <param name="loaded">The demo is in the live tree.</param>
+    /// <param name="motionAllowed">Animations are allowed (Windows Animation effects and in-app Reduce Motion).</param>
+    /// <param name="hidden">The window can't be seen (<c>Motion.Paused</c>).</param>
+    /// <returns><see cref="PulseRunning"/>, <see cref="PulseHeld"/>, or <see langword="null"/> without pulses.</returns>
+    public static string? PulseState(bool hasPulses, bool active, bool loaded, bool motionAllowed, bool hidden) =>
+        !hasPulses ? null : active && loaded && motionAllowed && !hidden ? PulseRunning : PulseHeld;
 }
 #endregion
 
@@ -464,11 +490,11 @@ public static class FirstRunDemoScorePattern
 /// <param name="IsPlayer">Whether this is the selected player.</param>
 public sealed record FirstRunDemoRanking(int Rank, string DisplayName, string RatingLabel, bool IsPlayer = false);
 
-/// <summary>One rival demo entry.</summary>
+/// <summary>One rival demo entry (web demo pool shape: counts are from the rival's perspective, like the wire).</summary>
 /// <param name="AccountId">Stable demo ID.</param>
 /// <param name="DisplayName">Rival name.</param>
 /// <param name="RivalScore">Rivalry score.</param>
-/// <param name="SharedSongCount">Shared song count.</param>
+/// <param name="SharedSongCount">Shared song count (kept for web pool parity; never shown, issues #40/#67/#267).</param>
 /// <param name="AheadCount">Songs where the rival is ahead.</param>
 /// <param name="BehindCount">Songs where the rival is behind.</param>
 /// <param name="AvgSignedDelta">Average signed score delta.</param>
@@ -476,6 +502,19 @@ public sealed record FirstRunDemoRival(string AccountId, string DisplayName, int
 {
     /// <summary>Stable pool identity.</summary>
     public string Id => AccountId;
+
+    /// <summary>
+    /// The real Rivals row's pills as one line ("{n} songs ahead · {m} songs behind", player's perspective), with no
+    /// shared-song count, so the demo matches the row it introduces (issue #267).
+    /// </summary>
+    public string CountsText => $"{RivalRowText.Ahead(BehindCount)} · {RivalRowText.Behind(AheadCount)}";
+
+    /// <summary>One-line group entry (<c>compete-rivals</c>, <c>rivals-overview</c>): name, then <see cref="CountsText"/>.</summary>
+    public string GroupLine => $"{DisplayName} · {CountsText}";
+
+    /// <summary>Card row (<c>rivals-instruments</c>): name, <see cref="CountsText"/> and the signed average delta.</summary>
+    public FirstRunDemoRow Row => new(DisplayName, CountsText,
+        AvgSignedDelta >= 0 ? $"▲ {AvgSignedDelta}" : $"▼ {Math.Abs(AvgSignedDelta)}");
 }
 
 /// <summary>One metadata sample row.</summary>

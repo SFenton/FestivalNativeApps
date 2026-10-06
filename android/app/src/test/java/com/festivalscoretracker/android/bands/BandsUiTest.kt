@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
@@ -193,6 +194,14 @@ class BandsUiTest {
     }
 
     @Test
+    fun playerBandsRouteOpensOnItsGroup() {
+        launch("playerBands:${BandFixtures.PLAYER}:quads")
+        waitForTag("fst.player-bands.row.band-1")
+        rule.onNodeWithText("Quads · 2 bands").assertIsDisplayed()
+        assertTrue(transport.sent("/api/player/${BandFixtures.PLAYER}/bands").all { it.url.contains("group=quads") })
+    }
+
+    @Test
     fun playerBandsPagerSupersedesAPendingPage() = assertPagerSupersedesAPendingPage(
         route = "playerBands:${BandFixtures.PLAYER}",
         prefix = "fst.player-bands",
@@ -366,6 +375,8 @@ class BandsUiTest {
         assertTrue(rule.onAllNodesWithText("FC", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
         assertTrue(rule.onAllNodesWithContentDescription("Accuracy 97.5%", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         waitForTag("fst.song-band-leaderboard.song")
+        // Issue #315: the shared song header (one heading stop that opens Song Detail).
+        rule.onNodeWithTag("fst.song-band-leaderboard.song").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)).assertHasClickAction()
         // The pager floats in the bottom bar, outside the list (shared RankingsBoardLayout, issue #307).
         click("fst.song-band-leaderboard.page-last")
         waitForTag("fst.song-band-leaderboard.row.band-26:26")

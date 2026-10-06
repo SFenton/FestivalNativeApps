@@ -134,13 +134,15 @@ class LeaderboardsDeviceJourneyTest {
     }
 
     @Test
-    fun fullRankingsPinsTheSelectedRowUntilItsPageIsShown() {
+    fun fullRankingsPinsTheSelectedRowOnEveryPage() {
         launch("fullRankings:Solo_Guitar")
         waitForTag("fst.full-rankings.spotlight-footer")
         assertNothingStraddles("fst.full-rankings.pager", "fst.full-rankings.spotlight-footer")
         tap("fst.full-rankings.page-next")
         rule.waitUntil(15_000) { rule.onAllNodesWithContentDescription("Page 2 of 3", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         waitForTag("fst.rankings.row.${RankingsFixtures.SELECTED}")
-        waitGone("fst.full-rankings.spotlight-footer")
+        // Issue #318: still pinned above the pager on the player's own page.
+        waitForTag("fst.full-rankings.spotlight-footer")
+        assertNothingStraddles("fst.full-rankings.pager", "fst.full-rankings.spotlight-footer")
     }
 }

@@ -30,6 +30,8 @@ public sealed partial class SuggestionsPage : Page
             if (e.PropertyName == nameof(SuggestionsViewModel.VisibleInstruments)) SyncInstrumentPicker();
             if (e.PropertyName == nameof(SuggestionsViewModel.Phase) && ViewModel.ShowList) PerfLog.Mark("suggestions-rendered");
         };
+        // Each newly generated batch fades from its first card; cards already shown never fade again.
+        ViewModel.CardsAdded += (_, start) => FadeIn.Restagger(CardList, start);
         Loaded += (_, _) => UpdateFilterTint();
     }
 

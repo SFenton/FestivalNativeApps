@@ -137,7 +137,7 @@ struct ShopScreen: View {
         }
         .detailFadeTestSafe()
         .festivalBackground(.carousel, session: session, visible: isVisible)
-        .navigationTitle("Item Shop")
+        .festivalNavigationTitle("Item Shop")
         .toolbar {
             if pageTools == nil {
                 ToolbarItem(placement: .festivalPageAction) { filterButton }

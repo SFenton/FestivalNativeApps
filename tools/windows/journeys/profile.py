@@ -159,7 +159,7 @@ JOURNEYS = [
         ],
         expect=[
             ["fst.history.instrument.Solo_Bass", "fst.history.instrument.Solo_Drums", "5 of 8 scores",
-             "fst.history.entry-back", "fst.history.page-forward", "fst.history.view-all"],
+             "fst.history.entry-back", "fst.history.page-forward", "fst.history.view-all", "View All Scores, Lead"],
             ["fst.history.bar.2"],
             ["fst.history.bar.7"],
             ["610,000"],
@@ -272,7 +272,7 @@ JOURNEYS = [
              "waitfor:id=fst.band.title@10", "waitfor:id=fst.band.member.fixture-band-1-a@10"],
         ],
         expect=[
-            ["Fixture Player 1's Bands", "See All, Fixture Player 1's Bands", "fst.player.bands.header.quads",
+            ["Fixture Player 1's Bands", "View All, Fixture Player 1's Bands", "fst.player.bands.header.quads",
              "fst.player-bands.row.fixture-pband-quad-1", "fst.player-bands.row.fixture-pband-quad-4"],
             ["fst.player-bands.row.fixture-band-1"],
             ["fst.player-bands.row.fixture-pband-trio-1"],

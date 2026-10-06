@@ -130,13 +130,13 @@ final class FestivalMobileUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"]
             .waitForExistence(timeout: 15))
-        app.buttons["fst.profile.open"].tap()
+        app.buttons["fst.shell.profile"].tap()
         let bands = app.buttons["Bands"]
         XCTAssertTrue(bands.waitForExistence(timeout: 10))
         bands.tap()
         let bandStatus = app.staticTexts["fst.profile.bands-unavailable"]
         XCTAssertTrue(bandStatus.waitForExistence(timeout: 10))
-        XCTAssertTrue(bandStatus.label.contains("Band search is paused"))
+        XCTAssertTrue(bandStatus.label.contains("Use Search to find a band"))
         XCTAssertFalse(app.buttons["fst.profile.select"].exists)
         app.buttons["Players"].tap()
         let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
@@ -155,7 +155,7 @@ final class FestivalMobileUITests: XCTestCase {
         record(app, name: "profile-player-search-access-denied")
         app.buttons["fst.profile.close"].tap()
 
-        app.buttons["fst.profile.open"].tap()
+        app.buttons["fst.shell.profile"].tap()
         let emptySearch = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(emptySearch.waitForExistence(timeout: 10))
         emptySearch.tap()
@@ -200,7 +200,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertFalse(app.buttons["fst.profile.select"].exists)
         record(app, name: "profile-player-scores-access-denied")
         app.buttons["fst.profile.close"].tap()
-        XCTAssertEqual(app.buttons["fst.profile.open"].label, "Choose Profile")
+        XCTAssertEqual(app.buttons["fst.shell.profile"].label, "Choose Profile")
     }
 
     /// Root sections keep a profile action, while wide sidebars show the actual name.

@@ -75,7 +75,7 @@ struct BandDetailScreen: View {
             }
         }
         .festivalBackground(.carousel, session: session)
-        .navigationTitle(name ?? "Band")
+        .festivalNavigationTitle(name ?? "Band")
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands($rankBy)
         .toolbar {

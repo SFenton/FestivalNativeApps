@@ -40,4 +40,4 @@ Journeys: `player-bands-mixed-sizes`, `player-bands-empty`, `player-bands-error`
 
 ## Open
 
-- Entry points: the profile's Bands section See All (All) and View All Bands (its group); see [player-profile/windows.md](../player-profile/windows.md).
+- Entry points: the profile's Bands section title-row View All (All) and View All Bands (its group); see [player-profile/windows.md](../player-profile/windows.md).

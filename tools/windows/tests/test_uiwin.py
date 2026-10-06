@@ -106,7 +106,10 @@ class StepTests(unittest.TestCase):
         self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
         self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
-        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
+        # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
+        current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
+        self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
+        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
                     "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",
@@ -138,6 +141,30 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_listen_and_assertannounced(self):
+        # Issue #269: record the app's UIA notifications (what Narrator speaks), then wait for one.
+        self.assertEqual(u.parse_step("listen:Announcements"), {"verb": "listen", "arg": "announcements"})
+        step = u.parse_step("assertannounced:Loading Lead Hard path@5")
+        self.assertEqual((step["verb"], step["text"], step["timeout"]), ("assertannounced", "Loading Lead Hard path", 5.0))
+        self.assertNotIn("timeout", u.parse_step("assertannounced:Lead Hard path image loaded"))
+        regex = u.parse_step(r"assertannounced:~^Lead Expert path loaded, \d+ activations?$@2.5")
+        self.assertEqual((regex["text"], regex["timeout"]), (r"~^Lead Expert path loaded, \d+ activations?$", 2.5))
+        self.assertEqual(u.parse_step("assertannounced:mail@home")["text"], "mail@home")
+        for bad in ("listen:", "listen:focus", "assertannounced:", "assertannounced:@5"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertannouncedcount(self):
+        # Issue #275: a value announced once, not repeated by later reads.
+        step = u.parse_step("assertannouncedcount:1|Phase. 1,310 attempted this pass · 70 | x")
+        self.assertEqual((step["verb"], step["count"], step["text"]),
+                         ("assertannouncedcount", 1, "Phase. 1,310 attempted this pass · 70 | x"))
+        self.assertEqual(u.parse_step(r"assertannouncedcount:0|~^Loading")["count"], 0)
+        for bad in ("assertannouncedcount:", "assertannouncedcount:1", "assertannouncedcount:x|text",
+                    "assertannouncedcount:1|", "assertannouncedcount:-1|text"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertgap(self):
         step = u.parse_step("assertgap:id=fst.song-leaderboard.row.p-25|id=fst.song-leaderboard.page-first|4")
         self.assertEqual(step["verb"], "assertgap")
@@ -149,6 +176,32 @@ class StepTests(unittest.TestCase):
                     "assertgap:id=a|id=b|-4"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+
+    def test_span(self):
+        step = u.parse_step("markspan:id=fst.history.instrument.group|id=fst.history.sort.open|card")
+        self.assertEqual(step["verb"], "markspan")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.history.instrument.group"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.history.sort.open"})
+        self.assertEqual(step["name"], "card")
+        self.assertEqual(u.parse_step("assertspan:name=A|name=B|card-2")["name"], "card-2")
+        for bad in ("assertspan:id=a|id=b", "assertspan:id=a|id=b|", "markspan:id=a|card", "assertspan:1,2|id=b|c",
+                    "markspan:id=a|id=b|bad name"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_film(self):
+        start, stop = u.parse_step("film:out/fade"), u.parse_step("filmstop:out/fade")
+        self.assertEqual((start["verb"], stop["verb"]), ("film", "filmstop"))
+        self.assertEqual(start["arg"], stop["arg"])
+        self.assertTrue(Path(start["arg"]).is_absolute())
+        with self.assertRaises(ValueError):
+            u.parse_step("filmstop:")
+
+    def test_keys_sequence(self):
+        step = u.parse_step("keys:left space shift+tab")
+        self.assertEqual(step["seq"], [[0x25], [0x20], [0x10, 0x09]])
+        with self.assertRaises(ValueError):
+            u.parse_step("keys:left nosuchkey")
 
     def test_pin_and_assertpinned(self):
         pin = u.parse_step("pin:id=fst.songs.sort@5")

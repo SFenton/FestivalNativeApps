@@ -1,5 +1,25 @@
 [
   {
+    "name": "song-board-header",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "assertname:id=fst.song-leaderboard.title|Fixture Pulse",
+      "assertname:id=fst.song-leaderboard.artist|Synthetic Quartet",
+      "assertname:id=fst.song-leaderboard.instrument|Lead",
+      "assertname:id=fst.song-leaderboard.total|26 Lead entries",
+      "assertbelow:id=fst.song-leaderboard.artist|id=fst.song-leaderboard.title",
+      "assertbelow:id=fst.song-leaderboard.instrument|id=fst.song-leaderboard.artist",
+      "assertbelow:id=fst.song-leaderboard.total|id=fst.song-leaderboard.instrument",
+      "assertstate:id=fst.song-leaderboard.song|type=button",
+      "assertstate:id=fst.song-leaderboard.song|name=Fixture Pulse",
+      "invoke:id=fst.song-leaderboard.song",
+      "waitfor:id=fst.song-detail.title@10",
+      "waitgone:id=fst.song-leaderboard.title@5"
+    ]
+  },
+  {
     "name": "song-board-pager-keyboard-and-rows",
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "medium",

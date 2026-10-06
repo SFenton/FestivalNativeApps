@@ -42,3 +42,13 @@ import Testing
     #expect(LeaderboardPaging.corrected(requested: 99, totalPages: 2) == 2)
     #expect(LeaderboardPaging.corrected(requested: -1, totalPages: 2) == 1)
 }
+
+/// Paging under a collapsed song header keeps it under the bar; anything else returns
+/// to the top like the web's `scrollTo(0, 0)` (issue #316).
+@Test func reloadScrollKeepsCollapsedHeaderOnlyForPageChanges() {
+    #expect(LeaderboardPaging.reloadScroll(headerUnderBar: true, boardChanged: false) == .firstRow)
+    #expect(LeaderboardPaging.reloadScroll(headerUnderBar: false, boardChanged: false) == .top)
+    #expect(LeaderboardPaging.reloadScroll(headerUnderBar: true, boardChanged: true) == .top,
+            "a new band size or player shows its header")
+    #expect(LeaderboardPaging.reloadScroll(headerUnderBar: false, boardChanged: true) == .top)
+}

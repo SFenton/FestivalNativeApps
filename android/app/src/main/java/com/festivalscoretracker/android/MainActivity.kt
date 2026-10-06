@@ -29,6 +29,9 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // The manifest label is the short launcher name ("FST", issue #79); the window title
+        // is what TalkBack announces on open, so it keeps the full app name (issue #182).
+        setTitle(R.string.app_name)
         val launch = if (BuildConfig.DEBUG_LAUNCH) parseDebugLaunch() else DebugLaunch.NONE
         val container = (application as FestivalApplication).container(launch)
         setContent {

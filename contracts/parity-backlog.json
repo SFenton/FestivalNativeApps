@@ -16,7 +16,7 @@
       "acceptance": [
         "Typed, publication-consistent, keyless GETs decode real wire envelopes and reject invalid/late responses.",
         "Public search, rankings and batched chart reads return 200 keyless to native user agents (re-probed 2026-09-27); keep it that way without bypass headers, a privileged key or empty-data fallbacks.",
-        "Guarantee band search and all selected-profile-dependent GETs do not write before allowing native clients to issue them; use no selected-profile headers, stats GET or band sync-status GET while that policy is unresolved.",
+        "Guarantee all selected-profile-dependent GETs do not write before allowing native clients to issue them; use no selected-profile headers, stats GET or band sync-status GET while that policy is unresolved. Band search is read-only since the #320 service fix and allowed with the service-safety conditions.",
         "Use opt-in, bounded live schema probes and deterministic local fixtures; never automate production mutations."
       ]
     },

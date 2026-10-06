@@ -15,7 +15,7 @@ Source: `FortniteFestivalWeb/src/hooks/data/useUnifiedSearch.ts:41-160`, `packag
 
 - Account search: `GET /api/account/search?q=…&limit=10` → `{results:[{accountId,displayName}]}` from a DB SELECT (`FSTService/Api/AccountEndpoints.cs:43-61`, `FSTService/Persistence/MetaDatabase.cs:3484-3537`). An empty envelope is also returned after a logged DB timeout — never proof of no matches.
 - Player scores: unfiltered `GET /api/player/{accountId}` returns compact `si` song IDs, single-bit `ins` instrument hex codes and `acc` accuracy ÷1,000; a registered but unpublished player gets HTTP 202 `status: syncing` (`FSTService/Api/PlayerEndpoints.cs:14-83,190-259`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`, `FSTService/ComboIds.cs:8-43,100-117`, `packages/core/src/api/serverTypes.ts:1654-1715,1740-1799`). Newer rows carry precomputed `ml`/`vs`/`rt` variants. Percentile `-1` is an "unavailable" sentinel; the Songs pill derives rank % from `rk / te`, not raw `pct` (`FSTService/Scraping/GlobalLeaderboardScraper.cs:513-520`, `FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:73-84`, `packages/core/src/app/formatters.ts:56-63`). HTTP 200 ≠ registered.
-- Band search, player stats and band sync-status GETs can write: **blocked**.
+- Player stats and band sync-status GETs can write: **blocked**. Band search is read-only since the #320 service fix and allowed under [service-safety](../../platforms/service-safety.md#endpoint-allowlist) conditions; natives use it in global search, but choosing a band as the selected profile is not built yet, so the native profile sheet's Bands scope says so and points to Search.
 
 ## Native client contract (all platforms)
 

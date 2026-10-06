@@ -19,7 +19,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -27,7 +26,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +51,7 @@ import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.LeaderboardsLayoutPolicy
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.asRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightPlacement
@@ -78,6 +77,7 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
+import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Overview
 
@@ -107,7 +107,7 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     // One column under TalkBack or at large text (see rememberSingleColumn).
     val singleColumn = rememberSingleColumn()
-    val folded = !singleColumn && currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
+    val folded = !singleColumn && shellPosture().hingeList.any { it.isSeparating && it.isVertical }
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = if (singleColumn) 1 else LeaderboardsLayoutPolicy.columns(maxWidth.value.toInt(), folded)
@@ -371,11 +371,11 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
         CardHeader(instrument.label) { InstrumentIcon(instrument, size = 40.dp, decorative = true) }
         GlassCard(Modifier.fillMaxWidth()) {
         // Rows fill this column, so its inner width is the width their names must not collapse in (issue #114).
-        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        var rowWidth by rememberRankingRowWidth()
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
-                LoadState.Loading -> RankingsSkeletonRows(5)
+                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = metric.isPercentile)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${instrument.label} rankings unavailable", current.countdown, { viewModel.retryCard(instrument) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(current.value.rankings.entries + pinnedEntry(viewModel, instrument, selected), metric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
@@ -481,11 +481,11 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         CardHeader(bandType.label)
         GlassCard(Modifier.fillMaxWidth()) {
-        var rowWidth by remember { mutableFloatStateOf(Float.NaN) }
+        var rowWidth by rememberRankingRowWidth()
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
-                LoadState.Loading -> RankingsSkeletonRows(5)
+                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = bandMetric.asRankingMetric.isPercentile, nameLines = stackedBandNameLines(bandType.memberCount))
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
