@@ -9,6 +9,7 @@ import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.bands.BandText
 import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.ui.leaderboards.SyncRouteArguments
 import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.BandsRoute
@@ -40,8 +41,9 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer) {
     composable<PlayerBandsRoute> { entry ->
         val route = entry.toRoute<PlayerBandsRoute>()
         val shell = LocalShellActions.current
-        val list: PlayerBandsViewModel = viewModel(key = "player-bands:${route.accountId}") {
-            PlayerBandsViewModel(route.accountId, BandPaging.PAGE_SIZE, api::playerBands, container.backoff)
+        val group = PlayerBandGroup.fromWireId(route.group)
+        val list: PlayerBandsViewModel = viewModel(key = "player-bands:${route.accountId}:${group.wireId}") {
+            PlayerBandsViewModel(route.accountId, BandPaging.PAGE_SIZE, api::playerBands, container.backoff, group)
         }
         val state by list.bands.collectAsStateWithLifecycle()
         val entries = (state as? LoadState.Loaded)?.value?.entries.orEmpty()

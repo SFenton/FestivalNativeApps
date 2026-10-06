@@ -5,10 +5,14 @@ import android.graphics.Canvas
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionContains
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -19,6 +23,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
@@ -40,6 +45,7 @@ import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPercentileBucket
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongStarsBucket
+import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.presentation.profile.PlayerIdentityAction
 import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiState
@@ -47,6 +53,7 @@ import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
+import com.festivalscoretracker.android.ui.design.SeeAllVisibleLabelKey
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import java.time.Duration
@@ -264,29 +271,126 @@ class ProfileParityUiTest {
         rule.onNodeWithTag("fst.player.rank-history.row.2026-09-12", useUnmergedTree = true).assertExists()
     }
 
+    /** Player-page preview pages: Duos has more than the preview, Trios is empty, Quads fits. */
+    private fun installGroupedBands() {
+        BandFixtures.install(journey.transport)
+        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}/bands") { request ->
+            val size = Regex("pageSize=(\\d+)").find(request.url)!!.groupValues[1].toInt()
+            when (Regex("group=(\\w+)").find(request.url)!!.groupValues[1]) {
+                "duos" -> BandFixtures.playerBands(8, 1, size, "duos")
+                "quads" -> BandFixtures.playerBands(2, 1, size, "quads", idPrefix = "q-")
+                "trios" -> BandFixtures.playerBands(0, 1, size, "trios")
+                else -> BandFixtures.playerBands(30, 1, size)
+            }
+        }
+    }
+
     @Test
-    fun bandsPreviewOpensBandsAndTheFullList() {
-        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}/bands") { BandFixtures.playerBands(6, 1, 4) }
+    fun bandsPreviewShowsDuosTriosAndQuadsLikeTheWeb() {
+        installGroupedBands()
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
-        journey.waitForTag("fst.player.bands.view-all")
-        rule.onNodeWithText("View All Bands (6)").assertIsDisplayed()
-        listOf(BandFixtures.DUO_ID, "band-1", "band-2", "band-3").forEach { journey.waitForTag("fst.player-bands.row.$it") }
-        assertTrue(rule.onAllNodesWithTag("fst.player-bands.row.band-4").fetchSemanticsNodes().isEmpty())
-        val sent = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands").single()
-        assertTrue(sent.url.contains("group=all") && sent.url.contains("pageSize=4"))
+        journey.waitForTag("fst.player.bands.header.duos")
+        // Duos: six cards (the service preview size), then "View All Bands (8)".
+        listOf(BandFixtures.DUO_ID, "band-1", "band-2", "band-3", "band-4", "band-5").forEach {
+            journey.scrollTo("fst.player-bands.row.$it")
+        }
+        assertTrue(rule.onAllNodesWithTag("fst.player-bands.row.band-6").fetchSemanticsNodes().isEmpty())
+        journey.scrollTo("fst.player.bands.view-all.duos")
+        rule.onNodeWithText("View All Bands (8)").assertIsDisplayed()
+        // Web `BandViewAllCard`: one 48 dp frosted card button whose label is its name (not the purple CTA).
+        rule.onNodeWithTag("fst.player.bands.view-all.duos")
+            .assertHeightIsAtLeast(48.dp)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(hasText("View All Bands (8)"))
+            .assertHasClickAction()
+        // Trios: "No Bands Yet" and no View all.
+        journey.scrollTo("fst.player.bands.header.trios")
+        journey.scrollTo("fst.player.bands.empty.trios")
+        rule.onNodeWithText("No Bands Yet").assertIsDisplayed()
+        // Quads: every band fits, so no View all.
+        journey.scrollTo("fst.player.bands.header.quads")
+        journey.scrollTo("fst.player-bands.row.q-band-1")
+        listOf("trios", "quads").forEach { assertTrue(rule.onAllNodesWithTag("fst.player.bands.view-all.$it").fetchSemanticsNodes().isEmpty()) }
+        // One keyless page per group, never the All group, band search or `/api/bands`.
+        val sent = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands")
+        assertEquals(setOf("duos", "trios", "quads"), sent.map { Regex("group=(\\w+)").find(it.url)!!.groupValues[1] }.toSet())
+        assertEquals(3, sent.size)
+        assertTrue(sent.all { it.url.contains("page=1") && it.url.contains("pageSize=6") })
         assertTrue(journey.transport.requests.none { it.url.contains("/api/bands") })
-        journey.tap("fst.player.bands.view-all")
+    }
+
+    @Test
+    fun bandsPreviewViewAllOpensTheMatchingGroup() {
+        installGroupedBands()
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bands")
+        journey.scrollTo("fst.player.bands.view-all.duos")
+        journey.tap("fst.player.bands.view-all.duos")
         journey.waitForTag("fst.player-bands.screen")
+        rule.onNodeWithText("Duos · 8 bands").assertIsDisplayed()
+        val list = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands").last()
+        assertTrue(list.url.contains("group=duos") && list.url.contains("pageSize=25"))
+    }
+
+    @Test
+    fun bandsPreviewViewAllOpensEveryBand() {
+        installGroupedBands()
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bands")
+        // `section-headers` R8: the title-row link shows "View All" and TalkBack hears "View All {name}'s Bands".
+        val spoken = rule.onNodeWithTag("fst.player.bands-link").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].single()
+        assertTrue(spoken, Regex("View All .+'s Bands").matches(spoken))
+        rule.onNodeWithText(spoken.removePrefix("View All ")).assertIsDisplayed()
+        rule.onNodeWithTag("fst.player.bands-link").assert(SemanticsMatcher.expectValue(SeeAllVisibleLabelKey, "View All"))
+        assertTrue(rule.onAllNodes(hasText("See All", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodes(hasContentDescription("See All", substring = true)).fetchSemanticsNodes().isEmpty())
+        journey.tap("fst.player.bands-link")
+        journey.waitForTag("fst.player-bands.screen")
+        rule.onNodeWithText("All Bands · 30 bands").assertIsDisplayed()
+        assertTrue(journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands").last().url.contains("group=all"))
+    }
+
+    @Test
+    fun bandsPreviewCardOpensTheBand() {
+        installGroupedBands()
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bands")
+        journey.waitForTag("fst.player.bands.header.duos")
+        journey.scrollTo("fst.player-bands.row.${BandFixtures.DUO_ID}")
+        journey.tap("fst.player-bands.row.${BandFixtures.DUO_ID}")
+        journey.waitForTag("fst.band.members-section")
+    }
+
+    @Test
+    fun bandsPreviewFailureRetriesInPlace() {
+        var fail = true
+        journey.transport.onRaw("/api/player/${Fixtures.ACCOUNT_A}/bands") { request ->
+            if (fail) {
+                HttpResult(500, "{}".toByteArray())
+            } else {
+                HttpResult(200, BandFixtures.playerBands(1, 1, 6, Regex("group=(\\w+)").find(request.url)!!.groupValues[1]).toByteArray())
+            }
+        }
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bands")
+        journey.waitForTag("fst.player.bands.retry")
+        // The failure stays inside the section; the heading and View All remain usable.
+        rule.onNodeWithTag("fst.player.bands-link").assertIsDisplayed()
+        assertTrue(rule.onAllNodesWithTag("fst.player.bands.header.duos").fetchSemanticsNodes().isEmpty())
+        fail = false
+        journey.tap("fst.player.bands.retry")
+        journey.waitForTag("fst.player.bands.header.duos")
     }
 
     @Test
     fun bandsPreviewEmptyState() {
-        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}/bands") { BandFixtures.playerBands(0, 1, 4) }
+        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}/bands") { BandFixtures.playerBands(0, 1, 6) }
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
-        journey.waitForTag("fst.player.bands.empty")
-        rule.onNodeWithText("No Bands Yet").assertIsDisplayed()
+        listOf("duos", "trios", "quads").forEach { journey.scrollTo("fst.player.bands.empty.$it") }
+        rule.onNodeWithTag("fst.player.bands.empty.quads").assertIsDisplayed()
+        assertTrue(rule.onAllNodesWithText("View All Bands", substring = true).fetchSemanticsNodes().isEmpty())
     }
 
     @Test

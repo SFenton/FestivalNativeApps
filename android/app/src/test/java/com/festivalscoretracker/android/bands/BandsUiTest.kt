@@ -194,6 +194,14 @@ class BandsUiTest {
     }
 
     @Test
+    fun playerBandsRouteOpensOnItsGroup() {
+        launch("playerBands:${BandFixtures.PLAYER}:quads")
+        waitForTag("fst.player-bands.row.band-1")
+        rule.onNodeWithText("Quads · 2 bands").assertIsDisplayed()
+        assertTrue(transport.sent("/api/player/${BandFixtures.PLAYER}/bands").all { it.url.contains("group=quads") })
+    }
+
+    @Test
     fun playerBandsPagerSupersedesAPendingPage() = assertPagerSupersedesAPendingPage(
         route = "playerBands:${BandFixtures.PLAYER}",
         prefix = "fst.player-bands",

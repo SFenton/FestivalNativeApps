@@ -462,7 +462,8 @@
         "frosted card",
         "card surface",
         "ultraThinMaterial",
-        "transparency"
+        "transparency",
+        "view all"
       ],
       "web": [
         {
@@ -472,6 +473,10 @@
         {
           "path": "pages/leaderboards/components/RankingCard.tsx",
           "symbol": "RankingCard"
+        },
+        {
+          "path": "pages/player/components/PlayerBandsSection.tsx",
+          "symbol": "BandViewAllCard"
         }
       ],
       "canonical": {
@@ -497,6 +502,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
             "symbol": "BrandTokens"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileBands.kt",
+            "symbol": "ProfileBandsViewAll"
           }
         ],
         "windows": [
@@ -556,13 +565,15 @@
         "pages": [
           "songs",
           "song-detail",
-          "leaderboards"
+          "leaderboards",
+          "player-profile"
         ]
       },
       "supersedes": [],
       "supersededBy": null,
       "issues": [
         291,
+        312,
         319
       ]
     },
@@ -876,7 +887,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one pager per platform, the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, and one measured section-wide score-footer stack plan that never truncates the score.",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -997,6 +1008,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/RankingFormatting.kt",
+            "symbol": "RankingSpotlight"
           }
         ],
         "windows": [
@@ -1689,7 +1704,8 @@
         "pinned title",
         "album art background",
         "song backdrop",
-        "carousel"
+        "carousel",
+        "entry totals"
       ],
       "issues": [
         93,
@@ -1706,6 +1722,10 @@
         {
           "path": "pages/leaderboard/band/SongBandLeaderboardPage.tsx",
           "symbol": "PageBackground"
+        },
+        {
+          "path": "pages/leaderboard/global/LeaderboardPage.tsx",
+          "symbol": "showLeaderboardEntryTotals"
         }
       ],
       "canonical": {
@@ -1731,8 +1751,12 @@
         ],
         "windows": [
           {
-            "path": "windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs",
-            "symbol": "LeaderboardsSongPage"
+            "path": "windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs",
+            "symbol": "SongLeaderboardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml.cs",
+            "symbol": "IBackdropPage"
           }
         ]
       },
@@ -1752,6 +1776,25 @@
           "allow": [],
           "debt": [],
           "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
+        },
+        {
+          "id": "windows-board-title",
+          "glob": "windows/Festival.Core/ViewModels/*Song*Leaderboard*ViewModel.cs",
+          "regex": "\\} (Leaderboard|Scores)\"",
+          "allow": [],
+          "debt": [],
+          "message": "Song leaderboards name the song first; the board is the header's board line, never a '{Board} Leaderboard' title (song-leaderboard-header R1)."
+        },
+        {
+          "id": "windows-page-title",
+          "glob": "windows/Festival.App/Pages/*Song*Page.xaml",
+          "regex": "FSTPageTitleStyle",
+          "allow": [
+            "windows/Festival.App/Pages/SongsPage.xaml",
+            "windows/Festival.App/Pages/SongDetailPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows song leaderboards take their title from Controls/SongLeaderboardHeader (song-leaderboard-header R5)."
         }
       ],
       "related": {
