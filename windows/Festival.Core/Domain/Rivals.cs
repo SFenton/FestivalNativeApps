@@ -13,6 +13,27 @@ public enum RivalDirection
 }
 #endregion
 
+#region Row text
+/// <summary>
+/// Rival row pill copy (web <c>rivals.songsAhead</c>/<c>songsBehind</c>), shared by the Rivals row and the First Run
+/// rival demos so they cannot drift. Counts are from the player's perspective: "ahead" is the wire
+/// <c>behindCount</c>, "behind" the wire <c>aheadCount</c>. There is deliberately no shared-song copy (owner decision,
+/// issues #40/#67/#267): that count is always ahead + behind.
+/// </summary>
+public static class RivalRowText
+{
+    /// <summary><c>{n} songs ahead</c>.</summary>
+    /// <param name="songs">Songs the player leads.</param>
+    /// <returns>Pill text.</returns>
+    public static string Ahead(int songs) => string.Create(CultureInfo.CurrentCulture, $"{songs:N0} songs ahead");
+
+    /// <summary><c>{n} songs behind</c>.</summary>
+    /// <param name="songs">Songs the rival leads.</param>
+    /// <returns>Pill text.</returns>
+    public static string Behind(int songs) => string.Create(CultureInfo.CurrentCulture, $"{songs:N0} songs behind");
+}
+#endregion
+
 #region Combos
 /// <summary>
 /// Cross-instrument combo scopes (web <c>comboUtils.ts</c>/<c>combos.ts</c>): hex bitmask IDs over the service's

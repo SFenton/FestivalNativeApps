@@ -611,15 +611,19 @@ final class IPadAccessibilityAuditTests: XCTestCase {
         return CGRect(x: bar.minX, y: window.minY, width: window.maxX - bar.minX, height: window.height)
     }
 
-    /// Wait for the trailing pane (``trailingPane(_:)``).
+    /// Wait for the trailing pane (``trailingPane(_:)``) to show and finish sliding in:
+    /// its frame read mid-spring (791 pt instead of 605) failed the midpoint check.
     @MainActor
     static func waitForTrailingPane(_ app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
         let deadline = Date.now.addingTimeInterval(timeout)
+        var last: CGRect?
         repeat {
-            if trailingPane(app) != nil { return true }
-            Thread.sleep(forTimeInterval: 0.5)
+            let frame = trailingPane(app)
+            if let frame, let last, abs(frame.minX - last.minX) < 0.5 { return true }
+            last = frame
+            Thread.sleep(forTimeInterval: 0.4)
         } while Date.now < deadline
-        return false
+        return last != nil
     }
 
     /// A slow vertical drag between two screen points (no flick momentum).
