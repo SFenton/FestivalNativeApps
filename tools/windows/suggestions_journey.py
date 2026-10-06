@@ -212,7 +212,10 @@ FADE_PHASES = [
     # The cards on screen at load fade in, staggered from the first.
     fade_trace.Phase("load", LOADED, lambda events: fade_trace.check_load(events, CARD_LIST)),
     # Scrolling to the end of the loaded cards generates the next batch: only its new cards fade, from their first.
-    fade_trace.Phase("load-more", [f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10"],
+    # A batch's cards fade only when realized within 1 s of its arm, which a busy host can miss when the batch lands
+    # beyond the realization cache, so the phase jumps to the end a few times: each jump realizes the batch it loads.
+    fade_trace.Phase("load-more", [f"scrollinto:{TENTH_CARD}", f"scrollinto:{RIVAL_CARD}@15", f"waitfor:{RIVAL_CARD}@10",
+                                   *["scrollto:id=fst.suggestions.list,100", "wait:0.4"] * 3],
                      lambda events: fade_trace.check_batch(events, CARD_LIST)),
     # Back to the top and down again: cards already shown never fade again.
     fade_trace.Phase("scroll-back", ["scrollto:id=fst.suggestions.list,0", f"waitfor:{CARD}@10", "wait:1.5",
