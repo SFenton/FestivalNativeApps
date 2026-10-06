@@ -124,6 +124,15 @@ internal static class PostedInput
         or VirtualKeyShort.UP or VirtualKeyShort.DOWN or VirtualKeyShort.HOME or VirtualKeyShort.END
         or VirtualKeyShort.PRIOR or VirtualKeyShort.NEXT or VirtualKeyShort.INSERT or VirtualKeyShort.DELETE;
 
+    /// <summary>
+    /// Sends <c>WM_ACTIVATE</c> to a top-level window, so WinUI raises <c>Window.Activated</c> with
+    /// <c>CodeActivated</c> or <c>Deactivated</c> while a locked console refuses real foreground changes.
+    /// </summary>
+    /// <param name="topLevel">App window.</param>
+    /// <param name="active">Activate (<see langword="true"/>) or deactivate it.</param>
+    public static void Activate(IntPtr topLevel, bool active) =>
+        SendMessageW(topLevel, WmActivate, (IntPtr)(active ? WaActive : WaInactive), IntPtr.Zero);
+
     /// <summary>The first XAML input-site child of a top-level window.</summary>
     private static IntPtr? InputSite(IntPtr topLevel)
     {
@@ -147,6 +156,9 @@ internal static class PostedInput
     private const int UoiName = 2;
     private const uint WmKeyDown = 0x0100, WmKeyUp = 0x0101, WmChar = 0x0102, WmSysKeyDown = 0x0104, WmSysKeyUp = 0x0105;
 
+    private const uint WmActivate = 0x0006;
+    private const int WaInactive = 0, WaActive = 1;
+
     private const int WtsSessionInfoEx = 25, WtsSessionStateLock = 0;
 
     private delegate bool EnumProc(IntPtr hwnd, IntPtr data);
@@ -162,6 +174,7 @@ internal static class PostedInput
     [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr data);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr hwnd, StringBuilder name, int max);
     [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern IntPtr SendMessageW(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] private static extern uint MapVirtualKeyW(uint code, uint mapType);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint attach, uint to, bool doAttach);
