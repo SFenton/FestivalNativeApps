@@ -82,7 +82,7 @@ extension IPadAccessibilityAuditTests {
         if !unattributed.isEmpty, let capture {
             visible = IPadAuditPageEvidence.measure(
                 app, capture: capture, lines: lines, content: content,
-                sheetProof: page.sheet ? proof : nil, systemRegions: Array(containers.values)
+                sheetProof: page.sheet ? proof : nil, systemRegions: containers.filter { $0.key != IPadAuditWaivers.drawerContainer }.map(\.value)
             )
         }
 
