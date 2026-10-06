@@ -58,7 +58,8 @@ Apple ramp constants live only in `FestivalCore/ScrollEdgeFade.swift` (`topDista
 | Debt | Breaks | Plan |
 |---|---|---|
 | Windows `SongHeaderEdgeFade.Depth = 28` (smoothstep pinned-title fade) | R3 | Move to 40 linear and sweep Songs. Windows lane (#308; Apple and Android landed) |
-| Windows `BoardFooterEdgeFade.Depth = 40` (bottom chrome) | R3 | Move to 36 (web `useScrollFade`) and sweep the rankings footers. Windows lane (#308; Android landed) |
+
+Windows `BoardFooterEdgeFade.Depth = 40` is not debt (#305 review): a board's floating footer ends the page's scroll viewport, so the web ramp there is `Page.tsx`'s 40 px `useScrollMask` (R3, `useLeaderboardFooterScrollMargin`). Keep it at 40. The 36 value belongs only to bottom chrome that fades individual rows with `useScrollFade` (Apple `ScrollEdgeFade.distance`, Android `BOTTOM_DP`).
 
 ## Guards (`tools/pattern_guard.py`)
 
