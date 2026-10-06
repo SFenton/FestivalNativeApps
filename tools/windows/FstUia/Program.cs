@@ -1271,7 +1271,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
 
     /// <summary>
     /// Fails unless the element's UIA bounds are at least <c>width</c> x <c>height</c> effective pixels (window DPI),
-    /// allowing 0.5 epx for layout rounding to whole device pixels: e.g. Fluent's 40x40 epx touch target (issue #271).
+    /// allowing one device pixel: e.g. Fluent's 40x40 epx touch target (issue #271). UIA reports whole device pixels and
+    /// rounds each edge separately, so an element laid out on a half pixel (a 746 px wide window at 150%) reads one pixel
+    /// short: two adjacent 40 epx title-bar buttons measured 59 and 60 px (119 px together).
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a <c>selector</c>, <c>width</c> and <c>height</c>.</param>
@@ -1287,7 +1289,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         {
             ["arg"] = (string)step["arg"]!, ["width"] = Math.Round(width, 1), ["height"] = Math.Round(height, 1),
         });
-        if (width < minWidth - 0.5 || height < minHeight - 0.5)
+        if (rect.Width < minWidth * scale - 1.01 || rect.Height < minHeight * scale - 1.01)
             throw new InvalidOperationException(
                 $"{(string)step["arg"]!}: {width:0.#}x{height:0.#} epx is smaller than {minWidth:0.#}x{minHeight:0.#} epx");
     }
@@ -1319,7 +1321,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// drags the window instead; <see cref="Native.NonClientAt"/>), and UIA <c>ElementFromPoint</c> (XAML hit testing)
     /// must return the element or one of its
     /// parts; where another process covers the point (a locked console), the point must lie inside the element's bounds
-    /// instead (<c>method</c> in the result says which). A tap there activates the element.
+    /// instead (<c>method</c> in the result says which). A tap there activates the element. A point one device pixel
+    /// off the caption edge passes when the pixel next to it toward the centre is client (<c>edge_pixel</c>): the title
+    /// bar rounds its passthrough rects to whole pixels.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a <c>selector</c>, <c>dx</c> and <c>dy</c>.</param>
@@ -1334,6 +1338,18 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             (int)Math.Round(rect.Left + rect.Width / 2.0 + (double)step["dx"]! * scale),
             (int)Math.Round(rect.Top + rect.Height / 2.0 + (double)step["dy"]! * scale));
         var nonClient = Native.NonClientAt(hwnd, point);
+        string? edge = null;
+        if (nonClient is not null)
+        {
+            // TitleBar truncates its passthrough rects to whole device pixels, so they can sit one pixel off the
+            // element's (rounded) UIA bounds; allow that one pixel toward the centre, like AssertSize.
+            var nudged = new Point(point.X - Math.Sign((double)step["dx"]!), point.Y - Math.Sign((double)step["dy"]!));
+            if (Native.NonClientAt(hwnd, nudged) is null)
+            {
+                edge = nonClient;
+                nonClient = null;
+            }
+        }
         var hit = automation.FromPoint(point);
         var hitLabel = hit is null ? "nothing" : $"{Role(hit)} \"{hit.Properties.Name.ValueOrDefault}\" id={hit.Properties.AutomationId.ValueOrDefault}";
         bool inside;
@@ -1358,10 +1374,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         response["hits"]!.AsArray().Add(new JsonObject
         {
             ["arg"] = (string)step["arg"]!, ["x"] = point.X, ["y"] = point.Y, ["nonclient"] = nonClient, ["inside"] = inside,
-            ["method"] = method, ["hit"] = hitLabel,
+            ["method"] = method, ["hit"] = hitLabel, ["edge_pixel"] = edge,
         });
         if (nonClient is not null)
-            throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} is in the window's {nonClient} (non-client: the tap would miss the button)");
+            throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} is in the window's {nonClient} (non-client: the tap would miss the button; element {rect}, region band {Native.RegionRectAt(hwnd, point)})");
         if (!inside)
             throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} hits {hitLabel}, not the element");
     }
@@ -1593,7 +1609,54 @@ internal static class Native
         }, IntPtr.Zero);
         return found;
     }
-    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr hwnd, EnumWindowsProc callback, IntPtr data);
+    /// <summary>The screen rectangle of the title-bar caption region band that contains a point (failure diagnostics).</summary>
+    /// <param name="hwnd">Top-level window.</param>
+    /// <param name="point">Screen point (physical pixels).</param>
+    /// <returns><c>left,top,right,bottom</c>, or <c>"none"</c>.</returns>
+    public static string RegionRectAt(IntPtr hwnd, System.Drawing.Point point)
+    {
+        var found = "none";
+        EnumChildWindows(hwnd, (child, _) =>
+        {
+            var name = new StringBuilder(64);
+            _ = GetClassNameW(child, name, name.Capacity);
+            if (name.ToString() != "InputNonClientPointerSource" || !GetWindowRect(child, out var rect)) return true;
+            var region = CreateRectRgn(0, 0, 0, 0);
+            try
+            {
+                if (GetWindowRgn(child, region) == 0) return true;
+                var size = GetRegionData(region, 0, IntPtr.Zero);
+                var data = Marshal.AllocHGlobal((int)size);
+                try
+                {
+                    if (GetRegionData(region, size, data) == 0) return true;
+                    var count = Marshal.ReadInt32(data, 8);
+                    for (var i = 0; i < count; i++)
+                    {
+                        var at = 32 + i * 16;
+                        int l = Marshal.ReadInt32(data, at) + rect.Left, tp = Marshal.ReadInt32(data, at + 4) + rect.Top;
+                        int r = Marshal.ReadInt32(data, at + 8) + rect.Left, b = Marshal.ReadInt32(data, at + 12) + rect.Top;
+                        if (point.X >= l && point.X < r && point.Y >= tp && point.Y < b)
+                        {
+                            found = $"{l},{tp},{r},{b}";
+                            return false;
+                        }
+                    }
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(data);
+                }
+            }
+            finally
+            {
+                DeleteObject(region);
+            }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+    [DllImport("gdi32.dll")] private static extern uint GetRegionData(IntPtr region, uint count, IntPtr data);    [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr hwnd, EnumWindowsProc callback, IntPtr data);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr hwnd, StringBuilder name, int max);
     [DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr hwnd, IntPtr region);
     [DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
