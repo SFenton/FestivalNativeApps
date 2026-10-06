@@ -110,6 +110,7 @@ STEP_VERBS = {
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
     "assertsize": "size", "assertapart": "pair", "assertat": "offset",
+    "narrate": "selector", "assertread": "read", "assertorder": "order",
 }
 
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
@@ -239,6 +240,12 @@ def parse_step(step: str) -> dict:
     (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
     must return the element or one of its parts, or the point must be inside its bounds when another process covers
     it, e.g. a locked console; results in ``hits``), so an off-centre tap's target is checked without input.
+    Narrator model (Narrator itself can't be scripted; issue #271): ``narrate:<sel>`` records Narrator's scan-mode
+    reading order under the element with each item's phrase (results in ``narration``); ``assertread:<sel>|<phrase>[@<seconds>]``
+    waits (default 5 s) until the element's Narrator phrase (name, role, state, value, status, help text, shortcut,
+    comma-separated) equals ``<phrase>`` (or matches it as a .NET regex when it starts with ``~``); and
+    ``assertorder:<sel>|<sel>[|<sel>…][@<seconds>]`` fails unless the elements come in that order in the window's
+    reading order (results in ``orders``).
 
     Args:
         step: A step string.
@@ -322,6 +329,27 @@ def parse_step(step: str) -> dict:
         if result["selector"]["kind"] == "xy":
             raise ValueError("assertstatus needs an element selector, not coordinates")
         result["status"] = status.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "read":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        selector, sep, text = body.partition("|")
+        if not sep or not text.strip():
+            raise ValueError(f"bad assertread {arg!r}; use <selector>|<phrase>[@<seconds>]")
+        result["selector"] = parse_selector(selector)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("assertread needs an element selector, not coordinates")
+        result["text"] = text.strip()
+        if wait:
+            result["timeout"] = float(wait)
+    elif shape == "order":
+        body, _, wait = arg.rpartition("@") if re.search(r"@\d+(\.\d+)?$", arg) else (arg, "", "")
+        parts = body.split("|")
+        if len(parts) < 2 or not all(part.strip() for part in parts):
+            raise ValueError(f"bad assertorder {arg!r}; use <selector>|<selector>[|<selector>...][@<seconds>]")
+        result["selectors"] = [parse_selector(part) for part in parts]
+        if any(sel["kind"] == "xy" for sel in result["selectors"]):
+            raise ValueError("assertorder needs element selectors, not coordinates")
         if wait:
             result["timeout"] = float(wait)
     elif shape == "state":

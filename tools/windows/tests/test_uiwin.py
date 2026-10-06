@@ -250,6 +250,38 @@ class StepTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             u.parse_step("assertapart:id=fst.songs.sort")
 
+    def test_narrate(self):
+        step = u.parse_step("narrate:id=fst.shell.titlebar@10")
+        self.assertEqual(step["verb"], "narrate")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.titlebar"})
+        self.assertEqual(step["timeout"], 10.0)
+        with self.assertRaises(ValueError):
+            u.parse_step("narrate:10,20")
+
+    def test_assertread(self):
+        step = u.parse_step("assertread:id=fst.shell.profile|Select a player profile, button@8")
+        self.assertEqual(step["verb"], "assertread")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "fst.shell.profile"})
+        self.assertEqual(step["text"], "Select a player profile, button")
+        self.assertEqual(step["timeout"], 8.0)
+        regex = u.parse_step("assertread:id=fst.songs.sort|~^Sort Songs, button, collapsed")
+        self.assertEqual(regex["text"], "~^Sort Songs, button, collapsed")
+        self.assertNotIn("timeout", regex)
+        for bad in ("assertread:id=a", "assertread:id=a| ", "assertread:10,20|x"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
+    def test_assertorder(self):
+        step = u.parse_step("assertorder:id=fst.global-search.open|id=fst.shell.notifications|id=fst.shell.profile@6")
+        self.assertEqual(step["verb"], "assertorder")
+        self.assertEqual([s["value"] for s in step["selectors"]],
+                         ["fst.global-search.open", "fst.shell.notifications", "fst.shell.profile"])
+        self.assertEqual(step["timeout"], 6.0)
+        self.assertNotIn("timeout", u.parse_step("assertorder:id=a|name=b"))
+        for bad in ("assertorder:id=a", "assertorder:id=a||id=b", "assertorder:id=a|1,2"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_window_state_presets(self):
         self.assertEqual(u.preset_op("minimized"), {"kind": "minimize"})
         self.assertEqual(u.preset_op("restored"), {"kind": "restore"})
