@@ -2,7 +2,7 @@
 
 > **What:** shared score and ranking row geometry, columns, name overflow, pager and selected-player behavior. **Read when:** adding or changing any leaderboard, score preview, ranking card, spotlight or board footer.
 
-Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #292, #293, #294, #295, #307.
+Status: **current**, 2026-10-05. Provenance: #37, #38, #90, #292, #293, #294, #295, #306, #307.
 
 ## Intent
 
