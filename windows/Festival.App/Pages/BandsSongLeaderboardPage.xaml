@@ -14,33 +14,16 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Song header: art, title (opens Song Detail), artist line and the band size/entry count. -->
-        <Grid ColumnSpacing="16" MaxWidth="1200" HorizontalAlignment="Stretch">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Border x:Name="HeaderArtFrame" Width="72" Height="72" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
-                <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-            </Border>
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                <TextBlock x:Name="TitleText" Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="WrapWholeWords"
-                           AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-band-leaderboard.title" />
-                <!-- Song title link and artist line: one line each, scrolling when they overflow (song-header R2,
-                     issue #315). The link is named by the title; its marquee is Raw so Narrator reads the title once. -->
-                <HyperlinkButton Click="OnSongTitle" Padding="0" HorizontalContentAlignment="Stretch"
-                                 AutomationProperties.Name="{x:Bind ViewModel.SongTitle, Mode=OneWay}"
-                                 AutomationProperties.AutomationId="fst.song-band-leaderboard.song">
-                    <controls:MarqueeText Text="{x:Bind ViewModel.SongTitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}"
-                                          AutomationProperties.AccessibilityView="Raw"
-                                          AutomationProperties.AutomationId="fst.song-band-leaderboard.song-title" />
-                </HyperlinkButton>
-                <controls:MarqueeText Text="{x:Bind ViewModel.SongSubtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
-                                      AutomationProperties.AutomationId="fst.song-band-leaderboard.artist" />
-                <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                           AutomationProperties.AutomationId="fst.song-band-leaderboard.subtitle" />
-            </StackPanel>
-        </Grid>
+        <!-- The solo board's song-first header (issue #317): art, song title, artist, then the band size where the solo
+             board names its instrument. It stays above the band-size switcher while rows reload; invoking it opens Song Detail
+             (web onTitleClick). -->
+        <controls:SongLeaderboardHeader x:Name="Header" MaxWidth="1200" HorizontalAlignment="Stretch"
+                                        Title="{x:Bind ViewModel.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
+                                        BoardLabel="{x:Bind ViewModel.BoardLabel, Mode=OneWay}" TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
+                                        TitleAutomationId="fst.song-band-leaderboard.title" ArtistAutomationId="fst.song-band-leaderboard.artist"
+                                        BoardAutomationId="fst.song-band-leaderboard.subtitle"
+                                        TotalAutomationId="fst.song-band-leaderboard.total" SongAutomationId="fst.song-band-leaderboard.song"
+                                        TitleInvoked="OnSongTitle" />
 
         <SelectorBar x:Name="SizeBar" Grid.Row="1" SelectionChanged="OnSizeChanged"
                      AutomationProperties.Name="{x:Bind ViewModel.SwitcherName, Mode=OneWay}"

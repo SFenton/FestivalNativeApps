@@ -9,11 +9,11 @@ namespace Festival.Core.Tests;
 /// </summary>
 public class SongHeaderMarkupTests
 {
-    /// <summary>Loads a page's XAML.</summary>
-    /// <param name="page">File name under <c>Festival.App/Pages</c>.</param>
+    /// <summary>Loads an app XAML file.</summary>
+    /// <param name="file">Path under <c>Festival.App</c>, e.g. <c>Pages/SongDetailPage.xaml</c>.</param>
     /// <returns>The document.</returns>
-    private static XDocument Load(string page) => XDocument.Load(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "Festival.App", "Pages", page));
+    private static XDocument Load(string file) => XDocument.Load(
+        Path.Combine(new[] { AppContext.BaseDirectory, "..", "..", "..", "..", "Festival.App" }.Concat(file.Split('/')).ToArray()));
 
     /// <summary>Reads an attribute by its local name (XAML attached properties keep the dotted name).</summary>
     /// <param name="element">Element.</param>
@@ -31,39 +31,38 @@ public class SongHeaderMarkupTests
             || Attr(e, "Text") == "{x:Bind " + binding + "}").ToList();
 
     [Theory]
-    [InlineData("SongDetailPage.xaml", "ViewModel.Song.Title")]
-    [InlineData("SongDetailPage.xaml", "ViewModel.Song.Subtitle")]
-    [InlineData("LeaderboardsSongPage.xaml", "ViewModel.Title")]
-    [InlineData("LeaderboardsSongPage.xaml", "ViewModel.Subtitle")]
-    [InlineData("BandsSongLeaderboardPage.xaml", "ViewModel.SongTitle")]
-    [InlineData("BandsSongLeaderboardPage.xaml", "ViewModel.SongSubtitle")]
-    [InlineData("PlayerHistoryPage.xaml", "ViewModel.Subtitle")]
-    public void SongHeaderLines_AreMarquees(string page, string binding)
+    [InlineData("Pages/SongDetailPage.xaml", "ViewModel.Song.Title")]
+    [InlineData("Pages/SongDetailPage.xaml", "ViewModel.Song.Subtitle")]
+    [InlineData("Controls/SongLeaderboardHeader.xaml", "Title")]
+    [InlineData("Controls/SongLeaderboardHeader.xaml", "Artist")]
+    [InlineData("Pages/PlayerHistoryPage.xaml", "ViewModel.Subtitle")]
+    public void SongHeaderLines_AreMarquees(string file, string binding)
     {
-        var lines = BoundTo(Load(page), binding);
+        var lines = BoundTo(Load(file), binding);
         Assert.NotEmpty(lines);
         Assert.All(lines, line => Assert.Equal("MarqueeText", line.Name.LocalName));
     }
 
     [Theory]
-    [InlineData("SongDetailPage.xaml", "fst.song-detail.title")]
-    [InlineData("LeaderboardsSongPage.xaml", "fst.song-leaderboard.title")]
-    public void SongTitle_IsTheLevelOneHeading(string page, string id)
+    [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.title")]
+    [InlineData("Controls/SongLeaderboardHeader.xaml", "{x:Bind TitleAutomationId, Mode=OneWay}")]
+    public void SongTitle_IsTheLevelOneHeading(string file, string id)
     {
-        var title = Load(page).Descendants().Single(e => Attr(e, "AutomationProperties.AutomationId") == id);
+        var title = Load(file).Descendants().Single(e => Attr(e, "AutomationProperties.AutomationId") == id);
         Assert.Equal("MarqueeText", title.Name.LocalName);
         Assert.Equal("Level1", Attr(title, "AutomationProperties.HeadingLevel"));
     }
 
-    [Fact]
-    public void BandSongLink_IsNamedByTheTitleAndReadOnce()
+    [Theory]
+    [InlineData("Pages/LeaderboardsSongPage.xaml")]
+    [InlineData("Pages/BandsSongLeaderboardPage.xaml")]
+    public void SongLeaderboards_UseTheSharedHeader(string file)
     {
-        var link = Load("BandsSongLeaderboardPage.xaml").Descendants()
-            .Single(e => Attr(e, "AutomationProperties.AutomationId") == "fst.song-band-leaderboard.song");
-        Assert.Equal("HyperlinkButton", link.Name.LocalName);
-        Assert.Equal("{x:Bind ViewModel.SongTitle, Mode=OneWay}", Attr(link, "AutomationProperties.Name"));
-        var marquee = Assert.Single(link.Elements());
-        Assert.Equal("MarqueeText", marquee.Name.LocalName);
-        Assert.Equal("Raw", Attr(marquee, "AutomationProperties.AccessibilityView"));
+        var doc = Load(file);
+        var header = Assert.Single(doc.Descendants(), e => e.Name.LocalName == "SongLeaderboardHeader");
+        Assert.Equal("{x:Bind ViewModel.Title, Mode=OneWay}", Attr(header, "Title"));
+        Assert.Equal("{x:Bind ViewModel.Subtitle, Mode=OneWay}", Attr(header, "Artist"));
+        Assert.DoesNotContain(doc.Descendants(), e => e.Name.LocalName == "TextBlock" && Attr(e, "Text") is { } text
+            && (text.Contains("ViewModel.Title,", StringComparison.Ordinal) || text.Contains("ViewModel.Subtitle,", StringComparison.Ordinal)));
     }
 }

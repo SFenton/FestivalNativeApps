@@ -106,7 +106,10 @@ class StepTests(unittest.TestCase):
         self.assertEqual((role["key"], role["value"], role["timeout"]), ("type", "text", 5.0))
         self.assertEqual(u.parse_step("assertstate:id=x|invoke=False")["value"], "false")
         self.assertEqual(u.parse_step("assertstate:id=x|focusable=true")["value"], "true")
-        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe",
+        # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
+        current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
+        self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
+        for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
                     "assertstate:id=x|scroll=101", "assertstate:id=x|scroll=2.5", "assertstate:id=x|scroll=-2",

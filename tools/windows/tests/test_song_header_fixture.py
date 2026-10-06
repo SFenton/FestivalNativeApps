@@ -64,7 +64,7 @@ class JourneyTests(unittest.TestCase):
                     checks.setdefault(parsed["selector"]["value"], set()).add(parsed["mode"])
         expected = {"fst.song-detail.title", "fst.song-detail.artist", "fst.song-detail.pinned-title",
                     "fst.song-detail.pinned-artist", "fst.song-leaderboard.title", "fst.song-leaderboard.artist",
-                    "fst.song-band-leaderboard.song-title", "fst.song-band-leaderboard.artist"}
+                    "fst.song-band-leaderboard.title", "fst.song-band-leaderboard.artist"}
         self.assertEqual(set(checks), expected)
         # The Player History route opens Song Detail at Score History, under its pinned title bar.
         history = [j for j in self.journeys if j["route"].endswith("/history")]

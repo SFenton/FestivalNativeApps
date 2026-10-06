@@ -76,9 +76,9 @@
     "args": ["--no-art"],
     "steps": [
       "waitfor:id=fst.song-band-leaderboard.list@30",
-      "assertname:id=fst.song-band-leaderboard.song|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertname:id=fst.song-band-leaderboard.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
       "wait:1.5",
-      "assertmarquee:raw=fst.song-band-leaderboard.song-title|moving|28",
+      "assertmarquee:id=fst.song-band-leaderboard.title|moving|44",
       "assertmarquee:id=fst.song-band-leaderboard.artist|moving|26",
       "shot:{shots}\\song-band-leaderboard-moving.png"
     ]
@@ -90,9 +90,9 @@
     "args": ["--no-art", "--reduce-motion"],
     "steps": [
       "waitfor:id=fst.song-band-leaderboard.list@30",
-      "assertname:id=fst.song-band-leaderboard.song|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
+      "assertname:id=fst.song-band-leaderboard.title|Fixture Pulse and the Extraordinarily Long Song Title That Never Fits on One Line",
       "wait:1.5",
-      "assertmarquee:raw=fst.song-band-leaderboard.song-title|static|28",
+      "assertmarquee:id=fst.song-band-leaderboard.title|static|44",
       "assertmarquee:id=fst.song-band-leaderboard.artist|static|26",
       "shot:{shots}\\song-band-leaderboard-static.png"
     ]

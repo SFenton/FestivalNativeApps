@@ -26,31 +26,13 @@
                 <!-- No bottom padding: BoardFooter.Inset already ends the list one row gap (4 epx) above the footer, and
                      padding here doubled it (issue #293). -->
                 <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,0">
-                    <Grid ColumnSpacing="16" controls:FadeIn.OnShow="True">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
-                            <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                        </Border>
-                        <!-- Song title and artist: one line each across the column, scrolling when they overflow
-                             (song-header R2, web SongInfoHeader MarqueeText; issue #315). -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <controls:MarqueeText Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextStyle="{StaticResource FSTPageTitleStyle}"
-                                                  AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
-                            <controls:MarqueeText Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}"
-                                                  AutomationProperties.AutomationId="fst.song-leaderboard.artist" />
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
-                                                         AutomationProperties.AccessibilityView="Raw" />
-                                <TextBlock Text="{x:Bind ViewModel.InstrumentLabel}" VerticalAlignment="Center"
-                                           AutomationProperties.AutomationId="fst.song-leaderboard.instrument" />
-                            </StackPanel>
-                            <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                                       Visibility="{x:Bind ViewModel.HasTotal, Mode=OneWay}" />
-                        </StackPanel>
-                    </Grid>
+                    <controls:SongLeaderboardHeader x:Name="Header" controls:FadeIn.OnShow="True"
+                                                    Title="{x:Bind ViewModel.Title, Mode=OneWay}" Artist="{x:Bind ViewModel.Subtitle, Mode=OneWay}"
+                                                    BoardIconFile="{x:Bind ViewModel.IconFile, Mode=OneWay}" BoardLabel="{x:Bind ViewModel.InstrumentLabel}"
+                                                    TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
+                                                    TitleAutomationId="fst.song-leaderboard.title" ArtistAutomationId="fst.song-leaderboard.artist"
+                                                    BoardAutomationId="fst.song-leaderboard.instrument" TotalAutomationId="fst.song-leaderboard.total"
+                                                    SongAutomationId="fst.song-leaderboard.song" TitleInvoked="OnSongTitle" />
                     <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7). -->
                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
                                    controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -128,8 +110,6 @@
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
                         <Setter Target="PageRoot.Padding" Value="12,0,12,8" />
-                        <Setter Target="HeaderArtHost.Width" Value="56" />
-                        <Setter Target="HeaderArtHost.Height" Value="56" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>

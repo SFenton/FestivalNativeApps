@@ -1054,6 +1054,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     "type" => element.Properties.ControlType.ValueOrDefault.ToString().ToLowerInvariant(),
                     "invoke" => element.Patterns.Invoke.IsSupported ? "true" : "false",
                     "focusable" => element.Properties.IsKeyboardFocusable.ValueOrDefault ? "true" : "false",
+                    // What Narrator reads after a combo box's name: its Value, else the selected item's name.
+                    "value" => element.Patterns.Value.PatternOrDefault?.Value.ValueOrDefault is { Length: > 0 } text
+                        ? text
+                        : element.Patterns.Selection.PatternOrDefault?.Selection.ValueOrDefault is { Length: > 0 } picked
+                            ? picked[0].Properties.Name.ValueOrDefault
+                            : null,
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
