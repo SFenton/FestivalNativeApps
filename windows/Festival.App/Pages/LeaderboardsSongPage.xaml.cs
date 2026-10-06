@@ -103,7 +103,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
 
     /// <summary>
     /// Replays the web row entrance after the shared load gate reveals a new page, with the pinned "your score" row
-    /// entering alongside the first row (issue #295).
+    /// entering alongside the first row when it was gated (issue #295); paging keeps it in place (issue #270).
     /// </summary>
     /// <param name="sender">Swap.</param>
     /// <param name="e">Unused.</param>
@@ -111,7 +111,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         DispatcherQueue.TryEnqueue(() =>
         {
             FadeIn.StaggerRealized(RowsRepeater);
-            if (ViewModel.ShowSpotlight) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightPanel, PinnedRowReveal.RevealDelay);
         });
 
     /// <summary>Updates the backdrop and header art for the resolved song.</summary>

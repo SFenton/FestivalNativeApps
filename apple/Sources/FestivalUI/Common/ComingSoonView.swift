@@ -24,7 +24,7 @@ struct ComingSoonView: View {
     var body: some View {
         ContentUnavailableView(title, systemImage: symbol, description: Text("Coming soon"))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle(title)
+            .festivalNavigationTitle(title)
             .accessibilityIdentifier("fst.placeholder.\(title)")
     }
 }

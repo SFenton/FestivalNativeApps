@@ -467,8 +467,12 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     /// <summary>Automation ID of the full-leaderboard button.</summary>
     public string ViewAllAutomationId => "fst.song-detail.view-all." + Instrument.ServiceId();
 
-    /// <summary>Accessible name of the full-leaderboard button.</summary>
-    public string ViewAllName => $"View full {Title} leaderboard";
+    /// <summary>Visible text of the full-leaderboard button.</summary>
+    public string ViewAllText => ViewAllCta.FullLeaderboardLabel;
+
+    /// <summary>Accessible name of the full-leaderboard button: the visible label, then the chart (WCAG 2.5.3), e.g.
+    /// "View Full Leaderboard, Lead".</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
 
     /// <summary>Appends the selected player's own score as row eleven when they rank outside the top ten.</summary>
     private void ComposeRows()
@@ -643,10 +647,20 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     public string BadgeAutomationId => $"fst.score.accuracy.preview.{InstrumentId}." +
                                        (string.IsNullOrEmpty(Entry.AccountId) ? "rank-" + Entry.Rank : Entry.AccountId);
 
-    /// <summary>Screen-reader summary.</summary>
-    public string Announcement => $"Rank {Entry.Rank}, {Name}, {Score} points" +
+    /// <summary>Screen-reader summary while the season column is hidden (rows under 520 epx).</summary>
+    public string Announcement => Announce(false);
+
+    /// <summary>Screen-reader summary with the season, read while the row shows it (issue #262).</summary>
+    public string SeasonShownAnnouncement => Announce(true);
+
+    /// <summary>Builds the screen-reader summary.</summary>
+    /// <param name="season">Whether to read the season.</param>
+    /// <returns>Rank, name, score, accuracy, full combo, season, "you" on the selected player's row, then its destination.</returns>
+    private string Announce(bool season) => $"Rank {Entry.Rank}, {Name}, {Score} points" +
                                   (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") +
-                                  (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") + (IsSelectedPlayer ? ", you" : "") +
+                                  (IsFullCombo ? ", " + ScoreFormatting.FullComboAnnouncement(HasAccuracy) : "") +
+                                  (season && Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $", season {s}") : "") +
+                                  (IsSelectedPlayer ? ", you" : "") +
                                   (SelectedAction is { } action ? $". {action.Destination(SelectedRowSubject.Player)}" : "");
 }
 #endregion

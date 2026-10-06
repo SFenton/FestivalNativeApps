@@ -533,6 +533,32 @@ public class SongBandLeaderboardViewModelTests
     }
 
     [Fact]
+    public async Task SelectedBandFooter_GatesOnBandSizeButNotOnPaging_LikeTheSoloFooter()
+    {
+        var bands = new BandService { Selected = 29 };
+        var session = bands.Service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
+        var vm = new SongBandLeaderboardViewModel(session, new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+        Assert.True(vm.PinnedGate.IsGated);
+        Assert.True(vm.ShowSpotlight);
+
+        // Load-transition R2 (#270): a page turn can't change the band's rank or score, so the footer stays beside the spinner.
+        var gated = new List<bool>();
+        vm.PinnedGate.PropertyChanged += (_, _) => gated.Add(vm.PinnedGate.IsGated);
+        var jump = vm.JumpCommand.ExecuteAsync(null);
+        Assert.False(vm.PinnedGate.IsGated);
+        await jump;
+        await vm.LoadAsync();
+        Assert.False(vm.PinnedGate.IsGated);
+        Assert.DoesNotContain(true, gated);
+        Assert.True(vm.ShowSpotlight);
+
+        vm.BandType = BandType.Trios;
+        Assert.True(vm.PinnedGate.IsGated);
+        await Async.Until(() => vm.ShowRows && vm.BandType == BandType.Trios);
+    }
+
+    [Fact]
     public async Task RevealRoute_OpensOnTheRequestedPage_AndAnonymousReadsSendNoAccount()
     {
         var bands = new BandService { Selected = 29 };

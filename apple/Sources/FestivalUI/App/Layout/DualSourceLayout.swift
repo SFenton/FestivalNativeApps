@@ -149,12 +149,7 @@ struct DualSourcePane<Content: View>: View {
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 if let seeAll {
-                    NavigationLink(value: seeAll) {
-                        Text("See All")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .tint(BrandTokens.accentBlue)
-                    .accessibilityIdentifier("fst.dual.\(identifier).see-all")
+                    SectionSeeAllLink(route: seeAll, identifier: "fst.dual.\(identifier).see-all", listName: title)
                 }
             }
             .padding(.horizontal, 16)

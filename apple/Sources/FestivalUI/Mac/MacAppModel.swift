@@ -53,7 +53,8 @@ public final class MacAppModel {
         #endif
         let session = FestivalSession(
             factory: { try FestivalRootView.makeClient(environment: ProcessInfo.processInfo.environment) },
-            selectionStorage: selectionStorage, debugSelectedPlayer: debugPlayer
+            selectionStorage: selectionStorage, debugSelectedPlayer: debugPlayer,
+            liveConnection: PublicationLiveConnection.isEnabled() ? PublicationLiveConnection() : nil
         )
         self.init(
             session: session, storage: initial == nil ? .standard : nil,

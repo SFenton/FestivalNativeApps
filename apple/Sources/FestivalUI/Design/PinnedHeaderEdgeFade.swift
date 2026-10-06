@@ -1,32 +1,74 @@
+import FestivalCore
 import SwiftUI
 
-// MARK: - Pinned header geometry
+// MARK: - Pinned header edge fade
 
-/// Geometry that keeps a modal `List`'s pinned section headers still and legible
-/// (issue #301).
+/// The one way rows fade out under a pinned section title, on every Apple platform
+/// (`.agents/patterns/scroll-edge.md` R2, R5; issue #308).
 ///
-/// A plain `List` pins each section header at the top of its scroll view, just below the
-/// modal's own header. Two things went wrong there:
+/// Rows are fully transparent at the pinned title's bottom edge and fully drawn
+/// ``height`` points below it, on a linear ramp (the web's `useScrollMask`, 40 px). The
+/// title itself is never masked or dimmed. At rest nothing is dimmed: the fade's depth
+/// grows 1:1 with how far rows have scrolled under the title, like the web's `atTop`
+/// switch and the system soft scroll-edge effect. Reduce Transparency and Increase
+/// Contrast (system or in-app) turn the ramp into a hard edge (R7).
 ///
-/// - iOS puts a gap (22 pt on iOS 26) above the first header, so that header rested
-///   lower and slid up through the gap before pinning. ``lift(contentTop:pinLine:layout:)``
-///   draws the first header at its pinned position from the start while the empty gap
-///   scrolls away; the List's layout is unchanged.
-/// - ``ModalTopEdgeFadeModifier`` fades content out under the modal header only, so a
-///   pinned section header sat inside its 40 pt fade (dimmed) while rows scrolled on
-///   underneath it, still half drawn. A single mask over the whole List cannot show the
-///   header while hiding the rows behind it, so each row masks itself instead: it is fully
-///   transparent above the pinned header's bottom edge and fades back in over
-///   ``SectionBarEdgeFade/height`` below it, like the Songs section bar (issue #10). The
-///   header itself is never masked.
+/// Two layouts draw pinned titles, and both mask rows with ``PinnedHeaderFadeMask``:
 ///
-/// At rest nothing is dimmed; the fade grows with the first points of scrolling (as the
-/// modal's own fade and the system soft scroll-edge effect do), so the first row right
-/// under the header is fully drawn until it starts to slide under it.
+/// - **Songs** (iOS 26 and later) draws its own floating section bar over the List and
+///   masks the whole List under it (``SwiftUI/View/pinnedHeaderEdgeFadeMask(edge:active:depthLimit:)``,
+///   issues #10, #298).
+/// - **Sheet lists** (Notifications) use the List's native pinned section headers, so
+///   each row masks itself (``SwiftUI/View/pinnedHeaderEdgeFadeRow(_:first:background:)``,
+///   issue #301). A single mask over the whole List cannot show the header while hiding
+///   the rows behind it. ``ModalTopEdgeFadeModifier`` yields to that row fade with a hard
+///   edge under the sheet header, so its own ramp never dims the pinned header.
 ///
-/// All positions are measured from the top of the List's scroll view, which reaches up
-/// under the modal header by the pin line (its top content inset).
-enum ModalPinnedHeaderFade {
+/// For native pinned headers iOS also puts a gap (22 pt on iOS 26) above the first
+/// header, so that header rested lower and slid up through the gap before pinning.
+/// ``lift(contentTop:pinLine:layout:)`` draws the first header at its pinned position
+/// from the start while the empty gap scrolls away; the List's layout is unchanged.
+///
+/// Sheet-list positions are measured from the top of the List's scroll view, which
+/// reaches up under the sheet header by the pin line (its top content inset). The pin
+/// line and scroll offset come from `onScrollGeometryChange` on iOS 18 / macOS 15 and
+/// later, and from the List's platform scroll view (``PlatformScrollObserver``) on
+/// iOS 17 / macOS 14, so every supported system grows the same 40 pt ramp.
+enum PinnedHeaderEdgeFade {
+    /// Distance below the pinned title's bottom edge over which rows fade in, in points:
+    /// ``ScrollEdgeFade/topDistance`` (web `useScrollMask`, 40 px).
+    static let height = CGFloat(ScrollEdgeFade.topDistance)
+
+    /// Whether sheet lists read their scroll position from the platform scroll view
+    /// (``PlatformScrollObserver``) because `onScrollGeometryChange` is missing: iOS 17
+    /// and macOS 14, or `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1` in Debug builds, which
+    /// exercises that path on a newer simulator.
+    static var usesLegacyScrollTracking: Bool { ScrollEdgeTracking.usesLegacyPath }
+
+    /// The fade height for the current accessibility settings.
+    ///
+    /// - Parameter hardEdge: Reduce Transparency or Increase Contrast (system or in-app)
+    ///   is on (``ScrollEdgeHardEdge``).
+    /// - Returns: ``height``, or 0 (a hard edge).
+    static func height(hardEdge: Bool) -> CGFloat {
+        CGFloat(ScrollEdgeFade.ramp(ScrollEdgeFade.topDistance, hardEdge: hardEdge))
+    }
+
+    /// Row opacity at a fraction of the way through the fade: linear, like the web mask.
+    ///
+    /// - Parameter progress: 0 at the title's bottom edge, 1 at the end of the fade;
+    ///   clamped to that range.
+    /// - Returns: The mask opacity, 0 to 1.
+    static func opacity(at progress: CGFloat) -> Double {
+        progress.isFinite ? Double(min(max(progress, 0), 1)) : 0
+    }
+
+    /// The mask gradient's stops: clear at the title's edge, opaque at the fade's end.
+    static let gradientStops: [Gradient.Stop] = [
+        Gradient.Stop(color: .black.opacity(opacity(at: 0)), location: 0),
+        Gradient.Stop(color: .black.opacity(opacity(at: 1)), location: 1),
+    ]
+
     /// Largest believable system padding around a header's content.
     static let maximumHeaderInset: CGFloat = 24
     /// Largest believable gap above the first header.
@@ -107,7 +149,7 @@ enum ModalPinnedHeaderFade {
     ///   - scrollOffset: Distance scrolled from the List's resting top (content offset
     ///     plus top inset); negative while pulled down past the top.
     ///   - fade: Full fade height for the current accessibility settings
-    ///     (``SectionBarEdgeFade/height(reduceTransparency:increaseContrast:)``).
+    ///     (``height(hardEdge:)``).
     /// - Returns: 0 at rest, growing 1:1 with scrolling up to `fade`; 0 for non-finite
     ///   readings.
     static func depth(scrollOffset: CGFloat, fade: CGFloat) -> CGFloat {
@@ -140,7 +182,11 @@ enum ModalPinnedHeaderFade {
 /// List's scroll view. Only the row masks and the first header read it, so a scroll or a
 /// measurement re-renders those small modifiers, never the rows themselves.
 @MainActor @Observable
-final class ModalPinnedHeaderFadeState {
+final class PinnedHeaderEdgeFadeState {
+    /// Whether the scroll position comes from the List's platform scroll view
+    /// (``PinnedHeaderEdgeFade/usesLegacyScrollTracking``) instead of
+    /// `onScrollGeometryChange`.
+    let legacyScrollTracking: Bool
     /// The scroll view's top content inset, where headers pin.
     fileprivate(set) var pinLine: CGFloat = 0
     /// The List's top edge in global coordinates. SwiftUI lays the List out inside the
@@ -150,7 +196,7 @@ final class ModalPinnedHeaderFadeState {
     /// Height of a header's content, or 0 while the List shows none.
     fileprivate(set) var headerHeight: CGFloat = 0
     /// The first header's layout, once read at rest.
-    fileprivate(set) var headerLayout = ModalPinnedHeaderFade.HeaderLayout(inset: 0, gap: 0)
+    fileprivate(set) var headerLayout = PinnedHeaderEdgeFade.HeaderLayout(inset: 0, gap: 0)
     /// Current fade depth below the header.
     fileprivate(set) var depth: CGFloat = 0
     /// Last measured content height, kept while headers are hidden.
@@ -166,17 +212,29 @@ final class ModalPinnedHeaderFadeState {
     /// Whether ``headerLayout`` has been read, and whether with a first row.
     @ObservationIgnored private var layoutMeasured = false
     @ObservationIgnored private var layoutMeasuredWithRow = false
+    /// Full fade height for the current accessibility settings.
+    @ObservationIgnored private var fade = PinnedHeaderEdgeFade.height
+    /// Follows the List's platform scroll view when ``legacyScrollTracking`` is on.
+    @ObservationIgnored private var legacyObserver: PlatformScrollObserver?
     /// Rows report their top only above this global line (the edge plus the full fade and
     /// some slack), so rows far below the header never update while scrolling.
     let rowLimit = TopInset()
 
+    /// Shared readings for one List.
+    ///
+    /// - Parameter legacyScrollTracking: Read the scroll position from the List's platform
+    ///   scroll view; tests set it to cover the iOS 17 / macOS 14 path on newer systems.
+    init(legacyScrollTracking: Bool = PinnedHeaderEdgeFade.usesLegacyScrollTracking) {
+        self.legacyScrollTracking = legacyScrollTracking
+    }
+
     /// The scroll view's top edge in global coordinates: positions in
-    /// ``ModalPinnedHeaderFade`` are measured from here.
+    /// ``PinnedHeaderEdgeFade`` are measured from here.
     var origin: CGFloat { listTop - pinLine }
 
     /// The pinned header band's bottom edge, below ``origin``.
     var edge: CGFloat {
-        ModalPinnedHeaderFade.edge(pinLine: pinLine, headerHeight: headerHeight, headerInset: headerLayout.inset)
+        PinnedHeaderEdgeFade.edge(pinLine: pinLine, headerHeight: headerHeight, headerInset: headerLayout.inset)
     }
 
     fileprivate func setPinLine(_ value: CGFloat) {
@@ -194,10 +252,39 @@ final class ModalPinnedHeaderFadeState {
     fileprivate func setScrollOffset(_ value: CGFloat) {
         scrollOffset = value
         updateLayout()
+        applyDepth()
     }
 
-    fileprivate func setDepth(_ value: CGFloat) {
+    /// Apply one scroll reading: the pin line and the distance scrolled from the top.
+    fileprivate func setScroll(inset: CGFloat, offset: CGFloat) {
+        setPinLine(inset)
+        setScrollOffset(offset)
+    }
+
+    /// Use the top safe-area inset as the pin line until the scroll position is known.
+    fileprivate func setFallbackPinLine(_ value: CGFloat) {
+        guard scrollOffset == nil else { return }
+        setPinLine(value)
+    }
+
+    fileprivate func setFade(_ value: CGFloat) {
+        fade = value
+        applyDepth()
+    }
+
+    private func applyDepth() {
+        let value = PinnedHeaderEdgeFade.depth(scrollOffset: scrollOffset ?? 0, fade: fade)
         if value != depth { depth = value }
+    }
+
+    /// Follow the List's platform scroll view (``legacyScrollTracking`` only).
+    fileprivate func attachLegacyScrollView(_ scrollView: ListPlatformScrollView) {
+        guard legacyScrollTracking else { return }
+        let observer = legacyObserver ?? PlatformScrollObserver { [weak self] reading in
+            self?.setScroll(inset: reading.inset, offset: reading.offset)
+        }
+        legacyObserver = observer
+        observer.attach(scrollView)
     }
 
     fileprivate func setHeaderHeight(_ value: CGFloat) {
@@ -230,10 +317,13 @@ final class ModalPinnedHeaderFadeState {
     ///   - scrollOffset: Scroll offset from the resting top, or nil for no reading.
     ///   - firstHeaderTop: The first header content's laid-out top, or nil for no reading.
     ///   - firstRowTop: The first row cell's top, or nil for no reading.
-    func modalPinnedHeaderTestSet(
+    ///   - fade: The full fade height, or nil to keep the current one.
+    func testSet(
         pinLine: CGFloat, headerHeight: CGFloat?, showsHeaders: Bool, listTop: CGFloat? = nil,
-        scrollOffset: CGFloat? = nil, firstHeaderTop: CGFloat? = nil, firstRowTop: CGFloat? = nil
+        scrollOffset: CGFloat? = nil, firstHeaderTop: CGFloat? = nil, firstRowTop: CGFloat? = nil,
+        fade: CGFloat? = nil
     ) {
+        if let fade { setFade(fade) }
         if let listTop { setListTop(listTop) }
         setPinLine(pinLine)
         if let headerHeight { setHeaderHeight(headerHeight) }
@@ -260,7 +350,7 @@ final class ModalPinnedHeaderFadeState {
         } else if layoutMeasuredWithRow || (layoutMeasured && firstRowTop == nil) {
             return
         }
-        guard let layout = ModalPinnedHeaderFade.headerLayout(
+        guard let layout = PinnedHeaderEdgeFade.headerLayout(
             headerTop: firstHeaderTop - origin, headerHeight: measuredHeaderHeight,
             firstRowTop: firstRowTop.map { $0 - origin }, pinLine: pinLine
         ) else { return }
@@ -270,10 +360,10 @@ final class ModalPinnedHeaderFadeState {
     }
 
     private func updateRowLimit() {
-        rowLimit.value = origin + ModalPinnedHeaderFade.edge(
+        rowLimit.value = origin + PinnedHeaderEdgeFade.edge(
             pinLine: pinLine, headerHeight: max(headerHeight, measuredHeaderHeight),
             headerInset: headerLayout.inset
-        ) + SectionBarEdgeFade.height + 24
+        ) + PinnedHeaderEdgeFade.height + 24
     }
 }
 
@@ -282,8 +372,8 @@ final class ModalPinnedHeaderFadeState {
 extension View {
     /// Keep this `List`'s pinned section headers still and fade its rows out before they
     /// reach them, inside a ``FestivalModal`` (issue #301). Pair it with
-    /// ``modalPinnedSectionHeader(_:first:)`` on each header and
-    /// ``modalPinnedHeaderRow(_:first:background:)`` on each row.
+    /// ``pinnedHeaderEdgeFadeHeader(_:first:)`` on each header and
+    /// ``pinnedHeaderEdgeFadeRow(_:first:background:)`` on each row.
     ///
     /// Turns the modal's own top fade into a hard edge (the rows fade themselves, and the
     /// modal's ramp would otherwise dim the pinned header).
@@ -292,19 +382,19 @@ extension View {
     ///   - state: Readings shared with the headers and rows.
     ///   - showsHeaders: Whether any section header is visible.
     /// - Returns: The List with its pin line and scroll depth tracked.
-    func modalPinnedHeaderList(_ state: ModalPinnedHeaderFadeState, showsHeaders: Bool) -> some View {
-        modifier(ModalPinnedHeaderListModifier(state: state, showsHeaders: showsHeaders))
+    func pinnedHeaderEdgeFadeList(_ state: PinnedHeaderEdgeFadeState, showsHeaders: Bool) -> some View {
+        modifier(PinnedHeaderListModifier(state: state, showsHeaders: showsHeaders))
     }
 
-    /// Measure this pinned section header for ``modalPinnedHeaderList(_:showsHeaders:)``;
+    /// Measure this pinned section header for ``pinnedHeaderEdgeFadeList(_:showsHeaders:)``;
     /// the first header is also drawn at its pinned position from the start.
     ///
     /// - Parameters:
     ///   - state: Readings shared with the List and its rows.
     ///   - first: Whether this is the List's first header.
     /// - Returns: The header, reporting its content's height (and, when first, its top).
-    func modalPinnedSectionHeader(_ state: ModalPinnedHeaderFadeState, first: Bool) -> some View {
-        modifier(ModalPinnedSectionHeaderModifier(state: state, first: first))
+    func pinnedHeaderEdgeFadeHeader(_ state: PinnedHeaderEdgeFadeState, first: Bool) -> some View {
+        modifier(PinnedSectionHeaderModifier(state: state, first: first))
     }
 
     /// Fade this row out before it reaches the List's pinned section header, and set its
@@ -317,10 +407,10 @@ extension View {
     ///     right under the first header's band.
     ///   - background: The row background (`listRowBackground`).
     /// - Returns: The row, masked near the header.
-    func modalPinnedHeaderRow(
-        _ state: ModalPinnedHeaderFadeState, first: Bool = false, background: some View = Color.clear
+    func pinnedHeaderEdgeFadeRow(
+        _ state: PinnedHeaderEdgeFadeState, first: Bool = false, background: some View = Color.clear
     ) -> some View {
-        modifier(ModalPinnedHeaderRowMask(state: state))
+        modifier(PinnedHeaderRowMask(state: state))
             .listRowBackground(
                 background.background {
                     if first {
@@ -337,24 +427,19 @@ extension View {
 
 /// Tracks the List's position, pin line and fade depth, and hands the modal a hard top
 /// edge.
-private struct ModalPinnedHeaderListModifier: ViewModifier {
-    let state: ModalPinnedHeaderFadeState
+private struct PinnedHeaderListModifier: ViewModifier {
+    let state: PinnedHeaderEdgeFadeState
     let showsHeaders: Bool
-    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
-    @Environment(\.colorSchemeContrast) private var systemContrast
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @ScrollEdgeHardEdge private var hardEdge
 
-    private var fade: CGFloat {
-        SectionBarEdgeFade.height(
-            reduceTransparency: systemReduceTransparency || lessTransparency,
-            increaseContrast: moreContrast || systemContrast == .increased
-        )
-    }
+    private var fade: CGFloat { PinnedHeaderEdgeFade.height(hardEdge: hardEdge) }
 
     func body(content: Content) -> some View {
         content
-            .modifier(PinnedHeaderScrollReader(state: state, fade: fade))
+            .modifier(PinnedHeaderScrollReader(state: state))
+            .onChange(of: fade, initial: true) { _, fade in
+                state.setFade(fade)
+            }
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
                 state.setListTop($0)
             }
@@ -365,33 +450,28 @@ private struct ModalPinnedHeaderListModifier: ViewModifier {
     }
 }
 
-/// Reads the pin line and scroll offset: from the scroll geometry on iOS 18 / macOS 15
-/// and later, else the top safe-area inset with no fade (a hard edge, like the modal's
-/// own fallback).
+/// Reads the pin line and scroll offset from the scroll geometry on iOS 18 / macOS 15
+/// and later. Otherwise (``PinnedHeaderEdgeFadeState/legacyScrollTracking``) the rows'
+/// locators hand the List's platform scroll view to the state, which follows it; until
+/// then the top safe-area inset stands in for the pin line.
 private struct PinnedHeaderScrollReader: ViewModifier {
-    let state: ModalPinnedHeaderFadeState
-    let fade: CGFloat
+    let state: PinnedHeaderEdgeFadeState
 
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, macOS 15.0, *) {
+        if #available(iOS 18.0, macOS 15.0, *), !state.legacyScrollTracking {
             content.onScrollGeometryChange(for: ScrollReading.self) { geometry in
                 ScrollReading(
                     inset: geometry.contentInsets.top,
                     offset: geometry.contentOffset.y + geometry.contentInsets.top
                 )
             } action: { _, reading in
-                state.setPinLine(reading.inset)
-                state.setScrollOffset(reading.offset)
-                state.setDepth(ModalPinnedHeaderFade.depth(scrollOffset: reading.offset, fade: fade))
-            }
-            .onChange(of: fade) { _, fade in
-                state.setDepth(min(state.depth, fade))
+                state.setScroll(inset: reading.inset, offset: reading.offset)
             }
         } else {
             content.background {
                 Color.clear
                     .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: {
-                        state.setPinLine($0)
+                        state.setFallbackPinLine($0)
                     }
                     .accessibilityHidden(true)
             }
@@ -416,8 +496,8 @@ private struct HeaderReading: Equatable {
 ///
 /// The lift is a visual effect, so it moves neither the header's layout nor the
 /// measurement taken outside it.
-private struct ModalPinnedSectionHeaderModifier: ViewModifier {
-    let state: ModalPinnedHeaderFadeState
+private struct PinnedSectionHeaderModifier: ViewModifier {
+    let state: PinnedHeaderEdgeFadeState
     let first: Bool
 
     func body(content: Content) -> some View {
@@ -426,7 +506,7 @@ private struct ModalPinnedSectionHeaderModifier: ViewModifier {
         let layout = state.headerLayout
         content
             .visualEffect { effect, proxy in
-                effect.offset(y: first ? -ModalPinnedHeaderFade.lift(
+                effect.offset(y: first ? -PinnedHeaderEdgeFade.lift(
                     contentTop: proxy.frame(in: .global).minY, pinLine: pinTop, layout: layout
                 ) : 0)
             }
@@ -443,20 +523,20 @@ private struct ModalPinnedSectionHeaderModifier: ViewModifier {
 /// Masks one row above the pinned header's bottom edge, with the fade below it.
 ///
 /// The row reports its global top only while it is near the edge
-/// (``ModalPinnedHeaderFadeState/rowLimit``, read from a lock box because SwiftUI may keep
+/// (``PinnedHeaderEdgeFadeState/rowLimit``, read from a lock box because SwiftUI may keep
 /// an earlier geometry closure), and the cut is computed here from the observed edge and
 /// depth. The mask keeps the same structure in every state (a gradient band under a shape
 /// that covers everything below it, or the whole row when the row is clear of the edge),
 /// so a row crossing the edge never rebuilds.
-private struct ModalPinnedHeaderRowMask: ViewModifier {
-    let state: ModalPinnedHeaderFadeState
+private struct PinnedHeaderRowMask: ViewModifier {
+    let state: PinnedHeaderEdgeFadeState
     @State private var rowTop: CGFloat?
 
     func body(content: Content) -> some View {
         let limit = state.rowLimit
         let depth = state.depth
         let cut = rowTop.flatMap {
-            ModalPinnedHeaderFade.cut(rowTop: $0 - state.origin, edge: state.edge, depth: depth)
+            PinnedHeaderEdgeFade.cut(rowTop: $0 - state.origin, edge: state.edge, depth: depth)
         }
         content
             .onGeometryChange(for: CGFloat?.self) { proxy in
@@ -465,25 +545,97 @@ private struct ModalPinnedHeaderRowMask: ViewModifier {
             } action: { top in
                 rowTop = top
             }
-            .mask {
-                ZStack(alignment: .top) {
-                    LinearGradient(
-                        stops: SectionBarEdgeFade.gradientStops, startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: depth)
-                    .frame(maxWidth: .infinity)
-                    .offset(y: cut ?? 0)
-                    BelowCutShape(cut: cut.map { $0 + depth })
+            .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
+            .background {
+                if state.legacyScrollTracking {
+                    ListScrollViewLocator { state.attachLegacyScrollView($0) }
+                        .accessibilityHidden(true)
                 }
             }
     }
 }
 
+// MARK: - Floating section bar (Songs)
+
+extension View {
+    /// Fade this whole `List` out under a section title drawn over it (Songs' floating
+    /// section bar, iOS 26 and later; issues #10, #298), with the shared ramp.
+    ///
+    /// Apply it before the overlay that draws the title, so the title is never masked.
+    /// Inactive (at rest, or with no sections) nothing is masked, so the large title and
+    /// the first rows stay fully drawn.
+    ///
+    /// - Parameters:
+    ///   - edge: The title's bottom edge in global coordinates.
+    ///   - active: Rows have scrolled under the title.
+    ///   - depthLimit: The deepest the fade may reach, so it never dims an incoming
+    ///     title or a landed section's first row (R8); nil for the full ramp.
+    /// - Returns: The masked List.
+    func pinnedHeaderEdgeFadeMask(edge: CGFloat, active: Bool, depthLimit: CGFloat?) -> some View {
+        modifier(PinnedHeaderListMask(edge: edge, active: active, depthLimit: depthLimit))
+    }
+}
+
+/// Masks a List above a floating title's bottom edge, with the fade below it.
+///
+/// The mask is a shape whose path may extend past its frame: inactive it covers far
+/// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
+/// and `ignoresSafeArea` on the mask stalled the scroll view), active it starts at the
+/// end of the fade below the title's bottom edge, measured against the mask's own global
+/// top. The structure is the same in every state, so toggling a setting never rebuilds
+/// the List.
+private struct PinnedHeaderListMask: ViewModifier {
+    let edge: CGFloat
+    let active: Bool
+    let depthLimit: CGFloat?
+    @State private var maskTop: CGFloat = 0
+    @ScrollEdgeHardEdge private var hardEdge
+
+    func body(content: Content) -> some View {
+        let fade = PinnedHeaderEdgeFade.height(hardEdge: hardEdge)
+        let depth = depthLimit.map { PinnedHeaderEdgeFade.depth(scrollOffset: $0, fade: fade) } ?? fade
+        let cut = max(0, edge - maskTop)
+        content
+            .mask {
+                PinnedHeaderFadeMask(cut: active ? cut : nil, depth: depth)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
+                        maskTop = $0
+                    }
+            }
+    }
+}
+
+// MARK: - Mask
+
+/// The one row mask under a pinned section title: clear above `cut`, a linear ramp
+/// ``PinnedHeaderEdgeFade/gradientStops`` `depth` points deep below it, opaque after.
+/// With no `cut` everything is drawn. The gradient band sits under the opaque shape when
+/// inactive, so it changes nothing there.
+struct PinnedHeaderFadeMask: View {
+    /// Where the pinned title's bottom edge crosses this view, in local points; nil when
+    /// no part of the view reaches it.
+    let cut: CGFloat?
+    /// Current depth of the ramp below the edge (0: a hard edge).
+    let depth: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            LinearGradient(stops: PinnedHeaderEdgeFade.gradientStops, startPoint: .top, endPoint: .bottom)
+                .frame(height: max(0, depth))
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, -BelowCutShape.far)
+                .offset(y: cut ?? 0)
+            BelowCutShape(cut: cut.map { $0 + max(0, depth) })
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 /// Everything from `cut` (local points) down, or everything when `cut` is nil. The path
-/// reaches past the frame's sides and bottom so row content drawn outside its frame (a
+/// reaches past the frame's sides and bottom so content drawn outside its frame (a
 /// pressed highlight, a marquee) is not clipped.
 private struct BelowCutShape: Shape {
-    private static let far: CGFloat = 10_000
+    static let far: CGFloat = 10_000
 
     let cut: CGFloat?
 

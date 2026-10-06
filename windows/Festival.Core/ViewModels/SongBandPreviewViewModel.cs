@@ -47,14 +47,21 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     /// <summary>Automation ID of the empty-state text.</summary>
     public string EmptyAutomationId => "fst.song-detail.band-empty." + TypeId;
 
+    /// <summary>Automation ID of the loading ring (its UIA name gains WinUI's "Busy" prefix while active).</summary>
+    public string LoadingAutomationId => "fst.song-detail.band-loading." + TypeId;
+
     /// <summary>Automation ID of the inline Retry button.</summary>
     public string RetryAutomationId => "fst.song-detail.band-retry." + TypeId;
 
     /// <summary>Automation ID of the full-leaderboard button.</summary>
     public string ViewAllAutomationId => "fst.song-detail.band-view-all." + TypeId;
 
-    /// <summary>Accessible name of the full-leaderboard button.</summary>
-    public string ViewAllName => $"View full {Title} leaderboard";
+    /// <summary>Visible text of the full-leaderboard button.</summary>
+    public string ViewAllText => ViewAllCta.FullLeaderboardLabel;
+
+    /// <summary>Accessible name of the full-leaderboard button: the visible label, then the band size (WCAG 2.5.3), e.g.
+    /// "View Full Leaderboard, Duos".</summary>
+    public string ViewAllName => ViewAllCta.Name(ViewAllText, Title);
 
     /// <summary>This song's full band leaderboard for the size.</summary>
     public AppRoute FullRoute => new AppRoute.SongBandLeaderboard(SongId, TypeId);
@@ -156,10 +163,11 @@ public sealed record SongBandPreviewRow(SongBandRow Band, string TypeId, int Ind
     public SelectedRowAction? SelectedAction => IsSelected ? SelectedRowAction.Preview(Band.Entry.Rank, IsFooter) : null;
 
     /// <summary>
-    /// Screen-reader summary, prefixed "Your band, " for the selected player's band and ending with its destination
-    /// ("Jump to your band's position" or "Open band").
+    /// Screen-reader summary in visual order (rank, members with their instruments, team score, FC, accuracy, stars),
+    /// prefixed "Your band, " for the selected player's band and ending with its destination ("Jump to your band's
+    /// position" or "Open band").
     /// </summary>
-    public string Announcement => (IsSelected ? "Your band, " : "") + Band.Announcement +
+    public string Announcement => (IsSelected ? "Your band, " : "") + Band.PreviewAnnouncement +
                                   (SelectedAction is { } action ? $". {action.Destination(SelectedRowSubject.Band)}" : "");
 
     /// <summary>The full band board at the appended row's page (revealing it), else Band Detail.</summary>

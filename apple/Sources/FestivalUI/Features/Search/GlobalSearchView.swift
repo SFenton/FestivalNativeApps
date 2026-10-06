@@ -475,10 +475,25 @@ struct PageTrailingItems: ViewModifier {
                             NotificationsButton(session: session, pushRoute: pushRoute)
                         }
                     }
-                    #endif
+                    // The monogram hides its item's glass ring (issue #311).
+                    if #available(iOS 26.0, *) {
+                        ToolbarItem(placement: .primaryAction) {
+                            RootProfileButton(session: session) { profileButtonAction() }
+                        }
+                        .profileItemBackground(.resolve(
+                            displayName: session.selectedPlayer?.displayName,
+                            chrome: layout.sectionChrome
+                        ))
+                    } else {
+                        ToolbarItem(placement: .primaryAction) {
+                            RootProfileButton(session: session) { profileButtonAction() }
+                        }
+                    }
+                    #else
                     ToolbarItem(placement: .primaryAction) {
                         RootProfileButton(session: session) { profileButtonAction() }
                     }
+                    #endif
                 }
             }
     }

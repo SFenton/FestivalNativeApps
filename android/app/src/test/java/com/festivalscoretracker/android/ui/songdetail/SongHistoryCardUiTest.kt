@@ -3,7 +3,11 @@ package com.festivalscoretracker.android.ui.songdetail
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -52,12 +56,12 @@ class SongHistoryCardUiTest {
      * @param count Rows.
      * @param goldLast The last row is a 100% full combo.
      */
-    private fun rows(chart: String, count: Int, goldLast: Boolean = false) = (1..count).map { day ->
+    private fun rows(chart: String, count: Int, goldLast: Boolean = false, baseScore: Long = 50_000L) = (1..count).map { day ->
         val gold = goldLast && day == count
         ScoreHistoryEntry(
             songId = "s-alpha",
             instrument = chart,
-            newScore = 50_000L + day * 1_000,
+            newScore = baseScore + day * 1_000,
             accuracy = if (gold) 1_000_000.0 else 900_000.0 + day * 1_000,
             isFullCombo = gold,
             season = 9,
@@ -161,6 +165,74 @@ class SongHistoryCardUiTest {
     fun wideListRowsShowTheSeason() {
         show(rows("Solo_Guitar", 3))
         (0 until 3).forEach { assertTrue(description("fst.song-detail.history.top.$it").contains("Season 9")) }
+    }
+
+    private val cardWidth = mutableIntStateOf(0)
+
+    /**
+     * Shows three Lead rows in a card exactly [width] wide at [fontScale] (a split pane or
+     * hinge half narrower than the window); later calls only resize the card.
+     */
+    private fun showAt(width: Int, fontScale: Float = 1f, baseScore: Long = 50_000L) {
+        val first = cardWidth.intValue == 0
+        cardWidth.intValue = width
+        if (first) {
+            rule.setContent {
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                    FestivalTheme {
+                        Box(Modifier.width(cardWidth.intValue.dp)) {
+                            SongHistoryCard(rows("Solo_Guitar", 3, baseScore = baseScore), visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
+                        }
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+    }
+
+    private fun listSeasons() = (0 until 3).count { description("fst.song-detail.history.top.$it").contains("Season 9") }
+
+    private fun tapLastBar() {
+        rule.onNodeWithTag("fst.song-detail.history.chart").performTouchInput { click(centerRight.copy(x = width - 60.dp.toPx())) }
+        rule.waitForIdle()
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h900dp-xxhdpi")
+    fun theRowsOwnWidthDecidesTheSeasonAtTheBreakpoint() {
+        // Issue #170: the rule follows the rows' width, not the 900 dp window: 519 hides, 520 shows.
+        showAt(519)
+        assertEquals(0, listSeasons())
+        tapLastBar()
+        assertTrue(description("fst.song-detail.history.detail").contains("Season 9"))
+        showAt(520)
+        assertEquals(3, listSeasons())
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h900dp-xxhdpi")
+    fun largeTextKeepsTheWidthRuleInTheStackedRows() {
+        // At 200% the rows stack (issue #102); the season still follows the 520 dp rule.
+        showAt(411, fontScale = 2f)
+        assertEquals(0, listSeasons())
+        tapLastBar()
+        assertTrue(description("fst.song-detail.history.detail").contains("Season 9"))
+        showAt(600, fontScale = 2f)
+        assertEquals(3, listSeasons())
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h900dp-xxhdpi")
+    fun largeTextWithLongScoresKeepsTheSeasonFrom520() {
+        // Issue #170 review: 200% text and seven-digit scores at the 520 dp boundary still show every season.
+        showAt(519, fontScale = 2f, baseScore = 1_234_000L)
+        assertEquals(0, listSeasons())
+        for (width in listOf(520, 600)) {
+            showAt(width)
+            assertEquals("season at $width dp", 3, listSeasons())
+            assertTrue(description("fst.song-detail.history.top.0").contains("1,23"))
+        }
     }
 
     /** Advance the paused clock until the selector shows [wireId] selected (the click has landed). */

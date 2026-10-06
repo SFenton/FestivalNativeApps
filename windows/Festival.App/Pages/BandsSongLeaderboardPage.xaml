@@ -43,7 +43,7 @@
         </SelectorBar>
 
         <Grid Grid.Row="2" Grid.RowSpan="2">
-            <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56"
+            <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" controls:BandScoreFooterPanel.IsSection="True"
                       controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                       ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ContainerContentChanging="OnContainerContentChanging"
@@ -110,30 +110,29 @@
                             </ItemsRepeater>
                             <FontIcon Grid.Column="2" Grid.RowSpan="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                                       AutomationProperties.AccessibilityView="Raw" />
-                            <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="6" Padding="0,6,0,0" BorderThickness="0,1,0,0"
-                                  BorderBrush="{ThemeResource FSTCardStrokeBrush}" AutomationProperties.AccessibilityView="Raw">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" TextWrapping="NoWrap"
-                                           AutomationProperties.AccessibilityView="Raw" />
-                                <Border Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
-                                        Visibility="{x:Bind IsFullCombo}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                    <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
-                                </Border>
-                                <!-- Contrast themes: ButtonFace fill, ButtonText text and outline (design/windows.md contrast roles). -->
-                                <Border Grid.Column="2" CornerRadius="4" Padding="6,1" BorderThickness="1"
-                                        Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
-                                        Visibility="{x:Bind HasAccuracy}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                    <TextBlock Text="{x:Bind Accuracy}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                            <!-- The score never truncates: the badges move under it when they don't fit (BandScoreFooterPanel, issue #264). -->
+                            <Border Grid.Row="1" Grid.Column="1" Padding="0,6,0,0" BorderThickness="0,1,0,0"
+                                    BorderBrush="{ThemeResource FSTCardStrokeBrush}" AutomationProperties.AccessibilityView="Raw">
+                                <controls:BandScoreFooterPanel Spacing="6" AutomationProperties.AccessibilityView="Raw">
+                                    <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="NoWrap"
                                                AutomationProperties.AccessibilityView="Raw" />
-                                </Border>
-                                <controls:StarRow Grid.Column="3" Stars="{x:Bind StarCount}" StarSize="14"
-                                                  AutomationProperties.AccessibilityView="Raw" />
-                            </Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" AutomationProperties.AccessibilityView="Raw">
+                                        <Border CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
+                                                Visibility="{x:Bind IsFullCombo}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                            <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" AutomationProperties.AccessibilityView="Raw" />
+                                        </Border>
+                                        <!-- Contrast themes: ButtonFace fill, ButtonText text and outline (design/windows.md contrast roles). -->
+                                        <Border CornerRadius="4" Padding="6,1" BorderThickness="1"
+                                                Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
+                                                Visibility="{x:Bind HasAccuracy}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                            <TextBlock Text="{x:Bind Accuracy}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                                                       AutomationProperties.AccessibilityView="Raw" />
+                                        </Border>
+                                        <controls:StarRow Stars="{x:Bind StarCount}" StarSize="14" VerticalAlignment="Center"
+                                                          AutomationProperties.AccessibilityView="Raw" />
+                                    </StackPanel>
+                                </controls:BandScoreFooterPanel>
+                            </Border>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>
@@ -161,14 +160,18 @@
         <!-- Web fixed footer, as on the solo board: the selected player's band pinned in the shared LeaderboardEntryRow, then the
              shared board pager, both floating over the rows (web FixedLeaderboardPagination; operator batch 7.4). The pinned
              row jumps to its page while it is elsewhere, else opens Band Detail (pattern leaderboard-row R7, issue #307). It
-             shares the rows' load gate; its entrance runs on the inner element (one element can't take both). -->
+             shares the rows' load gate on the first load and when the band size changes; paging keeps it in place beside
+             the spinner, like the solo board and the web footer (PinnedGate, load-transition R2). While hidden, LoadSwapGate
+             drops it from UI Automation and the Tab order. Its entrance runs on the inner element (one element can't take
+             both). -->
         <StackPanel x:Name="Footer" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" Margin="0,0,0,12" Spacing="8" MaxWidth="1200">
-            <Grid Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}"
-                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content">
+            <controls:LoadSwapGate Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}"
+                                   controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
+                                   controls:LoadSwapVisual.IsGated="{x:Bind ViewModel.PinnedGate.IsGated, Mode=OneWay}">
                 <controls:LeaderboardEntryRow x:Name="SpotlightRow" Row="{x:Bind ViewModel.Spotlight, Mode=OneWay}" IsFloating="True"
                                               Command="{x:Bind ViewModel.JumpCommand}"
                                               RowAutomationId="fst.song-band-leaderboard.spotlight-footer" />
-            </Grid>
+            </controls:LoadSwapGate>
             <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager, Mode=OneWay}" IdPrefix="fst.song-band-leaderboard" />
         </StackPanel>
     </Grid>

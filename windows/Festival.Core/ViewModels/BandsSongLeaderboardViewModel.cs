@@ -61,6 +61,12 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     /// <summary>Rows/content load-swap gate.</summary>
     public LoadSwap LoadSwap { get; }
 
+    /// <summary>
+    /// Whether the pinned band row follows <see cref="LoadSwap"/>: only for the first load and a band-size change (which
+    /// changes the row), like the solo board and the web footer; paging keeps it beside the spinner (load-transition R2).
+    /// </summary>
+    public PinnedRowGate PinnedGate { get; } = new();
+
     /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
     public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
@@ -160,6 +166,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     {
         var requested = ++version;
         var (type, page) = (BandType, Pager.Page);
+        PinnedGate.Begin(type, LoadSwap.Phase);
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
         if (State is LoadState.Idle) State = LoadState.Loading;
         try
@@ -190,6 +197,7 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
                 Status.Clear();
+                PinnedGate.Commit(type);
                 Population = board.Population;
                 Pager.PageCount = pages;
                 Rows = [.. board.Entries.Select(e => new SongBandRow(e) { IsSelected = board.IsSelected(e) })];
@@ -206,11 +214,20 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
             var swapRequest = await swap;
             await LoadSwap.CommitAsync(swapRequest, () =>
             {
+                PinnedGate.Commit(type);
                 Status.Report(error);
                 Spotlight = null;
                 State = LoadState.Failed;
             }, AnimateLoadSwaps());
         }
+    }
+
+    /// <summary>A pinned row that newly appears joins <see cref="PinnedGate"/> while a reload is in flight.</summary>
+    /// <param name="oldValue">Previous pinned row.</param>
+    /// <param name="newValue">New pinned row.</param>
+    partial void OnSpotlightChanged(SongBandSpotlightRow? oldValue, SongBandSpotlightRow? newValue)
+    {
+        if (oldValue is null && newValue is not null) PinnedGate.Arrived(LoadSwap.Phase);
     }
 
     /// <summary>Footer row: loads the page containing the selected band's rank and asks the view to reveal it.</summary>
@@ -289,9 +306,20 @@ public sealed record SongBandRow
     /// Song Band Leaderboard row name in visual order (rank, each member's name, instruments and per-song score, then the
     /// team footer), so the single Narrator stop carries everything the card shows.
     /// </summary>
-    public string PageAnnouncement =>
-        (IsSelected ? "Your band, " : "") + $"Rank {Entry.Rank}. " +
-        string.Concat(Members.Select(m => $"{m.Name}, {m.InstrumentsText}" + (m.HasScore ? $", {m.ScoreText} points" : "") + ". ")) +
+    public string PageAnnouncement => (IsSelected ? "Your band, " : "") + Spoken(memberScores: true);
+
+    /// <summary>
+    /// Song Detail band preview row name in visual order (rank, each member's name and instruments, then the team footer).
+    /// The preview shows no per-member scores, so none are read (issue #264).
+    /// </summary>
+    public string PreviewAnnouncement => Spoken(memberScores: false);
+
+    /// <summary>Row name in visual order: rank, members (name, instruments, optionally their score), team footer.</summary>
+    /// <param name="memberScores">Whether each member's per-song score is read (shown on the full board only).</param>
+    /// <returns>Screen-reader text.</returns>
+    private string Spoken(bool memberScores) =>
+        $"Rank {Entry.Rank}. " +
+        string.Concat(Members.Select(m => $"{m.Name}, {m.InstrumentsText}" + (memberScores && m.HasScore ? $", {m.ScoreText} points" : "") + ". ")) +
         $"Team score {Score} points" + (IsFullCombo ? ", full combo" : "") + (HasAccuracy ? $", {Accuracy} accuracy" : "") +
         (StarRating.From(Entry.Stars) is { } stars ? $", {stars.Announcement}" : "");
 }

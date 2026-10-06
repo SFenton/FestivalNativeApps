@@ -201,7 +201,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
                     container.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
             }
             FadeIn.StaggerRealized(Rows);
-            if (ViewModel.ShowSpotlight) FadeIn.Play(SpotlightRow, PinnedRowReveal.RevealDelay);
+            if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightRow, PinnedRowReveal.RevealDelay);
         });
 }
 #endregion

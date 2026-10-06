@@ -24,9 +24,12 @@ public sealed partial class FirstRunDemo : UserControl
 {
     /// <summary>Slide ID dependency property.</summary>
     public static readonly DependencyProperty SlideIdProperty =
-        DependencyProperty.Register(nameof(SlideId), typeof(string), typeof(FirstRunDemo), new PropertyMetadata(null, (d, _) => ((FirstRunDemo)d).Build()));
+        DependencyProperty.Register(nameof(SlideId), typeof(string), typeof(FirstRunDemo), new PropertyMetadata(null, (d, _) => ((FirstRunDemo)d).Rebuild()));
 
     private static readonly string[] Letters = ["#", "A", "B", "C", "D", "E", "F"];
+
+    /// <summary>Realized demos whose Shop pulses run now (UI thread only): the <c>pulse-slides</c> census for UI tests.</summary>
+    private static readonly HashSet<FirstRunDemo> PulseDemos = [];
 
     private readonly StackPanel root = new() { Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
     private readonly List<FrameworkElement> slots = [];
@@ -42,6 +45,8 @@ public sealed partial class FirstRunDemo : UserControl
     private TimeSpan activeInterval = FirstRunDemoTiming.Interval;
     private int step;
     private bool active;
+    private int swaps;
+    private bool lastSwapFaded;
 
     /// <summary>One in-flight data swap that must complete if the slide deactivates mid-fade.</summary>
     private sealed class ActiveSwap
@@ -78,6 +83,8 @@ public sealed partial class FirstRunDemo : UserControl
             timer?.Stop();
             CompleteSwaps();
             artLoads?.Cancel();
+            // Unloaded: no longer counted as a running pulse demo.
+            PublishStatus();
         };
     }
 
@@ -243,7 +250,11 @@ public sealed partial class FirstRunDemo : UserControl
             }
         }
         Select(0);
-        advance = s => Select((s + 1) % FirstRunDemos.ExperimentalMetrics.Count);
+        advance = s =>
+        {
+            Select((s + 1) % FirstRunDemos.ExperimentalMetrics.Count);
+            CountSwap(faded: false);
+        };
     }
 
     /// <summary>Compete hub alternates leaderboard and rival summary layouts.</summary>
@@ -406,6 +417,8 @@ public sealed partial class FirstRunDemo : UserControl
     /// <summary>Builds the demo for the slide's kind.</summary>
     private void Build()
     {
+        // Finish swaps on the rows being discarded before they go.
+        CompleteSwaps();
         root.Children.Clear();
         slots.Clear();
         slotSetters.Clear();
@@ -414,16 +427,18 @@ public sealed partial class FirstRunDemo : UserControl
         advance = null;
         activeInterval = FirstRunDemoTiming.Interval;
         step = 0;
+        swaps = 0;
+        lastSwapFaded = false;
         kind = FirstRunDemos.KindFor(SlideId);
         if (kind is not { } k) return;
         songs = SongPoolFor(k);
         AutomationProperties.SetAutomationId(this, $"fst.first-run.demo.{SlideId}");
-        AutomationProperties.SetItemStatus(this, FirstRunDemos.DataStatus(songs));
         artLoads?.Cancel();
         artLoads = new CancellationTokenSource();
         if (FirstRunDemos.RotationKindFor(SlideId) is { } rotating)
         {
             BuildRotating(rotating);
+            PublishStatus();
             return;
         }
         switch (k)
@@ -466,6 +481,7 @@ public sealed partial class FirstRunDemo : UserControl
                 break;
         }
         advance = null;
+        PublishStatus();
     }
 
     /// <summary>Builds one of the twelve web-rotating demos.</summary>
@@ -1032,11 +1048,10 @@ public sealed partial class FirstRunDemo : UserControl
         return 0;
     }
 
-    /// <summary>Builds a rival row projection.</summary>
+    /// <summary>Builds a rival row projection (the real row's ahead/behind counts, no shared count; issue #267).</summary>
     /// <param name="rival">Rival.</param>
     /// <returns>Text row.</returns>
-    private static FirstRunDemoRow RivalRow(FirstRunDemoRival rival) =>
-        new(rival.DisplayName, $"{rival.SharedSongCount} shared · {rival.AheadCount}/{rival.BehindCount}", rival.AvgSignedDelta >= 0 ? $"▲ {rival.AvgSignedDelta}" : $"▼ {Math.Abs(rival.AvgSignedDelta)}");
+    private static FirstRunDemoRow RivalRow(FirstRunDemoRival rival) => rival.Row;
 
     /// <summary>Builds a titled rival group with a setter.</summary>
     /// <param name="title">Group title.</param>
@@ -1050,7 +1065,7 @@ public sealed partial class FirstRunDemo : UserControl
         {
             stack.Children.Clear();
             stack.Children.Add(Text(title, 13, true));
-            foreach (var rival in rows) stack.Children.Add(Text($"{rival.DisplayName} · {rival.SharedSongCount} songs", 12, false));
+            foreach (var rival in rows) stack.Children.Add(Text(rival.GroupLine, 12, false));
         }
         Set(initial);
         return (border, Set);
@@ -1058,7 +1073,7 @@ public sealed partial class FirstRunDemo : UserControl
     #endregion
 
     #region Motion
-    /// <summary>Re-evaluates the timer when motion settings or window visibility change.</summary>
+    /// <summary>Re-evaluates the timer when motion settings, window visibility or window activation change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
     private void OnMotionChanged(object? sender, EventArgs e) => UpdateTimer();
@@ -1069,21 +1084,62 @@ public sealed partial class FirstRunDemo : UserControl
         // Shop pulses breathe only on the visible slide (iOS #28): FlipView keeps neighbours realized off-screen.
         foreach (var ring in pulseRings) ring.Live = active;
         foreach (var fill in pulseFills) fill.Live = active;
-        var run = active && IsLoaded && advance is not null && !Motion.Paused;
+        var run = RotationState == FirstRunDemoRotationState.Running;
         if (!run)
         {
             timer?.Stop();
             CompleteSwaps();
+            PublishStatus();
             return;
         }
         if (timer is null)
         {
             timer = DispatcherQueue.CreateTimer();
             timer.Interval = FirstRunDemos.Cycle;
-            timer.Tick += (_, _) => advance?.Invoke(step++);
+            timer.Tick += (_, _) =>
+            {
+                advance?.Invoke(step++);
+                PublishStatus();
+            };
         }
         timer.Interval = activeInterval;
         if (!timer.IsRunning) timer.Start();
+        PublishStatus();
+    }
+
+    /// <summary>The rotation gate: only <see cref="FirstRunDemoRotationState.Running"/> runs the swap clock.</summary>
+    private FirstRunDemoRotationState RotationState =>
+        FirstRunDemoRotationStatus.State(advance is not null, active, IsLoaded, Motion.Paused, Motion.Foreground);
+
+    /// <summary>Publishes the data, rotation and Shop pulse state as the raw-view peer's ItemStatus for UI tests.</summary>
+    private void PublishStatus()
+    {
+        if (kind is null) return;
+        var running = CurrentPulse() == FirstRunDemoRotationStatus.PulseRunning;
+        // A changed census republishes every running demo's pulse-slides count; this one is published either way.
+        if (running ? PulseDemos.Add(this) : PulseDemos.Remove(this))
+            foreach (var demo in PulseDemos.Where(d => d != this)) demo.PublishOwnStatus();
+        PublishOwnStatus();
+    }
+
+    /// <summary>This demo's Shop pulse token (<see cref="FirstRunDemoRotationStatus.PulseState"/>).</summary>
+    /// <returns>Token, or <see langword="null"/> without pulses.</returns>
+    private string? CurrentPulse() =>
+        FirstRunDemoRotationStatus.PulseState(pulseRings.Count + pulseFills.Count > 0, active, IsLoaded, Motion.Allowed, Motion.Paused);
+
+    /// <summary>Sets this demo's ItemStatus from its current state without touching the census.</summary>
+    private void PublishOwnStatus()
+    {
+        if (kind is null) return;
+        AutomationProperties.SetItemStatus(this, FirstRunDemoRotationStatus.Format(FirstRunDemos.DataStatus(songs), RotationState, swaps, lastSwapFaded, CurrentPulse(), PulseDemos.Count));
+    }
+
+    /// <summary>Records one drawn data swap (a tick whose pool can't replace rows draws none).</summary>
+    /// <param name="faded">Whether it fades, else it is instant.</param>
+    private void CountSwap(bool faded)
+    {
+        swaps++;
+        lastSwapFaded = faded;
     }
 
     /// <summary>Fades one slot out, swaps its content at the midpoint and fades it back (web fade-out → swap → fade-in).</summary>
@@ -1115,11 +1171,13 @@ public sealed partial class FirstRunDemo : UserControl
     {
         if (!Motion.Allowed)
         {
+            CountSwap(faded: false);
             change?.Invoke();
             ResetVisual(element);
             return;
         }
         var fade = duration ?? FirstRunDemoTiming.FadeOut;
+        CountSwap(faded: true);
         var visual = ElementCompositionPreview.GetElementVisual(element);
         if (translateY != 0)
         {

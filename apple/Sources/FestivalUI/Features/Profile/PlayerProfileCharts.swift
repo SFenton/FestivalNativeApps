@@ -428,26 +428,13 @@ struct RankHistoryCharts: View {
                 }
             }
         }
-        .chartXAxis {
-            AxisMarks(values: visible.map(\.index)) { value in
-                AxisValueLabel {
-                    if let index = value.as(Int.self), data.indices.contains(index) {
-                        Text(data[index].label)
-                            .foregroundStyle(FestivalText.primary)
-                    }
-                }
-            }
-        }
+        .barChartDateAxis(values: visible.map(\.index)) { data.indices.contains($0) ? data[$0].label : nil }
         .chartPlotFrameReporter()
         .frame(height: Self.plotHeight)
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment: move(to: paging.forwardPage(from: start))
-            case .decrement: move(to: paging.backPage(from: start))
-            @unknown default: break
-            }
-        }
+        // No adjustable action on the chart: its bars inherited it and were audited as
+        // 19 pt adjustable controls on the iPhone Duo inner display in portrait (Lane
+        // A11Y3). The labelled pager buttons below page the history.
         .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
         .chartAxisElements(ChartAxisLabels(
             leading: "Total Score scale, 0 to \(RankHistoryChartFormat.compactScore(scale.valueTop))",

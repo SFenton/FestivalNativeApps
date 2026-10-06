@@ -465,7 +465,8 @@ private extension View {
 
 // MARK: - FullRankingsScreen selected-player spotlight
 
-/// The Full Rankings board shows the same spotlight footer with a jump-to-page control.
+/// Off the player's page, the Full Rankings footer pins their row and jumps to their
+/// page (leaderboard-row R7).
 @MainActor
 @Test func fullRankingsScreenShowsSpotlightFooterWithJumpControl() async throws {
     let transport = HostedRankingsTransport()
@@ -483,11 +484,39 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 57th", "Jump to your page"], timeout: .seconds(60))
+    let label = "Your rank, 57th. Jump to your position."
+    let image = try await nativeHostedSettle(host, untilText: [label], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "full-rankings-spotlight-footer.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["Your rank, 57th", "Jump to your page"])
+    assertRendersContent(host, image: image, containing: [label])
+}
+
+/// On the player's own page the footer stays pinned and opens Statistics (issue
+/// #318), as Song Leaderboard's does, while the page row stays highlighted.
+@MainActor
+@Test func fullRankingsScreenPinsTheFooterOnThePlayersOwnPage() async throws {
+    let transport = HostedRankingsTransport()
+    await transport.setSpotlightRank(instrument: "Solo_Guitar", accountId: "fixture-rank-2", rank: 2)
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-rank-2", displayName: "Fixture Rank 2"
+    )
+    let size = CGSize(width: 402, height: 900)
+    let host = nativeHostedView(
+        FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore")
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let footer = "Your rank, 2nd. Open your statistics."
+    let image = try await nativeHostedSettle(host, untilText: [footer], timeout: .seconds(60))
+    _ = try nativeHostedPNG(
+        image, filename: "full-rankings-spotlight-footer-on-page.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
+    assertRendersContent(host, image: image, containing: [footer, "Your rank, 2nd. Fixture Rank 2."])
 }
 
 // MARK: - Quick Links (control states, Leaderboards adoption)

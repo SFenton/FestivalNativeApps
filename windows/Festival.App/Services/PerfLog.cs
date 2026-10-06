@@ -17,6 +17,9 @@ internal static class PerfLog
     private static string? path;
     private static bool configured;
 
+    /// <summary>Whether a log file is set (callers skip building trace lines otherwise).</summary>
+    public static bool Enabled => Volatile.Read(ref path) is not null;
+
     /// <summary>Sets the output file and flushes buffered markers.</summary>
     /// <param name="file">Target path, or <see langword="null"/> to disable.</param>
     public static void Configure(string? file)

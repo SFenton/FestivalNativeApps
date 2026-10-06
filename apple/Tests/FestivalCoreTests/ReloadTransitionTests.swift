@@ -145,4 +145,30 @@ struct ReloadTransitionTests {
         #expect(reduced.spinnerOut == .zero)
         #expect(reduced.minimumSpinner == .milliseconds(400), "an instant spinner never blinks")
     }
+
+    @Test("a retained frame appears with the first reveal and stays through later reloads (#316)")
+    func retainedFrameStaysAfterFirstReveal() {
+        var transition = ReloadTransition(isLoading: true)
+        #expect(!transition.hasShownContent, "the first load reveals the frame with its content")
+        transition.setLoading(false)
+        transition.timerFired(.minimumSpinner)
+        #expect(!transition.hasShownContent, "still hidden while the spinner fades out")
+        transition.timerFired(.spinnerOut)
+        #expect(transition.hasShownContent)
+
+        // A page change: the result leaves, the frame (song header) stays.
+        transition.reload()
+        transition.setLoading(true)
+        #expect(!transition.showsContent)
+        #expect(transition.hasShownContent)
+        transition.setLoading(false)
+        transition.timerFired(.minimumSpinner)
+        transition.timerFired(.spinnerOut)
+        #expect(transition.showsContent && transition.hasShownContent)
+    }
+
+    @Test("a page with data ready has shown its frame from the start (#316)")
+    func retainedFrameReadyAtStart() {
+        #expect(ReloadTransition(isLoading: false).hasShownContent)
+    }
 }
