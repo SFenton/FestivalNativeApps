@@ -30,6 +30,8 @@ import XCTest
 final class IPadAccessibilityAuditTests: XCTestCase {
     /// iPhone Duo: whether this run's pose splits (read once per test).
     private var duoSplitPossible: Bool?
+    /// The app window of the last page reached (in the JSON: proves the pose or tile).
+    private var lastWindow = ""
 
     // MARK: - Modes and pages
 
@@ -443,6 +445,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             app.terminate()
             return nil
         }
+        lastWindow = NSCoder.string(for: app.windows.firstMatch.frame)
         var proof = page.ready
         if let open = page.open {
             guard let opened = open(app), Self.anyElement(app, opened).waitForExistence(timeout: 15) else {
@@ -478,10 +481,13 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let unreached: [String]
             /// Split pages left out because this window cannot split (portrait, compact).
             let skipped: [String]
+            /// The app window of the last page reached (iPhone Duo pose, ⅓ tile).
+            let window: String
             let findings: [Finding]
         }
         let summary = Summary(
-            mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped, findings: findings
+            mode: mode.rawValue, group: group, unreached: unreached, skipped: skipped,
+            window: lastWindow, findings: findings
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -543,6 +549,7 @@ final class IPadAccessibilityAuditTests: XCTestCase {
             let known = frame.width > frame.height && frame.width >= 800
             duoSplitPossible = known
             IPadAuditRenderedContrast.interfaceIsLandscape = frame.width > frame.height
+            IPadAuditRenderedContrast.windowSize = frame.size
             return known
         default: return false
         }
@@ -555,6 +562,14 @@ final class IPadAccessibilityAuditTests: XCTestCase {
     static func openSong(_ app: XCUIApplication, _ songId: String) -> Bool {
         let row = app.buttons["fst.songs.row.\(songId)"]
         guard row.waitForExistence(timeout: 15) else { return false }
+        // At AX5 the row can sit below the fold: bring it on screen with slow drags.
+        let window = app.windows.firstMatch.frame
+        for _ in 0..<8 where !(row.isHittable && window.insetBy(dx: 0, dy: 60).contains(
+            CGPoint(x: row.frame.midX, y: row.frame.midY))) {
+            // The middle: Songs' trailing edge holds the section index scrubber.
+            slowDrag(app, x: window.midX, fromY: window.minY + window.height * 0.75,
+                     toY: window.minY + window.height * 0.35)
+        }
         row.tap()
         return anyElement(app, "fst.song-detail.intensity").waitForExistence(timeout: 20)
     }

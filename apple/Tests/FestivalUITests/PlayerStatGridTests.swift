@@ -23,14 +23,20 @@ import FestivalDesign
     #expect(layout.metrics(for: nil).columns == 2)
 }
 
-/// Accessibility sizes drop to fewer, wider columns where three or four would fit; two
-/// columns stay the floor.
+/// Accessibility sizes drop to fewer, wider columns where three or four would fit, down
+/// to one column where two tiles would be narrower than the accessibility minimum (a
+/// 375 pt window, iPad ⅓ or iPhone); standard sizes keep two columns as the floor.
 @Test func statTileGridUsesWiderTilesAtAccessibilitySizes() {
     let regular = StatTileGridLayout()
-    let large = StatTileGridLayout(minimumTileWidth: StatGridColumns.accessibilityMinimumTileWidth)
+    let large = StatTileGridLayout(
+        minimumTileWidth: StatGridColumns.accessibilityMinimumTileWidth,
+        minimumColumns: StatGridColumns.accessibilityMinimumColumns
+    )
     #expect(regular.metrics(for: 480).columns == 3)
+    #expect(regular.metrics(for: 200).columns == 2)
     #expect(large.metrics(for: 480).columns == 2)
-    #expect(large.metrics(for: 343).columns == 2)
+    #expect(large.metrics(for: 343).columns == 1)
+    #expect(large.metrics(for: 343).tileWidth == 343)
     #expect(large.metrics(for: 720).columns == 3)
 }
 

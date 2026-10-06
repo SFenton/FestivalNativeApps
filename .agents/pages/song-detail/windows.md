@@ -35,6 +35,23 @@ Checked 2026-10 with the winui-design and winui-code-review skills, `a11y_matrix
 | Display 100% / 150% | Correct. |
 | Narrator / UIA | Buttons named with state ("Open in Item Shop, Leaving Tomorrow"; band rows "Rank 1, …"; bars "date, score, accuracy"), headings and the chart summary name; reading order follows the Tab order. |
 
+## Validation (issue #263: top-10 rows open the player)
+
+Rechecked #63 on the live public service ("Through the Fire and Flames", anonymous and SFentonX selected), with the winui-design skill and `a11y_matrix.py --live --scan`. No app change was needed; Axe.Windows found 0 errors in every row. Each run checks the following: rank 1 and rank 2 Lead rows are UIA `Button` with Invoke and focusable; Down moves focus between rows; Enter opens the player and Alt+Left returns; Space on a Drums row opens the player and the title-bar Back returns.
+
+| Configuration | Finding |
+|---|---|
+| Compact, medium, wide, maximized, snap-left | Passes. The focus ring is visible on the row, and each card is one Tab stop. |
+| High Contrast (Night sky) | Passes; rows and the focus ring use system colours. |
+| Light / dark system theme | Passes; the app stays dark (deliberate deviation, see above). |
+| Text 200% | Passes; the score and badge wrap under the name, and the row stays one button. |
+| Display 100% / 150% | Passes. One compact 100% run reported 2 `BoundingRectangleSizeReasonable` findings on a row clipped to zero height at the viewport bottom: the known WinUI edge-clip artifact ([windows-accessibility](../../testing/windows-accessibility.md) item 3). The rerun scanned 0. |
+| Row without an account (fixture only; live boards have none) | UIA `Text`, no Invoke, not focusable, no chevron; arrow keys skip it and Tab leaves the card. |
+
+Automated coverage (UIA): `journeys/boards-ui.json` → `song-detail-preview-row-roles` and `song-detail-preview-row-anonymous` (`rivals_fixture.py --song-leaderboard anonymous`), and `journeys/a11y-keyboard.json` → `kb-detail-row-opens-profile` and `kb-detail-anonymous-row` (with Axe scans).
+
+Observed, not changed: Song Detail isn't a cached page, so Back rebuilds it at the top with focus on the title-bar Back button rather than on the row that was opened. #63 only requires returning to the Song page. Restoring scroll and focus on pushed pages is a navigation-wide behaviour (`CachedPageScroll` covers section roots only) and needs its own decision.
+
 ## Validation (issue #264)
 
 Band previews only (issue #64), checked 2026-10 with the winui-design and winui-code-review skills, `a11y_matrix.py` on `song_band_preview_fixture.py` (journey `a11y-song-band-preview.json`) and the live public service (SFentonX and anonymous on "Where My Wookiees At?": Duos, Trios and Quads with SFentonX's bands appended after the ten). Axe.Windows 0 errors in every row.
