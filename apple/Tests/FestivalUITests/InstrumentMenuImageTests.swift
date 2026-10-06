@@ -44,34 +44,46 @@ struct InstrumentMenuImageTests {
     }
 
     /// Quick Links instrument icons (issue #313) are sized for visual weight, not equal
-    /// geometry: 24 pt on iOS/iPadOS (the Song Paths menu size) and 19 pt on macOS, far
-    /// below the 144 pt artwork that overflowed the rows (#303).
+    /// geometry: 24 pt in the iOS accessory-sheet list (the Song Paths menu size), 17 pt
+    /// in iOS menus and 16 pt in macOS menus, far below the 144 pt artwork that
+    /// overflowed the rows (#303).
     @MainActor @Test func quickLinkInstrumentIconBaseSide() {
         #if os(macOS)
-        #expect(QuickLinkLabel.instrumentIconBaseSide == 19)
+        #expect(QuickLinkLabel.instrumentIconBaseSide(.list) == 16)
+        #expect(QuickLinkLabel.instrumentIconBaseSide(.menu) == 16)
         #else
-        #expect(QuickLinkLabel.instrumentIconBaseSide == InstrumentIcon.menuIconSide)
+        #expect(QuickLinkLabel.instrumentIconBaseSide(.list) == InstrumentIcon.menuIconSide)
+        #expect(QuickLinkLabel.instrumentIconBaseSide(.menu) == 17)
         #endif
     }
 
     /// Only the white disc inside each artwork's black ring reads on the dark sheet and
     /// menus. At the Quick Links base side it must look as large as the adjacent SF
-    /// Symbols (within 95–110 %), not smaller as with #303's 20 pt frame.
+    /// Symbols (within 95–110 %), not smaller as with #303's 20 pt list frame.
     @MainActor @Test(arguments: Instrument.allCases, [false, true])
     func quickLinkInstrumentDiscMatchesSymbolSize(_ instrument: Instrument, keyboard: Bool) throws {
         let fraction = try #require(Self.visibleDiscFraction(instrument, keyboard: keyboard))
-        let visible = QuickLinkLabel.instrumentIconBaseSide * fraction
-        let symbol = QuickLinkLabel.adjacentSymbolSide
-        #expect(visible >= symbol * 0.95, "\(instrument) disc \(visible) pt vs \(symbol) pt symbols")
-        #expect(visible <= symbol * 1.1, "\(instrument) disc \(visible) pt vs \(symbol) pt symbols")
+        let presentations: [QuickLinkLabel.Presentation]
+        #if os(macOS)
+        presentations = [.menu]
+        #else
+        presentations = [.list, .menu]
+        #endif
+        for presentation in presentations {
+            let visible = QuickLinkLabel.instrumentIconBaseSide(presentation) * fraction
+            let symbol = QuickLinkLabel.adjacentSymbolSide(presentation)
+            #expect(visible >= symbol * 0.95, "\(instrument) \(presentation) disc \(visible) pt vs \(symbol) pt")
+            #expect(visible <= symbol * 1.1, "\(instrument) \(presentation) disc \(visible) pt vs \(symbol) pt")
+        }
     }
 
     /// The icon follows the list-row symbols' Dynamic Type curve: it grows with body text
     /// to xxxLarge, holds through Accessibility 3 (where body text alone would make it
     /// 1.6× the symbols), then grows with body text again. macOS menus keep one size.
-    @MainActor @Test func quickLinkInstrumentIconScalesLikeRowSymbols() {
-        let base = QuickLinkLabel.instrumentIconBaseSide
-        let side = QuickLinkLabel.instrumentIconSide(for:)
+    @MainActor @Test(arguments: [QuickLinkLabel.Presentation.list, .menu])
+    func quickLinkInstrumentIconScalesLikeRowSymbols(_ presentation: QuickLinkLabel.Presentation) {
+        let base = QuickLinkLabel.instrumentIconBaseSide(presentation)
+        let side = { QuickLinkLabel.instrumentIconSide(for: $0, in: presentation) }
         #expect(side(.large) == base)
         #if os(macOS)
         for size in DynamicTypeSize.allCases { #expect(side(size) == base) }
