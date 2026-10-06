@@ -17,12 +17,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
+import com.festivalscoretracker.android.core.bands.BandType
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.text.rememberTextMeasurer
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
 import com.festivalscoretracker.android.core.rankings.BandRankingEntry
@@ -162,6 +167,78 @@ class LeaderboardRowHeightUiTest {
         }
         assertEquals(height("total").value, height("adjusted").value, 0.1f)
         assertEquals(LEADERBOARD_ROW_MIN_HEIGHT.value, height("adjusted").value, 0.2f)
+    }
+
+    /**
+     * Issue #188 (review): at font scale 2.0 a name too long for one line wraps, and its row
+     * keeps the height of one-line rows and of the skeleton, because both reserve
+     * [STACKED_RANKING_NAME_LINES] name lines; band rows reserve one line per member.
+     */
+    @Test
+    fun largeTextWrappedNamesKeepTheSkeletonHeight() {
+        val rows = 5
+        // 16 characters, Epic's display-name limit, in wide capitals.
+        val long = ranking.copy(displayName = "MEGAWOMBAT GAMER")
+        val short = ranking.copy(displayName = "Player")
+        val names = listOf(long, short, long, short, short)
+        val members = { count: Int -> List(count) { BandMember(accountId = "m$it".repeat(8), displayName = "Member ${it + 1}") } }
+        val duo = band.copy(teamMembers = members(2))
+        val quad = band.copy(teamMembers = members(4))
+        var oneLineWidth = 0f
+        show(fontScale = 2f) {
+            val measurer = rememberTextMeasurer()
+            val style = MaterialTheme.typography.bodyLarge
+            val density = LocalDensity.current
+            oneLineWidth = with(density) { measurer.measure(long.name, style, maxLines = 1).size.width.toDp().value }
+            Tagged("skeleton") { RankingsSkeletonRows(rows) }
+            Tagged("loaded") {
+                Column(verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
+                    names.forEachIndexed { i, entry -> AccountRankingRow(entry, RankingMetric.TotalScore, isSelected = i == 0, route = null, onOpen = {}, tag = "row$i") }
+                }
+            }
+            Tagged("duo-skeleton") { RankingsSkeletonRows(1, nameLines = stackedBandNameLines(BandType.Duets.memberCount)) }
+            Tagged("duo") { BandRankingRow(duo, BandRankingMetric.TotalScore, isSelected = false, route = null, onOpen = {}) }
+            Tagged("quad-skeleton") { RankingsSkeletonRows(1, nameLines = stackedBandNameLines(BandType.Quad.memberCount)) }
+            Tagged("quad") { BandRankingRow(quad, BandRankingMetric.TotalScore, isSelected = false, route = null, onOpen = {}) }
+        }
+        // Wider than the whole 360 dp row less its insets, gaps and chevron, so the name must wrap.
+        assertTrue("name fits one line ($oneLineWidth dp)", oneLineWidth > 360f - 16f - 24f - 20f)
+        assertEquals(height("row1").value, height("row0").value, 0.5f)
+        assertEquals(height("loaded").value, height("skeleton").value, 0.5f)
+        assertEquals(height("duo-skeleton").value, height("duo").value, 0.5f)
+        assertEquals(height("quad-skeleton").value, height("quad").value, 0.5f)
+        assertTrue(height("quad") > height("duo"))
+    }
+
+    /**
+     * Issue #188 (review): at font scale 2.0 a trio whose roster wraps across its three
+     * reserved lines keeps the height of a one-line roster and of its skeleton.
+     */
+    @Test
+    fun largeTextTrioRostersKeepTheSkeletonHeight() {
+        val names = listOf("wombatkid", "crash Rocket", "HandyLuke ZX")
+        val trio = band.copy(teamMembers = names.mapIndexed { i, n -> BandMember(accountId = "t$i".repeat(8), displayName = n) })
+        val short = band.copy(teamMembers = List(3) { BandMember(accountId = "s$it".repeat(8), displayName = "M$it") })
+        var joinedLines = 0
+        show(fontScale = 2f) {
+            val measurer = rememberTextMeasurer()
+            // At most the stacked name column: the 360 dp row less its insets, gaps and chevron.
+            val column = with(LocalDensity.current) { (360.dp - 16.dp - 24.dp - 20.dp).roundToPx() }
+            joinedLines = measurer.measure(trio.membersLabel, MaterialTheme.typography.bodyLarge, constraints = Constraints(maxWidth = column)).lineCount
+            Tagged("skeleton") { RankingsSkeletonRows(1, nameLines = stackedBandNameLines(BandType.Trios.memberCount)) }
+            Tagged("trio") { BandRankingRow(trio, BandRankingMetric.TotalScore, isSelected = false, route = null, onOpen = {}) }
+            Tagged("short") { BandRankingRow(short, BandRankingMetric.TotalScore, isSelected = true, route = null, onOpen = {}) }
+        }
+        assertTrue("roster fits one line", joinedLines > 1)
+        assertEquals(height("skeleton").value, height("trio").value, 0.5f)
+        assertEquals(height("skeleton").value, height("short").value, 0.5f)
+    }
+
+    @Test
+    fun bandRowsReserveAtLeastAPlayerRowsNameLines() {
+        assertEquals(STACKED_RANKING_NAME_LINES, stackedBandNameLines(0))
+        assertEquals(STACKED_RANKING_NAME_LINES, stackedBandNameLines(BandType.Duets.memberCount))
+        assertEquals(4, stackedBandNameLines(BandType.Quad.memberCount))
     }
 
     @Test

@@ -925,6 +925,10 @@
             "symbol": "RankingsSkeletonRows"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsComponents.kt",
+            "symbol": "STACKED_RANKING_NAME_LINES"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songdetail/SongDetailScreen.kt",
             "symbol": "ScoreRow"
           },

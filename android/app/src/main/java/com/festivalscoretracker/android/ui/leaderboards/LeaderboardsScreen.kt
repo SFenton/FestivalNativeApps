@@ -486,7 +486,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
         val density = LocalDensity.current
         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }, verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
             when (val current = state) {
-                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = bandMetric.asRankingMetric.isPercentile)
+                LoadState.Loading -> RankingsSkeletonRows(5, bayesian = bandMetric.asRankingMetric.isPercentile, nameLines = stackedBandNameLines(bandType.memberCount))
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
