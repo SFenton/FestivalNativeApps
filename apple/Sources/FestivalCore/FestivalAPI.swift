@@ -258,9 +258,8 @@ public enum PublicEndpoint: Sendable {
         case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,
              .playerInstrumentRanking, .playerRankHistory:
             false
-        case let .songBandLeaderboards(_, _, accountId):
-            accountId == nil
-        case let .songBandLeaderboard(_, _, _, _, _, accountId):
+        case let .songBandLeaderboards(_, _, accountId),
+             let .songBandLeaderboard(_, _, _, _, _, accountId):
             accountId == nil
         default: true
         }

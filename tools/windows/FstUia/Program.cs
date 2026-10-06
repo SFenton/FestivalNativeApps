@@ -755,6 +755,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertspan":
                 Span(window, step, verb == "assertspan");
                 break;
+            case "scrollinset":
+                ScrollInset(window, step);
+                break;
             case "assertstatus":
                 AssertStatus(window, step);
                 break;
@@ -1284,6 +1287,51 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"assertspan {name}: no markspan recorded it");
         if (Math.Abs(span - marked) > 1)
             throw new InvalidOperationException($"span {name} is {span:0.#} epx, not the marked {marked:0.#} epx ({(string)step["arg"]!})");
+    }
+
+    /// <summary>
+    /// Scrolls a scroller (UIA Scroll pattern, no input) until the target's top edge is <c>epx</c> effective pixels below
+    /// the scroller's top edge, within 1 epx: a fixed list position for scans, whatever the window size or scale. UIA
+    /// clips a partly scrolled-out element's rectangle to the viewport, so a target whose top reads as the viewport's top
+    /// is first scrolled half a viewport back; the remaining offset is then converted to a scroll percent from the
+    /// pattern's view size (re-measured each pass, as a virtualized list's extent estimate changes).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (the target), <c>other</c> (its vertical scroller) and <c>epx</c> (&gt; 0).</param>
+    /// <exception cref="InvalidOperationException">No Scroll pattern, or the inset is out of the scroller's range.</exception>
+    private void ScrollInset(Window window, JsonObject step)
+    {
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var expected = (double)step["epx"]!;
+        var scroller = Find(window, step, "other");
+        if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollinset scroller has no Scroll pattern");
+        var scroll = scroller.Patterns.Scroll.Pattern;
+        Find(window, step); // the target must start on screen (e.g. after scrollinto), so an empty rectangle means "above"
+        var inset = double.NaN;
+        for (var pass = 0; pass < 12; pass++)
+        {
+            var viewport = scroller.BoundingRectangle;
+            var target = Find(window, step, onScreen: false).BoundingRectangle;
+            var percent = scroll.VerticalScrollPercent.ValueOrDefault;
+            var viewSize = scroll.VerticalViewSize.ValueOrDefault;
+            var scrollable = viewSize is > 0 and < 100 ? viewport.Height * 100 / viewSize - viewport.Height : 0;
+            if (scrollable <= 0) throw new InvalidOperationException($"scrollinset scroller cannot scroll ({(string)step["arg"]!})");
+            inset = (target.Top - viewport.Top) / scale;
+            if (!target.IsEmpty && target.Top > viewport.Top && Math.Abs(inset - expected) <= 1)
+            {
+                response["insets"] ??= new JsonArray();
+                response["insets"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(inset, 1) });
+                return;
+            }
+            // A clipped (or unlaid) top gives no real offset: step back half a viewport so the top comes into view.
+            var deltaPx = target.IsEmpty || target.Top <= viewport.Top ? -viewport.Height / 2 : target.Top - viewport.Top - expected * scale;
+            var next = Math.Clamp(percent + deltaPx / scrollable * 100, 0, 100);
+            if (Math.Abs(next - percent) < 1e-6)
+                throw new InvalidOperationException($"scrollinset cannot reach a {expected:0.#} epx inset (now {inset:0.#} epx, scroll {percent:0.##}%) ({(string)step["arg"]!})");
+            scroll.SetScrollPercent(-1, next);
+            Thread.Sleep(300);
+        }
+        throw new InvalidOperationException($"scrollinset did not settle: inset {inset:0.#} epx, expected {expected:0.#} epx ({(string)step["arg"]!})");
     }
 
     #endregion

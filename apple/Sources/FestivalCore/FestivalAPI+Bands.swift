@@ -130,8 +130,9 @@ extension FestivalAPI {
 
     /// Request one page of a song's band leaderboard for one band size.
     ///
-    /// `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=` is a pure read
-    /// (`MetaDatabase.GetSongBandLeaderboard`, only `SELECT`s).
+    /// `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=[&accountId=]` is a
+    /// pure read (`MetaDatabase.GetSongBandLeaderboard` and
+    /// `GetSongBandLeaderboardEntryForAccount`, only `SELECT`s).
     ///
     /// - Parameters:
     ///   - songId: Catalog identifier for the requested song.
