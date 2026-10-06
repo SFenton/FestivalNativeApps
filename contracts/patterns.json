@@ -1689,7 +1689,8 @@
         "pinned title",
         "album art background",
         "song backdrop",
-        "carousel"
+        "carousel",
+        "entry totals"
       ],
       "issues": [
         93,
@@ -1706,6 +1707,10 @@
         {
           "path": "pages/leaderboard/band/SongBandLeaderboardPage.tsx",
           "symbol": "PageBackground"
+        },
+        {
+          "path": "pages/leaderboard/global/LeaderboardPage.tsx",
+          "symbol": "showLeaderboardEntryTotals"
         }
       ],
       "canonical": {
@@ -1731,8 +1736,12 @@
         ],
         "windows": [
           {
-            "path": "windows/Festival.App/Pages/LeaderboardsSongPage.xaml.cs",
-            "symbol": "LeaderboardsSongPage"
+            "path": "windows/Festival.App/Controls/SongLeaderboardHeader.xaml.cs",
+            "symbol": "SongLeaderboardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml.cs",
+            "symbol": "IBackdropPage"
           }
         ]
       },
@@ -1752,6 +1761,25 @@
           "allow": [],
           "debt": [],
           "message": "Song leaderboard bar titles come from the shared SongBarTitleToolbarItem (song-leaderboard-header R3, R5; song-header R4)."
+        },
+        {
+          "id": "windows-board-title",
+          "glob": "windows/Festival.Core/ViewModels/*Song*Leaderboard*ViewModel.cs",
+          "regex": "\\} (Leaderboard|Scores)\"",
+          "allow": [],
+          "debt": [],
+          "message": "Song leaderboards name the song first; the board is the header's board line, never a '{Board} Leaderboard' title (song-leaderboard-header R1)."
+        },
+        {
+          "id": "windows-page-title",
+          "glob": "windows/Festival.App/Pages/*Song*Page.xaml",
+          "regex": "FSTPageTitleStyle",
+          "allow": [
+            "windows/Festival.App/Pages/SongsPage.xaml",
+            "windows/Festival.App/Pages/SongDetailPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows song leaderboards take their title from Controls/SongLeaderboardHeader (song-leaderboard-header R5)."
         }
       ],
       "related": {
