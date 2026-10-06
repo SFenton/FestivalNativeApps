@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Festival.App.Pages;
@@ -195,13 +196,58 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
             if (pendingReveal is { } reveal)
             {
                 pendingReveal = null;
-                Rows.ScrollIntoView(reveal);
-                Rows.UpdateLayout();
-                if (Rows.ContainerFromItem(reveal) is UIElement container)
-                    container.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+                RevealRow(reveal);
             }
             FadeIn.StaggerRealized(Rows);
             if (ViewModel.ShowSpotlight && ViewModel.PinnedGate.IsGated) FadeIn.Play(SpotlightRow, PinnedRowReveal.RevealDelay);
         });
+
+    /// <summary>Frames <see cref="RevealRow"/> spends bringing the selected row into view before giving up (about a second).</summary>
+    private const int RevealFrames = 60;
+
+    /// <summary>
+    /// Scrolls the selected band's row into view and centres it (without animation). A freshly swapped ListView defers
+    /// <c>ScrollIntoView</c>, and scroll requests made in the same tick or inside <c>LayoutUpdated</c> do not commit (the
+    /// list stays at the top), so this works once per rendered frame, outside layout: it asks the list to realize the row,
+    /// then brings its container into view, and stops once the row lies inside the list's viewport, a newer page replaces
+    /// the rows, the page unloads or the frames run out.
+    /// </summary>
+    /// <param name="row">Selected row.</param>
+    private void RevealRow(SongBandRow row)
+    {
+        var items = ViewModel.Rows;
+        var frames = 0;
+        var asked = false;
+        void OnFrame(object? sender, object e)
+        {
+            if (++frames > RevealFrames || !IsLoaded || !ReferenceEquals(ViewModel.Rows, items))
+            {
+                CompositionTarget.Rendering -= OnFrame;
+                return;
+            }
+            if (Rows.ContainerFromItem(row) is not FrameworkElement container)
+            {
+                Rows.ScrollIntoView(row);
+                return;
+            }
+            if (asked && IsInViewport(container))
+            {
+                CompositionTarget.Rendering -= OnFrame;
+                return;
+            }
+            asked = true;
+            container.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+        }
+        CompositionTarget.Rendering += OnFrame;
+    }
+
+    /// <summary>Whether a row container lies wholly inside the list's visible bounds.</summary>
+    /// <param name="container">Row container.</param>
+    /// <returns><see langword="true"/> when the row is fully visible.</returns>
+    private bool IsInViewport(FrameworkElement container)
+    {
+        var top = container.TransformToVisual(Rows).TransformPoint(default).Y;
+        return top >= 0 && top + container.ActualHeight <= Rows.ActualHeight;
+    }
 }
 #endregion
